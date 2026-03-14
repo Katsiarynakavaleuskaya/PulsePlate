@@ -100,16 +100,95 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Target PR: PR-TBD-BILLING-ENTITLEMENT-ROUTING
   - Area: backend / authz / routing
   - Finding Type: access-control gap
-  - Reason: The release spine still needs entitlement truth and protected routing after activation so paid users reach the correct guarded surfaces without client-side unlock shortcuts.
+  - Reason: The release spine still needs entitlement truth and protected routing after activation so paid users reach the correct guarded surfaces without client-side unlock shortcuts. Deploy/readiness audit also shows that production entitlement mode still needs a fail-closed contract for `SUBSCRIPTION_DB_ENABLED`, and RU/BY manual billing needs an explicit pre-entitlement/user-facing routing decision instead of relying on ambiguous PRO-only entrypoints.
   - Links:
     - `docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md`
     - `app/routers/billing.py`
     - `app/middleware/api_tiers.py`
+    - `app/bootstrap/startup_guards.py`
     - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p0-billing-apple-verify`
   - DoD:
     - Entitlement truth is derived from backend activation/subscription state
     - Route guards consume entitlement state instead of client-declared tier
+    - Production/staging fail closed when DB-backed entitlement mode is required but disabled/misconfigured
+    - Manual RU/BY rails have an explicit pre-entitlement contract (transport-auth carveout or documented back-office-only posture)
     - Regression tests cover paid, expired, and missing-entitlement paths
+
+<a id="ledger-p0-requested-agent-bootstrap"></a>
+- [ ] P0: Requested-agent bootstrap override and advisory specialist contract
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P0
+  - Target PR: PR-TBD-ORCHESTRATION-REQUESTED-AGENTS
+  - Area: orchestration / task bootstrap / routing
+  - Finding Type: coordinator bootstrap gap
+  - Reason: The canonical coordinator workflow must preserve explicit user-requested agent slugs instead of dropping them during bootstrap. This is especially critical for `agent-coordinator`, `backend-engineer`, `bug-hunter`, `ml-engineer-agent`, and `data-scientist-agent`, where current routing semantics otherwise under-express user intent or hide non-routable specialists.
+  - Links:
+    - `scripts/orchestration/task_bootstrap.py`
+    - `docs/orchestration/AGENT_ROUTING_GRAPH.md`
+    - `docs/orchestration/AGENT_NON_ROUTABLE_SPECIALISTS.md`
+    - `docs/orchestration/workflow.md`
+  - DoD:
+    - Task packet schema records `requested_agents`
+    - Bootstrap either honors, preserves as advisory, or rejects each requested slug with explicit rationale
+    - Non-routable specialists are documented as user-requestable/advisory rather than silently unreachable
+    - Deterministic tests cover routable promotion and non-routable advisory behavior
+
+<a id="ledger-p0-verify-env-wrapper-parity"></a>
+- [ ] P0: Verify-env executable wrapper parity for local merge gate
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P0
+  - Target PR: PR-TBD-VERIFY-ENV-WRAPPER-PARITY
+  - Area: tooling / local verify / developer workflow
+  - Finding Type: false-green preflight gap
+  - Reason: Local `make verify` can fail after `verify-env` already passed when stale `.venv` console entrypoints still point to deleted interpreters/worktrees. The preflight must detect broken wrappers or switch the gate to interpreter-module mode so local merge evidence is trustworthy.
+  - Links:
+    - `Makefile`
+    - `scripts/ci/check_local_verify_environment.py`
+    - `tests/test_check_local_verify_environment.py`
+  - DoD:
+    - `verify-env` detects stale or non-executable repo tool wrappers before `lint`
+    - Local verify path fails with explicit remediation instead of bad-interpreter shell errors
+    - Deterministic tests cover stale shebang or broken-wrapper detection
+    - Local merge-gate docs reference the stronger parity check
+
+<a id="ledger-p0-web-entitlement-truth"></a>
+- [ ] P0: Web entitlement truth must come from canonical backend/store state
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P0
+  - Target PR: PR-TBD-WEB-ENTITLEMENT-TRUTH
+  - Area: frontend / monetization / thin-client
+  - Finding Type: thin-client and release-trust gap
+  - Reason: The live web surface still uses local premium state and mock-only purchase/restore flows, which breaks thin-client policy and can misstate monetization truth during release/readiness work.
+  - Links:
+    - `frontend/src/lib/usePremium.ts`
+    - `frontend/src/lib/paywallPurchase.ts`
+    - `frontend/src/mocks/handlers.ts`
+    - `frontend/src/api/openapi.json`
+    - `frontend/AGENTS.md`
+  - DoD:
+    - Web premium/paywall state derives from canonical backend or StoreKit-backed truth, not `localStorage`
+    - Mock-only `/api/purchase` / `/api/restore` flows are removed from release path or explicitly gated to dev-only
+    - Thin-client guards and targeted frontend tests cover the new source-of-truth path
+    - Funnel/recovery UX stays additive and contract-safe
+
+<a id="ledger-p0-web-progress-contract"></a>
+- [ ] P0: Web progress route must not ship demo-grade health data
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P0
+  - Target PR: PR-TBD-WEB-PROGRESS-CONTRACT
+  - Area: frontend / progress UX / trust
+  - Finding Type: user-facing data integrity gap
+  - Reason: The live progress route still renders hard-coded mock chart data, which makes the product feel demo-only and creates a direct trust/conversion risk on a health-facing surface.
+  - Links:
+    - `frontend/src/features/progress/ProgressCharts.tsx`
+    - `frontend/src/pages/Progress.tsx`
+    - `frontend/src/features/progress/__tests__/ProgressCharts.test.tsx`
+    - `docs/analysis/FRONTEND_IOS_VISUAL_ANALYSIS.md`
+  - DoD:
+    - Progress route renders backend-fed data or explicit empty/loading states instead of fabricated chart fixtures
+    - Tests no longer lock demo-only values as release behavior
+    - UX remains clear when historical data is absent
+    - Release screenshots/copy cannot imply fabricated trend data
 
 <a id="ledger-p0-eu-compliance-control-plane-follow-through"></a>
 - [ ] P0: EU-first compliance control plane follow-through
@@ -630,7 +709,26 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Protected GitHub environments contain the required ASC API key, bundle identifier, and Apple session secrets
     - `workflow_dispatch` upload of localized metadata and screenshots completes against App Store Connect draft state
     - App Privacy upload succeeds through the protected Apple session lane
+    - Privileged upload jobs are constrained to the intended default/release ref and have explicit concurrency/provenance protection
     - First release-ops runbook captures the reviewer-notes and rollback procedure for future asset refreshes
+
+- [ ] P1: Semantic App Store metadata and privacy validator expansion
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-IOS-APPSTORE-SEMANTIC-VALIDATORS
+  - Area: iOS / release-ops / compliance
+  - Finding Type: semantic compliance coverage gap
+  - Reason: Current App Store validators are strong on file presence, dimensions, and basic wording rules, but they do not yet scan metadata/promotional copy for wellness-safe semantic drift or future privacy-package mismatches.
+  - Links:
+    - `ios/fastlane/verify/validate_metadata.rb`
+    - `ios/fastlane/verify/validate_healthkit_copy.rb`
+    - `ios/fastlane/app_privacy_details.json`
+    - `.github/workflows/ios-appstore-assets.yml`
+  - DoD:
+    - Metadata validators detect blocked medical/promissory claims on App Store-facing copy
+    - Privacy validator has a documented drift check against declared app capabilities and release package inputs
+    - New checks stay deterministic and repo-local
+    - Release-ops docs explain when semantic validator failures are blockers vs advisory cleanup
 
 <a id="ledger-p1-release-env-security-contract"></a>
 - [ ] P1: Release environment security contract for `API_KEY_REQUIRED` and tier-gating env truth
@@ -945,6 +1043,10 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - docs/analysis/LLM_RAG_AI_ASSISTANT_ANALYSIS.md (current LLM/RAG implementation)
     - core/insight/creative_scientific_innovations.md (AI assistant design)
     - `docs/review/PR_1024_FIXED_MAPPING.md`
+    - `docs/orchestration/contracts/LOGIC_PHILOSOPHY_REPLAY_EVAL_CONTRACT.md`
+    - `scripts/orchestration/logic_philosophy_replay_contract.py`
+    - `scripts/orchestration/logic_philosophy_replay_eval.py`
+    - `tests/test_logic_philosophy_replay_eval.py`
   - Prerequisites:
     - ✅ Current LLM/RAG infrastructure stable (`llm.py`, `core/rag/simple_rag.py`)
     - ✅ Insight endpoints stable (`legacy_app.py`, `app/routers/vip.py`)
@@ -976,6 +1078,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - DoD:
     - Extend llm_monthly_quota.py to support PRO tier (separate table or unified with tier column)
     - CBT insight endpoint calls quota check before provider.generate()
+    - Startup guards validate required PRO quota env before release/runtime boot
     - Deterministic tests for PRO quota enforcement
 
 
@@ -1141,11 +1244,11 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Runbook evidence updated with direct `file:line` anchors for non-fallback flow
 
 <a id="ledger-p1-domain-ownership-canonicalization"></a>
-- [ ] P1: Canonicalize `pulseplate.app` root-domain ownership before Figma web sync PR
+- [x] P1: Canonicalize `pulseplate.app` root-domain ownership before Figma web sync PR
   - Owner: @katsiaryna_kavaleuskaya
   - Target PR: PR `#1141` (`fix(deploy): add www TLS remediation diagnostics`)
   - Priority: P1
-  - Status: In progress on March 12, 2026; live remediation is complete, and the item stays open until PR `#1141` clears merge governance and lands on `main`
+  - Status: ✅ Completed on March 14, 2026 after PR `#1141` merged to `main`; any future Figma/web-hosting work now inherits the canonicalized apex ownership baseline instead of tracking this as an open blocker
   - Area: deploy / figma / frontend
   - Finding Type: production ownership drift
   - Reason: On March 12, 2026 the repo-backed runtime still answered on
@@ -1443,6 +1546,22 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - PlateViewTests included in CI signal (job or explicit `-only-testing` list)
     - CI green with PlateViewTests included
 
+- [ ] P1: Locale-safe Nutrition Setup numeric parsing on web
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-WEB-NUTRITION-SETUP-LOCALE
+  - Area: frontend / nutrition setup / i18n
+  - Finding Type: locale parsing regression risk
+  - Reason: Nutrition Setup still relies on raw `valueAsNumber` parsing for user-entered numeric fields, which is fragile for RU comma-decimal inputs and violates the existing thin-input guidance already available in the codebase.
+  - Links:
+    - `frontend/src/pages/NutritionSetup/SetupForm.tsx`
+    - `frontend/src/components/ui/NumberInput.tsx`
+    - `frontend/AGENTS.md`
+  - DoD:
+    - Setup inputs accept RU comma and EN dot decimal formats where appropriate
+    - Parsing contract is implemented once (native normalization or `NumberInput`), not duplicated
+    - Focused tests cover valid RU/EN input, invalid values, and backend payload shape
+
 
 - [ ] Conversion Safety: paywall/onboarding/result-screen checklists + minimal analytics event taxonomy
   - Owner: @katsiaryna_kavaleuskaya
@@ -1592,6 +1711,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - docs/analysis/SCIENTIFIC_INNOVATION_ANALYSIS.md
     - docs/insights/COMPREHENSIVE_PHILOSOPHY_LOGIC_MATH_CBT_ANALYSIS.md
     - docs/insights/RECURSIVE_METHODS_LLM_RAG.md
+    - `docs/orchestration/contracts/LOGIC_PHILOSOPHY_REPLAY_EVAL_CONTRACT.md`
+    - `tests/test_logic_philosophy_replay_eval.py`
   - DoD:
     - Editorial plan and evidence format are documented (metrics, caveats, claim boundaries)
     - At least one canonical article draft is mapped to verifiable repo artifacts
@@ -1621,19 +1742,55 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `ReadLints` clean for all new docs
 
 
+- [ ] P1: Skill-router parity with policy docs and requested-agent bundles
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-SKILL-ROUTER-PARITY
+  - Area: orchestration / skills / bootstrap
+  - Finding Type: policy-implementation drift
+  - Reason: The canonical skill routing policy now documents requested-agent helper bundles and conditional skills such as `gh-address-comments` and `vercel-react-best-practices`; router logic and tests must stay in lockstep so coordinator packets do not promise skills that the runtime selector never emits.
+  - Links:
+    - `docs/orchestration/AGENT_SKILL_ROUTING_POLICY.md`
+    - `scripts/orchestration/skill_router.py`
+    - `tests/test_skill_router.py`
+  - DoD:
+    - Every documented requested-agent default bundle is represented in router behavior or explicitly documented as manual-only
+    - Policy-only skills cannot drift out of the implementation without failing deterministic tests
+    - Privileged-surface triggers and requested-agent bundle reasons are emitted in routing metadata
+
+- [ ] P1: Privileged workflow security-review requirement for orchestration and release surfaces
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-PRIVILEGED-SURFACE-SECURITY-REVIEW
+  - Area: orchestration / release ops / security review
+  - Finding Type: review-path hardening
+  - Reason: Tasks touching GitHub workflows, Fastlane, orchestration scripts, or merge-governance artifacts can change privileged automation, but today the review path is not consistently forced through `security-auditor`.
+  - Links:
+    - `docs/orchestration/AGENT_ROUTING_GRAPH.md`
+    - `docs/orchestration/workflow.md`
+    - `.cursor/agents/agent-coordinator.md`
+    - `.github/workflows/`
+    - `ios/fastlane/`
+  - DoD:
+    - Canonical docs define the privileged-surface trigger list
+    - Coordinator/bootstrap preserves `security-auditor` in the review path for those surfaces
+    - Deterministic tests cover workflow/Fastlane/orchestration-path review routing
+    - Merge-readiness docs explain that this is a default requirement, not optional reviewer theater
+
 - [ ] P1: Classify CI checks as hard / soft / external in AGENTS or CI governance
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
   - Target PR: PR-TBD
   - Area: orchestration / CI / review governance
   - Finding Type: process hardening
-  - Reason: Explicit classification (hard gate / soft gate / external flaky) prevents ambiguous merge decisions; external tools do not block unless marked required.
+  - Reason: Explicit classification (hard gate / soft gate / external flaky) prevents ambiguous merge decisions; external tools do not block unless marked required. The current local/CI/release matrix still leaves some truly blocking lanes in advisory mode, which makes merge-readiness claims inconsistent.
   - Links:
     - `AGENTS.md:31` (merge readiness), `:39` (checklist)
     - `.github/workflows/` (CI job definitions)
   - DoD:
     - AGENTS.md or dedicated CI governance doc defines hard gate (blocks merge), soft gate (warn only), external (never blocks unless manually promoted)
     - Examples listed per type
+    - One canonical merge-ready check bundle is documented across local, PR CI, and release-ops lanes
 
 
 - [ ] P1: Disposition guard — ban mapping to trigger-only commits
@@ -1758,16 +1915,18 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Umbrella test-hygiene entry closes only after the final cleanup PR passes `make verify`
 
 <a id="ledger-p2-pr1147-ios-appstore-asset-followups"></a>
-- [ ] P2: PR 1147 follow-up for iOS App Store asset workflow cleanup
+- [ ] P1: PR 1147 follow-up for iOS App Store asset workflow alignment
   - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P2
+  - Priority: P1
   - Target PR: PR-TBD-IOS-APPSTORE-ASSET-FOLLOWUPS
   - Area: ios / ci / release assets
-  - Finding Type: deferred cleanup
-  - Reason: PR #1147 fixes the correctness, compliance, and governance blockers for Fastlane-driven App Store assets, but two low-risk cleanup nits stay deferred so the current branch can finish merge-readiness without reopening the simulator/workflow surface.
+  - Finding Type: deferred release-readiness alignment
+  - Reason: PR #1147 fixed the immediate correctness, compliance, and governance blockers for Fastlane-driven App Store assets, but audit follow-up shows the remaining screenshot-manifest / UITest / validator contract still matters for deterministic release readiness and should no longer be treated as low-priority cosmetic cleanup.
   - Links:
     - `.github/workflows/ios-appstore-assets.yml`
     - `ios/fastlane/Fastfile`
+    - `ios/PulsePlateUITests/AppStoreScreenshotTests.swift`
+    - `tests/test_ios_appstore_asset_validators.py`
     - `docs/review/PR_1147_FIXED_MAPPING.md`
   - DoD:
     - `ios-appstore-assets.yml` uses one shared Xcode-selection helper across `validate-assets` and `upload-assets`
@@ -6415,6 +6574,49 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `docs/memory/kpp_knowledge_promotion_pipeline.md`
     - `docs/orchestration/CREATIVE_RESEARCH_INTERNAL_PILOT_CONTRACT.md`
     - `app/routers/creative_research_internal.py`
+
+- [ ] P1: AI reliability experimentation sublane for logic + philosophy offline replay
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-AI-RELIABILITY-EXPERIMENT-SUBLANE
+  - Area: orchestration / experimentation / AI reliability
+  - Finding Type: applied-eval lane gap
+  - Reason: PulsePlate already has the governed experimentation umbrella and philosophical runtime foundation, but it still lacks one canonical offline replay + ablation packet dedicated to proving whether `logic` and `philosophy` layers actually improve answer correctness/readiness before any runtime rollout.
+  - Links:
+    - `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md`
+    - `docs/orchestration/RESEARCH_BRAINSTORMING_PROTOCOL.md`
+    - `docs/orchestration/contracts/LOGIC_PHILOSOPHY_REPLAY_EVAL_CONTRACT.md`
+    - `core/insight/philosophical_runtime.py`
+    - `core/insight/analytical/__init__.py`
+    - `scripts/orchestration/experiment_bootstrap.py`
+    - `scripts/orchestration/logic_philosophy_replay_contract.py`
+    - `scripts/orchestration/logic_philosophy_replay_eval.py`
+    - `tests/fixtures/orchestration/logic_philosophy_replay/replay_cases.json`
+    - `tests/fixtures/orchestration/logic_philosophy_replay/replay_negative_controls.json`
+    - `tests/test_logic_philosophy_replay_eval.py`
+  - DoD:
+    - Canonical experiment packet supports `A0 control`, `A1 logic`, `A2 philosophy`, and `A3 combined`
+    - Immutable offline oracle corpus and readiness proxy fixtures are declared before execution
+    - Primary metrics include correctness, unsupported-claim rate, contradiction rate, and first-pass readiness proxy
+    - No phase of the sublane permits live runtime mutation, autonomous merge, or provider/network spend in wave 1
+    - Result packet can only promote to `pr_packet` after a passing offline replay artifact exists
+
+- [ ] P2: Bounded research retrieval lane for `web-research-agent`
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR-TBD-WEB-RESEARCH-RETRIEVAL-LANE
+  - Area: orchestration / research / evidence intake
+  - Finding Type: retrieval governance gap
+  - Reason: `web-research-agent` is now part of coordinator workflows, but the project still needs one canonical bounded retrieval contract that keeps web intake evidence-driven, non-scraping-heavy, and subordinate to the research/experimentation governance already in place.
+  - Links:
+    - `docs/orchestration/AGENT_SKILL_ROUTING_POLICY.md`
+    - `docs/orchestration/RESEARCH_TRACK_PROTOCOL.md`
+    - `docs/orchestration/RESEARCH_BRAINSTORMING_PROTOCOL.md`
+    - `tools/codex_skills/pulseplate-ai-reports/SKILL.md`
+  - DoD:
+    - Research retrieval contract defines allowed source classes, evidence logging, and anti-broad-scraping constraints
+    - Coordinator/task packets can point `web-research-agent` to the bounded lane without inventing ad-hoc retrieval instructions
+    - Docs distinguish internal docs maintenance (`docs`) from external evidence intake (`research`)
     - `app/services/creative_research_runtime.py`
     - `app/schemas/creative_research.py`
     - `core/creative_research.py`
