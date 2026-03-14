@@ -24,6 +24,12 @@ Evidence: `docs/orchestration/contracts/LOGIC_PHILOSOPHY_REPLAY_EVAL_CONTRACT.md
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1170#discussion_r2935354925 -> af9b9482d562a9955eb6d16fc260aeb95b4c383d
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1170#discussion_r2935359571 -> af9b9482d562a9955eb6d16fc260aeb95b4c383d
 
+Disposition: NOT-A-BUG
+Evidence: `docs/review/PR_1170_FIXED_MAPPING.md:8-29` already maps each actionable inline comment from these review passes to its commit proof, so the review-level rollup URLs are non-actionable summary wrappers and require no additional code or docs changes.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1170#pullrequestreview-3948905012
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1170#pullrequestreview-3948908665
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1170#pullrequestreview-3948912620
+
 ## Merge Readiness
 - [ ] Local hard gate passed (`make verify`)
 - [ ] Required checks PASS with no pending required jobs
