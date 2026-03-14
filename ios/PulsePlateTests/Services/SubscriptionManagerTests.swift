@@ -19,7 +19,7 @@ final class SubscriptionManagerTests: XCTestCase {
         billing.activateResult = .activeActivation(id: "act-123")
         billing.fetchResult = .activeActivation(id: "act-123")
 
-        await manager.purchase(productID: "com.pulseplate.premium.monthly")
+        await manager.purchase(productID: "com.pulseplate.premium.yearly")
 
         XCTAssertEqual(manager.flowState, .unlocked)
         XCTAssertEqual(manager.entitlement?.activationID, "act-123")
