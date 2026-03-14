@@ -25,6 +25,13 @@ Evidence: `scripts/orchestration/task_bootstrap.py:267` now force-adds `security
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1166#pullrequestreview-3948501266 -> c9f2d33787022ded91e8f4ff45ff624b2ab2c5e5
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1166#discussion_r2934992480 -> c9f2d33787022ded91e8f4ff45ff624b2ab2c5e5
 
+Disposition: FIXED
+Commit: 8532f9da3ecdf4a4e6116f84d53abb3b85a8c58a
+Evidence: `scripts/orchestration/skill_router.py:341` now treats `docs/review/` plus merge-readiness/review-mapping keywords as privileged security-trigger surfaces, `scripts/orchestration/task_bootstrap.py:167` rewrites stale `honored_primary` dispositions to `honored_secondary` after later promotions, and `tests/test_skill_router.py:289` plus `tests/test_task_bootstrap.py:159` add regression coverage for both behaviors.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1166#pullrequestreview-3948506013 -> 8532f9da3ecdf4a4e6116f84d53abb3b85a8c58a
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1166#discussion_r2934996806 -> 8532f9da3ecdf4a4e6116f84d53abb3b85a8c58a
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1166#discussion_r2934996810 -> 8532f9da3ecdf4a4e6116f84d53abb3b85a8c58a
+
 ## Merge Readiness
 - [x] Local hard gate passed (`make verify`)
 - [ ] Required checks PASS with no pending required jobs
