@@ -79,7 +79,7 @@ platform :ios do
       languages: APP_STORE_LOCALES,
       output_directory: "./fastlane/screenshots",
       clear_previous_screenshots: true,
-      erase_simulator: true,
+      erase_simulator: false,
       concurrent_simulators: false,
       stop_after_first_error: true,
       number_of_retries: ENV["CI"] ? 0 : 1,
