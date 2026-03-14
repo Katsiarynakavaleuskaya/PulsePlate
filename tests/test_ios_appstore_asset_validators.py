@@ -17,12 +17,13 @@ if RUBY_BIN is None:
 
 
 SCREENSHOT_NAMES = [
-    "01_welcome",
-    "02_home",
-    "03_plate",
-    "04_pro_vip_paywall",
-    "05_privacy_profile",
-    "06_health_permission",
+    "01_core-value",
+    "02_nutrition-analysis",
+    "03_meal-planner",
+    "04_grocery-list",
+    "05_health-progress",
+    "06_personalization",
+    "07_ai-assistant",
 ]
 LOCALES = ["en-US", "ru-RU", "es-ES"]
 IPAD_SIZE = (2064, 2752)
@@ -49,9 +50,7 @@ def _write_png(path: Path, *, width: int, height: int, profile: str = "srgb") ->
     elif profile == "iccp":
         icc_payload = b"Display P3\x00\x00" + zlib.compress(b"stub-profile")
         chunks.append(_png_chunk(b"iCCP", icc_payload))
-    elif profile == "none":
-        pass
-    else:
+    elif profile != "none":
         raise ValueError(f"Unsupported profile {profile}")
 
     chunks.append(_png_chunk(b"IDAT", pixel_data))

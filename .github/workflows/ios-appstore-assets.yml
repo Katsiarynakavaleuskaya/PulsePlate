@@ -24,6 +24,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ios-appstore-assets-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   validate-assets:
     if: github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && inputs.upload_to_asc)
@@ -130,6 +134,19 @@ jobs:
           name: ios-appstore-screenshots
           path: ios/fastlane/screenshots
 
+      - name: Guard privileged upload ref
+        env:
+          ALLOWED_UPLOAD_REFS_REGEX: '^refs/heads/main$|^refs/heads/release/.+$|^refs/tags/release-.+$'
+        run: |
+          set -euo pipefail
+          if [[ "${GITHUB_REF}" =~ ${ALLOWED_UPLOAD_REFS_REGEX} ]]; then
+            echo "Allowed privileged upload ref: ${GITHUB_REF} @ ${GITHUB_SHA}"
+            exit 0
+          fi
+
+          echo "::error::Privileged App Store uploads may run only from main or release refs. Got ${GITHUB_REF}"
+          exit 1
+
       - name: Upload metadata and screenshots
         working-directory: ios
         env:
@@ -160,6 +177,19 @@ jobs:
       - name: Validate metadata and privacy package
         working-directory: ios
         run: bundle exec fastlane ios validate_metadata_package
+
+      - name: Guard privileged upload ref
+        env:
+          ALLOWED_UPLOAD_REFS_REGEX: '^refs/heads/main$|^refs/heads/release/.+$|^refs/tags/release-.+$'
+        run: |
+          set -euo pipefail
+          if [[ "${GITHUB_REF}" =~ ${ALLOWED_UPLOAD_REFS_REGEX} ]]; then
+            echo "Allowed privileged upload ref: ${GITHUB_REF} @ ${GITHUB_SHA}"
+            exit 0
+          fi
+
+          echo "::error::Privileged App Store uploads may run only from main or release refs. Got ${GITHUB_REF}"
+          exit 1
 
       - name: Upload App Privacy
         working-directory: ios

@@ -2,27 +2,30 @@ import Foundation
 import SwiftUI
 
 enum AppStoreScreenshotScenario: String, CaseIterable {
-    case welcome
-    case home
-    case plate
-    case paywall
-    case profile
-    case healthPermission = "health_permission"
+    case coreValue = "core_value"
+    case nutritionAnalysis = "nutrition_analysis"
+    case mealPlanner = "meal_planner"
+    case groceryList = "grocery_list"
+    case healthProgress = "health_progress"
+    case personalization = "personalization"
+    case aiAssistant = "ai_assistant"
 
     var accessibilityIdentifier: String {
         switch self {
-        case .welcome:
-            return "appstore.welcome.screen"
-        case .home:
-            return "appstore.home.screen"
-        case .plate:
-            return "appstore.plate.screen"
-        case .paywall:
-            return "appstore.paywall.screen"
-        case .profile:
-            return "appstore.profile.screen"
-        case .healthPermission:
-            return "appstore.health_permission.screen"
+        case .coreValue:
+            return "appstore.core_value.screen"
+        case .nutritionAnalysis:
+            return "appstore.nutrition_analysis.screen"
+        case .mealPlanner:
+            return "appstore.meal_planner.screen"
+        case .groceryList:
+            return "appstore.grocery_list.screen"
+        case .healthProgress:
+            return "appstore.health_progress.screen"
+        case .personalization:
+            return "appstore.personalization.screen"
+        case .aiAssistant:
+            return "appstore.ai_assistant.screen"
         }
     }
 }
@@ -65,12 +68,12 @@ enum AppStoreScreenshotContext {
         guard isEnabled else { return }
 
         let userDefaults = UserDefaults.standard
-        let scenario = currentScenario ?? .home
+        let scenario = currentScenario ?? .coreValue
 
         // RU: Для App Store automation фиксируем детерминированное состояние без реальных данных.
         // EN: App Store automation always runs against deterministic seeded state only.
         userDefaults.set(languageCode, forKey: AppStorageKeys.appLanguage)
-        userDefaults.set(scenario != .welcome, forKey: "has_seen_welcome_v1")
+        userDefaults.set(true, forKey: "has_seen_welcome_v1")
         userDefaults.set("female", forKey: "pro_profile_sex")
         userDefaults.set("29", forKey: "pro_profile_age")
         userDefaults.set("170", forKey: "pro_profile_height_cm")
@@ -82,42 +85,69 @@ enum AppStoreScreenshotContext {
 
     static func scenarioView() -> AnyView? {
         guard isEnabled else { return nil }
-        let scenario = currentScenario ?? .home
+        let scenario = currentScenario ?? .coreValue
 
         switch scenario {
-        case .welcome:
-            return AnyView(
-                WelcomeFlowView(onCompleted: {})
-                    .appStoreScreenshotRoot(scenario.accessibilityIdentifier)
-            )
-        case .home:
+        case .coreValue:
             return AnyView(
                 NavigationStack {
                     HomeView()
                 }
                 .appStoreScreenshotRoot(scenario.accessibilityIdentifier)
             )
-        case .plate:
+        case .nutritionAnalysis:
             return AnyView(
                 PlateViewPP()
                     .appStoreScreenshotRoot(scenario.accessibilityIdentifier)
             )
-        case .paywall:
+        case .mealPlanner:
             return AnyView(
                 NavigationStack {
-                    AppStorePaywallPreviewView()
+                    WeeklyPlanReaderView(
+                        vm: WeeklyPlanReaderViewModel(
+                            service: DefaultWeeklyPlanService(apiClient: APIClient(baseURL: AppConfig.baseURL())),
+                            apiKeyProvider: { AppStoreScreenshotContext.previewProKey }
+                        )
+                    )
                 }
                 .appStoreScreenshotRoot(scenario.accessibilityIdentifier)
             )
-        case .profile:
-            return AnyView(
-                ProfileView()
-                    .appStoreScreenshotRoot(scenario.accessibilityIdentifier)
-            )
-        case .healthPermission:
+        case .groceryList:
             return AnyView(
                 NavigationStack {
-                    AppStoreHealthPermissionPreviewView()
+                    ShoppingListReaderScreen(
+                        vm: ShoppingListReaderViewModel(
+                            service: DefaultShoppingListService(
+                                apiClient: APIClient(baseURL: AppConfig.baseURL())
+                            ),
+                            apiKeyProvider: { AppStoreScreenshotContext.previewProKey }
+                        ),
+                        planData: ShoppingListStubPlan.minimal()
+                    )
+                }
+                .appStoreScreenshotRoot(scenario.accessibilityIdentifier)
+            )
+        case .healthProgress:
+            return AnyView(
+                ProgressViewPP()
+                    .appStoreScreenshotRoot(scenario.accessibilityIdentifier)
+            )
+        case .personalization:
+            return AnyView(
+                ProfileView()
+                .appStoreScreenshotRoot(scenario.accessibilityIdentifier)
+            )
+        case .aiAssistant:
+            return AnyView(
+                NavigationStack {
+                    AIInsightView(
+                        vm: AIInsightViewModel(
+                            service: DefaultCBTInsightService(
+                                apiClient: APIClient(baseURL: AppConfig.baseURL())
+                            ),
+                            apiKeyProvider: { AppStoreScreenshotContext.previewProKey }
+                        )
+                    )
                 }
                 .appStoreScreenshotRoot(scenario.accessibilityIdentifier)
             )

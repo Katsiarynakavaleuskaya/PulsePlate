@@ -2,44 +2,49 @@ import XCTest
 
 final class AppStoreScreenshotTests: XCTestCase {
     private enum Scenario: String, CaseIterable {
-        case welcome
-        case home
-        case plate
-        case paywall
-        case profile
-        case healthPermission = "health_permission"
+        case coreValue = "core_value"
+        case nutritionAnalysis = "nutrition_analysis"
+        case mealPlanner = "meal_planner"
+        case groceryList = "grocery_list"
+        case healthProgress = "health_progress"
+        case personalization = "personalization"
+        case aiAssistant = "ai_assistant"
 
         var screenshotName: String {
             switch self {
-            case .welcome:
-                return "01_welcome"
-            case .home:
-                return "02_home"
-            case .plate:
-                return "03_plate"
-            case .paywall:
-                return "04_pro_vip_paywall"
-            case .profile:
-                return "05_privacy_profile"
-            case .healthPermission:
-                return "06_health_permission"
+            case .coreValue:
+                return "01_core-value"
+            case .nutritionAnalysis:
+                return "02_nutrition-analysis"
+            case .mealPlanner:
+                return "03_meal-planner"
+            case .groceryList:
+                return "04_grocery-list"
+            case .healthProgress:
+                return "05_health-progress"
+            case .personalization:
+                return "06_personalization"
+            case .aiAssistant:
+                return "07_ai-assistant"
             }
         }
 
         var accessibilityIdentifier: String {
             switch self {
-            case .welcome:
-                return "appstore.welcome.screen"
-            case .home:
-                return "appstore.home.screen"
-            case .plate:
-                return "appstore.plate.screen"
-            case .paywall:
-                return "appstore.paywall.screen"
-            case .profile:
-                return "appstore.profile.screen"
-            case .healthPermission:
-                return "appstore.health_permission.screen"
+            case .coreValue:
+                return "appstore.core_value.screen"
+            case .nutritionAnalysis:
+                return "appstore.nutrition_analysis.screen"
+            case .mealPlanner:
+                return "appstore.meal_planner.screen"
+            case .groceryList:
+                return "appstore.grocery_list.screen"
+            case .healthProgress:
+                return "appstore.health_progress.screen"
+            case .personalization:
+                return "appstore.personalization.screen"
+            case .aiAssistant:
+                return "appstore.ai_assistant.screen"
             }
         }
     }
@@ -49,33 +54,38 @@ final class AppStoreScreenshotTests: XCTestCase {
     }
 
     @MainActor
-    func testWelcomeScreenshot() {
-        captureScreenshot(for: .welcome)
+    func testCoreValueScreenshot() {
+        captureScreenshot(for: .coreValue)
     }
 
     @MainActor
-    func testHomeScreenshot() {
-        captureScreenshot(for: .home)
+    func testNutritionAnalysisScreenshot() {
+        captureScreenshot(for: .nutritionAnalysis)
     }
 
     @MainActor
-    func testPlateScreenshot() {
-        captureScreenshot(for: .plate)
+    func testMealPlannerScreenshot() {
+        captureScreenshot(for: .mealPlanner)
     }
 
     @MainActor
-    func testPaywallScreenshot() {
-        captureScreenshot(for: .paywall)
+    func testGroceryListScreenshot() {
+        captureScreenshot(for: .groceryList)
     }
 
     @MainActor
-    func testProfileScreenshot() {
-        captureScreenshot(for: .profile)
+    func testHealthProgressScreenshot() {
+        captureScreenshot(for: .healthProgress)
     }
 
     @MainActor
-    func testHealthPermissionScreenshot() {
-        captureScreenshot(for: .healthPermission)
+    func testPersonalizationScreenshot() {
+        captureScreenshot(for: .personalization)
+    }
+
+    @MainActor
+    func testAiAssistantScreenshot() {
+        captureScreenshot(for: .aiAssistant)
     }
 
     @MainActor

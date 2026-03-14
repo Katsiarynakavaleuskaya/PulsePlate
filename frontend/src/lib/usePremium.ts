@@ -1,43 +1,27 @@
 import { useEffect, useState } from "react";
+import { getProSessionStatus } from "../api/client";
+import { PREMIUM_CHANGE_EVENT } from "./premiumEvents";
 
-// Simple premium membership hook.
-// In a real app, replace localStorage reads with your auth/user store selector.
+// RU: Premium truth читается только из серверной session contract.
+// EN: Premium truth is derived only from the server-side session contract.
 export function usePremium(): boolean | undefined {
   const [isPremium, setIsPremium] = useState<boolean | undefined>(undefined);
 
   useEffect(() => {
-    const read = (): boolean => {
-      try {
-        const raw = localStorage.getItem("pp_premium");
-        if (raw === null) return false;
-        return raw === "true";
-      } catch {
-        return false;
+    let cancelled = false;
+
+    const sync = async (): Promise<void> => {
+      const session = await getProSessionStatus().catch(() => null);
+      if (!cancelled) {
+        setIsPremium(session?.tier === "PRO" || session?.tier === "VIP");
       }
     };
 
-    const sync = () => {
-      setIsPremium(read());
-    };
-
-    // Initial read
-    sync();
-
-    // Cross-document updates
-    const onStorage = (e: StorageEvent) => {
-      if (e.key === "pp_premium") {
-        setIsPremium(e.newValue === "true");
-      }
-    };
-
-    // Same-document updates via custom event
-    const onCustom = () => sync();
-
-    window.addEventListener("storage", onStorage);
-    window.addEventListener("pp-premium-change", onCustom as EventListener);
+    void sync();
+    window.addEventListener(PREMIUM_CHANGE_EVENT, sync as EventListener);
     return () => {
-      window.removeEventListener("storage", onStorage);
-      window.removeEventListener("pp-premium-change", onCustom as EventListener);
+      cancelled = true;
+      window.removeEventListener(PREMIUM_CHANGE_EVENT, sync as EventListener);
     };
   }, []);
 

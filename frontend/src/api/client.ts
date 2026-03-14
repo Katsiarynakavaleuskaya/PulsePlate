@@ -160,6 +160,7 @@ export const PRO_NUTRITION_PLATE_PATH = "/api/v1/pro/nutrition/plate";
 export const PRO_SESSION_PATH = "/api/v1/pro/session";
 export const PRO_SESSION_EXCHANGE_PATH = "/api/v1/pro/session/exchange";
 export const PRO_SESSION_LOGOUT_PATH = "/api/v1/pro/session/logout";
+export type ProSessionStatus = components["schemas"]["SessionStatusResponse"];
 
 function mockUrl(path: string): string | null {
   if (path.includes("/api/v1/premium/bmr") || path.includes("/premium/bmr")) {
@@ -236,11 +237,24 @@ function inferSessionActive(payload: unknown): boolean {
   return false;
 }
 
+function isProSessionStatus(payload: unknown): payload is ProSessionStatus {
+  if (!payload || typeof payload !== "object") {
+    return false;
+  }
+
+  const candidate = payload as Record<string, unknown>;
+  return (
+    candidate.status === "ok" &&
+    candidate.authenticated === true &&
+    (candidate.auth_source === "header" || candidate.auth_source === "cookie") &&
+    (candidate.tier === "PRO" || candidate.tier === "VIP")
+  );
+}
+
 /**
- * Check whether server-side PRO session is currently active.
- * Auth source of truth for web flow.
+ * Fetch canonical server-side PRO/VIP session status and fail closed on malformed payloads.
  */
-export async function checkProSession(): Promise<boolean> {
+export async function getProSessionStatus(): Promise<ProSessionStatus | null> {
   try {
     validateApiBase();
     const response = await fetch(normalizeApiUrl(getApiBase(), PRO_SESSION_PATH), {
@@ -250,17 +264,26 @@ export async function checkProSession(): Promise<boolean> {
     });
 
     if (response.status === 401 || response.status === 403) {
-      return false;
+      return null;
     }
     if (!response.ok) {
-      return false;
+      return null;
     }
 
     const payload = await response.json().catch(() => null);
-    return inferSessionActive(payload);
+    return isProSessionStatus(payload) ? payload : null;
   } catch {
-    return false;
+    return null;
   }
+}
+
+/**
+ * Check whether server-side PRO session is currently active.
+ * Auth source of truth for web flow.
+ */
+export async function checkProSession(): Promise<boolean> {
+  const payload = await getProSessionStatus();
+  return payload !== null && inferSessionActive(payload);
 }
 
 /**
