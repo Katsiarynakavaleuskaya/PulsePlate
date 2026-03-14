@@ -51,7 +51,10 @@ class TestBusinessRouterIsolated:
         """Override API key dependency to bypass real auth checks."""
         from app.routers.api_key import require_app_api_key
 
-        self.app.dependency_overrides[require_app_api_key] = lambda: "test_key"
+        def _return_test_key() -> str:
+            return "test_key"
+
+        self.app.dependency_overrides[require_app_api_key] = _return_test_key
 
     def _auth_forbidden(self, detail: str = "Invalid API Key") -> None:
         """Override API key dependency to enforce fail-closed auth in isolated tests."""
@@ -92,6 +95,7 @@ class TestBusinessRouterIsolated:
             json={"code": "print('x')", "test_name": "t1"},
         )
         assert resp.status_code == 403
+        assert resp.headers.get("content-type", "").startswith("application/json")
         assert resp.json() == {"detail": "Invalid API Key"}
 
     def test_require_app_api_key_accepts_valid_result(
@@ -99,9 +103,12 @@ class TestBusinessRouterIsolated:
     ) -> None:
         from app.routers import api_key as api_key_mod
 
+        def _strip_key(api_key: str) -> str:
+            return api_key.strip()
+
         def _resolve_attr(name: str, default: object) -> object:
             if name == "get_api_key":
-                return lambda api_key: api_key.strip()
+                return _strip_key
             return default
 
         monkeypatch.setattr(api_key_mod, "resolve_attr", _resolve_attr)
@@ -132,7 +139,10 @@ class TestBusinessRouterIsolated:
     ) -> None:
         from app.routers import api_key as api_key_mod
 
-        monkeypatch.setattr(api_key_mod, "resolve_attr", lambda _name, default: default)
+        def _resolve_attr_passthrough(_name: str, default: object) -> object:
+            return default
+
+        monkeypatch.setattr(api_key_mod, "resolve_attr", _resolve_attr_passthrough)
 
         with pytest.raises(HTTPException) as exc_info:
             api_key_mod.require_app_api_key("test-key")
@@ -145,9 +155,12 @@ class TestBusinessRouterIsolated:
     ) -> None:
         from app.routers import api_key as api_key_mod
 
+        def _non_string_guard_result(_api_key: str) -> object:
+            return object()
+
         def _resolve_attr(name: str, default: object) -> object:
             if name == "get_api_key":
-                return lambda _api_key: object()
+                return _non_string_guard_result
             return default
 
         monkeypatch.setattr(api_key_mod, "resolve_attr", _resolve_attr)
@@ -181,10 +194,14 @@ class TestBusinessRouterIsolated:
     def test_analyze_503_when_module_disabled(self, monkeypatch: pytest.MonkeyPatch) -> None:
         self._auth_ok()
         monkeypatch.setattr(self.mod, "BUSINESS_MODULE_ENABLED", False)
+
+        def _business_module_disabled(_locale: object, _key: object) -> str:
+            return "business_module_disabled"
+
         monkeypatch.setattr(
             self.mod,
             "_localized_error",
-            lambda _locale, _key: "business_module_disabled",
+            _business_module_disabled,
         )
 
         resp = self.client.post(
@@ -197,10 +214,14 @@ class TestBusinessRouterIsolated:
     def test_analyze_413_payload_too_large(self, monkeypatch: pytest.MonkeyPatch) -> None:
         self._auth_ok()
         monkeypatch.setattr(self.mod, "BUSINESS_MODULE_ENABLED", True)
+
+        def _payload_too_large(_locale: object, _key: object) -> str:
+            return "business_payload_too_large"
+
         monkeypatch.setattr(
             self.mod,
             "_localized_error",
-            lambda _locale, _key: "business_payload_too_large",
+            _payload_too_large,
         )
 
         big_code = "a" * 100_001

@@ -8,9 +8,11 @@ Tests verify:
 - HTTPException pass-through
 """
 
+from unittest.mock import MagicMock, patch
+
 import pytest
-from unittest.mock import patch, MagicMock
 from fastapi import HTTPException, status
+from fastapi.testclient import TestClient
 
 from tests._helpers.api_headers import API_KEY_HEADERS
 
@@ -48,7 +50,7 @@ class TestBusinessAnalysisEndpoint:
                     "test_name": "revenue_analysis",
                     "locale": "en",
                 },
-                headers={"X-API-Key": "test_key"},
+                headers=API_KEY_HEADERS,
             )
 
             assert response.status_code == 200
@@ -74,14 +76,16 @@ class TestBusinessAnalysisEndpoint:
 
         main_app.dependency_overrides[require_app_api_key] = _reject_missing
         try:
-            response = test_client.post(
-                "/api/v1/business/analyze",
-                json={"code": "def test(): pass", "test_name": "missing_key"},
-            )
+            with TestClient(main_app) as isolated_client:
+                response = isolated_client.post(
+                    "/api/v1/business/analyze",
+                    json={"code": "def test(): pass", "test_name": "missing_key"},
+                )
         finally:
             main_app.dependency_overrides.pop(require_app_api_key, None)
 
         assert response.status_code == 403
+        assert response.headers.get("content-type", "").startswith("application/json")
         assert response.json() == {"detail": "Missing API Key"}
 
     def test_business_module_disabled_returns_503(self, test_client, monkeypatch) -> None:
@@ -91,7 +95,7 @@ class TestBusinessAnalysisEndpoint:
         response = test_client.post(
             "/api/v1/business/analyze",
             json={"code": "def test(): pass", "test_name": "test"},
-            headers={"X-API-Key": "test_key"},
+            headers=API_KEY_HEADERS,
         )
 
         assert response.status_code == 503
@@ -107,7 +111,7 @@ class TestBusinessAnalysisEndpoint:
         response = test_client.post(
             "/api/v1/business/analyze",
             json={"code": oversized_code, "test_name": "dos_test"},
-            headers={"X-API-Key": "test_key"},
+            headers=API_KEY_HEADERS,
         )
 
         # Manual payload check returns 413 (Content Too Large)
@@ -167,7 +171,7 @@ def test_exactly_100kb_payload_accepted(test_client, monkeypatch) -> None:
         response = test_client.post(
             "/api/v1/business/analyze",
             json={"code": max_allowed_code, "test_name": "edge_case"},
-            headers={"X-API-Key": "test_key"},
+            headers=API_KEY_HEADERS,
         )
 
         # Should succeed
@@ -186,14 +190,16 @@ def test_business_analysis_invalid_api_key_rejected(test_client, monkeypatch) ->
 
     main_app.dependency_overrides[require_app_api_key] = _reject_invalid
     try:
-        response = test_client.post(
-            "/api/v1/business/analyze",
-            json={"code": "def test(): pass", "test_name": "auth_fail"},
-        )
+        with TestClient(main_app) as isolated_client:
+            response = isolated_client.post(
+                "/api/v1/business/analyze",
+                json={"code": "def test(): pass", "test_name": "auth_fail"},
+            )
     finally:
         main_app.dependency_overrides.pop(require_app_api_key, None)
 
     assert response.status_code == 403
+    assert response.headers.get("content-type", "").startswith("application/json")
     assert "invalid api key" in response.json()["detail"].lower()
 
 
@@ -213,7 +219,7 @@ def test_analyzer_exception_wrapped_as_500(test_client, monkeypatch, caplog) -> 
             response = test_client.post(
                 "/api/v1/business/analyze",
                 json={"code": "def crash(): raise Exception()", "test_name": "crash_test"},
-                headers={"X-API-Key": "test_key"},
+                headers=API_KEY_HEADERS,
             )
 
         assert response.status_code == 500
@@ -237,7 +243,7 @@ def test_http_exception_passed_through_unchanged(test_client, monkeypatch) -> No
         response = test_client.post(
             "/api/v1/business/analyze",
             json={"code": "def test(): pass", "test_name": "auth_test"},
-            headers={"X-API-Key": "test_key"},
+            headers=API_KEY_HEADERS,
         )
 
         # Should preserve original HTTPException

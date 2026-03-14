@@ -18,6 +18,10 @@ def require_app_api_key(api_key: str = Depends(api_key_header)) -> str:
 
     app_get_api_key = resolve_attr("get_api_key", None)
     if not callable(app_get_api_key):
+        logger.error(
+            "App API key validation unavailable: 'get_api_key' could not be resolved "
+            "to a callable (check settings / environment configuration)"
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="API key validation unavailable",
