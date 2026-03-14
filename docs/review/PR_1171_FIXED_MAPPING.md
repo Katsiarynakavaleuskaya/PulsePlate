@@ -5,11 +5,65 @@
 - [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
-- No actionable review comments
+Disposition: FIXED
+Commit: ba14bde0
+Evidence: ios/PulsePlate/Models/StoreKitManager.swift:47, ios/PulsePlate/Services/SubscriptionManager.swift:183
+Reason: Receipt loading now runs asynchronously off the main actor and all purchase/restore call sites await the receipt read before verification.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1171#discussion_r2935409911 -> ba14bde0
+
+Disposition: FIXED
+Commit: ba14bde0
+Evidence: ios/PulsePlate/Screens/PaywallScreen.swift:19, ios/PulsePlate/Screens/PaywallScreen.swift:113, ios/PulsePlate/Screens/PaywallScreen.swift:132
+Reason: The paywall now shows entitlement data without a local paid-truth helper, keeps actions disabled during `.pendingApproval`, and uses a high-level `Error` status label so the detailed error text appears only once.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1171#discussion_r2935409913 -> ba14bde0
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1171#discussion_r2935419750 -> ba14bde0
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1171#discussion_r2935419752 -> ba14bde0
+
+Disposition: FIXED
+Commit: ba14bde0
+Evidence: ios/PulsePlate/Services/SubscriptionManager.swift:250, ios/PulsePlate/Services/SubscriptionManager.swift:281, ios/PulsePlateTests/Services/SubscriptionManagerTests.swift:215
+Reason: Stale activation-pointer handling now treats HTTP 403 the same way as missing/not-found activation pointers, and the regression tests seed a real pointer before asserting the foreground refresh skip path.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1171#discussion_r2935415474 -> ba14bde0
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1171#discussion_r2935418800 -> ba14bde0
+
+Disposition: FIXED
+Commit: ba14bde0
+Evidence: ios/PulsePlate/Models/Payments/SubscriptionBillingDTOs.swift:43, ios/PulsePlate/Models/Payments/SubscriptionBillingDTOs.swift:84
+Reason: Billing response DTOs now define explicit coding keys for fields such as `product_id` and `activation_id`, preventing snake_case decode drift under the shared HTTP decoder.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1171#discussion_r2935418796 -> ba14bde0
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1171#discussion_r2935418799 -> ba14bde0
+
+Disposition: FIXED
+Commit: ba14bde0
+Evidence: ios/PulsePlate/PulsePlateApp.swift:17
+Reason: App-store screenshot scenarios now skip subscription bootstrap and foreground refresh so deterministic screenshot runs do not hit StoreKit or backend billing flows.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1171#discussion_r2935419748 -> ba14bde0
+
+Disposition: FIXED
+Commit: ba14bde0
+Evidence: ios/PulsePlateTests/Services/SubscriptionBillingServiceTests.swift:124
+Reason: The XCTest-only `@unchecked Sendable` helper now carries an explicit safety justification comment.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1171#discussion_r2935419755 -> ba14bde0
+
+Disposition: NOT-A-BUG
+Evidence: ios/PulsePlate/Services/ActivationPointerStore.swift:3, docs/roadmap/BACKLOG_LEDGER.md:994
+Reason: PR-4 intentionally persists only a non-sensitive `activation_id` refresh pointer in `UserDefaults`; Keychain storage conformance is tracked separately under the dedicated mobile follow-up and is out of scope for this orchestration PR.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1171#discussion_r2935419751
+
+Disposition: NOT-A-BUG
+Evidence: ios/PulsePlate/Services/SubscriptionManager.swift:130, ios/PulsePlate/Services/SubscriptionManager.swift:250
+Reason: PR-4 explicitly forbids automatic receipt replay on launch/foreground. When no activation pointer exists, bootstrap loads the catalog only and leaves recovery to explicit `purchase()` or `restore()` flows.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1171#discussion_r2935419753
+
+Disposition: FIXED
+Commit: PENDING_ARTIFACT_COMMIT
+Evidence: docs/review/PR_1171_FIXED_MAPPING.md:1
+Reason: Merge-readiness checkboxes are reset to the real in-progress state until required checks, review threads, and the final wait window are actually complete.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1171#discussion_r2935419746 -> PENDING_ARTIFACT_COMMIT
 
 ## Merge Readiness
 - [x] Local hard gate passed (`make verify`)
-- [x] Required checks PASS with no pending required jobs
-- [x] No unresolved review threads
-- [x] No actionable bot comments
-- [x] Final post-bot wait cycle completed
+- [ ] Required checks PASS with no pending required jobs
+- [ ] No unresolved review threads
+- [ ] No actionable bot comments
+- [ ] Final post-bot wait cycle completed
