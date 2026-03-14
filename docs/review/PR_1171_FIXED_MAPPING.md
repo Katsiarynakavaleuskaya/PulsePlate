@@ -80,6 +80,12 @@ Reason: Activation request building now trims blank `verification.productID` val
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1171#discussion_r2935455610 -> f3e7cc35
 
 Disposition: FIXED
+Commit: dbae4290
+Evidence: ios/PulsePlateTests/Services/SubscriptionManagerTests.swift:19
+Reason: The fallback regression test now purchases a different product than the fixture transaction product, so it actually proves the activation request falls back to the transaction product ID instead of passing vacuously.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1171#discussion_r2935494826 -> dbae4290
+
+Disposition: FIXED
 Commit: f3e7cc35
 Evidence: ios/PulsePlateTests/Guards/ThinClientGuardsTests.swift:379, ios/PulsePlateTests/Guards/ThinClientGuardsTests.swift:414
 Reason: Thin-client guard tests now fail when a guarded file is missing and use token-bound matching for forbidden flags, closing both the silent-skip and false-positive gaps.
@@ -98,9 +104,10 @@ Reason: These bot review-level URLs aggregate inline findings that are already d
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1171#pullrequestreview-3949031760
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1171#pullrequestreview-3949031912
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1171#pullrequestreview-3949052582
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1171#pullrequestreview-3949059751
 
 ## Merge Readiness
-- [x] Local hard gate passed (`make verify`)
+- [ ] Local hard gate passed (`make verify`)
 - [ ] Required checks PASS with no pending required jobs
 - [ ] No unresolved review threads
 - [ ] No actionable bot comments
