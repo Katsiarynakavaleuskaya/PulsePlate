@@ -17,6 +17,13 @@ Evidence: `tests/test_payment_source_contract_api.py:46` now patches `app.get_ap
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1168#pullrequestreview-3948679729 -> a1e09f2831ce9b2a4d2198d11e1555a02ac9349a
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1168#discussion_r2935137722 -> a1e09f2831ce9b2a4d2198d11e1555a02ac9349a
 
+Disposition: FIXED
+Commit: 2a81288bb00eb6f3ae8a2a121499b133e91851ce
+Evidence: `app/routers/billing.py:261` restores `require_pro_tier` on `manual-intent` so the same principal can still reach the reconcile/status endpoints, `tests/test_payment_source_contract_api.py:38` drops the invalid non-PRO transport-key acceptance case, and `frontend/src/lib/auth.tsx:115` plus `frontend/src/lib/usePremium.ts:20` now broadcast/listen for a same-document premium-session change event backed by `frontend/src/lib/premiumEvents.ts:1`, with `frontend/src/lib/__tests__/usePremium.test.ts:73` proving the hook revalidates after session transitions.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1168#pullrequestreview-3948687473 -> 2a81288bb00eb6f3ae8a2a121499b133e91851ce
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1168#discussion_r2935143201 -> 2a81288bb00eb6f3ae8a2a121499b133e91851ce
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1168#discussion_r2935143203 -> 2a81288bb00eb6f3ae8a2a121499b133e91851ce
+
 ## Merge Readiness
 - [ ] Local hard gate passed (`make verify`)
 - [ ] Required checks PASS with no pending required jobs
