@@ -4,7 +4,7 @@
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
 
-## Fixed in Commit Mapping
+### Fixed in Commit Mapping
 Disposition: FIXED
 Commit: 305d8a283eac56ccdf313c6465a06687b88e5b71
 Evidence: `docs/roadmap/BACKLOG_LEDGER.md:1876` moves the new logic/philosophy replay item into the open `P1` section with its own anchor, `docs/roadmap/BACKLOG_LEDGER.md:1925` moves the `web-research-agent` item into the open `P2` section, `docs/roadmap/BACKLOG_LEDGER.md:1962` renames the PR 1147 follow-up anchor to match its `P1` priority, and `docs/roadmap/BACKLOG_LEDGER.md:6597` plus `docs/roadmap/BACKLOG_LEDGER.md:6626` restore the completed creative-research block's original links/DoD integrity instead of leaving it split by open items.
