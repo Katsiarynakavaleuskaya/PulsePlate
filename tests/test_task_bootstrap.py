@@ -142,6 +142,24 @@ def test_task_bootstrap_requested_agents_change_packet_id() -> None:
     assert baseline["task_packet_id"] != with_requested["task_packet_id"]
 
 
+def test_task_bootstrap_keeps_security_auditor_in_privileged_review_path() -> None:
+    """Privileged orchestration paths must retain security review after overrides."""
+
+    packet = build_task_packet(
+        goal="Update privileged orchestration workflow",
+        task_class="Orchestration",
+        candidate_paths=["scripts/orchestration/task_bootstrap.py"],
+        requested_agents=["agent-coordinator"],
+    )
+
+    review_path = {
+        packet["primary_agent"],
+        packet["reviewer"],
+        *packet["secondary_agents"],
+    }
+    assert "security-auditor" in review_path
+
+
 def test_task_bootstrap_does_not_treat_cve_or_cvss_as_cv_domain() -> None:
     """Security acronyms must not trigger the CV routing domain."""
 

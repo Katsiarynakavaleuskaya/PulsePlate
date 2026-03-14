@@ -40,6 +40,11 @@ REQUESTED_AGENT_STATUS_HONORED_PRIMARY = "honored_primary"
 REQUESTED_AGENT_STATUS_ADVISORY_NON_ROUTABLE = "advisory_non_routable"
 REQUESTED_AGENT_STATUS_PROMOTED = "promoted_requested_agent"
 REQUESTED_AGENT_STATUS_ADVISORY_DOMAIN_MISMATCH = "advisory_domain_mismatch"
+PRIVILEGED_REVIEW_PREFIXES: tuple[str, ...] = (
+    ".github/workflows/",
+    "ios/fastlane/",
+    "scripts/orchestration/",
+)
 
 
 def _read_json(path: Path) -> dict[str, Any] | None:
@@ -77,6 +82,18 @@ def _select_independent_reviewer(
     if reviewer_candidate is not None:
         return reviewer_candidate
     return "qa-engineer-agent"
+
+
+def _requires_security_review(candidate_paths: list[str] | tuple[str, ...]) -> bool:
+    """Return True when the task touches privileged surfaces that require security review."""
+
+    return any(
+        any(
+            path == prefix.rstrip("/") or path.startswith(prefix)
+            for prefix in PRIVILEGED_REVIEW_PREFIXES
+        )
+        for path in candidate_paths
+    )
 
 
 def _apply_requested_agent_overrides(
@@ -239,6 +256,16 @@ def build_task_packet(
         requested_agents=normalized_requested_agents,
         routing=routing,
     )
+    if _requires_security_review(normalized_paths):
+        secondary_agents = list(requested_agent_resolution["secondary_agents"])
+        security_in_review_path = "security-auditor" in {
+            requested_agent_resolution["primary_agent"],
+            requested_agent_resolution["reviewer"],
+            *secondary_agents,
+        }
+        if not security_in_review_path:
+            secondary_agents.append("security-auditor")
+        requested_agent_resolution["secondary_agents"] = secondary_agents
     skill_routing = route_skills(
         goal=goal,
         task_class=task_class,
