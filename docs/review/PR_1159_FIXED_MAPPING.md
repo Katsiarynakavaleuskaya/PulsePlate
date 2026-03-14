@@ -48,8 +48,8 @@ Reason: The follow-up anchor refresh moves the self-referential proof lines to t
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1159#pullrequestreview-3947485528 -> 5ca2aa2f
 
 ## Merge Readiness
-- [ ] Local hard gate passed (`make verify`)
-- [ ] Required checks PASS with no pending required jobs
-- [ ] No unresolved review threads
-- [ ] No actionable bot comments
+- [x] Local hard gate passed (`make verify`)
+- [x] Required checks PASS with no pending required jobs
+- [x] No unresolved review threads
+- [x] No actionable bot comments
 - [ ] Final post-bot wait cycle completed
