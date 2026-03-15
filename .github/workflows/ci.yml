@@ -1384,7 +1384,10 @@ jobs:
             # Warm up system services (best-effort, reduces flaky UI test failures)
             echo "Warming up system services..."
             xcrun simctl launch "$UDID" com.apple.springboard || true
-            sleep 2
+            # Post-boot settle: Data Migration can leave simulator fragile; extra delay reduces launch crashes
+            SETTLE="${SIM_POST_BOOT_SETTLE_SECONDS:-5}"
+            echo "Settling simulator (${SETTLE}s) after boot..."
+            sleep "$SETTLE"
             echo "✓ System services ready"
           fi
 
