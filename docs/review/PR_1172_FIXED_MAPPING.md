@@ -5,11 +5,11 @@
 - [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
-- No actionable review comments
+- Review governance update in progress
 
 ## Merge Readiness
-- [x] Local hard gate passed (`make verify`)
-- [x] Required checks PASS with no pending required jobs
-- [x] No unresolved review threads
-- [x] No actionable bot comments
-- [x] Final post-bot wait cycle completed
+- [ ] Local hard gate passed (`make verify`)
+- [ ] Required checks PASS with no pending required jobs
+- [ ] No unresolved review threads
+- [ ] No actionable bot comments
+- [ ] Final post-bot wait cycle completed

@@ -635,7 +635,7 @@ private func collectTextFiles(
 
 private func extractCanonicalStoreKitProductIDs(from content: String) throws -> [String] {
     let regex = try NSRegularExpression(
-        pattern: #"\|\s*`(com\.pulseplate\.premium\.[a-z0-9._-]+)`\s*\|"#,
+        pattern: #"\|\s*`(com\.pulseplate\.[a-z0-9._-]+)`\s*\|"#,
         options: []
     )
 

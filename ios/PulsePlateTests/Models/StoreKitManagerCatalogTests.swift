@@ -49,8 +49,8 @@ final class StoreKitManagerCatalogTests: XCTestCase {
         )
 
         XCTAssertEqual(
-            products.map(\.displayName),
-            ["Monthly", "Yearly"]
+            products.map(\.id),
+            StoreKitProductCatalog.allowedProductIDs
         )
     }
 

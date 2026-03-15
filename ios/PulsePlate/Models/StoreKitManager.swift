@@ -110,7 +110,7 @@ final class StoreKitManager: StoreKitManaging {
             guard case .verified(let transaction) = result else {
                 continue
             }
-            guard isManagedProduct(transaction.productID) else {
+            guard managesProductID(transaction.productID) else {
                 continue
             }
             return mapTransaction(transaction)
@@ -173,9 +173,6 @@ final class StoreKitManager: StoreKitManaging {
         }
     }
 
-    private func isManagedProduct(_ productID: String) -> Bool {
-        managesProductID(productID)
-    }
 
     private func mapTransaction(_ transaction: Transaction) -> StoreEntitlementTransaction {
         StoreEntitlementTransaction(
