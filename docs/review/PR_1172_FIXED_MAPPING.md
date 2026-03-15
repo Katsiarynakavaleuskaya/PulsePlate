@@ -5,7 +5,20 @@
 - [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
-- Review governance update in progress
+Disposition: FIXED
+Commit: c67514d3
+Evidence:
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1172#pullrequestreview-3949815836 -> c67514d3
+- ios/PulsePlateTests/Guards/ThinClientGuardsTests.swift:636
+- ios/PulsePlate/Screens/PaywallScreen.swift:130
+- ios/PulsePlate/Models/StoreKitManager.swift:113
+- ios/PulsePlateTests/Models/StoreKitManagerCatalogTests.swift:52
+
+Disposition: FIXED
+Commit: c67514d3
+Evidence:
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1172#discussion_r2936385445 -> c67514d3
+- docs/review/PR_1172_FIXED_MAPPING.md:1
 
 ## Merge Readiness
 - [ ] Local hard gate passed (`make verify`)
