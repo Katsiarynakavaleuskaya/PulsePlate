@@ -14,7 +14,7 @@ Reason: The PR now keeps the testing-group bump limited to `faker` and removes t
 Disposition: NOT-A-BUG
 Evidence: `docs/review/PR_1174_FIXED_MAPPING.md:8`
 Reason: The review-level cubic shell only summarizes the same runtime-drift finding already mapped above; it does not add a second independent defect once the inline comment is fixed.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1174#pullrequestreview-3949030175
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1174#pullrequestreview-3949637620
 
 ## Merge Readiness
 - [ ] Local hard gate passed (`make verify`)
