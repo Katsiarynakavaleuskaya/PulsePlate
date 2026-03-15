@@ -14,7 +14,7 @@ Reason: The PR now keeps the dependency update scoped to the intended `sentence-
 Disposition: NOT-A-BUG
 Evidence: `docs/review/PR_1176_FIXED_MAPPING.md:8`
 Reason: The review-level cubic shell only summarizes the same CUDA drift finding already dispositioned above; it does not add a second independent issue after the inline fix.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1176#pullrequestreview-3949650217
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1176#pullrequestreview-3949639750
 
 ## Merge Readiness
 - [ ] Local hard gate passed (`make verify`)
