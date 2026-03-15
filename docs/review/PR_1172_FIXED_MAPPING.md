@@ -32,10 +32,10 @@ Reason: UI smoke now launches the stable paywall preview scenario and still asse
 
 
 Disposition: FIXED
-Commit: d163571f
-Evidence: ios/PulsePlateTests/Guards/ThinClientGuardsTests.swift:549, ios/PulsePlateUITests/UISmokeTests.swift:11, ios/PulsePlateUITests/UISmokeTests.swift:26
-Reason: The doc↔code parity guard now preserves canonical order and detects duplicate IDs, while UI smoke centralizes its launch-contract strings and reads an overrideable foreground timeout with the same safe default.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1172#pullrequestreview-3949869237 -> d163571f
+Commit: f49207aa
+Evidence: ios/PulsePlateTests/Guards/ThinClientGuardsTests.swift:549, ios/PulsePlateTests/Guards/ThinClientGuardsTests.swift:564, ios/PulsePlateUITests/UISmokeTests.swift:11, ios/PulsePlateUITests/UISmokeTests.swift:25
+Reason: The latest bot review is closed by keeping doc↔code parity order/duplicate assertions explicit and replacing the flaky foreground wait with a bounded post-launch liveness check while still centralizing the UI smoke launch-contract strings.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1172#pullrequestreview-3949869237 -> f49207aa
 
 Disposition: NOT-A-BUG
 Evidence: docs/review/PR_1172_FIXED_MAPPING.md:7
