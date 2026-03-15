@@ -448,7 +448,7 @@ rich==14.3.3
     #   bandit
     #   pip-audit
     #   typer
-ruff==0.15.5
+ruff==0.15.6
     # via -r requirements-dev.in
 safetensors==0.7.0
     # via
