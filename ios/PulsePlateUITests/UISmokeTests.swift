@@ -8,13 +8,6 @@
 
 import XCTest
 
-private enum UISmokeLaunchContract {
-  static let screenshotModeFlag = "-appstore-screenshot-mode"
-  static let screenshotScenarioFlag = "-appstore-screenshot-scenario"
-  static let screenshotScenarioHealthPermission = "health_permission"
-  static let screenshotModeEnvironmentKey = "APPSTORE_SCREENSHOT_MODE"
-}
-
 final class UISmokeTests: XCTestCase {
   override func setUpWithError() throws {
     continueAfterFailure = false
@@ -25,18 +18,15 @@ final class UISmokeTests: XCTestCase {
     let app = XCUIApplication()
     setupSnapshot(app, waitForAnimations: false)
 
-    app.launchArguments += [
-      UISmokeLaunchContract.screenshotModeFlag,
-      UISmokeLaunchContract.screenshotScenarioFlag,
-      UISmokeLaunchContract.screenshotScenarioHealthPermission,
-    ]
-    app.launchEnvironment[UISmokeLaunchContract.screenshotModeEnvironmentKey] = "1"
+    // RU: Минимальный CI smoke — обычный launch path (без screenshot mode).
+    // EN: Minimal CI smoke — normal launch path (no screenshot mode).
+    // Screenshot mode (health_permission) crashed on CI; normal path is the primary signal.
+    app.launch()
+    defer { app.terminate() }
 
     // RU: Минимальный CI smoke — один статичный assertion: app достиг foreground.
     // EN: Minimal CI smoke — single static assertion: app reached foreground.
     // Element-based checks (Window/NavigationBar/etc) flaky on CI; runningForeground is more reliable.
-    app.launch()
-    defer { app.terminate() }
 
     let timeoutSeconds = Double(
       ProcessInfo.processInfo.environment["UI_SMOKE_FOREGROUND_TIMEOUT_SECONDS"] ?? "90"

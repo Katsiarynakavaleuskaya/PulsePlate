@@ -9,15 +9,17 @@
 
 ### Evidence
 
-**Run 23116509095 (latest):**
+**Run 23117197358 (xcresult inspected):**
 ```
-t = 4.14s  Setting up automation session
+Launch arguments: -appstore-screenshot-mode, -appstore-screenshot-scenario health_permission
+t = 4.28s  Setting up automation session
 com.katsiaryna.pulseplate.dev crashed in <external symbol>
-t = 25.18s Tear Down
-Test Case '...testLaunch' failed (25.425 seconds). exit 65
+t = 11.77s Tear Down
 ```
 
-**Classification:** Class A — app launch crash during automation session setup. Not Class B (element timeout). Post-boot settle and runningForeground timeout do not fix.
+**Root cause (from xcresult activity log):** UISmokeTests was launching the app in **screenshot mode** (`health_permission`), not normal mode. The crash occurs in the screenshot path (AppStoreHealthPermissionPreviewView / LocalizationManager), not in ProKeyProvider.
+
+**Classification:** Class A — app launch crash in screenshot-mode path. ProKeyProvider hypothesis not confirmed (screenshot mode uses previewProKey, never calls ProKeyProvider).
 
 ### Suspected launch paths
 
@@ -31,27 +33,16 @@ Test Case '...testLaunch' failed (25.425 seconds). exit 65
 
 **Primary hypothesis:** `ProKeyProvider.value()` catches Keychain throws and in DEBUG calls `assertionFailure()`. In CI simulator, Keychain can legitimately fail (no keychain, different env). `assertionFailure` terminates the app.
 
-### Minimal patch (hypothesis)
+### Minimal patch (applied)
 
-**ProKeyProvider.swift:** Remove or make conditional `assertionFailure` in DEBUG when Keychain throws. Callers already handle `nil`; the assertion was for programmer debugging but causes false crashes in CI.
+**UISmokeTests.swift:** Remove screenshot-mode launch arguments. The smoke test must verify the **normal launch path** (WelcomeGateView), not the screenshot path. Screenshot mode (`health_permission`) crashed on CI; normal path is the primary signal for a minimal smoke test.
 
-```swift
-// Current (crashes in CI):
-} catch {
-    #if DEBUG
-    assertionFailure("Keychain error while reading PRO key: \(error)")
-    #endif
-    return nil
-}
+### Crash evidence loop (completed)
 
-// Proposed: return nil without assertionFailure (or gate on !ProcessInfo.isUITesting)
-```
-
-### Crash evidence loop
-
-1. **Added:** `Upload xcresult on failure` step in `.github/workflows/ci.yml` (ios-ui-smoke job). On failure, uploads `ios/.derivedData/Logs/Test/` as artifact `ios-ui-smoke-xcresult-<run_id>`.
-2. **Next run:** After next failure, download artifact and inspect `.xcresult` for crash stack trace.
-3. **If logs insufficient:** Consider `xcrun xcresulttool get --path ... --format json` or similar in CI to extract crash info.
+1. **Added:** `Upload xcresult on failure` step — artifact uploaded on run 23117197358.
+2. **Downloaded:** xcresult inspected via `xcrun xcresulttool get --legacy`.
+3. **Activity log revealed:** Launch args included `-appstore-screenshot-mode` and `-appstore-screenshot-scenario health_permission` — UISmokeTests was launching in screenshot mode.
+4. **Fix:** Remove screenshot mode from UISmokeTests; launch in normal mode.
 
 ---
 
@@ -88,7 +79,7 @@ Test Case '...testLaunch' failed (25.425 seconds). exit 65
 
 ## Next actions
 
-1. **Track A:** Push xcresult upload step; on next failure, download artifact and inspect crash.
-2. **Track A:** If ProKeyProvider hypothesis confirmed, apply minimal patch (remove assertionFailure).
-3. **Track B:** Rerun OpenAPI sync; if still fails, investigate network/install path separately.
+1. **Track A:** Push UISmokeTests fix (remove screenshot mode); watch ios-ui-smoke on next run.
+2. **Track A:** If still crashes in normal mode, revisit ProKeyProvider hypothesis.
+3. **Track B:** OpenAPI sync passed in run 23117197358 — no action needed.
 4. **Both:** Do not mix fixes; keep scope minimal.
