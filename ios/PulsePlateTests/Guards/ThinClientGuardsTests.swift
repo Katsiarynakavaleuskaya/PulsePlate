@@ -547,9 +547,20 @@ final class ThinClientGuardsTests: XCTestCase {
         )
 
         let content = try String(contentsOf: contractURL, encoding: .utf8)
-        let contractIDs = Set(try extractCanonicalStoreKitProductIDs(from: content))
-        let codeIDs = Set(StoreKitProductCatalog.allowedProductIDs)
+        let contractIDs = try extractCanonicalStoreKitProductIDs(from: content)
+        let codeIDs = StoreKitProductCatalog.allowedProductIDs
 
+        XCTAssertFalse(contractIDs.isEmpty, "Canonical StoreKit contract has no product IDs.")
+        XCTAssertEqual(
+            Set(contractIDs).count,
+            contractIDs.count,
+            "Duplicate IDs found in canonical StoreKit contract doc."
+        )
+        XCTAssertEqual(
+            Set(codeIDs).count,
+            codeIDs.count,
+            "Duplicate IDs found in StoreKitProductCatalog."
+        )
         XCTAssertEqual(contractIDs, codeIDs)
     }
 
