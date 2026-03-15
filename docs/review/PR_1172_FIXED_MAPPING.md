@@ -45,6 +45,14 @@ Reason: These earlier bot review-summary URLs either summarize inline findings t
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1172#pullrequestreview-3949825246
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1172#pullrequestreview-3949835705
 
+
+Disposition: FIXED
+Commit: c8d35512
+Evidence: ios/PulsePlateTests/Guards/ThinClientGuardsTests.swift:655
+Reason: The canonical contract parser now accepts mixed-case StoreKit product IDs, closing the guard blind spot where doc rows with uppercase characters could be skipped.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1172#discussion_r2936465170 -> c8d35512
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1172#pullrequestreview-3949926823 -> c8d35512
+
 ## Merge Readiness
 - [ ] Local hard gate passed (`make verify`)
 - [ ] Required checks PASS with no pending required jobs
