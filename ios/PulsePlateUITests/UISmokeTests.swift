@@ -25,6 +25,7 @@ final class UISmokeTests: XCTestCase {
   @MainActor
   func testLaunch() throws {
     let app = XCUIApplication()
+    setupSnapshot(app, waitForAnimations: false)
 
     app.launchArguments += [
       UISmokeLaunchContract.screenshotModeFlag,
@@ -38,6 +39,7 @@ final class UISmokeTests: XCTestCase {
     // EN: This is intentionally a minimal CI smoke. It verifies deterministic screenshot-mode
     // launch through a generic UI-container signal instead of a scenario-specific preview root.
     app.launch()
+    defer { app.terminate() }
 
     let launchSanitySatisfied =
       app.windows.firstMatch.waitForExistence(timeout: UISmokeLaunchContract.primaryLaunchTimeout)
