@@ -13,7 +13,8 @@ private enum UISmokeLaunchContract {
   static let screenshotScenarioFlag = "-appstore-screenshot-scenario"
   static let screenshotScenarioPaywall = "paywall"
   static let screenshotModeEnvironmentKey = "APPSTORE_SCREENSHOT_MODE"
-  static let postLaunchSettleSeconds: UInt32 = 1
+  static let primaryLaunchTimeout: TimeInterval = 20
+  static let fallbackLaunchTimeout: TimeInterval = 3
 }
 
 final class UISmokeTests: XCTestCase {
@@ -33,11 +34,21 @@ final class UISmokeTests: XCTestCase {
     app.launchEnvironment[UISmokeLaunchContract.screenshotModeEnvironmentKey] = "1"
 
     // RU: Это намеренно минимальный CI smoke. Он проверяет детерминированный запуск
-    // screenshot-mode и что приложение не завершилось сразу после старта.
+    // screenshot-mode по generic UI-container signal без привязки к конкретному preview-root.
     // EN: This is intentionally a minimal CI smoke. It verifies deterministic screenshot-mode
-    // launch and that the app stays alive immediately after startup.
+    // launch through a generic UI-container signal instead of a scenario-specific preview root.
     app.launch()
-    sleep(UISmokeLaunchContract.postLaunchSettleSeconds)
-    XCTAssertNotEqual(app.state, .notRunning)
+
+    let launchSanitySatisfied =
+      app.windows.firstMatch.waitForExistence(timeout: UISmokeLaunchContract.primaryLaunchTimeout)
+      || app.navigationBars.firstMatch.waitForExistence(timeout: UISmokeLaunchContract.fallbackLaunchTimeout)
+      || app.tables.firstMatch.waitForExistence(timeout: UISmokeLaunchContract.fallbackLaunchTimeout)
+      || app.collectionViews.firstMatch.waitForExistence(timeout: UISmokeLaunchContract.fallbackLaunchTimeout)
+      || app.scrollViews.firstMatch.waitForExistence(timeout: UISmokeLaunchContract.fallbackLaunchTimeout)
+
+    XCTAssertTrue(
+      launchSanitySatisfied,
+      "Screenshot-mode launch did not present any stable UI container"
+    )
   }
 }
