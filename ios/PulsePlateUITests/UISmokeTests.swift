@@ -16,7 +16,6 @@ final class UISmokeTests: XCTestCase {
   @MainActor
   func testLaunch() throws {
     let app = XCUIApplication()
-    setupSnapshot(app, waitForAnimations: false)
     app.launchArguments += [
       "-appstore-screenshot-mode",
       "-appstore-screenshot-scenario", "welcome",
