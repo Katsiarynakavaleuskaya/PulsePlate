@@ -11,7 +11,7 @@ import XCTest
 private enum UISmokeLaunchContract {
   static let screenshotModeFlag = "-appstore-screenshot-mode"
   static let screenshotScenarioFlag = "-appstore-screenshot-scenario"
-  static let screenshotScenarioPaywall = "paywall"
+  static let screenshotScenarioHealthPermission = "health_permission"
   static let screenshotModeEnvironmentKey = "APPSTORE_SCREENSHOT_MODE"
   static let primaryLaunchTimeout: TimeInterval = 20
   static let fallbackLaunchTimeout: TimeInterval = 3
@@ -30,14 +30,14 @@ final class UISmokeTests: XCTestCase {
     app.launchArguments += [
       UISmokeLaunchContract.screenshotModeFlag,
       UISmokeLaunchContract.screenshotScenarioFlag,
-      UISmokeLaunchContract.screenshotScenarioPaywall,
+      UISmokeLaunchContract.screenshotScenarioHealthPermission,
     ]
     app.launchEnvironment[UISmokeLaunchContract.screenshotModeEnvironmentKey] = "1"
 
     // RU: Это намеренно минимальный CI smoke. Он проверяет детерминированный запуск
-    // screenshot-mode по generic UI-container signal без привязки к конкретному preview-root.
+    // screenshot-mode на статичном preview scenario по generic UI-container signal без привязки к preview-root.
     // EN: This is intentionally a minimal CI smoke. It verifies deterministic screenshot-mode
-    // launch through a generic UI-container signal instead of a scenario-specific preview root.
+    // launch through a stable screenshot scenario and a generic UI-container signal.
     app.launch()
     defer { app.terminate() }
 
