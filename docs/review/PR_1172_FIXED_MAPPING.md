@@ -30,6 +30,21 @@ Evidence: ios/PulsePlateUITests/UISmokeTests.swift:17
 Reason: UI smoke now launches the stable paywall preview scenario and still asserts that the app reaches the foreground, preserving a minimal launch-health signal without reintroducing flaky waits.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1172#discussion_r2936389036 -> 6a5adc7e
 
+
+Disposition: FIXED
+Commit: d163571f
+Evidence: ios/PulsePlateTests/Guards/ThinClientGuardsTests.swift:549, ios/PulsePlateUITests/UISmokeTests.swift:11, ios/PulsePlateUITests/UISmokeTests.swift:26
+Reason: The doc↔code parity guard now preserves canonical order and detects duplicate IDs, while UI smoke centralizes its launch-contract strings and reads an overrideable foreground timeout with the same safe default.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1172#pullrequestreview-3949869237 -> d163571f
+
+Disposition: NOT-A-BUG
+Evidence: docs/review/PR_1172_FIXED_MAPPING.md:7
+Reason: These earlier bot review-summary URLs either summarize inline findings that are already dispositioned above or do not add standalone unresolved defects beyond the mapped follow-up commits.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1172#pullrequestreview-3949820031
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1172#pullrequestreview-3949823990
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1172#pullrequestreview-3949825246
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1172#pullrequestreview-3949835705
+
 ## Merge Readiness
 - [ ] Local hard gate passed (`make verify`)
 - [ ] Required checks PASS with no pending required jobs
