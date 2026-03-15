@@ -1320,6 +1320,7 @@ jobs:
         working-directory: ios
         env:
           DEVELOPER_DIR: ${{ steps.select-xcode.outputs.developer_dir }}
+          UI_SMOKE_FOREGROUND_TIMEOUT_SECONDS: "90"
         run: |
           set -euo pipefail
 
