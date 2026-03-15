@@ -6,10 +6,10 @@
 
 ## Fixed in Commit Mapping
 Disposition: FIXED
-Commit: 94c7233880b637e6ddaf01f1052cd315b55ed885
+Commit: 398e873d9bf9ba3f37cf1cecca7a3d82067162d0
 Evidence: `requirements-dev.in:11` bumps `faker` only in the testing lane, `requirements-dev.txt:60` pins `faker==40.11.0`, and `requirements-lock.txt:65` keeps the lock update scoped to the same test dependency without introducing runtime CUDA/Triton packages.
 Reason: The PR now keeps the testing-group bump limited to `faker` and removes the unrelated `requirements.txt` CUDA/Triton drift called out by cubic.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1174#discussion_r2936178966 -> 94c7233880b637e6ddaf01f1052cd315b55ed885
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1174#discussion_r2936178966 -> 398e873d9bf9ba3f37cf1cecca7a3d82067162d0
 
 Disposition: NOT-A-BUG
 Evidence: `docs/review/PR_1174_FIXED_MAPPING.md:8`
