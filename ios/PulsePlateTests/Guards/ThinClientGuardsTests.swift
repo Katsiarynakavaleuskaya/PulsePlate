@@ -561,7 +561,7 @@ final class ThinClientGuardsTests: XCTestCase {
             codeIDs.count,
             "Duplicate IDs found in StoreKitProductCatalog."
         )
-        XCTAssertEqual(contractIDs, codeIDs)
+        XCTAssertEqual(contractIDs, codeIDs, "Contract IDs must match StoreKitProductCatalog IDs and order.")
     }
 
     func test_fixturesContainBackendThresholds() throws {
