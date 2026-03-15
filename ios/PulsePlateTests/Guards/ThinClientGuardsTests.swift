@@ -654,8 +654,8 @@ private func collectTextFiles(
 
 private func extractCanonicalStoreKitProductIDs(from content: String) throws -> [String] {
     let regex = try NSRegularExpression(
-        pattern: #"\|\s*`(com\.pulseplate\.[a-z0-9._-]+)`\s*\|"#,
-        options: []
+        pattern: #"\|\s*`(com\.pulseplate\.[A-Za-z0-9._-]+)`\s*\|"#,
+        options: [.caseInsensitive]
     )
 
     let nsRange = NSRange(content.startIndex..<content.endIndex, in: content)
