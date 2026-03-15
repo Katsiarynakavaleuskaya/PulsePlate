@@ -1458,8 +1458,7 @@ jobs:
               sys.exit(e.returncode)
           PY
 
-          # Step 2: Run tests (without building)
-          # Timeout: 15 minutes (fail fast instead of consuming full job budget)
+          # Step 2: Run unit tests (only when UI smoke passes)
           echo "=== Running tests (timeout: 15 minutes) ==="
           python3 - << 'PY'
           import subprocess
@@ -1505,3 +1504,11 @@ jobs:
           except subprocess.CalledProcessError as e:
               sys.exit(e.returncode)
           PY
+
+      - name: Upload xcresult on failure (crash evidence)
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ios-ui-smoke-xcresult-${{ github.run_id }}
+          path: ios/.derivedData/Logs/Test/
+          retention-days: 7
