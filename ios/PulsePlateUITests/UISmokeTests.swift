@@ -13,7 +13,8 @@ private enum UISmokeLaunchContract {
   static let screenshotScenarioFlag = "-appstore-screenshot-scenario"
   static let screenshotScenarioPaywall = "paywall"
   static let screenshotModeEnvironmentKey = "APPSTORE_SCREENSHOT_MODE"
-  static let postLaunchSettleSeconds: UInt32 = 1
+  static let paywallRootIdentifier = "appstore.paywall.screen"
+  static let rootAppearanceTimeout: TimeInterval = 20
 }
 
 final class UISmokeTests: XCTestCase {
@@ -33,11 +34,13 @@ final class UISmokeTests: XCTestCase {
     app.launchEnvironment[UISmokeLaunchContract.screenshotModeEnvironmentKey] = "1"
 
     // RU: Это намеренно минимальный CI smoke. Он проверяет детерминированный запуск
-    // preview-mode и что приложение не завершилось сразу после запуска.
+    // preview-mode и появление корневого paywall preview без полного runtime boot path.
     // EN: This is intentionally a minimal CI smoke. It verifies deterministic preview-mode
-    // launch and that the app stays alive immediately after launch.
+    // launch and the appearance of the paywall preview root without full runtime boot assertions.
     app.launch()
-    sleep(UISmokeLaunchContract.postLaunchSettleSeconds)
-    XCTAssertNotEqual(app.state, .notRunning)
+    let root = app.descendants(matching: .any)
+      .matching(identifier: UISmokeLaunchContract.paywallRootIdentifier)
+      .firstMatch
+    XCTAssertTrue(root.waitForExistence(timeout: UISmokeLaunchContract.rootAppearanceTimeout))
   }
 }
