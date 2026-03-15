@@ -464,10 +464,18 @@ final class ThinClientGuardsTests: XCTestCase {
 
         var hits: [String] = []
 
+        let productIDRegex = try NSRegularExpression(
+            pattern: #"\bcom\.pulseplate\.premium\.[A-Za-z0-9._-]+\b"#,
+            options: [.caseInsensitive]
+        )
+
         for file in swiftFiles {
             let content = try String(contentsOf: file, encoding: .utf8)
             let scanContent = stripSwiftComments(from: content)
-            for productID in StoreKitProductCatalog.allowedProductIDs where scanContent.contains(productID) {
+            let range = NSRange(scanContent.startIndex..<scanContent.endIndex, in: scanContent)
+            for match in productIDRegex.matches(in: scanContent, options: [], range: range) {
+                guard let idRange = Range(match.range, in: scanContent) else { continue }
+                let productID = String(scanContent[idRange])
                 hits.append("\(relativePath(file, root: root)): \(productID)")
             }
         }

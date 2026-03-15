@@ -18,14 +18,15 @@ final class UISmokeTests: XCTestCase {
     let app = XCUIApplication()
     app.launchArguments += [
       "-appstore-screenshot-mode",
-      "-appstore-screenshot-scenario", "welcome",
+      "-appstore-screenshot-scenario", "paywall",
     ]
     app.launchEnvironment["APPSTORE_SCREENSHOT_MODE"] = "1"
 
-    // RU: Это намеренно минимальный CI smoke. Он проверяет, что UI test runner способен
-    // поднять приложение в детерминированном preview-mode без дополнительных idle/assertion wait'ов.
-    // EN: This is intentionally a minimal CI smoke. It verifies that the UI test runner can
-    // launch the app in deterministic preview mode without extra idle/assertion waits.
+    // RU: Это намеренно минимальный CI smoke. Он проверяет детерминированный запуск
+    // preview-mode и базовое состояние foreground без дополнительных UI-assertion сценариев.
+    // EN: This is intentionally a minimal CI smoke. It verifies deterministic preview-mode
+    // launch and a basic foreground-running state without extra UI-flow assertions.
     app.launch()
+    XCTAssertTrue(app.wait(for: .runningForeground, timeout: 10))
   }
 }
