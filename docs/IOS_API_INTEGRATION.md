@@ -110,6 +110,7 @@ Keep future work out of the canonical networking guide; track it as discrete bac
 
 Contract source:
 - `docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md:1`
+- `docs/contracts/IOS_STOREKIT_PRODUCTS_CONTRACT.md:1` (canonical StoreKit product IDs and setup baseline)
 
 Thin-client rules for payments:
 1. iOS must use existing `APIClient`/`HTTPClient` seam only (evidence: `ios/PulsePlate/Networking/APIClient.swift:57`, `ios/PulsePlate/Networking/HTTPClient.swift:22`).

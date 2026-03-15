@@ -43,8 +43,15 @@ struct PaywallScreen: View {
                         .foregroundStyle(.secondary)
                 case .loaded:
                     if subscriptionManager.products.isEmpty {
-                        Text("No plans available.")
-                            .foregroundStyle(.secondary)
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text(unavailablePlansMessage)
+                                .foregroundStyle(.secondary)
+                            Button("Retry loading plans") {
+                                Task {
+                                    await subscriptionManager.loadProducts()
+                                }
+                            }
+                        }
                     } else {
                         ForEach(subscriptionManager.products) { product in
                             Button {
@@ -69,6 +76,8 @@ struct PaywallScreen: View {
                     }
                 case .failed(let message):
                     VStack(alignment: .leading, spacing: 8) {
+                        Text(unavailablePlansMessage)
+                            .foregroundStyle(.secondary)
                         Text(message)
                             .font(.footnote)
                             .foregroundStyle(.secondary)
@@ -116,6 +125,10 @@ struct PaywallScreen: View {
         case .idle, .unlocked, .failed:
             return false
         }
+    }
+
+    private var unavailablePlansMessage: String {
+        "Plans are temporarily unavailable."
     }
 
     private var statusText: String {

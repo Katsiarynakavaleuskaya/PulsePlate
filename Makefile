@@ -457,7 +457,7 @@ ios-test: ## Run iOS unit tests (recommended before pushing iOS PR)
 		if [ -n "$$ONLY_ITEMS" ]; then \
 			IFS=','; for t in $$ONLY_ITEMS; do t=$${t# }; t=$${t% }; [ -n "$$t" ] && ONLY_FLAGS="$$ONLY_FLAGS -only-testing:$$t"; done; unset IFS; \
 		else \
-			ONLY_FLAGS="-only-testing:PulsePlateTests/ThinClientGuardsTests -only-testing:PulsePlateTests/ProKeyProviderTests -only-testing:PulsePlateTests/KeychainStoreTests -only-testing:PulsePlateTests/BMIServiceTests -only-testing:PulsePlateTests/BMIResponseDecodingTests -only-testing:PulsePlateTests/BMIRequestEncodingTests -only-testing:PulsePlateTests/LocaleParsingTests -only-testing:PulsePlateTests/HTTPClientTests -only-testing:PulsePlateTests/APIClientTests -only-testing:PulsePlateTests/BMIServiceThinAdapterTests -only-testing:PulsePlateTests/SubscriptionBillingServiceTests -only-testing:PulsePlateTests/SubscriptionManagerTests"; \
+			ONLY_FLAGS="-only-testing:PulsePlateTests/ThinClientGuardsTests -only-testing:PulsePlateTests/ProKeyProviderTests -only-testing:PulsePlateTests/KeychainStoreTests -only-testing:PulsePlateTests/BMIServiceTests -only-testing:PulsePlateTests/BMIResponseDecodingTests -only-testing:PulsePlateTests/BMIRequestEncodingTests -only-testing:PulsePlateTests/LocaleParsingTests -only-testing:PulsePlateTests/HTTPClientTests -only-testing:PulsePlateTests/APIClientTests -only-testing:PulsePlateTests/BMIServiceThinAdapterTests -only-testing:PulsePlateTests/SubscriptionBillingServiceTests -only-testing:PulsePlateTests/SubscriptionManagerTests -only-testing:PulsePlateTests/StoreKitProductCatalogTests -only-testing:PulsePlateTests/StoreKitManagerCatalogTests"; \
 		fi; \
 		if [ -z "$$ONLY_ITEMS" ] && [ -z "$$SKIP_PROVIDED" ]; then \
 			SKIP_FLAGS="-skip-testing:PulsePlateUITests"; \

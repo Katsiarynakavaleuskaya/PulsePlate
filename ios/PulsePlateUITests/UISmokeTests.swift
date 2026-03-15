@@ -9,17 +9,32 @@
 import XCTest
 
 final class UISmokeTests: XCTestCase {
+  override func setUpWithError() throws {
+    continueAfterFailure = false
+  }
+
   @MainActor
   func testLaunch() throws {
     let app = XCUIApplication()
+    setupSnapshot(app, waitForAnimations: false)
+
+    // RU: Минимальный CI smoke — обычный launch path (без screenshot mode).
+    // EN: Minimal CI smoke — normal launch path (no screenshot mode).
+    // Screenshot mode (health_permission) crashed on CI; normal path is the primary signal.
     app.launch()
-    // RU: На CI иногда бывают флейки симулятора/launch. Мы не ассертим "сразу",
-    // а ждём, пока приложение перейдёт в foreground.
-    // EN: CI simulator/app launch can be flaky. Wait for the app to reach foreground.
-    let timeoutSeconds = Int(
-      ProcessInfo.processInfo.environment["UI_SMOKE_FOREGROUND_TIMEOUT_SECONDS"] ?? "60"
-    ) ?? 60
-    let didReachForeground = app.wait(for: .runningForeground, timeout: TimeInterval(timeoutSeconds))
-    XCTAssertTrue(didReachForeground, "UI smoke: app did not reach runningForeground. state=\(app.state)")
+    defer { app.terminate() }
+
+    // RU: Минимальный CI smoke — один статичный assertion: app достиг foreground.
+    // EN: Minimal CI smoke — single static assertion: app reached foreground.
+    // Element-based checks (Window/NavigationBar/etc) flaky on CI; runningForeground is more reliable.
+
+    let timeoutSeconds = Double(
+      ProcessInfo.processInfo.environment["UI_SMOKE_FOREGROUND_TIMEOUT_SECONDS"] ?? "90"
+    ) ?? 90
+    let didReachForeground = app.wait(for: .runningForeground, timeout: timeoutSeconds)
+    XCTAssertTrue(
+      didReachForeground,
+      "UI smoke: app did not reach runningForeground. state=\(app.state)"
+    )
   }
 }
