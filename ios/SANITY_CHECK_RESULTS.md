@@ -243,8 +243,8 @@ If testing on physical device:
 - **Fix:** Check backend logs, verify BASE_URL
 
 **Issue:** "Missing API key" error
-- **Cause:** ProKeyProvider returning nil
-- **Fix:** Check fallback is "test_pro_key" in DEBUG
+- **Cause:** ProKeyProvider returning nil (Keychain empty)
+- **Fix:** Load key via **PRO Settings → Debug Tools → Keychain**
 
 **Issue:** Infinite loading
 - **Cause:** Network timeout or CORS
