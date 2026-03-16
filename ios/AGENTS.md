@@ -171,22 +171,18 @@
   ```
 - **Step 2: Run tests** (timeout: 15 minutes):
   ```bash
+  # Canonical test list: scripts/ios_test_targets.sh (run from ios/)
   xcodebuild test-without-building \
     -project PulsePlate.xcodeproj \
     -scheme PulsePlate \
     -skip-testing:PulsePlateUITests \
-    -only-testing:PulsePlateTests/ThinClientGuardsTests \
-    -only-testing:PulsePlateTests/ProKeyProviderTests \
-    -only-testing:PulsePlateTests/KeychainStoreTests \
-    -only-testing:PulsePlateTests/BMIServiceTests \
-    -only-testing:PulsePlateTests/BMIResponseDecodingTests \
-    -only-testing:PulsePlateTests/BMIRequestEncodingTests \
-    -only-testing:PulsePlateTests/LocaleParsingTests \
+    $(../scripts/ios_test_targets.sh | tr ',' '\n' | while read t; do [ -n "$t" ] && echo "-only-testing:$t"; done) \
     -destination "$DESTINATION" \
     -derivedDataPath ../.derivedData \
     -enableCodeCoverage NO \
     -parallel-testing-enabled NO
   ```
+- **Canonical test list:** `scripts/ios_test_targets.sh` (single source for Makefile, ci.yml, AGENTS.md)
 - **Do not use `-workspace` for tests unless scheme has explicit TestAction** (confirmed via separate PR)
 - Workspace (`PulsePlate.xcworkspace`) is used for building/running app (SPM dependencies), but tests run via project
 - Project-based approach avoids exit code 66 when app scheme lacks TestAction in workspace context
@@ -340,17 +336,12 @@
   ```
 - **Step 2: Run tests** (timeout: 15 minutes):
   ```bash
+  # Canonical list: scripts/ios_test_targets.sh (run from ios/)
   xcodebuild test-without-building \
     -project PulsePlate.xcodeproj \
     -scheme PulsePlate \
     -skip-testing:PulsePlateUITests \
-    -only-testing:PulsePlateTests/ThinClientGuardsTests \
-    -only-testing:PulsePlateTests/ProKeyProviderTests \
-    -only-testing:PulsePlateTests/KeychainStoreTests \
-    -only-testing:PulsePlateTests/BMIServiceTests \
-    -only-testing:PulsePlateTests/BMIResponseDecodingTests \
-    -only-testing:PulsePlateTests/BMIRequestEncodingTests \
-    -only-testing:PulsePlateTests/LocaleParsingTests \
+    $(../scripts/ios_test_targets.sh | tr ',' '\n' | while read t; do [ -n "$t" ] && echo "-only-testing:$t"; done) \
     -destination "$DESTINATION" \
     -derivedDataPath ../.derivedData \
     -enableCodeCoverage NO \
@@ -399,19 +390,14 @@ xcrun simctl list devices
 
 # Run CI test suite (locally can use name, but UDID preferred)
 # Run `xcrun simctl list devices` to find a valid simulator name (e.g., "iPhone 14").
+# Canonical test list: scripts/ios_test_targets.sh
 xcodebuild test \
   -project PulsePlate.xcodeproj \
   -scheme PulsePlate \
   -destination "platform=iOS Simulator,name=<SIMULATOR_NAME>" \
   -configuration Debug \
   -skip-testing:PulsePlateUITests \
-  -only-testing:PulsePlateTests/ThinClientGuardsTests \
-  -only-testing:PulsePlateTests/ProKeyProviderTests \
-  -only-testing:PulsePlateTests/KeychainStoreTests \
-  -only-testing:PulsePlateTests/BMIServiceTests \
-  -only-testing:PulsePlateTests/BMIResponseDecodingTests \
-  -only-testing:PulsePlateTests/BMIRequestEncodingTests \
-  -only-testing:PulsePlateTests/LocaleParsingTests
+  $(../scripts/ios_test_targets.sh | tr ',' '\n' | while read t; do [ -n "$t" ] && echo "-only-testing:$t"; done)
 ```
 
 ### Simulator troubleshooting (runtime state issues)

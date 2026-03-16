@@ -1460,6 +1460,8 @@ jobs:
 
           # Step 2: Run unit tests (only when UI smoke passes)
           echo "=== Running tests (timeout: 15 minutes) ==="
+          ONLY_TESTING="$(../scripts/ios_test_targets.sh)"
+          export ONLY_TESTING
           python3 - << 'PY'
           import subprocess
           import sys
@@ -1470,25 +1472,15 @@ jobs:
               print("::error::DESTINATION is empty", file=sys.stderr)
               sys.exit(1)
 
+          tests = [t.strip() for t in os.environ.get("ONLY_TESTING", "").split(",") if t.strip()]
+          only_flags = [f"-only-testing:{t}" for t in tests]
+
           cmd = [
               "xcodebuild", "test-without-building",
               "-project", "PulsePlate.xcodeproj",
               "-scheme", "PulsePlate",
               "-skip-testing:PulsePlateUITests",
-              "-only-testing:PulsePlateTests/ThinClientGuardsTests",
-              "-only-testing:PulsePlateTests/ProKeyProviderTests",
-              "-only-testing:PulsePlateTests/KeychainStoreTests",
-              "-only-testing:PulsePlateTests/BMIServiceTests",
-              "-only-testing:PulsePlateTests/BMIResponseDecodingTests",
-              "-only-testing:PulsePlateTests/BMIRequestEncodingTests",
-              "-only-testing:PulsePlateTests/LocaleParsingTests",
-              "-only-testing:PulsePlateTests/HTTPClientTests",
-              "-only-testing:PulsePlateTests/APIClientTests",
-              "-only-testing:PulsePlateTests/BMIServiceThinAdapterTests",
-              "-only-testing:PulsePlateTests/SubscriptionBillingServiceTests",
-              "-only-testing:PulsePlateTests/SubscriptionManagerTests",
-              "-only-testing:PulsePlateTests/StoreKitProductCatalogTests",
-              "-only-testing:PulsePlateTests/StoreKitManagerCatalogTests",
+          ] + only_flags + [
               "-destination", destination,
               "-derivedDataPath", ".derivedData",
               "-clonedSourcePackagesDirPath", ".derivedData/SourcePackages",
