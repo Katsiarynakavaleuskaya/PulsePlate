@@ -176,6 +176,8 @@
     -scheme PulsePlate \
     -skip-testing:PulsePlateUITests \
     -only-testing:PulsePlateTests/ThinClientGuardsTests \
+    -only-testing:PulsePlateTests/ProKeyProviderTests \
+    -only-testing:PulsePlateTests/KeychainStoreTests \
     -only-testing:PulsePlateTests/BMIServiceTests \
     -only-testing:PulsePlateTests/BMIResponseDecodingTests \
     -only-testing:PulsePlateTests/BMIRequestEncodingTests \
@@ -199,8 +201,9 @@
 
 **Test scope policy (PR-559):**
 
-- **Unit tests (Guards + BMI)** — mandatory, block merge if failing
+- **Unit tests (Guards + BMI + Keychain)** — mandatory, block merge if failing
   - `ThinClientGuardsTests` (anti-duplication guard)
+  - `ProKeyProviderTests`, `KeychainStoreTests` (Keychain conformance)
   - `BMIServiceTests`, `BMIResponseDecodingTests`, `BMIRequestEncodingTests`, `LocaleParsingTests`
 - **UI tests** — excluded from CI (do not block PR-559)
   - `PulsePlateUITests` skipped via `-skip-testing:PulsePlateUITests`
@@ -342,6 +345,8 @@
     -scheme PulsePlate \
     -skip-testing:PulsePlateUITests \
     -only-testing:PulsePlateTests/ThinClientGuardsTests \
+    -only-testing:PulsePlateTests/ProKeyProviderTests \
+    -only-testing:PulsePlateTests/KeychainStoreTests \
     -only-testing:PulsePlateTests/BMIServiceTests \
     -only-testing:PulsePlateTests/BMIResponseDecodingTests \
     -only-testing:PulsePlateTests/BMIRequestEncodingTests \
@@ -401,6 +406,8 @@ xcodebuild test \
   -configuration Debug \
   -skip-testing:PulsePlateUITests \
   -only-testing:PulsePlateTests/ThinClientGuardsTests \
+  -only-testing:PulsePlateTests/ProKeyProviderTests \
+  -only-testing:PulsePlateTests/KeychainStoreTests \
   -only-testing:PulsePlateTests/BMIServiceTests \
   -only-testing:PulsePlateTests/BMIResponseDecodingTests \
   -only-testing:PulsePlateTests/BMIRequestEncodingTests \

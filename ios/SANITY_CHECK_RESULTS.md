@@ -151,17 +151,15 @@ return URL(string: "https://api.pulseplate.com")!
 
 **ProKeyProvider.swift:**
 ```swift
-#if DEBUG
-if let envKey = ProcessInfo.processInfo.environment["PRO_API_KEY"],
-   !envKey.isEmpty {
-    return envKey
+// Current (Keychain-only): runtime source is Keychain only; no env fallback.
+do {
+    return try store.getString(account: account)
+} catch {
+    #if DEBUG
+    assertionFailure("Keychain error while reading PRO key: \(error)")
+    #endif
+    return nil
 }
-// Fallback
-return "test_pro_key"
-#else
-// TODO: Keychain
-return nil
-#endif
 ```
 
 **Xcode Scheme Setup (optional):**
@@ -169,10 +167,10 @@ return nil
 Product → Scheme → Edit Scheme → Run → Environment Variables
 - BASE_URL = http://localhost:8000 (simulator)
 - BASE_URL = http://192.168.1.X:8000 (device)
-- PRO_API_KEY = test_pro_key
 ```
+PRO key is loaded via **PRO Settings → Debug Tools → Keychain** only (not env vars).
 
-**Status:** FALLBACKS CONFIGURED ✅
+**Status:** KEYCHAIN-ONLY CONFIGURED ✅
 
 ---
 
@@ -196,7 +194,7 @@ DebugToolsScreen().tabItem { Label("Debug", systemImage: "hammer.fill") }
 - ✅ No import cycles
 - ✅ DTO contract matches backend exactly
 - ✅ ATS configured for HTTP development
-- ✅ Environment variable fallbacks in place
+- ✅ Keychain-only PRO key storage (no env fallback)
 - ✅ Debug tab protected by `#if DEBUG`
 - ✅ Localization keys added (EN/RU/ES)
 
@@ -214,7 +212,7 @@ DebugToolsScreen().tabItem { Label("Debug", systemImage: "hammer.fill") }
 5. Navigate to **Debug** tab
 6. Check configuration display:
    - Base URL: `http://localhost:8000`
-   - PRO API Key: `test_pro_...`
+   - PRO API Key: Keychain-backed (load via **PRO Settings → Debug Tools → Keychain**)
 7. Tap **Shopping List Generator**
 
 **Expected results:**
