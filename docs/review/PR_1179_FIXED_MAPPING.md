@@ -7,9 +7,9 @@
 ## Fixed in Commit Mapping
 
 Disposition: FIXED
-Commit: 235b5bf8
+Commit: 235b5bf823becd10c42670ad054c374a0cb19605
 Evidence: ios/SANITY_CHECK_RESULTS.md:240-241
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1179#discussion_r2940045215 -> 235b5bf8
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1179#discussion_r2940045215 -> 235b5bf823becd10c42670ad054c374a0cb19605
 
 ## Merge Readiness
 - [ ] Local hard gate passed (`make verify`)

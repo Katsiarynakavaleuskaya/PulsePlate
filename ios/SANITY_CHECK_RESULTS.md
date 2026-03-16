@@ -149,7 +149,7 @@ return URL(string: "https://api.pulseplate.com")!
 #endif
 ```
 
-**ProKeyProvider.swift:**
+**ProKeyProvider.swift:** (illustrative; canonical source: `ios/PulsePlate/Services/ProKeyProvider.swift`)
 ```swift
 // Current (Keychain-only): runtime source is Keychain only; no env fallback.
 do {
