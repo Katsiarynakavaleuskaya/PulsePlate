@@ -14,6 +14,9 @@ Evidence: ios/SANITY_CHECK_RESULTS.md, ios/AGENTS.md
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1179#pullrequestreview-3953500234 -> cd277010f18f762eb7d22a9a1615a470d9afdaac
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1179#pullrequestreview-3953510348 -> cd277010f18f762eb7d22a9a1615a470d9afdaac
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1179#pullrequestreview-3953566847 -> cd277010f18f762eb7d22a9a1615a470d9afdaac
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1179#discussion_r2940200926 -> f9426301625995ef3ac16e528431664b8703e7d6
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1179#discussion_r2940200934 -> f9426301625995ef3ac16e528431664b8703e7d6
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1179#pullrequestreview-3953671965 -> f9426301625995ef3ac16e528431664b8703e7d6
 
 ## Merge Readiness
 - [ ] Local hard gate passed (`make verify`)
