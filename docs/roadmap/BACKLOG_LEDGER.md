@@ -1012,21 +1012,6 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Current-state iOS setup docs no longer advertise `PRO_API_KEY` or placeholder fallback as runtime auth truth
     - Guard tests prevent regression to insecure storage
 
-<a id="ledger-p2-ios-agents-only-testing-centralize"></a>
-- [ ] P2: Centralize ios/AGENTS.md -only-testing list (Sourcery follow-up)
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P2 (maintainability)
-  - Target PR: TBD (after PR #1179 merge)
-  - Status: 📋 Deferred
-  - Reason (EN): Sourcery review on PR #1179 suggested centralizing the repeated -only-testing xcodebuild list in ios/AGENTS.md (shared script, variable, or single referenced snippet) so future test-set changes don't require multiple manual updates. Scope expansion deferred until PR #1179 is merge-ready.
-  - Links:
-    - ios/AGENTS.md
-    - docs/pr/PR-6_HANDOFF.md
-  - DoD:
-    - Single source for -only-testing test list (script, Makefile var, or referenced snippet)
-    - All ios/AGENTS.md xcodebuild examples reference it
-    - No scope creep into PR #1179
-
 <a id="ledger-p1-diet-flags-contract-sync"></a>
 - [ ] P1: Diet flags contract sync across schemas and clients
   - Owner: @katsiaryna_kavaleuskaya
@@ -1941,6 +1926,21 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 
 
 ### P2
+
+<a id="ledger-p2-ios-agents-only-testing-centralize"></a>
+- [ ] P2: Centralize ios/AGENTS.md -only-testing list (Sourcery follow-up)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2 (maintainability)
+  - Target PR: TBD (after PR #1179 merge)
+  - Status: 📋 Deferred
+  - Reason (EN): Sourcery review on PR #1179 suggested centralizing the repeated -only-testing xcodebuild list in ios/AGENTS.md (shared script, variable, or single referenced snippet) so future test-set changes don't require multiple manual updates. Scope expansion deferred until PR #1179 is merge-ready.
+  - Links:
+    - ios/AGENTS.md
+    - docs/pr/PR-6_HANDOFF.md
+  - DoD:
+    - Single source for -only-testing test list (script, Makefile var, or referenced snippet)
+    - All ios/AGENTS.md xcodebuild examples reference it
+    - No scope creep into PR #1179
 
 <a id="ledger-p2-fitchef-icon-source-cleanup"></a>
 - [ ] P2: FitChef icon source cleanup after PR-2 selective promotion
