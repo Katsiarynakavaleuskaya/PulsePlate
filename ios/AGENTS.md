@@ -171,7 +171,7 @@
   ```
 - **Step 2: Run tests** (timeout: 15 minutes):
   ```bash
-  # Canonical test list: scripts/ios_test_targets.sh (run from repo root)
+  # Canonical test list: scripts/ios_test_targets.sh (run from ios/)
   xcodebuild test-without-building \
     -project PulsePlate.xcodeproj \
     -scheme PulsePlate \
