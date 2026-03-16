@@ -5,7 +5,11 @@
 - [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
-- No actionable review comments
+
+Disposition: FIXED
+Commit: 235b5bf8
+Evidence: ios/SANITY_CHECK_RESULTS.md:240-241
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1179#discussion_r2940045215 -> 235b5bf8
 
 ## Merge Readiness
 - [ ] Local hard gate passed (`make verify`)
