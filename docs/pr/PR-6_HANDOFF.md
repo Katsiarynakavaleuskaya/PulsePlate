@@ -15,7 +15,7 @@ Cookie/export hardening lives in separate security PRs: `PR-TBD-SESSION-COOKIE-H
 
 ## Backlog
 
-- [P1: Mobile secret storage conformance](docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-mobile-secret-conformance)
+- [P1: Mobile secret storage conformance](../roadmap/BACKLOG_LEDGER.md#ledger-p1-mobile-secret-conformance)
 
 ---
 
