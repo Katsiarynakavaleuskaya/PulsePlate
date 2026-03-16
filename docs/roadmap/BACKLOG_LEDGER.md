@@ -992,13 +992,15 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Release checklist is explicit enough for future iOS submission work
 
 <a id="ledger-p1-mobile-secret-conformance"></a>
-- [ ] P1: Mobile secret storage conformance (iOS Keychain now, Android Keystore deferred)
+- [x] P1: Mobile secret storage conformance (iOS Keychain now, Android Keystore deferred)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (mobile security correctness)
-  - Target PR: PR-TBD-IOS-KEYCHAIN-CONFORMANCE -> PR #1011 (`feat/p1-ios-keychain-conformance`) -> PR #1067 -> PR #1078 (`feat/p1-ios-keychain-conformance-pr2`)
-  - Status: 🟡 In progress (runtime Keychain-only behavior is already on `main`; this follow-up tightens canonical test-surface coverage and current-state setup docs)
-  - Reason (EN): Master checklist item #5 remains active until the repo's canonical iOS enforcement surfaces match runtime truth. The `ProcessInfo` fallback has already been removed from `ProKeyProvider`, but default iOS test lanes and current-state setup docs still need to encode the Keychain-only invariant so future drift is caught by default.
+  - Target PR: PR #1179 (`feat/pr-6-ios-keychain-conformance`)
+  - Status: ✅ Merged (PR #1179, 2026-03-16)
+  - Reason (EN): Master checklist item #5. PR #1179 completed: Keychain-only runtime, test-surface coverage, setup docs cleanup, guard tests.
   - Links:
+    - docs/review/PR_1179_FIXED_MAPPING.md
+    - docs/pr/PR-6_HANDOFF.md
     - docs/roadmap/P0_MASTER_CHECKLIST_PHASE_FIT_TRIAGE_2026-03-05.md
     - ios/PulsePlate/Services/KeychainStore.swift
     - ios/PulsePlate/Services/ProKeyProvider.swift
