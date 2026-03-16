@@ -1,4 +1,6 @@
-# Region Catalog Adapter (Mock-first) — PR-6
+# Region Catalog Adapter (Mock-first)
+
+**Note:** PR-6 = iOS Keychain Conformance (canonical). Region Catalog Adapter is a separate PR (TBD).
 
 ## Purpose
 
@@ -78,7 +80,7 @@ Response lines may include optional `catalog` field with:
 - **If catalog found**: `catalog` field populated with data
 - **If catalog not found**: `catalog` field is `None` (fail-soft, no error)
 
-## Current Implementation (PR-6)
+## Current Implementation (TBD PR)
 
 - **Mock provider only**: In-memory catalog data
 - **No external calls**: No HTTP/DB access
@@ -92,7 +94,7 @@ Response lines may include optional `catalog` field with:
 
 ## Security Notes
 
-- No real API keys in PR-6 (mock-only)
+- No real API keys (mock-only)
 - No external HTTP calls
 - Catalog data is static/validated
 - Enrichment does not affect gating/authentication
@@ -100,4 +102,4 @@ Response lines may include optional `catalog` field with:
 ## Related
 
 - [`docs/VIP_Shoplist_API.md`](VIP_Shoplist_API.md) — Base API contract
-- [`PR-6_HANDOFF.md`](../PR-6_HANDOFF.md) — Implementation handoff
+- Region Catalog handoff: TBD (PR-6_HANDOFF.md is iOS Keychain scope)

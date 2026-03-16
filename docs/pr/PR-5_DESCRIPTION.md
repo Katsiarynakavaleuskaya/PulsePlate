@@ -95,7 +95,7 @@ make dev
 
 - PR-3: Router hardening (gating, error handling)
 - PR-4: Daily/Weekly endpoint standardization
-- Future PR-6: Region/Catalog adapter (out of scope for this PR)
+- Future PR (TBD): Region/Catalog adapter (out of scope for this PR). PR-6 = iOS Keychain conformance.
 
 ## Files Changed
 

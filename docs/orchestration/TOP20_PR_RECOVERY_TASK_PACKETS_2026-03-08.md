@@ -12,6 +12,10 @@ python3 scripts/orchestration/route_with_telemetry.py --domain <domain> --task-t
 
 Coordinator-first rule still applies. If agent connectivity is degraded, use the same routing manually and record the decision in the PR artifact / ledger.
 
+## Numbering (canonical)
+
+- **PR-6** = iOS Keychain Conformance (item 4: `PR-TBD-IOS-KEYCHAIN-CONFORMANCE`). Cookie/export hardening are separate PRs: `PR-TBD-SESSION-COOKIE-HARDENING-W1`, `PR-TBD-EXPORT-SIGNING-HARDENING`.
+
 ## Active Queue
 
 | # | Target PR | Wave | Domain | Primary | Secondary | Reviewer | Minimum DoD |
