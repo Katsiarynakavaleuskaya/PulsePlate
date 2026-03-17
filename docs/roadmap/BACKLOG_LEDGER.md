@@ -290,6 +290,18 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 
 ### P1
 
+<a id="ledger-p1-pr1185-cubic-activation-contract"></a>
+- [ ] P1: PR #1185 Cubic activation contract refinements (deferred)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD (follow-up after PR #1185)
+  - Area: payments / activation / contract
+  - Reason: Cubic review comments (6 threads + review) posted after commit 26ec3bd0. Deferred to follow-up PR for activation contract refinements.
+  - Links:
+    - docs/review/PR_1185_FIXED_MAPPING.md
+    - docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md
+  - DoD: Address Cubic findings in dedicated PR; update mapping artifact.
+
 <a id="ledger-p1-postgres-backup-restore-hardening"></a>
 - [ ] P1: Postgres backup/restore operational hardening
   - Owner: @katsiaryna_kavaleuskaya
