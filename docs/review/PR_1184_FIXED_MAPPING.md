@@ -32,7 +32,6 @@ Evidence: scripts/ops/postgres_restore.sh — psql -v ON_ERROR_STOP=1 (Cubic r29
 Disposition: DEFERRED
 Backlog: docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-postgres-backup-restore-hardening
 Reason: Valid operational hardening; out of narrow infra-wave scope. One follow-up PR: infra/p1-postgres-backup-restore-hardening.
-
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1184#discussion_r2946225587
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1184#discussion_r2946264287
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1184#discussion_r2946264299
@@ -40,7 +39,6 @@ Reason: Valid operational hardening; out of narrow infra-wave scope. One follow-
 Disposition: NOT-A-BUG
 Evidence: /health/db per PR DoD; file:line required for docs/audit and docs/security only.
 Reason: .env.example and FIXED_MAPPING pre-commit are style/optional; no code changes required.
-
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1184#pullrequestreview-3960158912
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1184#pullrequestreview-3960184617
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1184#discussion_r2946264260
