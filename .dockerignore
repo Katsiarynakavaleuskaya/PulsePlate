@@ -2,6 +2,9 @@
 frontend/
 ios/
 
+# Tools and skills (not needed in backend container; reduces build context)
+tools/
+
 # Git
 .git
 .gitignore
@@ -22,6 +25,9 @@ LICENSE
 # Development files
 .vscode/
 .idea/
+.cursor/
+.agents/
+.codex/
 *.swp
 *.swo
 *~
