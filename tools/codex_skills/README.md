@@ -2,15 +2,15 @@
 
 <!-- markdownlint-disable MD013 -->
 
-Repo-tracked source for project-specific Codex skills.
+Repo-tracked source for project-specific Codex skills and cybersecurity skills.
 
-- Source of truth: `tools/codex_skills/*`
+- Source of truth: `tools/codex_skills/*`, `tools/cybersecurity_skills/skills/*`
 - Install target: `$CODEX_HOME/skills/*` (or `~/.codex/skills/*`)
 - Installer: `scripts/install_codex_skills.sh`
 
 Default install mode uses symlinks so updates in this repo immediately apply to installed skills.
 
-Current skills:
+## PulsePlate skills
 
 - `pulseplate-workflow`
 - `pulseplate-gates`
@@ -22,3 +22,23 @@ Current skills:
 - `pulseplate-ai-reports`
 - `pulseplate-graphmap`
 - `pulseplate-playwright-e2e`
+
+## Cybersecurity skills (submodule)
+
+734+ skills from [anthropic-cybersecurity-skills](https://github.com/Katsiarynakavaleuskaya/anthropic-cybersecurity-skills) (agentskills.io format). Installed by default from `tools/cybersecurity_skills/` (git submodule).
+
+**First-time setup:**
+
+```bash
+git submodule update --init --recursive
+scripts/install_codex_skills.sh
+```
+
+**Update to latest:**
+
+```bash
+git submodule update --remote tools/cybersecurity_skills
+scripts/install_codex_skills.sh
+```
+
+See `docs/dev/CYBERSECURITY_SKILLS.md` for details.

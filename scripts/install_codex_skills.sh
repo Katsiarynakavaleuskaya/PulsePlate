@@ -3,7 +3,7 @@ set -euo pipefail
 
 usage() {
   cat <<'EOF'
-Install PulsePlate Codex skills from this repo into a Codex skills directory.
+Install PulsePlate and cybersecurity Codex skills from this repo into a Codex skills directory.
 
 Usage:
   scripts/install_codex_skills.sh [--copy] [--unlink] [--list] [--dest <skills_dir>]
@@ -26,7 +26,11 @@ EOF
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
-SKILLS_SRC_ROOT="${REPO_ROOT}/tools/codex_skills"
+# Both sources installed by default (PulsePlate + cybersecurity)
+SKILLS_SRC_ROOTS=(
+  "${REPO_ROOT}/tools/codex_skills"
+  "${REPO_ROOT}/tools/cybersecurity_skills/skills"
+)
 COPY_MARKER_FILE=".pulseplate_codex_skill_source"
 
 CODEX_HOME_DEFAULT="${CODEX_HOME:-${HOME}/.codex}"
@@ -68,23 +72,24 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-if [[ ! -d "${SKILLS_SRC_ROOT}" ]]; then
-  echo "Error: source skills directory not found: ${SKILLS_SRC_ROOT}" >&2
-  exit 1
-fi
-
 SKILL_DIRS=()
-while IFS= read -r src_dir; do
-  SKILL_DIRS+=("${src_dir}")
-done < <(find "${SKILLS_SRC_ROOT}" -mindepth 1 -maxdepth 1 -type d | sort)
+for root in "${SKILLS_SRC_ROOTS[@]}"; do
+  if [[ ! -d "${root}" ]]; then
+    echo "Note: skipping missing source ${root} (run: git submodule update --init)" >&2
+    continue
+  fi
+  while IFS= read -r src_dir; do
+    SKILL_DIRS+=("${src_dir}")
+  done < <(find "${root}" -mindepth 1 -maxdepth 1 -type d | sort)
+done
 
 if [[ "${#SKILL_DIRS[@]}" -eq 0 ]]; then
-  echo "Error: no skill directories found under ${SKILLS_SRC_ROOT}" >&2
+  echo "Error: no skill directories found. Check tools/codex_skills and tools/cybersecurity_skills (git submodule update --init)." >&2
   exit 1
 fi
 
 list_skills() {
-  echo "Source: ${SKILLS_SRC_ROOT}"
+  echo "Sources: tools/codex_skills, tools/cybersecurity_skills/skills"
   echo "Destination: ${DEST_ROOT}"
   echo
   printf "%-36s %s\n" "SKILL" "STATUS"
