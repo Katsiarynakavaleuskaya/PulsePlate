@@ -62,6 +62,11 @@ Required for production:
 - `POSTGRES_DB` — database name
 - `POSTGRES_USER` — database user
 - `POSTGRES_PASSWORD` — strong password (no dev fallback)
-- `DATABASE_URL` — format `postgresql+psycopg://<user>:<password>@postgres:5432/<dbname>`
+- `DATABASE_URL` — format `postgresql+psycopg://<user>:<password>@<host>:5432/<dbname>`
+
+**DATABASE_URL host modes:**
+
+- **Docker Compose / Droplet:** `@postgres:5432` (service name in compose network)
+- **Native local run:** `@localhost:5432` (Postgres on host)
 
 See `.env.example` for the canonical contract.
