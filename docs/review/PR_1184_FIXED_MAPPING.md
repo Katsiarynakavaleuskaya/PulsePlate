@@ -11,6 +11,12 @@ Commit: 68c79280
 Evidence: docs/roadmap/BACKLOG_LEDGER.md:35 Target PR set to PR #1184 (CodeRabbit r2946264280).
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1184#discussion_r2946264280 -> 68c79280
 
+Disposition: FIXED
+Commit: 16d902a7
+Evidence: scripts/ops/postgres_restore.sh (usage), docs/deploy/POSTGRES_SELF_HOSTED_DROPLET.md (DB fallback verbs).
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1184#discussion_r2946208015 -> 16d902a7
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1184#discussion_r2946208021 -> 16d902a7
+
 Disposition: DEFERRED
 Backlog: docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-postgres-backup-restore-hardening
 Reason: Valid operational hardening; out of narrow infra-wave scope. One follow-up PR: infra/p1-postgres-backup-restore-hardening.
