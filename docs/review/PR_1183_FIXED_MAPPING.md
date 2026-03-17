@@ -7,10 +7,10 @@
 ## Fixed in Commit Mapping
 
 Disposition: FIXED
-Commit: (to be filled after commit)
+Commit: 98b024d6
 Evidence: scripts/install_codex_skills.sh (--no-cybersec/--only-cybersec), AGENT_SKILL_ROUTING_POLICY.md (cybersecurity-skills bundle), docs (approximate skill counts)
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1183#pullrequestreview-3959214960 -> (sha)
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1183#pullrequestreview-3959214960 -> 98b024d6
 
 ## Merge Readiness
 
