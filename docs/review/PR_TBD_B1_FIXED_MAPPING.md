@@ -1,0 +1,19 @@
+# PR-TBD B1 Payments RU/BY + iOS Baseline — Fixed in Commit Mapping
+
+**PR:** TBD (replace with PR number when opened)
+**Branch:** feat/p0-payments-ruby-ios-baseline-runtime-w1
+
+## Discussion Thread Pass
+
+- [ ] Discussion-thread pass completed
+- [ ] Fixed in commit mapping completed
+
+## Fixed in Commit Mapping
+
+(Add entries when review comments are addressed.)
+
+## Merge Readiness
+
+- [ ] `make verify` green
+- [ ] `pre-commit run --all-files` green
+- [ ] No actionable bot comments
