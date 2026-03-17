@@ -11,10 +11,11 @@ mkdir -p "${BACKUP_DIR}"
 
 cd "${PROJECT_DIR}"
 
+OUTPUT="${BACKUP_DIR}/pulseplate_${TIMESTAMP}.dump"
 docker compose exec -T postgres \
   pg_dump -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -Fc \
-  > "${BACKUP_DIR}/pulseplate_${TIMESTAMP}.dump"
+  > "${OUTPUT}" || { rm -f "${OUTPUT}"; exit 1; }
 
 find "${BACKUP_DIR}" -type f -name 'pulseplate_*.dump' -mtime +7 -delete
 
-echo "Backup created: ${BACKUP_DIR}/pulseplate_${TIMESTAMP}.dump"
+echo "Backup created: ${OUTPUT}"
