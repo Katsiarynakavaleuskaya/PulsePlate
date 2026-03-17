@@ -32,8 +32,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P0: Payment rails for RU/BY + iOS-first monetization baseline
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0 (revenue continuity)
-  - Target PR: PR #983 (contract docs) -> PR #1095 (activation + persistence runtime) -> PR-TBD-BILLING-ENTITLEMENT-ROUTING
-  - Status: 🟡 In progress (PR #1095 owns runtime Wave R1 activation + persisted subscription state; entitlement routing remains tracked in `ledger-p0-billing-entitlement-routing`)
+  - Target PR: PR #1182 (B1 baseline) -> PR-TBD (B2 Apple verify full activation) -> PR-TBD-BILLING-ENTITLEMENT-ROUTING
+  - Status: B1 baseline closed (PR #1182); B2 Apple verify full activation deferred/next. Evidence: `docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md`, `app/services/payments_activation.validate_webhook_signature`, `tests/test_payment_webhook_signature_api.py`. Entitlement routing: `ledger-p0-billing-entitlement-routing`.
   - Carryover: PR #1005 keeps only the `RUBY` -> `RU_BY` identifier cleanup so the ledger stays aligned with the existing payments contract naming.
   - Reason (EN): Current business reality requires region-adapted payment rails: iOS as primary automated channel, RU/BY payments via eRIP (QR to account) and SWIFT card transfer fallback. Canonical billing flow must support these rails before global providers expansion. (RU: Текущий источник оплат: iOS + RU/BY локальные каналы (ЕРИП/QR и SWIFT). Нужен канонический billing baseline под эту реальность до расширения на глобальные провайдеры.)
   - Links:
@@ -42,6 +42,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - docs/IOS_API_INTEGRATION.md
     - docs/audit/PR_PAYMENTS_RUBY_IOS_CONTRACT_AUDIT.md
     - docs/contracts/PRODUCT_TIER_MAP.md
+    - docs/review/PR_1182_FIXED_MAPPING.md
     - ios/PulsePlate/Services/ProKeyProvider.swift:1
     - app/routers/pro_registration.py:1
     - app/routers/pro_payments.py:1

@@ -814,6 +814,15 @@ Source of truth:
 - Enforcement will be introduced incrementally via scoped PRs (e.g., enable ANN* as blocking for `core/bmi` or `app/routers` only).
 - Current state: **observability/tech-debt signal**, not enforcement.
 
+## Billing / Payments invariants (execution)
+
+**Billing truth is server-authoritative only.** Agents must not introduce client-side billing logic.
+
+- **Webhook/event handlers:** Any billing webhook or event handler MUST validate signature before state transition. Use `payments_activation.validate_webhook_signature()` (evidence: `app/services/payments_activation.py`).
+- **iOS Apple verify:** iOS must never call Apple `verifyReceipt` directly. Verification is server-side only; app sends receipt to backend.
+- **RU/BY manual rails:** `erip_qr` and `swift_manual` flows are reconcile-based; activation requires backend verification, not client-declared truth.
+- **Canonical contract:** `docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md`, `docs/IOS_API_INTEGRATION.md`.
+
 ## Product tiers and API namespaces (canonical)
 
 ### Product tiers (source of truth)

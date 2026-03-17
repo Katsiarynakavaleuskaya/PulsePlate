@@ -24,8 +24,8 @@ Coordinator-first rule still applies. If agent connectivity is degraded, use the
 | 2 | `PR-TBD-INSIGHT-FALLBACK-CHAIN` | 3 | ml | `ai-innovation-specialist` | `rag-systems-agent` | `architecture-specialist` | Deterministic provider fallback order; `/ready` reports fallback/echo state safely; response contract remains additive |
 | 3 | `PR-TBD-RAG-INPUT-SANITIZER` | 1 | security | `security-auditor` | `architecture-specialist` | `agent-coordinator` | Sanitizer runs before RAG indexing/retrieval; prompt-injection regressions added |
 | 4 | `PR-TBD-IOS-KEYCHAIN-CONFORMANCE` | 2 | ios | `frontend-engineer` | `creative-designer` | `qa-engineer-agent` | Keychain-only secret storage verified; no insecure release fallback |
-| 5 | `PR-TBD-PAYMENTS-RU_BY-IOS-BASELINE-RUNTIME-W1` | 2 | backend | `architecture-specialist` | `backend-engineer` | `security-auditor` | Runtime billing flow for `ios_app_store`, `erip_qr`, `swift_manual`; activation contract tested |
-| 6 | `PR-TBD-BILLING-APPLE-VERIFY` | 2 | backend | `architecture-specialist` | `backend-engineer` | `security-auditor` | Server-side Apple receipt verification normalizes into billing activation |
+| 5 | ~~`PR-TBD-PAYMENTS-RU_BY-IOS-BASELINE-RUNTIME-W1`~~ → **PR #1182** | 2 | backend | — | — | — | ✅ B1 completed. Runtime billing flow for `ios_app_store`, `erip_qr`, `swift_manual`; webhook signature contract; activation contract tested |
+| 6 | `PR-TBD-BILLING-APPLE-VERIFY` | 2 | backend | `architecture-specialist` | `backend-engineer` | `security-auditor` | **Next.** B2: Server-side Apple verify full activation normalizes into billing activation |
 | 7 | `PR-TBD-IOS-SUBSCRIPTION-MANAGER` | 2 | ios | `frontend-engineer` | `creative-designer` | `qa-engineer-agent` | Dedicated iOS subscription orchestration stays thin and backend-driven |
 | 8 | `PR-TBD-DIET-FLAGS-CONTRACT-SYNC` | 3 | frontend | `frontend-engineer` | `creative-designer` | `qa-engineer-agent` | One canonical enum/normalization table across schemas, UI, and generated types |
 | 9 | `PR-TBD-LEGAL-POLICY-PUBLISH` | 1 | docs | `web-research-agent` | `cursor-specialist-agent` | `qa-engineer-agent` | Canonical privacy/terms publication paths exist and client links are aligned |
@@ -44,7 +44,7 @@ Coordinator-first rule still applies. If agent connectivity is degraded, use the
 ## Sequencing Rules
 
 1. Wave 1 security/release blockers land before public growth or store-release pushes.
-2. In Wave 2, implement `PR-TBD-PAYMENTS-RU_BY-IOS-BASELINE-RUNTIME-W1` before Apple verify or iOS SubscriptionManager work.
+2. In Wave 2, B1 baseline (PR #1182) is done. Next: B2 Apple verify (`PR-TBD-BILLING-APPLE-VERIFY`), then iOS SubscriptionManager.
 3. `PR-TBD-IOS-STOREKIT-PRODUCTS` may run in parallel with `PR-TBD-IOS-SUBSCRIPTION-MANAGER` only after the billing baseline contract is runtime-backed.
 4. `PR-TBD-AI-BOUNDED-CONTEXT` must not start before `PR-TBD-INSIGHT-FALLBACK-CHAIN` is behaviorally complete.
 5. Governance cleanup PRs in Wave 4 must not block active release/security remediation unless they directly affect merge-readiness policy.
