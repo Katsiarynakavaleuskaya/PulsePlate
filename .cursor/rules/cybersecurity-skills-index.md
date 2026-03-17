@@ -1,5 +1,5 @@
 ---
-description: Index for 734+ cybersecurity skills (agentskills.io). Use when security audit, vulnerability scan, threat model, API security, DevSecOps, or web app security tasks.
+description: Index for 734+ cybersecurity skills (approximate; see tools/cybersecurity_skills/index.json) (agentskills.io). Use when security audit, vulnerability scan, threat model, API security, DevSecOps, or web app security tasks.
 globs:
 alwaysApply: false
 ---

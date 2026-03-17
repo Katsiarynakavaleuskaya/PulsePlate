@@ -6,18 +6,22 @@ usage() {
 Install PulsePlate and cybersecurity Codex skills from this repo into a Codex skills directory.
 
 Usage:
-  scripts/install_codex_skills.sh [--copy] [--unlink] [--list] [--dest <skills_dir>]
+  scripts/install_codex_skills.sh [--copy] [--unlink] [--list] [--dest <skills_dir>] [--no-cybersec|--only-cybersec]
 
 Options:
   --copy            Install by copying directories (default is symlink mode).
   --unlink          Remove installed skills from destination.
   --list            Print source skills and destination install status.
   --dest <path>     Destination skills directory (default: $CODEX_HOME/skills or ~/.codex/skills).
+  --no-cybersec     Install only PulsePlate skills (skip cybersecurity skills).
+  --only-cybersec   Install only cybersecurity skills (skip PulsePlate skills).
   -h, --help        Show this help.
 
 Examples:
   scripts/install_codex_skills.sh
   scripts/install_codex_skills.sh --copy
+  scripts/install_codex_skills.sh --no-cybersec --list
+  scripts/install_codex_skills.sh --only-cybersec
   scripts/install_codex_skills.sh --list
   scripts/install_codex_skills.sh --unlink
   scripts/install_codex_skills.sh --dest /tmp/codex-skills
@@ -26,17 +30,13 @@ EOF
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
-# Both sources installed by default (PulsePlate + cybersecurity)
-SKILLS_SRC_ROOTS=(
-  "${REPO_ROOT}/tools/codex_skills"
-  "${REPO_ROOT}/tools/cybersecurity_skills/skills"
-)
 COPY_MARKER_FILE=".pulseplate_codex_skill_source"
 
 CODEX_HOME_DEFAULT="${CODEX_HOME:-${HOME}/.codex}"
 DEST_ROOT="${CODEX_HOME_DEFAULT}/skills"
 MODE="link"
 ACTION="install"
+CYBERSEC_MODE="both"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -60,6 +60,14 @@ while [[ $# -gt 0 ]]; do
       DEST_ROOT="$2"
       shift 2
       ;;
+    --no-cybersec)
+      CYBERSEC_MODE="exclude"
+      shift
+      ;;
+    --only-cybersec)
+      CYBERSEC_MODE="only"
+      shift
+      ;;
     -h|--help)
       usage
       exit 0
@@ -71,6 +79,27 @@ while [[ $# -gt 0 ]]; do
       ;;
   esac
 done
+
+# Build SKILLS_SRC_ROOTS based on CYBERSEC_MODE
+SKILLS_SRC_ROOTS=()
+case "${CYBERSEC_MODE}" in
+  both)
+    SKILLS_SRC_ROOTS=(
+      "${REPO_ROOT}/tools/codex_skills"
+      "${REPO_ROOT}/tools/cybersecurity_skills/skills"
+    )
+    ;;
+  exclude)
+    SKILLS_SRC_ROOTS=("${REPO_ROOT}/tools/codex_skills")
+    ;;
+  only)
+    SKILLS_SRC_ROOTS=("${REPO_ROOT}/tools/cybersecurity_skills/skills")
+    ;;
+  *)
+    echo "Error: invalid CYBERSEC_MODE ${CYBERSEC_MODE}" >&2
+    exit 1
+    ;;
+esac
 
 SKILL_DIRS=()
 for root in "${SKILLS_SRC_ROOTS[@]}"; do
@@ -89,7 +118,12 @@ if [[ "${#SKILL_DIRS[@]}" -eq 0 ]]; then
 fi
 
 list_skills() {
-  echo "Sources: tools/codex_skills, tools/cybersecurity_skills/skills"
+  local sources_str=""
+  for r in "${SKILLS_SRC_ROOTS[@]}"; do
+    [[ -n "${sources_str}" ]] && sources_str="${sources_str}, "
+    sources_str="${sources_str}${r#${REPO_ROOT}/}"
+  done
+  echo "Sources: ${sources_str}"
   echo "Destination: ${DEST_ROOT}"
   echo
   printf "%-36s %s\n" "SKILL" "STATUS"

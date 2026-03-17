@@ -25,7 +25,7 @@ Default install mode uses symlinks so updates in this repo immediately apply to 
 
 ## Cybersecurity skills (submodule)
 
-734+ skills from [anthropic-cybersecurity-skills](https://github.com/Katsiarynakavaleuskaya/anthropic-cybersecurity-skills) (agentskills.io format). Installed by default from `tools/cybersecurity_skills/` (git submodule).
+734+ skills (approximate; see `tools/cybersecurity_skills/index.json`) from [anthropic-cybersecurity-skills](https://github.com/Katsiarynakavaleuskaya/anthropic-cybersecurity-skills) (agentskills.io format). Installed by default from `tools/cybersecurity_skills/` (git submodule).
 
 **First-time setup:**
 

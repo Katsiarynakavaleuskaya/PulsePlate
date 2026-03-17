@@ -2,7 +2,7 @@
 
 <!-- markdownlint-disable MD013 -->
 
-734+ cybersecurity skills from [anthropic-cybersecurity-skills](https://github.com/Katsiarynakavaleuskaya/anthropic-cybersecurity-skills) (agentskills.io format). Installed by default with PulsePlate Codex skills.
+734+ cybersecurity skills (approximate; see `tools/cybersecurity_skills/index.json`) from [anthropic-cybersecurity-skills](https://github.com/Katsiarynakavaleuskaya/anthropic-cybersecurity-skills) (agentskills.io format). Installed by default with PulsePlate Codex skills.
 
 ## Install
 
@@ -36,7 +36,7 @@ scripts/install_codex_skills.sh
 
 ## Routing
 
-- **security-auditor** gets access to all 734 skills when routed (see `docs/orchestration/AGENT_SKILL_ROUTING_POLICY.md`)
+- **security-auditor** gets access to all ~734 skills (approximate; see index.json) when routed (see `docs/orchestration/AGENT_SKILL_ROUTING_POLICY.md`)
 - **Cursor:** `.cursor/rules/cybersecurity-skills-index.md` provides index and triggers
 - **Codex:** Skills installed to `$CODEX_HOME/skills/`; available to all agents
 
