@@ -14,6 +14,6 @@
 
 ## Merge Readiness
 
-- [ ] `make verify` green
-- [ ] `pre-commit run --all-files` green
-- [ ] No actionable bot comments
+- [x] `make verify` green
+- [x] `pre-commit run --all-files` green
+- [x] No actionable bot comments
