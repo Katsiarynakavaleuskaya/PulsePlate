@@ -32,9 +32,12 @@ Reason: .env.example and FIXED_MAPPING pre-commit are style/optional; no code ch
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1184#discussion_r2946536336
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1184#discussion_r2946536348
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1184#pullrequestreview-3960503190
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1184#discussion_r2946616865
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1184#pullrequestreview-3960589867
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1184#pullrequestreview-3960622779
 
 ## Merge Readiness
 
 - [ ] All required checks pass
 - [ ] No unresolved review threads
-- [x] Pre-commit green
+- [ ] Pre-commit green
