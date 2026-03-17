@@ -1496,18 +1496,6 @@ export interface components {
             user_id: number;
         };
         /**
-         * AppleActivationHint
-         * @description Activation-prep hint for downstream Apple billing flow.
-         */
-        AppleActivationHint: {
-            /**
-             * Platform
-             * @default ios
-             */
-            platform: string;
-            tier: components["schemas"]["SubscriptionTierValue"];
-        };
-        /**
          * AppleProviderError
          * @description Canonical provider error details for Apple receipt verification.
          */
@@ -1531,10 +1519,13 @@ export interface components {
         /**
          * AppleReceiptVerificationResponse
          * @description Normalized Apple receipt verification result without activation side effects.
+         *
+         *     When verified=True, activation_payload carries the full IOSVerifiedActivationResult
+         *     (activation-contract shape) for downstream POST /api/v1/pro/payments/activate.
          */
         AppleReceiptVerificationResponse: {
-            /** @description Downstream activation-prep hint. The activation service maps this hint into canonical source/tier fields. */
-            activation_payload?: components["schemas"]["AppleActivationHint"] | null;
+            /** @description Activation-contract shaped payload when verified. Client passes this + receipt_data to POST /api/v1/pro/payments/activate. */
+            activation_payload?: components["schemas"]["IOSVerifiedActivationResult"] | null;
             environment?: components["schemas"]["AppleVerificationEnvironment"] | null;
             error?: components["schemas"]["AppleProviderError"] | null;
             /** Expires At */
@@ -2646,6 +2637,30 @@ export interface components {
         HTTPValidationError: {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
+        };
+        /**
+         * IosVerificationStatus
+         * @description Normalized iOS verification outcomes from PR-1.
+         * @enum {string}
+         */
+        IosVerificationStatus: "active" | "expired" | "rejected";
+        /**
+         * IOSVerifiedActivationResult
+         * @description Normalized iOS verification result produced by PR-1 Apple verify.
+         */
+        IOSVerifiedActivationResult: {
+            /** Expires At */
+            expires_at?: string | null;
+            /** Original Transaction Id */
+            original_transaction_id?: string | null;
+            /** @default ios */
+            platform: components["schemas"]["PaymentPlatform"];
+            /** Product Id */
+            product_id: string;
+            status: components["schemas"]["IosVerificationStatus"];
+            subscription_tier: components["schemas"]["SubscriptionTier"];
+            /** Transaction Id */
+            transaction_id: string;
         };
         /**
          * ManualPaymentSource

@@ -132,24 +132,6 @@
         "title": "AdherenceResponse",
         "type": "object"
       },
-      "AppleActivationHint": {
-        "description": "Activation-prep hint for downstream Apple billing flow.",
-        "properties": {
-          "platform": {
-            "default": "ios",
-            "title": "Platform",
-            "type": "string"
-          },
-          "tier": {
-            "$ref": "#/components/schemas/SubscriptionTierValue"
-          }
-        },
-        "required": [
-          "tier"
-        ],
-        "title": "AppleActivationHint",
-        "type": "object"
-      },
       "AppleProviderError": {
         "description": "Canonical provider error details for Apple receipt verification.",
         "properties": {
@@ -190,18 +172,18 @@
         "type": "object"
       },
       "AppleReceiptVerificationResponse": {
-        "description": "Normalized Apple receipt verification result without activation side effects.",
+        "description": "Normalized Apple receipt verification result without activation side effects.\n\nWhen verified=True, activation_payload carries the full IOSVerifiedActivationResult\n(activation-contract shape) for downstream POST /api/v1/pro/payments/activate.",
         "properties": {
           "activation_payload": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/AppleActivationHint"
+                "$ref": "#/components/schemas/IOSVerifiedActivationResult"
               },
               {
                 "type": "null"
               }
             ],
-            "description": "Downstream activation-prep hint. The activation service maps this hint into canonical source/tier fields."
+            "description": "Activation-contract shaped payload when verified. Client passes this + receipt_data to POST /api/v1/pro/payments/activate."
           },
           "environment": {
             "anyOf": [
@@ -2242,6 +2224,77 @@
         },
         "title": "HTTPValidationError",
         "type": "object"
+      },
+      "IOSVerifiedActivationResult": {
+        "additionalProperties": false,
+        "description": "Normalized iOS verification result produced by PR-1 Apple verify.",
+        "properties": {
+          "expires_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expires At"
+          },
+          "original_transaction_id": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "minLength": 3,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Original Transaction Id"
+          },
+          "platform": {
+            "$ref": "#/components/schemas/PaymentPlatform",
+            "default": "ios"
+          },
+          "product_id": {
+            "maxLength": 255,
+            "minLength": 3,
+            "title": "Product Id",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/IosVerificationStatus"
+          },
+          "subscription_tier": {
+            "$ref": "#/components/schemas/SubscriptionTier"
+          },
+          "transaction_id": {
+            "maxLength": 255,
+            "minLength": 3,
+            "title": "Transaction Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "transaction_id",
+          "product_id",
+          "subscription_tier",
+          "status"
+        ],
+        "title": "IOSVerifiedActivationResult",
+        "type": "object"
+      },
+      "IosVerificationStatus": {
+        "description": "Normalized iOS verification outcomes from PR-1.",
+        "enum": [
+          "active",
+          "expired",
+          "rejected"
+        ],
+        "title": "IosVerificationStatus",
+        "type": "string"
       },
       "ManualPaymentSource": {
         "description": "Manual payment sources allowed on RU/BY billing surfaces.",

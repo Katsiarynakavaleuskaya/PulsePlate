@@ -1,6 +1,6 @@
 # Payments RU/BY + iOS Baseline Contract
 
-- Status: Runtime W1 implemented; B1 baseline closed. B2 (Apple verify full activation) deferred.
+- Status: Runtime W1 implemented; B1 baseline closed. B2 (Apple verify activation-contract) implemented.
 - Owner: `@katsiaryna_kavaleuskaya`
 - Canonical dependency: `docs/contracts/PRODUCT_TIER_MAP.md`
 - Program phase: P0 revenue continuity baseline.
@@ -24,12 +24,20 @@ Rules:
 
 Implemented endpoints (evidence: `app/routers/billing.py`, `app/routers/pro_payments.py`, `docs/contracts/API_CANONICAL_MAP.md`):
 
-1. `POST /api/v1/billing/apple/verify-receipt` — runtime canonical verify route (verify-only; activation side effects in B2)
+1. `POST /api/v1/billing/apple/verify-receipt` — runtime canonical verify route; returns activation-contract-shaped `activation_payload` (IOSVerifiedActivationResult) when verified; client passes this + receipt_data to `POST /api/v1/pro/payments/activate`
 2. `POST /api/v1/pro/payments/ru-by/manual-intent` — runtime W1 manual intent
 3. `POST /api/v1/pro/payments/ru-by/reconcile` — runtime W1 reconciliation
 4. `GET /api/v1/pro/payments/ru-by/reconcile/{intent_id}` — runtime W1 reconciliation status
 
 Legacy behavior remains unchanged; additive surface is non-breaking.
+
+### Apple verify response (B2 activation-contract)
+
+When `POST /api/v1/billing/apple/verify-receipt` returns `verified=true`, the `activation_payload` field carries the full `IOSVerifiedActivationResult` (activation-contract shape):
+
+- `transaction_id`, `original_transaction_id`, `product_id`, `subscription_tier`, `status`, `expires_at`, `platform`
+- Client passes `activation_payload` + `receipt_data` to `POST /api/v1/pro/payments/activate` for persisted subscription activation
+- When `verified=false`, `activation_payload` is `null`
 
 ## 3. Activation Contract (`activate_subscription`)
 
@@ -143,7 +151,7 @@ Required runtime PR gates:
 ## 10. Backlog / Action Items (temporary seam control)
 
 1. Primary implementation track: `docs/roadmap/BACKLOG_LEDGER.md#ledger-p0-payments-ruby-ios`.
-2. Apple verify full activation path: B2 follow-up (PR-TBD-BILLING-APPLE-VERIFY).
+2. Apple verify activation-contract: B2 implemented; verify returns IOSVerifiedActivationResult in activation_payload when verified.
 3. iOS subscription manager integration path: `PR-TBD-IOS-SUBSCRIPTION-MANAGER`.
 4. B1 baseline status: runtime handlers merged, reconciliation tests merged, OpenAPI billing surfaces generated. Webhook signature contract test added in B1.
 
