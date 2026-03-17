@@ -16,6 +16,11 @@ if [ ! -f "${BACKUP_FILE}" ]; then
   exit 1
 fi
 
+# Resolve to absolute path so relative paths work from cwd (Cubic r2946901107)
+if [ "${BACKUP_FILE#/}" = "${BACKUP_FILE}" ]; then
+  BACKUP_FILE="$(cd "$(dirname "${BACKUP_FILE}")" && pwd)/$(basename "${BACKUP_FILE}")"
+fi
+
 cd "${PROJECT_DIR}"
 
 docker compose exec -T postgres \
