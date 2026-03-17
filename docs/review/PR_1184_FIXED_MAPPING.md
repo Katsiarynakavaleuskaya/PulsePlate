@@ -17,6 +17,11 @@ Evidence: scripts/ops/postgres_restore.sh (usage), docs/deploy/POSTGRES_SELF_HOS
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1184#discussion_r2946208015 -> 16d902a7
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1184#discussion_r2946208021 -> 16d902a7
 
+Disposition: FIXED
+Commit: d392a601
+Evidence: scripts/ops/postgres_restore.sh — path normalization before cd (Cubic r2946901107).
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1184#discussion_r2946901107 -> d392a601
+
 Disposition: DEFERRED
 Backlog: docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-postgres-backup-restore-hardening
 Reason: Valid operational hardening; out of narrow infra-wave scope. One follow-up PR: infra/p1-postgres-backup-restore-hardening.
