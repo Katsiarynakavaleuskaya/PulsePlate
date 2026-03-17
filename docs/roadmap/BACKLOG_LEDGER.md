@@ -28,6 +28,24 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 
 ### P0
 
+<a id="ledger-p0-self-hosted-postgres-droplet-foundation"></a>
+- [ ] P0: Self-hosted Postgres Droplet Foundation
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P0 (deployment-safety blocker)
+  - Target PR: PR-TBD (infra/p0-self-hosted-postgres-droplet-foundation)
+  - Area: infra / database / deploy
+  - Reason: Promote Postgres from optional/profile-gated to canonical prod DB on Droplet. Insert narrow infra-wave between B1 and B2; Batch B remains active. SQLite stays dev/test fallback only.
+  - Links:
+    - docs/deploy/POSTGRES_SELF_HOSTED_DROPLET.md
+    - docker-compose.yaml
+    - core/db_fallback.py
+  - DoD:
+    - Postgres not optional/profile-gated in docker-compose
+    - No dev-only password; DATABASE_URL required for prod
+    - pulseplate depends_on postgres with health condition
+    - Backup/restore scripts exist
+    - Runbook documents migrations, health, backup/restore
+
 <a id="ledger-p0-payments-ruby-ios"></a>
 - [ ] P0: Payment rails for RU/BY + iOS-first monetization baseline
   - Owner: @katsiaryna_kavaleuskaya
