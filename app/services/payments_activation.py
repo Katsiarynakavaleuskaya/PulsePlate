@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 import hashlib
+import hmac
 import httpx
 import json
 from typing import Any, overload
@@ -131,6 +132,27 @@ def _hash_receipt(receipt_data: str | None) -> str | None:
     if receipt_data is None:
         return None
     return hashlib.sha256(receipt_data.encode("utf-8")).hexdigest()
+
+
+def validate_webhook_signature(secret: str, payload: bytes, signature: str) -> bool:
+    """Validate webhook payload signature before state transition.
+
+    Contract: Any webhook/event handler must validate signature before state transition
+    (evidence: docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md:84).
+
+    Returns True if signature is valid, False otherwise. Fail-closed on empty secret
+    or signature.
+    """
+    if not secret or not secret.strip():
+        return False
+    if not signature or not signature.strip():
+        return False
+    expected = hmac.new(
+        secret.strip().encode("utf-8"),
+        payload,
+        hashlib.sha256,
+    ).hexdigest()
+    return hmac.compare_digest(expected, signature.strip())
 
 
 def _amount_to_minor_units(submitted_amount: str | None) -> int | None:
