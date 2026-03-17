@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 import hashlib
+import hmac
 import httpx
 import json
 from typing import Any, overload
@@ -131,6 +132,41 @@ def _hash_receipt(receipt_data: str | None) -> str | None:
     if receipt_data is None:
         return None
     return hashlib.sha256(receipt_data.encode("utf-8")).hexdigest()
+
+
+def validate_webhook_signature(secret: str, payload: bytes, signature: str) -> bool:
+    """Validate webhook payload signature before state transition.
+
+    Contract:
+    - HMAC-SHA256 hex digest over the exact raw HTTP request body bytes.
+    - Secret bytes are used exactly as configured.
+    - Signature comparison is fail-closed.
+    - Hex casing is normalized, but whitespace is significant.
+
+    Returns True if signature is valid, otherwise False.
+    """
+    if not secret:
+        return False
+    if not signature:
+        return False
+
+    try:
+        provided_signature = signature.encode("ascii").decode("ascii").lower()
+    except UnicodeEncodeError:
+        return False
+
+    if len(provided_signature) != 64:
+        return False
+    if any(ch not in "0123456789abcdef" for ch in provided_signature):
+        return False
+
+    expected_signature = hmac.new(
+        secret.encode("utf-8"),
+        payload,
+        hashlib.sha256,
+    ).hexdigest()
+
+    return hmac.compare_digest(expected_signature, provided_signature)
 
 
 def _amount_to_minor_units(submitted_amount: str | None) -> int | None:

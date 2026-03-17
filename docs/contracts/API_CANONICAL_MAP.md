@@ -13,7 +13,7 @@ Use these sources in order:
 5. `docs/roadmap/BACKLOG_LEDGER.md` for planned or deferred target-state work
 
 Billing evidence note:
-- `docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md:27` is the contract lock for the additive Apple verify seam, runtime exposure is implemented in `app/routers/billing.py:215`, OpenAPI exposure is gated in `legacy_app.py:709`, and the temporary seam exit remains tracked in `docs/architecture/ADR_PAYMENTS_RU_BY_IOS_BASELINE_2026-03-05.md:27` plus `docs/roadmap/BACKLOG_LEDGER.md:61`.
+- `docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md` is the contract lock for B1 baseline. Apple verify seam: `app/routers/billing.py`, `legacy_app.py:709`. RU/BY manual rails: `app/routers/pro_payments.py`. Webhook signature contract: `app/services/payments_activation.validate_webhook_signature`. B1 scope closed; B2 (Apple verify full activation) deferred.
 
 ## Rules
 

@@ -109,17 +109,22 @@ Keep future work out of the canonical networking guide; track it as discrete bac
 ## Payments Transport (P0 baseline policy)
 
 Contract source:
-- `docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md:1`
-- `docs/contracts/IOS_STOREKIT_PRODUCTS_CONTRACT.md:1` (canonical StoreKit product IDs and setup baseline)
+- `docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md`
+- `docs/contracts/IOS_STOREKIT_PRODUCTS_CONTRACT.md` (canonical StoreKit product IDs and setup baseline)
+
+Thin-client boundary (B1 baseline):
+- **What iOS sends:** Receipt data, manual intent payload, reconcile requests. Transport-only; no entitlement or billing decision logic.
+- **What backend decides:** Activation, tier assignment, reconciliation status, signature validation. Billing truth is server-authoritative only.
+- **Deferred to B2:** Apple verify full activation path (verify-receipt returns validation result; activation side effects land in B2). StoreKit product orchestration and SubscriptionManager integration remain B2+.
 
 Thin-client rules for payments:
 1. iOS must use existing `APIClient`/`HTTPClient` seam only (evidence: `ios/PulsePlate/Networking/APIClient.swift:57`, `ios/PulsePlate/Networking/HTTPClient.swift:22`).
-2. Receipt/business decision logic stays server-side; the additive Apple verify seam is `/api/v1/billing/apple/verify-receipt`, while RU/BY payment transport remains on `/api/v1/pro/payments/ru-by/*` until the runtime migration lands (evidence: `docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md:27`, `docs/contracts/API_CANONICAL_MAP.md:20`, `docs/roadmap/BACKLOG_LEDGER.md#ledger-p0-payments-ruby-ios`).
+2. Receipt/business decision logic stays server-side; Apple verify seam `/api/v1/billing/apple/verify-receipt`, RU/BY transport on `/api/v1/pro/payments/ru-by/*` (evidence: `docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md`, `docs/contracts/API_CANONICAL_MAP.md`).
 3. Client may send transport payload and render server state, but must not infer activation logic locally (evidence: `ios/PulsePlate/Networking/APIClient.swift:84`, `ios/PulsePlate/Networking/HTTPClient.swift:13`).
 4. Key material/storage remains in Keychain-backed providers; no `UserDefaults` fallback for secrets (evidence: `ios/PulsePlate/Services/ProKeyProvider.swift:20`, `ios/PulsePlate/Services/KeychainStore.swift:8`).
 5. The iOS app must never call Apple `verifyReceipt` directly; server-side verification is production-first with a single sandbox fallback on `21007` and requires backend-held `APPLE_SHARED_SECRET`.
 
-Current / planned transport surfaces:
+Current transport surfaces (B1 implemented):
 - `POST /api/v1/billing/apple/verify-receipt` (implemented additive billing seam for verify-only receipt validation)
 - `POST /api/v1/pro/payments/ru-by/manual-intent` (current runtime transport during the transition window)
 - `POST /api/v1/pro/payments/ru-by/reconcile` (current runtime transport during the transition window)

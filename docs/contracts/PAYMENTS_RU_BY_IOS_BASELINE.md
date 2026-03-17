@@ -1,6 +1,6 @@
 # Payments RU/BY + iOS Baseline Contract
 
-- Status: Contract-first (docs-only), runtime implementation follows in dedicated PRs.
+- Status: Runtime W1 implemented; B1 baseline closed. B2 (Apple verify full activation) deferred.
 - Owner: `@katsiaryna_kavaleuskaya`
 - Canonical dependency: `docs/contracts/PRODUCT_TIER_MAP.md`
 - Program phase: P0 revenue continuity baseline.
@@ -22,14 +22,14 @@ Rules:
 
 ## 2. Canonical API Surface (additive, non-breaking)
 
-Planned endpoints (contract-first; final path lock happens in runtime PR):
+Implemented endpoints (evidence: `app/routers/billing.py`, `app/routers/pro_payments.py`, `docs/contracts/API_CANONICAL_MAP.md`):
 
-1. `POST /api/v1/billing/apple/verify-receipt` (runtime canonical verify route)
-2. `POST /api/v1/pro/payments/ru-by/manual-intent` (runtime W1 transitional path)
-3. `POST /api/v1/pro/payments/ru-by/reconcile` (runtime W1 transitional path)
-4. `GET /api/v1/pro/payments/ru-by/reconcile/{intent_id}` (runtime W1 transitional path)
+1. `POST /api/v1/billing/apple/verify-receipt` — runtime canonical verify route (verify-only; activation side effects in B2)
+2. `POST /api/v1/pro/payments/ru-by/manual-intent` — runtime W1 manual intent
+3. `POST /api/v1/pro/payments/ru-by/reconcile` — runtime W1 reconciliation
+4. `GET /api/v1/pro/payments/ru-by/reconcile/{intent_id}` — runtime W1 reconciliation status
 
-Legacy behavior remains unchanged until runtime migration is merged.
+Legacy behavior remains unchanged; additive surface is non-breaking.
 
 ## 3. Activation Contract (`activate_subscription`)
 
@@ -66,7 +66,7 @@ Output envelope (source-agnostic):
 
 ## 4. Reconciliation Status Lifecycle
 
-For manual rails (`erip_qr`, `swift_manual`):
+For manual rails (`erip_qr`, `swift_manual`). Runtime enum: `ReconcileStatus` in `app/schemas/payments.py` (pending, verified, rejected, not_required).
 
 ```text
 draft_intent -> pending_reconciliation -> verified -> activated
@@ -83,7 +83,12 @@ Lifecycle invariants:
 1. iOS verification path is automated and server-side validated only; the app must not call `verifyReceipt` directly.
 2. Apple verification runs production-first with exactly one sandbox fallback on Apple status `21007`; no generic retry loop is part of the contract.
 3. `APPLE_SHARED_SECRET` is required runtime config for Apple receipt verification requests; production/staging must fail fast on startup when it is missing.
-4. Any webhook/event handler must validate signature before state transition.
+4. Any webhook/event handler must validate signature before state transition. Runtime: `payments_activation.validate_webhook_signature()` (evidence: `app/services/payments_activation.py`).
+4a. Signature format contract:
+   - The signature is the hexadecimal HMAC-SHA256 digest over the exact raw HTTP request body bytes.
+   - Handlers must validate against raw body bytes and must not re-serialize JSON, rebuild payloads, or change encoding before verification.
+   - Secret bytes are used exactly as configured; whitespace is significant and must not be trimmed implicitly.
+   - Signature comparison is case-insensitive only at the hex representation layer; malformed or non-ASCII signature inputs must fail closed.
 5. Idempotency key precedence:
    - provider event id (if exists), else
    - deterministic hash of `(source, external_txn_id, plan, amount_minor, currency)`.
@@ -116,6 +121,8 @@ Semantic note:
 
 ## 8. Runtime Test Plan (must be green in runtime PR)
 
+All five test files exist and are green in B1:
+
 1. `tests/test_payment_source_contract_api.py`
 2. `tests/test_subscription_activation_api.py`
 3. `tests/test_ios_receipt_verification_api.py`
@@ -136,12 +143,9 @@ Required runtime PR gates:
 ## 10. Backlog / Action Items (temporary seam control)
 
 1. Primary implementation track: `docs/roadmap/BACKLOG_LEDGER.md#ledger-p0-payments-ruby-ios`.
-2. Apple verify runtime path: `PR-TBD-BILLING-APPLE-VERIFY`.
+2. Apple verify full activation path: B2 follow-up (PR-TBD-BILLING-APPLE-VERIFY).
 3. iOS subscription manager integration path: `PR-TBD-IOS-SUBSCRIPTION-MANAGER`.
-4. Blockers before completion:
-   - runtime handlers are not merged yet,
-   - reconciliation tests are not merged yet,
-   - OpenAPI billing surfaces are not yet generated from runtime code.
+4. B1 baseline status: runtime handlers merged, reconciliation tests merged, OpenAPI billing surfaces generated. Webhook signature contract test added in B1.
 
 ## 11. Exit Criteria
 
@@ -155,3 +159,9 @@ Required runtime PR gates:
 1. Runtime Apple receipt verification is exposed under the additive billing namespace `/api/v1/billing/apple/verify-receipt`.
 2. Manual RU/BY payment surfaces remain under `/api/v1/pro/payments/ru-by/*` during the transition window.
 3. Do not advertise `/api/v1/pro/payments/apple/verify-receipt` as a compatibility alias; the canonical runtime/OpenAPI surface is `/api/v1/billing/apple/verify-receipt`.
+
+## 13. B1 Scope Lock (non-goals)
+
+B1 scope: canonical sources, activation contract, reconciliation lifecycle, webhook signature contract, additive billing surface.
+
+**Non-goals (do not mix into B1):** Stripe/PayPal, Android billing, paywall UI redesign, StoreKit product IDs, iOS SubscriptionManager, OpenAPI namespace cleanup, AI/RAG/GTM scope.

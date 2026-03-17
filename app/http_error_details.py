@@ -19,6 +19,7 @@ SHARE_EXPIRED_DETAIL = "share expired"
 TRANSPORT_AUTH_REQUIRED_DETAIL = "transport_auth_required"
 DETERMINISTIC_ACTIVATION_CONFLICT_DETAIL = "deterministic_activation_conflict"
 ACTIVATION_ACCESS_FORBIDDEN_DETAIL = "activation_access_forbidden"
+BILLING_SIGNATURE_INVALID = "BILLING_SIGNATURE_INVALID"
 
 INVALID_SUBMISSION_DETAIL = "Invalid submission"
 INVALID_SUBMISSION_TRANSITION_DETAIL = "Invalid submission transition"
