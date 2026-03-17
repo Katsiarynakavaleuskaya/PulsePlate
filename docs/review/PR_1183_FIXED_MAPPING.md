@@ -17,10 +17,18 @@ Evidence: scripts/install_codex_skills.sh (--no-cybersec/--only-cybersec), AGENT
 Disposition: NOT-A-BUG
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1183#pullrequestreview-3959235254
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1183#pullrequestreview-3959249506
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1183#pullrequestreview-3959430874
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1183#pullrequestreview-3959431113
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1183#discussion_r2945379494
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1183#discussion_r2945379515
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1183#discussion_r2945392614
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1183#discussion_r2945392629
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1183#discussion_r2945558797
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1183#discussion_r2945558807
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1183#discussion_r2945558814
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1183#discussion_r2945558820
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1183#discussion_r2945559066
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1183#discussion_r2945559080
 Evidence: docs/review/PR_1183_FIXED_MAPPING.md
 Reason: Cubic/CodeRabbit reviews contain no actionable code changes; Sourcery feedback addressed in 98b024d6.
 
