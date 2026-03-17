@@ -21,6 +21,7 @@ Disposition: FIXED
 Commit: d392a601
 Evidence: scripts/ops/postgres_restore.sh — path normalization before cd (Cubic r2946901107).
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1184#discussion_r2946901107 -> d392a601
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1184#pullrequestreview-3960908210 -> d392a601
 
 Disposition: DEFERRED
 Backlog: docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-postgres-backup-restore-hardening
