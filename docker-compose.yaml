@@ -15,6 +15,7 @@ services:
       - PYTHONPATH=/app
       - API_KEY=${API_KEY}
       - ENVIRONMENT=production
+      - DATABASE_URL=${DATABASE_URL:?DATABASE_URL is required}
       - SERVER_SALT=${SERVER_SALT:?SERVER_SALT is required}
       - APPLE_SHARED_SECRET=${APPLE_SHARED_SECRET:?APPLE_SHARED_SECRET is required}
       - EXPORT_TOKEN_SECRET=${EXPORT_TOKEN_SECRET:?EXPORT_TOKEN_SECRET is required}
@@ -35,8 +36,11 @@ services:
       - cache-volume:/app/cache:rw
       - logs-volume:/app/logs:rw
     restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=5)"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health/db', timeout=5)"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -95,21 +99,21 @@ services:
     networks:
       - pulseplate-network
 
-  # PostgreSQL for production data (optional)
+  # PostgreSQL for production data (canonical prod DB)
   postgres:
     image: postgres:15-alpine
     environment:
-      - POSTGRES_DB=pulseplate
-      - POSTGRES_USER=pulseplate
-      # Default is for local/dev only (service is profile-gated).
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-dev_postgres_password}
-    ports:
-      - "5432:5432"
+      - POSTGRES_DB=${POSTGRES_DB:?POSTGRES_DB is required}
+      - POSTGRES_USER=${POSTGRES_USER:?POSTGRES_USER is required}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
     volumes:
       - postgres-data:/var/lib/postgresql/data
     restart: unless-stopped
-    profiles:
-      - database
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
     networks:
       - pulseplate-network
 

@@ -432,6 +432,12 @@ make diff-cov   # Diff-coverage ≥97% on changed lines
 - Tests must import/patch fallback only via `core.db_fallback`; any global flag must be reset via `reset_fallback_state()` or fixture (autouse allowed).
 - **Test hygiene:** Any test that mutates `core.db.SessionLocal` or calls `_configure_session_bindings` **must** restore `core_db.SessionLocal` and env keys (`DB_HEALTH_DEGRADED`, `DB_FALLBACK_URL`, `DATABASE_URL`) in a `finally` block or via `monkeypatch`.
 
+**Production DB invariant (hard):**
+
+- Paid runtime, subscriptions, entitlement state, and client history must not ship on SQLite as canonical production storage.
+- SQLite is allowed only for: local development, tests, explicit fallback paths documented in deploy runbooks.
+- See: `docs/deploy/POSTGRES_SELF_HOSTED_DROPLET.md` for canonical prod DB setup.
+
 **Module/package collision (hard):** Never introduce `core/<name>/` (package) when `core/<name>.py` (module) exists; Python would resolve `core.<name>` to the package and break imports. Use a non-colliding name (e.g. `core/db_fallback.py`) instead.
 
 **Dockerfile policy (hard):**
