@@ -23,13 +23,17 @@ Evidence: scripts/ops/postgres_restore.sh — path normalization before cd (Cubi
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1184#discussion_r2946901107 -> d392a601
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1184#pullrequestreview-3960908210 -> d392a601
 
+Disposition: FIXED
+Commit: a9087d1e
+Evidence: scripts/ops/postgres_restore.sh — psql -v ON_ERROR_STOP=1 (Cubic r2946233285); scripts/ops/postgres_backup.sh — rm on pg_dump failure (Cubic r2946233291).
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1184#discussion_r2946233285 -> a9087d1e
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1184#discussion_r2946233291 -> a9087d1e
+
 Disposition: DEFERRED
 Backlog: docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-postgres-backup-restore-hardening
 Reason: Valid operational hardening; out of narrow infra-wave scope. One follow-up PR: infra/p1-postgres-backup-restore-hardening.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1184#discussion_r2946225587
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1184#discussion_r2946233285
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1184#discussion_r2946233291
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1184#discussion_r2946264287
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1184#discussion_r2946264299
 
