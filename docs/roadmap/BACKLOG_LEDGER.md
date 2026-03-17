@@ -32,7 +32,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P0: Self-hosted Postgres Droplet Foundation
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0 (deployment-safety blocker)
-  - Target PR: PR-TBD (infra/p0-self-hosted-postgres-droplet-foundation)
+  - Target PR: PR #1184 (infra/p0-self-hosted-postgres-droplet-foundation)
   - Area: infra / database / deploy
   - Reason: Promote Postgres from optional/profile-gated to canonical prod DB on Droplet. Insert narrow infra-wave between B1 and B2; Batch B remains active. SQLite stays dev/test fallback only.
   - Links:
