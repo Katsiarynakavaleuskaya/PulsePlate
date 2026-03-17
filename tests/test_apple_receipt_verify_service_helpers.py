@@ -5,7 +5,12 @@ from datetime import datetime, timezone
 import httpx
 import pytest
 
-from app.schemas.payments import AppleVerificationEnvironment, AppleVerificationState
+from app.schemas.payments import (
+    AppleVerificationEnvironment,
+    AppleVerificationState,
+    IosVerificationStatus,
+    PaymentPlatform,
+)
 from app.services import payments_activation
 
 
@@ -134,22 +139,105 @@ def test_receipt_entries_falls_back_to_receipt_in_app() -> None:
     assert entries == [{"product_id": "com.pulseplate.premium.monthly"}]
 
 
-def test_activation_payload_for_product_covers_none_pro_vip_and_unknown() -> None:
-    assert payments_activation._activation_payload_for_product(None) is None
-    pro_payload = payments_activation._activation_payload_for_product(
-        "com.pulseplate.premium.monthly"
-    )
-    vip_payload = payments_activation._activation_payload_for_product("com.pulseplate.vip.monthly")
-    assert pro_payload is not None
-    assert pro_payload.tier.value == "pro"
-    assert pro_payload.platform == "ios"
-    assert vip_payload is not None
-    assert vip_payload.tier.value == "vip"
-    assert vip_payload.platform == "ios"
+def test_subscription_tier_for_product_covers_none_pro_vip_and_unknown() -> None:
+    """B2: tier mapping for activation contract (replaces _activation_payload_for_product)."""
+    assert payments_activation._subscription_tier_for_product(None) is None
+    pro_tier = payments_activation._subscription_tier_for_product("com.pulseplate.premium.monthly")
+    vip_tier = payments_activation._subscription_tier_for_product("com.pulseplate.vip.monthly")
+    assert pro_tier is not None
+    assert pro_tier.value == "pro"
+    assert vip_tier is not None
+    assert vip_tier.value == "vip"
     assert (
-        payments_activation._activation_payload_for_product("com.pulseplate.unknown.monthly")
-        is None
+        payments_activation._subscription_tier_for_product("com.pulseplate.unknown.monthly") is None
     )
+
+
+def test_verification_state_to_ios_status_maps_expired_and_rejected() -> None:
+    """B2: _verification_state_to_ios_status covers expired and rejected branches."""
+    assert (
+        payments_activation._verification_state_to_ios_status(AppleVerificationState.expired)
+        == IosVerificationStatus.expired
+    )
+    assert (
+        payments_activation._verification_state_to_ios_status(AppleVerificationState.invalid)
+        == IosVerificationStatus.rejected
+    )
+
+
+def test_build_activation_contract_from_entry_returns_none_for_missing_transaction_id() -> None:
+    """B2: activation contract builder requires transaction_id."""
+    result = payments_activation._build_activation_contract_from_entry(
+        entry={"product_id": "com.pulseplate.premium.monthly", "expires_date_ms": "4102444800000"},
+        product_id="com.pulseplate.premium.monthly",
+        expires_at=datetime.fromtimestamp(4102444800000 / 1000.0, tz=timezone.utc),
+        verification_state=AppleVerificationState.active,
+    )
+    assert result is None
+
+
+def test_build_activation_contract_from_entry_returns_none_for_unknown_product() -> None:
+    """B2: activation contract builder returns None for unknown product_id."""
+    result = payments_activation._build_activation_contract_from_entry(
+        entry={
+            "product_id": "com.pulseplate.unknown.monthly",
+            "transaction_id": "txn-1",
+            "expires_date_ms": "4102444800000",
+        },
+        product_id="com.pulseplate.unknown.monthly",
+        expires_at=datetime.fromtimestamp(4102444800000 / 1000.0, tz=timezone.utc),
+        verification_state=AppleVerificationState.active,
+    )
+    assert result is None
+
+
+def test_build_activation_contract_from_entry_returns_none_when_active_but_no_expires_at() -> None:
+    """B2: activation contract builder requires expires_at for active/expired status."""
+    result = payments_activation._build_activation_contract_from_entry(
+        entry={
+            "product_id": "com.pulseplate.premium.monthly",
+            "transaction_id": "txn-1",
+        },
+        product_id="com.pulseplate.premium.monthly",
+        expires_at=None,
+        verification_state=AppleVerificationState.active,
+    )
+    assert result is None
+
+
+def test_build_activation_contract_from_entry_builds_pro_and_vip_contracts() -> None:
+    """B2: activation contract builder produces IOSVerifiedActivationResult for pro/vip."""
+    pro_entry = {
+        "product_id": "com.pulseplate.premium.monthly",
+        "expires_date_ms": "4102444800000",
+        "transaction_id": "txn-pro-1",
+        "original_transaction_id": "txn-orig-1",
+    }
+    pro_result = payments_activation._build_activation_contract_from_entry(
+        entry=pro_entry,
+        product_id="com.pulseplate.premium.monthly",
+        expires_at=datetime.fromtimestamp(4102444800000 / 1000.0, tz=timezone.utc),
+        verification_state=AppleVerificationState.active,
+    )
+    assert pro_result is not None
+    assert pro_result.subscription_tier.value == "pro"
+    assert pro_result.platform == PaymentPlatform.ios
+    assert pro_result.status == IosVerificationStatus.active
+    assert pro_result.transaction_id == "txn-pro-1"
+
+    vip_entry = {
+        "product_id": "com.pulseplate.vip.monthly",
+        "expires_date_ms": "4102444800000",
+        "transaction_id": "txn-vip-1",
+    }
+    vip_result = payments_activation._build_activation_contract_from_entry(
+        entry=vip_entry,
+        product_id="com.pulseplate.vip.monthly",
+        expires_at=datetime.fromtimestamp(4102444800000 / 1000.0, tz=timezone.utc),
+        verification_state=AppleVerificationState.active,
+    )
+    assert vip_result is not None
+    assert vip_result.subscription_tier.value == "vip"
 
 
 @pytest.mark.asyncio
@@ -330,6 +418,7 @@ def test_normalize_apple_verification_keeps_renewal_active_without_restore_signa
 
 
 def test_normalize_apple_verification_uses_restored_only_for_explicit_signal() -> None:
+    """B2: restore_detected yields restored state; entry must have transaction_id for contract."""
     response = payments_activation._normalize_apple_verification(
         payload={
             "status": 0,
@@ -338,6 +427,8 @@ def test_normalize_apple_verification_uses_restored_only_for_explicit_signal() -
                 {
                     "product_id": "com.pulseplate.premium.monthly",
                     "expires_date_ms": "4102444800000",
+                    "transaction_id": "txn-restore-1",
+                    "original_transaction_id": "txn-orig-1",
                 }
             ],
         },
@@ -349,6 +440,7 @@ def test_normalize_apple_verification_uses_restored_only_for_explicit_signal() -
 
 
 def test_normalize_apple_verification_accepts_restored_marker_alias() -> None:
+    """B2: restored alias yields restored state; entry must have transaction_id for contract."""
     response = payments_activation._normalize_apple_verification(
         payload={
             "status": 0,
@@ -357,6 +449,8 @@ def test_normalize_apple_verification_accepts_restored_marker_alias() -> None:
                 {
                     "product_id": "com.pulseplate.premium.monthly",
                     "expires_date_ms": "4102444800000",
+                    "transaction_id": "txn-restore-2",
+                    "original_transaction_id": "txn-orig-2",
                 }
             ],
         },
