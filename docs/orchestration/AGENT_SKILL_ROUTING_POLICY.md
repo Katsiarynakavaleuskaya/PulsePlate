@@ -91,7 +91,7 @@ domain routing first and then apply these **default helper bundles**:
 |-----------------|-----------------------|
 | `agent-coordinator` | `docs-sync`, `agents-md`, `pulseplate-gates` |
 | `bug-hunter` | `bug-triage`, `pulseplate-gates`, `pulseplate-guards` |
-| `security-auditor` | `security-best-practices`, `security-threat-model`, `pulseplate-guards` |
+| `security-auditor` | `security-best-practices`, `security-threat-model`, `pulseplate-guards`, `tools/cybersecurity_skills` (734 skills) |
 | `backend-engineer` | `pulseplate-backend-endpoints`, `pulseplate-openapi-sync`, `pulseplate-gates` |
 | `qa-engineer-agent` | `bug-triage`, `pulseplate-gates`, `code-review-expert` |
 | `frontend-engineer` | `pulseplate-frontend-ui`, `pulseplate-gates`, `vercel-react-best-practices` |
@@ -111,6 +111,7 @@ The coordinator may use installed skills when they improve delivery and align wi
 ### Preferred by default
 
 - Repo-tracked PulsePlate skills in `tools/codex_skills/`
+- Cybersecurity skills in `tools/cybersecurity_skills/skills/` (734 skills, agentskills.io; installed by default via `scripts/install_codex_skills.sh`)
 - `docs-sync`
 - `bug-triage`
 - `code-review-expert`
@@ -149,7 +150,8 @@ The following touched paths must automatically boost security-oriented skills an
 Expected behavior:
 
 - add `security-best-practices` and/or `pulseplate-guards` when the task packet touches these paths;
-- keep `security-auditor` in the review path even if the dominant domain is docs, release, or orchestration.
+- keep `security-auditor` in the review path even if the dominant domain is docs, release, or orchestration;
+- security-auditor may reference `tools/cybersecurity_skills/` (index: `tools/cybersecurity_skills/index.json`) for subdomain-specific procedures (API Security, DevSecOps, Web App Sec, Container Security).
 
 ---
 
