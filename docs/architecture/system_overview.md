@@ -18,7 +18,7 @@
   - `core/` (domain): BMI engine, nutrition logic, i18n, business rules
   - `providers/` (LLM providers): Grok/Ollama/Pico/Stub (env-selected via `llm.py`)
 - **Infra**
-  - DB (SQLite/Postgres depending on env)
+  - DB: PostgreSQL (prod canonical), SQLite (dev/test fallback)
   - External APIs (USDA/OpenFoodFacts/LLM, etc.)
 
 ## Canonical entrypoint
