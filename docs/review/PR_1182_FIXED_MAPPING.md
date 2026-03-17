@@ -1,6 +1,6 @@
-# PR-TBD B1 Payments RU/BY + iOS Baseline — Fixed in Commit Mapping
+# PR 1182 — B1 Payments RU/BY + iOS Baseline — Fixed in Commit Mapping
 
-**PR:** TBD (replace with PR number when opened)
+**PR:** 1182
 **Branch:** feat/p0-payments-ruby-ios-baseline-runtime-w1
 
 ## Discussion Thread Pass
