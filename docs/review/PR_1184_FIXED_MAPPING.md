@@ -15,6 +15,7 @@ Disposition: DEFERRED
 Backlog: docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-postgres-backup-restore-hardening
 Reason: Valid operational hardening; out of narrow infra-wave scope. One follow-up PR: infra/p1-postgres-backup-restore-hardening.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1184#discussion_r2946225587
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1184#discussion_r2946233285
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1184#discussion_r2946233291
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1184#discussion_r2946264287

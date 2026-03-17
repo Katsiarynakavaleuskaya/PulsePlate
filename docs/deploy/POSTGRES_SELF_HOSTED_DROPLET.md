@@ -5,7 +5,7 @@
 **Design rationale (architecture):**
 
 - Postgres runs internal-only (no public 5432); app connects via `DATABASE_URL` within compose network.
-- DB fallback policy (`core/db_fallback.py`) unchanged: SQLite used when Postgres unavailable or explicitly configured for dev/test.
+- DB fallback policy (`core/db_fallback.py`) is unchanged: SQLite is used when Postgres is unavailable or explicitly configured for dev/test.
 - Health checks use `/health/db` for readiness; `DATABASE_URL` is required for production.
 
 ---

@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # Restore Postgres database from backup.
-# Usage: POSTGRES_USER=... POSTGRES_DB=... scripts/ops/postgres_restore.sh /absolute/path/to/backup.dump
+# Usage: POSTGRES_USER=... POSTGRES_DB=... scripts/ops/postgres_restore.sh path/to/backup.dump
 set -euo pipefail
 
 if [ "${#}" -ne 1 ]; then
-  echo "Usage: $0 /absolute/path/to/backup.dump"
+  echo "Usage: $0 path/to/backup.dump"
   exit 1
 fi
 
