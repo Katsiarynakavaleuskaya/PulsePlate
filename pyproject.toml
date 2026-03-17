@@ -64,6 +64,11 @@ exclude = '''
 )
 '''
 
+[[tool.mypy.overrides]]
+# Optional slowapi: type: ignore needed for full mypy; pre-push uses --follow-imports=skip so ignores unused.
+module = ["app.security.rate_limit"]
+warn_unused_ignores = false
+
 [tool.black]
 line-length = 100
 target-version = ["py313"]

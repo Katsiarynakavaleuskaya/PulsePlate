@@ -24,7 +24,7 @@ Rules:
 
 Implemented endpoints (evidence: `app/routers/billing.py`, `app/routers/pro_payments.py`, `docs/contracts/API_CANONICAL_MAP.md`):
 
-1. `POST /api/v1/billing/apple/verify-receipt` — runtime canonical verify route; returns activation-contract-shaped `activation_payload` (IOSVerifiedActivationResult) when verified; client passes this + receipt_data to `POST /api/v1/pro/payments/activate`
+1. `POST /api/v1/billing/apple/verify-receipt` — runtime canonical verify route; returns activation-contract-shaped `activation_payload` (IOSVerifiedActivationResult) when verified; client passes this inside `payload.verification_result` and `receipt_data` inside `payload.receipt_data` to `POST /api/v1/pro/payments/activate` (see canonical activate request body below)
 2. `POST /api/v1/pro/payments/ru-by/manual-intent` — runtime W1 manual intent
 3. `POST /api/v1/pro/payments/ru-by/reconcile` — runtime W1 reconciliation
 4. `GET /api/v1/pro/payments/ru-by/reconcile/{intent_id}` — runtime W1 reconciliation status
@@ -36,8 +36,32 @@ Legacy behavior remains unchanged; additive surface is non-breaking.
 When `POST /api/v1/billing/apple/verify-receipt` returns `verified=true`, the `activation_payload` field carries the full `IOSVerifiedActivationResult` (activation-contract shape):
 
 - `transaction_id`, `original_transaction_id`, `product_id`, `subscription_tier`, `status`, `expires_at`, `platform`
-- Client passes `activation_payload` + `receipt_data` to `POST /api/v1/pro/payments/activate` for persisted subscription activation
 - When `verified=false`, `activation_payload` is `null`
+
+### Canonical activate request body (iOS handoff)
+
+For `POST /api/v1/pro/payments/activate` with `source=ios_app_store`, the client must send:
+
+```json
+{
+  "source": "ios_app_store",
+  "payload": {
+    "verification_result": { ...activation_payload from verify response... },
+    "receipt_data": "<base64 receipt blob>"
+  }
+}
+```
+
+`verification_result` is the `activation_payload` object returned by `POST /api/v1/billing/apple/verify-receipt` when `verified=true`. `receipt_data` is the same base64 receipt blob used for verify. Both are nested inside `payload`, not top-level.
+
+### iOS activation truth (server-side reverification)
+
+**Invariant:** Backend never persists paid entitlement state from client-supplied iOS verification payload.
+
+- Verify is server-side only: `POST /api/v1/billing/apple/verify-receipt` calls Apple `verifyReceipt` API.
+- Activation for `source=ios_app_store` requires `receipt_data` and performs **server-side reverification** via `verify_apple_receipt(receipt_data)`.
+- Persisted subscription tier/status comes **only** from the server-verified Apple response.
+- Client `verification_result` is compatibility/debug context only — never entitlement truth.
 
 ## 3. Activation Contract (`activate_subscription`)
 

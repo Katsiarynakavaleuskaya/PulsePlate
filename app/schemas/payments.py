@@ -164,7 +164,7 @@ class IOSAppStoreActivationPayload(PaymentRequestModel):
     """Canonical iOS activation payload for PR-2 activation route."""
 
     verification_result: IOSVerifiedActivationResult
-    receipt_data: str | None = Field(default=None, min_length=1)
+    receipt_data: str | None = Field(default=None, min_length=1, max_length=512_000)
 
     @field_validator("receipt_data", mode="before")
     @classmethod
@@ -276,6 +276,7 @@ class AppleReceiptVerificationRequest(PaymentRequestModel):
     receipt_data: str = Field(
         ...,
         min_length=8,
+        max_length=512_000,
         description=(
             "Opaque App Store receipt blob. "
             "Canonical field: receipt_data. Compatibility alias accepted: receipt."
@@ -319,7 +320,8 @@ class AppleReceiptVerificationResponse(BaseModel):
         default=None,
         description=(
             "Activation-contract shaped payload when verified. "
-            "Client passes this + receipt_data to POST /api/v1/pro/payments/activate."
+            "Client passes this as payload.verification_result and receipt_data as payload.receipt_data "
+            "inside ActivateSubscriptionRequest to POST /api/v1/pro/payments/activate."
         ),
     )
     error: AppleProviderError | None = None

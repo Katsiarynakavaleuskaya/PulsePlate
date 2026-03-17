@@ -56,6 +56,26 @@ def _install_apple_stub(
     return calls
 
 
+def test_apple_verify_receipt_rejects_oversized_receipt_data(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Oversized receipt_data must return 422 (DoS protection)."""
+    monkeypatch.setenv(
+        "APPLE_SHARED_SECRET",
+        "StrongAppleSharedSecretForTests123456789!",  # pragma: allowlist secret
+    )
+    oversized = "x" * (512_001)
+
+    response = client.post(
+        "/api/v1/billing/apple/verify-receipt",
+        headers=_billing_headers(monkeypatch),
+        json={"receipt_data": oversized},
+    )
+
+    assert response.status_code == 422, response.text
+
+
 def test_apple_verify_receipt_requires_valid_transport_api_key(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
@@ -424,7 +444,7 @@ def test_apple_verify_activation_contract_has_required_fields_when_verified(
                     _apple_receipt_entry(
                         transaction_id="txn-activation-123",
                         original_transaction_id="txn-original-456",
-                        product_id="com.pulseplate.pro.monthly",
+                        product_id="com.pulseplate.premium.monthly",
                         expires_date_ms="4102444800000",
                     ),
                 ],
@@ -445,7 +465,7 @@ def test_apple_verify_activation_contract_has_required_fields_when_verified(
     assert ap is not None
     assert ap["transaction_id"] == "txn-activation-123"
     assert ap["original_transaction_id"] == "txn-original-456"
-    assert ap["product_id"] == "com.pulseplate.pro.monthly"
+    assert ap["product_id"] == "com.pulseplate.premium.monthly"
     assert ap["subscription_tier"] == "pro"
     assert ap["status"] == "active"
     assert ap["platform"] == "ios"
@@ -487,16 +507,29 @@ def test_apple_verify_activation_contract_vip_product_returns_vip_tier(
     assert ap["subscription_tier"] == "vip"
 
 
-def test_apple_verify_activation_contract_none_when_invalid(
+def test_apple_verify_returns_200_invalid_envelope_not_500_when_malformed_apple_fields(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Activation-contract matrix: invalid/expired responses have activation_payload=None."""
+    """Malformed Apple fields (e.g. too short original_transaction_id) yield 200 + invalid envelope, not 500."""
     monkeypatch.setenv(
         "APPLE_SHARED_SECRET",
         "StrongAppleSharedSecretForTests123456789!",  # pragma: allowlist secret
     )
-    _install_apple_stub(monkeypatch, [{"status": 21010}])
+    _install_apple_stub(
+        monkeypatch,
+        [
+            {
+                "status": 0,
+                "latest_receipt_info": [
+                    _apple_receipt_entry(
+                        transaction_id="txn-valid-123",
+                        original_transaction_id="x",
+                    ),
+                ],
+            }
+        ],
+    )
 
     response = client.post(
         "/api/v1/billing/apple/verify-receipt",
@@ -508,6 +541,38 @@ def test_apple_verify_activation_contract_none_when_invalid(
     payload = _json(response)
     assert payload["verified"] is False
     assert payload["activation_payload"] is None
+    assert payload["verification_state"] == "invalid"
+    assert payload.get("error", {}).get("code") == "APPLE_RECEIPT_INVALID"
+
+
+@pytest.mark.parametrize(
+    ("apple_status", "expected_state"),
+    [(21010, "invalid"), (21006, "expired")],
+)
+def test_apple_verify_activation_contract_none_when_invalid_or_expired(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+    apple_status: int,
+    expected_state: str,
+) -> None:
+    """Activation-contract matrix: invalid/expired responses have activation_payload=None."""
+    monkeypatch.setenv(
+        "APPLE_SHARED_SECRET",
+        "StrongAppleSharedSecretForTests123456789!",  # pragma: allowlist secret
+    )
+    _install_apple_stub(monkeypatch, [{"status": apple_status}])
+
+    response = client.post(
+        "/api/v1/billing/apple/verify-receipt",
+        headers=_billing_headers(monkeypatch),
+        json=_request_payload(),
+    )
+
+    assert response.status_code == 200, response.text
+    payload = _json(response)
+    assert payload["verified"] is False
+    assert payload["activation_payload"] is None
+    assert payload["verification_state"] == expected_state
 
 
 def test_apple_verify_receipt_requires_nonblank_api_key(client: TestClient) -> None:

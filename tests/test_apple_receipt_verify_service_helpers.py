@@ -139,8 +139,8 @@ def test_receipt_entries_falls_back_to_receipt_in_app() -> None:
     assert entries == [{"product_id": "com.pulseplate.premium.monthly"}]
 
 
-def test_subscription_tier_for_product_covers_none_pro_vip_and_unknown() -> None:
-    """B2: tier mapping for activation contract (replaces _activation_payload_for_product)."""
+def test_subscription_tier_for_product_covers_none_pro_vip_unknown_and_prefix_like() -> None:
+    """B2: explicit SKU allowlist; unknown and prefix-like SKUs return None (fail-closed)."""
     assert payments_activation._subscription_tier_for_product(None) is None
     pro_tier = payments_activation._subscription_tier_for_product("com.pulseplate.premium.monthly")
     vip_tier = payments_activation._subscription_tier_for_product("com.pulseplate.vip.monthly")
@@ -151,10 +151,22 @@ def test_subscription_tier_for_product_covers_none_pro_vip_and_unknown() -> None
     assert (
         payments_activation._subscription_tier_for_product("com.pulseplate.unknown.monthly") is None
     )
+    # Prefix-like but undocumented SKU must not map to paid tier
+    assert (
+        payments_activation._subscription_tier_for_product("com.pulseplate.premium.weekly") is None
+    )
 
 
-def test_verification_state_to_ios_status_maps_expired_and_rejected() -> None:
-    """B2: _verification_state_to_ios_status covers expired and rejected branches."""
+def test_verification_state_to_ios_status_maps_all_states() -> None:
+    """B2: _verification_state_to_ios_status covers active, expired, restored, and rejected."""
+    assert (
+        payments_activation._verification_state_to_ios_status(AppleVerificationState.active)
+        == IosVerificationStatus.active
+    )
+    assert (
+        payments_activation._verification_state_to_ios_status(AppleVerificationState.restored)
+        == IosVerificationStatus.active
+    )
     assert (
         payments_activation._verification_state_to_ios_status(AppleVerificationState.expired)
         == IosVerificationStatus.expired
@@ -169,6 +181,24 @@ def test_build_activation_contract_from_entry_returns_none_for_missing_transacti
     """B2: activation contract builder requires transaction_id."""
     result = payments_activation._build_activation_contract_from_entry(
         entry={"product_id": "com.pulseplate.premium.monthly", "expires_date_ms": "4102444800000"},
+        product_id="com.pulseplate.premium.monthly",
+        expires_at=datetime.fromtimestamp(4102444800000 / 1000.0, tz=timezone.utc),
+        verification_state=AppleVerificationState.active,
+    )
+    assert result is None
+
+
+def test_build_activation_contract_from_entry_returns_none_when_original_transaction_id_too_short() -> (
+    None
+):
+    """B2: Pydantic ValidationError on malformed original_transaction_id yields None (fail-closed)."""
+    result = payments_activation._build_activation_contract_from_entry(
+        entry={
+            "product_id": "com.pulseplate.premium.monthly",
+            "transaction_id": "txn-valid-123",
+            "original_transaction_id": "x",
+            "expires_date_ms": "4102444800000",
+        },
         product_id="com.pulseplate.premium.monthly",
         expires_at=datetime.fromtimestamp(4102444800000 / 1000.0, tz=timezone.utc),
         verification_state=AppleVerificationState.active,
@@ -191,7 +221,12 @@ def test_build_activation_contract_from_entry_returns_none_for_unknown_product()
     assert result is None
 
 
-def test_build_activation_contract_from_entry_returns_none_when_active_but_no_expires_at() -> None:
+@pytest.mark.parametrize(
+    "verification_state", [AppleVerificationState.active, AppleVerificationState.expired]
+)
+def test_build_activation_contract_from_entry_returns_none_when_active_or_expired_but_no_expires_at(
+    verification_state: AppleVerificationState,
+) -> None:
     """B2: activation contract builder requires expires_at for active/expired status."""
     result = payments_activation._build_activation_contract_from_entry(
         entry={
@@ -200,7 +235,7 @@ def test_build_activation_contract_from_entry_returns_none_when_active_but_no_ex
         },
         product_id="com.pulseplate.premium.monthly",
         expires_at=None,
-        verification_state=AppleVerificationState.active,
+        verification_state=verification_state,
     )
     assert result is None
 
@@ -507,3 +542,24 @@ def test_normalize_apple_verification_rejects_unparseable_expiry_field() -> None
     assert response.error is not None
     assert response.error.code == "APPLE_RECEIPT_INVALID"
     assert response.expires_at is None
+
+
+def test_normalize_apple_verification_expired_without_product_id_returns_invalid() -> None:
+    """Expired receipt with empty product_id hits invalid path (line 1078)."""
+    response = payments_activation._normalize_apple_verification(
+        payload={
+            "status": 0,
+            "latest_receipt_info": [
+                {
+                    "product_id": "",
+                    "expires_date_ms": "1706745600000",
+                }
+            ],
+        },
+        environment=AppleVerificationEnvironment.production,
+    )
+
+    assert response.verified is False
+    assert response.verification_state is AppleVerificationState.invalid
+    assert response.error is not None
+    assert response.error.code == "APPLE_RECEIPT_INVALID"

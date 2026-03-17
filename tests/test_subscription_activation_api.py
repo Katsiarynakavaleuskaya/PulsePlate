@@ -40,6 +40,116 @@ def _reset_payments_state() -> None:
     payments_activation.reset_state()
 
 
+def _apple_response_for_receipt(receipt_data: str) -> dict[str, Any]:
+    """Map test receipt_data to Apple verify response for server-side reverification."""
+    now_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
+    # 2026-04-01, 2026-05-01, 2024-02-01 UTC (ms since epoch)
+    expires_2026_04_ms = "1775001600000"
+    expires_2026_05_ms = "1777593600000"
+    expires_2024_02_ms = "1706745600000"
+    base = {
+        "status": 0,
+        "latest_receipt_info": [
+            {
+                "product_id": "com.pulseplate.premium.monthly",
+                "expires_date_ms": expires_2026_04_ms,
+                "transaction_id": "txn-001",
+                "original_transaction_id": "original-txn-001",
+            }
+        ],
+    }
+    mapping: dict[str, dict[str, Any]] = {
+        "base64_receipt_blob_renewal_1": {
+            "status": 0,
+            "latest_receipt_info": [
+                {
+                    "product_id": "com.pulseplate.premium.monthly",
+                    "expires_date_ms": expires_2026_04_ms,
+                    "transaction_id": "txn-renewal-1",
+                    "original_transaction_id": "txn-renewal-1",
+                }
+            ],
+        },
+        "base64_receipt_blob_renewal_2": {
+            "status": 0,
+            "latest_receipt_info": [
+                {
+                    "product_id": "com.pulseplate.premium.monthly",
+                    "expires_date_ms": expires_2026_05_ms,
+                    "transaction_id": "txn-renewal-2",
+                    "original_transaction_id": "txn-renewal-2",
+                }
+            ],
+        },
+        "base64_receipt_blob_expired": {
+            "status": 0,
+            "latest_receipt_info": [
+                {
+                    "product_id": "com.pulseplate.premium.monthly",
+                    "expires_date_ms": expires_2024_02_ms,
+                    "transaction_id": "txn-expired-1",
+                    "original_transaction_id": "txn-expired-1",
+                }
+            ],
+        },
+        "base64_receipt_blob_pro_route": {
+            "status": 0,
+            "latest_receipt_info": [
+                {
+                    "product_id": "com.pulseplate.premium.monthly",
+                    "expires_date_ms": str(now_ms + 30 * 24 * 3600 * 1000),
+                    "transaction_id": "txn-pro-route-1",
+                    "original_transaction_id": "txn-pro-route-1",
+                }
+            ],
+        },
+        "base64_receipt_blob_vip_route": {
+            "status": 0,
+            "latest_receipt_info": [
+                {
+                    "product_id": "com.pulseplate.vip.monthly",
+                    "expires_date_ms": str(now_ms + 45 * 24 * 3600 * 1000),
+                    "transaction_id": "txn-vip-route-1",
+                    "original_transaction_id": "txn-vip-route-1",
+                }
+            ],
+        },
+        "base64_receipt_blob_forged": {"status": 21002},
+        "base64_receipt_blob_get": {
+            "status": 0,
+            "latest_receipt_info": [
+                {
+                    "product_id": "com.pulseplate.premium.monthly",
+                    "expires_date_ms": expires_2026_04_ms,
+                    "transaction_id": "txn-get-1",
+                    "original_transaction_id": "original-txn-get-1",
+                }
+            ],
+        },
+    }
+    return mapping.get(receipt_data, base)
+
+
+@pytest.fixture(autouse=True)
+def _mock_apple_verify_for_activation(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Mock Apple verify so activation tests can run without real Apple API.
+
+    Server-side reverification requires valid Apple response. This fixture
+    returns deterministic responses for known test receipt_data values.
+    """
+    from app.services import payments_activation
+
+    async def _fake_call(url: str, receipt_data: str) -> dict[str, Any]:
+        del url
+        return _apple_response_for_receipt(receipt_data)
+
+    monkeypatch.setattr(
+        payments_activation,
+        "_call_apple_verify_endpoint",
+        _fake_call,
+    )
+
+
 @pytest.fixture
 def _db_backed_paid_authz(monkeypatch: pytest.MonkeyPatch) -> None:
     """Force production-like DB-backed authz for canonical paid-route checks."""
@@ -207,6 +317,61 @@ def _vip_weekly_plan_payload() -> dict[str, Any]:
     }
 
 
+def test_activate_subscription_ios_empty_receipt_data_returns_403(
+    client: TestClient,
+    pro_headers: dict[str, str],
+) -> None:
+    """iOS activation with empty receipt_data raises ActivationReverifyRejectedError (line 1198)."""
+    response = client.post(
+        "/api/v1/pro/payments/activate",
+        headers=pro_headers,
+        json=_ios_payload(receipt_data=""),
+    )
+    assert response.status_code == 403, response.text
+    payload = _json(response)
+    assert payload["status"] == "error"
+    assert payload["code"] == "activation_reverify_rejected"
+
+
+@pytest.mark.asyncio
+async def test_activate_subscription_async_delegates_to_sync_for_non_ios_source(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """activate_subscription_async delegates to sync activate_subscription for non-iOS (line 1193)."""
+    expected = SubscriptionActivationResponse(
+        activation_id="delegated-activation-1",
+        source=PaymentSource.erip_qr,
+        tier=SubscriptionTier.pro,
+        status=SubscriptionStatus.active,
+        platform="ios",
+    )
+
+    def _fake_activate(
+        *,
+        payload: ActivateSubscriptionRequest,
+        user_id: int,
+    ) -> SubscriptionActivationResponse:
+        assert payload.source == PaymentSource.erip_qr
+        assert user_id == 42
+        return expected
+
+    monkeypatch.setattr(
+        payments_activation,
+        "activate_subscription",
+        _fake_activate,
+    )
+
+    payload = ActivateSubscriptionRequest.model_validate(
+        _manual_payload(source="erip_qr", source_reference="ERIP-QR-99999"),
+    )
+    result = await payments_activation.activate_subscription_async(
+        payload=payload,
+        user_id=42,
+    )
+    assert result == expected
+    assert result.activation_id == "delegated-activation-1"
+
+
 def test_activate_subscription_requires_transport_auth(client: TestClient) -> None:
     response = client.post("/api/v1/pro/payments/activate", json=_ios_payload())
     assert response.status_code == 401, response.text
@@ -286,6 +451,7 @@ def test_ios_renewal_updates_existing_subscription_row(
         json=_ios_payload(
             transaction_id="txn-renewal-1",
             expires_at="2026-04-01T00:00:00Z",
+            receipt_data="base64_receipt_blob_renewal_1",
         ),
     )
     second = client.post(
@@ -294,6 +460,7 @@ def test_ios_renewal_updates_existing_subscription_row(
         json=_ios_payload(
             transaction_id="txn-renewal-2",
             expires_at="2026-05-01T00:00:00Z",
+            receipt_data="base64_receipt_blob_renewal_2",
         ),
     )
     assert first.status_code == 200, first.text
@@ -321,12 +488,57 @@ def test_ios_expired_evidence_is_persisted_as_expired(
             transaction_id="txn-expired-1",
             status="expired",
             expires_at="2026-03-01T00:00:00Z",
+            receipt_data="base64_receipt_blob_expired",
         ),
     )
     assert response.status_code == 200, response.text
     payload = _json(response)
     assert payload["status"] == "expired"
     assert payload["activated_at"] is None
+
+
+def test_ios_activation_rejects_oversized_receipt_data(
+    client: TestClient,
+    pro_headers: dict[str, str],
+) -> None:
+    """Oversized receipt_data must return 422 (DoS protection)."""
+    oversized = "x" * (512_001)
+    response = client.post(
+        "/api/v1/pro/payments/activate",
+        headers=pro_headers,
+        json=_ios_payload(receipt_data=oversized),
+    )
+    assert response.status_code == 422, response.text
+
+
+def test_ios_forged_verification_result_rejected_activation_reverify(
+    client: TestClient,
+    pro_headers: dict[str, str],
+) -> None:
+    """Activation cannot persist paid state from client-supplied forged verification_result.
+
+    Client sends forged verification_result (pro, active) with invalid receipt_data.
+    Server reverifies receipt, gets invalid Apple response, rejects activation.
+    No subscription must be persisted.
+    """
+    response = client.post(
+        "/api/v1/pro/payments/activate",
+        headers=pro_headers,
+        json=_ios_payload(
+            transaction_id="txn-forged-1",
+            tier="pro",
+            status="active",
+            expires_at="2026-06-01T00:00:00Z",
+            receipt_data="base64_receipt_blob_forged",
+        ),
+    )
+    assert response.status_code == 403, response.text
+    payload = _json(response)
+    assert payload.get("code") == "activation_reverify_rejected"
+
+    subscription_count, audit_count = _load_counts()
+    assert subscription_count == 0
+    assert audit_count == 0
 
 
 def test_free_user_denied_on_canonical_pro_route(
@@ -360,6 +572,7 @@ def test_active_pro_allows_pro_but_not_vip(
             tier="pro",
             status="active",
             expires_at=_relative_iso(days=30),
+            receipt_data="base64_receipt_blob_pro_route",
         ),
     )
     assert activation.status_code == 200, activation.text
@@ -385,6 +598,7 @@ def test_active_vip_allows_vip_and_pro(
             tier="vip",
             status="active",
             expires_at=_relative_iso(days=45),
+            receipt_data="base64_receipt_blob_vip_route",
         ),
     )
     assert activation.status_code == 200, activation.text
@@ -406,10 +620,11 @@ def test_expired_entitlement_denied_everywhere(
         "/api/v1/pro/payments/activate",
         headers=vip_headers,
         json=_ios_payload(
-            transaction_id="txn-expired-route-1",
+            transaction_id="txn-expired-1",
             tier="vip",
             status="expired",
             expires_at=_relative_iso(days=-10),
+            receipt_data="base64_receipt_blob_expired",
         ),
     )
     assert activation.status_code == 200, activation.text
@@ -667,7 +882,7 @@ def test_get_activation_happy_path(
     created = client.post(
         "/api/v1/pro/payments/activate",
         headers=pro_headers,
-        json=_ios_payload(transaction_id="txn-get-1"),
+        json=_ios_payload(transaction_id="txn-get-1", receipt_data="base64_receipt_blob_get"),
     )
     assert created.status_code == 200, created.text
     activation_id = _json(created)["activation_id"]

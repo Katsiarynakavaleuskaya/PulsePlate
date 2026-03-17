@@ -109,6 +109,11 @@ def create_rate_limited_app() -> tuple[FastAPI, Limiter]:
     async def partner_order_adapt_preview(request: Request) -> dict[str, str]:
         return {"status": "ok"}
 
+    @router.post("/api/v1/billing/apple/verify-receipt")
+    @test_limiter.limit("2/minute")
+    async def apple_verify_receipt(request: Request) -> dict[str, str]:
+        return {"status": "ok"}
+
     app.include_router(router)
     app.state.limiter = test_limiter
     app.add_exception_handler(RateLimitExceeded, _rate_limit_handler)
@@ -327,6 +332,27 @@ def test_partner_order_adapt_preview_rate_limited_200_then_429() -> None:
     r3 = client.post(
         "/api/v1/pro/restaurants/partner/orders/adapt/preview", headers=headers, json=payload
     )
+
+    assert r1.status_code == 200
+    assert r2.status_code == 200
+    assert r3.status_code == 429
+    assert r3.headers.get("content-type", "").startswith("application/json")
+
+    lang = normalize_lang("en")
+    expected_detail = t(lang, "rate_limit.exceeded")
+    assert r3.json()["detail"] == expected_detail
+
+
+def test_apple_verify_receipt_rate_limited_200_then_429() -> None:
+    """Test POST /api/v1/billing/apple/verify-receipt returns 200 twice, then 429."""
+    app, _ = create_rate_limited_app()
+    client = TestClient(app)
+    headers = {"accept-language": "en", "x-test-id": "apple-verify-receipt"}
+    payload = {"receipt_data": "base64-receipt-test"}
+
+    r1 = client.post("/api/v1/billing/apple/verify-receipt", headers=headers, json=payload)
+    r2 = client.post("/api/v1/billing/apple/verify-receipt", headers=headers, json=payload)
+    r3 = client.post("/api/v1/billing/apple/verify-receipt", headers=headers, json=payload)
 
     assert r1.status_code == 200
     assert r2.status_code == 200

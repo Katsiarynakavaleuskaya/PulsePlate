@@ -1524,7 +1524,7 @@ export interface components {
          *     (activation-contract shape) for downstream POST /api/v1/pro/payments/activate.
          */
         AppleReceiptVerificationResponse: {
-            /** @description Activation-contract shaped payload when verified. Client passes this + receipt_data to POST /api/v1/pro/payments/activate. */
+            /** @description Activation-contract shaped payload when verified. Client passes this as payload.verification_result and receipt_data as payload.receipt_data inside ActivateSubscriptionRequest to POST /api/v1/pro/payments/activate. */
             activation_payload?: components["schemas"]["IOSVerifiedActivationResult"] | null;
             environment?: components["schemas"]["AppleVerificationEnvironment"] | null;
             error?: components["schemas"]["AppleProviderError"] | null;
@@ -4643,6 +4643,15 @@ export interface operations {
                     "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
+            /** @description Rate limit exceeded */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitErrorResponse"];
+                };
+            };
             /** @description Apple upstream error */
             502: {
                 headers: {
@@ -5559,6 +5568,15 @@ export interface operations {
             };
             /** @description Missing or invalid transport protection */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentErrorResponse"];
+                };
+            };
+            /** @description iOS activation requires receipt_data or Apple verification failed */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };

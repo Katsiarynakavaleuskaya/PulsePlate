@@ -17,6 +17,7 @@ import json
 from typing import Any, overload
 from uuid import uuid4
 
+from pydantic import ValidationError
 from sqlalchemy import delete
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
@@ -87,6 +88,14 @@ class AppleVerifyTimeoutError(AppleVerifyTransportError):
     status_code = 504
     error_code = "APPLE_VERIFY_TIMEOUT"
     error_message = "Apple receipt verification timed out"
+
+
+class ActivationReverifyRejectedError(ValueError):
+    """Raised when iOS activation cannot be completed because server-side receipt reverification failed."""
+
+    status_code = 403
+    error_code = "activation_reverify_rejected"
+    error_message = "Apple receipt verification required for activation"
 
 
 @dataclass(frozen=True)
@@ -844,19 +853,24 @@ def _entry_original_transaction_id(entry: dict[str, Any]) -> str | None:
     return None
 
 
-def _subscription_tier_for_product(product_id: str | None) -> SubscriptionTier | None:
-    """Map Apple product identifiers to SubscriptionTier for activation contract."""
+# Canonical Apple product_id → tier map (exact match, fail-closed).
+# Source: docs/contracts/IOS_STOREKIT_PRODUCTS_CONTRACT.md
+APPLE_PRODUCT_TIER_MAP: dict[str, SubscriptionTier] = {
+    "com.pulseplate.premium.monthly": SubscriptionTier.pro,
+    "com.pulseplate.premium.yearly": SubscriptionTier.pro,
+    "com.pulseplate.vip.monthly": SubscriptionTier.vip,
+}
 
+
+def _subscription_tier_for_product(product_id: str | None) -> SubscriptionTier | None:
+    """Map Apple product identifiers to SubscriptionTier for activation contract.
+
+    Uses explicit allowlist only; unknown or prefix-like SKUs return None (fail-closed).
+    """
     if not product_id:
         return None
     normalized = product_id.strip().lower()
-    if normalized.startswith("com.pulseplate.premium.") or normalized.startswith(
-        "com.pulseplate.pro."
-    ):
-        return SubscriptionTier.pro
-    if normalized.startswith("com.pulseplate.vip."):
-        return SubscriptionTier.vip
-    return None
+    return APPLE_PRODUCT_TIER_MAP.get(normalized)
 
 
 def _verification_state_to_ios_status(
@@ -961,15 +975,18 @@ def _build_activation_contract_from_entry(
     if ios_status in {IosVerificationStatus.active, IosVerificationStatus.expired}:
         if expires_at is None:
             return None
-    return IOSVerifiedActivationResult(
-        transaction_id=transaction_id,
-        original_transaction_id=_entry_original_transaction_id(entry),
-        product_id=product_id,
-        subscription_tier=subscription_tier,
-        status=ios_status,
-        expires_at=expires_at,
-        platform=PaymentPlatform.ios,
-    )
+    try:
+        return IOSVerifiedActivationResult(
+            transaction_id=transaction_id,
+            original_transaction_id=_entry_original_transaction_id(entry),
+            product_id=product_id,
+            subscription_tier=subscription_tier,
+            status=ios_status,
+            expires_at=expires_at,
+            platform=PaymentPlatform.ios,
+        )
+    except ValidationError:
+        return None
 
 
 def _build_invalid_verification_response(
@@ -1057,13 +1074,32 @@ def _normalize_apple_verification(
         )
 
     if expires_at is not None and expires_at <= _utc_now():
-        return _build_invalid_verification_response(
+        if not product_id:
+            return _build_invalid_verification_response(
+                environment=environment,
+                product_id=product_id,
+                expires_at=expires_at,
+                code="APPLE_RECEIPT_INVALID",
+                message="Receipt verification failed",
+                verification_state=AppleVerificationState.invalid,
+            )
+        activation_payload_expired = _build_activation_contract_from_entry(
+            entry=latest_entry,
+            product_id=product_id,
+            expires_at=expires_at,
+            verification_state=AppleVerificationState.expired,
+        )
+        return AppleReceiptVerificationResponse(
+            verified=False,
+            verification_state=AppleVerificationState.expired,
             environment=environment,
             product_id=product_id,
             expires_at=expires_at,
-            code="APPLE_RECEIPT_EXPIRED",
-            message="Apple receipt is expired",
-            verification_state=AppleVerificationState.expired,
+            activation_payload=activation_payload_expired,
+            error=AppleProviderError(
+                code="APPLE_RECEIPT_EXPIRED",
+                message="Apple receipt is expired",
+            ),
         )
 
     if not product_id:
@@ -1139,6 +1175,46 @@ async def verify_apple_receipt(receipt_data: str) -> AppleReceiptVerificationRes
         payload=production_payload,
         environment=AppleVerificationEnvironment.production,
     )
+
+
+async def activate_subscription_async(
+    *,
+    payload: ActivateSubscriptionRequest,
+    user_id: int,
+) -> SubscriptionActivationResponse:
+    """Activate subscription with server-side Apple receipt reverification for iOS.
+
+    For source=ios_app_store, receipt_data is required. The server re-verifies
+    the receipt with Apple and uses only the server-verified result for
+    persistence. Client-supplied verification_result is never trusted as
+    entitlement truth.
+    """
+    if payload.source is not PaymentSource.ios_app_store:
+        return activate_subscription(payload=payload, user_id=user_id)
+
+    ios_payload = payload.get_ios_payload()
+    receipt_data = ios_payload.receipt_data
+    if not receipt_data or not receipt_data.strip():
+        raise ActivationReverifyRejectedError(
+            "receipt_data is required for iOS activation; server must verify with Apple"
+        )
+
+    verify_response = await verify_apple_receipt(receipt_data)
+    if verify_response.activation_payload is None:
+        raise ActivationReverifyRejectedError(
+            "Apple receipt verification failed or did not produce activation payload"
+        )
+
+    server_verified = verify_response.activation_payload
+    server_payload = {
+        "verification_result": server_verified.model_dump(mode="json"),
+        "receipt_data": receipt_data,
+    }
+    server_request = ActivateSubscriptionRequest(
+        source=payload.source,
+        payload=server_payload,
+    )
+    return activate_subscription(payload=server_request, user_id=user_id)
 
 
 @overload

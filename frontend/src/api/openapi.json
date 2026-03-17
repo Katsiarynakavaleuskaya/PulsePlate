@@ -157,6 +157,7 @@
         "properties": {
           "receipt_data": {
             "description": "Opaque App Store receipt blob. Canonical field: receipt_data. Compatibility alias accepted: receipt.",
+            "maxLength": 512000,
             "minLength": 8,
             "title": "Receipt Data",
             "type": "string",
@@ -183,7 +184,7 @@
                 "type": "null"
               }
             ],
-            "description": "Activation-contract shaped payload when verified. Client passes this + receipt_data to POST /api/v1/pro/payments/activate."
+            "description": "Activation-contract shaped payload when verified. Client passes this as payload.verification_result and receipt_data as payload.receipt_data inside ActivateSubscriptionRequest to POST /api/v1/pro/payments/activate."
           },
           "environment": {
             "anyOf": [
@@ -6337,6 +6338,16 @@
             },
             "description": "Validation Error"
           },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitErrorResponse"
+                }
+              }
+            },
+            "description": "Rate limit exceeded"
+          },
           "502": {
             "content": {
               "application/json": {
@@ -7658,6 +7669,16 @@
               }
             },
             "description": "Missing or invalid transport protection"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentErrorResponse"
+                }
+              }
+            },
+            "description": "iOS activation requires receipt_data or Apple verification failed"
           },
           "409": {
             "content": {
