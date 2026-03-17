@@ -6,8 +6,7 @@
 
 ## Fixed in Commit Mapping
 
-- **Human verdict (.env.example drift):** FIXED — Commit: 75573b15 — Evidence: `.env.example` (DATABASE_URL default SQLite, ENVIRONMENT, feature flags, credential consistency), `docs/deploy/POSTGRES_SELF_HOSTED_DROPLET.md` (DATABASE_URL host modes)
-- No actionable GitHub review comments
+- No actionable review comments
 
 ## Merge Readiness
 
