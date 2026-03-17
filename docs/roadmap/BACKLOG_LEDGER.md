@@ -290,6 +290,16 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 
 ### P1
 
+<a id="ledger-p1-postgres-backup-restore-hardening"></a>
+- [ ] P1: Postgres backup/restore operational hardening
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD (infra/p1-postgres-backup-restore-hardening)
+  - Area: infra / database / ops
+  - Reason: Deferred from PR #1184. Atomic backup write, tmp cleanup on pg_dump failure, restore preflight validation, psql ON_ERROR_STOP, explicit operator confirmation for destructive restore.
+  - Links: scripts/ops/postgres_backup.sh, scripts/ops/postgres_restore.sh
+  - DoD: Atomic backup; safer restore flow with validation and confirmation.
+
 <a id="ledger-p1-pr1-50-remediation-wave1"></a>
 - [ ] P1: PR 1-50 remediation follow-through after Wave 1
   - Owner: @katsiaryna_kavaleuskaya
