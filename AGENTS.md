@@ -436,6 +436,8 @@ make diff-cov   # Diff-coverage ≥97% on changed lines
 
 **Dockerfile policy (hard):**
 
+- Runtime-mounted directories (`data/`, `cache/`, `logs/`, `artifacts/`) must not be included in Docker build context.
+- For the backend image, prefer a whitelist `.dockerignore` synchronized with the Dockerfile; when adding new `COPY` paths, add corresponding `!path` entries.
 - Do not pin `pip` to an exact version in the Dockerfile (e.g., `pip==24.2`). Exact pins can fail when the build environment cannot resolve the version from PyPI index (proxy/index/TLS issues).
 - Prefer using base image pip without upgrade, or upgrade without version pin if upgrade is required.
 - If a pip version constraint is required, use a version range and document the reason + CI verification.

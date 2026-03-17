@@ -1,141 +1,34 @@
-# Frontend (not needed in backend container)
-frontend/
-ios/
+# -----------------------------------------------------------------------------
+# PulsePlate backend image: strict Docker build context
+# Keeps only files that are actually copied by the current Dockerfile.
+# -----------------------------------------------------------------------------
 
-# Tools and skills (not needed in backend container; reduces build context)
-tools/
+# Ignore everything by default
+**
 
-# Git
-.git
-.gitignore
-.gitattributes
+# Docker metadata
+!.dockerignore
+!Dockerfile
 
-# Documentation
-*.md
-docs/
-README.md
-LICENSE
+# Dependency manifests used during build
+!requirements.txt
+!requirements-dev.txt
 
-# CI/CD
-.github/
-.gitlab-ci.yml
-.travis.yml
-.circleci/
+# Runtime application directories copied by Dockerfile
+!app/
+!app/**
+!core/
+!core/**
+!alembic/
+!alembic/**
+!alembic.ini
 
-# Development files
-.vscode/
-.idea/
-.cursor/
-.agents/
-.codex/
-*.swp
-*.swo
-*~
-
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-MANIFEST
-
-# Virtual environments
-venv/
-env/
-ENV/
-.venv/
-.env/
-
-# Testing
-.pytest_cache/
-.coverage
-htmlcov/
-.tox/
-.nox/
-coverage.xml
-*.cover
-.hypothesis/
-
-# Jupyter Notebook
-.ipynb_checkpoints
-
-# pyenv
-.python-version
-
-# Environments
-.env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
-
-# Cache directories (but keep essential food_db files)
-cache/*
-!cache/food_db/
-!cache/food_db/database_versions.json
-!cache/food_db/unified_food_cache.json
-.cache/
-.mypy_cache/
-.ruff_cache/
-
-# Logs
-logs/
-*.log
-
-# OS
-.DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
-Thumbs.db
-
-# Temporary files
-tmp/
-temp/
-*.tmp
-*.temp
-
-# Node.js (if any frontend components)
-node_modules/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-
-# Docker: exclude metadata from build context
-.dockerignore
-
-# Development scripts
-scripts/dev-*
-scripts/test-*
-scripts/debug-*
-
-# Test files
-tests/
-test_*
-*_test.py
-
-# Coverage reports
-coverage/
-.coverage.*
-
-# Local configuration
-local_config.py
-config.local.py
+# Root-level Python modules copied by Dockerfile
+!legacy_app.py
+!main.py
+!settings.py
+!bmi_core.py
+!bmi_visualization.py
+!nutrition_core.py
+!signed_links.py
+!bodyfat.py
