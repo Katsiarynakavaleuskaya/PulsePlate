@@ -295,13 +295,6 @@ class AppleReceiptVerificationRequest(PaymentRequestModel):
         return normalized
 
 
-class AppleActivationHint(BaseModel):
-    """Activation-prep hint for downstream Apple billing flow."""
-
-    tier: SubscriptionTierValue
-    platform: str = "ios"
-
-
 class AppleProviderError(BaseModel):
     """Canonical provider error details for Apple receipt verification."""
 
@@ -310,7 +303,11 @@ class AppleProviderError(BaseModel):
 
 
 class AppleReceiptVerificationResponse(BaseModel):
-    """Normalized Apple receipt verification result without activation side effects."""
+    """Normalized Apple receipt verification result without activation side effects.
+
+    When verified=True, activation_payload carries the full IOSVerifiedActivationResult
+    (activation-contract shape) for downstream POST /api/v1/pro/payments/activate.
+    """
 
     provider: str = "apple"
     verified: bool
@@ -318,11 +315,11 @@ class AppleReceiptVerificationResponse(BaseModel):
     environment: AppleVerificationEnvironment | None = None
     product_id: str | None = None
     expires_at: datetime | None = None
-    activation_payload: AppleActivationHint | None = Field(
+    activation_payload: IOSVerifiedActivationResult | None = Field(
         default=None,
         description=(
-            "Downstream activation-prep hint. "
-            "The activation service maps this hint into canonical source/tier fields."
+            "Activation-contract shaped payload when verified. "
+            "Client passes this + receipt_data to POST /api/v1/pro/payments/activate."
         ),
     )
     error: AppleProviderError | None = None
