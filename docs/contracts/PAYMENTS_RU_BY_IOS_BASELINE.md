@@ -84,6 +84,11 @@ Lifecycle invariants:
 2. Apple verification runs production-first with exactly one sandbox fallback on Apple status `21007`; no generic retry loop is part of the contract.
 3. `APPLE_SHARED_SECRET` is required runtime config for Apple receipt verification requests; production/staging must fail fast on startup when it is missing.
 4. Any webhook/event handler must validate signature before state transition. Runtime: `payments_activation.validate_webhook_signature()` (evidence: `app/services/payments_activation.py`).
+4a. Signature format contract:
+   - The signature is the hexadecimal HMAC-SHA256 digest over the exact raw HTTP request body bytes.
+   - Handlers must validate against raw body bytes and must not re-serialize JSON, rebuild payloads, or change encoding before verification.
+   - Secret bytes are used exactly as configured; whitespace is significant and must not be trimmed implicitly.
+   - Signature comparison is case-insensitive only at the hex representation layer; malformed or non-ASCII signature inputs must fail closed.
 5. Idempotency key precedence:
    - provider event id (if exists), else
    - deterministic hash of `(source, external_txn_id, plan, amount_minor, currency)`.

@@ -10,7 +10,9 @@
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+Disposition: NOT-A-BUG — merge-readiness checkboxes already unchecked on current HEAD
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1182#issuecomment-4072707284
+- Evidence: docs/review/PR_1182_FIXED_MAPPING.md
 
 ## Merge Readiness
 

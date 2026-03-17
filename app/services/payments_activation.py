@@ -137,22 +137,36 @@ def _hash_receipt(receipt_data: str | None) -> str | None:
 def validate_webhook_signature(secret: str, payload: bytes, signature: str) -> bool:
     """Validate webhook payload signature before state transition.
 
-    Contract: Any webhook/event handler must validate signature before state transition
-    (evidence: docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md:84).
+    Contract:
+    - HMAC-SHA256 hex digest over the exact raw HTTP request body bytes.
+    - Secret bytes are used exactly as configured.
+    - Signature comparison is fail-closed.
+    - Hex casing is normalized, but whitespace is significant.
 
-    Returns True if signature is valid, False otherwise. Fail-closed on empty secret
-    or signature.
+    Returns True if signature is valid, otherwise False.
     """
-    if not secret or not secret.strip():
+    if not secret:
         return False
-    if not signature or not signature.strip():
+    if not signature:
         return False
-    expected = hmac.new(
-        secret.strip().encode("utf-8"),
+
+    try:
+        provided_signature = signature.encode("ascii").decode("ascii").lower()
+    except UnicodeEncodeError:
+        return False
+
+    if len(provided_signature) != 64:
+        return False
+    if any(ch not in "0123456789abcdef" for ch in provided_signature):
+        return False
+
+    expected_signature = hmac.new(
+        secret.encode("utf-8"),
         payload,
         hashlib.sha256,
     ).hexdigest()
-    return hmac.compare_digest(expected, signature.strip())
+
+    return hmac.compare_digest(expected_signature, provided_signature)
 
 
 def _amount_to_minor_units(submitted_amount: str | None) -> int | None:

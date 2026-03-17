@@ -36,7 +36,53 @@ def test_validate_webhook_signature_rejects_empty_secret() -> None:
     payload = b'{"event":"payment.completed"}'
     sig = hmac.new(b"any-secret", payload, hashlib.sha256).hexdigest()  # pragma: allowlist secret
     assert payments_activation.validate_webhook_signature("", payload, sig) is False
-    assert payments_activation.validate_webhook_signature("   ", payload, sig) is False
+
+
+def _signature(secret: str, payload: bytes) -> str:
+    return hmac.new(secret.encode("utf-8"), payload, hashlib.sha256).hexdigest()
+
+
+def test_validate_webhook_signature_accepts_valid_uppercase_hex() -> None:
+    """Uppercase hex signature must be accepted (case-insensitive at hex layer)."""
+    secret = "topsecret"  # pragma: allowlist secret
+    payload = b'{"event":"paid"}'
+    signature = _signature(secret, payload).upper()
+    assert payments_activation.validate_webhook_signature(secret, payload, signature) is True
+
+
+def test_validate_webhook_signature_rejects_signature_with_whitespace() -> None:
+    """Signature with leading/trailing whitespace must be rejected."""
+    secret = "topsecret"  # pragma: allowlist secret
+    payload = b'{"event":"paid"}'
+    signature = f" {_signature(secret, payload)} "
+    assert payments_activation.validate_webhook_signature(secret, payload, signature) is False
+
+
+def test_validate_webhook_signature_rejects_non_ascii_signature() -> None:
+    """Non-ASCII signature must fail closed, not raise."""
+    secret = "topsecret"  # pragma: allowlist secret
+    payload = b'{"event":"paid"}'
+    assert payments_activation.validate_webhook_signature(secret, payload, "неascii") is False
+
+
+def test_validate_webhook_signature_rejects_non_hex_signature() -> None:
+    """Invalid hex characters in signature must fail closed."""
+    secret = "topsecret"  # pragma: allowlist secret
+    payload = b'{"event":"paid"}'
+    assert payments_activation.validate_webhook_signature(secret, payload, "z" * 64) is False
+
+
+def test_validate_webhook_signature_uses_raw_body_bytes_exactly() -> None:
+    """Signature must be over exact raw HTTP body bytes, not re-serialized JSON."""
+    secret = "topsecret"  # pragma: allowlist secret
+    raw_body = b'{"b":2,"a":1}'
+    reserialized_body = b'{"a":1,"b":2}'
+    signature = _signature(secret, raw_body)
+    assert payments_activation.validate_webhook_signature(secret, raw_body, signature) is True
+    assert (
+        payments_activation.validate_webhook_signature(secret, reserialized_body, signature)
+        is False
+    )
 
 
 def test_validate_webhook_signature_rejects_invalid_signature() -> None:
