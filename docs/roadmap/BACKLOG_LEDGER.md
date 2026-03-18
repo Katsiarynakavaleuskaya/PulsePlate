@@ -1018,15 +1018,18 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: iOS StoreKit products contract and setup baseline
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-TBD-IOS-STOREKIT-PRODUCTS
-  - Status: 📋 Planned
+  - Target PR: PR #1172 (contract baseline landed); release/setup follow-up TBD
+  - Status: 🟡 Contract baseline merged in PR #1172; release/setup follow-through remains open
   - Area: ios / release / billing operations
   - Finding Type: store configuration readiness
-  - Reason (EN): The monthly review and phase-fit checklist both treat StoreKit products setup as a distinct next-wave gate. It needs an explicit ledger item so release-ops work does not stay hidden inside broader iOS billing follow-through.
+  - Reason (EN): PR #1172 already versioned the canonical StoreKit product IDs and setup baseline in-repo, so this ledger item must no longer read like untouched planned work. The checkbox stays open only for the surviving operational release/setup follow-through and broader billing-doc sync after the backend activation normalization merged in PR #1185.
   - Links:
     - `docs/orchestration/TOP20_PR_RECOVERY_TASK_PACKETS_2026-03-08.md`
     - `docs/roadmap/P0_MASTER_CHECKLIST_PHASE_FIT_TRIAGE_2026-03-05.md`
     - `docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md`
+    - `docs/contracts/IOS_STOREKIT_PRODUCTS_CONTRACT.md`
+    - `docs/IOS_API_INTEGRATION.md`
+    - `docs/roadmap/PulsePlate_Master_Index_A-E.md`
   - DoD:
     - Canonical StoreKit product identifiers and setup checklist are versioned in-repo
     - Billing/runtime follow-through references the same product contract without client-side drift
