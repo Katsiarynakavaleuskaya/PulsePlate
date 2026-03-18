@@ -17,6 +17,16 @@ Evidence: app/schemas/payments.py, app/services/payments_activation.py, app/rout
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1185#discussion_r2949290846 -> 26ec3bd0f89f96047d491f4be4db165fbfabbfe3
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1185#discussion_r2949290855 -> 26ec3bd0f89f96047d491f4be4db165fbfabbfe3
 
+Disposition: FIXED
+Commit: 732b88ef7191a90d6db9263ca9ef92eeefa4e8e3
+Evidence: app/services/payments_activation.py, app/schemas/payments.py, tests/test_apple_receipt_verify_service_helpers.py, tests/test_subscription_activation_api.py, docs/security/PR_1185_BILLING_ACTIVATION_CONTRACT_AUDIT.md, frontend/src/api/schema.ts
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1185#discussion_r2949590945 -> 732b88ef7191a90d6db9263ca9ef92eeefa4e8e3
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1185#discussion_r2949590947 -> 732b88ef7191a90d6db9263ca9ef92eeefa4e8e3
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1185#discussion_r2949590955 -> 732b88ef7191a90d6db9263ca9ef92eeefa4e8e3
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1185#discussion_r2949590957 -> 732b88ef7191a90d6db9263ca9ef92eeefa4e8e3
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1185#discussion_r2949590963 -> 732b88ef7191a90d6db9263ca9ef92eeefa4e8e3
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1185#pullrequestreview-3963796793 -> 732b88ef7191a90d6db9263ca9ef92eeefa4e8e3
+
 Disposition: DEFERRED
 Backlog: docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-pr1185-cubic-activation-contract
 Reason: Cubic review comments (21:02Z) posted after commit 26ec3bd0 (20:52 UTC). Defer to follow-up PR for activation contract refinements.
