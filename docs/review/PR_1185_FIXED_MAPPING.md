@@ -47,10 +47,10 @@ Evidence: app/services/payments_activation.py, app/schemas/payments.py, tests/te
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1185#pullrequestreview-3970576952 -> ff8a5de77772b9a490cb3ef2ce8c0c3cf12fe8c5
 
 Disposition: FIXED
-Commit: 096a877af9f45a8d300a3cc4ef72b888ced86b53
+Commit: 096a877a840ab55c94ff8164a6706a2eee96d627
 Evidence: app/schemas/payments.py, app/services/payments_activation.py, tests/test_subscription_activation_api.py, frontend/src/api/openapi.json, frontend/src/api/schema.ts
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1185#discussion_r2956110922 -> 096a877af9f45a8d300a3cc4ef72b888ced86b53
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1185#discussion_r2956110932 -> 096a877af9f45a8d300a3cc4ef72b888ced86b53
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1185#discussion_r2956110922 -> 096a877a840ab55c94ff8164a6706a2eee96d627
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1185#discussion_r2956110932 -> 096a877a840ab55c94ff8164a6706a2eee96d627
 
 Disposition: DEFERRED
 Backlog: docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-ios-storekit-products
