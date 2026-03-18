@@ -18,14 +18,14 @@ Evidence: app/schemas/payments.py, app/services/payments_activation.py, app/rout
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1185#discussion_r2949290855 -> 26ec3bd0f89f96047d491f4be4db165fbfabbfe3
 
 Disposition: FIXED
-Commit: 732b88ef7191a90d6db9263ca9ef92eeefa4e8e3
+Commit: 732b88ef9da6ea20162d9920be965c0d49f0552a
 Evidence: app/services/payments_activation.py, app/schemas/payments.py, tests/test_apple_receipt_verify_service_helpers.py, tests/test_subscription_activation_api.py, docs/security/PR_1185_BILLING_ACTIVATION_CONTRACT_AUDIT.md, frontend/src/api/schema.ts
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1185#discussion_r2949590945 -> 732b88ef7191a90d6db9263ca9ef92eeefa4e8e3
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1185#discussion_r2949590947 -> 732b88ef7191a90d6db9263ca9ef92eeefa4e8e3
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1185#discussion_r2949590955 -> 732b88ef7191a90d6db9263ca9ef92eeefa4e8e3
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1185#discussion_r2949590957 -> 732b88ef7191a90d6db9263ca9ef92eeefa4e8e3
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1185#discussion_r2949590963 -> 732b88ef7191a90d6db9263ca9ef92eeefa4e8e3
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1185#pullrequestreview-3963796793 -> 732b88ef7191a90d6db9263ca9ef92eeefa4e8e3
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1185#discussion_r2949590945 -> 732b88ef9da6ea20162d9920be965c0d49f0552a
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1185#discussion_r2949590947 -> 732b88ef9da6ea20162d9920be965c0d49f0552a
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1185#discussion_r2949590955 -> 732b88ef9da6ea20162d9920be965c0d49f0552a
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1185#discussion_r2949590957 -> 732b88ef9da6ea20162d9920be965c0d49f0552a
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1185#discussion_r2949590963 -> 732b88ef9da6ea20162d9920be965c0d49f0552a
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1185#pullrequestreview-3963796793 -> 732b88ef9da6ea20162d9920be965c0d49f0552a
 
 Disposition: DEFERRED
 Backlog: docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-pr1185-cubic-activation-contract
