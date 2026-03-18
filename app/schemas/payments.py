@@ -131,7 +131,10 @@ class IOSVerifiedActivationResult(PaymentRequestModel):
     subscription_tier: SubscriptionTier
     status: IosVerificationStatus
     expires_at: datetime | None = None
-    platform: PaymentPlatform = PaymentPlatform.ios
+    platform: PaymentPlatform = Field(
+        ...,
+        json_schema_extra={"default": PaymentPlatform.ios.value},
+    )
 
     @field_validator("transaction_id", "product_id", "original_transaction_id", mode="before")
     @classmethod
@@ -164,7 +167,7 @@ class IOSAppStoreActivationPayload(PaymentRequestModel):
     """Canonical iOS activation payload for PR-2 activation route."""
 
     verification_result: IOSVerifiedActivationResult
-    receipt_data: str | None = Field(default=None, min_length=1, max_length=512_000)
+    receipt_data: str = Field(..., min_length=1, max_length=512_000)
 
     @field_validator("receipt_data", mode="before")
     @classmethod
@@ -172,7 +175,9 @@ class IOSAppStoreActivationPayload(PaymentRequestModel):
         if value is None or not isinstance(value, str):
             return value
         normalized = value.strip()
-        return normalized or None
+        if not normalized:
+            raise ValueError("receipt_data must not be empty")
+        return normalized
 
 
 class ManualActivationPayload(PaymentRequestModel):

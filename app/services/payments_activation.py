@@ -1188,12 +1188,13 @@ async def activate_subscription_async(
 
     ios_payload = payload.get_ios_payload()
     receipt_data = ios_payload.receipt_data
-    if not receipt_data or not receipt_data.strip():
+    normalized_receipt_data = receipt_data.strip()
+    if not normalized_receipt_data:
         raise ActivationReverifyRejectedError(
             "receipt_data is required for iOS activation; server must verify with Apple"
         )
 
-    verify_response = await verify_apple_receipt(receipt_data)
+    verify_response = await verify_apple_receipt(normalized_receipt_data)
     if verify_response.activation_payload is None:
         raise ActivationReverifyRejectedError(
             "Apple receipt verification failed or did not produce activation payload"
@@ -1202,7 +1203,7 @@ async def activate_subscription_async(
     server_verified = verify_response.activation_payload
     server_payload = IOSAppStoreActivationPayload(
         verification_result=server_verified,
-        receipt_data=receipt_data,
+        receipt_data=normalized_receipt_data,
     )
     server_request = ActivateSubscriptionRequest(
         source=payload.source,

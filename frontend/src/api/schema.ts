@@ -2643,7 +2643,7 @@ export interface components {
          */
         IOSAppStoreActivationPayload: {
             /** Receipt Data */
-            receipt_data?: string | null;
+            receipt_data: string;
             verification_result: components["schemas"]["IOSVerifiedActivationResult"];
         };
         /**

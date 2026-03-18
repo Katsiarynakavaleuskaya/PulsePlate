@@ -8,6 +8,7 @@ from typing import Any
 from datetime import datetime, timedelta, timezone
 
 from fastapi.testclient import TestClient
+from pydantic import ValidationError
 import pytest
 from sqlalchemy import create_engine, inspect, select
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
@@ -20,6 +21,8 @@ from app.http_error_details import (
 from app.models import Subscription, SubscriptionActivationAudit
 from app.schemas.payments import (
     ActivateSubscriptionRequest,
+    AppleReceiptVerificationResponse,
+    AppleVerificationState,
     IOSAppStoreActivationPayload,
     IOSVerifiedActivationResult,
     ManualActivationPayload,
@@ -320,16 +323,20 @@ def test_activate_subscription_ios_empty_receipt_data_returns_403(
     client: TestClient,
     pro_headers: dict[str, str],
 ) -> None:
-    """iOS activation with empty receipt_data raises ActivationReverifyRejectedError (line 1198)."""
+    """iOS activation with empty receipt_data fails request validation before reverify."""
     response = client.post(
         "/api/v1/pro/payments/activate",
         headers=pro_headers,
         json=_ios_payload(receipt_data=""),
     )
-    assert response.status_code == 403, response.text
+    assert response.status_code == 422, response.text
     payload = _json(response)
-    assert payload["status"] == "error"
-    assert payload["code"] == "activation_reverify_rejected"
+    assert payload["detail"][0]["loc"] == [
+        "body",
+        "payload",
+        "IOSAppStoreActivationPayload",
+        "receipt_data",
+    ]
 
 
 @pytest.mark.asyncio
@@ -369,6 +376,62 @@ async def test_activate_subscription_async_delegates_to_sync_for_non_ios_source(
     )
     assert result == expected
     assert result.activation_id == "delegated-activation-1"
+
+
+@pytest.mark.asyncio
+async def test_activate_subscription_async_trims_ios_receipt_before_reverify(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    observed: dict[str, str] = {}
+    expected = SubscriptionActivationResponse(
+        activation_id="trimmed-activation-1",
+        source=PaymentSource.ios_app_store,
+        tier=SubscriptionTier.pro,
+        status=SubscriptionStatus.active,
+        platform="ios",
+    )
+
+    async def _fake_verify(receipt_data: str) -> AppleReceiptVerificationResponse:
+        observed["verified_receipt_data"] = receipt_data
+        return AppleReceiptVerificationResponse(
+            verified=True,
+            verification_state=AppleVerificationState.active,
+            activation_payload=IOSVerifiedActivationResult(
+                transaction_id="txn-trimmed-1",
+                original_transaction_id="txn-trimmed-1",
+                product_id="com.pulseplate.premium.monthly",
+                subscription_tier=SubscriptionTier.pro,
+                status="active",
+                expires_at="2099-04-01T00:00:00Z",
+                platform="ios",
+            ),
+        )
+
+    def _fake_activate(
+        *,
+        payload: ActivateSubscriptionRequest,
+        user_id: int,
+    ) -> SubscriptionActivationResponse:
+        observed["persisted_receipt_data"] = payload.get_ios_payload().receipt_data
+        assert user_id == 42
+        return expected
+
+    monkeypatch.setattr(payments_activation, "verify_apple_receipt", _fake_verify)
+    monkeypatch.setattr(payments_activation, "activate_subscription", _fake_activate)
+
+    payload = ActivateSubscriptionRequest.model_validate(
+        _ios_payload(receipt_data="  base64_receipt_blob_trimmed  ")
+    )
+    result = await payments_activation.activate_subscription_async(
+        payload=payload,
+        user_id=42,
+    )
+
+    assert observed == {
+        "verified_receipt_data": "base64_receipt_blob_trimmed",
+        "persisted_receipt_data": "base64_receipt_blob_trimmed",
+    }
+    assert result == expected
 
 
 def test_activate_subscription_requires_transport_auth(client: TestClient) -> None:
@@ -991,6 +1054,18 @@ def test_ios_verified_result_rejects_non_ios_platform() -> None:
         )
 
 
+def test_ios_verified_result_requires_platform() -> None:
+    with pytest.raises(ValidationError, match="platform"):
+        IOSVerifiedActivationResult.model_validate(
+            {
+                "transaction_id": "txn-001",
+                "product_id": "product-id",
+                "subscription_tier": "pro",
+                "status": "rejected",
+            }
+        )
+
+
 def test_ios_verified_result_requires_expires_at_for_active_status() -> None:
     with pytest.raises(ValueError, match="expires_at is required"):
         IOSVerifiedActivationResult.model_validate(
@@ -1019,8 +1094,42 @@ def test_ios_verified_result_allows_missing_expires_at_for_rejected_status() -> 
 
 
 def test_ios_payload_validator_passthrough_branches() -> None:
-    assert IOSAppStoreActivationPayload._normalize_receipt_data(None) is None
     assert IOSAppStoreActivationPayload._normalize_receipt_data(123) == 123
+
+
+def test_ios_payload_normalizes_whitespace_receipt_data() -> None:
+    payload = IOSAppStoreActivationPayload.model_validate(
+        {
+            "verification_result": {
+                "transaction_id": "txn-001",
+                "product_id": "product-id",
+                "subscription_tier": "pro",
+                "status": "active",
+                "expires_at": "2099-04-01T00:00:00Z",
+                "platform": "ios",
+            },
+            "receipt_data": "  base64_receipt_blob  ",
+        }
+    )
+
+    assert payload.receipt_data == "base64_receipt_blob"
+
+
+def test_ios_payload_requires_non_null_receipt_data() -> None:
+    with pytest.raises(ValidationError, match="receipt_data"):
+        IOSAppStoreActivationPayload.model_validate(
+            {
+                "verification_result": {
+                    "transaction_id": "txn-001",
+                    "product_id": "product-id",
+                    "subscription_tier": "pro",
+                    "status": "active",
+                    "expires_at": "2099-04-01T00:00:00Z",
+                    "platform": "ios",
+                },
+                "receipt_data": None,
+            }
+        )
 
 
 def test_manual_payload_allows_missing_optional_amount_and_currency() -> None:

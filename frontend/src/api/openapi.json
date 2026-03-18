@@ -2233,24 +2233,18 @@
         "description": "Canonical iOS activation payload for PR-2 activation route.",
         "properties": {
           "receipt_data": {
-            "anyOf": [
-              {
-                "maxLength": 512000,
-                "minLength": 1,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Receipt Data"
+            "maxLength": 512000,
+            "minLength": 1,
+            "title": "Receipt Data",
+            "type": "string"
           },
           "verification_result": {
             "$ref": "#/components/schemas/IOSVerifiedActivationResult"
           }
         },
         "required": [
-          "verification_result"
+          "verification_result",
+          "receipt_data"
         ],
         "title": "IOSAppStoreActivationPayload",
         "type": "object"
@@ -2311,7 +2305,8 @@
           "transaction_id",
           "product_id",
           "subscription_tier",
-          "status"
+          "status",
+          "platform"
         ],
         "title": "IOSVerifiedActivationResult",
         "type": "object"
