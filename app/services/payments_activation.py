@@ -29,6 +29,7 @@ from app.schemas.payments import (
     AppleReceiptVerificationResponse,
     AppleVerificationEnvironment,
     AppleVerificationState,
+    IOSAppStoreActivationPayload,
     IOSVerifiedActivationResult,
     IosVerificationStatus,
     ManualActivationPayload,
@@ -1083,19 +1084,12 @@ def _normalize_apple_verification(
                 message="Receipt verification failed",
                 verification_state=AppleVerificationState.invalid,
             )
-        activation_payload_expired = _build_activation_contract_from_entry(
-            entry=latest_entry,
-            product_id=product_id,
-            expires_at=expires_at,
-            verification_state=AppleVerificationState.expired,
-        )
         return AppleReceiptVerificationResponse(
             verified=False,
             verification_state=AppleVerificationState.expired,
             environment=environment,
             product_id=product_id,
             expires_at=expires_at,
-            activation_payload=activation_payload_expired,
             error=AppleProviderError(
                 code="APPLE_RECEIPT_EXPIRED",
                 message="Apple receipt is expired",
@@ -1206,10 +1200,10 @@ async def activate_subscription_async(
         )
 
     server_verified = verify_response.activation_payload
-    server_payload = {
-        "verification_result": server_verified.model_dump(mode="json"),
-        "receipt_data": receipt_data,
-    }
+    server_payload = IOSAppStoreActivationPayload(
+        verification_result=server_verified,
+        receipt_data=receipt_data,
+    )
     server_request = ActivateSubscriptionRequest(
         source=payload.source,
         payload=server_payload,

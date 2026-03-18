@@ -9,13 +9,15 @@
 
 ## Executive Summary
 
-The PR normalizes Apple receipt verification response into the activation contract (`IOSVerifiedActivationResult`). One **critical** vulnerability was identified: the activation endpoint trusts client-provided `verification_result` without re-verifying the receipt against Apple, enabling subscription bypass. Several medium/low findings (rate limiting, receipt size limits) are documented for remediation.
+The PR normalizes Apple receipt verification response into the activation contract (`IOSVerifiedActivationResult`). The originally identified critical/high/medium findings are now closed on-branch: iOS activation re-verifies `receipt_data` server-side before persistence, the Apple verify route is rate-limited, and receipt-size bounds are enforced in both verify and activate schemas. The remaining informational finding is explicitly accepted as not-a-bug because the contract exposes transaction metadata only, not raw receipts or provider secrets.
 
 ---
 
 ## Critical Vulnerabilities (P0)
 
 ### [VULN-001] Activation Endpoint Trusts Client-Provided Verification Result Without Re-Verification
+
+**Status:** FIXED
 
 | Field | Value |
 |-------|-------|
@@ -68,10 +70,9 @@ def _normalize_canonical_ios_activation(
 verification_result=payload.get_ios_payload().verification_result,
 ```
 
-**Remediation:**
-- **Option A:** Re-verify receipt with Apple before persisting: call `verify_apple_receipt(receipt_data)` in `activate_subscription` for iOS source and only accept activation if server-verified result matches the payload (transaction_id, product_id, etc.).
-- **Option B:** Signed token from verify: verify endpoint returns a signed JWT encoding the activation result; activation validates the signature and rejects unsigned/forged payloads.
-- **Option C:** Server-side session: verify stores result keyed by `(receipt_hash, user_id)` with short TTL; activate looks up by receipt_hash and only accepts if a matching verified result exists.
+**Remediation Applied:**
+- Server-side re-verification now happens inside `activate_subscription_async()`: the handler reads `payload.receipt_data`, calls `verify_apple_receipt(receipt_data)`, rejects when `activation_payload is None`, and persists only the server-verified contract (`app/services/payments_activation.py`).
+- Regression coverage rejects a forged `verification_result` paired with invalid `receipt_data` (`tests/test_subscription_activation_api.py`).
 
 **Testing:** Add test that sends forged `verification_result` with invalid receipt and asserts 403 or rejection.
 
@@ -80,6 +81,8 @@ verification_result=payload.get_ios_payload().verification_result,
 ## High Vulnerabilities (P1)
 
 ### [VULN-002] No Rate Limiting on Apple Verify Endpoint
+
+**Status:** FIXED
 
 | Field | Value |
 |-------|-------|
@@ -102,8 +105,8 @@ async def verify_apple_receipt(
     # No rate limit decorator
 ```
 
-**Remediation:**
-Add `@limit_if_available(RATE_LIMIT_APPLE_VERIFY)` (e.g. `RATE_LIMIT_APPLE_VERIFY=10/minute`). Define `RATE_LIMIT_APPLE_VERIFY` in `app/security/rate_limit.py` and document 429 in OpenAPI responses.
+**Remediation Applied:**
+`POST /api/v1/billing/apple/verify-receipt` now uses `@limit_if_available(RATE_LIMIT_APPLE_VERIFY)` and advertises 429 responses in OpenAPI (`app/routers/billing.py`, `app/security/rate_limit.py`).
 
 **Note:** AGENTS.md mandates rate limiting for LLM and export endpoints; Apple verify is a similar cost/DoS vector and should be rate-limited.
 
@@ -112,6 +115,8 @@ Add `@limit_if_available(RATE_LIMIT_APPLE_VERIFY)` (e.g. `RATE_LIMIT_APPLE_VERIF
 ## Medium Vulnerabilities (P2)
 
 ### [VULN-003] No Max Length on Receipt Data (DoS / Memory)
+
+**Status:** FIXED
 
 | Field | Value |
 |-------|-------|
@@ -133,12 +138,14 @@ receipt_data: str = Field(
 )
 ```
 
-**Remediation:**
-Add `max_length=512000` (500KB) to both Apple receipt fields. Apple receipts are typically under 100KB; 500KB is a conservative upper bound.
+**Remediation Applied:**
+Both `AppleReceiptVerificationRequest.receipt_data` and `IOSAppStoreActivationPayload.receipt_data` now enforce `max_length=512_000`, with API tests covering 422 rejection for oversized receipts on verify and activate (`app/schemas/payments.py`, `tests/test_ios_receipt_verification_api.py`, `tests/test_subscription_activation_api.py`).
 
 ---
 
 ### [VULN-004] Sensitive Data in IOSVerifiedActivationResult
+
+**Status:** NOT-A-BUG
 
 | Field | Value |
 |-------|-------|
@@ -181,9 +188,9 @@ Add `max_length=512000` (500KB) to both Apple receipt fields. Apple receipts are
 
 | Priority | Action |
 |----------|--------|
-| P0 | Fix VULN-001: Re-verify receipt in activation or use signed token from verify |
-| P1 | Add rate limiting to `POST /api/v1/billing/apple/verify-receipt` |
-| P2 | Add `max_length=512000` to receipt_data fields |
+| Closed | VULN-001: iOS activation now re-verifies with Apple before persistence |
+| Closed | VULN-002: Apple verify route now has rate limiting and 429 OpenAPI docs |
+| Closed | VULN-003: `receipt_data` fields now enforce `max_length=512_000` |
 
 ---
 

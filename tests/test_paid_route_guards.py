@@ -246,7 +246,7 @@ def test_expired_entitlement_does_not_unlock_paid_routes(
         headers=vip_headers,
         json=_ios_payload(tier="vip", status="expired", transaction_id="txn-expired"),
     )
-    assert activate.status_code == 200, activate.text
+    assert activate.status_code == 403, activate.text
 
     assert client.get("/api/v1/pro/session", headers=vip_headers).status_code == 403
     assert client.get("/api/v1/vip/health", headers=vip_headers).status_code == 403

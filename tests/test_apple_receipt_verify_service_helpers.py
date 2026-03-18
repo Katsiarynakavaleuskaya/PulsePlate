@@ -396,6 +396,7 @@ def test_normalize_apple_verification_handles_provider_expired_status() -> None:
 
     assert response.verified is False
     assert response.verification_state is AppleVerificationState.expired
+    assert response.activation_payload is None
     assert response.error is not None
     assert response.error.code == "APPLE_RECEIPT_EXPIRED"
 
@@ -408,6 +409,7 @@ def test_normalize_apple_verification_rejects_missing_receipt_entries() -> None:
 
     assert response.verified is False
     assert response.verification_state is AppleVerificationState.invalid
+    assert response.activation_payload is None
     assert response.error is not None
     assert response.error.code == "APPLE_RECEIPT_INVALID"
 
@@ -428,6 +430,7 @@ def test_normalize_apple_verification_rejects_unknown_product() -> None:
 
     assert response.verified is False
     assert response.verification_state is AppleVerificationState.invalid
+    assert response.activation_payload is None
     assert response.error is not None
     assert response.error.code == "APPLE_RECEIPT_INVALID"
 
@@ -518,6 +521,7 @@ def test_normalize_apple_verification_rejects_cancelled_receipt() -> None:
 
     assert response.verified is False
     assert response.verification_state is AppleVerificationState.invalid
+    assert response.activation_payload is None
     assert response.error is not None
     assert response.error.code == "APPLE_RECEIPT_INVALID"
     assert response.expires_at == datetime.fromtimestamp(4102444800000 / 1000.0, tz=timezone.utc)
@@ -539,6 +543,7 @@ def test_normalize_apple_verification_rejects_unparseable_expiry_field() -> None
 
     assert response.verified is False
     assert response.verification_state is AppleVerificationState.invalid
+    assert response.activation_payload is None
     assert response.error is not None
     assert response.error.code == "APPLE_RECEIPT_INVALID"
     assert response.expires_at is None
@@ -561,5 +566,28 @@ def test_normalize_apple_verification_expired_without_product_id_returns_invalid
 
     assert response.verified is False
     assert response.verification_state is AppleVerificationState.invalid
+    assert response.activation_payload is None
+    assert response.error is not None
+    assert response.error.code == "APPLE_RECEIPT_INVALID"
+
+
+def test_normalize_apple_verification_active_without_product_id_returns_invalid() -> None:
+    """Active-looking receipt with empty product_id must still fail closed as invalid."""
+    response = payments_activation._normalize_apple_verification(
+        payload={
+            "status": 0,
+            "latest_receipt_info": [
+                {
+                    "product_id": "",
+                    "expires_date_ms": "4102444800000",
+                }
+            ],
+        },
+        environment=AppleVerificationEnvironment.production,
+    )
+
+    assert response.verified is False
+    assert response.verification_state is AppleVerificationState.invalid
+    assert response.activation_payload is None
     assert response.error is not None
     assert response.error.code == "APPLE_RECEIPT_INVALID"

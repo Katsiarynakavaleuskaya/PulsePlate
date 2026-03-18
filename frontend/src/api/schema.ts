@@ -1458,9 +1458,7 @@ export interface components {
             /** External Txn Id */
             external_txn_id?: string | null;
             /** Payload */
-            payload?: {
-                [key: string]: unknown;
-            } | null;
+            payload?: components["schemas"]["IOSAppStoreActivationPayload"] | components["schemas"]["ManualActivationPayload"] | null;
             plan?: components["schemas"]["SubscriptionPlan"] | null;
             source: components["schemas"]["PaymentSource"];
             /** Verification Ok */
@@ -1522,9 +1520,10 @@ export interface components {
          *
          *     When verified=True, activation_payload carries the full IOSVerifiedActivationResult
          *     (activation-contract shape) for downstream POST /api/v1/pro/payments/activate.
+         *     When verified=False, activation_payload is always None (fail-closed).
          */
         AppleReceiptVerificationResponse: {
-            /** @description Activation-contract shaped payload when verified. Client passes this as payload.verification_result and receipt_data as payload.receipt_data inside ActivateSubscriptionRequest to POST /api/v1/pro/payments/activate. */
+            /** @description Activation-contract shaped payload when verified. Must be null whenever verified=false. Client passes this as payload.verification_result and receipt_data as payload.receipt_data inside ActivateSubscriptionRequest to POST /api/v1/pro/payments/activate. */
             activation_payload?: components["schemas"]["IOSVerifiedActivationResult"] | null;
             environment?: components["schemas"]["AppleVerificationEnvironment"] | null;
             error?: components["schemas"]["AppleProviderError"] | null;
@@ -2639,6 +2638,15 @@ export interface components {
             detail?: components["schemas"]["ValidationError"][];
         };
         /**
+         * IOSAppStoreActivationPayload
+         * @description Canonical iOS activation payload for PR-2 activation route.
+         */
+        IOSAppStoreActivationPayload: {
+            /** Receipt Data */
+            receipt_data?: string | null;
+            verification_result: components["schemas"]["IOSVerifiedActivationResult"];
+        };
+        /**
          * IosVerificationStatus
          * @description Normalized iOS verification outcomes from PR-1.
          * @enum {string}
@@ -2661,6 +2669,18 @@ export interface components {
             subscription_tier: components["schemas"]["SubscriptionTier"];
             /** Transaction Id */
             transaction_id: string;
+        };
+        /**
+         * ManualActivationPayload
+         * @description Canonical manual-rail payload for PR-2 activation route.
+         */
+        ManualActivationPayload: {
+            /** Source Reference */
+            source_reference: string;
+            /** Submitted Amount */
+            submitted_amount?: string | null;
+            /** Submitted Currency */
+            submitted_currency?: string | null;
         };
         /**
          * ManualPaymentSource

@@ -34,8 +34,10 @@
           "payload": {
             "anyOf": [
               {
-                "additionalProperties": true,
-                "type": "object"
+                "$ref": "#/components/schemas/IOSAppStoreActivationPayload"
+              },
+              {
+                "$ref": "#/components/schemas/ManualActivationPayload"
               },
               {
                 "type": "null"
@@ -173,7 +175,7 @@
         "type": "object"
       },
       "AppleReceiptVerificationResponse": {
-        "description": "Normalized Apple receipt verification result without activation side effects.\n\nWhen verified=True, activation_payload carries the full IOSVerifiedActivationResult\n(activation-contract shape) for downstream POST /api/v1/pro/payments/activate.",
+        "description": "Normalized Apple receipt verification result without activation side effects.\n\nWhen verified=True, activation_payload carries the full IOSVerifiedActivationResult\n(activation-contract shape) for downstream POST /api/v1/pro/payments/activate.\nWhen verified=False, activation_payload is always None (fail-closed).",
         "properties": {
           "activation_payload": {
             "anyOf": [
@@ -184,7 +186,7 @@
                 "type": "null"
               }
             ],
-            "description": "Activation-contract shaped payload when verified. Client passes this as payload.verification_result and receipt_data as payload.receipt_data inside ActivateSubscriptionRequest to POST /api/v1/pro/payments/activate."
+            "description": "Activation-contract shaped payload when verified. Must be null whenever verified=false. Client passes this as payload.verification_result and receipt_data as payload.receipt_data inside ActivateSubscriptionRequest to POST /api/v1/pro/payments/activate."
           },
           "environment": {
             "anyOf": [
@@ -2226,6 +2228,33 @@
         "title": "HTTPValidationError",
         "type": "object"
       },
+      "IOSAppStoreActivationPayload": {
+        "additionalProperties": false,
+        "description": "Canonical iOS activation payload for PR-2 activation route.",
+        "properties": {
+          "receipt_data": {
+            "anyOf": [
+              {
+                "maxLength": 512000,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Receipt Data"
+          },
+          "verification_result": {
+            "$ref": "#/components/schemas/IOSVerifiedActivationResult"
+          }
+        },
+        "required": [
+          "verification_result"
+        ],
+        "title": "IOSAppStoreActivationPayload",
+        "type": "object"
+      },
       "IOSVerifiedActivationResult": {
         "additionalProperties": false,
         "description": "Normalized iOS verification result produced by PR-1 Apple verify.",
@@ -2296,6 +2325,49 @@
         ],
         "title": "IosVerificationStatus",
         "type": "string"
+      },
+      "ManualActivationPayload": {
+        "additionalProperties": false,
+        "description": "Canonical manual-rail payload for PR-2 activation route.",
+        "properties": {
+          "source_reference": {
+            "maxLength": 255,
+            "minLength": 3,
+            "title": "Source Reference",
+            "type": "string"
+          },
+          "submitted_amount": {
+            "anyOf": [
+              {
+                "maxLength": 32,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Submitted Amount"
+          },
+          "submitted_currency": {
+            "anyOf": [
+              {
+                "maxLength": 8,
+                "minLength": 3,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Submitted Currency"
+          }
+        },
+        "required": [
+          "source_reference"
+        ],
+        "title": "ManualActivationPayload",
+        "type": "object"
       },
       "ManualPaymentSource": {
         "description": "Manual payment sources allowed on RU/BY billing surfaces.",

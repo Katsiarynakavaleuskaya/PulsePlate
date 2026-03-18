@@ -203,7 +203,7 @@ class ActivateSubscriptionRequest(PaymentRequestModel):
     """Activation request envelope supporting canonical and legacy contracts."""
 
     source: PaymentSource
-    payload: dict[str, Any] | None = None
+    payload: IOSAppStoreActivationPayload | ManualActivationPayload | None = None
     plan: SubscriptionPlan | None = None
     client_event_id: str | None = Field(default=None, min_length=6, max_length=128)
     external_txn_id: str | None = Field(default=None, min_length=3, max_length=128)
@@ -236,7 +236,7 @@ class ActivateSubscriptionRequest(PaymentRequestModel):
                 normalized_payload = IOSAppStoreActivationPayload.model_validate(self.payload)
             else:
                 normalized_payload = ManualActivationPayload.model_validate(self.payload)
-            self.payload = normalized_payload.model_dump(mode="json", exclude_none=True)
+            self.payload = normalized_payload
             return self
 
         if self.plan is None:
@@ -250,8 +250,11 @@ class ActivateSubscriptionRequest(PaymentRequestModel):
 
         if self.payload is None:
             raise ValueError("ios activation payload is unavailable for legacy requests")
-        payload_obj: IOSAppStoreActivationPayload
-        payload_obj = IOSAppStoreActivationPayload.model_validate(self.payload)
+        if isinstance(self.payload, IOSAppStoreActivationPayload):
+            return self.payload
+        payload_obj: IOSAppStoreActivationPayload = IOSAppStoreActivationPayload.model_validate(
+            self.payload
+        )
         return payload_obj
 
     def get_manual_payload(self) -> ManualActivationPayload:
@@ -259,8 +262,9 @@ class ActivateSubscriptionRequest(PaymentRequestModel):
 
         if self.payload is None:
             raise ValueError("manual activation payload is unavailable for legacy requests")
-        payload_obj: ManualActivationPayload
-        payload_obj = ManualActivationPayload.model_validate(self.payload)
+        if isinstance(self.payload, ManualActivationPayload):
+            return self.payload
+        payload_obj: ManualActivationPayload = ManualActivationPayload.model_validate(self.payload)
         return payload_obj
 
     @property
@@ -308,6 +312,7 @@ class AppleReceiptVerificationResponse(BaseModel):
 
     When verified=True, activation_payload carries the full IOSVerifiedActivationResult
     (activation-contract shape) for downstream POST /api/v1/pro/payments/activate.
+    When verified=False, activation_payload is always None (fail-closed).
     """
 
     provider: str = "apple"
@@ -320,6 +325,7 @@ class AppleReceiptVerificationResponse(BaseModel):
         default=None,
         description=(
             "Activation-contract shaped payload when verified. "
+            "Must be null whenever verified=false. "
             "Client passes this as payload.verification_result and receipt_data as payload.receipt_data "
             "inside ActivateSubscriptionRequest to POST /api/v1/pro/payments/activate."
         ),

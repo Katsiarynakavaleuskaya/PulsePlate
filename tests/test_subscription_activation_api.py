@@ -42,17 +42,16 @@ def _reset_payments_state() -> None:
 
 def _apple_response_for_receipt(receipt_data: str) -> dict[str, Any]:
     """Map test receipt_data to Apple verify response for server-side reverification."""
-    now_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
-    # 2026-04-01, 2026-05-01, 2024-02-01 UTC (ms since epoch)
-    expires_2026_04_ms = "1775001600000"
-    expires_2026_05_ms = "1777593600000"
-    expires_2024_02_ms = "1706745600000"
+    # Far-future active expiries keep fixtures deterministic and avoid time-based drift.
+    far_future_2099_04_ms = "4078684800000"
+    far_future_2099_05_ms = "4081276800000"
+    expired_2024_02_ms = "1706745600000"
     base = {
         "status": 0,
         "latest_receipt_info": [
             {
                 "product_id": "com.pulseplate.premium.monthly",
-                "expires_date_ms": expires_2026_04_ms,
+                "expires_date_ms": far_future_2099_04_ms,
                 "transaction_id": "txn-001",
                 "original_transaction_id": "original-txn-001",
             }
@@ -64,7 +63,7 @@ def _apple_response_for_receipt(receipt_data: str) -> dict[str, Any]:
             "latest_receipt_info": [
                 {
                     "product_id": "com.pulseplate.premium.monthly",
-                    "expires_date_ms": expires_2026_04_ms,
+                    "expires_date_ms": far_future_2099_04_ms,
                     "transaction_id": "txn-renewal-1",
                     "original_transaction_id": "txn-renewal-1",
                 }
@@ -75,7 +74,7 @@ def _apple_response_for_receipt(receipt_data: str) -> dict[str, Any]:
             "latest_receipt_info": [
                 {
                     "product_id": "com.pulseplate.premium.monthly",
-                    "expires_date_ms": expires_2026_05_ms,
+                    "expires_date_ms": far_future_2099_05_ms,
                     "transaction_id": "txn-renewal-2",
                     "original_transaction_id": "txn-renewal-2",
                 }
@@ -86,7 +85,7 @@ def _apple_response_for_receipt(receipt_data: str) -> dict[str, Any]:
             "latest_receipt_info": [
                 {
                     "product_id": "com.pulseplate.premium.monthly",
-                    "expires_date_ms": expires_2024_02_ms,
+                    "expires_date_ms": expired_2024_02_ms,
                     "transaction_id": "txn-expired-1",
                     "original_transaction_id": "txn-expired-1",
                 }
@@ -97,7 +96,7 @@ def _apple_response_for_receipt(receipt_data: str) -> dict[str, Any]:
             "latest_receipt_info": [
                 {
                     "product_id": "com.pulseplate.premium.monthly",
-                    "expires_date_ms": str(now_ms + 30 * 24 * 3600 * 1000),
+                    "expires_date_ms": far_future_2099_04_ms,
                     "transaction_id": "txn-pro-route-1",
                     "original_transaction_id": "txn-pro-route-1",
                 }
@@ -108,7 +107,7 @@ def _apple_response_for_receipt(receipt_data: str) -> dict[str, Any]:
             "latest_receipt_info": [
                 {
                     "product_id": "com.pulseplate.vip.monthly",
-                    "expires_date_ms": str(now_ms + 45 * 24 * 3600 * 1000),
+                    "expires_date_ms": far_future_2099_05_ms,
                     "transaction_id": "txn-vip-route-1",
                     "original_transaction_id": "txn-vip-route-1",
                 }
@@ -120,7 +119,7 @@ def _apple_response_for_receipt(receipt_data: str) -> dict[str, Any]:
             "latest_receipt_info": [
                 {
                     "product_id": "com.pulseplate.premium.monthly",
-                    "expires_date_ms": expires_2026_04_ms,
+                    "expires_date_ms": far_future_2099_04_ms,
                     "transaction_id": "txn-get-1",
                     "original_transaction_id": "original-txn-get-1",
                 }
@@ -412,7 +411,7 @@ def test_ios_verified_happy_path_persists_subscription(
     assert payload["status"] == "active"
     assert payload["platform"] == "ios"
     assert payload["product_id"] == "com.pulseplate.premium.monthly"
-    assert payload["expires_at"].startswith("2026-04-01T00:00:00")
+    assert payload["expires_at"].startswith("2099-04-01T00:00:00")
     assert payload["activated_at"] is not None
 
     subscription_count, audit_count = _load_counts()
@@ -470,14 +469,14 @@ def test_ios_renewal_updates_existing_subscription_row(
     subscription = _load_subscription_for_user_source(user_id, "ios_app_store")
     assert subscription.source_reference == "txn-renewal-2"
     assert subscription.expires_at is not None
-    assert subscription.expires_at.isoformat().startswith("2026-05-01T00:00:00")
+    assert subscription.expires_at.isoformat().startswith("2099-05-01T00:00:00")
 
     subscription_count, audit_count = _load_counts()
     assert subscription_count == 1
     assert audit_count == 2
 
 
-def test_ios_expired_evidence_is_persisted_as_expired(
+def test_ios_expired_evidence_is_rejected_fail_closed(
     client: TestClient,
     pro_headers: dict[str, str],
 ) -> None:
@@ -491,10 +490,10 @@ def test_ios_expired_evidence_is_persisted_as_expired(
             receipt_data="base64_receipt_blob_expired",
         ),
     )
-    assert response.status_code == 200, response.text
+    assert response.status_code == 403, response.text
     payload = _json(response)
-    assert payload["status"] == "expired"
-    assert payload["activated_at"] is None
+    assert payload["status"] == "error"
+    assert payload["code"] == "activation_reverify_rejected"
 
 
 def test_ios_activation_rejects_oversized_receipt_data(
@@ -627,7 +626,7 @@ def test_expired_entitlement_denied_everywhere(
             receipt_data="base64_receipt_blob_expired",
         ),
     )
-    assert activation.status_code == 200, activation.text
+    assert activation.status_code == 403, activation.text
 
     assert client.get("/api/v1/pro/session", headers=vip_headers).status_code == 403
     assert client.get("/api/v1/vip/health", headers=vip_headers).status_code == 403
@@ -1049,7 +1048,8 @@ def test_activate_subscription_request_normalizes_canonical_payload_for_stable_h
         }
     )
 
-    assert request.payload == {
+    assert isinstance(request.payload, ManualActivationPayload)
+    assert request.model_dump(mode="json", exclude_none=True)["payload"] == {
         "source_reference": "ERIP-QR-12345",
         "submitted_amount": "9.99",
         "submitted_currency": "BYN",
@@ -1079,6 +1079,53 @@ def test_legacy_request_accessors_reject_payload_lookup() -> None:
         request.get_ios_payload()
     with pytest.raises(ValueError, match="manual activation payload is unavailable"):
         request.get_manual_payload()
+
+
+def test_get_ios_payload_validates_constructed_dict_payload() -> None:
+    request = ActivateSubscriptionRequest.model_construct(
+        source=PaymentSource.ios_app_store,
+        payload={
+            "verification_result": {
+                "transaction_id": "txn-constructed-ios-1",
+                "original_transaction_id": "txn-constructed-ios-1",
+                "product_id": "com.pulseplate.premium.monthly",
+                "subscription_tier": "pro",
+                "status": "active",
+                "expires_at": "2099-04-01T00:00:00Z",
+                "platform": "ios",
+            },
+            "receipt_data": "receipt-data-constructed-ios-12345",
+        },
+        plan=None,
+        client_event_id=None,
+        external_txn_id=None,
+        verification_ok=None,
+        verification_payload={},
+    )
+
+    payload = request.get_ios_payload()
+    assert payload.verification_result.transaction_id == "txn-constructed-ios-1"
+    assert payload.receipt_data == "receipt-data-constructed-ios-12345"
+
+
+def test_get_manual_payload_validates_constructed_dict_payload() -> None:
+    request = ActivateSubscriptionRequest.model_construct(
+        source=PaymentSource.erip_qr,
+        payload={
+            "source_reference": "ERIP-CONSTRUCTED-1",
+            "submitted_amount": "19.99",
+            "submitted_currency": "BYN",
+        },
+        plan=None,
+        client_event_id=None,
+        external_txn_id=None,
+        verification_ok=None,
+        verification_payload={},
+    )
+
+    payload = request.get_manual_payload()
+    assert payload.source_reference == "ERIP-CONSTRUCTED-1"
+    assert payload.submitted_currency == "BYN"
 
 
 def test_subscription_activation_response_fills_compatibility_fields() -> None:
