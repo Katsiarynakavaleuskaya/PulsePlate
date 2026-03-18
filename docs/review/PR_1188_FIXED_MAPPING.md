@@ -20,6 +20,11 @@ Evidence: [tests/test_task_bootstrap.py](../../tests/test_task_bootstrap.py#L182
 Reason: The review self-corrects in the body and confirms the test already declares `-> None`; no code or test logic change is required.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1188#pullrequestreview-3971468596
 
+Disposition: FIXED
+Commit: b0a2648df06099ba27f6738d2165395f9773185f
+Evidence: [docs/review/PR_1188_FIXED_MAPPING.md](PR_1188_FIXED_MAPPING.md#L11)
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1188#discussion_r2956825543 -> b0a2648df06099ba27f6738d2165395f9773185f
+
 ## Merge Readiness
 
 - [ ] All required checks pass
