@@ -104,6 +104,20 @@ def _instruction_path(agent_slug: str) -> str:
     return (AGENTS_DIR / f"{agent_slug}.md").relative_to(REPO_ROOT).as_posix()
 
 
+def _resolve_native_agent_type(*, profile: NativeExecutorProfile, role: str) -> str:
+    """Choose the runtime transport type without changing canonical repo identity.
+
+    RU: Reviewer всегда получает read-only transport even if the base role is
+    normally write-capable.
+    EN: Reviewer always gets a read-only transport even if the base role is
+    normally write-capable.
+    """
+
+    if role == "reviewer":
+        return "explorer"
+    return profile.native_agent_type
+
+
 def validate_native_subagent_bridge_profiles() -> None:
     """Ensure every canonical inventory agent has a transport profile."""
 
@@ -131,7 +145,7 @@ def build_native_subagent_binding(*, agent_slug: str, role: str) -> dict[str, An
         "role": role,
         "repo_agent_slug": agent_slug,
         "display_name": agent_slug,
-        "native_agent_type": profile.native_agent_type,
+        "native_agent_type": _resolve_native_agent_type(profile=profile, role=role),
         "execution_mode": execution_mode,
         "instruction_path": _instruction_path(agent_slug),
         "transport_rationale": profile.rationale,
@@ -150,6 +164,7 @@ def build_native_subagent_bridge(
     primary_agent: str,
     secondary_agents: list[str],
     reviewer: str,
+    advisory_agents: list[str] | None = None,
 ) -> dict[str, Any]:
     """Build transport metadata for runtimes that expose native subagents.
 
@@ -160,6 +175,24 @@ def build_native_subagent_bridge(
     """
 
     validate_native_subagent_bridge_profiles()
+    normalized_advisory_agents = advisory_agents or []
+    advisory_bindings: list[dict[str, Any]] = []
+    for agent_slug in normalized_advisory_agents:
+        advisory_binding = build_native_subagent_binding(
+            agent_slug=agent_slug,
+            role="secondary",
+        )
+        advisory_bindings.append(
+            {
+                **advisory_binding,
+                "execution_mode": "advisory_no_spawn",
+                "dispatch_contract": {
+                    **advisory_binding["dispatch_contract"],
+                    "spawn_with_native_subagent": False,
+                    "advisory_only": True,
+                },
+            }
+        )
     return {
         "protocol_version": BRIDGE_PROTOCOL_VERSION,
         "transport": BRIDGE_TRANSPORT,
@@ -178,6 +211,7 @@ def build_native_subagent_bridge(
             build_native_subagent_binding(agent_slug=agent_slug, role="secondary")
             for agent_slug in secondary_agents
         ],
+        "advisory": advisory_bindings,
         "reviewer": build_native_subagent_binding(
             agent_slug=reviewer,
             role="reviewer",

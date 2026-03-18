@@ -98,6 +98,38 @@ def _requires_security_review(candidate_paths: list[str] | tuple[str, ...]) -> b
     )
 
 
+def _partition_native_secondaries(
+    *,
+    secondary_agents: list[str],
+    requested_agent_disposition: list[dict[str, str]],
+) -> tuple[list[str], list[str]]:
+    """Split executable secondaries from advisory-only collaborators.
+
+    RU: advisory specialists stay in the task packet but must not be promoted to
+    runnable native subagents.
+    EN: advisory specialists remain in the task packet but must not be promoted
+    into runnable native subagents.
+    """
+
+    advisory_statuses = {
+        REQUESTED_AGENT_STATUS_ADVISORY_NON_ROUTABLE,
+        REQUESTED_AGENT_STATUS_ADVISORY_DOMAIN_MISMATCH,
+    }
+    advisory_agents = {
+        disposition["agent"]
+        for disposition in requested_agent_disposition
+        if disposition["status"] in advisory_statuses
+    }
+    executable_secondaries: list[str] = []
+    advisory_collaborators: list[str] = []
+    for agent_slug in secondary_agents:
+        if agent_slug in advisory_agents:
+            advisory_collaborators.append(agent_slug)
+        else:
+            executable_secondaries.append(agent_slug)
+    return executable_secondaries, advisory_collaborators
+
+
 def _apply_requested_agent_overrides(
     *,
     domain: str,
@@ -284,10 +316,15 @@ def build_task_packet(
         domain=decision.domain,
         requested_agents=normalized_requested_agents,
     )
+    executable_secondaries, advisory_agents = _partition_native_secondaries(
+        secondary_agents=requested_agent_resolution["secondary_agents"],
+        requested_agent_disposition=requested_agent_resolution["requested_agent_disposition"],
+    )
     native_subagent_bridge = build_native_subagent_bridge(
         primary_agent=requested_agent_resolution["primary_agent"],
-        secondary_agents=requested_agent_resolution["secondary_agents"],
+        secondary_agents=executable_secondaries,
         reviewer=requested_agent_resolution["reviewer"],
+        advisory_agents=advisory_agents,
     )
 
     return {

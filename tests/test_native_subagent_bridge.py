@@ -56,4 +56,21 @@ def test_build_native_subagent_bridge_shapes_primary_secondary_and_reviewer() ->
     assert bridge["secondary"][1]["repo_agent_slug"] == "security-auditor"
     assert bridge["secondary"][1]["native_agent_type"] == "worker"
     assert bridge["reviewer"]["repo_agent_slug"] == "architecture-specialist"
+    assert bridge["reviewer"]["native_agent_type"] == "explorer"
     assert bridge["reviewer"]["execution_mode"] == "review_read_only"
+
+
+def test_build_native_subagent_bridge_keeps_advisory_collaborators_non_runnable() -> None:
+    """Advisory specialists must stay visible but not spawnable."""
+
+    bridge = build_native_subagent_bridge(
+        primary_agent="ai-innovation-specialist",
+        secondary_agents=["rag-systems-agent"],
+        reviewer="architecture-specialist",
+        advisory_agents=["ml-engineer-agent"],
+    )
+
+    assert [binding["repo_agent_slug"] for binding in bridge["secondary"]] == ["rag-systems-agent"]
+    assert [binding["repo_agent_slug"] for binding in bridge["advisory"]] == ["ml-engineer-agent"]
+    assert bridge["advisory"][0]["execution_mode"] == "advisory_no_spawn"
+    assert bridge["advisory"][0]["dispatch_contract"]["spawn_with_native_subagent"] is False

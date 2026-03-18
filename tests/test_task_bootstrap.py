@@ -82,7 +82,7 @@ def test_task_bootstrap_routes_cv_tasks_to_cv_domain() -> None:
     assert "docs-sync" in packet["recommended_skills"]
     assert "pulseplate-gates" in packet["recommended_skills"]
     assert packet["native_subagent_bridge"]["primary"]["native_agent_type"] == "default"
-    assert packet["native_subagent_bridge"]["reviewer"]["native_agent_type"] == "worker"
+    assert packet["native_subagent_bridge"]["reviewer"]["native_agent_type"] == "explorer"
 
 
 def test_task_bootstrap_promotes_requested_routable_agent() -> None:
@@ -121,6 +121,12 @@ def test_task_bootstrap_keeps_non_routable_requested_agent_as_advisory() -> None
     assert packet["domain"] == "ml"
     assert packet["primary_agent"] == "ai-innovation-specialist"
     assert "ml-engineer-agent" in packet["secondary_agents"]
+    assert [
+        binding["repo_agent_slug"] for binding in packet["native_subagent_bridge"]["secondary"]
+    ] == ["rag-systems-agent"]
+    assert [
+        binding["repo_agent_slug"] for binding in packet["native_subagent_bridge"]["advisory"]
+    ] == ["ml-engineer-agent"]
     assert packet["requested_agent_disposition"] == [
         {
             "agent": "ml-engineer-agent",

@@ -1,7 +1,7 @@
 # Native Subagent Bridge Protocol
 
 **Purpose:** Preserve PulsePlate repo-agent orchestration when the execution
-runtime exposes its own native subagents (for example transport labels such as
+runtime exposes its own native subagents (for example, transport labels such as
 `worker`, `explorer`, or `default`).
 
 **Status:** Canonical for the runtime adapter layer. This protocol does not
@@ -54,6 +54,7 @@ Hard rule:
 - `dispatch_policy`
 - `primary`
 - `secondary`
+- `advisory`
 - `reviewer`
 
 Each role binding includes:
@@ -65,6 +66,10 @@ Each role binding includes:
 - `instruction_path`
 - `transport_rationale`
 - `dispatch_contract`
+
+Advisory collaborators are visible in the packet for transparency, but they are
+**not runnable native subagents** unless a later contract explicitly promotes
+them.
 
 This makes the adapter explicit and testable without changing the canonical
 repo-agent routing contract.
@@ -79,9 +84,12 @@ When a runtime supports native subagents:
 2. Use `primary_agent` / `secondary_agents` / `reviewer` as the canonical role
    identities.
 3. Read `native_subagent_bridge` only to choose the host runtime transport type.
-4. Load the instruction path listed in the bridge entry.
-5. Load `required_context` and `recommended_skills` from the same task packet.
-6. In updates, describe the work using the repo-agent slug.
+4. Spawn only `primary`, executable `secondary`, and `reviewer` bindings.
+5. Keep `advisory` bindings non-runnable unless a future promoted contract says
+   otherwise.
+6. Load the instruction path listed in the bridge entry.
+7. Load `required_context` and `recommended_skills` from the same task packet.
+8. In updates, describe the work using the repo-agent slug.
 
 Example:
 
@@ -89,6 +97,11 @@ Example:
 - Native transport: `worker`
 - Correct user-facing update: `bug-hunter is triaging the regression`
 - Incorrect update: `worker is running`
+
+Reviewer rule:
+
+- reviewer bindings must use a read-only transport (`explorer`) even when the
+  base repo role is normally implemented via a write-capable transport.
 
 ---
 
