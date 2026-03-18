@@ -46,6 +46,18 @@ Evidence: app/services/payments_activation.py, app/schemas/payments.py, tests/te
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1185#discussion_r2955994957 -> ff8a5de77772b9a490cb3ef2ce8c0c3cf12fe8c5
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1185#pullrequestreview-3970576952 -> ff8a5de77772b9a490cb3ef2ce8c0c3cf12fe8c5
 
+Disposition: FIXED
+Commit: 096a877af9f45a8d300a3cc4ef72b888ced86b53
+Evidence: app/schemas/payments.py, app/services/payments_activation.py, tests/test_subscription_activation_api.py, frontend/src/api/openapi.json, frontend/src/api/schema.ts
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1185#discussion_r2956110922 -> 096a877af9f45a8d300a3cc4ef72b888ced86b53
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1185#discussion_r2956110932 -> 096a877af9f45a8d300a3cc4ef72b888ced86b53
+
+Disposition: DEFERRED
+Backlog: docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-ios-storekit-products
+Reason: StoreKit product-catalog governance remains sequenced to PR-TBD-IOS-STOREKIT-PRODUCTS. B2 keeps the existing VIP verify->activation mapping, while the source-of-truth comment now points at the bounded B2 handoff scope instead of the StoreKit catalog contract.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1185#discussion_r2956110930
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1185#pullrequestreview-3970703568
+
 ## Merge Readiness
 
 - [ ] All required checks pass
