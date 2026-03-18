@@ -5,6 +5,10 @@
 This document is the canonical repository-owned source of truth for iOS
 StoreKit subscription products.
 
+The baseline defined here is already established on `main`; follow-up docs,
+runtime, and release work must extend this contract rather than redefine the
+canonical product IDs.
+
 It defines:
 
 - the exact StoreKit / App Store Connect `product_id` values allowed in runtime,

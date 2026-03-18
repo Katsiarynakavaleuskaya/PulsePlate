@@ -1,6 +1,6 @@
 # iOS API Integration (Canonical)
 
-**Last Updated**: 7 February 2026
+**Last Updated**: 18 March 2026
 **Status**: Canonical (repo source of truth)
 **Scope**: iOS thin-client networking only (transport + contracts + tests)
 **Non-goals**: IAP/receipt, analytics, domain logic, “roll your own URLSession client”, new singleton transport layers
@@ -106,16 +106,22 @@ Keep future work out of the canonical networking guide; track it as discrete bac
 
 ---
 
-## Payments Transport (P0 baseline policy)
+## Payments Transport (current canonical state)
 
 Contract source:
 - `docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md`
-- `docs/contracts/IOS_STOREKIT_PRODUCTS_CONTRACT.md` (canonical StoreKit product IDs and setup baseline)
+- `docs/contracts/IOS_STOREKIT_PRODUCTS_CONTRACT.md` (canonical StoreKit product contract baseline landed in PR #1172; follow-through docs and runtime work must continue to point here)
 
-Thin-client boundary (B1 baseline):
-- **What iOS sends:** Receipt data, manual intent payload, reconcile requests. Transport-only; no entitlement or billing decision logic.
+Thin-client boundary (current merged state):
+- **What iOS sends:** Receipt verification requests, activation handoff to `POST /api/v1/pro/payments/activate`, manual intent payload, and reconcile requests. Transport-only; no entitlement or billing decision logic.
 - **What backend decides:** Activation, tier assignment, reconciliation status, signature validation. Billing truth is server-authoritative only.
-- **Deferred to B2:** Apple verify full activation path (verify-receipt returns validation result; activation side effects land in B2). StoreKit product orchestration and SubscriptionManager integration remain B2+.
+- **Merged in B2 / PR #1185:** Apple verify now normalizes into the backend activation contract. The surviving B4 gap is still client-side follow-through: the shipped iOS flow calls `POST /api/v1/pro/payments/activate`, but it still reconstructs `payload.verification_result` locally instead of forwarding the backend-returned `activation_payload` unchanged. Remaining follow-through stays separate: StoreKit/App Store operational sync, backend-driven SubscriptionManager contract adoption, and App Store Server API migration.
+
+### Remaining follow-through (separate lanes)
+
+- StoreKit / App Store operational sync and release checklist completion.
+- SubscriptionManager contract follow-through so the client forwards the backend activation handoff without rebuilding billing truth on-device.
+- Apple receipt verification migration to App Store Server API.
 
 Thin-client rules for payments:
 1. iOS must use existing `APIClient`/`HTTPClient` seam only (evidence: `ios/PulsePlate/Networking/APIClient.swift:57`, `ios/PulsePlate/Networking/HTTPClient.swift:22`).
@@ -126,6 +132,7 @@ Thin-client rules for payments:
 
 Current transport surfaces (B1 implemented):
 - `POST /api/v1/billing/apple/verify-receipt` (implemented additive billing seam for verify-only receipt validation)
+- `POST /api/v1/pro/payments/activate` (current iOS purchase flow handoff after receipt verification; B4 remains open until the client forwards backend `activation_payload` without local reconstruction)
 - `POST /api/v1/pro/payments/ru-by/manual-intent` (current runtime transport during the transition window)
 - `POST /api/v1/pro/payments/ru-by/reconcile` (current runtime transport during the transition window)
 - `GET /api/v1/pro/payments/ru-by/reconcile/{intent_id}` (current runtime transport during the transition window)
