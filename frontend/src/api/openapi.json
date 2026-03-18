@@ -2279,8 +2279,10 @@
             "title": "Original Transaction Id"
           },
           "platform": {
-            "$ref": "#/components/schemas/PaymentPlatform",
-            "default": "ios"
+            "const": "ios",
+            "default": "ios",
+            "title": "Platform",
+            "type": "string"
           },
           "product_id": {
             "maxLength": 255,
@@ -2289,10 +2291,15 @@
             "type": "string"
           },
           "status": {
-            "$ref": "#/components/schemas/IosVerificationStatus"
+            "enum": [
+              "active",
+              "expired"
+            ],
+            "title": "Status",
+            "type": "string"
           },
           "subscription_tier": {
-            "$ref": "#/components/schemas/SubscriptionTier"
+            "$ref": "#/components/schemas/SubscriptionTierValue"
           },
           "transaction_id": {
             "maxLength": 255,
@@ -2310,16 +2317,6 @@
         ],
         "title": "IOSVerifiedActivationResult",
         "type": "object"
-      },
-      "IosVerificationStatus": {
-        "description": "Normalized iOS verification outcomes from PR-1.",
-        "enum": [
-          "active",
-          "expired",
-          "rejected"
-        ],
-        "title": "IosVerificationStatus",
-        "type": "string"
       },
       "ManualActivationPayload": {
         "additionalProperties": false,

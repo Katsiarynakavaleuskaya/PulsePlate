@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import (
     AliasChoices,
@@ -128,10 +128,10 @@ class IOSVerifiedActivationResult(PaymentRequestModel):
     transaction_id: str = Field(..., min_length=3, max_length=255)
     original_transaction_id: str | None = Field(default=None, min_length=3, max_length=255)
     product_id: str = Field(..., min_length=3, max_length=255)
-    subscription_tier: SubscriptionTier
-    status: IosVerificationStatus
+    subscription_tier: SubscriptionTierValue
+    status: Literal[IosVerificationStatus.active, IosVerificationStatus.expired]
     expires_at: datetime | None = None
-    platform: PaymentPlatform = Field(
+    platform: Literal[PaymentPlatform.ios] = Field(
         ...,
         json_schema_extra={"default": PaymentPlatform.ios.value},
     )
@@ -336,6 +336,14 @@ class AppleReceiptVerificationResponse(BaseModel):
         ),
     )
     error: AppleProviderError | None = None
+
+    @model_validator(mode="after")
+    def _validate_activation_payload_invariant(self) -> "AppleReceiptVerificationResponse":
+        if not self.verified and self.activation_payload is not None:
+            raise ValueError("activation_payload must be null when verified is false")
+        if self.verified and self.activation_payload is None:
+            raise ValueError("activation_payload is required when verified is true")
+        return self
 
 
 class ManualRailIntentRequest(PaymentRequestModel):

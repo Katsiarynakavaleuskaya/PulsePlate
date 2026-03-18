@@ -319,7 +319,7 @@ def _vip_weekly_plan_payload() -> dict[str, Any]:
     }
 
 
-def test_activate_subscription_ios_empty_receipt_data_returns_403(
+def test_activate_subscription_ios_empty_receipt_data_returns_422(
     client: TestClient,
     pro_headers: dict[str, str],
 ) -> None:
@@ -1041,7 +1041,7 @@ def test_ios_verified_result_normalizes_optional_fields_and_timezone() -> None:
 
 
 def test_ios_verified_result_rejects_non_ios_platform() -> None:
-    with pytest.raises(ValueError, match="ios verification result must use ios platform"):
+    with pytest.raises(ValidationError, match="platform"):
         IOSVerifiedActivationResult.model_validate(
             {
                 "transaction_id": "txn-001",
@@ -1061,7 +1061,8 @@ def test_ios_verified_result_requires_platform() -> None:
                 "transaction_id": "txn-001",
                 "product_id": "product-id",
                 "subscription_tier": "pro",
-                "status": "rejected",
+                "status": "active",
+                "expires_at": "2099-04-01T00:00:00Z",
             }
         )
 
@@ -1079,18 +1080,31 @@ def test_ios_verified_result_requires_expires_at_for_active_status() -> None:
         )
 
 
-def test_ios_verified_result_allows_missing_expires_at_for_rejected_status() -> None:
-    result = IOSVerifiedActivationResult.model_validate(
-        {
-            "transaction_id": "txn-rejected-1",
-            "product_id": "product-id",
-            "subscription_tier": "pro",
-            "status": "rejected",
-            "platform": "ios",
-        }
-    )
+def test_ios_verified_result_rejects_free_tier() -> None:
+    with pytest.raises(ValidationError, match="subscription_tier"):
+        IOSVerifiedActivationResult.model_validate(
+            {
+                "transaction_id": "txn-free-1",
+                "product_id": "product-id",
+                "subscription_tier": "free",
+                "status": "active",
+                "expires_at": "2099-04-01T00:00:00Z",
+                "platform": "ios",
+            }
+        )
 
-    assert result.expires_at is None
+
+def test_ios_verified_result_rejects_rejected_status() -> None:
+    with pytest.raises(ValidationError, match="status"):
+        IOSVerifiedActivationResult.model_validate(
+            {
+                "transaction_id": "txn-rejected-1",
+                "product_id": "product-id",
+                "subscription_tier": "pro",
+                "status": "rejected",
+                "platform": "ios",
+            }
+        )
 
 
 def test_ios_payload_validator_passthrough_branches() -> None:
@@ -1128,6 +1142,48 @@ def test_ios_payload_requires_non_null_receipt_data() -> None:
                     "platform": "ios",
                 },
                 "receipt_data": None,
+            }
+        )
+
+
+def test_apple_receipt_verification_response_requires_activation_payload_when_verified() -> None:
+    with pytest.raises(
+        ValidationError, match="activation_payload is required when verified is true"
+    ):
+        AppleReceiptVerificationResponse.model_validate(
+            {
+                "verified": True,
+                "verification_state": "active",
+                "environment": "production",
+                "product_id": "com.pulseplate.premium.monthly",
+                "expires_at": "2099-04-01T00:00:00Z",
+                "activation_payload": None,
+            }
+        )
+
+
+def test_apple_receipt_verification_response_rejects_activation_payload_when_unverified() -> None:
+    with pytest.raises(
+        ValidationError, match="activation_payload must be null when verified is false"
+    ):
+        AppleReceiptVerificationResponse.model_validate(
+            {
+                "verified": False,
+                "verification_state": "invalid",
+                "environment": "production",
+                "product_id": "com.pulseplate.premium.monthly",
+                "activation_payload": {
+                    "transaction_id": "txn-001",
+                    "product_id": "com.pulseplate.premium.monthly",
+                    "subscription_tier": "pro",
+                    "status": "active",
+                    "expires_at": "2099-04-01T00:00:00Z",
+                    "platform": "ios",
+                },
+                "error": {
+                    "code": "APPLE_RECEIPT_INVALID",
+                    "message": "Receipt verification failed",
+                },
             }
         )
 

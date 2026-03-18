@@ -2647,12 +2647,6 @@ export interface components {
             verification_result: components["schemas"]["IOSVerifiedActivationResult"];
         };
         /**
-         * IosVerificationStatus
-         * @description Normalized iOS verification outcomes from PR-1.
-         * @enum {string}
-         */
-        IosVerificationStatus: "active" | "expired" | "rejected";
-        /**
          * IOSVerifiedActivationResult
          * @description Normalized iOS verification result produced by PR-1 Apple verify.
          */
@@ -2661,12 +2655,20 @@ export interface components {
             expires_at?: string | null;
             /** Original Transaction Id */
             original_transaction_id?: string | null;
-            /** @default ios */
-            platform: components["schemas"]["PaymentPlatform"];
+            /**
+             * Platform
+             * @default ios
+             * @constant
+             */
+            platform: "ios";
             /** Product Id */
             product_id: string;
-            status: components["schemas"]["IosVerificationStatus"];
-            subscription_tier: components["schemas"]["SubscriptionTier"];
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "active" | "expired";
+            subscription_tier: components["schemas"]["SubscriptionTierValue"];
             /** Transaction Id */
             transaction_id: string;
         };

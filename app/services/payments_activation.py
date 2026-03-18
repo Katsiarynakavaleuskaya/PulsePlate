@@ -14,7 +14,7 @@ import hashlib
 import hmac
 import httpx
 import json
-from typing import Any, overload
+from typing import Any, Literal, cast, overload
 from uuid import uuid4
 
 from pydantic import ValidationError
@@ -331,17 +331,13 @@ def _normalize_canonical_ios_activation(
 
     ios_payload = payload.get_ios_payload()
     status = SubscriptionStatus(verification_result.status.value)
-    reconcile_status = (
-        ReconcileStatus.rejected
-        if verification_result.status is IosVerificationStatus.rejected
-        else ReconcileStatus.verified
-    )
+    reconcile_status = ReconcileStatus.verified
     activated_at = _utc_now() if status is SubscriptionStatus.active else None
     receipt_hash = _hash_receipt(ios_payload.receipt_data)
     safe_payload = payload.model_dump(mode="json", exclude_none=True)
     return NormalizedActivation(
         source=PaymentSource.ios_app_store,
-        tier=verification_result.subscription_tier,
+        tier=SubscriptionTier(verification_result.subscription_tier.value),
         status=status,
         platform=verification_result.platform,
         idempotency_key=_build_idempotency_key(
@@ -854,8 +850,8 @@ def _entry_original_transaction_id(entry: dict[str, Any]) -> str | None:
     return None
 
 
-# Canonical Apple product_id → tier map (exact match, fail-closed).
-# Source: docs/contracts/IOS_STOREKIT_PRODUCTS_CONTRACT.md
+# Canonical Apple product_id → tier map for the B2 verify->activation handoff.
+# StoreKit catalog governance is tracked separately in `ledger-p1-ios-storekit-products`.
 APPLE_PRODUCT_TIER_MAP: dict[str, SubscriptionTier] = {
     "com.pulseplate.premium.monthly": SubscriptionTier.pro,
     "com.pulseplate.premium.yearly": SubscriptionTier.pro,
@@ -973,16 +969,21 @@ def _build_activation_contract_from_entry(
     if subscription_tier is None:
         return None
     ios_status = _verification_state_to_ios_status(verification_state)
-    if ios_status in {IosVerificationStatus.active, IosVerificationStatus.expired}:
-        if expires_at is None:
-            return None
+    if ios_status not in {IosVerificationStatus.active, IosVerificationStatus.expired}:
+        return None
+    if expires_at is None:
+        return None
+    accepted_ios_status = cast(
+        Literal[IosVerificationStatus.active, IosVerificationStatus.expired],
+        ios_status,
+    )
     try:
         return IOSVerifiedActivationResult(
             transaction_id=transaction_id,
             original_transaction_id=_entry_original_transaction_id(entry),
             product_id=product_id,
-            subscription_tier=subscription_tier,
-            status=ios_status,
+            subscription_tier=SubscriptionTierValue(subscription_tier.value),
+            status=accepted_ios_status,
             expires_at=expires_at,
             platform=PaymentPlatform.ios,
         )
