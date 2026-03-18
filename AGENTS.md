@@ -829,6 +829,7 @@ Source of truth:
 - **Webhook/event handlers:** Any billing webhook or event handler MUST validate signature before state transition. Use `payments_activation.validate_webhook_signature()` (evidence: `app/services/payments_activation.py`).
 - **iOS Apple verify:** iOS must never call Apple `verifyReceipt` directly. Verification is server-side only; app sends receipt to backend.
 - **RU/BY manual rails:** `erip_qr` and `swift_manual` flows are reconcile-based; activation requires backend verification, not client-declared truth.
+- **Billing Truth Invariant:** Client-supplied payment verification payloads must never be used as the source of truth for persisted entitlement or subscription state. For provider-based automated billing flows (e.g. Apple App Store), backend activation must derive subscription tier/status only from server-side provider verification or a server-signed verification artifact. Unsigned client verification payloads may be accepted only as compatibility input, logging context, or mismatch evidence — never as entitlement truth.
 - **Canonical contract:** `docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md`, `docs/IOS_API_INTEGRATION.md`.
 
 ## Product tiers and API namespaces (canonical)

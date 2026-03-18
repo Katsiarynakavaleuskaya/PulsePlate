@@ -1458,9 +1458,7 @@ export interface components {
             /** External Txn Id */
             external_txn_id?: string | null;
             /** Payload */
-            payload?: {
-                [key: string]: unknown;
-            } | null;
+            payload?: components["schemas"]["IOSAppStoreActivationPayload"] | components["schemas"]["ManualActivationPayload"] | null;
             plan?: components["schemas"]["SubscriptionPlan"] | null;
             source: components["schemas"]["PaymentSource"];
             /** Verification Ok */
@@ -1496,18 +1494,6 @@ export interface components {
             user_id: number;
         };
         /**
-         * AppleActivationHint
-         * @description Activation-prep hint for downstream Apple billing flow.
-         */
-        AppleActivationHint: {
-            /**
-             * Platform
-             * @default ios
-             */
-            platform: string;
-            tier: components["schemas"]["SubscriptionTierValue"];
-        };
-        /**
          * AppleProviderError
          * @description Canonical provider error details for Apple receipt verification.
          */
@@ -1531,10 +1517,14 @@ export interface components {
         /**
          * AppleReceiptVerificationResponse
          * @description Normalized Apple receipt verification result without activation side effects.
+         *
+         *     When verified=True, activation_payload carries the full IOSVerifiedActivationResult
+         *     (activation-contract shape) for downstream POST /api/v1/pro/payments/activate.
+         *     When verified=False, activation_payload is always None (fail-closed).
          */
         AppleReceiptVerificationResponse: {
-            /** @description Downstream activation-prep hint. The activation service maps this hint into canonical source/tier fields. */
-            activation_payload?: components["schemas"]["AppleActivationHint"] | null;
+            /** @description Activation-contract shaped payload when verified. Must be null whenever verified=false. Client passes this as payload.verification_result and receipt_data as payload.receipt_data inside ActivateSubscriptionRequest to POST /api/v1/pro/payments/activate. */
+            activation_payload?: components["schemas"]["IOSVerifiedActivationResult"] | null;
             environment?: components["schemas"]["AppleVerificationEnvironment"] | null;
             error?: components["schemas"]["AppleProviderError"] | null;
             /** Expires At */
@@ -2646,6 +2636,53 @@ export interface components {
         HTTPValidationError: {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
+        };
+        /**
+         * IOSAppStoreActivationPayload
+         * @description Canonical iOS activation payload for PR-2 activation route.
+         */
+        IOSAppStoreActivationPayload: {
+            /** Receipt Data */
+            receipt_data: string;
+            verification_result: components["schemas"]["IOSVerifiedActivationResult"];
+        };
+        /**
+         * IOSVerifiedActivationResult
+         * @description Normalized iOS verification result produced by PR-1 Apple verify.
+         */
+        IOSVerifiedActivationResult: {
+            /** Expires At */
+            expires_at?: string | null;
+            /** Original Transaction Id */
+            original_transaction_id?: string | null;
+            /**
+             * Platform
+             * @default ios
+             * @constant
+             */
+            platform: "ios";
+            /** Product Id */
+            product_id: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "active" | "expired";
+            subscription_tier: components["schemas"]["SubscriptionTierValue"];
+            /** Transaction Id */
+            transaction_id: string;
+        };
+        /**
+         * ManualActivationPayload
+         * @description Canonical manual-rail payload for PR-2 activation route.
+         */
+        ManualActivationPayload: {
+            /** Source Reference */
+            source_reference: string;
+            /** Submitted Amount */
+            submitted_amount?: string | null;
+            /** Submitted Currency */
+            submitted_currency?: string | null;
         };
         /**
          * ManualPaymentSource
@@ -4628,6 +4665,15 @@ export interface operations {
                     "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
+            /** @description Rate limit exceeded */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitErrorResponse"];
+                };
+            };
             /** @description Apple upstream error */
             502: {
                 headers: {
@@ -5544,6 +5590,15 @@ export interface operations {
             };
             /** @description Missing or invalid transport protection */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentErrorResponse"];
+                };
+            };
+            /** @description iOS activation requires receipt_data or Apple verification failed */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };

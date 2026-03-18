@@ -10,7 +10,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Security, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Security, status
 from fastapi.responses import JSONResponse
 
 if TYPE_CHECKING:
@@ -18,6 +18,11 @@ if TYPE_CHECKING:
 
 from app.middleware.api_tiers import require_pro_tier
 from app.routers.api_key import api_key_header
+from app.security.rate_limit import (
+    RATE_LIMIT_429_RESPONSES,
+    RATE_LIMIT_APPLE_VERIFY,
+    limit_if_available,
+)
 from app.schemas.payments import (
     AppleProviderError,
     AppleReceiptVerificationRequest,
@@ -222,6 +227,7 @@ async def _verify_apple_receipt_response(
     status_code=status.HTTP_200_OK,
     responses={
         status.HTTP_401_UNAUTHORIZED: _RESPONSE_401_UNAUTHORIZED,
+        **RATE_LIMIT_429_RESPONSES,
         status.HTTP_502_BAD_GATEWAY: {
             "description": "Apple upstream error",
             "model": AppleReceiptVerificationResponse,
@@ -232,7 +238,9 @@ async def _verify_apple_receipt_response(
         },
     },
 )
+@limit_if_available(RATE_LIMIT_APPLE_VERIFY)
 async def verify_apple_receipt(
+    request: Request,
     payload: AppleReceiptVerificationRequest,
     _x_api_key: str = Depends(_require_billing_transport_key),
 ) -> AppleReceiptVerificationResponse | JSONResponse:

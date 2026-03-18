@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import (
     AliasChoices,
@@ -128,10 +128,13 @@ class IOSVerifiedActivationResult(PaymentRequestModel):
     transaction_id: str = Field(..., min_length=3, max_length=255)
     original_transaction_id: str | None = Field(default=None, min_length=3, max_length=255)
     product_id: str = Field(..., min_length=3, max_length=255)
-    subscription_tier: SubscriptionTier
-    status: IosVerificationStatus
+    subscription_tier: SubscriptionTierValue
+    status: Literal[IosVerificationStatus.active, IosVerificationStatus.expired]
     expires_at: datetime | None = None
-    platform: PaymentPlatform = PaymentPlatform.ios
+    platform: Literal[PaymentPlatform.ios] = Field(
+        ...,
+        json_schema_extra={"default": PaymentPlatform.ios.value},
+    )
 
     @field_validator("transaction_id", "product_id", "original_transaction_id", mode="before")
     @classmethod
@@ -164,7 +167,7 @@ class IOSAppStoreActivationPayload(PaymentRequestModel):
     """Canonical iOS activation payload for PR-2 activation route."""
 
     verification_result: IOSVerifiedActivationResult
-    receipt_data: str | None = Field(default=None, min_length=1)
+    receipt_data: str = Field(..., min_length=1, max_length=512_000)
 
     @field_validator("receipt_data", mode="before")
     @classmethod
@@ -172,7 +175,9 @@ class IOSAppStoreActivationPayload(PaymentRequestModel):
         if value is None or not isinstance(value, str):
             return value
         normalized = value.strip()
-        return normalized or None
+        if not normalized:
+            raise ValueError("receipt_data must not be empty")
+        return normalized
 
 
 class ManualActivationPayload(PaymentRequestModel):
@@ -203,7 +208,7 @@ class ActivateSubscriptionRequest(PaymentRequestModel):
     """Activation request envelope supporting canonical and legacy contracts."""
 
     source: PaymentSource
-    payload: dict[str, Any] | None = None
+    payload: IOSAppStoreActivationPayload | ManualActivationPayload | None = None
     plan: SubscriptionPlan | None = None
     client_event_id: str | None = Field(default=None, min_length=6, max_length=128)
     external_txn_id: str | None = Field(default=None, min_length=3, max_length=128)
@@ -236,7 +241,7 @@ class ActivateSubscriptionRequest(PaymentRequestModel):
                 normalized_payload = IOSAppStoreActivationPayload.model_validate(self.payload)
             else:
                 normalized_payload = ManualActivationPayload.model_validate(self.payload)
-            self.payload = normalized_payload.model_dump(mode="json", exclude_none=True)
+            self.payload = normalized_payload
             return self
 
         if self.plan is None:
@@ -250,8 +255,11 @@ class ActivateSubscriptionRequest(PaymentRequestModel):
 
         if self.payload is None:
             raise ValueError("ios activation payload is unavailable for legacy requests")
-        payload_obj: IOSAppStoreActivationPayload
-        payload_obj = IOSAppStoreActivationPayload.model_validate(self.payload)
+        if isinstance(self.payload, IOSAppStoreActivationPayload):
+            return self.payload
+        payload_obj: IOSAppStoreActivationPayload = IOSAppStoreActivationPayload.model_validate(
+            self.payload
+        )
         return payload_obj
 
     def get_manual_payload(self) -> ManualActivationPayload:
@@ -259,8 +267,9 @@ class ActivateSubscriptionRequest(PaymentRequestModel):
 
         if self.payload is None:
             raise ValueError("manual activation payload is unavailable for legacy requests")
-        payload_obj: ManualActivationPayload
-        payload_obj = ManualActivationPayload.model_validate(self.payload)
+        if isinstance(self.payload, ManualActivationPayload):
+            return self.payload
+        payload_obj: ManualActivationPayload = ManualActivationPayload.model_validate(self.payload)
         return payload_obj
 
     @property
@@ -276,6 +285,7 @@ class AppleReceiptVerificationRequest(PaymentRequestModel):
     receipt_data: str = Field(
         ...,
         min_length=8,
+        max_length=512_000,
         description=(
             "Opaque App Store receipt blob. "
             "Canonical field: receipt_data. Compatibility alias accepted: receipt."
@@ -295,13 +305,6 @@ class AppleReceiptVerificationRequest(PaymentRequestModel):
         return normalized
 
 
-class AppleActivationHint(BaseModel):
-    """Activation-prep hint for downstream Apple billing flow."""
-
-    tier: SubscriptionTierValue
-    platform: str = "ios"
-
-
 class AppleProviderError(BaseModel):
     """Canonical provider error details for Apple receipt verification."""
 
@@ -310,7 +313,12 @@ class AppleProviderError(BaseModel):
 
 
 class AppleReceiptVerificationResponse(BaseModel):
-    """Normalized Apple receipt verification result without activation side effects."""
+    """Normalized Apple receipt verification result without activation side effects.
+
+    When verified=True, activation_payload carries the full IOSVerifiedActivationResult
+    (activation-contract shape) for downstream POST /api/v1/pro/payments/activate.
+    When verified=False, activation_payload is always None (fail-closed).
+    """
 
     provider: str = "apple"
     verified: bool
@@ -318,14 +326,24 @@ class AppleReceiptVerificationResponse(BaseModel):
     environment: AppleVerificationEnvironment | None = None
     product_id: str | None = None
     expires_at: datetime | None = None
-    activation_payload: AppleActivationHint | None = Field(
+    activation_payload: IOSVerifiedActivationResult | None = Field(
         default=None,
         description=(
-            "Downstream activation-prep hint. "
-            "The activation service maps this hint into canonical source/tier fields."
+            "Activation-contract shaped payload when verified. "
+            "Must be null whenever verified=false. "
+            "Client passes this as payload.verification_result and receipt_data as payload.receipt_data "
+            "inside ActivateSubscriptionRequest to POST /api/v1/pro/payments/activate."
         ),
     )
     error: AppleProviderError | None = None
+
+    @model_validator(mode="after")
+    def _validate_activation_payload_invariant(self) -> "AppleReceiptVerificationResponse":
+        if not self.verified and self.activation_payload is not None:
+            raise ValueError("activation_payload must be null when verified is false")
+        if self.verified and self.activation_payload is None:
+            raise ValueError("activation_payload is required when verified is true")
+        return self
 
 
 class ManualRailIntentRequest(PaymentRequestModel):

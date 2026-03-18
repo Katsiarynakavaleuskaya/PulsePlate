@@ -15,6 +15,7 @@ from app.http_error_details import (
     DETERMINISTIC_ACTIVATION_CONFLICT_DETAIL,
     TRANSPORT_AUTH_REQUIRED_DETAIL,
 )
+from app.schemas.payments import PaymentSource
 from app.middleware.api_tiers import CurrentUser, derive_subject_id_from_api_key
 from app.routers.api_key import api_key_header
 from app.schemas.payments import (
@@ -79,13 +80,17 @@ def _resolve_activation_user(x_api_key: str | None) -> CurrentUser:
             "description": "Missing or invalid transport protection",
             "model": PaymentErrorResponse,
         },
+        status.HTTP_403_FORBIDDEN: {
+            "description": "iOS activation requires receipt_data or Apple verification failed",
+            "model": PaymentErrorResponse,
+        },
         status.HTTP_409_CONFLICT: {
             "description": "Deterministic activation conflict",
             "model": PaymentErrorResponse,
         },
     },
 )
-def activate_subscription(
+async def activate_subscription(
     payload: ActivateSubscriptionRequest,
     response: Response,
     x_api_key: str | None = Security(api_key_header),
@@ -99,10 +104,16 @@ def activate_subscription(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail="canonical activation payload is required on this route",
             )
-        activation = payments_activation.activate_subscription(
-            user_id=current_user.user_id,
-            payload=payload,
-        )
+        if payload.source is PaymentSource.ios_app_store:
+            activation = await payments_activation.activate_subscription_async(
+                user_id=current_user.user_id,
+                payload=payload,
+            )
+        else:
+            activation = payments_activation.activate_subscription(
+                user_id=current_user.user_id,
+                payload=payload,
+            )
     except ActivationTransportUnauthorizedError:
         return _payment_error_response(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -116,6 +127,13 @@ def activate_subscription(
             code="idempotency_conflict",
             message="Deterministic activation conflict",
             detail=DETERMINISTIC_ACTIVATION_CONFLICT_DETAIL,
+        )
+    except payments_activation.ActivationReverifyRejectedError as exc:
+        return _payment_error_response(
+            status_code=status.HTTP_403_FORBIDDEN,
+            code=getattr(exc, "error_code", "activation_reverify_rejected"),
+            message=exc.error_message or "Activation reverification rejected",
+            detail=str(exc),
         )
 
     response.status_code = status.HTTP_200_OK

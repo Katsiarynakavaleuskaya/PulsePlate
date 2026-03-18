@@ -15,6 +15,74 @@ from app.services import payments_activation
 from core import db as core_db
 
 
+def _apple_response_for_receipt(receipt_data: str) -> dict[str, Any]:
+    """Map test receipt_data to Apple verify response for server-side reverification.
+
+    Uses allowlisted product IDs: com.pulseplate.premium.monthly (pro),
+    com.pulseplate.vip.monthly (vip).
+    """
+    now_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
+    expires_future_ms = str(now_ms + 30 * 24 * 3600 * 1000)
+    expires_past_ms = "1706745600000"  # 2024-02-01 UTC
+    pro_active = {
+        "status": 0,
+        "latest_receipt_info": [
+            {
+                "product_id": "com.pulseplate.premium.monthly",
+                "expires_date_ms": expires_future_ms,
+                "transaction_id": "txn-pro",
+                "original_transaction_id": "orig-txn-pro",
+            }
+        ],
+    }
+    vip_active = {
+        "status": 0,
+        "latest_receipt_info": [
+            {
+                "product_id": "com.pulseplate.vip.monthly",
+                "expires_date_ms": expires_future_ms,
+                "transaction_id": "txn-vip",
+                "original_transaction_id": "orig-txn-vip",
+            }
+        ],
+    }
+    vip_expired = {
+        "status": 0,
+        "latest_receipt_info": [
+            {
+                "product_id": "com.pulseplate.vip.monthly",
+                "expires_date_ms": expires_past_ms,
+                "transaction_id": "txn-expired",
+                "original_transaction_id": "orig-txn-expired",
+            }
+        ],
+    }
+    mapping: dict[str, dict[str, Any]] = {
+        "receipt-txn-pro-active": pro_active,
+        "receipt-txn-vip-active": vip_active,
+        "receipt-txn-expired": vip_expired,
+        "receipt-txn-cancelled": vip_active,
+        "receipt-txn-carveout": pro_active,
+        "receipt-txn-alias-pro": pro_active,
+    }
+    return mapping.get(receipt_data, pro_active)
+
+
+@pytest.fixture(autouse=True)
+def _mock_apple_verify_for_activation(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Mock Apple verify so activation tests can run without real Apple API."""
+
+    async def _fake_call(url: str, receipt_data: str) -> dict[str, Any]:
+        del url
+        return _apple_response_for_receipt(receipt_data)
+
+    monkeypatch.setattr(
+        payments_activation,
+        "_call_apple_verify_endpoint",
+        _fake_call,
+    )
+
+
 @pytest.fixture(autouse=True)
 def _db_backed_paid_authz(
     monkeypatch: pytest.MonkeyPatch,
@@ -178,7 +246,7 @@ def test_expired_entitlement_does_not_unlock_paid_routes(
         headers=vip_headers,
         json=_ios_payload(tier="vip", status="expired", transaction_id="txn-expired"),
     )
-    assert activate.status_code == 200, activate.text
+    assert activate.status_code == 403, activate.text
 
     assert client.get("/api/v1/pro/session", headers=vip_headers).status_code == 403
     assert client.get("/api/v1/vip/health", headers=vip_headers).status_code == 403
