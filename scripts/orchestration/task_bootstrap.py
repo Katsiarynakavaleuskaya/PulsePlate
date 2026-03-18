@@ -102,6 +102,7 @@ def _partition_native_secondaries(
     *,
     secondary_agents: list[str],
     requested_agent_disposition: list[dict[str, str]],
+    forced_executable_agents: set[str] | None = None,
 ) -> tuple[list[str], list[str]]:
     """Split executable secondaries from advisory-only collaborators.
 
@@ -115,6 +116,7 @@ def _partition_native_secondaries(
         REQUESTED_AGENT_STATUS_ADVISORY_NON_ROUTABLE,
         REQUESTED_AGENT_STATUS_ADVISORY_DOMAIN_MISMATCH,
     }
+    normalized_forced_executable_agents = forced_executable_agents or set()
     advisory_agents = {
         disposition["agent"]
         for disposition in requested_agent_disposition
@@ -123,11 +125,40 @@ def _partition_native_secondaries(
     executable_secondaries: list[str] = []
     advisory_collaborators: list[str] = []
     for agent_slug in secondary_agents:
-        if agent_slug in advisory_agents:
+        if agent_slug in advisory_agents and agent_slug not in normalized_forced_executable_agents:
             advisory_collaborators.append(agent_slug)
         else:
             executable_secondaries.append(agent_slug)
     return executable_secondaries, advisory_collaborators
+
+
+def _promote_forced_secondary_dispositions(
+    *,
+    requested_agent_disposition: list[dict[str, str]],
+    forced_executable_agents: set[str],
+) -> None:
+    """Keep dispositions aligned with forced executable secondaries.
+
+    RU: Если привилегированный review-path требует агента, он не должен
+    оставаться advisory only в packet-disposition metadata.
+    EN: If the privileged review path requires an agent, it must not remain
+    advisory-only in packet disposition metadata.
+    """
+
+    advisory_statuses = {
+        REQUESTED_AGENT_STATUS_ADVISORY_NON_ROUTABLE,
+        REQUESTED_AGENT_STATUS_ADVISORY_DOMAIN_MISMATCH,
+    }
+    for disposition in requested_agent_disposition:
+        if disposition["agent"] not in forced_executable_agents:
+            continue
+        if disposition["status"] not in advisory_statuses:
+            continue
+        disposition["status"] = REQUESTED_AGENT_STATUS_HONORED_SECONDARY
+        disposition["reason"] = (
+            "Requested agent is required for the privileged review path and stays "
+            "executable in secondary."
+        )
 
 
 def _apply_requested_agent_overrides(
@@ -299,7 +330,8 @@ def build_task_packet(
         requested_agents=normalized_requested_agents,
         routing=routing,
     )
-    if _requires_security_review(normalized_paths):
+    security_review_required = _requires_security_review(normalized_paths)
+    if security_review_required:
         secondary_agents = list(requested_agent_resolution["secondary_agents"])
         security_in_review_path = "security-auditor" in {
             requested_agent_resolution["primary_agent"],
@@ -316,9 +348,16 @@ def build_task_packet(
         domain=decision.domain,
         requested_agents=normalized_requested_agents,
     )
+    forced_executable_agents = {"security-auditor"} if security_review_required else set()
+    if forced_executable_agents:
+        _promote_forced_secondary_dispositions(
+            requested_agent_disposition=requested_agent_resolution["requested_agent_disposition"],
+            forced_executable_agents=forced_executable_agents,
+        )
     executable_secondaries, advisory_agents = _partition_native_secondaries(
         secondary_agents=requested_agent_resolution["secondary_agents"],
         requested_agent_disposition=requested_agent_resolution["requested_agent_disposition"],
+        forced_executable_agents=forced_executable_agents,
     )
     native_subagent_bridge = build_native_subagent_bridge(
         primary_agent=requested_agent_resolution["primary_agent"],

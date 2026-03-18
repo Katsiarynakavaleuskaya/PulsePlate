@@ -170,6 +170,42 @@ def test_task_bootstrap_keeps_security_auditor_in_privileged_review_path() -> No
         *packet["secondary_agents"],
     }
     assert "security-auditor" in review_path
+    assert "security-auditor" in {
+        packet["native_subagent_bridge"]["reviewer"]["repo_agent_slug"],
+        *[binding["repo_agent_slug"] for binding in packet["native_subagent_bridge"]["secondary"]],
+    }
+    assert "security-auditor" not in {
+        binding["repo_agent_slug"] for binding in packet["native_subagent_bridge"]["advisory"]
+    }
+
+
+def test_task_bootstrap_forces_requested_security_auditor_into_executable_bridge() -> None:
+    """Privileged review must keep an explicitly requested security auditor runnable."""
+
+    packet = build_task_packet(
+        goal="Audit privileged orchestration workflow",
+        task_class="Orchestration",
+        candidate_paths=["scripts/orchestration/task_bootstrap.py"],
+        requested_agents=["security-auditor"],
+    )
+
+    assert "security-auditor" in packet["secondary_agents"]
+    assert "security-auditor" in {
+        binding["repo_agent_slug"] for binding in packet["native_subagent_bridge"]["secondary"]
+    }
+    assert "security-auditor" not in {
+        binding["repo_agent_slug"] for binding in packet["native_subagent_bridge"]["advisory"]
+    }
+    assert packet["requested_agent_disposition"] == [
+        {
+            "agent": "security-auditor",
+            "status": "honored_secondary",
+            "reason": (
+                "Requested agent is required for the privileged review path and stays "
+                "executable in secondary."
+            ),
+        }
+    ]
 
 
 def test_task_bootstrap_updates_honored_primary_after_later_promotion() -> None:

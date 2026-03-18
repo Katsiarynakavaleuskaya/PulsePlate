@@ -72,5 +72,6 @@ def test_build_native_subagent_bridge_keeps_advisory_collaborators_non_runnable(
 
     assert [binding["repo_agent_slug"] for binding in bridge["secondary"]] == ["rag-systems-agent"]
     assert [binding["repo_agent_slug"] for binding in bridge["advisory"]] == ["ml-engineer-agent"]
+    assert bridge["advisory"][0]["role"] == "advisory"
     assert bridge["advisory"][0]["execution_mode"] == "advisory_no_spawn"
     assert bridge["advisory"][0]["dispatch_contract"]["spawn_with_native_subagent"] is False

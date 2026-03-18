@@ -180,7 +180,7 @@ def build_native_subagent_bridge(
     for agent_slug in normalized_advisory_agents:
         advisory_binding = build_native_subagent_binding(
             agent_slug=agent_slug,
-            role="secondary",
+            role="advisory",
         )
         advisory_bindings.append(
             {
