@@ -21,9 +21,10 @@ Reason: The review self-corrects in the body and confirms the test already decla
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1188#pullrequestreview-3971468596
 
 Disposition: FIXED
-Commit: b0a2648df06099ba27f6738d2165395f9773185f
+Commit: b0a2648d492420c400f9aec3b453a47b4efefdcb
 Evidence: [docs/review/PR_1188_FIXED_MAPPING.md](PR_1188_FIXED_MAPPING.md#L11)
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1188#discussion_r2956825543 -> b0a2648df06099ba27f6738d2165395f9773185f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1188#discussion_r2956825543 -> b0a2648d492420c400f9aec3b453a47b4efefdcb
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1188#pullrequestreview-3971520545 -> b0a2648d492420c400f9aec3b453a47b4efefdcb
 
 ## Merge Readiness
 
