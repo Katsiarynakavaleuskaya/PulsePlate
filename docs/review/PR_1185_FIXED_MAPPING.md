@@ -38,6 +38,14 @@ Reason: Cubic review comments (21:02Z) posted after commit 26ec3bd0 (20:52 UTC).
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1185#discussion_r2949556947
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1185#pullrequestreview-3963762156
 
+Disposition: FIXED
+Commit: ff8a5de77772b9a490cb3ef2ce8c0c3cf12fe8c5
+Evidence: app/services/payments_activation.py, app/schemas/payments.py, tests/test_subscription_activation_api.py, frontend/src/api/openapi.json, frontend/src/api/schema.ts
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1185#discussion_r2955994946 -> ff8a5de77772b9a490cb3ef2ce8c0c3cf12fe8c5
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1185#discussion_r2955994949 -> ff8a5de77772b9a490cb3ef2ce8c0c3cf12fe8c5
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1185#discussion_r2955994957 -> ff8a5de77772b9a490cb3ef2ce8c0c3cf12fe8c5
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1185#pullrequestreview-3970576952 -> ff8a5de77772b9a490cb3ef2ce8c0c3cf12fe8c5
+
 ## Merge Readiness
 
 - [ ] All required checks pass
