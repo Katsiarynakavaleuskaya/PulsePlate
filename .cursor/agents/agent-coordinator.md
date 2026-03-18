@@ -73,6 +73,7 @@ When coordinating multi-agent work, use these canonical protocols:
 - Dialogue Template: `docs/orchestration/AGENT_DIALOGUE_TEMPLATE.md`
 - Parallel Work Protocol: `docs/orchestration/PARALLEL_WORK_PROTOCOL.md`
 - Message envelopes (multi-model robustness): `docs/orchestration/AGENT_MESSAGE_PROTOCOL.md`
+- Native runtime bridge (repo-agent slug -> transport-only native executor): `docs/orchestration/NATIVE_SUBAGENT_BRIDGE_PROTOCOL.md`
 - Research track (web/OSS intake): `docs/orchestration/RESEARCH_TRACK_PROTOCOL.md`
 - Experimentation protocol (bounded optimization/eval loops): `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md`
 - Reflection / KPP promotion: `docs/orchestration/AGENT_REFLECTION_PROTOCOL.md`

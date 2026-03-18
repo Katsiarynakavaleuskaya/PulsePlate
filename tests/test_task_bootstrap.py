@@ -36,6 +36,10 @@ def test_task_bootstrap_resolves_orchestration_domain() -> None:
     assert "pulseplate-workflow" in packet["recommended_skills"]
     assert "docs-sync" in packet["recommended_skills"]
     assert "agents-md" in packet["recommended_skills"]
+    assert packet["native_subagent_bridge"]["primary"]["repo_agent_slug"] == "agent-coordinator"
+    assert packet["native_subagent_bridge"]["reviewer"]["repo_agent_slug"] == (
+        "architecture-specialist"
+    )
 
 
 def test_task_bootstrap_includes_scoped_agents_only_once() -> None:
@@ -77,6 +81,8 @@ def test_task_bootstrap_routes_cv_tasks_to_cv_domain() -> None:
     assert packet["reviewer"] == "security-auditor"
     assert "docs-sync" in packet["recommended_skills"]
     assert "pulseplate-gates" in packet["recommended_skills"]
+    assert packet["native_subagent_bridge"]["primary"]["native_agent_type"] == "default"
+    assert packet["native_subagent_bridge"]["reviewer"]["native_agent_type"] == "worker"
 
 
 def test_task_bootstrap_promotes_requested_routable_agent() -> None:
@@ -317,6 +323,13 @@ def test_main_writes_relative_output_inside_repo(tmp_path, monkeypatch, capsys) 
             "recommended": [{"skill": "pulseplate-workflow", "score": 100}],
             "blocked": [],
         },
+        "native_subagent_bridge": {
+            "protocol_version": "1.0",
+            "transport": "codex-native-subagents",
+            "primary": {"native_agent_type": "default"},
+            "secondary": [],
+            "reviewer": {"native_agent_type": "explorer"},
+        },
         "routing_rationale": {"source": "canonical_only"},
     }
     monkeypatch.setattr(
@@ -340,6 +353,7 @@ def test_main_writes_relative_output_inside_repo(tmp_path, monkeypatch, capsys) 
         written = json.loads(repo_output.read_text(encoding="utf-8"))
         assert written["task_packet_id"] == "abc123def456"
         assert json.loads(captured.out)["output"] == relative_output.as_posix()
+        assert json.loads(captured.out)["primary_native_agent_type"] == "default"
     finally:
         if repo_output.exists():
             repo_output.unlink()
@@ -375,6 +389,13 @@ def test_main_writes_repo_root_output_as_relative_path(monkeypatch, capsys) -> N
             "recommended": [{"skill": "pulseplate-workflow", "score": 100}],
             "blocked": [],
         },
+        "native_subagent_bridge": {
+            "protocol_version": "1.0",
+            "transport": "codex-native-subagents",
+            "primary": {"native_agent_type": "default"},
+            "secondary": [],
+            "reviewer": {"native_agent_type": "explorer"},
+        },
         "routing_rationale": {"source": "canonical_only"},
     }
     monkeypatch.setattr(
@@ -397,6 +418,7 @@ def test_main_writes_repo_root_output_as_relative_path(monkeypatch, capsys) -> N
         assert exit_code == 0
         assert repo_output.exists()
         assert json.loads(captured.out)["output"] == relative_output.as_posix()
+        assert json.loads(captured.out)["reviewer_native_agent_type"] == "explorer"
     finally:
         if repo_output.exists():
             repo_output.unlink()
@@ -431,6 +453,13 @@ def test_main_passes_requested_agent_flags(monkeypatch, capsys) -> None:
                 "recommended": [{"skill": "pulseplate-workflow", "score": 100}],
                 "blocked": [],
             },
+            "native_subagent_bridge": {
+                "protocol_version": "1.0",
+                "transport": "codex-native-subagents",
+                "primary": {"native_agent_type": "default"},
+                "secondary": [{"native_agent_type": "worker"}],
+                "reviewer": {"native_agent_type": "explorer"},
+            },
             "routing_rationale": {"source": "canonical_only"},
         }
 
@@ -459,3 +488,4 @@ def test_main_passes_requested_agent_flags(monkeypatch, capsys) -> None:
         "agent-coordinator",
         "security-auditor",
     ]
+    assert json.loads(captured.out)["primary_native_agent_type"] == "default"

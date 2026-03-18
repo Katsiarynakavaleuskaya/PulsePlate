@@ -28,6 +28,7 @@ from scripts.orchestration.agent_consistency_loader import (
     load_inventory_agents,
     load_non_routable_agents,
 )
+from scripts.orchestration.native_subagent_bridge import build_native_subagent_bridge
 from scripts.orchestration.route_with_telemetry import TELEMETRY_PATH, route
 from scripts.orchestration.routing_graph_loader import load_routing_graph
 from scripts.orchestration.requested_agents import normalize_requested_agents
@@ -283,6 +284,11 @@ def build_task_packet(
         domain=decision.domain,
         requested_agents=normalized_requested_agents,
     )
+    native_subagent_bridge = build_native_subagent_bridge(
+        primary_agent=requested_agent_resolution["primary_agent"],
+        secondary_agents=requested_agent_resolution["secondary_agents"],
+        reviewer=requested_agent_resolution["reviewer"],
+    )
 
     return {
         "schema_version": SCHEMA_VERSION,
@@ -300,6 +306,7 @@ def build_task_packet(
         "required_context": context_pack,
         "recommended_skills": [item["skill"] for item in skill_routing["recommended"]],
         "skill_routing": skill_routing,
+        "native_subagent_bridge": native_subagent_bridge,
         "routing_rationale": decision.rationale,
     }
 
@@ -379,6 +386,12 @@ def main(argv: list[str] | None = None) -> int:
                 "reviewer": packet["reviewer"],
                 "requested_agents": packet["requested_agents"],
                 "recommended_skills": packet["recommended_skills"],
+                "primary_native_agent_type": packet["native_subagent_bridge"]["primary"][
+                    "native_agent_type"
+                ],
+                "reviewer_native_agent_type": packet["native_subagent_bridge"]["reviewer"][
+                    "native_agent_type"
+                ],
                 "output": output_ref,
             },
             ensure_ascii=False,
