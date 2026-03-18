@@ -1,6 +1,6 @@
 # iOS API Integration (Canonical)
 
-**Last Updated**: 19 March 2026
+**Last Updated**: 18 March 2026
 **Status**: Canonical (repo source of truth)
 **Scope**: iOS thin-client networking only (transport + contracts + tests)
 **Non-goals**: IAP/receipt, analytics, domain logic, “roll your own URLSession client”, new singleton transport layers
@@ -106,7 +106,7 @@ Keep future work out of the canonical networking guide; track it as discrete bac
 
 ---
 
-## Payments Transport (post-B2 canonical state)
+## Payments Transport (current canonical state)
 
 Contract source:
 - `docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md`
@@ -116,6 +116,12 @@ Thin-client boundary (current merged state):
 - **What iOS sends:** Receipt data, manual intent payload, reconcile requests. Transport-only; no entitlement or billing decision logic.
 - **What backend decides:** Activation, tier assignment, reconciliation status, signature validation. Billing truth is server-authoritative only.
 - **Merged in B2 / PR #1185:** Apple verify now normalizes into the backend activation contract. Remaining follow-through stays separate: StoreKit/App Store operational sync, backend-driven SubscriptionManager hardening, and App Store Server API migration.
+
+### Remaining follow-through (separate lanes)
+
+- StoreKit / App Store operational sync and release checklist completion.
+- Backend-driven SubscriptionManager follow-through over the merged billing truth.
+- Apple receipt verification migration to App Store Server API.
 
 Thin-client rules for payments:
 1. iOS must use existing `APIClient`/`HTTPClient` seam only (evidence: `ios/PulsePlate/Networking/APIClient.swift:57`, `ios/PulsePlate/Networking/HTTPClient.swift:22`).
