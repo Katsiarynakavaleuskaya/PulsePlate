@@ -8,6 +8,7 @@ EN: Canonical billing endpoints for RU/BY + iOS baseline.
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from typing import TYPE_CHECKING, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Security, status
@@ -16,7 +17,6 @@ from fastapi.responses import JSONResponse
 if TYPE_CHECKING:
     from fastapi import FastAPI
 
-from app.middleware.api_tiers import require_pro_tier
 from app.routers.api_key import api_key_header
 from app.security.rate_limit import (
     RATE_LIMIT_429_RESPONSES,
@@ -119,10 +119,18 @@ def _payment_error_response(
     return JSONResponse(status_code=status_code, content=error.model_dump(mode="json"))
 
 
-def _require_billing_transport_key(
-    x_api_key: Optional[str] = Security(api_key_header),
+def _validate_billing_transport_key(
+    x_api_key: Optional[str],
+    *,
+    validator_resolver: Callable[[], Callable[..., str] | None],
 ) -> str:
-    """Require a validated transport API key without tier or cookie semantics."""
+    """Validate billing transport auth with a strict app-level key validator.
+
+    RU: manual RU/BY routes остаются pre-entitlement, но не принимают произвольный
+    непустой ключ. Transport-auth carveout не ослабляет валидацию ключа.
+    EN: manual RU/BY routes remain pre-entitlement, but they do not accept an
+    arbitrary non-empty key. The transport-auth carveout does not weaken key validation.
+    """
     if x_api_key is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -137,7 +145,7 @@ def _require_billing_transport_key(
             headers={"WWW-Authenticate": "ApiKey"},
         )
 
-    app_get_api_key = _get_app_get_api_key()
+    app_get_api_key = validator_resolver()
     if not callable(app_get_api_key):
         logger.error("Billing transport key validation is unavailable")
         raise HTTPException(
@@ -148,16 +156,12 @@ def _require_billing_transport_key(
     try:
         result = app_get_api_key(normalized_api_key)
     except HTTPException as exc:
-        try:
-            require_pro_tier(x_api_key=normalized_api_key)
-            return normalized_api_key
-        except HTTPException:
-            logger.warning("Billing transport key rejected by app-level validator")
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="API key required for billing verification",
-                headers={"WWW-Authenticate": "ApiKey"},
-            ) from exc
+        logger.warning("Billing transport key rejected by app-level validator")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="API key required for billing verification",
+            headers={"WWW-Authenticate": "ApiKey"},
+        ) from exc
     except Exception as exc:  # pragma: no cover - defensive guard
         logger.exception("Billing transport key validation failed")
         raise HTTPException(
@@ -174,14 +178,59 @@ def _require_billing_transport_key(
     return result
 
 
+def _require_billing_transport_key(
+    x_api_key: Optional[str] = Security(api_key_header),
+) -> str:
+    """Require a strict validated transport API key for billing verification."""
+    return _validate_billing_transport_key(
+        x_api_key,
+        validator_resolver=_get_app_get_api_key,
+    )
+
+
+def _require_manual_billing_transport_key(
+    x_api_key: Optional[str] = Security(api_key_header),
+) -> str:
+    """Require transport auth for manual RU/BY routes before entitlement exists.
+
+    RU: это pre-entitlement transport-auth carveout, а не entitlement truth;
+    route не требует entitlement, но всё равно требует валидированный transport key.
+    EN: this is a pre-entitlement transport-auth carveout, not entitlement truth;
+    the route does not require entitlement, but it still requires a validated transport key.
+    """
+    return _validate_billing_transport_key(
+        x_api_key,
+        validator_resolver=_get_effective_app_get_api_key,
+    )
+
+
 def _get_app_get_api_key():
-    """Resolve the app-level API-key validator via a cached module import."""
+    """Resolve the strict app-level API-key validator from the app module."""
     global _APP_MODULE
     if _APP_MODULE is None:
         import app as app_module
 
         _APP_MODULE = app_module
+
     return getattr(_APP_MODULE, "get_api_key", None)
+
+
+def _get_effective_app_get_api_key():
+    """Resolve the effective app-level API-key validator, honoring overrides."""
+    app_get_api_key = _get_app_get_api_key()
+    if not callable(app_get_api_key):
+        return None
+
+    try:
+        from app.main import app as fastapi_app
+    except Exception:  # pragma: no cover - defensive import guard
+        return app_get_api_key
+
+    dependency_overrides = getattr(fastapi_app, "dependency_overrides", None) or {}
+    override = dependency_overrides.get(app_get_api_key)
+    if callable(override):
+        return override
+    return app_get_api_key
 
 
 def _apple_operational_error_response(
@@ -266,9 +315,9 @@ async def verify_apple_receipt(
 )
 def create_manual_payment_intent(
     payload: ManualRailIntentRequest,
-    x_api_key: str = Depends(require_pro_tier),
+    x_api_key: str = Depends(_require_manual_billing_transport_key),
 ) -> SubscriptionActivationResponse | JSONResponse:
-    """Create manual RU/BY payment intent with pending reconciliation lifecycle."""
+    """Create manual RU/BY payment intent on a pre-entitlement transport-auth surface."""
     activation_request = payments_activation.build_manual_intent_request(payload=payload)
     try:
         activation, is_new = payments_activation.activate_subscription(
@@ -312,9 +361,9 @@ def create_manual_payment_intent(
 )
 def reconcile_manual_payment_intent(
     payload: ManualRailReconcileRequest,
-    x_api_key: str = Depends(require_pro_tier),
+    x_api_key: str = Depends(_require_manual_billing_transport_key),
 ) -> SubscriptionActivationResponse | JSONResponse:
-    """Apply reconciliation decision to pending manual payment intent."""
+    """Apply reconciliation decision on a pre-entitlement transport-auth surface."""
     try:
         return payments_activation.reconcile_activation(
             issuer=_issuer_from_api_key(x_api_key),
@@ -368,9 +417,9 @@ def reconcile_manual_payment_intent(
 )
 def get_manual_payment_intent_status(
     intent_id: str,
-    x_api_key: str = Depends(require_pro_tier),
+    x_api_key: str = Depends(_require_manual_billing_transport_key),
 ) -> SubscriptionActivationResponse | JSONResponse:
-    """Fetch current status of manual payment reconciliation intent."""
+    """Fetch manual payment reconciliation status on a pre-entitlement transport-auth surface."""
     issuer = _issuer_from_api_key(x_api_key)
     try:
         activation = payments_activation.get_reconcile_activation_status(

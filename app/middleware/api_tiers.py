@@ -188,6 +188,10 @@ def _lookup_tier_from_db(api_key: str) -> DBLookupResult:
 
     RU: Пытается определить entitlement из persisted subscriptions и возвращает статус lookup.
     EN: Attempts to resolve entitlement from persisted subscriptions and returns structured status.
+
+    Protected paid routes must derive access only from this persisted backend truth
+    when SUBSCRIPTION_DB_ENABLED=true. Client-declared tier, activation hints, and
+    manual billing entry events are never entitlement authority.
     """
     try:
         from core.db import get_session_factory
@@ -302,6 +306,10 @@ def _resolve_authorized_api_key_tier(
     allow_developer_api_keys = in_developer_env and is_truthy_env_var("ALLOW_DEV_API_KEY", "true")
 
     if _is_subscription_db_enabled():
+        # RU: В DB-backed режиме только persisted entitlement state имеет право
+        # открывать protected paid routes.
+        # EN: In DB-backed mode, only persisted entitlement state may unlock
+        # protected paid routes.
         db_lookup = _lookup_tier_from_db(api_key)
         if db_lookup.status == DBLookupStatus.HIT and db_lookup.tier is not None:
             if _tier_allows_access(db_lookup.tier, required_tier):
