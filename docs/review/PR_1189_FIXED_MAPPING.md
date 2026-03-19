@@ -17,6 +17,21 @@ Evidence: `docs/roadmap/BACKLOG_LEDGER.md:1018`, `docs/roadmap/BACKLOG_LEDGER.md
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1189#discussion_r2958159550 -> 2e222b38
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1189#pullrequestreview-3973150385 -> 2e222b38
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1189#pullrequestreview-3973186431
+Disposition: NOT-A-BUG
+Reason: This cubic review summary aggregates the two inline pre-merge status comments below. The current PR is still open, so B3 must remain in a pending-merge state inside live trackers instead of claiming post-merge completion.
+Evidence: `AGENTS.md:1759`, `AGENTS.md:1761`, `docs/roadmap/BACKLOG_LEDGER.md:20`, `docs/roadmap/PulsePlate_Master_Index_A-E.md:19`
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1189#discussion_r2958197442
+Disposition: NOT-A-BUG
+Reason: The B3 roadmap row is intentionally staged as merge-pending while PR #1189 is open. Marking it `✅ Completed` before merge would misstate the current branch/PR truth and conflict with the repo rule that closure happens only after merge.
+Evidence: `AGENTS.md:1759`, `AGENTS.md:1761`, `docs/roadmap/BACKLOG_LEDGER.md:20`, `docs/roadmap/PulsePlate_Master_Index_A-E.md:19`
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1189#discussion_r2958197456
+Disposition: NOT-A-BUG
+Reason: Re-opening `ledger-p1-ios-storekit-products` is required while PR #1189 is still open. The repo policy explicitly forbids closing a ledger item before merge and requires a docs-only follow-up close-out after the merge cycle completes.
+Evidence: `AGENTS.md:1759`, `AGENTS.md:1761`, `docs/roadmap/BACKLOG_LEDGER.md:20`, `docs/roadmap/BACKLOG_LEDGER.md:1018`
+
 ## Merge Readiness
 
 - Status: ready for review; awaiting current-head CI and bot pass
