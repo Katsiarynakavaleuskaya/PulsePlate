@@ -111,18 +111,10 @@ def _mean_chunk_score(chunks: list["RAGChunk"]) -> float | None:
 
 def _resolve_confidence(
     *,
-    rag_confidence: object,
     chunks_to_use: list["RAGChunk"],
-    philo_enabled: bool,
 ) -> float | None:
-    """Resolve confidence from chunks for philo mode, else prefer normalized RAG confidence."""
+    """Resolve final confidence from the chunks that actually reach the output."""
 
-    if philo_enabled:
-        return _mean_chunk_score(chunks_to_use)
-
-    normalized_confidence = _normalize_confidence_value(rag_confidence)
-    if normalized_confidence is not None:
-        return normalized_confidence
     return _mean_chunk_score(chunks_to_use)
 
 
@@ -166,7 +158,7 @@ async def retrieve_and_validate_rag(
     -----
     - Caller passes feature flag state (keeps core/ decoupled from app/)
     - Lazy imports preserve fail-safe behavior (missing modules don't crash)
-    - Confidence is recalculated from filtered chunks when validation enabled
+        - Confidence is always derived from the chunks that reach the output
     - `recursive_rag_enabled` and `philo_validation_enabled` do not weaken
       tenant isolation; both paths propagate the same `subject_id`
     """
@@ -258,9 +250,7 @@ async def _run_orchestration(
             )
 
         confidence = _resolve_confidence(
-            rag_confidence=rag_ctx.confidence,
             chunks_to_use=chunks_to_use,
-            philo_enabled=philo_enabled,
         )
 
         # Build formatted prompt with RAG context
