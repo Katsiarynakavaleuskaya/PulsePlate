@@ -15,6 +15,7 @@ services:
       - PYTHONPATH=/app
       - API_KEY=${API_KEY}
       - ENVIRONMENT=production
+      - SUBSCRIPTION_DB_ENABLED=${SUBSCRIPTION_DB_ENABLED:-true}
       - DATABASE_URL=${DATABASE_URL:?DATABASE_URL is required}
       - SERVER_SALT=${SERVER_SALT:?SERVER_SALT is required}
       - APPLE_SHARED_SECRET=${APPLE_SHARED_SECRET:?APPLE_SHARED_SECRET is required}
@@ -62,6 +63,7 @@ services:
       - PYTHONPATH=/app
       - API_KEY=${API_KEY}
       - ENVIRONMENT=development
+      - SUBSCRIPTION_DB_ENABLED=${SUBSCRIPTION_DB_ENABLED:-false}
       - SERVER_SALT=${SERVER_SALT:?SERVER_SALT is required}
       - APPLE_SHARED_SECRET=${APPLE_SHARED_SECRET:-replace_me_with_apple_shared_secret}
       - EXPORT_TOKEN_SECRET=${EXPORT_TOKEN_SECRET:-__set_me__}

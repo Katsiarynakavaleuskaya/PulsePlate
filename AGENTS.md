@@ -830,7 +830,7 @@ Source of truth:
 - **iOS Apple verify:** iOS must never call Apple `verifyReceipt` directly. Verification is server-side only; app sends receipt to backend.
 - **RU/BY manual rails:** `erip_qr` and `swift_manual` flows are reconcile-based; activation requires backend verification, not client-declared truth.
 - **Billing Truth Invariant:** Client-supplied payment verification payloads must never be used as the source of truth for persisted entitlement or subscription state. For provider-based automated billing flows (e.g. Apple App Store), backend activation must derive subscription tier/status only from server-side provider verification or a server-signed verification artifact. Unsigned client verification payloads may be accepted only as compatibility input, logging context, or mismatch evidence — never as entitlement truth.
-- **Billing Entitlement Routing Invariant:** Protected PRO/VIP routes must derive access only from canonical backend entitlement/subscription state. Client-declared tier, verification hints, activation attempts, or manual billing entry flows must not unlock protected routes. Billing entry routes may remain transport-auth surfaces before entitlement, but they are not entitlement truth and must not be treated as paid-content access.
+- **Billing Entitlement Routing Invariant:** Protected PRO/VIP routes must derive access only from canonical backend entitlement/subscription state. Client-declared tier, verification hints, activation attempts, or manual billing entry flows must not unlock protected routes. Billing entry routes may remain transport-auth surfaces before entitlement, but they are not entitlement truth and must not be treated as paid-content access. Under `SUBSCRIPTION_DB_ENABLED=true`, protected-route auth is currently fail-closed for every non-`HIT` DB lookup result, including `MISS`, `ERROR`, and `INVALID_TIER`. Any future `MISS` migration exception would need an explicit, time-bounded follow-up before it can ship.
 - **Canonical contract:** `docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md`, `docs/IOS_API_INTEGRATION.md`.
 
 ## Product tiers and API namespaces (canonical)
@@ -982,9 +982,10 @@ Source of truth:
 - **Do not use `Header(...)` in tier dependencies** — use `Security(api_key_header)` to ensure OpenAPI models credentials as security scheme (not per-operation header params). This prevents OpenAPI drift and dirty TypeScript types.
 - **Tier guard order**: Tier checks (403) must run before payload validation (422). Principle: "tier wins over payload".
 - **New metrics/features policy**: Any new metrics (e.g., WHR) must be added via tier-specific schemas + endpoints; FREE contract must not be extended without explicit tier policy decision.
-- **DB lookup policy** (when `SUBSCRIPTION_DB_ENABLED=true`): `ERROR` and `INVALID_TIER` are
-  **fail-closed** (no env fallback). `MISS` may fallback **only during migration**; plan a
-  follow-up to make DB authoritative.
+- **DB lookup policy** (when `SUBSCRIPTION_DB_ENABLED=true`): protected-route auth is
+  **fail-closed** for `MISS`, `ERROR`, and `INVALID_TIER` (no env fallback). If a
+  migration-only `MISS` exception is ever proposed, it must be explicit, time-bounded, and
+  tracked for removal before DB-backed entitlement routing can be called complete.
 
 **See:**
 
