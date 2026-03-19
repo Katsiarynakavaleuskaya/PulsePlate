@@ -29,6 +29,11 @@ Evidence: `core/rag/vector_rag.py` now escapes `LIKE` wildcards in `corpus_prefi
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1194#discussion_r2962873243 -> ac043839
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1194#pullrequestreview-3978158166 -> ac043839
 
+Disposition: FIXED
+Commit: 23efc559
+Evidence: `docs/review/PR_1194_FIXED_MAPPING.md` now keeps each full GitHub review URL unique, reclassifies the outdated CodeRabbit nitpick as `NOT-A-BUG`, and leaves review `pullrequestreview-3978158166` mapped exactly once to the final code-fix commit. This removes the ambiguity called out by Cubic.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1194#discussion_r2962936029 -> 23efc559
+
 ## Merge Readiness
 - [ ] All required checks pass
 - [ ] No unresolved review threads
