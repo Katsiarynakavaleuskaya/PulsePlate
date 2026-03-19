@@ -50,7 +50,7 @@ struct AppleReceiptVerificationResponseDTO: Decodable, Equatable, Sendable {
         case verified
         case verificationState
         case environment
-        case productID
+        case productID = "productId"
         case expiresAt
         case activationPayload
         case error
@@ -157,10 +157,10 @@ struct SubscriptionActivationResponseDTO: Decodable, Equatable, Sendable {
     let paymentSource: String?
 
     private enum CodingKeys: String, CodingKey {
-        case activationID
+        case activationID = "activationId"
         case tier
         case status
-        case productID
+        case productID = "productId"
         case expiresAt
         case activatedAt
         case subscriptionTier
