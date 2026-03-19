@@ -13,7 +13,15 @@ final class SubscriptionBillingServiceTests: XCTestCase {
                 environment: "production",
                 productID: "com.pulseplate.premium.monthly",
                 expiresAt: "2026-04-01T00:00:00Z",
-                activationPayload: AppleActivationHintDTO(tier: .pro, platform: "ios"),
+                activationPayload: IOSVerifiedActivationResultDTO(
+                    transactionID: "txn-001",
+                    originalTransactionID: "orig-001",
+                    productID: "com.pulseplate.premium.monthly",
+                    subscriptionTier: .pro,
+                    status: .active,
+                    expiresAt: "2026-04-01T00:00:00Z",
+                    platform: .ios
+                ),
                 error: nil
             )
         )
@@ -74,6 +82,38 @@ final class SubscriptionBillingServiceTests: XCTestCase {
         XCTAssertEqual(verificationResult["transaction_id"] as? String, "txn-001")
         XCTAssertEqual(verificationResult["subscription_tier"] as? String, "pro")
         XCTAssertEqual(payload["receipt_data"] as? String, "receipt-123")
+    }
+
+    func test_verifyReceiptResponse_decodesFullActivationPayload() throws {
+        let json = """
+        {
+          "provider": "apple",
+          "verified": true,
+          "verification_state": "active",
+          "environment": "production",
+          "product_id": "com.pulseplate.premium.monthly",
+          "expires_at": "2026-04-01T00:00:00Z",
+          "activation_payload": {
+            "transaction_id": "txn-backend",
+            "original_transaction_id": "orig-backend",
+            "product_id": "com.pulseplate.premium.yearly",
+            "subscription_tier": "vip",
+            "status": "expired",
+            "expires_at": "2026-06-01T00:00:00Z",
+            "platform": "ios"
+          }
+        }
+        """.data(using: .utf8)!
+
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        let response = try decoder.decode(AppleReceiptVerificationResponseDTO.self, from: json)
+
+        XCTAssertEqual(response.activationPayload?.transactionID, "txn-backend")
+        XCTAssertEqual(response.activationPayload?.productID, "com.pulseplate.premium.yearly")
+        XCTAssertEqual(response.activationPayload?.subscriptionTier, .vip)
+        XCTAssertEqual(response.activationPayload?.status, .expired)
+        XCTAssertEqual(response.activationPayload?.platform, .ios)
     }
 
     func test_fetchActivationStatus_sendsCanonicalPathAndHeader() async throws {

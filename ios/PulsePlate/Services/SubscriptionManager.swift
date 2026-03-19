@@ -59,8 +59,7 @@ struct EntitlementSnapshot: Equatable, Sendable {
 enum SubscriptionManagerError: Error, Equatable, Sendable {
     case missingAPIKey
     case missingActivationID
-    case missingTierHint
-    case missingProductID
+    case missingActivationPayload
     case restoreTransactionMissing
 }
 
@@ -71,10 +70,8 @@ extension SubscriptionManagerError: LocalizedError {
             return "Subscription flow requires a configured API key."
         case .missingActivationID:
             return "Subscription activation id is unavailable."
-        case .missingTierHint:
-            return "Backend verification did not return a subscription tier hint."
-        case .missingProductID:
-            return "Backend verification did not return a product identifier."
+        case .missingActivationPayload:
+            return "Backend verification did not return an activation payload."
         case .restoreTransactionMissing:
             return "Restore did not produce a verified entitlement transaction."
         }
@@ -304,28 +301,13 @@ final class SubscriptionManager: ObservableObject {
     }
 
     private func makeActivationRequest(
-        from transaction: StoreEntitlementTransaction,
+        from _: StoreEntitlementTransaction,
         receiptData: String,
         verification: AppleReceiptVerificationResponseDTO
     ) throws -> ActivateSubscriptionRequestDTO {
-        guard let productID = verification.productID?.nilIfEmpty ?? transaction.productID.nilIfEmpty else {
-            throw SubscriptionManagerError.missingProductID
+        guard let verificationResult = verification.activationPayload else {
+            throw SubscriptionManagerError.missingActivationPayload
         }
-
-        guard let subscriptionTier = verification.activationPayload?.tier else {
-            throw SubscriptionManagerError.missingTierHint
-        }
-
-        let verificationStatus = normalizeVerificationStatus(verification.verificationState)
-        let verificationResult = IOSVerifiedActivationResultDTO(
-            transactionID: transaction.transactionID,
-            originalTransactionID: transaction.originalTransactionID,
-            productID: productID,
-            subscriptionTier: subscriptionTier,
-            status: verificationStatus,
-            expiresAt: verification.expiresAt,
-            platform: .ios
-        )
 
         return ActivateSubscriptionRequestDTO(
             source: .iosAppStore,
@@ -334,19 +316,6 @@ final class SubscriptionManager: ObservableObject {
                 receiptData: receiptData
             )
         )
-    }
-
-    private func normalizeVerificationStatus(
-        _ verificationState: BillingVerificationState
-    ) -> BillingVerificationStatus {
-        switch verificationState {
-        case .active, .restored:
-            return .active
-        case .expired:
-            return .expired
-        case .invalid:
-            return .rejected
-        }
     }
 
     private func makeEntitlementSnapshot(

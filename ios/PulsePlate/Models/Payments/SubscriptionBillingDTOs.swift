@@ -26,11 +26,6 @@ enum BillingPlatform: String, Codable, Sendable {
     case ios
 }
 
-struct AppleActivationHintDTO: Decodable, Equatable, Sendable {
-    let tier: BillingSubscriptionTier
-    let platform: String
-}
-
 struct AppleProviderErrorDTO: Decodable, Equatable, Sendable {
     let code: String
     let message: String
@@ -47,7 +42,7 @@ struct AppleReceiptVerificationResponseDTO: Decodable, Equatable, Sendable {
     let environment: String?
     let productID: String?
     let expiresAt: String?
-    let activationPayload: AppleActivationHintDTO?
+    let activationPayload: IOSVerifiedActivationResultDTO?
     let error: AppleProviderErrorDTO?
 
     private enum CodingKeys: String, CodingKey {
@@ -62,7 +57,7 @@ struct AppleReceiptVerificationResponseDTO: Decodable, Equatable, Sendable {
     }
 }
 
-struct IOSVerifiedActivationResultDTO: Encodable, Equatable, Sendable {
+struct IOSVerifiedActivationResultDTO: Codable, Equatable, Sendable {
     let transactionID: String
     let originalTransactionID: String?
     let productID: String
@@ -70,6 +65,74 @@ struct IOSVerifiedActivationResultDTO: Encodable, Equatable, Sendable {
     let status: BillingVerificationStatus
     let expiresAt: String?
     let platform: BillingPlatform
+
+    // RU: Декодирование идёт через HTTPClient с `.convertFromSnakeCase`, поэтому ключи
+    // здесь должны совпадать с уже преобразованными именами (`transactionId`).
+    // Кодирование для activate-request остаётся канонически snake_case, поэтому для
+    // encode используется отдельный набор ключей ниже.
+    // EN: Decoding goes through HTTPClient with `.convertFromSnakeCase`, so these keys
+    // must match the already-transformed names (`transactionId`).
+    // Encoding for the activate request must stay canonical snake_case, so encode uses
+    // a separate key set below.
+    private enum DecodingKeys: String, CodingKey {
+        case transactionID = "transactionId"
+        case originalTransactionID = "originalTransactionId"
+        case productID = "productId"
+        case subscriptionTier
+        case status
+        case expiresAt
+        case platform
+    }
+
+    private enum EncodingKeys: String, CodingKey {
+        case transactionID = "transaction_id"
+        case originalTransactionID = "original_transaction_id"
+        case productID = "product_id"
+        case subscriptionTier = "subscription_tier"
+        case status
+        case expiresAt = "expires_at"
+        case platform
+    }
+
+    init(
+        transactionID: String,
+        originalTransactionID: String?,
+        productID: String,
+        subscriptionTier: BillingSubscriptionTier,
+        status: BillingVerificationStatus,
+        expiresAt: String?,
+        platform: BillingPlatform
+    ) {
+        self.transactionID = transactionID
+        self.originalTransactionID = originalTransactionID
+        self.productID = productID
+        self.subscriptionTier = subscriptionTier
+        self.status = status
+        self.expiresAt = expiresAt
+        self.platform = platform
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: DecodingKeys.self)
+        self.transactionID = try container.decode(String.self, forKey: .transactionID)
+        self.originalTransactionID = try container.decodeIfPresent(String.self, forKey: .originalTransactionID)
+        self.productID = try container.decode(String.self, forKey: .productID)
+        self.subscriptionTier = try container.decode(BillingSubscriptionTier.self, forKey: .subscriptionTier)
+        self.status = try container.decode(BillingVerificationStatus.self, forKey: .status)
+        self.expiresAt = try container.decodeIfPresent(String.self, forKey: .expiresAt)
+        self.platform = try container.decode(BillingPlatform.self, forKey: .platform)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: EncodingKeys.self)
+        try container.encode(transactionID, forKey: .transactionID)
+        try container.encodeIfPresent(originalTransactionID, forKey: .originalTransactionID)
+        try container.encode(productID, forKey: .productID)
+        try container.encode(subscriptionTier, forKey: .subscriptionTier)
+        try container.encode(status, forKey: .status)
+        try container.encodeIfPresent(expiresAt, forKey: .expiresAt)
+        try container.encode(platform, forKey: .platform)
+    }
 }
 
 struct IOSAppStoreActivationPayloadDTO: Encodable, Equatable, Sendable {
