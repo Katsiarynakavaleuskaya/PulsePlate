@@ -184,7 +184,6 @@ final class SubscriptionManager: ObservableObject {
                     apiKey: apiKey
                 )
                 let activationRequest = try makeActivationRequest(
-                    from: transaction,
                     receiptData: receiptData,
                     verification: verification
                 )
@@ -222,7 +221,6 @@ final class SubscriptionManager: ObservableObject {
                 apiKey: apiKey
             )
             let activationRequest = try makeActivationRequest(
-                from: transaction,
                 receiptData: receiptData,
                 verification: verification
             )
@@ -301,7 +299,6 @@ final class SubscriptionManager: ObservableObject {
     }
 
     private func makeActivationRequest(
-        from _: StoreEntitlementTransaction,
         receiptData: String,
         verification: AppleReceiptVerificationResponseDTO
     ) throws -> ActivateSubscriptionRequestDTO {
@@ -309,6 +306,12 @@ final class SubscriptionManager: ObservableObject {
             throw SubscriptionManagerError.missingActivationPayload
         }
 
+        // RU: `activationPayload` — это канонический backend handoff для activate-запроса.
+        // `verificationState` остаётся envelope-метаданными verify-ответа и намеренно не
+        // ремапится здесь, чтобы клиент не реконструировал billing truth локально.
+        // EN: `activationPayload` is the canonical backend handoff for the activate request.
+        // `verificationState` stays verify-response envelope metadata and is intentionally
+        // not remapped here so the client does not reconstruct billing truth locally.
         return ActivateSubscriptionRequestDTO(
             source: .iosAppStore,
             payload: IOSAppStoreActivationPayloadDTO(
