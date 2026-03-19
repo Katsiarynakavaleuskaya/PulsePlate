@@ -182,6 +182,56 @@ async def test_lifespan_accepts_valid_pro_llm_monthly_limit(
     monkeypatch.setenv("APPLE_SHARED_SECRET", "apple-shared-secret-for-tests")
     monkeypatch.setenv("SERVER_SALT", "StrongServerSaltForTests123456789!")
     monkeypatch.setenv("PRO_LLM_INSIGHT_REQUESTS_PER_MONTH", "50")
+    monkeypatch.setenv("SUBSCRIPTION_DB_ENABLED", "true")
+
+    async with app.lifespan(app.app):
+        pass
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("runtime_env", ["production", "staging"])
+async def test_lifespan_requires_subscription_db_enabled_in_production_like_env(
+    monkeypatch: pytest.MonkeyPatch,
+    runtime_env: str,
+) -> None:
+    """Paid-route entitlement mode must fail closed without DB truth in prod/staging."""
+
+    lifespan_globals = app.lifespan.__wrapped__.__globals__
+    monkeypatch.setitem(lifespan_globals, "run_startup_guards", bootstrap_guards.run_startup_guards)
+    monkeypatch.setenv("ENVIRONMENT", runtime_env)
+    monkeypatch.setenv("DEBUG", "false")
+    monkeypatch.setenv("ALLOW_DEV_API_KEY", "false")
+    monkeypatch.setenv("ALLOW_ANONYMOUS_API_KEYS", "false")
+    monkeypatch.setenv("APPLE_SHARED_SECRET", "apple-shared-secret-for-tests")
+    monkeypatch.setenv("SERVER_SALT", "StrongServerSaltForTests123456789!")
+    monkeypatch.setenv("PRO_LLM_INSIGHT_REQUESTS_PER_MONTH", "50")
+    monkeypatch.setenv("VIP_LLM_INSIGHT_REQUESTS_PER_MONTH", "50")
+    monkeypatch.setenv("SUBSCRIPTION_DB_ENABLED", "false")
+
+    with pytest.raises(RuntimeError, match="SUBSCRIPTION_DB_ENABLED"):
+        async with app.lifespan(app.app):
+            pass
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("runtime_env", ["local", "dev", "development", "test", "testing", "ci"])
+async def test_lifespan_allows_subscription_db_disabled_outside_production_like_env(
+    monkeypatch: pytest.MonkeyPatch,
+    runtime_env: str,
+) -> None:
+    """Local/dev/test-like environments keep non-fatal startup for DB-backed entitlement mode."""
+
+    lifespan_globals = app.lifespan.__wrapped__.__globals__
+    monkeypatch.setitem(lifespan_globals, "run_startup_guards", bootstrap_guards.run_startup_guards)
+    monkeypatch.setenv("ENVIRONMENT", runtime_env)
+    monkeypatch.setenv("DEBUG", "true")
+    monkeypatch.setenv("ALLOW_DEV_API_KEY", "false")
+    monkeypatch.setenv("ALLOW_ANONYMOUS_API_KEYS", "false")
+    monkeypatch.setenv("SERVER_SALT", "StrongServerSaltForTests123456789!")
+    monkeypatch.setenv("PRO_LLM_INSIGHT_REQUESTS_PER_MONTH", "50")
+    monkeypatch.setenv("VIP_LLM_INSIGHT_REQUESTS_PER_MONTH", "50")
+    monkeypatch.setenv("SUBSCRIPTION_DB_ENABLED", "false")
+    monkeypatch.delenv("APPLE_SHARED_SECRET", raising=False)
 
     async with app.lifespan(app.app):
         pass

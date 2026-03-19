@@ -718,6 +718,18 @@ def test_get_app_get_api_key_imports_and_caches_validator(
     assert billing._APP_MODULE is app_module
 
 
+def test_get_effective_app_get_api_key_returns_none_when_validator_missing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import app as app_module
+    from app.routers import billing
+
+    billing._APP_MODULE = None
+    monkeypatch.setattr(app_module, "get_api_key", None, raising=False)
+
+    assert billing._get_effective_app_get_api_key() is None
+
+
 def test_require_billing_transport_key_returns_normalized_key(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

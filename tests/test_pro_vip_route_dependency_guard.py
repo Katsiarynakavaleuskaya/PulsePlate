@@ -8,6 +8,7 @@ from fastapi.dependencies.models import Dependant
 from fastapi.routing import APIRoute
 
 from app.middleware.api_tiers import require_pro_tier, require_vip_tier
+from app.routers.billing import _require_manual_billing_transport_key
 from app.routers.api_key import api_key_header
 
 CANONICAL_PREFIX_GUARD = {
@@ -20,6 +21,12 @@ LEGACY_HTTP_ALIAS_ALLOWLIST = {
 PRE_ENTITLEMENT_ROUTE_ALLOWLIST = {
     ("POST", "/api/v1/pro/payments/activate"): api_key_header,
     ("GET", "/api/v1/pro/payments/activations/{activation_id}"): api_key_header,
+    ("POST", "/api/v1/pro/payments/ru-by/manual-intent"): _require_manual_billing_transport_key,
+    ("POST", "/api/v1/pro/payments/ru-by/reconcile"): _require_manual_billing_transport_key,
+    (
+        "GET",
+        "/api/v1/pro/payments/ru-by/reconcile/{intent_id}",
+    ): _require_manual_billing_transport_key,
 }
 
 
@@ -56,6 +63,26 @@ def _canonical_pro_vip_routes(routes: list[APIRoute]) -> list[APIRoute]:
     return canonical
 
 
+def _dependency_key(call: Callable[..., Any]) -> tuple[str, str]:
+    module_name = getattr(call, "__module__", type(call).__module__)
+    qualified_name = getattr(
+        call,
+        "__qualname__",
+        getattr(call, "__name__", type(call).__name__),
+    )
+    return module_name, qualified_name
+
+
+def _contains_dependency(
+    flattened_calls: list[Callable[..., Any]],
+    expected_dependency: Callable[..., Any],
+) -> bool:
+    if expected_dependency in flattened_calls:
+        return True
+    expected_key = _dependency_key(expected_dependency)
+    return any(_dependency_key(call) == expected_key for call in flattened_calls)
+
+
 def test_canonical_pro_vip_routes_require_expected_tier_dependency(app: FastAPI) -> None:
     routes = _canonical_pro_vip_routes(_load_routes(app))
     missing_guards: list[str] = []
@@ -75,7 +102,7 @@ def test_canonical_pro_vip_routes_require_expected_tier_dependency(app: FastAPI)
             ]
             if matching_allowlist:
                 expected_dependency = matching_allowlist[0]
-                if expected_dependency not in flattened_calls:
+                if not _contains_dependency(flattened_calls, expected_dependency):
                     methods = ",".join(sorted(route.methods))
                     names = ", ".join(
                         getattr(call, "__name__", type(call).__name__) for call in flattened_calls

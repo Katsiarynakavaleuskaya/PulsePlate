@@ -10,7 +10,7 @@ from tests.payment_test_utils import json_response_payload as _json
 pytestmark = pytest.mark.usefixtures("reset_payments_state")
 
 
-def test_billing_transport_key_falls_back_to_pro_tier(
+def test_manual_billing_transport_key_rejects_invalid_key_when_subscription_db_mode_is_enabled(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from app.routers import billing
@@ -19,29 +19,33 @@ def test_billing_transport_key_falls_back_to_pro_tier(
         raise HTTPException(status_code=401, detail="transport key rejected")
 
     monkeypatch.setattr(billing, "_get_app_get_api_key", lambda: _reject_transport_key)
-    monkeypatch.setattr(billing, "require_pro_tier", lambda x_api_key: x_api_key)
-
-    assert billing._require_billing_transport_key("pro-key") == "pro-key"
-
-
-def test_billing_transport_key_rejects_request_without_pro_tier(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    from app.routers import billing
-
-    def _reject_transport_key(_: str) -> str:
-        raise HTTPException(status_code=401, detail="transport key rejected")
-
-    def _reject_pro_tier(*, x_api_key: str) -> str:
-        raise HTTPException(status_code=403, detail=f"{x_api_key} is not PRO")
-
-    monkeypatch.setattr(billing, "_get_app_get_api_key", lambda: _reject_transport_key)
-    monkeypatch.setattr(billing, "require_pro_tier", _reject_pro_tier)
+    monkeypatch.setenv("SUBSCRIPTION_DB_ENABLED", "true")
 
     with pytest.raises(
         HTTPException, match="API key required for billing verification"
     ) as exc_info:
-        billing._require_billing_transport_key("free-key")
+        billing._require_manual_billing_transport_key("pro-key")
+
+    assert exc_info.value.status_code == 401
+
+
+def test_manual_billing_transport_key_rejects_request_when_subscription_db_mode_is_disabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.routers import billing
+
+    def _reject_transport_key(_: str) -> str:
+        raise HTTPException(status_code=401, detail="transport key rejected")
+
+    monkeypatch.setattr(billing, "_get_app_get_api_key", lambda: _reject_transport_key)
+    monkeypatch.setenv("SUBSCRIPTION_DB_ENABLED", "false")
+    monkeypatch.setenv("ENVIRONMENT", "production")
+    monkeypatch.setenv("DEBUG", "false")
+
+    with pytest.raises(
+        HTTPException, match="API key required for billing verification"
+    ) as exc_info:
+        billing._require_manual_billing_transport_key("free-key")
 
     assert exc_info.value.status_code == 401
 

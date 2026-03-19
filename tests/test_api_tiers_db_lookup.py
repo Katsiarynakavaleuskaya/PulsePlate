@@ -106,6 +106,23 @@ def test_lookup_tier_from_db_returns_free_for_non_active_entitlements() -> None:
     assert result.tier == SubscriptionTier.FREE
 
 
+def test_lookup_tier_from_db_returns_free_for_cancelled_entitlement() -> None:
+    """Cancelled persisted entitlements must not unlock protected paid routes."""
+
+    future = datetime.now(timezone.utc) + timedelta(days=14)
+    _persist_subscription(
+        api_key="cancelled-subscription-key",  # pragma: allowlist secret
+        source="ios_app_store",
+        tier="vip",
+        status="cancelled",
+        expires_at=future,
+    )
+
+    result = api_tiers_mod._lookup_tier_from_db("cancelled-subscription-key")
+    assert result.status == DBLookupStatus.HIT
+    assert result.tier == SubscriptionTier.FREE
+
+
 def test_lookup_tier_from_db_parses_free_tier_and_normalizes_aware_expiry() -> None:
     """Aware datetimes must normalize to UTC and a persisted free tier must stay free."""
 

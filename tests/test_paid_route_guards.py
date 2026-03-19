@@ -272,6 +272,38 @@ def test_pending_manual_review_does_not_unlock_paid_routes(
     assert client.get("/api/v1/vip/health", headers=pro_headers).status_code == 403
 
 
+def test_manual_ru_by_entry_routes_remain_callable_before_entitlement(
+    client: TestClient,
+    pro_headers: dict[str, str],
+) -> None:
+    """Manual RU/BY entry routes stay transport-auth accessible before entitlement exists."""
+
+    create_intent = client.post(
+        "/api/v1/pro/payments/ru-by/manual-intent",
+        headers=pro_headers,
+        json={
+            "source": "erip_qr",
+            "plan": "pro_monthly",
+            "client_event_id": "evt-transport-auth-1",
+            "external_txn_id": "erip-transport-auth-1",
+            "amount_minor": 1999,
+            "currency": "BYN",
+        },
+    )
+    assert create_intent.status_code == 201, create_intent.text
+    intent_id = _json(create_intent)["intent_id"]
+
+    status_response = client.get(
+        f"/api/v1/pro/payments/ru-by/reconcile/{intent_id}",
+        headers=pro_headers,
+    )
+    assert status_response.status_code == 200, status_response.text
+    assert _json(status_response)["reconcile_status"] == "pending"
+
+    assert client.get("/api/v1/pro/session", headers=pro_headers).status_code == 403
+    assert client.get("/api/v1/vip/health", headers=pro_headers).status_code == 403
+
+
 def test_cancelled_entitlement_does_not_unlock_paid_routes(
     client: TestClient,
     vip_headers: dict[str, str],
