@@ -33,6 +33,7 @@ from core.rag.rag_constants import (
 
 if TYPE_CHECKING:
     from providers.embeddings import EmbeddingProvider
+    from sqlalchemy.sql.selectable import TableClause
 
 logger = logging.getLogger(__name__)
 
@@ -80,6 +81,41 @@ def _cosine_similarity(a: list[float], b: list[float]) -> float:
     return dot / (norm_a * norm_b)
 
 
+def _user_knowledge_table() -> TableClause:
+    """Return a lightweight SQLAlchemy table descriptor for ``user_knowledge``."""
+
+    from sqlalchemy import column, table
+
+    return table(
+        "user_knowledge",
+        column("id"),
+        column("content"),
+        column("source"),
+        column("embedding"),
+        column("user_id"),
+    )
+
+
+def _escape_like_prefix(prefix: str) -> str:
+    """Escape SQL LIKE wildcards in a corpus prefix before appending ``%``."""
+
+    escaped_prefix = prefix.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    return f"{escaped_prefix}%"
+
+
+def _has_expected_embedding_dimensions(query_embedding: list[float]) -> bool:
+    """Return whether a query embedding matches the configured vector size."""
+
+    if len(query_embedding) != EMBEDDING_DIMENSIONS:
+        logger.error(
+            "Query embedding length %d != expected %d",
+            len(query_embedding),
+            EMBEDDING_DIMENSIONS,
+        )
+        return False
+    return True
+
+
 # ---------------------------------------------------------------------------
 # Vector retrieval (dialect-aware)
 # ---------------------------------------------------------------------------
@@ -97,33 +133,52 @@ def _retrieve_vector_postgres(
     If corpus_prefixes is provided, filters results to rows where source
     starts with one of the given prefixes (agent-specific corpus filtering).
     """
-    from sqlalchemy import text
+    from pgvector.sqlalchemy import VECTOR
+    from sqlalchemy import BigInteger, Integer, String, bindparam, cast, or_, select
 
-    # Format embedding explicitly into pgvector's canonical text form
-    # instead of relying on str(list) which may have inconsistent formatting.
-    qvec_text = "[" + ",".join(str(x) for x in query_embedding) + "]"
+    user_knowledge = _user_knowledge_table()
 
-    # Build WHERE clause with optional corpus filtering
-    where_clause = "WHERE embedding IS NOT NULL AND user_id = :subject_id"
+    vector_type = VECTOR(EMBEDDING_DIMENSIONS)
+    qvec_param = bindparam("qvec", type_=vector_type)
+    qvec_vector = cast(qvec_param, vector_type)
+    limit_param = bindparam("lim", type_=Integer())
+    similarity = (1 - user_knowledge.c.embedding.op("<=>")(qvec_vector)).label("similarity")
+
+    stmt = (
+        select(
+            user_knowledge.c.id,
+            user_knowledge.c.content,
+            user_knowledge.c.source,
+            similarity,
+        )
+        .where(
+            user_knowledge.c.embedding.is_not(None),
+            user_knowledge.c.user_id == bindparam("subject_id", type_=BigInteger()),
+        )
+        .order_by(similarity.desc())
+        .limit(limit_param)
+    )
+
     params: dict[str, Any] = {
-        "qvec": qvec_text,
+        "qvec": query_embedding,
         "lim": limit,
         "subject_id": subject_id,
     }
 
     if corpus_prefixes:
-        # Build OR conditions for each prefix using LIKE
         prefix_conditions = []
         for i, prefix in enumerate(corpus_prefixes):
             param_name = f"prefix_{i}"
-            prefix_conditions.append(f"source LIKE :{param_name}")
-            params[param_name] = f"{prefix}%"
+            prefix_conditions.append(
+                user_knowledge.c.source.like(
+                    bindparam(param_name, type_=String()),
+                    escape="\\",
+                )
+            )
+            params[param_name] = _escape_like_prefix(prefix)
         if prefix_conditions:
-            where_clause += " AND (" + " OR ".join(prefix_conditions) + ")"
+            stmt = stmt.where(or_(*prefix_conditions))
 
-    # Safe: where_clause built from hardcoded AGENT_CORPUS_MAP, values use placeholders
-    sql = f"SELECT id, content, source, 1 - (embedding <=> :qvec::vector) AS similarity FROM user_knowledge {where_clause} ORDER BY embedding <=> :qvec::vector LIMIT :lim"  # nosec B608: where_clause is built from fixed predicates and bound params only (remove-by: 2026-04-30, ref: PR-TBD-RAG-TENANT-SCOPE)
-    stmt = text(sql)
     rows = session.execute(stmt, params).fetchall()
     return [(row, row.similarity) for row in rows]
 
@@ -140,36 +195,41 @@ def _retrieve_vector_sqlite(
     If corpus_prefixes is provided, filters results to rows where source
     starts with one of the given prefixes (agent-specific corpus filtering).
     """
-    from sqlalchemy import text
+    from sqlalchemy import BigInteger, String, bindparam, or_, select
 
-    # Build WHERE clause with optional corpus filtering
-    where_clause = "WHERE embedding IS NOT NULL AND user_id = :subject_id"
+    user_knowledge = _user_knowledge_table()
+
+    stmt = select(
+        user_knowledge.c.id,
+        user_knowledge.c.content,
+        user_knowledge.c.source,
+        user_knowledge.c.embedding,
+    ).where(
+        user_knowledge.c.embedding.is_not(None),
+        user_knowledge.c.user_id == bindparam("subject_id", type_=BigInteger()),
+    )
+
     params: dict[str, Any] = {"subject_id": subject_id}
 
     if corpus_prefixes:
         prefix_conditions = []
         for i, prefix in enumerate(corpus_prefixes):
             param_name = f"prefix_{i}"
-            prefix_conditions.append(f"source LIKE :{param_name}")
-            params[param_name] = f"{prefix}%"
+            prefix_conditions.append(
+                user_knowledge.c.source.like(
+                    bindparam(param_name, type_=String()),
+                    escape="\\",
+                )
+            )
+            params[param_name] = _escape_like_prefix(prefix)
         if prefix_conditions:
-            where_clause += " AND (" + " OR ".join(prefix_conditions) + ")"
+            stmt = stmt.where(or_(*prefix_conditions))
 
-    # Safe: where_clause built from hardcoded AGENT_CORPUS_MAP, values use placeholders
-    sql = f"SELECT id, content, source, embedding FROM user_knowledge {where_clause}"  # nosec B608: where_clause is built from fixed predicates and bound params only (remove-by: 2026-04-30, ref: PR-TBD-RAG-TENANT-SCOPE)
-    rows = session.execute(
-        text(sql),
-        params,
-    ).fetchall()
+    rows = session.execute(stmt, params).fetchall()
 
     scored: list[tuple[Any, float]] = []
 
-    if len(query_embedding) != EMBEDDING_DIMENSIONS:
-        logger.error(
-            "Query embedding length %d != expected %d",
-            len(query_embedding),
-            EMBEDDING_DIMENSIONS,
-        )
+    if not _has_expected_embedding_dimensions(query_embedding):
         return []
 
     for row in rows:
@@ -212,6 +272,8 @@ def _retrieve_vector_from_db(
     if not query_vectors:
         return _empty_context(query, agent_id, user_tier, start)
     query_embedding = query_vectors[0]
+    if not _has_expected_embedding_dimensions(query_embedding):
+        return _empty_context(query, agent_id, user_tier, start)
 
     from core.db import session_scope
 

@@ -15,8 +15,6 @@ core/db_fallback.py:156 remove-by=2026-04-30 ref=PR-985
 core/food_apis/usda_client.py:126 remove-by=2026-04-30 ref=PR-985
 core/integrated_bayesian_analyzer.py:23 remove-by=2026-04-30 ref=PR-985
 core/menu_engine_new.py:171 remove-by=2026-04-30 ref=PR-985
-core/rag/vector_rag.py:118 remove-by=2026-04-30 ref=PR-985
-core/rag/vector_rag.py:151 remove-by=2026-04-30 ref=PR-985
 core/recipe_db_new.py:74 remove-by=2026-04-30 ref=PR-985
 core/recipe_db_new.py:174 remove-by=2026-04-30 ref=PR-985
 scripts/analyze_coverage_gaps.py:8 remove-by=2026-04-30 ref=PR-985

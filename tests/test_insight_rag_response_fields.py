@@ -127,6 +127,43 @@ def _make_fake_recursive_structured(
     )
 
 
+def _make_stale_confidence_structured(
+    query: str,
+    max_chunks: int = 3,
+    agent_id: str | None = None,
+    user_tier: str | None = None,
+    subject_id: int | None = None,
+) -> _FakeRAGContext:
+    """Fake retriever output with stale aggregate confidence."""
+    del subject_id
+    chunks = [
+        _FakeRAGChunk(
+            chunk_id="readme.md:1",
+            file="readme.md",
+            content="BMI is body mass index.",
+            score=0.9,
+            hop=1,
+        ),
+        _FakeRAGChunk(
+            chunk_id="faq.md:1",
+            file="faq.md",
+            content="Helpful wellness FAQ.",
+            score=0.7,
+            hop=1,
+        ),
+    ]
+    return _FakeRAGContext(
+        query=query,
+        refined_queries=[query],
+        chunks=chunks[:max_chunks],
+        confidence=0.1,
+        hops=1,
+        latency_ms=24,
+        agent_id=agent_id,
+        user_tier=user_tier,
+    )
+
+
 class _EchoProvider:
     name = "echo"
 
@@ -211,6 +248,76 @@ class TestInsightV1RAGFields:
         # hops and latency_ms reflect the RAG call metadata even when chunks are empty
         assert data["hops"] == 1
         assert data["latency_ms"] == 5
+
+    def test_rag_response_confidence_uses_active_output_chunks(
+        self,
+        client: TestClient,
+        monkeypatch: pytest.MonkeyPatch,
+        vip_headers: dict[str, str],
+    ) -> None:
+        """API confidence should be recomputed from returned chunks, not stale retriever metadata."""
+        import llm
+
+        monkeypatch.setenv("FEATURE_INSIGHT", "true")
+        monkeypatch.setenv("FEATURE_RAG", "true")
+        monkeypatch.setattr(llm, "get_provider", lambda: _EchoProvider(), raising=True)
+        monkeypatch.setattr(
+            "core.rag.vector_rag.retrieve_context_structured",
+            _make_stale_confidence_structured,
+            raising=True,
+        )
+
+        resp = client.post("/api/v1/insight", json={"text": "What is BMI?"}, headers=vip_headers)
+        assert resp.status_code == 200
+        assert resp.headers.get("content-type", "").startswith("application/json")
+        data = resp.json()
+        assert data["rag_used"] is True
+        assert data["confidence"] == 0.8
+        assert len(data["sources"]) == 2
+
+    def test_rag_response_confidence_uses_filtered_subset_chunks(
+        self,
+        client: TestClient,
+        monkeypatch: pytest.MonkeyPatch,
+        vip_headers: dict[str, str],
+    ) -> None:
+        """Endpoint confidence should follow the filtered subset that survives validation."""
+        import llm
+        from core.rag.philosophy_pipeline import PipelineResult
+
+        rag_ctx = _make_stale_confidence_structured("What is BMI?")
+        filtered_subset = [rag_ctx.chunks[0]]
+        pipeline_result = PipelineResult(
+            filtered_chunks=filtered_subset,
+            stage_results=[],
+            warnings=["medical_boundary: chunk faq.md:1 rejected"],
+            total_latency_ms=1.0,
+        )
+
+        monkeypatch.setenv("FEATURE_INSIGHT", "true")
+        monkeypatch.setenv("FEATURE_RAG", "true")
+        monkeypatch.setenv("FEATURE_PHILOSOPHY_VALIDATION", "true")
+        monkeypatch.setattr(llm, "get_provider", lambda: _EchoProvider(), raising=True)
+        monkeypatch.setattr(
+            "core.rag.vector_rag.retrieve_context_structured",
+            lambda *args, **kwargs: rag_ctx,
+            raising=True,
+        )
+        monkeypatch.setattr(
+            "core.rag.philosophy_pipeline.run_pipeline",
+            lambda chunks, query: pipeline_result,
+            raising=True,
+        )
+
+        resp = client.post("/api/v1/insight", json={"text": "What is BMI?"}, headers=vip_headers)
+        assert resp.status_code == 200
+        assert resp.headers.get("content-type", "").startswith("application/json")
+        data = resp.json()
+        assert data["rag_used"] is True
+        assert data["confidence"] == 0.9
+        assert len(data["sources"]) == 1
+        assert data["sources"][0]["chunk_id"] == "readme.md:1"
+        assert data["sources"][0]["score"] == 0.9
 
     def test_rag_disabled_returns_defaults(
         self,
