@@ -121,6 +121,15 @@ def _tier_allows_access(tier: SubscriptionTier, required_tier: SubscriptionTier)
     return True
 
 
+def tier_allows_access(tier: SubscriptionTier, required_tier: SubscriptionTier) -> bool:
+    """Public wrapper for stable tier-compatibility checks.
+
+    RU: Публичная обёртка для проверки совместимости tier access.
+    EN: Public wrapper for tier-compatibility checks.
+    """
+    return _tier_allows_access(tier, required_tier)
+
+
 def _parse_tier_value(raw_tier: str) -> SubscriptionTier | None:
     """Convert DB/env tier string to SubscriptionTier enum safely."""
     normalized = raw_tier.strip().upper()
@@ -282,6 +291,15 @@ def _resolve_tier_from_env(
         return SubscriptionTier.PRO
 
     return None
+
+
+def resolve_tier_from_env(api_key: str, *, allow_test_keys: bool = True) -> SubscriptionTier | None:
+    """Public wrapper for env-backed tier resolution.
+
+    RU: Публичная обёртка для env-backed tier resolution.
+    EN: Public wrapper for env-backed tier resolution.
+    """
+    return _resolve_tier_from_env(api_key, allow_test_keys=allow_test_keys)
 
 
 def _is_production_environment() -> tuple[bool, str]:

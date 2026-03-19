@@ -17,7 +17,11 @@ from fastapi.responses import JSONResponse
 if TYPE_CHECKING:
     from fastapi import FastAPI
 
-from app.middleware.api_tiers import SubscriptionTier, _resolve_tier_from_env, _tier_allows_access
+from app.middleware.api_tiers import (
+    SubscriptionTier,
+    resolve_tier_from_env,
+    tier_allows_access,
+)
 from app.routers.api_key import api_key_header
 from app.security.rate_limit import (
     RATE_LIMIT_429_RESPONSES,
@@ -249,8 +253,8 @@ def _resolve_manual_transport_key_fallback(api_key: str) -> str | None:
         "ALLOW_DEV_API_KEY",
         "true",
     )
-    resolved_tier = _resolve_tier_from_env(api_key, allow_test_keys=allow_test_keys)
-    if resolved_tier is not None and _tier_allows_access(resolved_tier, SubscriptionTier.PRO):
+    resolved_tier = resolve_tier_from_env(api_key, allow_test_keys=allow_test_keys)
+    if resolved_tier is not None and tier_allows_access(resolved_tier, SubscriptionTier.PRO):
         return api_key
     return None
 

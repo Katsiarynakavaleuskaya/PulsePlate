@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import HTTPException
+from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
 import pytest
@@ -39,14 +39,13 @@ def test_manual_intent_rejects_invalid_transport_key_behaviorally(
 
 
 def test_manual_intent_accepts_env_configured_pro_key_without_entitlement_in_db_mode(
-    client: TestClient,
+    app: FastAPI,
     pro_headers: dict[str, str],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     import app as app_module
-    from app.main import app as canonical_app
 
-    original_override = canonical_app.dependency_overrides.pop(app_module.get_api_key, None)
+    original_override = app.dependency_overrides.pop(app_module.get_api_key, None)
     monkeypatch.setenv("SUBSCRIPTION_DB_ENABLED", "true")
     monkeypatch.setenv("ENVIRONMENT", "production")
     monkeypatch.setenv("DEBUG", "false")
@@ -54,24 +53,26 @@ def test_manual_intent_accepts_env_configured_pro_key_without_entitlement_in_db_
     monkeypatch.setenv("PRO_API_KEYS", pro_headers["X-API-Key"])
 
     try:
-        response = client.post(
-            "/api/v1/pro/payments/ru-by/manual-intent",
-            headers=pro_headers,
-            json={
-                "source": "erip_qr",
-                "plan": "pro_monthly",
-                "client_event_id": "evt-pre-entitlement-db-mode",
-                "external_txn_id": "pre-entitlement-db-mode",
-                "amount_minor": 1999,
-                "currency": "BYN",
-            },
-        )
+        with TestClient(app) as isolated_client:
+            response = isolated_client.post(
+                "/api/v1/pro/payments/ru-by/manual-intent",
+                headers=pro_headers,
+                json={
+                    "source": "erip_qr",
+                    "plan": "pro_monthly",
+                    "client_event_id": "evt-pre-entitlement-db-mode",
+                    "external_txn_id": "pre-entitlement-db-mode",
+                    "amount_minor": 1999,
+                    "currency": "BYN",
+                },
+            )
+            session_response = isolated_client.get("/api/v1/pro/session", headers=pro_headers)
     finally:
         if original_override is not None:
-            canonical_app.dependency_overrides[app_module.get_api_key] = original_override
+            app.dependency_overrides[app_module.get_api_key] = original_override
 
     assert response.status_code == 201, response.text
-    assert client.get("/api/v1/pro/session", headers=pro_headers).status_code == 403
+    assert session_response.status_code == 403
 
 
 def test_manual_intent_happy_path(
