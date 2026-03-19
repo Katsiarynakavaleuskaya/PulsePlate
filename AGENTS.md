@@ -830,6 +830,7 @@ Source of truth:
 - **iOS Apple verify:** iOS must never call Apple `verifyReceipt` directly. Verification is server-side only; app sends receipt to backend.
 - **RU/BY manual rails:** `erip_qr` and `swift_manual` flows are reconcile-based; activation requires backend verification, not client-declared truth.
 - **Billing Truth Invariant:** Client-supplied payment verification payloads must never be used as the source of truth for persisted entitlement or subscription state. For provider-based automated billing flows (e.g. Apple App Store), backend activation must derive subscription tier/status only from server-side provider verification or a server-signed verification artifact. Unsigned client verification payloads may be accepted only as compatibility input, logging context, or mismatch evidence — never as entitlement truth.
+- **Billing Entitlement Routing Invariant:** Protected PRO/VIP routes must derive access only from canonical backend entitlement/subscription state. Client-declared tier, verification hints, activation attempts, or manual billing entry flows must not unlock protected routes. Billing entry routes may remain transport-auth surfaces before entitlement, but they are not entitlement truth and must not be treated as paid-content access.
 - **Canonical contract:** `docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md`, `docs/IOS_API_INTEGRATION.md`.
 
 ## Product tiers and API namespaces (canonical)

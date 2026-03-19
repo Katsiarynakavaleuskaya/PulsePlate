@@ -31,6 +31,13 @@ Implemented endpoints (evidence: `app/routers/billing.py`, `app/routers/pro_paym
 
 Legacy behavior remains unchanged; additive surface is non-breaking.
 
+### Manual RU/BY pre-entitlement carveout
+
+- Manual RU/BY routes remain on `/api/v1/pro/payments/ru-by/*` during the current namespace window.
+- These routes are **transport-auth-only** surfaces before entitlement exists and still require a validated transport key.
+- They are not paid-content unlock paths and they are not entitlement truth.
+- Access to canonical `/api/v1/pro/*` and `/api/v1/vip/*` surfaces still derives only from persisted backend subscription state.
+
 ### Apple verify response (B2 activation-contract)
 
 When `POST /api/v1/billing/apple/verify-receipt` returns `verified=true`, the `activation_payload` field carries the full `IOSVerifiedActivationResult` (activation-contract shape):
@@ -150,6 +157,7 @@ Semantic note:
 3. Manual rails have increased fraud risk; require reviewer/audit trace.
 4. Keep Apple digital-goods policy compliance in scope for iOS rails.
 5. RU/BY manual rails are operational fallback, not anonymous bypass path.
+6. RU/BY manual entry, reconcile, and status routes may stay reachable before entitlement exists, but they must still require validated transport auth and must never unlock protected PRO/VIP content routes by themselves.
 
 ## 8. Runtime Test Plan (must be green in runtime PR)
 

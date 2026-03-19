@@ -624,7 +624,7 @@ export interface paths {
         put?: never;
         /**
          * Create Manual Payment Intent
-         * @description Create manual RU/BY payment intent with pending reconciliation lifecycle.
+         * @description Create manual RU/BY payment intent on a pre-entitlement transport-auth surface.
          */
         post: operations["create_manual_payment_intent_api_v1_pro_payments_ru_by_manual_intent_post"];
         delete?: never;
@@ -644,7 +644,7 @@ export interface paths {
         put?: never;
         /**
          * Reconcile Manual Payment Intent
-         * @description Apply reconciliation decision to pending manual payment intent.
+         * @description Apply reconciliation decision on a pre-entitlement transport-auth surface.
          */
         post: operations["reconcile_manual_payment_intent_api_v1_pro_payments_ru_by_reconcile_post"];
         delete?: never;
@@ -662,7 +662,7 @@ export interface paths {
         };
         /**
          * Get Manual Payment Intent Status
-         * @description Fetch current status of manual payment reconciliation intent.
+         * @description Fetch manual payment reconciliation status on a pre-entitlement transport-auth surface.
          */
         get: operations["get_manual_payment_intent_status_api_v1_pro_payments_ru_by_reconcile__intent_id__get"];
         put?: never;
