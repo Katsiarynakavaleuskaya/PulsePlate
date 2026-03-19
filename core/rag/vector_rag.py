@@ -97,33 +97,54 @@ def _retrieve_vector_postgres(
     If corpus_prefixes is provided, filters results to rows where source
     starts with one of the given prefixes (agent-specific corpus filtering).
     """
-    from sqlalchemy import text
+    from pgvector.sqlalchemy import VECTOR
+    from sqlalchemy import BigInteger, Integer, String, bindparam, column, or_, select, table
 
-    # Format embedding explicitly into pgvector's canonical text form
-    # instead of relying on str(list) which may have inconsistent formatting.
-    qvec_text = "[" + ",".join(str(x) for x in query_embedding) + "]"
+    user_knowledge = table(
+        "user_knowledge",
+        column("id"),
+        column("content"),
+        column("source"),
+        column("embedding"),
+        column("user_id"),
+    )
 
-    # Build WHERE clause with optional corpus filtering
-    where_clause = "WHERE embedding IS NOT NULL AND user_id = :subject_id"
+    qvec_param = bindparam("qvec", type_=VECTOR(EMBEDDING_DIMENSIONS))
+    limit_param = bindparam("lim", type_=Integer())
+    similarity = (1 - user_knowledge.c.embedding.op("<=>")(qvec_param)).label("similarity")
+
+    stmt = (
+        select(
+            user_knowledge.c.id,
+            user_knowledge.c.content,
+            user_knowledge.c.source,
+            similarity,
+        )
+        .where(
+            user_knowledge.c.embedding.is_not(None),
+            user_knowledge.c.user_id == bindparam("subject_id", type_=BigInteger()),
+        )
+        .order_by(user_knowledge.c.embedding.op("<=>")(qvec_param))
+        .limit(limit_param)
+    )
+
     params: dict[str, Any] = {
-        "qvec": qvec_text,
+        "qvec": query_embedding,
         "lim": limit,
         "subject_id": subject_id,
     }
 
     if corpus_prefixes:
-        # Build OR conditions for each prefix using LIKE
         prefix_conditions = []
         for i, prefix in enumerate(corpus_prefixes):
             param_name = f"prefix_{i}"
-            prefix_conditions.append(f"source LIKE :{param_name}")
+            prefix_conditions.append(
+                user_knowledge.c.source.like(bindparam(param_name, type_=String()))
+            )
             params[param_name] = f"{prefix}%"
         if prefix_conditions:
-            where_clause += " AND (" + " OR ".join(prefix_conditions) + ")"
+            stmt = stmt.where(or_(*prefix_conditions))
 
-    # Safe: where_clause built from hardcoded AGENT_CORPUS_MAP, values use placeholders
-    sql = f"SELECT id, content, source, 1 - (embedding <=> :qvec::vector) AS similarity FROM user_knowledge {where_clause} ORDER BY embedding <=> :qvec::vector LIMIT :lim"  # nosec B608: where_clause is built from fixed predicates and bound params only (remove-by: 2026-04-30, ref: PR-TBD-RAG-TENANT-SCOPE)
-    stmt = text(sql)
     rows = session.execute(stmt, params).fetchall()
     return [(row, row.similarity) for row in rows]
 
@@ -140,27 +161,41 @@ def _retrieve_vector_sqlite(
     If corpus_prefixes is provided, filters results to rows where source
     starts with one of the given prefixes (agent-specific corpus filtering).
     """
-    from sqlalchemy import text
+    from sqlalchemy import BigInteger, String, bindparam, or_, select, table, column
 
-    # Build WHERE clause with optional corpus filtering
-    where_clause = "WHERE embedding IS NOT NULL AND user_id = :subject_id"
+    user_knowledge = table(
+        "user_knowledge",
+        column("id"),
+        column("content"),
+        column("source"),
+        column("embedding"),
+        column("user_id"),
+    )
+
+    stmt = select(
+        user_knowledge.c.id,
+        user_knowledge.c.content,
+        user_knowledge.c.source,
+        user_knowledge.c.embedding,
+    ).where(
+        user_knowledge.c.embedding.is_not(None),
+        user_knowledge.c.user_id == bindparam("subject_id", type_=BigInteger()),
+    )
+
     params: dict[str, Any] = {"subject_id": subject_id}
 
     if corpus_prefixes:
         prefix_conditions = []
         for i, prefix in enumerate(corpus_prefixes):
             param_name = f"prefix_{i}"
-            prefix_conditions.append(f"source LIKE :{param_name}")
+            prefix_conditions.append(
+                user_knowledge.c.source.like(bindparam(param_name, type_=String()))
+            )
             params[param_name] = f"{prefix}%"
         if prefix_conditions:
-            where_clause += " AND (" + " OR ".join(prefix_conditions) + ")"
+            stmt = stmt.where(or_(*prefix_conditions))
 
-    # Safe: where_clause built from hardcoded AGENT_CORPUS_MAP, values use placeholders
-    sql = f"SELECT id, content, source, embedding FROM user_knowledge {where_clause}"  # nosec B608: where_clause is built from fixed predicates and bound params only (remove-by: 2026-04-30, ref: PR-TBD-RAG-TENANT-SCOPE)
-    rows = session.execute(
-        text(sql),
-        params,
-    ).fetchall()
+    rows = session.execute(stmt, params).fetchall()
 
     scored: list[tuple[Any, float]] = []
 
