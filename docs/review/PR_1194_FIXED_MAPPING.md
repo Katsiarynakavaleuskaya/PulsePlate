@@ -13,6 +13,11 @@ Evidence: `core/rag/vector_rag.py`, `core/rag/orchestration.py`, and `tests/test
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1194#pullrequestreview-3978037938 -> ae161d1c
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1194#pullrequestreview-3978046252 -> ae161d1c
 
+Disposition: FIXED
+Commit: 39599e4e
+Evidence: `core/rag/vector_rag.py` now keeps an explicit `CAST(... AS VECTOR(...))` around the bound Postgres query vector while preserving parameterized SQLAlchemy composition, and `tests/test_vector_rag.py` asserts the generated SQL still includes the vector cast.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1194#discussion_r2962778227 -> 39599e4e
+
 ## Merge Readiness
 - [ ] All required checks pass
 - [ ] No unresolved review threads
