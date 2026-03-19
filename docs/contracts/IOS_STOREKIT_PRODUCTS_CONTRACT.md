@@ -44,7 +44,17 @@ It defines:
 
 ## Setup baseline
 
-### App Store Connect
+**Baseline inputs only:** this section records the fixed App Store Connect,
+sandbox, TestFlight, and runtime-validation prerequisites that belong to the
+StoreKit baseline already merged on `main`. It is not the live step-by-step
+release checklist.
+
+**Single source of truth for release follow-through:** the actionable
+operational/release checklist lives in `## Operational release checklist`
+below. Future TestFlight / App Store submission work must extend that checklist
+instead of creating a parallel setup document.
+
+### App Store Connect baseline
 
 - Create subscription products in App Store Connect under the PulsePlate iOS
   app record.
@@ -53,7 +63,7 @@ It defines:
 - Do not create alternate runtime product IDs without updating this document and
   the matching Swift catalog in the same PR.
 
-### Sandbox / TestFlight prerequisites
+### Sandbox / TestFlight baseline prerequisites
 
 - StoreKit products must be visible in the current App Store Connect
   configuration.
@@ -62,12 +72,47 @@ It defines:
 - TestFlight / sandbox runs must verify that runtime loads only the canonical
   IDs from this contract.
 
-### Runtime verification checklist
+### Runtime verification invariants
 
 - Launch the paywall and confirm runtime requests only canonical IDs.
 - Confirm StoreKit returns the expected monthly/yearly plans or a valid subset.
 - Confirm empty catalog shows an unavailable state instead of placeholder plans.
 - Confirm unknown/unapproved IDs are not rendered.
+
+## Operational release checklist
+
+### App Store Connect truth
+
+- Confirm the live App Store Connect record still contains only the canonical
+  product IDs from this contract.
+- Confirm the subscription group / family still aligns with
+  `premium_subscription`.
+- Confirm no alternate product IDs, hidden duplicates, or deprecated runtime
+  products have been reintroduced outside this contract.
+
+### Sandbox / TestFlight readiness
+
+- Confirm sandbox test accounts are available before purchase-flow validation.
+- Confirm the intended build/bundle identifier can load the canonical StoreKit
+  catalog in sandbox/TestFlight.
+- Confirm the monthly/yearly products load as the expected approved subset and
+  that empty/unknown product paths still fail closed.
+
+### Repo sync requirements
+
+- `docs/contracts/IOS_STOREKIT_PRODUCTS_CONTRACT.md` remains aligned with
+  `ios/PulsePlate/Models/StoreKitProductCatalog.swift`.
+- `docs/IOS_API_INTEGRATION.md` points future operational/setup work back to
+  this checklist instead of duplicating StoreKit setup truth elsewhere.
+- Batch-B planning docs (`docs/roadmap/BACKLOG_LEDGER.md`,
+  `docs/roadmap/PulsePlate_Master_Index_A-E.md`) treat the baseline as closed
+  and point future release/setup work to this contract.
+
+### Future release handoff
+
+- Any future App Store / TestFlight submission lane may reference this
+  checklist, but must not redefine canonical product IDs or create a competing
+  StoreKit setup source of truth.
 
 ## Validation checklist
 
@@ -91,4 +136,5 @@ This contract does not govern:
 - receipt verification or activation routing,
 - Keychain or mobile secret storage,
 - pricing / trial / eligibility governance,
-- App Store screenshots, metadata, or asset rollout.
+- App Store screenshots, metadata, or asset rollout,
+- the actual submission/release decision for a future App Store build.
