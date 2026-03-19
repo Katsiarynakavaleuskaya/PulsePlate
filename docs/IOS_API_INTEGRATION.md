@@ -110,16 +110,16 @@ Keep future work out of the canonical networking guide; track it as discrete bac
 
 Contract source:
 - `docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md`
-- `docs/contracts/IOS_STOREKIT_PRODUCTS_CONTRACT.md` (canonical StoreKit product contract baseline landed in PR #1172; follow-through docs and runtime work must continue to point here)
+- `docs/contracts/IOS_STOREKIT_PRODUCTS_CONTRACT.md` (canonical StoreKit product contract baseline landed in PR #1172; B3 operational/setup follow-through is now governed by the contract's setup + operational release checklist, and future release work must continue to point there)
 
 Thin-client boundary (current merged state):
 - **What iOS sends:** Receipt verification requests, activation handoff to `POST /api/v1/pro/payments/activate`, manual intent payload, and reconcile requests. Transport-only; no entitlement or billing decision logic.
 - **What backend decides:** Activation, tier assignment, reconciliation status, signature validation. Billing truth is server-authoritative only.
-- **Merged in B2 / PR #1185:** Apple verify now normalizes into the backend activation contract. The surviving B4 gap is still client-side follow-through: the shipped iOS flow calls `POST /api/v1/pro/payments/activate`, but it still reconstructs `payload.verification_result` locally instead of forwarding the backend-returned `activation_payload` unchanged. Remaining follow-through stays separate: StoreKit/App Store operational sync, backend-driven SubscriptionManager contract adoption, and App Store Server API migration.
+- **Merged in B2 / PR #1185:** Apple verify now normalizes into the backend activation contract. The surviving B4 gap is still client-side follow-through: the shipped iOS flow calls `POST /api/v1/pro/payments/activate`, but it still reconstructs `payload.verification_result` locally instead of forwarding the backend-returned `activation_payload` unchanged. StoreKit/App Store operational setup truth is now centralized in `docs/contracts/IOS_STOREKIT_PRODUCTS_CONTRACT.md`; remaining post-B3 follow-through is backend-driven SubscriptionManager contract adoption plus the later App Store Server API migration.
 
 ### Remaining follow-through (separate lanes)
 
-- StoreKit / App Store operational sync and release checklist completion.
+- Future StoreKit / App Store submission work must use the operational checklist in `docs/contracts/IOS_STOREKIT_PRODUCTS_CONTRACT.md` instead of creating a parallel setup source.
 - SubscriptionManager contract follow-through so the client forwards the backend activation handoff without rebuilding billing truth on-device.
 - Apple receipt verification migration to App Store Server API.
 

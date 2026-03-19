@@ -44,6 +44,12 @@ It defines:
 
 ## Setup baseline
 
+**Single source of truth:** this section is the only canonical operational
+setup and release-readiness checklist for the StoreKit follow-through that
+survived after the baseline landed on `main`. Future TestFlight / App Store
+submission work must extend this checklist instead of creating a parallel setup
+document.
+
 ### App Store Connect
 
 - Create subscription products in App Store Connect under the PulsePlate iOS
@@ -69,6 +75,41 @@ It defines:
 - Confirm empty catalog shows an unavailable state instead of placeholder plans.
 - Confirm unknown/unapproved IDs are not rendered.
 
+## Operational release checklist
+
+### App Store Connect truth
+
+- Confirm the live App Store Connect record still contains only the canonical
+  product IDs from this contract.
+- Confirm the subscription group / family still aligns with
+  `premium_subscription`.
+- Confirm no alternate product IDs, hidden duplicates, or deprecated runtime
+  products have been reintroduced outside this contract.
+
+### Sandbox / TestFlight readiness
+
+- Confirm sandbox test accounts are available before purchase-flow validation.
+- Confirm the intended build/bundle identifier can load the canonical StoreKit
+  catalog in sandbox/TestFlight.
+- Confirm the monthly/yearly products load as the expected approved subset and
+  that empty/unknown product paths still fail closed.
+
+### Repo sync requirements
+
+- `docs/contracts/IOS_STOREKIT_PRODUCTS_CONTRACT.md` remains aligned with
+  `ios/PulsePlate/Models/StoreKitProductCatalog.swift`.
+- `docs/IOS_API_INTEGRATION.md` points future operational/setup work back to
+  this checklist instead of duplicating StoreKit setup truth elsewhere.
+- Batch-B planning docs (`docs/roadmap/BACKLOG_LEDGER.md`,
+  `docs/roadmap/PulsePlate_Master_Index_A-E.md`) treat the baseline as closed
+  and point future release/setup work to this contract.
+
+### Future release handoff
+
+- Any future App Store / TestFlight submission lane may reference this
+  checklist, but must not redefine canonical product IDs or create a competing
+  StoreKit setup source of truth.
+
 ## Validation checklist
 
 - `docs/contracts/IOS_STOREKIT_PRODUCTS_CONTRACT.md` and
@@ -91,4 +132,5 @@ This contract does not govern:
 - receipt verification or activation routing,
 - Keychain or mobile secret storage,
 - pricing / trial / eligibility governance,
-- App Store screenshots, metadata, or asset rollout.
+- App Store screenshots, metadata, or asset rollout,
+- the actual submission/release decision for a future App Store build.
