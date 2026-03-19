@@ -96,6 +96,13 @@ def _user_knowledge_table() -> TableClause:
     )
 
 
+def _escape_like_prefix(prefix: str) -> str:
+    """Escape SQL LIKE wildcards in a corpus prefix before appending ``%``."""
+
+    escaped_prefix = prefix.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    return f"{escaped_prefix}%"
+
+
 # ---------------------------------------------------------------------------
 # Vector retrieval (dialect-aware)
 # ---------------------------------------------------------------------------
@@ -150,9 +157,12 @@ def _retrieve_vector_postgres(
         for i, prefix in enumerate(corpus_prefixes):
             param_name = f"prefix_{i}"
             prefix_conditions.append(
-                user_knowledge.c.source.like(bindparam(param_name, type_=String()))
+                user_knowledge.c.source.like(
+                    bindparam(param_name, type_=String()),
+                    escape="\\",
+                )
             )
-            params[param_name] = f"{prefix}%"
+            params[param_name] = _escape_like_prefix(prefix)
         if prefix_conditions:
             stmt = stmt.where(or_(*prefix_conditions))
 
@@ -193,9 +203,12 @@ def _retrieve_vector_sqlite(
         for i, prefix in enumerate(corpus_prefixes):
             param_name = f"prefix_{i}"
             prefix_conditions.append(
-                user_knowledge.c.source.like(bindparam(param_name, type_=String()))
+                user_knowledge.c.source.like(
+                    bindparam(param_name, type_=String()),
+                    escape="\\",
+                )
             )
-            params[param_name] = f"{prefix}%"
+            params[param_name] = _escape_like_prefix(prefix)
         if prefix_conditions:
             stmt = stmt.where(or_(*prefix_conditions))
 

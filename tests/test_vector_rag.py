@@ -767,7 +767,7 @@ class TestCorpusFilteringVectorRag:
 
         # Call with corpus_prefixes
         query_embedding = [1.0, 0.0, 0.0]
-        corpus_prefixes = ["docs/cbt/", "docs/psychology/"]
+        corpus_prefixes = ["docs/cbt_", "docs/psychology%"]
 
         vector_rag._retrieve_vector_postgres(
             query_embedding, 5, fake_session, subject_id=99, corpus_prefixes=corpus_prefixes
@@ -777,13 +777,14 @@ class TestCorpusFilteringVectorRag:
         assert len(captured_sql) == 1
         sql = captured_sql[0]
         assert "LIKE" in sql
+        assert "ESCAPE '\\'" in sql
         assert "prefix_0" in sql
         assert "prefix_1" in sql
 
         # Verify params contain prefix patterns
         params = captured_params[0]
-        assert params.get("prefix_0") == "docs/cbt/%"
-        assert params.get("prefix_1") == "docs/psychology/%"
+        assert params.get("prefix_0") == r"docs/cbt\_%"
+        assert params.get("prefix_1") == r"docs/psychology\%%"
         assert params.get("subject_id") == 99
 
     def test_sqlite_corpus_filtering_builds_where_clause(
@@ -809,7 +810,7 @@ class TestCorpusFilteringVectorRag:
 
         # Call with corpus_prefixes
         query_embedding = [1.0, 0.0, 0.0]
-        corpus_prefixes = ["docs/cbt/"]
+        corpus_prefixes = ["docs/cbt_"]
 
         monkeypatch.setattr(vector_rag, "EMBEDDING_DIMENSIONS", 3)
         vector_rag._retrieve_vector_sqlite(
@@ -820,11 +821,12 @@ class TestCorpusFilteringVectorRag:
         assert len(captured_sql) == 1
         sql = captured_sql[0]
         assert "LIKE" in sql
+        assert "ESCAPE '\\'" in sql
         assert "prefix_0" in sql
 
         # Verify params contain prefix patterns
         params = captured_params[0]
-        assert params.get("prefix_0") == "docs/cbt/%"
+        assert params.get("prefix_0") == r"docs/cbt\_%"
         assert params.get("subject_id") == 99
 
     def test_retrieve_from_db_logs_warning_when_corpus_empty(
