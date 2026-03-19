@@ -44,13 +44,17 @@ It defines:
 
 ## Setup baseline
 
-**Single source of truth:** this section is the only canonical operational
-setup and release-readiness checklist for the StoreKit follow-through that
-survived after the baseline landed on `main`. Future TestFlight / App Store
-submission work must extend this checklist instead of creating a parallel setup
-document.
+**Baseline inputs only:** this section records the fixed App Store Connect,
+sandbox, TestFlight, and runtime-validation prerequisites that belong to the
+StoreKit baseline already merged on `main`. It is not the live step-by-step
+release checklist.
 
-### App Store Connect
+**Single source of truth for release follow-through:** the actionable
+operational/release checklist lives in `## Operational release checklist`
+below. Future TestFlight / App Store submission work must extend that checklist
+instead of creating a parallel setup document.
+
+### App Store Connect baseline
 
 - Create subscription products in App Store Connect under the PulsePlate iOS
   app record.
@@ -59,7 +63,7 @@ document.
 - Do not create alternate runtime product IDs without updating this document and
   the matching Swift catalog in the same PR.
 
-### Sandbox / TestFlight prerequisites
+### Sandbox / TestFlight baseline prerequisites
 
 - StoreKit products must be visible in the current App Store Connect
   configuration.
@@ -68,7 +72,7 @@ document.
 - TestFlight / sandbox runs must verify that runtime loads only the canonical
   IDs from this contract.
 
-### Runtime verification checklist
+### Runtime verification invariants
 
 - Launch the paywall and confirm runtime requests only canonical IDs.
 - Confirm StoreKit returns the expected monthly/yearly plans or a valid subset.
