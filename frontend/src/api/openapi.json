@@ -7858,7 +7858,7 @@
     },
     "/api/v1/pro/payments/ru-by/manual-intent": {
       "post": {
-        "description": "Create manual RU/BY payment intent with pending reconciliation lifecycle.",
+        "description": "Create manual RU/BY payment intent on a pre-entitlement transport-auth surface.",
         "operationId": "create_manual_payment_intent_api_v1_pro_payments_ru_by_manual_intent_post",
         "requestBody": {
           "content": {
@@ -7945,7 +7945,7 @@
     },
     "/api/v1/pro/payments/ru-by/reconcile": {
       "post": {
-        "description": "Apply reconciliation decision to pending manual payment intent.",
+        "description": "Apply reconciliation decision on a pre-entitlement transport-auth surface.",
         "operationId": "reconcile_manual_payment_intent_api_v1_pro_payments_ru_by_reconcile_post",
         "requestBody": {
           "content": {
@@ -8049,7 +8049,7 @@
     },
     "/api/v1/pro/payments/ru-by/reconcile/{intent_id}": {
       "get": {
-        "description": "Fetch current status of manual payment reconciliation intent.",
+        "description": "Fetch manual payment reconciliation status on a pre-entitlement transport-auth surface.",
         "operationId": "get_manual_payment_intent_status_api_v1_pro_payments_ru_by_reconcile__intent_id__get",
         "parameters": [
           {
