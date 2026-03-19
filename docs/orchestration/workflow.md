@@ -16,6 +16,7 @@
 - **Orchestration protocols:** see `docs/orchestration/AGENT_*.md` (context, capability, handoff, dialogue, parallel)
 - **Design rationale (multi-model + research tracks):** `docs/audit/AGENT_ORCHESTRATION_MULTI_MODEL_AND_RESEARCH_AUDIT_2026-02-10.md`
 - **Message envelopes (multi-model robustness):** `docs/orchestration/AGENT_MESSAGE_PROTOCOL.md`
+- **Native runtime bridge (repo-agent slug -> transport-only native executor):** `docs/orchestration/NATIVE_SUBAGENT_BRIDGE_PROTOCOL.md`
 - **Research track (web/OSS intake):** `docs/orchestration/RESEARCH_TRACK_PROTOCOL.md`
 - **Research brainstorming (brainstorm → research → decision → promotion):** `docs/orchestration/RESEARCH_BRAINSTORMING_PROTOCOL.md`
 - **Experimentation loops (bounded optimization / eval):** `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md`
@@ -90,6 +91,8 @@ Task
 - [ ] Назначены secondary agents (если multi-domain)
 - [ ] Проставлены зависимости / handoff / sync points (если multi-agent)
 - [ ] Определён `recommended_skills` packet по `docs/orchestration/AGENT_SKILL_ROUTING_POLICY.md`
+- [ ] Если runtime использует native subagents, task packet содержит `native_subagent_bridge`,
+  а repo-agent slug остаётся канонической идентичностью роли
 - [ ] Явно запрошенные пользователем agent slugs сохранены в task packet и либо honor/advisory,
   либо отклонены с явной причиной
 - [ ] Для privilege-sensitive surfaces (`.github/workflows/**`, `ios/fastlane/**`,

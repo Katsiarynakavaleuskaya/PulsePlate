@@ -36,6 +36,10 @@ def test_task_bootstrap_resolves_orchestration_domain() -> None:
     assert "pulseplate-workflow" in packet["recommended_skills"]
     assert "docs-sync" in packet["recommended_skills"]
     assert "agents-md" in packet["recommended_skills"]
+    assert packet["native_subagent_bridge"]["primary"]["repo_agent_slug"] == "agent-coordinator"
+    assert packet["native_subagent_bridge"]["reviewer"]["repo_agent_slug"] == (
+        "architecture-specialist"
+    )
 
 
 def test_task_bootstrap_includes_scoped_agents_only_once() -> None:
@@ -77,6 +81,8 @@ def test_task_bootstrap_routes_cv_tasks_to_cv_domain() -> None:
     assert packet["reviewer"] == "security-auditor"
     assert "docs-sync" in packet["recommended_skills"]
     assert "pulseplate-gates" in packet["recommended_skills"]
+    assert packet["native_subagent_bridge"]["primary"]["native_agent_type"] == "default"
+    assert packet["native_subagent_bridge"]["reviewer"]["native_agent_type"] == "explorer"
 
 
 def test_task_bootstrap_promotes_requested_routable_agent() -> None:
@@ -115,6 +121,12 @@ def test_task_bootstrap_keeps_non_routable_requested_agent_as_advisory() -> None
     assert packet["domain"] == "ml"
     assert packet["primary_agent"] == "ai-innovation-specialist"
     assert "ml-engineer-agent" in packet["secondary_agents"]
+    assert [
+        binding["repo_agent_slug"] for binding in packet["native_subagent_bridge"]["secondary"]
+    ] == ["rag-systems-agent"]
+    assert [
+        binding["repo_agent_slug"] for binding in packet["native_subagent_bridge"]["advisory"]
+    ] == ["ml-engineer-agent"]
     assert packet["requested_agent_disposition"] == [
         {
             "agent": "ml-engineer-agent",
@@ -158,6 +170,42 @@ def test_task_bootstrap_keeps_security_auditor_in_privileged_review_path() -> No
         *packet["secondary_agents"],
     }
     assert "security-auditor" in review_path
+    assert "security-auditor" in {
+        packet["native_subagent_bridge"]["reviewer"]["repo_agent_slug"],
+        *[binding["repo_agent_slug"] for binding in packet["native_subagent_bridge"]["secondary"]],
+    }
+    assert "security-auditor" not in {
+        binding["repo_agent_slug"] for binding in packet["native_subagent_bridge"]["advisory"]
+    }
+
+
+def test_task_bootstrap_forces_requested_security_auditor_into_executable_bridge() -> None:
+    """Privileged review must keep an explicitly requested security auditor runnable."""
+
+    packet = build_task_packet(
+        goal="Audit privileged orchestration workflow",
+        task_class="Orchestration",
+        candidate_paths=["scripts/orchestration/task_bootstrap.py"],
+        requested_agents=["security-auditor"],
+    )
+
+    assert "security-auditor" in packet["secondary_agents"]
+    assert "security-auditor" in {
+        binding["repo_agent_slug"] for binding in packet["native_subagent_bridge"]["secondary"]
+    }
+    assert "security-auditor" not in {
+        binding["repo_agent_slug"] for binding in packet["native_subagent_bridge"]["advisory"]
+    }
+    assert packet["requested_agent_disposition"] == [
+        {
+            "agent": "security-auditor",
+            "status": "honored_secondary",
+            "reason": (
+                "Requested agent is required for the privileged review path and stays "
+                "executable in secondary."
+            ),
+        }
+    ]
 
 
 def test_task_bootstrap_updates_honored_primary_after_later_promotion() -> None:
@@ -317,6 +365,13 @@ def test_main_writes_relative_output_inside_repo(tmp_path, monkeypatch, capsys) 
             "recommended": [{"skill": "pulseplate-workflow", "score": 100}],
             "blocked": [],
         },
+        "native_subagent_bridge": {
+            "protocol_version": "1.0",
+            "transport": "codex-native-subagents",
+            "primary": {"native_agent_type": "default"},
+            "secondary": [],
+            "reviewer": {"native_agent_type": "explorer"},
+        },
         "routing_rationale": {"source": "canonical_only"},
     }
     monkeypatch.setattr(
@@ -340,6 +395,7 @@ def test_main_writes_relative_output_inside_repo(tmp_path, monkeypatch, capsys) 
         written = json.loads(repo_output.read_text(encoding="utf-8"))
         assert written["task_packet_id"] == "abc123def456"
         assert json.loads(captured.out)["output"] == relative_output.as_posix()
+        assert json.loads(captured.out)["primary_native_agent_type"] == "default"
     finally:
         if repo_output.exists():
             repo_output.unlink()
@@ -375,6 +431,13 @@ def test_main_writes_repo_root_output_as_relative_path(monkeypatch, capsys) -> N
             "recommended": [{"skill": "pulseplate-workflow", "score": 100}],
             "blocked": [],
         },
+        "native_subagent_bridge": {
+            "protocol_version": "1.0",
+            "transport": "codex-native-subagents",
+            "primary": {"native_agent_type": "default"},
+            "secondary": [],
+            "reviewer": {"native_agent_type": "explorer"},
+        },
         "routing_rationale": {"source": "canonical_only"},
     }
     monkeypatch.setattr(
@@ -397,6 +460,7 @@ def test_main_writes_repo_root_output_as_relative_path(monkeypatch, capsys) -> N
         assert exit_code == 0
         assert repo_output.exists()
         assert json.loads(captured.out)["output"] == relative_output.as_posix()
+        assert json.loads(captured.out)["reviewer_native_agent_type"] == "explorer"
     finally:
         if repo_output.exists():
             repo_output.unlink()
@@ -431,6 +495,13 @@ def test_main_passes_requested_agent_flags(monkeypatch, capsys) -> None:
                 "recommended": [{"skill": "pulseplate-workflow", "score": 100}],
                 "blocked": [],
             },
+            "native_subagent_bridge": {
+                "protocol_version": "1.0",
+                "transport": "codex-native-subagents",
+                "primary": {"native_agent_type": "default"},
+                "secondary": [{"native_agent_type": "worker"}],
+                "reviewer": {"native_agent_type": "explorer"},
+            },
             "routing_rationale": {"source": "canonical_only"},
         }
 
@@ -459,3 +530,4 @@ def test_main_passes_requested_agent_flags(monkeypatch, capsys) -> None:
         "agent-coordinator",
         "security-auditor",
     ]
+    assert json.loads(captured.out)["primary_native_agent_type"] == "default"
