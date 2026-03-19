@@ -1018,7 +1018,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [x] P1: iOS StoreKit products contract and setup baseline
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR #1172 (contract baseline landed) -> PR-TBD-B3-STOREKIT-OPSYNC
+  - Target PR: PR #1172 (contract baseline landed) -> PR #1189 (operational/setup close-out)
   - Status: ✅ Contract baseline plus operational/setup follow-through are now versioned in-repo
   - Area: ios / release / billing operations
   - Finding Type: store configuration readiness
