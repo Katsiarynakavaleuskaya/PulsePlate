@@ -459,11 +459,50 @@ class TestRetrieveVectorFromDb:
 
         vector_rag._embedding_provider = None
 
+    def test_wrong_query_dimensions_return_empty_without_db_work(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        """A malformed query embedding is rejected before any DB access."""
+        import logging
+
+        from core.rag import vector_rag
+
+        monkeypatch.setattr(vector_rag, "EMBEDDING_DIMENSIONS", 3)
+
+        fake_provider = MagicMock()
+        fake_provider.encode.return_value = [[1.0, 0.0]]
+        vector_rag._embedding_provider = fake_provider
+
+        session_scope_called = False
+
+        def _unexpected_session_scope() -> None:
+            nonlocal session_scope_called
+            session_scope_called = True
+            raise AssertionError("session_scope should not run for malformed query embeddings")
+
+        monkeypatch.setattr("core.db.session_scope", _unexpected_session_scope)
+
+        with caplog.at_level(logging.ERROR, logger="core.rag.vector_rag"):
+            ctx = vector_rag._retrieve_vector_from_db("test", 3, None, None, 21)
+
+        assert ctx.chunks == []
+        assert not session_scope_called
+        assert any(
+            "Query embedding length" in record.message and "expected 3" in record.message
+            for record in caplog.records
+        )
+
+        vector_rag._embedding_provider = None
+
     def test_postgres_dialect_calls_postgres_path(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Postgres dialect should call _retrieve_vector_postgres."""
         from contextlib import contextmanager
 
         from core.rag import vector_rag
+
+        monkeypatch.setattr(vector_rag, "EMBEDDING_DIMENSIONS", 3)
 
         fake_provider = MagicMock()
         fake_provider.encode.return_value = [[1.0, 0.0, 0.0]]
@@ -767,7 +806,7 @@ class TestCorpusFilteringVectorRag:
 
         # Call with corpus_prefixes
         query_embedding = [1.0, 0.0, 0.0]
-        corpus_prefixes = ["docs/cbt_", "docs/psychology%"]
+        corpus_prefixes = ["docs/cbt_", "docs/psychology%", r"docs\cbt"]
 
         vector_rag._retrieve_vector_postgres(
             query_embedding, 5, fake_session, subject_id=99, corpus_prefixes=corpus_prefixes
@@ -780,11 +819,13 @@ class TestCorpusFilteringVectorRag:
         assert "ESCAPE '\\'" in sql
         assert "prefix_0" in sql
         assert "prefix_1" in sql
+        assert "prefix_2" in sql
 
         # Verify params contain prefix patterns
         params = captured_params[0]
         assert params.get("prefix_0") == r"docs/cbt\_%"
         assert params.get("prefix_1") == r"docs/psychology\%%"
+        assert params.get("prefix_2") == r"docs\\cbt%"
         assert params.get("subject_id") == 99
 
     def test_sqlite_corpus_filtering_builds_where_clause(
@@ -810,7 +851,7 @@ class TestCorpusFilteringVectorRag:
 
         # Call with corpus_prefixes
         query_embedding = [1.0, 0.0, 0.0]
-        corpus_prefixes = ["docs/cbt_"]
+        corpus_prefixes = ["docs/cbt_", r"docs\cbt"]
 
         monkeypatch.setattr(vector_rag, "EMBEDDING_DIMENSIONS", 3)
         vector_rag._retrieve_vector_sqlite(
@@ -823,10 +864,12 @@ class TestCorpusFilteringVectorRag:
         assert "LIKE" in sql
         assert "ESCAPE '\\'" in sql
         assert "prefix_0" in sql
+        assert "prefix_1" in sql
 
         # Verify params contain prefix patterns
         params = captured_params[0]
         assert params.get("prefix_0") == r"docs/cbt\_%"
+        assert params.get("prefix_1") == r"docs\\cbt%"
         assert params.get("subject_id") == 99
 
     def test_retrieve_from_db_logs_warning_when_corpus_empty(
@@ -837,6 +880,8 @@ class TestCorpusFilteringVectorRag:
         from contextlib import contextmanager
 
         from core.rag import vector_rag
+
+        monkeypatch.setattr(vector_rag, "EMBEDDING_DIMENSIONS", 3)
 
         fake_provider = MagicMock()
         fake_provider.encode.return_value = [[1.0, 0.0, 0.0]]

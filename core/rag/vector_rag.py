@@ -103,6 +103,19 @@ def _escape_like_prefix(prefix: str) -> str:
     return f"{escaped_prefix}%"
 
 
+def _has_expected_embedding_dimensions(query_embedding: list[float]) -> bool:
+    """Return whether a query embedding matches the configured vector size."""
+
+    if len(query_embedding) != EMBEDDING_DIMENSIONS:
+        logger.error(
+            "Query embedding length %d != expected %d",
+            len(query_embedding),
+            EMBEDDING_DIMENSIONS,
+        )
+        return False
+    return True
+
+
 # ---------------------------------------------------------------------------
 # Vector retrieval (dialect-aware)
 # ---------------------------------------------------------------------------
@@ -216,12 +229,7 @@ def _retrieve_vector_sqlite(
 
     scored: list[tuple[Any, float]] = []
 
-    if len(query_embedding) != EMBEDDING_DIMENSIONS:
-        logger.error(
-            "Query embedding length %d != expected %d",
-            len(query_embedding),
-            EMBEDDING_DIMENSIONS,
-        )
+    if not _has_expected_embedding_dimensions(query_embedding):
         return []
 
     for row in rows:
@@ -264,6 +272,8 @@ def _retrieve_vector_from_db(
     if not query_vectors:
         return _empty_context(query, agent_id, user_tier, start)
     query_embedding = query_vectors[0]
+    if not _has_expected_embedding_dimensions(query_embedding):
+        return _empty_context(query, agent_id, user_tier, start)
 
     from core.db import session_scope
 
