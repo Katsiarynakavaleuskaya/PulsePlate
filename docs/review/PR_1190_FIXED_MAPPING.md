@@ -13,9 +13,15 @@ Evidence: `ios/PulsePlate/Services/SubscriptionManager.swift:186`, `ios/PulsePla
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1190#pullrequestreview-3973435214 -> ac657e87
 
+Disposition: FIXED
+Commit: 90149308
+Evidence: `ios/PulsePlate/Models/Payments/SubscriptionBillingDTOs.swift:53`, `ios/PulsePlate/Models/Payments/SubscriptionBillingDTOs.swift:160`, `ios/PulsePlateTests/Services/SubscriptionBillingServiceTests.swift:120`
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1190#pullrequestreview-3973474094 -> 90149308
+
 ## Merge Readiness
 
-- Status: ready for review; waiting for current-head CI completion and CodeRabbit final verdict
+- Status: ready for review; waiting for current-head CI completion and next review wave to confirm no new actionables
 - Local validation:
   - `pre-commit run --all-files`
   - `make verify`
