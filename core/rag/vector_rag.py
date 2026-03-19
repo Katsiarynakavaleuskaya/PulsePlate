@@ -80,6 +80,21 @@ def _cosine_similarity(a: list[float], b: list[float]) -> float:
     return dot / (norm_a * norm_b)
 
 
+def _user_knowledge_table() -> Any:
+    """Return a lightweight SQLAlchemy table descriptor for ``user_knowledge``."""
+
+    from sqlalchemy import column, table
+
+    return table(
+        "user_knowledge",
+        column("id"),
+        column("content"),
+        column("source"),
+        column("embedding"),
+        column("user_id"),
+    )
+
+
 # ---------------------------------------------------------------------------
 # Vector retrieval (dialect-aware)
 # ---------------------------------------------------------------------------
@@ -98,16 +113,9 @@ def _retrieve_vector_postgres(
     starts with one of the given prefixes (agent-specific corpus filtering).
     """
     from pgvector.sqlalchemy import VECTOR
-    from sqlalchemy import BigInteger, Integer, String, bindparam, column, or_, select, table
+    from sqlalchemy import BigInteger, Integer, String, bindparam, or_, select
 
-    user_knowledge = table(
-        "user_knowledge",
-        column("id"),
-        column("content"),
-        column("source"),
-        column("embedding"),
-        column("user_id"),
-    )
+    user_knowledge = _user_knowledge_table()
 
     qvec_param = bindparam("qvec", type_=VECTOR(EMBEDDING_DIMENSIONS))
     limit_param = bindparam("lim", type_=Integer())
@@ -124,7 +132,7 @@ def _retrieve_vector_postgres(
             user_knowledge.c.embedding.is_not(None),
             user_knowledge.c.user_id == bindparam("subject_id", type_=BigInteger()),
         )
-        .order_by(user_knowledge.c.embedding.op("<=>")(qvec_param))
+        .order_by(similarity.desc())
         .limit(limit_param)
     )
 
@@ -161,16 +169,9 @@ def _retrieve_vector_sqlite(
     If corpus_prefixes is provided, filters results to rows where source
     starts with one of the given prefixes (agent-specific corpus filtering).
     """
-    from sqlalchemy import BigInteger, String, bindparam, or_, select, table, column
+    from sqlalchemy import BigInteger, String, bindparam, or_, select
 
-    user_knowledge = table(
-        "user_knowledge",
-        column("id"),
-        column("content"),
-        column("source"),
-        column("embedding"),
-        column("user_id"),
-    )
+    user_knowledge = _user_knowledge_table()
 
     stmt = select(
         user_knowledge.c.id,

@@ -720,6 +720,9 @@ class TestCorpusFilteringVectorRag:
         def _execute(stmt: Any, params: dict[str, str | int] | None = None) -> _Result:
             sql = str(stmt)
             assert "prefix_0" in sql
+            assert "user_knowledge" in sql
+            assert "user_id" in sql
+            assert "subject_id" in sql
             captured_params.append(params or {})
             # Simulate the database behavior after applying the corpus filter.
             return _Result()
