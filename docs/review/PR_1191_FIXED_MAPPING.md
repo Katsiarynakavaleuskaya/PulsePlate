@@ -20,7 +20,7 @@ Reason: Clarified that the repo still keeps an active `overrides.dompurify = 3.3
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1191#discussion_r2959777481 -> eec9151b
 
 Disposition: FIXED
-Commit: see mapping entries below
+Commit: 50fc3a7e
 Evidence: `docs/security/CVE-2026-0540-dompurify.md:56`, `docs/security/CVE-2026-0540-dompurify.md:57`, `docs/security/CVE-2026-0540-dompurify.md:58`
 Reason: Corrected the evidence anchors to point at the actual `package-lock.json` version lines and the `optionalDependencies.dompurify` path, matching the current resolved dependency tree.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1191#pullrequestreview-3974906249 -> 50fc3a7e
