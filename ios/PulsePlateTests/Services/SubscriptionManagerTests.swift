@@ -102,21 +102,35 @@ final class SubscriptionManagerTests: XCTestCase {
         }
     }
 
-    func test_purchaseFallsBackToTransactionProductIDWhenVerificationProductIDBlank() async {
+    func test_purchaseForwardsBackendActivationPayloadUnchanged() async {
         let storeKit = MockStoreKitManager()
         let billing = MockSubscriptionBillingService()
         let manager = makeManager(storeKit: storeKit, billing: billing)
 
-        storeKit.purchaseResult = .success(.fixture())
+        storeKit.purchaseResult = .success(
+            StoreEntitlementTransaction(
+                transactionID: "txn-local",
+                originalTransactionID: "orig-local",
+                productID: "com.pulseplate.premium.monthly"
+            )
+        )
         storeKit.receiptData = "receipt-blank-product-id"
         billing.verifyResult = AppleReceiptVerificationResponseDTO(
             provider: "apple",
             verified: true,
             verificationState: .active,
             environment: "production",
-            productID: "   ",
+            productID: "com.pulseplate.premium.monthly",
             expiresAt: "2026-04-01T00:00:00Z",
-            activationPayload: AppleActivationHintDTO(tier: .pro, platform: "ios"),
+            activationPayload: IOSVerifiedActivationResultDTO(
+                transactionID: "txn-backend",
+                originalTransactionID: "orig-backend",
+                productID: "com.pulseplate.premium.yearly",
+                subscriptionTier: .vip,
+                status: .expired,
+                expiresAt: "2026-06-01T00:00:00Z",
+                platform: .ios
+            ),
             error: nil
         )
         billing.activateResult = .activeActivation(id: "act-fallback")
@@ -125,10 +139,46 @@ final class SubscriptionManagerTests: XCTestCase {
         await manager.purchase(productID: "com.pulseplate.premium.monthly")
 
         XCTAssertEqual(
-            billing.lastActivateRequest?.payload.verificationResult.productID,
-            "com.pulseplate.premium.monthly"
+            billing.lastActivateRequest?.payload.verificationResult,
+            billing.verifyResult.activationPayload
         )
         XCTAssertEqual(manager.flowState, .unlocked)
+    }
+
+    func test_purchaseMissingActivationPayloadFailsClosed() async {
+        let storeKit = MockStoreKitManager()
+        let billing = MockSubscriptionBillingService()
+        let pointerStore = InMemoryActivationPointerStore()
+        let manager = makeManager(
+            storeKit: storeKit,
+            billing: billing,
+            pointerStore: pointerStore
+        )
+
+        storeKit.purchaseResult = .success(.fixture())
+        storeKit.receiptData = "receipt-missing-activation-payload"
+        billing.verifyResult = AppleReceiptVerificationResponseDTO(
+            provider: "apple",
+            verified: true,
+            verificationState: .active,
+            environment: "production",
+            productID: "com.pulseplate.premium.monthly",
+            expiresAt: "2026-04-01T00:00:00Z",
+            activationPayload: nil,
+            error: nil
+        )
+
+        await manager.purchase(productID: "com.pulseplate.premium.monthly")
+
+        XCTAssertNil(pointerStore.activationID)
+        XCTAssertNil(manager.entitlement)
+        XCTAssertEqual(billing.activateCallCount, 0)
+        XCTAssertEqual(billing.fetchCallCount, 0)
+        if case .failed(let message) = manager.flowState {
+            XCTAssertTrue(message.contains("activation payload"))
+        } else {
+            XCTFail("Expected failed state")
+        }
     }
 
     func test_restoreHappyPathUnlocksAfterRefresh() async {
@@ -469,7 +519,15 @@ private extension AppleReceiptVerificationResponseDTO {
             environment: "production",
             productID: "com.pulseplate.premium.monthly",
             expiresAt: "2026-04-01T00:00:00Z",
-            activationPayload: AppleActivationHintDTO(tier: .pro, platform: "ios"),
+            activationPayload: IOSVerifiedActivationResultDTO(
+                transactionID: "txn-001",
+                originalTransactionID: "orig-001",
+                productID: "com.pulseplate.premium.monthly",
+                subscriptionTier: .pro,
+                status: .active,
+                expiresAt: "2026-04-01T00:00:00Z",
+                platform: .ios
+            ),
             error: nil
         )
     }
@@ -482,7 +540,15 @@ private extension AppleReceiptVerificationResponseDTO {
             environment: "production",
             productID: "com.pulseplate.premium.monthly",
             expiresAt: "2026-04-01T00:00:00Z",
-            activationPayload: AppleActivationHintDTO(tier: .pro, platform: "ios"),
+            activationPayload: IOSVerifiedActivationResultDTO(
+                transactionID: "txn-restore",
+                originalTransactionID: "orig-restore",
+                productID: "com.pulseplate.premium.monthly",
+                subscriptionTier: .pro,
+                status: .active,
+                expiresAt: "2026-04-01T00:00:00Z",
+                platform: .ios
+            ),
             error: nil
         )
     }

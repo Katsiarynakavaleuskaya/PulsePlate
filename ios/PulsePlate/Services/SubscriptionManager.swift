@@ -59,8 +59,7 @@ struct EntitlementSnapshot: Equatable, Sendable {
 enum SubscriptionManagerError: Error, Equatable, Sendable {
     case missingAPIKey
     case missingActivationID
-    case missingTierHint
-    case missingProductID
+    case missingActivationPayload
     case restoreTransactionMissing
 }
 
@@ -71,10 +70,8 @@ extension SubscriptionManagerError: LocalizedError {
             return "Subscription flow requires a configured API key."
         case .missingActivationID:
             return "Subscription activation id is unavailable."
-        case .missingTierHint:
-            return "Backend verification did not return a subscription tier hint."
-        case .missingProductID:
-            return "Backend verification did not return a product identifier."
+        case .missingActivationPayload:
+            return "Backend verification did not return an activation payload."
         case .restoreTransactionMissing:
             return "Restore did not produce a verified entitlement transaction."
         }
@@ -187,7 +184,6 @@ final class SubscriptionManager: ObservableObject {
                     apiKey: apiKey
                 )
                 let activationRequest = try makeActivationRequest(
-                    from: transaction,
                     receiptData: receiptData,
                     verification: verification
                 )
@@ -225,7 +221,6 @@ final class SubscriptionManager: ObservableObject {
                 apiKey: apiKey
             )
             let activationRequest = try makeActivationRequest(
-                from: transaction,
                 receiptData: receiptData,
                 verification: verification
             )
@@ -304,29 +299,19 @@ final class SubscriptionManager: ObservableObject {
     }
 
     private func makeActivationRequest(
-        from transaction: StoreEntitlementTransaction,
         receiptData: String,
         verification: AppleReceiptVerificationResponseDTO
     ) throws -> ActivateSubscriptionRequestDTO {
-        guard let productID = verification.productID?.nilIfEmpty ?? transaction.productID.nilIfEmpty else {
-            throw SubscriptionManagerError.missingProductID
+        guard let verificationResult = verification.activationPayload else {
+            throw SubscriptionManagerError.missingActivationPayload
         }
 
-        guard let subscriptionTier = verification.activationPayload?.tier else {
-            throw SubscriptionManagerError.missingTierHint
-        }
-
-        let verificationStatus = normalizeVerificationStatus(verification.verificationState)
-        let verificationResult = IOSVerifiedActivationResultDTO(
-            transactionID: transaction.transactionID,
-            originalTransactionID: transaction.originalTransactionID,
-            productID: productID,
-            subscriptionTier: subscriptionTier,
-            status: verificationStatus,
-            expiresAt: verification.expiresAt,
-            platform: .ios
-        )
-
+        // RU: `activationPayload` — это канонический backend handoff для activate-запроса.
+        // `verificationState` остаётся envelope-метаданными verify-ответа и намеренно не
+        // ремапится здесь, чтобы клиент не реконструировал billing truth локально.
+        // EN: `activationPayload` is the canonical backend handoff for the activate request.
+        // `verificationState` stays verify-response envelope metadata and is intentionally
+        // not remapped here so the client does not reconstruct billing truth locally.
         return ActivateSubscriptionRequestDTO(
             source: .iosAppStore,
             payload: IOSAppStoreActivationPayloadDTO(
@@ -334,19 +319,6 @@ final class SubscriptionManager: ObservableObject {
                 receiptData: receiptData
             )
         )
-    }
-
-    private func normalizeVerificationStatus(
-        _ verificationState: BillingVerificationState
-    ) -> BillingVerificationStatus {
-        switch verificationState {
-        case .active, .restored:
-            return .active
-        case .expired:
-            return .expired
-        case .invalid:
-            return .rejected
-        }
     }
 
     private func makeEntitlementSnapshot(
