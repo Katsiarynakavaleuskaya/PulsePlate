@@ -31,6 +31,17 @@ Commit: 1fcbf395
 Evidence: The review-level CodeRabbit summary is fully covered by the concrete fixes above: deploy templates now ship `SUBSCRIPTION_DB_ENABLED`, the policy text matches the fail-closed DB lookup contract, and `tests/test_payment_source_contract_api.py` now uses behavioral route coverage instead of private helper calls.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1192#pullrequestreview-3977153010 -> 1fcbf395
 
+Disposition: FIXED
+Commit: e80e6f76
+Evidence: `app/middleware/api_tiers.py:124` exposes stable public wrappers `tier_allows_access(...)` and `resolve_tier_from_env(...)`, and `app/routers/billing.py:20` now imports those public helpers instead of coupling the router to underscored middleware internals.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1192#pullrequestreview-3977334982 -> e80e6f76
+
+Disposition: FIXED
+Commit: e80e6f76
+Evidence: `tests/test_payment_source_contract_api.py:41` now uses an isolated `TestClient(app)` context for the production-like manual-intent auth-isolation scenario, so the test no longer relies on the shared `client` fixture while mutating `dependency_overrides`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1192#discussion_r2962194720 -> e80e6f76
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1192#pullrequestreview-3977421339 -> e80e6f76
+
 ## Merge Readiness
 
 - [ ] All required checks pass
