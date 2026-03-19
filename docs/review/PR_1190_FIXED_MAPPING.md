@@ -7,11 +7,15 @@
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+Disposition: FIXED
+Commit: ac657e87
+Evidence: `ios/PulsePlate/Services/SubscriptionManager.swift:186`, `ios/PulsePlate/Services/SubscriptionManager.swift:223`, `ios/PulsePlate/Services/SubscriptionManager.swift:301`
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1190#pullrequestreview-3973435214 -> ac657e87
 
 ## Merge Readiness
 
-- Status: draft; review wave has only non-actionable bot status/guide comments so far
+- Status: ready for review; waiting for current-head CI completion and CodeRabbit final verdict
 - Local validation:
   - `pre-commit run --all-files`
   - `make verify`
