@@ -711,7 +711,6 @@ class TestCorpusFilteringVectorRag:
                 self.embedding = json.dumps([1.0, 0.0, 0.0])
 
         matched_row = _Row(1, "docs/cbt/grounding.md")
-        filtered_out_row = _Row(2, "docs/nutrition/macros.md")
 
         class _Result:
             def fetchall(self) -> list[_Row]:
@@ -742,7 +741,6 @@ class TestCorpusFilteringVectorRag:
 
         assert len(results) == 1
         assert results[0][0].id == matched_row.id
-        assert results[0][0].source != filtered_out_row.source
         assert captured_params[0]["prefix_0"] == "docs/cbt/%"
         assert captured_params[0]["subject_id"] == 99
 

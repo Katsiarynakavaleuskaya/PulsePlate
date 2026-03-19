@@ -33,6 +33,7 @@ from core.rag.rag_constants import (
 
 if TYPE_CHECKING:
     from providers.embeddings import EmbeddingProvider
+    from sqlalchemy.sql.selectable import TableClause
 
 logger = logging.getLogger(__name__)
 
@@ -80,7 +81,7 @@ def _cosine_similarity(a: list[float], b: list[float]) -> float:
     return dot / (norm_a * norm_b)
 
 
-def _user_knowledge_table() -> Any:
+def _user_knowledge_table() -> TableClause:
     """Return a lightweight SQLAlchemy table descriptor for ``user_knowledge``."""
 
     from sqlalchemy import column, table
