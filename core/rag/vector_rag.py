@@ -113,13 +113,15 @@ def _retrieve_vector_postgres(
     starts with one of the given prefixes (agent-specific corpus filtering).
     """
     from pgvector.sqlalchemy import VECTOR
-    from sqlalchemy import BigInteger, Integer, String, bindparam, or_, select
+    from sqlalchemy import BigInteger, Integer, String, bindparam, cast, or_, select
 
     user_knowledge = _user_knowledge_table()
 
-    qvec_param = bindparam("qvec", type_=VECTOR(EMBEDDING_DIMENSIONS))
+    vector_type = VECTOR(EMBEDDING_DIMENSIONS)
+    qvec_param = bindparam("qvec", type_=vector_type)
+    qvec_vector = cast(qvec_param, vector_type)
     limit_param = bindparam("lim", type_=Integer())
-    similarity = (1 - user_knowledge.c.embedding.op("<=>")(qvec_param)).label("similarity")
+    similarity = (1 - user_knowledge.c.embedding.op("<=>")(qvec_vector)).label("similarity")
 
     stmt = (
         select(

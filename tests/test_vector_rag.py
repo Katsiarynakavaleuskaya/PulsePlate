@@ -367,6 +367,8 @@ class TestRetrieveVectorPostgres:
         assert params["lim"] == 5
         assert params["subject_id"] == 17
         sql = str(call_args[0][0])
+        assert "CAST" in sql
+        assert "VECTOR" in sql
         assert "user_knowledge" in sql
         assert "user_id" in sql
         assert "subject_id" in sql
