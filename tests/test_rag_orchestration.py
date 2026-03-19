@@ -138,10 +138,10 @@ class TestRetrieveAndValidateRag:
         assert result.latency_ms == 100
 
     @pytest.mark.asyncio
-    async def test_validation_disabled_uses_all_chunks(self) -> None:
-        """When philo_validation_enabled=False, all chunks are used."""
+    async def test_validation_disabled_uses_all_chunks_and_recomputes_confidence(self) -> None:
+        """Non-philo path still derives final confidence from active chunks."""
         chunks = [_make_chunk("c1", score=0.9), _make_chunk("c2", score=0.7)]
-        rag_ctx = _make_rag_context(chunks=chunks, confidence=0.8)
+        rag_ctx = _make_rag_context(chunks=chunks, confidence=0.2)
 
         with (
             patch(
@@ -163,7 +163,7 @@ class TestRetrieveAndValidateRag:
 
         assert result.rag_actually_used is True
         assert len(result.chunks) == 2
-        assert result.confidence == 0.8  # Original confidence used
+        assert result.confidence == 0.8
         assert result.chunks_filtered == 0
         assert "Context:" in result.formatted_prompt
 
@@ -195,6 +195,33 @@ class TestRetrieveAndValidateRag:
 
         assert result.rag_actually_used is True
         assert result.confidence == 0.8
+
+    @pytest.mark.asyncio
+    async def test_validation_disabled_ignores_stale_retriever_confidence(self) -> None:
+        """Active chunks must beat stale retriever confidence in non-philo mode."""
+        chunks = [_make_chunk("c1", score=0.95), _make_chunk("c2", score=0.55)]
+        rag_ctx = _make_rag_context(chunks=chunks, confidence=0.1)
+
+        with (
+            patch(
+                "asyncio.to_thread",
+                new_callable=AsyncMock,
+                return_value=rag_ctx,
+            ),
+            patch("core.rag.vector_rag.retrieve_context_structured"),
+            patch(
+                "core.rag.formatting.format_rag_chunks_for_prompt",
+                return_value="Chunk1\nChunk2",
+            ),
+            patch(
+                "core.insight.safety.redact_rag_context_for_insight",
+                return_value="Chunk1\nChunk2",
+            ),
+        ):
+            result = await retrieve_and_validate_rag("test prompt", philo_validation_enabled=False)
+
+        assert result.rag_actually_used is True
+        assert result.confidence == 0.75
 
     @pytest.mark.asyncio
     async def test_recursive_enabled_uses_recursive_retriever(self) -> None:

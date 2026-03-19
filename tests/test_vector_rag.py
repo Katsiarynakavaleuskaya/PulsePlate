@@ -347,7 +347,7 @@ class TestRetrieveVectorPostgres:
     """Test _retrieve_vector_postgres with mock session."""
 
     def test_postgres_query_and_format(self) -> None:
-        """Postgres path should format embedding and execute SQL."""
+        """Postgres path should bind query vector data and tenant scope parameters."""
         from core.rag.vector_rag import _retrieve_vector_postgres
 
         fake_row = MagicMock()
@@ -361,13 +361,15 @@ class TestRetrieveVectorPostgres:
         assert results[0][0] is fake_row
         assert results[0][1] == 0.95
 
-        # Verify qvec format is pgvector-canonical
         call_args = fake_session.execute.call_args
         params = call_args[1] if call_args[1] else call_args[0][1]
-        assert params["qvec"] == "[1.0,2.0,3.0]"
+        assert params["qvec"] == [1.0, 2.0, 3.0]
         assert params["lim"] == 5
         assert params["subject_id"] == 17
-        assert "user_id = :subject_id" in str(call_args[0][0])
+        sql = str(call_args[0][0])
+        assert "user_knowledge" in sql
+        assert "user_id" in sql
+        assert "subject_id" in sql
 
 
 class TestRetrieveVectorFromDb:
@@ -690,6 +692,54 @@ class TestQueryEmbeddingValidation:
 
 class TestCorpusFilteringVectorRag:
     """Tests for corpus filtering in vector_rag retrieval functions."""
+
+    def test_sqlite_retrieval_filters_rows_by_corpus_prefix_behavior(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """SQLite retrieval keeps only rows matching the requested corpus prefixes."""
+        from core.rag import vector_rag
+
+        monkeypatch.setattr(vector_rag, "EMBEDDING_DIMENSIONS", 3)
+
+        class _Row:
+            def __init__(self, id: int, source: str) -> None:
+                self.id = id
+                self.content = f"doc {id}"
+                self.source = source
+                self.embedding = json.dumps([1.0, 0.0, 0.0])
+
+        matched_row = _Row(1, "docs/cbt/grounding.md")
+        filtered_out_row = _Row(2, "docs/nutrition/macros.md")
+
+        class _Result:
+            def fetchall(self) -> list[_Row]:
+                return [matched_row]
+
+        captured_params: list[dict[str, str | int]] = []
+
+        def _execute(stmt: Any, params: dict[str, str | int] | None = None) -> _Result:
+            sql = str(stmt)
+            assert "prefix_0" in sql
+            captured_params.append(params or {})
+            # Simulate the database behavior after applying the corpus filter.
+            return _Result()
+
+        fake_session = MagicMock()
+        fake_session.execute = _execute
+
+        results = vector_rag._retrieve_vector_sqlite(
+            [1.0, 0.0, 0.0],
+            5,
+            fake_session,
+            subject_id=99,
+            corpus_prefixes=["docs/cbt/"],
+        )
+
+        assert len(results) == 1
+        assert results[0][0].id == matched_row.id
+        assert results[0][0].source != filtered_out_row.source
+        assert captured_params[0]["prefix_0"] == "docs/cbt/%"
+        assert captured_params[0]["subject_id"] == 99
 
     def test_postgres_corpus_filtering_builds_where_clause(
         self, monkeypatch: pytest.MonkeyPatch
