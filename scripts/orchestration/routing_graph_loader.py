@@ -1,8 +1,8 @@
-"""Load canonical routing graph from docs/orchestration/AGENT_ROUTING_GRAPH.md.
+"""Load canonical routing graph metadata from docs/orchestration/AGENT_ROUTING_GRAPH.md.
 
-Parses the cluster definition table plus the Domains -> Agents table and returns
-Dict[str, DomainRoute]. Used by route_with_telemetry.py as baseline fallback
-(telemetry is advisory).
+Parses the cluster definition table, the Domains -> Agents table, and
+bootstrap-lane activation metadata. Used by orchestration helpers as canonical
+SoT while telemetry remains advisory.
 """
 
 from __future__ import annotations
@@ -10,13 +10,15 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Optional, Set, Tuple
+from typing import Dict, Mapping, Optional, Set, Tuple
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_ROUTING_GRAPH = REPO_ROOT / "docs" / "orchestration" / "AGENT_ROUTING_GRAPH.md"
 
 _TABLE_ROW_RE = re.compile(r"^\|\s*(?P<cols>.+?)\s*\|\s*$")
 _CLUSTER_SLUG_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+BOOTSTRAP_LANE_ACTIVATION_SECTION_TITLE = "5. Bootstrap Lane Activation"
+REQUIRED_BOOTSTRAP_LANE = "judgment"
 
 
 @dataclass(frozen=True)
@@ -27,6 +29,15 @@ class DomainRoute:
     primary: str
     secondary: Optional[str]
     reviewer: str
+
+
+@dataclass(frozen=True)
+class BootstrapLaneActivation:
+    """Canonical lexical activation metadata for bootstrap-only lanes."""
+
+    lane: str
+    signal_terms: Tuple[str, ...]
+    decision_mode: str
 
 
 def _split_md_row(row: str) -> Tuple[str, ...]:
@@ -169,6 +180,107 @@ def _parse_cluster_definitions(lines: list[str]) -> Set[str]:
     return declared_clusters
 
 
+def _append_unique_signal(
+    existing_terms: Tuple[str, ...],
+    signal: str,
+) -> Tuple[str, ...]:
+    """Append a normalized bootstrap signal once while preserving order."""
+
+    normalized_signal = signal.strip().lower()
+    if not normalized_signal:
+        return existing_terms
+    if normalized_signal in existing_terms:
+        raise ValueError(f"Duplicate bootstrap lane activation signal: {normalized_signal}")
+    return (*existing_terms, normalized_signal)
+
+
+def _parse_bootstrap_lane_activations(
+    lines: list[str],
+) -> Dict[str, BootstrapLaneActivation]:
+    """Parse canonical bootstrap-lane activation metadata from the routing graph SoT."""
+
+    section_start, section_end = _find_section_bounds(
+        lines,
+        BOOTSTRAP_LANE_ACTIVATION_SECTION_TITLE,
+    )
+    header_idx, header_cols = _find_table_header(
+        lines,
+        ("lane", "signal", "decision mode"),
+        start_index=section_start,
+        end_index=section_end,
+    )
+
+    start = header_idx + 1
+    if start < len(lines) and _is_delimiter_row(lines[start]):
+        start += 1
+
+    i_lane = _header_index(header_cols, "lane")
+    i_signal = _header_index(header_cols, "signal")
+    i_decision_mode = _header_index(header_cols, "decision mode")
+
+    activations: Dict[str, BootstrapLaneActivation] = {}
+
+    for index in range(start, section_end):
+        line = lines[index]
+        stripped = line.strip()
+        if stripped == "---" or stripped.startswith("##"):
+            break
+        cols = _split_md_row(line)
+        if not cols:
+            continue
+        if len(cols) <= max(i_lane, i_signal, i_decision_mode):
+            continue
+
+        lane = cols[i_lane].strip().lower()
+        signal = cols[i_signal].strip()
+        decision_mode = cols[i_decision_mode].strip().lower()
+
+        if any([lane, signal, decision_mode]) and not (lane and signal and decision_mode):
+            raise ValueError(
+                "Incomplete bootstrap lane activation row: "
+                f"lane={lane!r}, signal={signal!r}, decision_mode={decision_mode!r}"
+            )
+        if not lane:
+            continue
+        existing = activations.get(lane)
+        if existing is None:
+            activations[lane] = BootstrapLaneActivation(
+                lane=lane,
+                signal_terms=(signal.lower(),),
+                decision_mode=decision_mode,
+            )
+            continue
+
+        if existing.decision_mode != decision_mode:
+            raise ValueError(
+                "Bootstrap lane activation changes decision mode within the same lane: "
+                f"{lane} -> {existing.decision_mode}, {decision_mode}"
+            )
+
+        activations[lane] = BootstrapLaneActivation(
+            lane=lane,
+            signal_terms=_append_unique_signal(existing.signal_terms, signal),
+            decision_mode=existing.decision_mode,
+        )
+
+    if not activations:
+        raise ValueError("No bootstrap lane activations parsed from routing graph")
+
+    return activations
+
+
+def require_bootstrap_lane_activation(
+    activations: Mapping[str, BootstrapLaneActivation],
+    lane: str = REQUIRED_BOOTSTRAP_LANE,
+) -> BootstrapLaneActivation:
+    """Return the required bootstrap-lane activation or raise a canonical error."""
+
+    activation = activations.get(lane)
+    if activation is None:
+        raise ValueError(f"Required bootstrap lane activation missing: {lane}")
+    return activation
+
+
 def load_declared_clusters(path: Path = DEFAULT_ROUTING_GRAPH) -> Set[str]:
     """Return the canonical cluster set declared in the routing graph SoT."""
 
@@ -176,6 +288,19 @@ def load_declared_clusters(path: Path = DEFAULT_ROUTING_GRAPH) -> Set[str]:
         raise FileNotFoundError(f"Routing graph not found: {path}")
     lines = path.read_text(encoding="utf-8").splitlines()
     return _parse_cluster_definitions(lines)
+
+
+def load_bootstrap_lane_activations(
+    path: Path = DEFAULT_ROUTING_GRAPH,
+) -> Dict[str, BootstrapLaneActivation]:
+    """Return canonical bootstrap-lane activation metadata from the routing graph SoT."""
+
+    if not path.is_file():
+        raise FileNotFoundError(f"Routing graph not found: {path}")
+    lines = path.read_text(encoding="utf-8").splitlines()
+    activations = _parse_bootstrap_lane_activations(lines)
+    require_bootstrap_lane_activation(activations)
+    return activations
 
 
 def load_routing_clusters_raw(path: Path = DEFAULT_ROUTING_GRAPH) -> Set[str]:

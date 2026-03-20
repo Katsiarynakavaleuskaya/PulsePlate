@@ -27,6 +27,7 @@ from core.judgment import (
     UNCERTAINTY_FIELDS,
 )
 from scripts.orchestration.context_pack import (
+    ORCHESTRATION_CONTEXT_FILES,
     REPO_ROOT,
     collect_context_pack,
     compute_task_packet_id,
@@ -39,7 +40,13 @@ from scripts.orchestration.agent_consistency_loader import (
 )
 from scripts.orchestration.native_subagent_bridge import build_native_subagent_bridge
 from scripts.orchestration.route_with_telemetry import TELEMETRY_PATH, route
-from scripts.orchestration.routing_graph_loader import load_routing_graph
+from scripts.orchestration.routing_graph_loader import (
+    BootstrapLaneActivation,
+    REQUIRED_BOOTSTRAP_LANE,
+    load_bootstrap_lane_activations,
+    load_routing_graph,
+    require_bootstrap_lane_activation,
+)
 from scripts.orchestration.requested_agents import normalize_requested_agents
 from scripts.orchestration.skill_router import route_skills
 
@@ -56,18 +63,12 @@ PRIVILEGED_REVIEW_PREFIXES: tuple[str, ...] = (
     "ios/fastlane/",
     "scripts/orchestration/",
 )
-JUDGMENT_TRIGGER_TERMS: tuple[str, ...] = (
-    "judgment",
-    "adjudication",
-    "evidence reconciliation",
-    "evidence_reconciliation",
-    "verification-first",
-    "verification_first",
-    "creative_research",
-    "creative research",
-    "fitchef",
-    "fit_chef",
+JUDGMENT_REQUIRED_CONTEXT_FILES: tuple[str, ...] = (
+    *ORCHESTRATION_CONTEXT_FILES,
+    "docs/orchestration/JUDGMENT_ADJUDICATION_SUBLANE_PROTOCOL.md",
+    "docs/orchestration/EVIDENCE_RECONCILIATION_PROTOCOL.md",
 )
+SUPPORTED_JUDGMENT_DECISION_MODE = "verification_first"
 
 
 def _read_json(path: Path) -> dict[str, Any] | None:
@@ -124,6 +125,7 @@ def _judgment_lane_enabled(
     goal: str,
     task_class: str,
     candidate_paths: list[str] | tuple[str, ...],
+    activation: BootstrapLaneActivation,
 ) -> bool:
     """Return True when the task clearly targets the judgment/adjudication lane."""
 
@@ -134,7 +136,20 @@ def _judgment_lane_enabled(
             *(path.lower() for path in candidate_paths),
         ]
     )
-    return any(term in normalized_haystack for term in JUDGMENT_TRIGGER_TERMS)
+    return any(term in normalized_haystack for term in activation.signal_terms)
+
+
+def _validated_judgment_activation(
+    activation: BootstrapLaneActivation,
+) -> BootstrapLaneActivation:
+    """Reject unsupported decision modes for the current judgment packet contract."""
+
+    if activation.decision_mode != SUPPORTED_JUDGMENT_DECISION_MODE:
+        raise ValueError(
+            "Unsupported judgment lane decision mode: "
+            f"{activation.decision_mode}. Supported: {SUPPORTED_JUDGMENT_DECISION_MODE}"
+        )
+    return activation
 
 
 def _partition_native_secondaries(
@@ -344,6 +359,7 @@ def build_task_packet(
         goal=goal,
     )
     routing = load_routing_graph()
+    bootstrap_lane_activations = load_bootstrap_lane_activations()
     decision = route(
         domain,
         task_class,
@@ -404,14 +420,22 @@ def build_task_packet(
         reviewer=requested_agent_resolution["reviewer"],
         advisory_agents=advisory_agents,
     )
+    judgment_activation = _validated_judgment_activation(
+        require_bootstrap_lane_activation(
+            bootstrap_lane_activations,
+            REQUIRED_BOOTSTRAP_LANE,
+        )
+    )
     judgment_enabled = _judgment_lane_enabled(
         goal=goal,
         task_class=task_class,
         candidate_paths=normalized_paths,
+        activation=judgment_activation,
     )
     if judgment_enabled:
+        context_pack = sorted(set(context_pack).union(JUDGMENT_REQUIRED_CONTEXT_FILES))
         decision_contract = {
-            "mode": "verification_first",
+            "mode": judgment_activation.decision_mode,
             "judgment_enabled": True,
             "claim_taxonomy": list(CLAIM_TYPES),
             "flow": list(JUDGMENT_FLOW),

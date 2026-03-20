@@ -76,7 +76,29 @@ Enforcement evidence: `scripts/orchestration/routing_graph_loader.py:121-169`, `
 
 ---
 
-## 5. Routing Rules
+## 5. Bootstrap Lane Activation
+
+| Lane     | Signal | Decision Mode |
+|----------|--------|---------------|
+| judgment | judgment | verification_first |
+| judgment | adjudication | verification_first |
+| judgment | evidence reconciliation | verification_first |
+| judgment | evidence_reconciliation | verification_first |
+| judgment | verification-first | verification_first |
+| judgment | verification_first | verification_first |
+| judgment | creative research | verification_first |
+| judgment | creative_research | verification_first |
+| judgment | fitchef | verification_first |
+| judgment | fit_chef | verification_first |
+| judgment | docs/orchestration/JUDGMENT_ADJUDICATION_SUBLANE_PROTOCOL.md | verification_first |
+| judgment | docs/orchestration/EVIDENCE_RECONCILIATION_PROTOCOL.md | verification_first |
+| judgment | core/judgment.py | verification_first |
+
+Bootstrap evidence: `scripts/orchestration/routing_graph_loader.py`, `scripts/orchestration/task_bootstrap.py`, `tests/test_routing_graph_loader.py`, `tests/test_task_bootstrap.py`.
+
+---
+
+## 6. Routing Rules
 
 1. Coordinator selects exactly 1 primary agent.
 2. Canonical routing graph allows exactly 0..1 secondary agent in the `Secondary` column; do not encode comma-separated secondaries here. Additional collaborators stay advisory in task analysis or capability guidance.
@@ -99,7 +121,7 @@ Audit evidence: `scripts/orchestration/check_agent_consistency.py:103-209`, `tes
 
 ---
 
-## 6. Mermaid Routing Graph
+## 7. Mermaid Routing Graph
 
 ```mermaid
 flowchart LR
@@ -115,7 +137,7 @@ SecondaryAgents --> Reviewer
 
 ---
 
-## Related Documentation
+## 8. Related Documentation
 
 - Capability Matrix: `docs/orchestration/AGENT_CAPABILITY_MATRIX.md`
 - Skill Routing Policy: `docs/orchestration/AGENT_SKILL_ROUTING_POLICY.md`
@@ -124,4 +146,4 @@ SecondaryAgents --> Reviewer
 
 ---
 
-**Last updated:** 2026-03-14 (requested-agent + privileged-surface routing refresh)
+**Last updated:** 2026-03-20 (bootstrap-lane activation canonicalization)
