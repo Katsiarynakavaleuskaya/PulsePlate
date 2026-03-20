@@ -95,7 +95,7 @@ This packet only freezes that decomposition. It does not perform any step above.
 
 ## Canonical Wording Rules
 
-Any draft PR or follow-up docs generated from this packet must state all of the
+Any draft PR or follow-up docs generated from this packet must state all the
 following:
 
 - this is a **packet-only** change
