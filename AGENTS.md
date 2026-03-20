@@ -581,7 +581,8 @@ A repository-wide guard that runs early in CI to prevent PR bloat and mixed conc
 
 - Acronym-style short query anchors such as `BMI`, `BP`, and `B12` remain valid contradiction anchors.
 - Do not apply blanket anchor-specificity tightening unless negative tests preserve these short-anchor acronym cases.
-- If local query binding leaves multiple plausible referents or otherwise fails to produce one tested anchor match, do not emit a contradiction.
+- This policy is limited to tested short-anchor cases; broad lexical anchors such as `vitamin` or `protein` remain part of the deferred Stage-4 anchor-specificity follow-up.
+- If a short-anchor query still leaves multiple plausible referents in local context and no single tested anchor match is isolated, do not emit a contradiction.
 - Bot suggestions that materially change contradiction heuristics should go to a separate backlog-backed PR unless the change is a proven bugfix with tests.
 
 **FitChef initiative policy (Hard rule):**
