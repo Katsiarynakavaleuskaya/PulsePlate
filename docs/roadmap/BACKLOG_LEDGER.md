@@ -2881,6 +2881,24 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Reliability fields (`verification_state`, `confidence`) remain backward-compatible
 
 
+<a id="ledger-p2-rag-stage4-anchor-specificity"></a>
+- [ ] P2: Stage-4 anchor specificity for broad medical tokens
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2 (quality refinement)
+  - Target PR: PR-TBD-RAG-STAGE4-ANCHOR-SPECIFICITY
+  - Status: 📋 Planned
+  - Reason: Current Stage-4 contradiction binding treats any shared query anchor as sufficient. That is intentional for narrow acronym-style queries (`BMI`, `BP`, `B12`) but may still be too permissive for broad lexical anchors such as `vitamin` or `protein`, especially when cohort qualifiers are intentionally non-binding. The next refinement should separate specific-topic anchors from broad-topic anchors without regressing valid single-anchor contradiction detection.
+  - Links:
+    - `core/rag/philosophy_pipeline.py`
+    - `tests/test_philosophy_pipeline.py`
+    - `docs/contracts/RAG_CONTRACT.md`
+    - `docs/insights/PHILOSOPHICAL_LOGIC_LLM_RELIABILITY.md`
+  - DoD:
+    - Stage-4 distinguishes broad-topic anchors from specific-topic anchors deterministically
+    - Regression tests cover `vitamin D` vs `vitamin B12` and cohort-specific `protein` cases
+    - Existing valid single-anchor contradiction cases (`BMI`, `BP`, `B12`) remain green
+
+
 <a id="ledger-p2-wellness-explainers-learning-cycles"></a>
 - [ ] P2: Wellness Explainers + Learning Cycles MVP (rules-first, trust-first)
   - Owner: @katsiaryna_kavaleuskaya

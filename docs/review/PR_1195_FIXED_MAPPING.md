@@ -37,6 +37,12 @@ Backlog: docs/roadmap/BACKLOG_LEDGER.md:2866
 Reason: Long-form to acronym normalization (for example `body mass index` -> `BMI`) needs an explicit synonym/alias layer and is outside narrow C2 follow-through.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1195#discussion_r2965573196
 
+Disposition: DEFERRED
+Backlog: docs/roadmap/BACKLOG_LEDGER.md#ledger-p2-rag-stage4-anchor-specificity
+Reason: Topic-binding specificity for broad anchors such as `vitamin` or `protein` is a follow-up refinement. The current C2 implementation intentionally preserves valid single-anchor contradictions for narrow queries such as `BMI`, `BP`, and `B12`, so tightening the overlap rule needs a separate design pass.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1195#discussion_r2965794257
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1195#pullrequestreview-3981560445
+
 ## Merge Readiness
 - [ ] All required checks pass
 - [ ] No unresolved review threads
