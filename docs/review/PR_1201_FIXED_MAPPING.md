@@ -21,6 +21,17 @@ Disposition: FIXED
 Commit: 580bdd3d
 Evidence: `docs/architecture/C4_AI_BOUNDED_CONTEXT_PACKET_2026-03-20.md:61`, `docs/architecture/C4_AI_BOUNDED_CONTEXT_PACKET_2026-03-20.md:63`, `docs/architecture/C4_AI_BOUNDED_CONTEXT_PACKET_2026-03-20.md:76`, `docs/architecture/C4_AI_BOUNDED_CONTEXT_PACKET_2026-03-20.md:80`, `docs/architecture/C4_AI_BOUNDED_CONTEXT_PACKET_2026-03-20.md:124`
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1201#pullrequestreview-3983967946 -> 580bdd3d
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1201#discussion_r2967898724 -> 580bdd3d
+
+Disposition: FIXED
+Commit: c178a20d
+Evidence: `docs/architecture/C4_AI_BOUNDED_CONTEXT_PACKET_2026-03-20.md:159`, `docs/architecture/C4_AI_BOUNDED_CONTEXT_PACKET_2026-03-20.md:161`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1201#discussion_r2967888372 -> c178a20d
+
+Disposition: NOT-A-BUG
+Evidence: `docs/architecture/C4_AI_BOUNDED_CONTEXT_PACKET_2026-03-20.md:133`, `docs/architecture/C4_AI_BOUNDED_CONTEXT_PACKET_2026-03-20.md:138`, `docs/architecture/ADR_AI_RUNTIME_BOUNDED_CONTEXT_SEAM_2026-03-09.md:36`
+Reason: Packet canon explicitly keeps operator-only prerequisites out of repo SoT and freezes reviewable ownership/stack wording without promoting fallback-chain sequencing into canonical architecture truth.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1201#discussion_r2967888377
 
 ## Merge Readiness
 
@@ -33,6 +44,7 @@ Evidence: `docs/architecture/C4_AI_BOUNDED_CONTEXT_PACKET_2026-03-20.md:61`, `do
   - `8836405e` — `docs(architecture): tighten C4 validation wording`
   - `b7e79e9e` — `docs(architecture): polish C4 packet wording`
   - `580bdd3d` — `docs(architecture): add C4 ownership evidence`
+  - `c178a20d` — `docs(architecture): clarify packet validation scope`
 - Current scope discipline:
   - packet-only docs/architecture PR
   - no runtime, route, public API, schema, or OpenAPI changes
