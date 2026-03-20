@@ -124,6 +124,7 @@ async def retrieve_and_validate_rag(
     *,
     philo_validation_enabled: bool = False,
     recursive_rag_enabled: bool = False,
+    optimization_enabled: bool = False,
     subject_id: int | None = None,
 ) -> RAGOrchestrationResult:
     """Orchestrate RAG retrieval + philosophy validation.
@@ -167,6 +168,7 @@ async def retrieve_and_validate_rag(
         max_chunks,
         philo_validation_enabled,
         recursive_rag_enabled,
+        optimization_enabled,
         subject_id,
     )
 
@@ -176,6 +178,7 @@ async def _run_orchestration(
     max_chunks: int,
     philo_enabled: bool,
     recursive_enabled: bool,
+    optimization_enabled: bool,
     subject_id: int | None,
 ) -> RAGOrchestrationResult:
     """Execute RAG retrieval + validation pipeline."""
@@ -193,6 +196,7 @@ async def _run_orchestration(
                 max_chunks=max_chunks,
                 subject_id=subject_id,
                 philo_validation_enabled=False,
+                optimization_enabled=optimization_enabled,
             )
             recursive_executed = True
         else:

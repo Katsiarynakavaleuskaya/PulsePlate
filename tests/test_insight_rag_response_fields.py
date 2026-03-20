@@ -35,6 +35,7 @@ class _FakeRAGContext:
     latency_ms: int
     agent_id: Optional[str] = None
     user_tier: Optional[str] = None
+    optimization_stats: dict[str, object] | None = None
 
 
 def _make_fake_structured(
@@ -102,10 +103,11 @@ def _make_fake_recursive_structured(
     user_tier: str | None = None,
     subject_id: int | None = None,
     philo_validation_enabled: bool = False,
+    optimization_enabled: bool = False,
 ) -> _FakeRAGContext:
     """Fake recursive retriever with deeper hops and refined query chain."""
     # Intentionally unused: keep signature parity with real recursive retriever.
-    _ = (philo_validation_enabled, subject_id)
+    _ = (philo_validation_enabled, optimization_enabled, subject_id)
     chunks = [
         _FakeRAGChunk(
             chunk_id="recursive.md:1",
@@ -124,6 +126,21 @@ def _make_fake_recursive_structured(
         latency_ms=55,
         agent_id=agent_id,
         user_tier=user_tier,
+        optimization_stats=(
+            {
+                "enabled": True,
+                "cache_hits": 1,
+                "refinement_cache_hits": 1,
+                "verification_calls": 0,
+                "stop_reason": "no_new_usable_chunks",
+                "early_stop_no_query_change": False,
+                "early_stop_no_new_chunks": True,
+                "early_stop_low_confidence_gain": False,
+                "early_stop_latency_budget": False,
+            }
+            if optimization_enabled
+            else None
+        ),
     )
 
 
@@ -467,7 +484,49 @@ class TestInsightV1RAGFields:
         assert data["rag_used"] is True
         assert data["verification_rate"] == 0.8
         assert "rag_recursive_path" in data["reason_codes"]
+        assert "verification_first_fallback" not in data["reason_codes"]
         assert "verification_first_rewrite" in data["reason_codes"]
+
+    def test_recursive_optimization_enabled_preserves_recursive_api_contract(
+        self,
+        client: TestClient,
+        monkeypatch: pytest.MonkeyPatch,
+        vip_headers: dict[str, str],
+    ) -> None:
+        """Recursive optimization must preserve the existing public response fields."""
+        import llm
+
+        monkeypatch.setenv("FEATURE_INSIGHT", "true")
+        monkeypatch.setenv("FEATURE_RAG", "true")
+        monkeypatch.setenv("FEATURE_RAG_RECURSIVE", "true")
+        monkeypatch.setenv("FEATURE_RAG_RECURSIVE_OPTIMIZATION", "true")
+        monkeypatch.setattr(llm, "get_provider", lambda: _EchoProvider(), raising=True)
+
+        seen_optimization_enabled: list[bool] = []
+
+        def _tracked_recursive_structured(*args: Any, **kwargs: Any) -> _FakeRAGContext:
+            seen_optimization_enabled.append(bool(kwargs.get("optimization_enabled")))
+            return _make_fake_recursive_structured(*args, **kwargs)
+
+        monkeypatch.setattr(
+            "core.rag.recursive_retrieval.retrieve_recursive_context_structured",
+            _tracked_recursive_structured,
+            raising=True,
+        )
+
+        resp = client.post("/api/v1/insight", json={"text": "What is BMI?"}, headers=vip_headers)
+
+        assert resp.status_code == 200
+        assert resp.headers.get("content-type", "").startswith("application/json")
+        data = resp.json()
+        assert seen_optimization_enabled == [True]
+        assert "optimization_stats" not in data
+        assert data["rag_used"] is True
+        assert data["hops"] == 2
+        assert data["latency_ms"] == 55
+        assert data["confidence"] == 0.82
+        assert isinstance(data["sources"], list)
+        assert data["contradiction_count"] == 0
         assert "verification_first_fallback" not in data["reason_codes"]
 
     def test_insight_text_not_contaminated_by_source_headers(

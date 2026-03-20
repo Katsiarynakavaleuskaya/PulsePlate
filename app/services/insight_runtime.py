@@ -27,6 +27,7 @@ from app.utils.feature_flags import (
     is_philosophy_router_enabled,
     is_philosophy_validation_enabled,
     is_recursive_rag_enabled,
+    is_recursive_rag_optimization_enabled,
 )
 
 
@@ -69,6 +70,7 @@ def insight_feature_flag_state() -> dict[str, bool]:
         "philosophy_validation": is_philosophy_validation_enabled(),
         "rag": _is_truthy(os.getenv("FEATURE_RAG", "false")),
         "rag_recursive": is_recursive_rag_enabled(),
+        "rag_recursive_optimization": is_recursive_rag_optimization_enabled(),
         "rag_vector": _is_truthy(os.getenv("FEATURE_RAG_VECTOR", "false")),
     }
 
@@ -85,6 +87,8 @@ async def _traced_retrieve_and_validate_rag(
 ) -> Any:
     """Wrap RAG retrieval in a deterministic retriever span."""
 
+    optimization_enabled = recursive_rag_enabled and is_recursive_rag_optimization_enabled()
+
     with retrieval_span(
         user_tier=user_tier,
         route=route_path,
@@ -95,6 +99,7 @@ async def _traced_retrieve_and_validate_rag(
             max_chunks=max_chunks,
             philo_validation_enabled=philo_validation_enabled,
             recursive_rag_enabled=recursive_rag_enabled,
+            optimization_enabled=optimization_enabled,
             subject_id=subject_id,
         )
         set_attributes(span, **{"pulseplate.rag.hops": rag_result.hops})

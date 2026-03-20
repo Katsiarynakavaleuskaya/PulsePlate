@@ -43,6 +43,18 @@ class TestAppRemainingCoverage:
         monkeypatch.setenv("FEATURE_RAG_RECURSIVE", "0")
         assert is_recursive_rag_enabled() is False
 
+    def test_is_recursive_rag_optimization_enabled_flag(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Test recursive optimization feature flag parsing."""
+        from app.utils.feature_flags import is_recursive_rag_optimization_enabled
+
+        monkeypatch.setenv("FEATURE_RAG_RECURSIVE_OPTIMIZATION", "true")
+        assert is_recursive_rag_optimization_enabled() is True
+
+        monkeypatch.setenv("FEATURE_RAG_RECURSIVE_OPTIMIZATION", "0")
+        assert is_recursive_rag_optimization_enabled() is False
+
     def test_add_visualization_if_requested_function(self, test_client):
         """Test the add_visualization_if_requested function."""
         from app import BMIRequest, add_visualization_if_requested
