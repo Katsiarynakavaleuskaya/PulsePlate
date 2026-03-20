@@ -710,3 +710,45 @@ def test_optimized_recursive_fail_safe_on_internal_error_records_stats(
     assert result.confidence == 0.0
     assert result.optimization_stats is not None
     assert result.optimization_stats["enabled"] is True
+
+
+def test_optimized_recursive_preserves_partial_context_when_helper_raises(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Optimization-only helper failures must keep the best partial recursive result."""
+    import core.rag.recursive_retrieval as recursive
+
+    monkeypatch.setattr(recursive, "MAX_RAG_HOPS", 3)
+    monkeypatch.setattr(recursive, "MAX_REFINEMENT_PASSES", 3)
+    monkeypatch.setattr(recursive, "MAX_VERIFICATION_QUERIES", 0)
+    monkeypatch.setattr(recursive, "RAG_PIPELINE_TIMEOUT_SEC", 100.0)
+    monkeypatch.setattr(recursive, "MIN_CONFIDENCE_GAIN_PER_HOP", -1.0)
+
+    monkeypatch.setattr(
+        "core.rag.vector_rag.retrieve_context_structured",
+        lambda query, **_: _ctx(
+            query,
+            [
+                RAGChunk(
+                    chunk_id="partial-1",
+                    file="doc.md",
+                    content="fiber protein vegetables satiety",
+                    score=0.8,
+                )
+            ],
+            confidence=0.8,
+        ),
+    )
+    monkeypatch.setattr(
+        recursive,
+        "_query_changed_materially",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("helper boom")),
+    )
+
+    result = retrieve_recursive_context_structured("base query", optimization_enabled=True)
+
+    assert [chunk.chunk_id for chunk in result.chunks] == ["partial-1"]
+    assert result.confidence == 0.8
+    assert result.refined_queries == ["base query"]
+    assert result.optimization_stats is not None
+    assert result.optimization_stats["enabled"] is True

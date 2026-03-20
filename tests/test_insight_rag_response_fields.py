@@ -503,6 +503,7 @@ class TestInsightV1RAGFields:
         assert resp.headers.get("content-type", "").startswith("application/json")
         data = resp.json()
         assert seen_optimization_enabled == [True]
+        assert "optimization_stats" not in data
         assert data["rag_used"] is True
         assert data["hops"] == 2
         assert data["latency_ms"] == 55
