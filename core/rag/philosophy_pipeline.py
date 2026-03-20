@@ -103,6 +103,61 @@ _SPECULATION_RE = re.compile(
 _NUMERIC_RANGE_RE = re.compile(
     r"(\d+\.?\d*)\s*[-\u2013]\s*(\d+\.?\d*)",
 )
+_TOKEN_RE = re.compile(r"\b[^\W\d_][\w-]*\b", re.UNICODE)
+
+# Audience/cadence words stay non-binding on purpose: they tend to create
+# false contradictions across different metrics that happen to share a cohort.
+_QUERY_STOPWORDS = frozenset(
+    {
+        "a",
+        "an",
+        "and",
+        "are",
+        "adult",
+        "adults",
+        "be",
+        "best",
+        "child",
+        "children",
+        "daily",
+        "female",
+        "for",
+        "good",
+        "healthy",
+        "how",
+        "ideal",
+        "in",
+        "is",
+        "level",
+        "levels",
+        "many",
+        "male",
+        "meal",
+        "meals",
+        "men",
+        "normal",
+        "of",
+        "per",
+        "people",
+        "person",
+        "practical",
+        "range",
+        "ranges",
+        "recommended",
+        "should",
+        "target",
+        "targets",
+        "the",
+        "to",
+        "value",
+        "values",
+        "what",
+        "with",
+        "women",
+    }
+)
+_RANGE_ANCHOR_PREFIX_CHARS = 24
+_RANGE_ANCHOR_SUFFIX_CHARS = 12
 
 # Stage 3: Alignment thresholds
 # These thresholds detect score-vs-content quality mismatches.
@@ -339,9 +394,60 @@ def _ranges_contradict(a: tuple[float, float], b: tuple[float, float]) -> bool:
     return a[1] < b[0] or b[1] < a[0]
 
 
+def _extract_query_terms(query: str) -> set[str]:
+    """Return significant query anchors for query-aware contradiction checks."""
+    return {
+        token.lower()
+        for token in _TOKEN_RE.findall(query)
+        if len(token) >= 2 and token.lower() not in _QUERY_STOPWORDS
+    }
+
+
+def _extract_query_anchors(text: str, query_terms: set[str]) -> set[str]:
+    """Return query terms that are explicitly present in chunk-local text."""
+    if not query_terms:
+        return set()
+
+    text_terms = {token.lower() for token in _TOKEN_RE.findall(text)}
+    return text_terms & query_terms
+
+
+def _extract_anchored_numeric_ranges(
+    text: str,
+    query_terms: set[str],
+) -> list[tuple[tuple[float, float], set[str]]]:
+    """Extract numeric ranges together with query anchors near each range.
+
+    Using range-local context prevents one topic inside a mixed chunk from
+    lending its anchor to unrelated numeric ranges later in the paragraph.
+    """
+    anchored_ranges: list[tuple[tuple[float, float], set[str]]] = []
+    for match in _NUMERIC_RANGE_RE.finditer(text):
+        try:
+            low = float(match.group(1))
+            high = float(match.group(2))
+        except ValueError:  # pragma: no cover - defensive; regex ensures valid floats
+            continue
+
+        if low >= high:
+            continue
+
+        context_start = max(0, match.start() - _RANGE_ANCHOR_PREFIX_CHARS)
+        context_end = min(len(text), match.end() + _RANGE_ANCHOR_SUFFIX_CHARS)
+        context = text[context_start:context_end]
+        anchored_ranges.append(
+            (
+                (low, high),
+                _extract_query_anchors(context, query_terms),
+            )
+        )
+
+    return anchored_ranges
+
+
 def _stage4_logical_consistency(
     chunks: list[RAGChunk],
-    query: str,  # noqa: ARG001 - reserved for future semantic contradiction detection
+    query: str,
 ) -> StageResult:
     """Detect contradictory numeric claims and single-source echo.
 
@@ -350,13 +456,12 @@ def _stage4_logical_consistency(
     chunks:
         Filtered chunks to check for consistency.
     query:
-        Original user query (reserved for future query-aware contradiction
-        detection, e.g. flagging when query asks about X but chunks contradict on X).
+        Original user query used to anchor contradiction checks to the active topic.
     """
-    _ = query  # Silence unused-variable linters; see docstring for rationale
     start = time.perf_counter()
     warnings: list[str] = []
     metadata: dict[str, Any] = {}
+    query_terms = _extract_query_terms(query)
 
     # Check 1: Single-source echo
     if len(chunks) > 1:
@@ -368,15 +473,22 @@ def _stage4_logical_consistency(
             )
 
     # Check 2: Contradictory numeric ranges
-    chunk_ranges: list[tuple[str, tuple[float, float]]] = []
+    chunk_ranges: list[tuple[str, tuple[float, float], set[str]]] = []
     for chunk in chunks:
-        for r in _extract_numeric_ranges(chunk.content):
-            chunk_ranges.append((chunk.chunk_id, r))
+        for r, anchors in _extract_anchored_numeric_ranges(chunk.content, query_terms):
+            chunk_ranges.append(
+                (
+                    chunk.chunk_id,
+                    r,
+                    anchors,
+                )
+            )
 
     contradictions: list[str] = []
-    for i, (id_a, range_a) in enumerate(chunk_ranges):
-        for id_b, range_b in chunk_ranges[i + 1 :]:
-            if id_a != id_b and _ranges_contradict(range_a, range_b):
+    for i, (id_a, range_a, anchors_a) in enumerate(chunk_ranges):
+        for id_b, range_b, anchors_b in chunk_ranges[i + 1 :]:
+            shared_query_anchors = anchors_a & anchors_b
+            if id_a != id_b and shared_query_anchors and _ranges_contradict(range_a, range_b):
                 contradictions.append(
                     f"{id_a}({range_a[0]}-{range_a[1]}) vs {id_b}({range_b[0]}-{range_b[1]})"
                 )
