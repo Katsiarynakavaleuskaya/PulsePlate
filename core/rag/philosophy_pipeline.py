@@ -442,7 +442,12 @@ def _extract_context_terms(text: str) -> set[str]:
         token.lower()
         for token in _TOKEN_RE.findall(text)
         if token.lower() not in _CONTEXT_STOPWORDS
-        and (len(token) >= 3 or any(char.isdigit() for char in token) or len(token) == 1)
+        and (
+            len(token) >= 3
+            or any(char.isdigit() for char in token)
+            or len(token) == 1
+            or token.lower() in _CONTEXT_DISAMBIGUATION_TERMS
+        )
     }
 
 

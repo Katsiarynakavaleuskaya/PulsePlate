@@ -20,6 +20,7 @@ from core.rag.philosophy_pipeline import (
     PipelineResult,
     _alignment_score,
     _extract_anchored_numeric_ranges,
+    _extract_context_terms,
     _extract_numeric_ranges,
     _extract_query_anchors,
     _extract_query_terms,
@@ -344,6 +345,11 @@ class TestQueryAwareAnchors:
 
         assert anchored_ranges == []
 
+    def test_extract_context_terms_preserves_two_letter_disambiguators(self) -> None:
+        context_terms = _extract_context_terms("Protein intake is 0.8-1.2 grams per kg per day.")
+
+        assert "kg" in context_terms
+
 
 class TestStage4LogicalConsistency:
     """Stage 4 detects contradictions and single-source echo."""
@@ -470,6 +476,16 @@ class TestStage4LogicalConsistency:
         chunks = [
             _chunk("c1", "Protein intake is 20-40 grams per meal for adults.", 0.9),
             _chunk("c2", "Protein intake is 0.8-1.2 grams per kilogram per day for adults.", 0.8),
+        ]
+        result = _stage4_logical_consistency(chunks, "What protein intake range is normal?")
+
+        assert not any("numeric_contradiction" in w for w in result.warnings)
+        assert "contradictions" not in result.metadata
+
+    def test_contradiction_suppressed_for_per_meal_vs_per_kg_ranges(self) -> None:
+        chunks = [
+            _chunk("c1", "Protein intake is 20-40 grams per meal for adults.", 0.9),
+            _chunk("c2", "Protein intake is 0.8-1.2 grams per kg per day for adults.", 0.8),
         ]
         result = _stage4_logical_consistency(chunks, "What protein intake range is normal?")
 
