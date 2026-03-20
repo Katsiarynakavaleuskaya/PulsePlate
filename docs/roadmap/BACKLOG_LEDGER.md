@@ -7195,6 +7195,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 
 - [ ] P2: Judgment protocol evidence-anchor hardening
   - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
   - Target PR: TBD
   - Status: Planned
   - Reason: `JUDGMENT_ADJUDICATION_SUBLANE_PROTOCOL.md` and `EVIDENCE_RECONCILIATION_PROTOCOL.md` need fuller `file:line` evidence anchors plus explicit exit-criteria references for the temporary dev-only seam, so protocol claims remain audit-traceable as the judgment lane evolves.
@@ -7210,6 +7211,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 
 - [ ] P2: Stage-4 numeric context disambiguator expansion
   - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
   - Target PR: TBD
   - Status: Planned
   - Reason: Stage-4 numeric contradiction suppression still uses a narrowly curated context-term set; broader unit/cohort disambiguators should be evaluated in a bounded follow-up so common measurement-context pairs do not overfire without weakening true contradiction detection.
@@ -7224,6 +7226,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 
 - [ ] P1: Query-specified cohort anchors in stage-4 contradiction checks
   - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
   - Target PR: TBD
   - Status: Planned
   - Reason: Stage-4 contradiction suppression currently treats audience/cadence terms as non-binding query stopwords by default, which can hide off-topic or conflicting evidence when the user explicitly asks for a specific cohort such as men, women, adults, or per-meal guidance.
@@ -7235,8 +7238,24 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Add deterministic men/women and adult/child regression tests for query-bound contradiction handling
     - Keep current multi-topic and unit-disambiguation protections green
 
+- [ ] P1: Canonical judgment-lane routing source for bootstrap packets
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: TBD
+  - Status: Planned
+  - Reason: `scripts/orchestration/task_bootstrap.py` still duplicates judgment-lane activation vocabulary in `JUDGMENT_TRIGGER_TERMS` and `_judgment_lane_enabled()`, which creates drift risk against the canonical routing graph and shared routing loaders.
+  - Links:
+    - scripts/orchestration/task_bootstrap.py
+    - scripts/orchestration/route_with_telemetry.py
+    - scripts/orchestration/routing_graph_loader.py
+    - docs/orchestration/AGENT_ROUTING_GRAPH.md
+    - tests/test_task_bootstrap.py
+  - DoD:
+    - Bootstrap derives judgment-lane activation from a shared routing/config source instead of hardcoded trigger terms
+    - Routing graph, loader, and bootstrap tests cover the same activation path deterministically
+    - Task bootstrap remains read-only and emits decisions/JSON output without mutating routing docs
 
 
-**Last updated:** 2026-03-12 (PR #1121 deferred runtime-governance follow-up)
+**Last updated:** 2026-03-20 (PR #1198 deferred judgment-lane follow-ups)
 **Maintainer:** @katsiaryna_kavaleuskaya
 <!-- markdownlint-enable MD013 -->

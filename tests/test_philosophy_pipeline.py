@@ -489,7 +489,7 @@ class TestStage4LogicalConsistency:
     def test_contradiction_suppressed_for_cohort_specific_protein_ranges(self) -> None:
         chunks = [
             _chunk("c1", "Protein intake is 20-40 grams per meal for adults.", 0.9),
-            _chunk("c2", "Protein intake is 0.8-1.2 grams per kilogram per day for children.", 0.8),
+            _chunk("c2", "Protein intake is 5-10 grams per meal for children.", 0.8),
         ]
         result = _stage4_logical_consistency(chunks, "What protein intake range is normal?")
 
