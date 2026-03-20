@@ -103,7 +103,7 @@ _SPECULATION_RE = re.compile(
 _NUMERIC_RANGE_RE = re.compile(
     r"(\d+\.?\d*)\s*[-\u2013]\s*(\d+\.?\d*)",
 )
-_TOKEN_RE = re.compile(r"\b[^\W\d_]{2,}\b", re.UNICODE)
+_TOKEN_RE = re.compile(r"\b[^\W\d_][\w-]*\b", re.UNICODE)
 
 _QUERY_STOPWORDS = frozenset(
     {
@@ -438,12 +438,13 @@ def _stage4_logical_consistency(
     # Check 2: Contradictory numeric ranges
     chunk_ranges: list[tuple[str, tuple[float, float], set[str]]] = []
     for chunk in chunks:
+        anchors = _extract_query_anchors(chunk.content, query_terms)
         for r in _extract_numeric_ranges(chunk.content):
             chunk_ranges.append(
                 (
                     chunk.chunk_id,
                     r,
-                    _extract_query_anchors(chunk.content, query_terms),
+                    anchors,
                 )
             )
 

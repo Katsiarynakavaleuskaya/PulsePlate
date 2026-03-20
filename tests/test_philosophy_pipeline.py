@@ -293,6 +293,12 @@ class TestQueryAwareAnchors:
 
         assert "bp" in query_terms
 
+    def test_extract_query_terms_keeps_alphanumeric_medical_tokens(self) -> None:
+        query_terms = _extract_query_terms("A1C and LDL-C targets")
+
+        assert "a1c" in query_terms
+        assert "ldl-c" in query_terms
+
     def test_extract_query_terms_supports_unicode_letters(self) -> None:
         query_terms = _extract_query_terms("Índice BMI y presión")
 
