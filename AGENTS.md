@@ -1119,6 +1119,17 @@ Detailed procedures stay in runbooks, ADRs, and scoped `AGENTS.md` files.
 - If a PR changes workflow/agent behavior/tooling, include a `docs(agents): ...` commit in the same PR.
 - Workflow/guard PRs must also update agent-facing instructions when they change daily engineering behavior.
   The canonical tooling-surface policy and verification commands live in `docs/security/TOOLING_SURFACE_POLICY.md`.
+- Skill-routing PRs that touch `scripts/orchestration/skill_router.py` or
+  `docs/orchestration/AGENT_SKILL_ROUTING_POLICY.md` must keep the agent
+  instruction surface synchronized with the live routing contract:
+  - `security-auditor` deterministic bundle = `security-best-practices`,
+    `security-threat-model`, `pulseplate-guards`
+  - `cybersecurity-skills` is companion/manual-only guidance and must not be
+    emitted as a deterministic `recommended_skills` slug
+  - privileged-surface skill routing may cover merge-governance paths under
+    `scripts/ci/**`, `docs/orchestration/**`, and `docs/review/**` without
+    widening executable reviewer selection; bootstrap review-path promotion
+    remains defined by `scripts/orchestration/task_bootstrap.py`
 
 ### 🛑 Docs-only PR Rule (Mandatory)
 
