@@ -1209,10 +1209,10 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Extract AI runtime into a dedicated bounded context
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-TBD-AI-BOUNDED-CONTEXT
+  - Target PR: feat(ai): extract bounded AI runtime ownership into canonical core/ai seam
   - Area: backend / AI runtime / architecture
   - Finding Type: bounded-context hardening
-  - Reason: AI logic, provider seams, and safety-related behavior are currently documented across runtime areas, but there is no canonical `core/ai/*` bounded context yet. This increases the risk of router/business-logic drift and makes AI safety ownership harder to enforce.
+  - Reason: AI logic, provider seams, and safety-related behavior were historically distributed across runtime areas. The canonical `core/ai/*` seam now exists, but the remaining consolidation still needs to remove transitional ownership outside that boundary.
   - Links:
     - `docs/architecture/providers_implementation.md`
     - `AGENTS.md`

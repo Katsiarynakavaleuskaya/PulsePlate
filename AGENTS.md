@@ -1033,9 +1033,11 @@ Detailed procedures stay in runbooks, ADRs, and scoped `AGENTS.md` files.
 ### AI bounded context
 
 - AI/insight/provider runtime boundary: `docs/architecture/providers_implementation.md`
+- Canonical bounded-context entry seam: `core/ai/*` for AI runtime preparation, provider loading, and transparency ownership that sits between thin legacy adapters and deeper runtime internals.
+- Shared app-layer insight execution adapter: `app/services/insight_application_service.py` and `app/services/insight_runtime.py` keep HTTP/tracing concerns out of `core/`.
 - LLM rate-limit and monthly quota rules: see `AGENTS.md` sections `Rate Limiting Policy` and `LLM Monthly Quota Policy`.
 - Privacy and PII handling for AI-adjacent endpoints: `core/pii_redaction.py`, `docs/security/SECURITY_POSTURE.md`
-- Target-state extraction of AI runtime into a dedicated bounded context is tracked in `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-ai-bounded-context-extraction` and governed by `docs/architecture/ADR_AI_RUNTIME_BOUNDED_CONTEXT_SEAM_2026-03-09.md` (the ADR now carries `file:line` evidence for current boundary claims; retire the seam only when canonical AI package boundaries and ownership are documented without transitional wording).
+- Remaining consolidation and seam-retirement work stays tracked in `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-ai-bounded-context-extraction` and governed by `docs/architecture/ADR_AI_RUNTIME_BOUNDED_CONTEXT_SEAM_2026-03-09.md` (retire the seam only when provider/safety/eval ownership no longer needs transitional wording outside the canonical AI boundary).
 
 ### Creative research lane
 
