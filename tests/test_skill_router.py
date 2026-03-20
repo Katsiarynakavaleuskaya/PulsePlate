@@ -29,6 +29,9 @@ EXPECTED_REQUESTED_AGENT_POLICY_ROWS: tuple[str, ...] = (
     "| `data-scientist-agent` | `docs-sync`, `pulseplate-gates`, `pulseplate-ai-reports` |",
     "| `web-research-agent` | `docs-sync`, `pulseplate-ai-reports`, `notion-research-documentation` |",
 )
+EXPECTED_REQUESTED_AGENT_NAMES: frozenset[str] = frozenset(
+    row.split("`")[1] for row in EXPECTED_REQUESTED_AGENT_POLICY_ROWS
+)
 
 EXPECTED_PRIVILEGED_SURFACE_POLICY_LINES: tuple[str, ...] = (
     "- `.github/workflows/**`",
@@ -137,6 +140,12 @@ def test_requested_agent_policy_rows_stay_in_sync(expected_row: str) -> None:
     """Canonical policy rows should stay explicit so router parity tests have a stable contract."""
 
     assert expected_row in _read_policy_doc()
+
+
+def test_requested_agent_policy_agent_set_stays_in_sync() -> None:
+    """Documented requested-agent names should match the implementation exactly."""
+
+    assert EXPECTED_REQUESTED_AGENT_NAMES == frozenset(REQUESTED_AGENT_SKILL_BUNDLES.keys())
 
 
 def test_requested_agent_bundle_boosts_existing_skill_without_duplication() -> None:
@@ -452,12 +461,14 @@ def test_privileged_surface_parity_emits_stable_security_metadata(
 def test_privileged_surface_prefixes_stay_in_sync_with_policy_coverage() -> None:
     """Policy-critical privileged surface prefixes should remain explicit and finite."""
 
-    assert ".github/workflows/" in PRIVILEGED_SURFACE_PREFIXES
-    assert "ios/fastlane/" in PRIVILEGED_SURFACE_PREFIXES
-    assert "scripts/orchestration/" in PRIVILEGED_SURFACE_PREFIXES
-    assert "scripts/ci/" in PRIVILEGED_SURFACE_PREFIXES
-    assert "docs/orchestration/" in PRIVILEGED_SURFACE_PREFIXES
-    assert "docs/review/" in PRIVILEGED_SURFACE_PREFIXES
+    assert set(PRIVILEGED_SURFACE_PREFIXES) == {
+        ".github/workflows/",
+        "ios/fastlane/",
+        "scripts/orchestration/",
+        "scripts/ci/",
+        "docs/orchestration/",
+        "docs/review/",
+    }
 
 
 @pytest.mark.parametrize(
