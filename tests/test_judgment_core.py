@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import cast
+
 import pytest
 
 from core.judgment import (
@@ -157,7 +159,20 @@ def test_build_claim_evidence_record_rejects_non_string_source_ids() -> None:
         build_claim_evidence_record(
             claim_type="fact",
             support_status="supported",
-            source_ids=["src-1", 2],  # type: ignore[list-item]
+            source_ids=cast(list[str], ["src-1", 2]),
+            evidence_mode="direct_source",
+            conflict_flag=False,
+        )
+
+
+def test_build_claim_evidence_record_rejects_scalar_source_ids() -> None:
+    """Scalar source_ids payloads must fail instead of iterating as characters."""
+
+    with pytest.raises(ValueError, match="source_ids must be provided as a list or tuple"):
+        build_claim_evidence_record(
+            claim_type="fact",
+            support_status="supported",
+            source_ids=cast(list[str] | tuple[str, ...], "src-1"),
             evidence_mode="direct_source",
             conflict_flag=False,
         )
@@ -217,6 +232,32 @@ def test_build_claim_evidence_record_rejects_non_bool_conflict_flag() -> None:
             source_ids=["src-1"],
             evidence_mode="direct_source",
             conflict_flag="false",  # type: ignore[arg-type]
+        )
+
+
+def test_build_claim_evidence_record_rejects_contradicted_claim_without_sources() -> None:
+    """Contradicted claims still need explicit evidence linkage."""
+
+    with pytest.raises(ValueError, match="contradicted claims require source_ids"):
+        build_claim_evidence_record(
+            claim_type="fact",
+            support_status="contradicted",
+            source_ids=[],
+            evidence_mode="heuristic",
+            conflict_flag=True,
+        )
+
+
+def test_build_claim_evidence_record_rejects_contradicted_claim_without_conflict_flag() -> None:
+    """Contradicted claims must explicitly carry the conflict flag."""
+
+    with pytest.raises(ValueError, match="contradicted claims require conflict_flag=True"):
+        build_claim_evidence_record(
+            claim_type="fact",
+            support_status="contradicted",
+            source_ids=["src-1"],
+            evidence_mode="direct_source",
+            conflict_flag=False,
         )
 
 

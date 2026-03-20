@@ -7193,6 +7193,49 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - CI green
 
 
+- [ ] P2: Judgment protocol evidence-anchor hardening
+  - Owner: @katsiaryna_kavaleuskaya
+  - Target PR: TBD
+  - Status: Planned
+  - Reason: `JUDGMENT_ADJUDICATION_SUBLANE_PROTOCOL.md` and `EVIDENCE_RECONCILIATION_PROTOCOL.md` need fuller `file:line` evidence anchors plus explicit exit-criteria references for the temporary dev-only seam, so protocol claims remain audit-traceable as the judgment lane evolves.
+  - Links:
+    - docs/orchestration/JUDGMENT_ADJUDICATION_SUBLANE_PROTOCOL.md
+    - docs/orchestration/EVIDENCE_RECONCILIATION_PROTOCOL.md
+    - docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md
+  - DoD:
+    - Add `file:line` anchors for dev-only status, coordinator-first authority, role ownership, and shared contract values
+    - Link explicit exit-criteria artifacts for the temporary dev-only seam
+    - Re-run docs/governance checks with updated canonical references
+
+
+- [ ] P2: Stage-4 numeric context disambiguator expansion
+  - Owner: @katsiaryna_kavaleuskaya
+  - Target PR: TBD
+  - Status: Planned
+  - Reason: Stage-4 numeric contradiction suppression still uses a narrowly curated context-term set; broader unit/cohort disambiguators should be evaluated in a bounded follow-up so common measurement-context pairs do not overfire without weakening true contradiction detection.
+  - Links:
+    - core/rag/philosophy_pipeline.py
+    - tests/test_philosophy_pipeline.py
+  - DoD:
+    - Audit additional unit/context tokens against false-positive contradiction cases
+    - Add deterministic regression tests for approved new disambiguators
+    - Keep contradiction detection green on existing cohort and metric-specific guards
+
+
+- [ ] P1: Query-specified cohort anchors in stage-4 contradiction checks
+  - Owner: @katsiaryna_kavaleuskaya
+  - Target PR: TBD
+  - Status: Planned
+  - Reason: Stage-4 contradiction suppression currently treats audience/cadence terms as non-binding query stopwords by default, which can hide off-topic or conflicting evidence when the user explicitly asks for a specific cohort such as men, women, adults, or per-meal guidance.
+  - Links:
+    - core/rag/philosophy_pipeline.py
+    - tests/test_philosophy_pipeline.py
+  - DoD:
+    - Re-evaluate query-anchor handling for cohort/cadence terms without regressing existing false-positive suppression
+    - Add deterministic men/women and adult/child regression tests for query-bound contradiction handling
+    - Keep current multi-topic and unit-disambiguation protections green
+
+
 
 **Last updated:** 2026-03-12 (PR #1121 deferred runtime-governance follow-up)
 **Maintainer:** @katsiaryna_kavaleuskaya

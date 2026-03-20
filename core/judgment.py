@@ -185,6 +185,8 @@ def build_claim_evidence_record(
 ) -> ClaimEvidenceRecord:
     """Build a normalized claim-to-evidence record."""
 
+    if not isinstance(source_ids, (list, tuple)):
+        raise ValueError("source_ids must be provided as a list or tuple of strings.")
     normalized_support_status = parse_support_status(support_status)
     normalized_evidence_mode = parse_evidence_mode(evidence_mode)
     normalized_source_ids: list[str] = []
@@ -201,6 +203,11 @@ def build_claim_evidence_record(
             raise ValueError(
                 "supported claims require source_ids or deterministic verifier evidence."
             )
+    if normalized_support_status == "contradicted":
+        if not normalized_source_ids:
+            raise ValueError("contradicted claims require source_ids.")
+        if not conflict_flag:
+            raise ValueError("contradicted claims require conflict_flag=True.")
     if (
         normalized_evidence_mode in {"direct_source", "cross_source_synthesis"}
         and not normalized_source_ids

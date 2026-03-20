@@ -60,10 +60,13 @@ JUDGMENT_TRIGGER_TERMS: tuple[str, ...] = (
     "judgment",
     "adjudication",
     "evidence reconciliation",
+    "evidence_reconciliation",
     "verification-first",
+    "verification_first",
     "creative_research",
     "creative research",
     "fitchef",
+    "fit_chef",
 )
 
 
@@ -416,7 +419,7 @@ def build_task_packet(
         judgment_budget = {
             "skeptic_pass_required": True,
             "verifier_pass_required": True,
-            "max_provider_calls": 1,
+            "max_provider_calls": 0,
             "uncertainty_split_required": True,
         }
         result_adjudication = {

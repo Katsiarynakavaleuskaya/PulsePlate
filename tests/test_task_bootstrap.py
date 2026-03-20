@@ -89,7 +89,7 @@ def test_task_bootstrap_enables_judgment_lane_for_relevant_work() -> None:
     assert packet["judgment_budget"] == {
         "skeptic_pass_required": True,
         "verifier_pass_required": True,
-        "max_provider_calls": 1,
+        "max_provider_calls": 0,
         "uncertainty_split_required": True,
     }
     assert packet["result_adjudication"]["claim_evidence_fields"] == list(CLAIM_EVIDENCE_FIELDS)
@@ -97,6 +97,20 @@ def test_task_bootstrap_enables_judgment_lane_for_relevant_work() -> None:
     assert packet["result_adjudication"]["evidence_modes"] == list(EVIDENCE_MODES)
     assert packet["result_adjudication"]["uncertainty_fields"] == list(UNCERTAINTY_FIELDS)
     assert packet["result_adjudication"]["promotion_labels"] == list(PROMOTION_LABELS)
+
+
+def test_task_bootstrap_enables_judgment_lane_for_underscore_triggers() -> None:
+    """Underscore-separated trigger terms must activate the judgment lane."""
+
+    packet = build_task_packet(
+        goal="Prepare evidence_reconciliation follow-up",
+        task_class="verification_first",
+        candidate_paths=["docs/orchestration/EVIDENCE_RECONCILIATION_PROTOCOL.md"],
+    )
+
+    assert packet["decision_contract"]["mode"] == "verification_first"
+    assert packet["decision_contract"]["judgment_enabled"] is True
+    assert packet["judgment_budget"]["max_provider_calls"] == 0
 
 
 def test_task_bootstrap_includes_scoped_agents_only_once() -> None:

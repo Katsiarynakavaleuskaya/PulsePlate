@@ -4,9 +4,9 @@
 
 **Purpose:** Define a verification-first sub-lane for judgment-capable agents that must distinguish supported claims from plausible but weak or contradictory outputs.
 
-**Status:** Canonical for internal `judgment_adjudication` work. Dev-only until promoted through the normal repo and rollout gates.
+**Status:** Canonical for internal `judgment_adjudication` work. Dev-only until promoted through the normal repo and rollout gates. The dev-only boundary and no-runtime-impact rule are governed by `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md:5-9` and `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md:63-76`; remaining exit-criteria hardening for this temporary seam is tracked in `docs/roadmap/BACKLOG_LEDGER.md:7196-7208`.
 
-**Anti-drift rule:** This document extends existing orchestration governance. It does not create a new autonomy layer, replace coordinator-first routing, or weaken experimentation limits.
+**Anti-drift rule:** This document extends existing orchestration governance. It does not create a new autonomy layer, replace coordinator-first routing, or weaken experimentation limits; governed sub-lane limits and forbidden overrides are defined in `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md:24-56`.
 
 ---
 
@@ -23,7 +23,7 @@
 - `docs/orchestration/FITCHEF_SAFE_PERSONALIZATION_PROTOCOL.md`
 - `docs/memory/kpp_knowledge_promotion_pipeline.md`
 
-When a rule conflicts, the umbrella experimentation protocol wins.
+When a rule conflicts, the umbrella experimentation protocol wins. Coordinator-first task analysis and role assignment stay canonical per `docs/orchestration/workflow.md:43-58` and `docs/orchestration/workflow.md:190-201`, while the runtime packet bridge that materializes primary/secondary/reviewer roles is implemented in `scripts/orchestration/task_bootstrap.py:119-134` and `scripts/orchestration/task_bootstrap.py:380-460`.
 
 ---
 
@@ -85,6 +85,8 @@ Rule:
 - If classification is ambiguous and no stronger deterministic marker wins, degrade toward `speculation`, not `fact`.
 - Heuristic precedence should be documented in code so `recommendation` or `source_grounded_summary` promotion is explicit rather than accidental.
 
+Implementation source: `core/judgment.py:32-61` exports the canonical taxonomy constants and `core/judgment.py:123-175` normalizes claim parsing / classification.
+
 ---
 
 ## 4. Shared claim-to-evidence record
@@ -103,6 +105,8 @@ Semantics:
 - `evidence_mode` captures whether support is direct, synthesized, heuristic, or absent.
 - `conflict_flag` must be true when the claim conflicts with retrieved evidence, other claims, or a known safety boundary.
 
+Implementation source: `core/judgment.py:62-75` defines the shared record fields and `core/judgment.py:178-224` enforces the canonical builder invariants for `support_status`, `source_ids`, `evidence_mode`, and `conflict_flag`.
+
 ---
 
 ## 5. Role mapping
@@ -119,6 +123,8 @@ Coordinator remains the only decision authority.
 Rule:
 
 - Advisory agents may inform this lane, but only explicit routed roles may produce runnable adjudication output.
+
+Coordinator-only decision authority is enforced by `docs/orchestration/workflow.md:47-58` and `docs/orchestration/workflow.md:194-201`; routed primary/secondary/reviewer ownership is serialized in `scripts/orchestration/task_bootstrap.py:380-460`.
 
 ---
 
@@ -143,6 +149,8 @@ Promotion default:
 - `defer` if evidence is partial but safe
 - `discard` if contradiction or safety failure is present
 
+Implementation source: `core/judgment.py:53-61` exports the canonical promotion labels, and this protocol owns the current governance semantics until a promoted runtime contract exists.
+
 ---
 
 ## 7. Stop conditions
@@ -155,6 +163,8 @@ Stop immediately when:
 - uncertainty cannot be expressed without fabricated precision
 - the task would require a new public heavy LLM surface
 
+The dev-only/public-runtime boundary is governed by `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md:70-76` and `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md:140-146`.
+
 ---
 
 ## 8. Rollout order
@@ -166,5 +176,11 @@ Wave order for this sub-lane:
 3. hidden internal pilot only
 4. coordinator packet wiring
 5. bounded FitChef adoption
+
+This list is the activation order, not the implementation order: `decision_contract`,
+`judgment_budget`, and `result_adjudication` are already wired into coordinator task
+bootstrap packets in `scripts/orchestration/task_bootstrap.py:409-458`, while
+coordinator packet wiring remains gated for enablement after offline eval and the
+hidden pilot.
 
 Public heavy-runtime exposure is out of scope until the hidden pilot and offline evals prove value.
