@@ -5,6 +5,15 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from core.judgment import (
+    CLAIM_EVIDENCE_FIELDS,
+    CLAIM_TYPES,
+    EVIDENCE_MODES,
+    JUDGMENT_FLOW,
+    PROMOTION_LABELS,
+    SUPPORT_STATUSES,
+    UNCERTAINTY_FIELDS,
+)
 from scripts.orchestration.context_pack import REPO_ROOT, normalize_repo_path
 from scripts.orchestration.task_bootstrap import (
     _resolve_output_path,
@@ -36,6 +45,20 @@ def test_task_bootstrap_resolves_orchestration_domain() -> None:
     assert "pulseplate-workflow" in packet["recommended_skills"]
     assert "docs-sync" in packet["recommended_skills"]
     assert "agents-md" in packet["recommended_skills"]
+    assert packet["decision_contract"]["mode"] == "verification_first"
+    assert packet["decision_contract"]["claim_taxonomy"] == list(CLAIM_TYPES)
+    assert packet["decision_contract"]["flow"] == list(JUDGMENT_FLOW)
+    assert packet["judgment_budget"] == {
+        "skeptic_pass_required": True,
+        "verifier_pass_required": True,
+        "max_provider_calls": 1,
+        "uncertainty_split_required": True,
+    }
+    assert packet["result_adjudication"]["claim_evidence_fields"] == list(CLAIM_EVIDENCE_FIELDS)
+    assert packet["result_adjudication"]["support_statuses"] == list(SUPPORT_STATUSES)
+    assert packet["result_adjudication"]["evidence_modes"] == list(EVIDENCE_MODES)
+    assert packet["result_adjudication"]["uncertainty_fields"] == list(UNCERTAINTY_FIELDS)
+    assert packet["result_adjudication"]["promotion_labels"] == list(PROMOTION_LABELS)
     assert packet["native_subagent_bridge"]["primary"]["repo_agent_slug"] == "agent-coordinator"
     assert packet["native_subagent_bridge"]["reviewer"]["repo_agent_slug"] == (
         "architecture-specialist"
@@ -365,6 +388,24 @@ def test_main_writes_relative_output_inside_repo(tmp_path, monkeypatch, capsys) 
             "recommended": [{"skill": "pulseplate-workflow", "score": 100}],
             "blocked": [],
         },
+        "decision_contract": {
+            "mode": "verification_first",
+            "claim_taxonomy": list(CLAIM_TYPES),
+            "flow": list(JUDGMENT_FLOW),
+        },
+        "judgment_budget": {
+            "skeptic_pass_required": True,
+            "verifier_pass_required": True,
+            "max_provider_calls": 1,
+            "uncertainty_split_required": True,
+        },
+        "result_adjudication": {
+            "claim_evidence_fields": list(CLAIM_EVIDENCE_FIELDS),
+            "support_statuses": list(SUPPORT_STATUSES),
+            "evidence_modes": list(EVIDENCE_MODES),
+            "uncertainty_fields": list(UNCERTAINTY_FIELDS),
+            "promotion_labels": list(PROMOTION_LABELS),
+        },
         "native_subagent_bridge": {
             "protocol_version": "1.0",
             "transport": "codex-native-subagents",
@@ -394,6 +435,9 @@ def test_main_writes_relative_output_inside_repo(tmp_path, monkeypatch, capsys) 
         assert exit_code == 0
         written = json.loads(repo_output.read_text(encoding="utf-8"))
         assert written["task_packet_id"] == "abc123def456"
+        assert written["decision_contract"]["claim_taxonomy"] == list(CLAIM_TYPES)
+        assert written["result_adjudication"]["support_statuses"] == list(SUPPORT_STATUSES)
+        assert written["result_adjudication"]["evidence_modes"] == list(EVIDENCE_MODES)
         assert json.loads(captured.out)["output"] == relative_output.as_posix()
         assert json.loads(captured.out)["primary_native_agent_type"] == "default"
     finally:
@@ -431,6 +475,24 @@ def test_main_writes_repo_root_output_as_relative_path(monkeypatch, capsys) -> N
             "recommended": [{"skill": "pulseplate-workflow", "score": 100}],
             "blocked": [],
         },
+        "decision_contract": {
+            "mode": "verification_first",
+            "claim_taxonomy": list(CLAIM_TYPES),
+            "flow": list(JUDGMENT_FLOW),
+        },
+        "judgment_budget": {
+            "skeptic_pass_required": True,
+            "verifier_pass_required": True,
+            "max_provider_calls": 1,
+            "uncertainty_split_required": True,
+        },
+        "result_adjudication": {
+            "claim_evidence_fields": list(CLAIM_EVIDENCE_FIELDS),
+            "support_statuses": list(SUPPORT_STATUSES),
+            "evidence_modes": list(EVIDENCE_MODES),
+            "uncertainty_fields": list(UNCERTAINTY_FIELDS),
+            "promotion_labels": list(PROMOTION_LABELS),
+        },
         "native_subagent_bridge": {
             "protocol_version": "1.0",
             "transport": "codex-native-subagents",
@@ -459,6 +521,8 @@ def test_main_writes_repo_root_output_as_relative_path(monkeypatch, capsys) -> N
         captured = capsys.readouterr()
         assert exit_code == 0
         assert repo_output.exists()
+        written = json.loads(repo_output.read_text(encoding="utf-8"))
+        assert written["result_adjudication"]["promotion_labels"] == list(PROMOTION_LABELS)
         assert json.loads(captured.out)["output"] == relative_output.as_posix()
         assert json.loads(captured.out)["reviewer_native_agent_type"] == "explorer"
     finally:

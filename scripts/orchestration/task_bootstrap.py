@@ -17,6 +17,15 @@ BOOTSTRAP_REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(BOOTSTRAP_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(BOOTSTRAP_REPO_ROOT))
 
+from core.judgment import (
+    CLAIM_EVIDENCE_FIELDS,
+    CLAIM_TYPES,
+    EVIDENCE_MODES,
+    JUDGMENT_FLOW,
+    PROMOTION_LABELS,
+    SUPPORT_STATUSES,
+    UNCERTAINTY_FIELDS,
+)
 from scripts.orchestration.context_pack import (
     REPO_ROOT,
     collect_context_pack,
@@ -365,6 +374,24 @@ def build_task_packet(
         reviewer=requested_agent_resolution["reviewer"],
         advisory_agents=advisory_agents,
     )
+    decision_contract = {
+        "mode": "verification_first",
+        "claim_taxonomy": list(CLAIM_TYPES),
+        "flow": list(JUDGMENT_FLOW),
+    }
+    judgment_budget = {
+        "skeptic_pass_required": True,
+        "verifier_pass_required": True,
+        "max_provider_calls": 1,
+        "uncertainty_split_required": True,
+    }
+    result_adjudication = {
+        "claim_evidence_fields": list(CLAIM_EVIDENCE_FIELDS),
+        "support_statuses": list(SUPPORT_STATUSES),
+        "evidence_modes": list(EVIDENCE_MODES),
+        "uncertainty_fields": list(UNCERTAINTY_FIELDS),
+        "promotion_labels": list(PROMOTION_LABELS),
+    }
 
     return {
         "schema_version": SCHEMA_VERSION,
@@ -382,6 +409,9 @@ def build_task_packet(
         "required_context": context_pack,
         "recommended_skills": [item["skill"] for item in skill_routing["recommended"]],
         "skill_routing": skill_routing,
+        "decision_contract": decision_contract,
+        "judgment_budget": judgment_budget,
+        "result_adjudication": result_adjudication,
         "native_subagent_bridge": native_subagent_bridge,
         "routing_rationale": decision.rationale,
     }
