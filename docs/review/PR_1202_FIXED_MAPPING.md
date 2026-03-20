@@ -48,6 +48,31 @@ Commit: 0aa1a30c
 Evidence: [tests/test_skill_router.py](../../tests/test_skill_router.py#L426) now exercises `docs/orchestration/AGENT_ROUTING_GRAPH.md` in the privileged-surface parity matrix, so a router regression for `docs/orchestration/` fails directly.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1202#discussion_r2968130391 -> 0aa1a30c
 
+Disposition: FIXED
+Commit: 7bb14f78
+Evidence: [AGENTS.md](../../AGENTS.md#L1122) and [RUNBOOK_AGENT.md](../../RUNBOOK_AGENT.md#L56) now document the `security-auditor` deterministic bundle, the manual-only `cybersecurity-skills` rule, and the privileged skill-routing vs executable review-path boundary; this satisfies the required `docs(agents): update instructions` follow-up.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1202#pullrequestreview-3984260415 -> 7bb14f78
+
+Disposition: FIXED
+Commit: bb7f1f47
+Evidence: [PR_1202_FIXED_MAPPING.md](./PR_1202_FIXED_MAPPING.md#L23) now uses repository-accessible evidence links instead of `/private/tmp/...`, matching GitHub-review portability requirements identified by cubic.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1202#pullrequestreview-3984272855 -> bb7f1f47
+
+Disposition: FIXED
+Commit: bb7f1f47
+Evidence: [PR_1202_FIXED_MAPPING.md](./PR_1202_FIXED_MAPPING.md#L23) now uses repository-accessible evidence links instead of `/private/tmp/...`, matching GitHub-review portability requirements identified by cubic.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1202#discussion_r2968142594 -> bb7f1f47
+
+Disposition: FIXED
+Commit: bb7f1f47
+Evidence: [tests/test_skill_router.py](../../tests/test_skill_router.py#L32) and [tests/test_skill_router.py](../../tests/test_skill_router.py#L145) now assert that the documented requested-agent set exactly matches `REQUESTED_AGENT_SKILL_BUNDLES.keys()`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1202#discussion_r2968151804 -> bb7f1f47
+
+Disposition: FIXED
+Commit: bb7f1f47
+Evidence: [tests/test_skill_router.py](../../tests/test_skill_router.py#L461) now enforces an exact finite privileged-prefix set instead of loose membership assertions.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1202#discussion_r2968151809 -> bb7f1f47
+
 ## Merge Readiness
 - [ ] All required checks pass
 - [ ] No unresolved review threads
