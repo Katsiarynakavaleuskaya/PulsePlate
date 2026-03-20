@@ -468,6 +468,7 @@ class TestInsightV1RAGFields:
         assert data["rag_used"] is True
         assert data["verification_rate"] == 0.8
         assert "rag_recursive_path" in data["reason_codes"]
+        assert "verification_first_fallback" not in data["reason_codes"]
         assert "verification_first_rewrite" in data["reason_codes"]
 
     def test_recursive_optimization_enabled_preserves_recursive_api_contract(
