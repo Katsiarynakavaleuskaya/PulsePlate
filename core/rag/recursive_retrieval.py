@@ -304,14 +304,7 @@ def retrieve_recursive_context_structured(
 
             ranked_chunks = _rank_chunks(candidate_chunks.values(), limit)
             confidence = _compute_confidence(ranked_chunks)
-
-            if hop > 1 and (confidence - previous_confidence) < MIN_CONFIDENCE_GAIN_PER_HOP:
-                _set_stop_reason(
-                    optimization_stats,
-                    OptimizationStopReason.LOW_CONFIDENCE_GAIN,
-                    early_stop_key="early_stop_low_confidence_gain",
-                )
-                break
+            confidence_gain = confidence - previous_confidence
 
             merged_chunks = candidate_chunks
             previous_confidence = confidence
@@ -349,6 +342,20 @@ def retrieve_recursive_context_structured(
                         optimization_stats,
                         OptimizationStopReason.NO_MATERIAL_QUERY_CHANGE,
                         early_stop_key="early_stop_no_query_change",
+                    )
+                break
+            if hop > 1 and confidence_gain < MIN_CONFIDENCE_GAIN_PER_HOP:
+                if repeated_evidence_only:
+                    _set_stop_reason(
+                        optimization_stats,
+                        OptimizationStopReason.NO_NEW_USABLE_CHUNKS,
+                        early_stop_key="early_stop_no_new_chunks",
+                    )
+                else:
+                    _set_stop_reason(
+                        optimization_stats,
+                        OptimizationStopReason.LOW_CONFIDENCE_GAIN,
+                        early_stop_key="early_stop_low_confidence_gain",
                     )
                 break
             if not optimization_enabled and refined_query == current_query:

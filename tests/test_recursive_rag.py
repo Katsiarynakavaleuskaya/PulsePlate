@@ -665,6 +665,42 @@ def test_optimized_recursive_reuses_refinement_token_cache_for_repeated_chunks(
     assert result.optimization_stats["stop_reason"] == OptimizationStopReason.NO_NEW_USABLE_CHUNKS
 
 
+def test_optimized_recursive_prefers_no_new_chunks_stop_reason_over_low_gain(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Repeated evidence without a material query change must not collapse into low gain."""
+    import core.rag.recursive_retrieval as recursive
+
+    monkeypatch.setattr(recursive, "MAX_RAG_HOPS", 3)
+    monkeypatch.setattr(recursive, "MAX_REFINEMENT_PASSES", 3)
+    monkeypatch.setattr(recursive, "MAX_VERIFICATION_QUERIES", 0)
+    monkeypatch.setattr(recursive, "RAG_PIPELINE_TIMEOUT_SEC", 100.0)
+    monkeypatch.setattr(recursive, "MIN_CONFIDENCE_GAIN_PER_HOP", 0.1)
+
+    monkeypatch.setattr(
+        "core.rag.vector_rag.retrieve_context_structured",
+        lambda query, **_: _ctx(
+            query,
+            [
+                RAGChunk(
+                    chunk_id="repeat-1",
+                    file="doc.md",
+                    content="fiber protein vegetables satiety",
+                    score=0.8,
+                )
+            ],
+            confidence=0.8,
+        ),
+    )
+
+    result = retrieve_recursive_context_structured("base query", optimization_enabled=True)
+
+    assert result.optimization_stats is not None
+    assert result.optimization_stats["stop_reason"] == OptimizationStopReason.NO_NEW_USABLE_CHUNKS
+    assert result.optimization_stats["early_stop_no_new_chunks"] is True
+    assert result.optimization_stats["early_stop_low_confidence_gain"] is False
+
+
 def test_optimized_recursive_post_hop_timeout_sets_latency_stop_reason(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

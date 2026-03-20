@@ -35,6 +35,7 @@ class _FakeRAGContext:
     latency_ms: int
     agent_id: Optional[str] = None
     user_tier: Optional[str] = None
+    optimization_stats: dict[str, object] | None = None
 
 
 def _make_fake_structured(
@@ -125,6 +126,21 @@ def _make_fake_recursive_structured(
         latency_ms=55,
         agent_id=agent_id,
         user_tier=user_tier,
+        optimization_stats=(
+            {
+                "enabled": True,
+                "cache_hits": 1,
+                "refinement_cache_hits": 1,
+                "verification_calls": 0,
+                "stop_reason": "no_new_usable_chunks",
+                "early_stop_no_query_change": False,
+                "early_stop_no_new_chunks": True,
+                "early_stop_low_confidence_gain": False,
+                "early_stop_latency_budget": False,
+            }
+            if optimization_enabled
+            else None
+        ),
     )
 
 
