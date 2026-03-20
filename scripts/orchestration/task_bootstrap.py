@@ -401,15 +401,18 @@ def build_task_packet(
         reviewer=requested_agent_resolution["reviewer"],
         advisory_agents=advisory_agents,
     )
+    judgment_activation = bootstrap_lane_activations.get("judgment")
+    if judgment_activation is None:
+        raise ValueError("Required bootstrap lane activation missing: judgment")
     judgment_enabled = _judgment_lane_enabled(
         goal=goal,
         task_class=task_class,
         candidate_paths=normalized_paths,
-        activation=bootstrap_lane_activations.get("judgment"),
+        activation=judgment_activation,
     )
     if judgment_enabled:
         decision_contract = {
-            "mode": "verification_first",
+            "mode": judgment_activation.decision_mode,
             "judgment_enabled": True,
             "claim_taxonomy": list(CLAIM_TYPES),
             "flow": list(JUDGMENT_FLOW),

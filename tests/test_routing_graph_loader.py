@@ -300,6 +300,30 @@ def test_bootstrap_lane_activation_rejects_mode_drift(tmp_path: Path) -> None:
         load_bootstrap_lane_activations(mode_drift_path)
 
 
+def test_bootstrap_lane_activation_rejects_duplicate_signal_rows(tmp_path: Path) -> None:
+    """Duplicate signals must fail instead of being silently collapsed."""
+
+    duplicate_signal_path = tmp_path / "bootstrap_lane_duplicate_signal.md"
+    duplicate_signal_path.write_text(
+        _build_routing_doc(
+            _MINIMAL_CLUSTER_DEFINITIONS,
+            _MINIMAL_TABLE + "| docs | ops | agent-a | | reviewer-a |\n",
+            bootstrap_lane_table=(
+                _MINIMAL_BOOTSTRAP_LANE_TABLE
+                + "| judgment | judgment | verification_first |\n"
+                + "| judgment | judgment | verification_first |\n"
+            ),
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="Duplicate bootstrap lane activation signal: judgment",
+    ):
+        load_bootstrap_lane_activations(duplicate_signal_path)
+
+
 def test_missing_bootstrap_lane_section_raises(tmp_path: Path) -> None:
     """Bootstrap lane activation section is mandatory for the dedicated loader."""
 
@@ -316,6 +340,28 @@ def test_missing_bootstrap_lane_section_raises(tmp_path: Path) -> None:
         ValueError, match="Routing graph section not found: 5. Bootstrap Lane Activation"
     ):
         load_bootstrap_lane_activations(missing_bootstrap_path)
+
+
+def test_missing_judgment_bootstrap_lane_raises(tmp_path: Path) -> None:
+    """The canonical bootstrap loader must fail if the required judgment lane is absent."""
+
+    missing_judgment_lane_path = tmp_path / "missing_judgment_bootstrap_lane.md"
+    missing_judgment_lane_path.write_text(
+        _build_routing_doc(
+            _MINIMAL_CLUSTER_DEFINITIONS,
+            _MINIMAL_TABLE + "| docs | ops | agent-a | | reviewer-a |\n",
+            bootstrap_lane_table=(
+                _MINIMAL_BOOTSTRAP_LANE_TABLE + "| research | exploratory | verification_first |\n"
+            ),
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="Required bootstrap lane activation missing: judgment",
+    ):
+        load_bootstrap_lane_activations(missing_judgment_lane_path)
 
 
 def test_load_declared_clusters_raises_for_missing_file(tmp_path: Path) -> None:

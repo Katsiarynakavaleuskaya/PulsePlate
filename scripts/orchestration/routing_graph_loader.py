@@ -185,8 +185,10 @@ def _append_unique_signal(
     """Append a normalized bootstrap signal once while preserving order."""
 
     normalized_signal = signal.strip().lower()
-    if not normalized_signal or normalized_signal in existing_terms:
+    if not normalized_signal:
         return existing_terms
+    if normalized_signal in existing_terms:
+        raise ValueError(f"Duplicate bootstrap lane activation signal: {normalized_signal}")
     return (*existing_terms, normalized_signal)
 
 
@@ -280,7 +282,10 @@ def load_bootstrap_lane_activations(
     if not path.is_file():
         raise FileNotFoundError(f"Routing graph not found: {path}")
     lines = path.read_text(encoding="utf-8").splitlines()
-    return _parse_bootstrap_lane_activations(lines)
+    activations = _parse_bootstrap_lane_activations(lines)
+    if "judgment" not in activations:
+        raise ValueError("Required bootstrap lane activation missing: judgment")
+    return activations
 
 
 def load_routing_clusters_raw(path: Path = DEFAULT_ROUTING_GRAPH) -> Set[str]:

@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 from core.judgment import (
     CLAIM_EVIDENCE_FIELDS,
     CLAIM_TYPES,
@@ -123,7 +125,7 @@ def test_task_bootstrap_uses_loader_backed_judgment_activation(monkeypatch) -> N
             "judgment": BootstrapLaneActivation(
                 lane="judgment",
                 signal_terms=("custom-lane-trigger",),
-                decision_mode="verification_first",
+                decision_mode="custom_review_mode",
             )
         },
     )
@@ -134,7 +136,7 @@ def test_task_bootstrap_uses_loader_backed_judgment_activation(monkeypatch) -> N
         candidate_paths=["docs/orchestration/AGENT_ROUTING_GRAPH.md"],
     )
 
-    assert packet["decision_contract"]["mode"] == "verification_first"
+    assert packet["decision_contract"]["mode"] == "custom_review_mode"
     assert packet["decision_contract"]["judgment_enabled"] is True
 
 
@@ -160,6 +162,31 @@ def test_task_bootstrap_does_not_fall_back_to_removed_hardcoded_terms(monkeypatc
 
     assert packet["decision_contract"]["mode"] == "standard"
     assert packet["decision_contract"]["judgment_enabled"] is False
+
+
+def test_task_bootstrap_requires_canonical_judgment_lane(monkeypatch) -> None:
+    """Bootstrap must fail fast if the required judgment lane disappears from the SoT."""
+
+    monkeypatch.setattr(
+        "scripts.orchestration.task_bootstrap.load_bootstrap_lane_activations",
+        lambda: {
+            "research": BootstrapLaneActivation(
+                lane="research",
+                signal_terms=("custom-lane-trigger",),
+                decision_mode="verification_first",
+            )
+        },
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="Required bootstrap lane activation missing: judgment",
+    ):
+        build_task_packet(
+            goal="Prepare custom-lane-trigger follow-up",
+            task_class="Documentation",
+            candidate_paths=["docs/orchestration/AGENT_ROUTING_GRAPH.md"],
+        )
 
 
 def test_task_bootstrap_includes_scoped_agents_only_once() -> None:

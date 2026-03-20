@@ -146,4 +146,4 @@ SecondaryAgents --> Reviewer
 
 ---
 
-**Last updated:** 2026-03-14 (requested-agent + privileged-surface routing refresh)
+**Last updated:** 2026-03-20 (bootstrap-lane activation canonicalization)
