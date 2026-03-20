@@ -1209,7 +1209,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Extract AI runtime into a dedicated bounded context
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: feat(ai): extract bounded AI runtime ownership into canonical core/ai seam
+  - Target PR: #1203
   - Area: backend / AI runtime / architecture
   - Finding Type: bounded-context hardening
   - Reason: AI logic, provider seams, and safety-related behavior were historically distributed across runtime areas. The canonical `core/ai/*` seam now exists, but the remaining consolidation still needs to remove transitional ownership outside that boundary.
