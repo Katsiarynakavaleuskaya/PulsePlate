@@ -38,6 +38,7 @@ Disposition: FIXED
 Commit: 91f0d08c
 Evidence: `tests/test_insight_rag_response_fields.py:464`, `tests/test_insight_rag_response_fields.py:471`
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1199#discussion_r2967508863 -> 91f0d08c
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1199#pullrequestreview-3983528918 -> 91f0d08c
 
 Disposition: NOT-A-BUG
