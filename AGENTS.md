@@ -579,10 +579,10 @@ A repository-wide guard that runs early in CI to prevent PR bloat and mixed conc
 
 **Stage-4 short-anchor contradiction policy (Hard rule):**
 
-- Short specific query anchors such as `BMI`, `BP`, and `B12` are valid contradiction anchors.
-- Do not apply blanket anchor-specificity tightening without negative tests that keep short-anchor cases valid.
-- If query binding is ambiguous, suppress contradiction rather than escalate it.
-- Bot suggestions that materially change contradiction heuristics default to a separate backlog-backed PR unless they are a proven bugfix with tests.
+- Short specific query anchors such as `BMI`, `BP`, and `B12` remain valid contradiction anchors.
+- Do not apply blanket anchor-specificity tightening unless negative tests preserve these short-anchor cases.
+- If query binding is ambiguous, do not emit a contradiction.
+- Bot suggestions that materially change contradiction heuristics should go to a separate backlog-backed PR unless the change is a proven bugfix with tests.
 
 **FitChef initiative policy (Hard rule):**
 
