@@ -7241,7 +7241,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Canonical judgment-lane routing source for bootstrap packets
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: TBD
+  - Target PR: PR #1200 (`feat(orchestration): canonicalize bootstrap judgment routing`)
   - Status: Planned
   - Reason: `scripts/orchestration/task_bootstrap.py` still duplicates judgment-lane activation vocabulary in `JUDGMENT_TRIGGER_TERMS` and `_judgment_lane_enabled()`, which creates drift risk against the canonical routing graph and shared routing loaders.
   - Links:
