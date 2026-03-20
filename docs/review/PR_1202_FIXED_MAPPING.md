@@ -18,8 +18,23 @@ Disposition: NOT-A-BUG
 Evidence: Codecov reports all modified and coverable lines are covered for the current PR head.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1202#issuecomment-4101072997
 
+Disposition: FIXED
+Commit: `63c3d434`
+Evidence: [tests/test_skill_router.py](/private/tmp/pulseplate-pr3-skill-router-parity/tests/test_skill_router.py:458) now asserts `docs/orchestration/` is part of `PRIVILEGED_SURFACE_PREFIXES`, covering the gap identified by Sourcery.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1202#pullrequestreview-3984243649 -> 63c3d434
+
+Disposition: FIXED
+Commit: `63c3d434`
+Evidence: [tests/test_skill_router.py](/private/tmp/pulseplate-pr3-skill-router-parity/tests/test_skill_router.py:458) now asserts `docs/orchestration/` is part of `PRIVILEGED_SURFACE_PREFIXES`, covering the issue identified by cubic.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1202#pullrequestreview-3984245725 -> 63c3d434
+
+Disposition: FIXED
+Commit: `63c3d434`
+Evidence: [tests/test_skill_router.py](/private/tmp/pulseplate-pr3-skill-router-parity/tests/test_skill_router.py:458) now asserts `docs/orchestration/` is part of `PRIVILEGED_SURFACE_PREFIXES`, resolving the inline review comment identified by cubic.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1202#discussion_r2968115727 -> 63c3d434
+
 ## Merge Readiness
 - [ ] All required checks pass
-- [x] No unresolved review threads
+- [ ] No unresolved review threads
 - [x] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
 - [x] Pre-commit green
