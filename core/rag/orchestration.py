@@ -185,14 +185,17 @@ async def _run_orchestration(
         from core.rag.formatting import format_rag_chunks_for_prompt
 
         if recursive_enabled:
+            from app.utils.feature_flags import is_recursive_rag_optimization_enabled
             from core.rag.recursive_retrieval import retrieve_recursive_context_structured
 
+            optimization_enabled = is_recursive_rag_optimization_enabled()
             rag_ctx = await asyncio.to_thread(
                 retrieve_recursive_context_structured,
                 prompt_input,
                 max_chunks=max_chunks,
                 subject_id=subject_id,
                 philo_validation_enabled=False,
+                optimization_enabled=optimization_enabled,
             )
             recursive_executed = True
         else:

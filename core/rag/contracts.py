@@ -45,3 +45,4 @@ class RAGContext:
     latency_ms: int
     agent_id: Optional[str] = None
     user_tier: Optional[str] = None
+    optimization_stats: dict[str, bool | int | str | None] | None = None
