@@ -583,9 +583,11 @@ def test_optimized_recursive_breaks_when_no_new_usable_chunks(
 
     result = retrieve_recursive_context_structured("base query", optimization_enabled=True)
 
-    assert result.hops == 2
+    assert result.hops == 3
     assert [chunk.chunk_id for chunk in result.chunks] == ["a-high"]
     assert result.optimization_stats is not None
+    assert result.optimization_stats["refinement_cache_hits"] == 2
+    assert result.optimization_stats["cache_hits"] == 2
     assert result.optimization_stats["stop_reason"] == OptimizationStopReason.NO_NEW_USABLE_CHUNKS
     assert result.optimization_stats["early_stop_no_new_chunks"] is True
 
@@ -626,10 +628,10 @@ def test_optimized_recursive_replaces_existing_chunk_when_score_improves(
     assert result.chunks[0].score == 0.9
 
 
-def test_optimized_recursive_memoizes_duplicate_query_retrievals_within_single_run(
+def test_optimized_recursive_reuses_refinement_token_cache_for_repeated_chunks(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Request-scope memoization should reuse repeated retrieval inputs safely."""
+    """Optimization should reuse per-request chunk tokenization on repeated evidence."""
     import core.rag.recursive_retrieval as recursive
 
     monkeypatch.setattr(recursive, "MAX_RAG_HOPS", 3)
@@ -638,41 +640,28 @@ def test_optimized_recursive_memoizes_duplicate_query_retrievals_within_single_r
     monkeypatch.setattr(recursive, "RAG_PIPELINE_TIMEOUT_SEC", 100.0)
     monkeypatch.setattr(recursive, "MIN_CONFIDENCE_GAIN_PER_HOP", -1.0)
 
-    retrieval_calls: list[str] = []
-
     def _fake_retrieve(query: str, **_: Any) -> RAGContext:
-        retrieval_calls.append(query)
-        chunk_id = "base" if query == "base query" else "extra"
-        content = "fiber signal" if chunk_id == "base" else "protein signal"
         return _ctx(
             query,
             [
                 RAGChunk(
-                    chunk_id=chunk_id,
+                    chunk_id="base",
                     file="doc.md",
-                    content=content,
+                    content="fiber protein vegetables satiety",
                     score=0.8,
                 )
             ],
             confidence=0.8,
         )
 
-    refined_queries = iter(["base query extra", "base query"])
-
     monkeypatch.setattr("core.rag.vector_rag.retrieve_context_structured", _fake_retrieve)
-    monkeypatch.setattr(
-        recursive,
-        "_refine_query",
-        lambda query, chunks, **kwargs: next(refined_queries),
-    )
 
     result = retrieve_recursive_context_structured("base query", optimization_enabled=True)
 
-    assert retrieval_calls == ["base query", "base query extra"]
     assert result.hops == 3
     assert result.optimization_stats is not None
-    assert result.optimization_stats["retrieval_cache_hits"] == 1
-    assert result.optimization_stats["cache_hits"] == 1
+    assert result.optimization_stats["refinement_cache_hits"] == 2
+    assert result.optimization_stats["cache_hits"] == 2
     assert result.optimization_stats["stop_reason"] == OptimizationStopReason.NO_NEW_USABLE_CHUNKS
 
 

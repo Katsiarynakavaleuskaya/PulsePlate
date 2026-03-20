@@ -484,16 +484,25 @@ class TestInsightV1RAGFields:
         monkeypatch.setenv("FEATURE_RAG_RECURSIVE", "true")
         monkeypatch.setenv("FEATURE_RAG_RECURSIVE_OPTIMIZATION", "true")
         monkeypatch.setattr(llm, "get_provider", lambda: _EchoProvider(), raising=True)
+
+        seen_optimization_enabled: list[bool] = []
+
+        def _tracked_recursive_structured(*args: Any, **kwargs: Any) -> _FakeRAGContext:
+            seen_optimization_enabled.append(bool(kwargs.get("optimization_enabled")))
+            return _make_fake_recursive_structured(*args, **kwargs)
+
         monkeypatch.setattr(
             "core.rag.recursive_retrieval.retrieve_recursive_context_structured",
-            _make_fake_recursive_structured,
+            _tracked_recursive_structured,
             raising=True,
         )
 
         resp = client.post("/api/v1/insight", json={"text": "What is BMI?"}, headers=vip_headers)
 
         assert resp.status_code == 200
+        assert resp.headers.get("content-type", "").startswith("application/json")
         data = resp.json()
+        assert seen_optimization_enabled == [True]
         assert data["rag_used"] is True
         assert data["hops"] == 2
         assert data["latency_ms"] == 55

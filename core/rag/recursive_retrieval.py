@@ -77,7 +77,6 @@ def _make_optimization_stats() -> OptimizationStats:
     """
     return {
         "enabled": True,
-        "retrieval_cache_hits": 0,
         "refinement_cache_hits": 0,
         "cache_hits": 0,
         "verification_calls": 0,
@@ -221,9 +220,6 @@ def retrieve_recursive_context_structured(
     hops_done = 0
     limit = max(1, min(max_chunks, MAX_SOURCES_IN_RESPONSE))
     optimization_stats = _make_optimization_stats() if optimization_enabled else None
-    retrieval_cache: (
-        dict[tuple[str, int, str | None, str | None, int | None], RAGContext] | None
-    ) = ({} if optimization_enabled else None)
     refinement_token_cache: dict[tuple[str, str], list[str]] | None = (
         {} if optimization_enabled else None
     )
@@ -247,22 +243,13 @@ def retrieve_recursive_context_structured(
                 break
 
             hops_done = hop
-            retrieval_cache_key = (current_query, limit, agent_id, user_tier, subject_id)
-            if retrieval_cache is not None and retrieval_cache_key in retrieval_cache:
-                hop_ctx = retrieval_cache[retrieval_cache_key]
-                if optimization_stats is not None:
-                    _increment_stat(optimization_stats, "retrieval_cache_hits")
-                    _increment_stat(optimization_stats, "cache_hits")
-            else:
-                hop_ctx = retrieve_context_structured(
-                    current_query,
-                    max_chunks=limit,
-                    agent_id=agent_id,
-                    user_tier=user_tier,
-                    subject_id=subject_id,
-                )
-                if retrieval_cache is not None:
-                    retrieval_cache[retrieval_cache_key] = hop_ctx
+            hop_ctx = retrieve_context_structured(
+                current_query,
+                max_chunks=limit,
+                agent_id=agent_id,
+                user_tier=user_tier,
+                subject_id=subject_id,
+            )
             if not hop_ctx.chunks:
                 if hop > 1:
                     _set_stop_reason(optimization_stats, OptimizationStopReason.EMPTY_HOP)
@@ -297,6 +284,7 @@ def retrieve_recursive_context_structured(
             candidate_chunks = dict(merged_chunks)
             introduced_new_chunks = False
             improved_existing_chunks = False
+            repeated_evidence_only = False
             for chunk in hop_chunks:
                 existing = candidate_chunks.get(chunk.chunk_id)
                 if existing is None:
@@ -307,18 +295,12 @@ def retrieve_recursive_context_structured(
                     improved_existing_chunks = True
                     candidate_chunks[chunk.chunk_id] = chunk
 
-            if (
+            repeated_evidence_only = (
                 optimization_enabled
                 and hop > 1
                 and not introduced_new_chunks
                 and not improved_existing_chunks
-            ):
-                _set_stop_reason(
-                    optimization_stats,
-                    OptimizationStopReason.NO_NEW_USABLE_CHUNKS,
-                    early_stop_key="early_stop_no_new_chunks",
-                )
-                break
+            )
 
             ranked_chunks = _rank_chunks(candidate_chunks.values(), limit)
             confidence = _compute_confidence(ranked_chunks)
@@ -356,11 +338,18 @@ def retrieve_recursive_context_structured(
                 stats=optimization_stats,
             )
             if optimization_enabled and not _query_changed_materially(current_query, refined_query):
-                _set_stop_reason(
-                    optimization_stats,
-                    OptimizationStopReason.NO_MATERIAL_QUERY_CHANGE,
-                    early_stop_key="early_stop_no_query_change",
-                )
+                if repeated_evidence_only:
+                    _set_stop_reason(
+                        optimization_stats,
+                        OptimizationStopReason.NO_NEW_USABLE_CHUNKS,
+                        early_stop_key="early_stop_no_new_chunks",
+                    )
+                else:
+                    _set_stop_reason(
+                        optimization_stats,
+                        OptimizationStopReason.NO_MATERIAL_QUERY_CHANGE,
+                        early_stop_key="early_stop_no_query_change",
+                    )
                 break
             if not optimization_enabled and refined_query == current_query:
                 break

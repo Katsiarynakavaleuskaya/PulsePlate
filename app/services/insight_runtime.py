@@ -87,6 +87,8 @@ async def _traced_retrieve_and_validate_rag(
 ) -> Any:
     """Wrap RAG retrieval in a deterministic retriever span."""
 
+    optimization_enabled = recursive_rag_enabled and is_recursive_rag_optimization_enabled()
+
     with retrieval_span(
         user_tier=user_tier,
         route=route_path,
@@ -97,6 +99,7 @@ async def _traced_retrieve_and_validate_rag(
             max_chunks=max_chunks,
             philo_validation_enabled=philo_validation_enabled,
             recursive_rag_enabled=recursive_rag_enabled,
+            optimization_enabled=optimization_enabled,
             subject_id=subject_id,
         )
         set_attributes(span, **{"pulseplate.rag.hops": rag_result.hops})

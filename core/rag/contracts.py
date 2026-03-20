@@ -40,7 +40,6 @@ class OptimizationStats(TypedDict):
     """Internal optimization diagnostics for a single recursive request."""
 
     enabled: bool
-    retrieval_cache_hits: int
     refinement_cache_hits: int
     cache_hits: int
     verification_calls: int

@@ -262,14 +262,10 @@ class TestRetrieveAndValidateRag:
         assert result.hops == 2
 
     @pytest.mark.asyncio
-    async def test_recursive_enabled_passes_optimization_flag_from_env(
-        self,
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        """Recursive orchestration should wire the inner optimization flag only via env."""
+    async def test_recursive_enabled_passes_explicit_optimization_flag(self) -> None:
+        """Core orchestration should accept the optimization flag as explicit input."""
         chunks = [_make_chunk("c1", score=0.9)]
         rag_ctx = _make_rag_context(chunks=chunks, confidence=0.9, hops=2)
-        monkeypatch.setenv("FEATURE_RAG_RECURSIVE_OPTIMIZATION", "true")
 
         with (
             patch(
@@ -293,6 +289,7 @@ class TestRetrieveAndValidateRag:
                 "test prompt",
                 philo_validation_enabled=False,
                 recursive_rag_enabled=True,
+                optimization_enabled=True,
             )
 
         assert to_thread_mock.call_count == 1
