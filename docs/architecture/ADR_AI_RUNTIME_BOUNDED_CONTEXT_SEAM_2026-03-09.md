@@ -33,6 +33,12 @@ bounded context, but the canonical package boundary is not implemented yet.
 Keep the current runtime structure, but document AI bounded-context extraction
 as an explicit temporary seam with a linked ledger item and removal criteria.
 
+The bounded-context lane may use packet-only architecture PRs to freeze
+ownership boundaries, implementation decomposition, and non-goals before the
+runtime extraction lands. Those packet PRs are preparatory only: they do not
+close the ledger item and do not satisfy the extraction exit criteria by
+themselves.
+
 ## Exit criteria
 
 Retire this seam only when all are true:
