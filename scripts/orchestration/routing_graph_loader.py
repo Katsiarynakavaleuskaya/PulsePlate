@@ -10,13 +10,15 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Optional, Set, Tuple
+from typing import Dict, Mapping, Optional, Set, Tuple
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_ROUTING_GRAPH = REPO_ROOT / "docs" / "orchestration" / "AGENT_ROUTING_GRAPH.md"
 
 _TABLE_ROW_RE = re.compile(r"^\|\s*(?P<cols>.+?)\s*\|\s*$")
 _CLUSTER_SLUG_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+BOOTSTRAP_LANE_ACTIVATION_SECTION_TITLE = "5. Bootstrap Lane Activation"
+REQUIRED_BOOTSTRAP_LANE = "judgment"
 
 
 @dataclass(frozen=True)
@@ -197,7 +199,10 @@ def _parse_bootstrap_lane_activations(
 ) -> Dict[str, BootstrapLaneActivation]:
     """Parse canonical bootstrap-lane activation metadata from the routing graph SoT."""
 
-    section_start, section_end = _find_section_bounds(lines, "5. Bootstrap Lane Activation")
+    section_start, section_end = _find_section_bounds(
+        lines,
+        BOOTSTRAP_LANE_ACTIVATION_SECTION_TITLE,
+    )
     header_idx, header_cols = _find_table_header(
         lines,
         ("lane", "signal", "decision mode"),
@@ -215,14 +220,13 @@ def _parse_bootstrap_lane_activations(
 
     activations: Dict[str, BootstrapLaneActivation] = {}
 
-    for line in lines[start:]:
+    for index in range(start, section_end):
+        line = lines[index]
         stripped = line.strip()
         if stripped == "---" or stripped.startswith("##"):
             break
         cols = _split_md_row(line)
         if not cols:
-            if activations:
-                break
             continue
         if len(cols) <= max(i_lane, i_signal, i_decision_mode):
             continue
@@ -242,7 +246,7 @@ def _parse_bootstrap_lane_activations(
         if existing is None:
             activations[lane] = BootstrapLaneActivation(
                 lane=lane,
-                signal_terms=(signal.strip().lower(),),
+                signal_terms=(signal.lower(),),
                 decision_mode=decision_mode,
             )
             continue
@@ -265,6 +269,18 @@ def _parse_bootstrap_lane_activations(
     return activations
 
 
+def require_bootstrap_lane_activation(
+    activations: Mapping[str, BootstrapLaneActivation],
+    lane: str = REQUIRED_BOOTSTRAP_LANE,
+) -> BootstrapLaneActivation:
+    """Return the required bootstrap-lane activation or raise a canonical error."""
+
+    activation = activations.get(lane)
+    if activation is None:
+        raise ValueError(f"Required bootstrap lane activation missing: {lane}")
+    return activation
+
+
 def load_declared_clusters(path: Path = DEFAULT_ROUTING_GRAPH) -> Set[str]:
     """Return the canonical cluster set declared in the routing graph SoT."""
 
@@ -283,8 +299,7 @@ def load_bootstrap_lane_activations(
         raise FileNotFoundError(f"Routing graph not found: {path}")
     lines = path.read_text(encoding="utf-8").splitlines()
     activations = _parse_bootstrap_lane_activations(lines)
-    if "judgment" not in activations:
-        raise ValueError("Required bootstrap lane activation missing: judgment")
+    require_bootstrap_lane_activation(activations)
     return activations
 
 

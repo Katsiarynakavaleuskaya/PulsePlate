@@ -17,7 +17,10 @@ from core.judgment import (
     UNCERTAINTY_FIELDS,
 )
 from scripts.orchestration.context_pack import REPO_ROOT, normalize_repo_path
-from scripts.orchestration.routing_graph_loader import BootstrapLaneActivation
+from scripts.orchestration.routing_graph_loader import (
+    BootstrapLaneActivation,
+    REQUIRED_BOOTSTRAP_LANE,
+)
 from scripts.orchestration.task_bootstrap import (
     _resolve_output_path,
     build_task_packet,
@@ -116,16 +119,18 @@ def test_task_bootstrap_enables_judgment_lane_for_underscore_triggers() -> None:
     assert packet["judgment_budget"]["max_provider_calls"] == 0
 
 
-def test_task_bootstrap_uses_loader_backed_judgment_activation(monkeypatch) -> None:
+def test_task_bootstrap_uses_loader_backed_judgment_activation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Judgment-lane enablement must follow routing-graph loader metadata."""
 
     monkeypatch.setattr(
         "scripts.orchestration.task_bootstrap.load_bootstrap_lane_activations",
         lambda: {
-            "judgment": BootstrapLaneActivation(
-                lane="judgment",
+            REQUIRED_BOOTSTRAP_LANE: BootstrapLaneActivation(
+                lane=REQUIRED_BOOTSTRAP_LANE,
                 signal_terms=("custom-lane-trigger",),
-                decision_mode="custom_review_mode",
+                decision_mode="verification_first",
             )
         },
     )
@@ -136,18 +141,20 @@ def test_task_bootstrap_uses_loader_backed_judgment_activation(monkeypatch) -> N
         candidate_paths=["docs/orchestration/AGENT_ROUTING_GRAPH.md"],
     )
 
-    assert packet["decision_contract"]["mode"] == "custom_review_mode"
+    assert packet["decision_contract"]["mode"] == "verification_first"
     assert packet["decision_contract"]["judgment_enabled"] is True
 
 
-def test_task_bootstrap_does_not_fall_back_to_removed_hardcoded_terms(monkeypatch) -> None:
+def test_task_bootstrap_does_not_fall_back_to_removed_hardcoded_terms(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Custom loader metadata should fully replace legacy hardcoded trigger terms."""
 
     monkeypatch.setattr(
         "scripts.orchestration.task_bootstrap.load_bootstrap_lane_activations",
         lambda: {
-            "judgment": BootstrapLaneActivation(
-                lane="judgment",
+            REQUIRED_BOOTSTRAP_LANE: BootstrapLaneActivation(
+                lane=REQUIRED_BOOTSTRAP_LANE,
                 signal_terms=("custom-lane-trigger",),
                 decision_mode="verification_first",
             )
@@ -164,7 +171,9 @@ def test_task_bootstrap_does_not_fall_back_to_removed_hardcoded_terms(monkeypatc
     assert packet["decision_contract"]["judgment_enabled"] is False
 
 
-def test_task_bootstrap_requires_canonical_judgment_lane(monkeypatch) -> None:
+def test_task_bootstrap_requires_canonical_judgment_lane(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Bootstrap must fail fast if the required judgment lane disappears from the SoT."""
 
     monkeypatch.setattr(
@@ -180,13 +189,57 @@ def test_task_bootstrap_requires_canonical_judgment_lane(monkeypatch) -> None:
 
     with pytest.raises(
         ValueError,
-        match="Required bootstrap lane activation missing: judgment",
+        match=f"Required bootstrap lane activation missing: {REQUIRED_BOOTSTRAP_LANE}",
     ):
         build_task_packet(
             goal="Prepare custom-lane-trigger follow-up",
             task_class="Documentation",
             candidate_paths=["docs/orchestration/AGENT_ROUTING_GRAPH.md"],
         )
+
+
+def test_task_bootstrap_rejects_unsupported_judgment_decision_mode(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Judgment packets must reject loader modes that drift from supported semantics."""
+
+    monkeypatch.setattr(
+        "scripts.orchestration.task_bootstrap.load_bootstrap_lane_activations",
+        lambda: {
+            REQUIRED_BOOTSTRAP_LANE: BootstrapLaneActivation(
+                lane=REQUIRED_BOOTSTRAP_LANE,
+                signal_terms=("custom-lane-trigger",),
+                decision_mode="standard",
+            )
+        },
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="Unsupported judgment lane decision mode: standard. Supported: verification_first",
+    ):
+        build_task_packet(
+            goal="Prepare custom-lane-trigger follow-up",
+            task_class="Documentation",
+            candidate_paths=["docs/orchestration/AGENT_ROUTING_GRAPH.md"],
+        )
+
+
+def test_task_bootstrap_adds_judgment_context_for_single_file_trigger() -> None:
+    """Single-file judgment triggers must still receive judgment SoT context."""
+
+    packet = build_task_packet(
+        goal="Refactor judgment helper docstrings",
+        task_class="Backend API",
+        candidate_paths=["core/judgment.py"],
+    )
+
+    assert packet["decision_contract"]["judgment_enabled"] is True
+    assert "docs/orchestration/AGENT_ROUTING_GRAPH.md" in packet["required_context"]
+    assert (
+        "docs/orchestration/JUDGMENT_ADJUDICATION_SUBLANE_PROTOCOL.md" in packet["required_context"]
+    )
+    assert "docs/orchestration/EVIDENCE_RECONCILIATION_PROTOCOL.md" in packet["required_context"]
 
 
 def test_task_bootstrap_includes_scoped_agents_only_once() -> None:

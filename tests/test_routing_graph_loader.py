@@ -5,8 +5,10 @@ from pathlib import Path
 import pytest
 
 from scripts.orchestration.routing_graph_loader import (
+    BOOTSTRAP_LANE_ACTIVATION_SECTION_TITLE,
     BootstrapLaneActivation,
     DomainRoute,
+    REQUIRED_BOOTSTRAP_LANE,
     load_bootstrap_lane_activations,
     load_declared_clusters,
     load_routing_graph,
@@ -49,7 +51,7 @@ def _build_routing_doc(
         + "## 4. Domains → Agents\n\n"
         + routing_table
         + (
-            "## 5. Bootstrap Lane Activation\n\n" + bootstrap_lane_table
+            f"## {BOOTSTRAP_LANE_ACTIVATION_SECTION_TITLE}\n\n" + bootstrap_lane_table
             if bootstrap_lane_table
             else ""
         )
@@ -255,10 +257,10 @@ def test_load_bootstrap_lane_activations_parses_canonical_section() -> None:
 
     activations = load_bootstrap_lane_activations()
 
-    assert activations["judgment"] == BootstrapLaneActivation(
-        lane="judgment",
+    assert activations[REQUIRED_BOOTSTRAP_LANE] == BootstrapLaneActivation(
+        lane=REQUIRED_BOOTSTRAP_LANE,
         signal_terms=(
-            "judgment",
+            REQUIRED_BOOTSTRAP_LANE,
             "adjudication",
             "evidence reconciliation",
             "evidence_reconciliation",
@@ -295,7 +297,10 @@ def test_bootstrap_lane_activation_rejects_mode_drift(tmp_path: Path) -> None:
 
     with pytest.raises(
         ValueError,
-        match="Bootstrap lane activation changes decision mode within the same lane: judgment -> verification_first, standard",
+        match=(
+            "Bootstrap lane activation changes decision mode within the same lane: "
+            "judgment -> verification_first, standard"
+        ),
     ):
         load_bootstrap_lane_activations(mode_drift_path)
 
@@ -337,7 +342,8 @@ def test_missing_bootstrap_lane_section_raises(tmp_path: Path) -> None:
     )
 
     with pytest.raises(
-        ValueError, match="Routing graph section not found: 5. Bootstrap Lane Activation"
+        ValueError,
+        match=f"Routing graph section not found: {BOOTSTRAP_LANE_ACTIVATION_SECTION_TITLE}",
     ):
         load_bootstrap_lane_activations(missing_bootstrap_path)
 
@@ -359,9 +365,35 @@ def test_missing_judgment_bootstrap_lane_raises(tmp_path: Path) -> None:
 
     with pytest.raises(
         ValueError,
-        match="Required bootstrap lane activation missing: judgment",
+        match=f"Required bootstrap lane activation missing: {REQUIRED_BOOTSTRAP_LANE}",
     ):
         load_bootstrap_lane_activations(missing_judgment_lane_path)
+
+
+def test_bootstrap_lane_activation_tolerates_blank_lines_within_section(tmp_path: Path) -> None:
+    """Blank lines inside the section must not truncate later activation rows."""
+
+    blank_lines_path = tmp_path / "bootstrap_lane_blank_lines.md"
+    blank_lines_path.write_text(
+        _build_routing_doc(
+            _MINIMAL_CLUSTER_DEFINITIONS,
+            _MINIMAL_TABLE + "| docs | ops | agent-a | | reviewer-a |\n",
+            bootstrap_lane_table=(
+                _MINIMAL_BOOTSTRAP_LANE_TABLE
+                + "| judgment | judgment | verification_first |\n"
+                + "\n"
+                + "| judgment | adjudication | verification_first |\n"
+            ),
+        ),
+        encoding="utf-8",
+    )
+
+    activations = load_bootstrap_lane_activations(blank_lines_path)
+
+    assert activations[REQUIRED_BOOTSTRAP_LANE].signal_terms == (
+        REQUIRED_BOOTSTRAP_LANE,
+        "adjudication",
+    )
 
 
 def test_load_declared_clusters_raises_for_missing_file(tmp_path: Path) -> None:
