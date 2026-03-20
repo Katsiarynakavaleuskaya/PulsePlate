@@ -34,6 +34,12 @@ Evidence: `core/rag/recursive_retrieval.py:358`, `core/rag/recursive_retrieval.p
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1199#pullrequestreview-3983458952 -> 96ffff1e
 
+Disposition: FIXED
+Commit: 91f0d08c
+Evidence: `tests/test_insight_rag_response_fields.py:464`, `tests/test_insight_rag_response_fields.py:471`
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1199#pullrequestreview-3983528918 -> 91f0d08c
+
 Disposition: NOT-A-BUG
 Evidence: `docs/review/PR_1199_FIXED_MAPPING.md:16`, `docs/review/PR_1199_FIXED_MAPPING.md:25`, `docs/review/PR_1199_FIXED_MAPPING.md:32`
 Reason: These review-summary URLs aggregate inline findings already dispositioned separately in this artifact and do not add independent unresolved work on current head.
