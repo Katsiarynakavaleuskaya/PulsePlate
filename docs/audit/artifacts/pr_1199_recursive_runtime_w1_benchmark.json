@@ -1,0 +1,41 @@
+{
+  "artifact": "c3_recursive_runtime_w1_benchmark",
+  "date_utc": "2026-03-20T17:36:14Z",
+  "baseline_flag_off": {
+    "avg_latency_ms": 0.0283,
+    "p95_latency_ms": 0.0312,
+    "retrieval_calls_per_run": 2.0,
+    "hops": 2,
+    "refined_queries": [
+      "base query",
+      "base query evidence novel"
+    ],
+    "confidence": 0.8,
+    "stop_reason": "low_confidence_gain",
+    "old_behavior_preserved": true
+  },
+  "optimized_flag_on": {
+    "avg_latency_ms": 0.0363,
+    "p95_latency_ms": 0.0446,
+    "avg_retrieval_calls_per_run": 2,
+    "cache_hits_per_run": 1,
+    "early_stop_hit_count": 200,
+    "final_stop_reason": "no_new_usable_chunks",
+    "hops": 3,
+    "confidence": 0.8,
+    "chunk_count": 2
+  },
+  "fallback_safe_path": {
+    "chunks": 0,
+    "confidence": 0.0,
+    "enabled": true,
+    "stop_reason": "completed",
+    "fallback_safe": true
+  },
+  "parity": {
+    "flag_off_old_behavior_preserved": true,
+    "api_contract_preserved": true,
+    "confidence_non_regression": true,
+    "latency_non_negative": true
+  }
+}
