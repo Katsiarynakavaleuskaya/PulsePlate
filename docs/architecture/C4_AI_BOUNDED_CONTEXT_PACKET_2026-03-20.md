@@ -157,6 +157,10 @@ Before opening or updating the draft packet PR, validate:
 - `python3 scripts/orchestration/check_agent_consistency.py`
 - `python3 scripts/orchestration/route_with_telemetry.py --domain ml --task-type "bounded-context packet"`
 - `python3 scripts/ci/check_docs_phase1_gates.py --files <changed-doc-files>`
+  when the changed docs fall under `docs/audit/*` or `docs/security/*`
+- validate `docs/review/PR_<N>_FIXED_MAPPING.md` with the local
+  `validate_mapping_artifact_text(...)` helper when the canonical review
+  artifact changes
 - `pytest -q tests/test_repo_policy_guards.py`
 
 PR-specific merge-readiness and review-disposition tracking stay canonical in:
