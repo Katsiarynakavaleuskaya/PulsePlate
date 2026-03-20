@@ -6,6 +6,10 @@
 
 ## Fixed in Commit Mapping
 - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1197#discussion_r2966412769` -> `7c90b3b1`
+- `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1197#discussion_r2966437613` -> `cfbb727d`
+- `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1197#discussion_r2966437620` -> `cfbb727d`
+- `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1197#discussion_r2966450333` -> `cfbb727d`
+- `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1197#discussion_r2966450336` -> `cfbb727d`
 
 ## Merge Readiness
 - [ ] All required checks pass
