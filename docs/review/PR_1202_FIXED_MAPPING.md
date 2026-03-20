@@ -33,6 +33,21 @@ Commit: `63c3d434`
 Evidence: [tests/test_skill_router.py](/private/tmp/pulseplate-pr3-skill-router-parity/tests/test_skill_router.py:458) now asserts `docs/orchestration/` is part of `PRIVILEGED_SURFACE_PREFIXES`, resolving the inline review comment identified by cubic.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1202#discussion_r2968115727 -> 63c3d434
 
+Disposition: FIXED
+Commit: `0aa1a30c`
+Evidence: [docs/orchestration/AGENT_SKILL_ROUTING_POLICY.md](/private/tmp/pulseplate-pr3-skill-router-parity/docs/orchestration/AGENT_SKILL_ROUTING_POLICY.md:160) now scopes executable `security-auditor` review-path enforcement to the canonical bootstrap prefixes and explicitly documents that merge-governance docs/scripts added in PR 1202 remain skill-routed only.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1202#discussion_r2968116348 -> 0aa1a30c
+
+Disposition: FIXED
+Commit: `0aa1a30c`
+Evidence: [docs/review/PR_1202_FIXED_MAPPING.md](/private/tmp/pulseplate-pr3-skill-router-parity/docs/review/PR_1202_FIXED_MAPPING.md:37) keeps all merge-readiness checkboxes unchecked until the final merge cycle, matching the repo governance contract.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1202#discussion_r2968130384 -> 0aa1a30c
+
+Disposition: FIXED
+Commit: `0aa1a30c`
+Evidence: [tests/test_skill_router.py](/private/tmp/pulseplate-pr3-skill-router-parity/tests/test_skill_router.py:420) now exercises `docs/orchestration/AGENT_ROUTING_GRAPH.md` in the privileged-surface parity matrix, so a router regression for `docs/orchestration/` fails directly.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1202#discussion_r2968130391 -> 0aa1a30c
+
 ## Merge Readiness
 - [ ] All required checks pass
 - [ ] No unresolved review threads
