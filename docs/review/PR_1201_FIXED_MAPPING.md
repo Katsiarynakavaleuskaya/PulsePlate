@@ -11,11 +11,12 @@
 
 ## Merge Readiness
 
-- Status: draft / not ready to merge.
+- Status: ready for review / not ready to merge.
 - Current packet commits:
   - `175cffc2` — `docs(architecture): add C4 bounded-context packet`
   - `80f7dd8e` — `docs(architecture): sync bounded-context seam ADR`
   - `ea1b64ef` — `docs(pr): add PR_1201 fixed mapping`
+  - `9d183cc7` — `docs(pr): mark PR_1201 no-actionable baseline`
 - Current scope discipline:
   - packet-only docs/architecture PR
   - no runtime, route, public API, schema, or OpenAPI changes
@@ -28,10 +29,7 @@
   - confirm current-head required checks are green with no pending required jobs
   - confirm no actionable bot comments remain
   - run `make verify`
-- Local validation before opening draft:
-  - `python3 scripts/orchestration/check_preflight.py`
-  - `python3 scripts/orchestration/check_agent_consistency.py`
-  - `python3 scripts/orchestration/route_with_telemetry.py --domain ml --task-type "bounded-context packet"`
-  - `python3 scripts/ci/check_docs_phase1_gates.py --files docs/architecture/C4_AI_BOUNDED_CONTEXT_PACKET_2026-03-20.md docs/architecture/ADR_AI_RUNTIME_BOUNDED_CONTEXT_SEAM_2026-03-09.md`
-  - `pytest -q tests/test_repo_policy_guards.py`
+- Lane validation checklist:
+  - see `docs/architecture/C4_AI_BOUNDED_CONTEXT_PACKET_2026-03-20.md#validation`
+- PR-local validation executed on this lane:
   - `pre-commit run --all-files`

@@ -130,8 +130,12 @@ Before opening or updating the draft packet PR, validate:
 - `python3 scripts/orchestration/check_preflight.py`
 - `python3 scripts/orchestration/check_agent_consistency.py`
 - `python3 scripts/orchestration/route_with_telemetry.py --domain ml --task-type "bounded-context packet"`
-- `python scripts/ci/check_docs_phase1_gates.py --files <changed-doc-files>`
+- `python3 scripts/ci/check_docs_phase1_gates.py --files <changed-doc-files>`
 - `pytest -q tests/test_repo_policy_guards.py`
+
+PR-specific merge-readiness and review-disposition tracking stay canonical in:
+
+- `docs/review/PR_<N>_FIXED_MAPPING.md`
 
 `make verify` remains mandatory before any future merge claim, even for this
 docs-first lane.
