@@ -8,8 +8,7 @@
     "ms-python.debugpy",
     "charliermarsh.ruff",
     "Webnative.webnative",
-    "ms-azuretools.vscode-docker",
-    "openai.chatgpt"
+    "ms-azuretools.vscode-docker"
   ],
   "unwantedRecommendations": []
 }
