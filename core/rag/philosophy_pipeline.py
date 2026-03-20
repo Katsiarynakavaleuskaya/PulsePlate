@@ -412,16 +412,23 @@ def _extract_query_anchors(text: str, query_terms: set[str]) -> set[str]:
     return text_terms & query_terms
 
 
+def _extract_context_terms(text: str) -> set[str]:
+    """Return non-generic chunk-local terms for ambiguity checks."""
+    return {
+        token.lower() for token in _TOKEN_RE.findall(text) if token.lower() not in _QUERY_STOPWORDS
+    }
+
+
 def _extract_anchored_numeric_ranges(
     text: str,
     query_terms: set[str],
-) -> list[tuple[tuple[float, float], set[str]]]:
+) -> list[tuple[tuple[float, float], set[str], set[str]]]:
     """Extract numeric ranges together with query anchors near each range.
 
     Using range-local context prevents one topic inside a mixed chunk from
     lending its anchor to unrelated numeric ranges later in the paragraph.
     """
-    anchored_ranges: list[tuple[tuple[float, float], set[str]]] = []
+    anchored_ranges: list[tuple[tuple[float, float], set[str], set[str]]] = []
     for match in _NUMERIC_RANGE_RE.finditer(text):
         try:
             low = float(match.group(1))
@@ -439,10 +446,31 @@ def _extract_anchored_numeric_ranges(
             (
                 (low, high),
                 _extract_query_anchors(context, query_terms),
+                _extract_context_terms(context),
             )
         )
 
     return anchored_ranges
+
+
+def _query_binding_is_ambiguous(
+    anchors_a: set[str],
+    anchors_b: set[str],
+    context_terms_a: set[str],
+    context_terms_b: set[str],
+    query_terms: set[str],
+) -> bool:
+    """Return True when broad query anchors do not bind both ranges to one topic."""
+    shared_query_anchors = anchors_a & anchors_b
+    if not shared_query_anchors:
+        return True
+
+    if shared_query_anchors != anchors_a or shared_query_anchors != anchors_b:
+        return True
+
+    extra_context_a = context_terms_a - query_terms
+    extra_context_b = context_terms_b - query_terms
+    return bool(extra_context_a and extra_context_b and extra_context_a != extra_context_b)
 
 
 def _stage4_logical_consistency(
@@ -473,22 +501,35 @@ def _stage4_logical_consistency(
             )
 
     # Check 2: Contradictory numeric ranges
-    chunk_ranges: list[tuple[str, tuple[float, float], set[str]]] = []
+    chunk_ranges: list[tuple[str, tuple[float, float], set[str], set[str]]] = []
     for chunk in chunks:
-        for r, anchors in _extract_anchored_numeric_ranges(chunk.content, query_terms):
+        for r, anchors, context_terms in _extract_anchored_numeric_ranges(
+            chunk.content,
+            query_terms,
+        ):
             chunk_ranges.append(
                 (
                     chunk.chunk_id,
                     r,
                     anchors,
+                    context_terms,
                 )
             )
 
     contradictions: list[str] = []
-    for i, (id_a, range_a, anchors_a) in enumerate(chunk_ranges):
-        for id_b, range_b, anchors_b in chunk_ranges[i + 1 :]:
-            shared_query_anchors = anchors_a & anchors_b
-            if id_a != id_b and shared_query_anchors and _ranges_contradict(range_a, range_b):
+    for i, (id_a, range_a, anchors_a, context_terms_a) in enumerate(chunk_ranges):
+        for id_b, range_b, anchors_b, context_terms_b in chunk_ranges[i + 1 :]:
+            if (
+                id_a != id_b
+                and not _query_binding_is_ambiguous(
+                    anchors_a,
+                    anchors_b,
+                    context_terms_a,
+                    context_terms_b,
+                    query_terms,
+                )
+                and _ranges_contradict(range_a, range_b)
+            ):
                 contradictions.append(
                     f"{id_a}({range_a[0]}-{range_a[1]}) vs {id_b}({range_b[0]}-{range_b[1]})"
                 )
