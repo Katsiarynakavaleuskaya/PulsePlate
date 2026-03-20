@@ -19,6 +19,7 @@ from core.rag.philosophy_pipeline import (
     ClaimType,
     PipelineResult,
     _alignment_score,
+    _extract_anchored_numeric_ranges,
     _extract_numeric_ranges,
     _extract_query_anchors,
     _extract_query_terms,
@@ -299,6 +300,11 @@ class TestQueryAwareAnchors:
         assert "a1c" in query_terms
         assert "ldl-c" in query_terms
 
+    def test_extract_query_terms_keeps_alphanumeric_nutrition_tokens(self) -> None:
+        query_terms = _extract_query_terms("What B12 range is normal?")
+
+        assert "b12" in query_terms
+
     def test_extract_query_terms_supports_unicode_letters(self) -> None:
         query_terms = _extract_query_terms("Índice BMI y presión")
 
@@ -312,6 +318,23 @@ class TestQueryAwareAnchors:
 
         assert "bmi" in anchors
         assert "range" not in anchors
+
+    def test_extract_anchored_numeric_ranges_binds_anchors_per_range(self) -> None:
+        query_terms = _extract_query_terms("What is the BMI range?")
+        anchored_ranges = _extract_anchored_numeric_ranges(
+            "Healthy BMI is 18.5-24.9 and protein intake is 30-40 grams per meal.",
+            query_terms,
+        )
+
+        assert anchored_ranges[0] == ((18.5, 24.9), {"bmi"})
+        assert anchored_ranges[1] == ((30.0, 40.0), set())
+
+    def test_extract_anchored_numeric_ranges_skips_reversed_ranges(self) -> None:
+        query_terms = _extract_query_terms("What BMI range is normal?")
+
+        anchored_ranges = _extract_anchored_numeric_ranges("BMI 30-10 is invalid.", query_terms)
+
+        assert anchored_ranges == []
 
 
 class TestStage4LogicalConsistency:
@@ -400,6 +423,30 @@ class TestStage4LogicalConsistency:
 
         assert not any("numeric_contradiction" in w for w in result.warnings)
         assert "contradictions" not in result.metadata
+
+    def test_contradiction_suppressed_for_irrelevant_range_inside_multi_topic_chunk(self) -> None:
+        chunks = [
+            _chunk(
+                "c1",
+                "Healthy BMI is 18.5-24.9 and protein intake is 30-40 grams per meal.",
+                0.9,
+            ),
+            _chunk("c2", "Normal BMI range is 20-22 for adults.", 0.8),
+        ]
+        result = _stage4_logical_consistency(chunks, "What is the BMI range for adults?")
+
+        assert not any("numeric_contradiction" in w for w in result.warnings)
+        assert "contradictions" not in result.metadata
+
+    def test_contradictory_numeric_ranges_detected_for_b12_query(self) -> None:
+        chunks = [
+            _chunk("c1", "Normal B12 range is 200-900 for adults.", 0.9),
+            _chunk("c2", "Normal B12 range is 1000-1400 for adults.", 0.8),
+        ]
+        result = _stage4_logical_consistency(chunks, "What B12 range is normal?")
+
+        assert any("numeric_contradiction" in w for w in result.warnings)
+        assert len(result.metadata["contradictions"]) >= 1
 
     def test_no_contradictions_consistent_ranges(self) -> None:
         chunks = [

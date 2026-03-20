@@ -105,6 +105,8 @@ _NUMERIC_RANGE_RE = re.compile(
 )
 _TOKEN_RE = re.compile(r"\b[^\W\d_][\w-]*\b", re.UNICODE)
 
+# Audience/cadence words stay non-binding on purpose: they tend to create
+# false contradictions across different metrics that happen to share a cohort.
 _QUERY_STOPWORDS = frozenset(
     {
         "a",
@@ -154,6 +156,8 @@ _QUERY_STOPWORDS = frozenset(
         "women",
     }
 )
+_RANGE_ANCHOR_PREFIX_CHARS = 24
+_RANGE_ANCHOR_SUFFIX_CHARS = 12
 
 # Stage 3: Alignment thresholds
 # These thresholds detect score-vs-content quality mismatches.
@@ -408,6 +412,39 @@ def _extract_query_anchors(text: str, query_terms: set[str]) -> set[str]:
     return text_terms & query_terms
 
 
+def _extract_anchored_numeric_ranges(
+    text: str,
+    query_terms: set[str],
+) -> list[tuple[tuple[float, float], set[str]]]:
+    """Extract numeric ranges together with query anchors near each range.
+
+    Using range-local context prevents one topic inside a mixed chunk from
+    lending its anchor to unrelated numeric ranges later in the paragraph.
+    """
+    anchored_ranges: list[tuple[tuple[float, float], set[str]]] = []
+    for match in _NUMERIC_RANGE_RE.finditer(text):
+        try:
+            low = float(match.group(1))
+            high = float(match.group(2))
+        except ValueError:  # pragma: no cover - defensive; regex ensures valid floats
+            continue
+
+        if low >= high:
+            continue
+
+        context_start = max(0, match.start() - _RANGE_ANCHOR_PREFIX_CHARS)
+        context_end = min(len(text), match.end() + _RANGE_ANCHOR_SUFFIX_CHARS)
+        context = text[context_start:context_end]
+        anchored_ranges.append(
+            (
+                (low, high),
+                _extract_query_anchors(context, query_terms),
+            )
+        )
+
+    return anchored_ranges
+
+
 def _stage4_logical_consistency(
     chunks: list[RAGChunk],
     query: str,
@@ -438,8 +475,7 @@ def _stage4_logical_consistency(
     # Check 2: Contradictory numeric ranges
     chunk_ranges: list[tuple[str, tuple[float, float], set[str]]] = []
     for chunk in chunks:
-        anchors = _extract_query_anchors(chunk.content, query_terms)
-        for r in _extract_numeric_ranges(chunk.content):
+        for r, anchors in _extract_anchored_numeric_ranges(chunk.content, query_terms):
             chunk_ranges.append(
                 (
                     chunk.chunk_id,
