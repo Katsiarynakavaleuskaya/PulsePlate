@@ -68,10 +68,21 @@ jobs:
         uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25
         with:
           context: .
+          # Single-arch for cache/push stability. Restore linux/arm64 when
+          # buildx + GHA cache/provenance path is stable again.
+          platforms: linux/amd64
           push: true
           tags: ${{ env.REGISTRY }}/${{ steps.image-name.outputs.image_name }}:staging-latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          # Omit cache-from to avoid 404 BlobNotFound when the GHA cache entry
+          # is missing or evicted mid-build. mode=min keeps export bounded.
+          # ignore-error=true prevents CD failure on transient cache backend
+          # issues while still allowing image publication.
+          cache-to: type=gha,mode=min,ignore-error=true
+          # Disable provenance to avoid buildx/GHA cache export failures
+          # ("cache entry no longer exists" / BlobNotFound). Trade-off: SLSA
+          # attestations are disabled, so cosign verify-attestation will fail
+          # for this image until the cache/provenance stack is stable.
+          provenance: false
           # Use dedicated staging target which extends production but allows
           # staging-specific customizations (e.g., debug logging, extended health checks)
           target: staging
@@ -245,11 +256,22 @@ jobs:
         uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25
         with:
           context: .
+          # Single-arch for cache/push stability. Restore linux/arm64 when
+          # buildx + GHA cache/provenance path is stable again.
+          platforms: linux/amd64
           push: true
           # Source of truth for production deployments: prod-${tag} (never `latest`).
           tags: ${{ env.REGISTRY }}/${{ steps.image-name.outputs.image_name }}:prod-${{ github.ref_name }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          # Omit cache-from to avoid 404 BlobNotFound when the GHA cache entry
+          # is missing or evicted mid-build. mode=min keeps export bounded.
+          # ignore-error=true prevents CD failure on transient cache backend
+          # issues while still allowing image publication.
+          cache-to: type=gha,mode=min,ignore-error=true
+          # Disable provenance to avoid buildx/GHA cache export failures
+          # ("cache entry no longer exists" / BlobNotFound). Trade-off: SLSA
+          # attestations are disabled, so cosign verify-attestation will fail
+          # for this image until the cache/provenance stack is stable.
+          provenance: false
           target: production
 
   deploy-production:
