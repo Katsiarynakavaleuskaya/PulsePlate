@@ -29,17 +29,17 @@ Implementation anchors:
 
 ### Baseline Flag-Off
 
-- Average latency: `0.0283 ms`
-- P95 latency: `0.0312 ms`
+- Average latency: `0.0278 ms`
+- P95 latency: `0.0261 ms`
 - Retrieval calls per run: `2.0`
 - Hops: `2`
-- Stop reason: `low_confidence_gain`
+- Optimization diagnostics attached: `false`
 - Old behavior preserved: `true`
 
 ### Optimized Flag-On
 
-- Average latency: `0.0363 ms`
-- P95 latency: `0.0446 ms`
+- Average latency: `0.0366 ms`
+- P95 latency: `0.0420 ms`
 - Average retrieval calls per run: `2`
 - Cache hits per run: `1`
 - Early-stop hit count: `200`
@@ -57,6 +57,7 @@ Implementation anchors:
 ## Assertions
 
 - `flag_off_old_behavior_preserved = true`
+- `flag_off_has_no_diagnostics_payload = true`
 - `api_contract_preserved = true`
 - `confidence_non_regression = true`
 - `latency_non_negative = true`
@@ -70,4 +71,5 @@ Implementation anchors:
 ## Notes
 
 - The optimized path intentionally remains off by default and is rollout-safe.
+- The flag-off path now keeps `optimization_stats=None`, which preserves a clean disabled-state contract for downstream consumers.
 - The artifact is narrow by design: it proves bounded memoization, deterministic early stopping, flag-off parity, and safe fallback, but does not claim broader runtime gains.

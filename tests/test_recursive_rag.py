@@ -6,7 +6,7 @@ from typing import Any
 
 import pytest
 
-from core.rag.contracts import RAGChunk, RAGContext
+from core.rag.contracts import OptimizationStopReason, RAGChunk, RAGContext
 from core.rag.philosophy_pipeline import PipelineResult
 from core.rag.recursive_retrieval import retrieve_recursive_context_structured
 from core.rag.validation import ValidationResult
@@ -292,7 +292,7 @@ def test_increment_stat_handles_bool_and_non_numeric_values() -> None:
     """Optimization stat counters must handle bool and unexpected values safely."""
     import core.rag.recursive_retrieval as recursive
 
-    stats = recursive._make_optimization_stats(enabled=True)
+    stats = recursive._make_optimization_stats()
     stats["flag_like"] = True
     stats["bad_value"] = "oops"
 
@@ -316,7 +316,7 @@ def test_refine_query_uses_cached_tokens_when_available() -> None:
         )
     ]
     token_cache: dict[tuple[str, str], list[str]] = {}
-    stats = recursive._make_optimization_stats(enabled=True)
+    stats = recursive._make_optimization_stats()
 
     first = recursive._refine_query(
         "What should I eat?",
@@ -386,6 +386,7 @@ def test_recursive_timeout_breaks_before_first_hop(
     result = retrieve_recursive_context_structured("timeout case")
     assert result.hops == 1
     assert result.chunks == []
+    assert result.optimization_stats is None
 
 
 def test_recursive_breaks_when_first_hop_is_empty(
@@ -405,6 +406,7 @@ def test_recursive_breaks_when_first_hop_is_empty(
     result = retrieve_recursive_context_structured("empty hop")
     assert result.hops == 1
     assert result.chunks == []
+    assert result.optimization_stats is None
 
 
 def test_optimized_recursive_breaks_when_later_hop_is_empty(
@@ -441,7 +443,7 @@ def test_optimized_recursive_breaks_when_later_hop_is_empty(
 
     assert result.hops == 2
     assert result.optimization_stats is not None
-    assert result.optimization_stats["stop_reason"] == "empty_hop"
+    assert result.optimization_stats["stop_reason"] == OptimizationStopReason.EMPTY_HOP
 
 
 def test_recursive_breaks_when_verification_removes_all_chunks(
@@ -509,6 +511,7 @@ def test_recursive_breaks_when_refinement_does_not_change_query(
     result = retrieve_recursive_context_structured("what and where")
     assert result.hops == 1
     assert result.refined_queries == ["what and where"]
+    assert result.optimization_stats is None
 
 
 def test_optimized_recursive_breaks_when_refinement_does_not_change_query(
@@ -544,7 +547,9 @@ def test_optimized_recursive_breaks_when_refinement_does_not_change_query(
     assert result.hops == 1
     assert result.refined_queries == ["what and where"]
     assert result.optimization_stats is not None
-    assert result.optimization_stats["stop_reason"] == "no_material_query_change"
+    assert (
+        result.optimization_stats["stop_reason"] == OptimizationStopReason.NO_MATERIAL_QUERY_CHANGE
+    )
     assert result.optimization_stats["early_stop_no_query_change"] is True
 
 
@@ -581,7 +586,7 @@ def test_optimized_recursive_breaks_when_no_new_usable_chunks(
     assert result.hops == 2
     assert [chunk.chunk_id for chunk in result.chunks] == ["a-high"]
     assert result.optimization_stats is not None
-    assert result.optimization_stats["stop_reason"] == "no_new_usable_chunks"
+    assert result.optimization_stats["stop_reason"] == OptimizationStopReason.NO_NEW_USABLE_CHUNKS
     assert result.optimization_stats["early_stop_no_new_chunks"] is True
 
 
@@ -668,7 +673,7 @@ def test_optimized_recursive_memoizes_duplicate_query_retrievals_within_single_r
     assert result.optimization_stats is not None
     assert result.optimization_stats["retrieval_cache_hits"] == 1
     assert result.optimization_stats["cache_hits"] == 1
-    assert result.optimization_stats["stop_reason"] == "no_new_usable_chunks"
+    assert result.optimization_stats["stop_reason"] == OptimizationStopReason.NO_NEW_USABLE_CHUNKS
 
 
 def test_optimized_recursive_post_hop_timeout_sets_latency_stop_reason(
@@ -696,7 +701,7 @@ def test_optimized_recursive_post_hop_timeout_sets_latency_stop_reason(
     result = retrieve_recursive_context_structured("timeout later", optimization_enabled=True)
 
     assert result.optimization_stats is not None
-    assert result.optimization_stats["stop_reason"] == "latency_budget"
+    assert result.optimization_stats["stop_reason"] == OptimizationStopReason.LATENCY_BUDGET
     assert result.optimization_stats["early_stop_latency_budget"] is True
 
 
