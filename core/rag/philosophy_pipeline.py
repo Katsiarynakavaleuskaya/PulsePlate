@@ -156,8 +156,32 @@ _QUERY_STOPWORDS = frozenset(
         "women",
     }
 )
+_BROAD_QUERY_MODIFIERS = frozenset({"vitamin"})
+_CONTEXT_DISAMBIGUATION_TERMS = frozenset(
+    {
+        "adult",
+        "adults",
+        "child",
+        "children",
+        "daily",
+        "day",
+        "female",
+        "gram",
+        "grams",
+        "kg",
+        "kilogram",
+        "kilograms",
+        "male",
+        "meal",
+        "meals",
+        "men",
+        "women",
+    }
+)
+_CONTEXT_STOPWORDS = _QUERY_STOPWORDS - _CONTEXT_DISAMBIGUATION_TERMS
 _RANGE_ANCHOR_PREFIX_CHARS = 24
 _RANGE_ANCHOR_SUFFIX_CHARS = 12
+_RANGE_CONTEXT_SUFFIX_CHARS = 36
 
 # Stage 3: Alignment thresholds
 # These thresholds detect score-vs-content quality mismatches.
@@ -412,16 +436,40 @@ def _extract_query_anchors(text: str, query_terms: set[str]) -> set[str]:
     return text_terms & query_terms
 
 
+def _extract_context_terms(text: str) -> set[str]:
+    """Return disambiguation markers that distinguish closely related range claims."""
+    return {
+        token.lower()
+        for token in _TOKEN_RE.findall(text)
+        if token.lower() not in _CONTEXT_STOPWORDS
+        and (
+            len(token) >= 3
+            or any(char.isdigit() for char in token)
+            or len(token) == 1
+            or token.lower() in _CONTEXT_DISAMBIGUATION_TERMS
+        )
+    }
+
+
+def _is_context_disambiguator(token: str) -> bool:
+    """Return True when a context token can distinguish one metric/topic from another."""
+    return (
+        token in _CONTEXT_DISAMBIGUATION_TERMS
+        or any(char.isdigit() for char in token)
+        or len(token) == 1
+    )
+
+
 def _extract_anchored_numeric_ranges(
     text: str,
     query_terms: set[str],
-) -> list[tuple[tuple[float, float], set[str]]]:
+) -> list[tuple[tuple[float, float], set[str], set[str]]]:
     """Extract numeric ranges together with query anchors near each range.
 
     Using range-local context prevents one topic inside a mixed chunk from
     lending its anchor to unrelated numeric ranges later in the paragraph.
     """
-    anchored_ranges: list[tuple[tuple[float, float], set[str]]] = []
+    anchored_ranges: list[tuple[tuple[float, float], set[str], set[str]]] = []
     for match in _NUMERIC_RANGE_RE.finditer(text):
         try:
             low = float(match.group(1))
@@ -433,16 +481,54 @@ def _extract_anchored_numeric_ranges(
             continue
 
         context_start = max(0, match.start() - _RANGE_ANCHOR_PREFIX_CHARS)
-        context_end = min(len(text), match.end() + _RANGE_ANCHOR_SUFFIX_CHARS)
-        context = text[context_start:context_end]
+        anchor_context_end = min(len(text), match.end() + _RANGE_ANCHOR_SUFFIX_CHARS)
+        context_context_end = min(len(text), match.end() + _RANGE_CONTEXT_SUFFIX_CHARS)
+        anchor_context = text[context_start:anchor_context_end]
+        context_context = text[context_start:context_context_end]
         anchored_ranges.append(
             (
                 (low, high),
-                _extract_query_anchors(context, query_terms),
+                _extract_query_anchors(anchor_context, query_terms),
+                _extract_context_terms(context_context),
             )
         )
 
     return anchored_ranges
+
+
+def _query_binding_is_ambiguous(
+    anchors_a: set[str],
+    anchors_b: set[str],
+    context_terms_a: set[str],
+    context_terms_b: set[str],
+    query_terms: set[str],
+) -> bool:
+    """Return True when broad query anchors do not bind both ranges to one topic."""
+    shared_query_anchors = anchors_a & anchors_b
+    if not shared_query_anchors:
+        return True
+
+    extra_query_anchors_a = anchors_a - shared_query_anchors
+    extra_query_anchors_b = anchors_b - shared_query_anchors
+    conflicting_query_anchors = extra_query_anchors_a and extra_query_anchors_b
+    if conflicting_query_anchors:
+        return True
+
+    unexpected_query_anchors_a = extra_query_anchors_a - _BROAD_QUERY_MODIFIERS
+    unexpected_query_anchors_b = extra_query_anchors_b - _BROAD_QUERY_MODIFIERS
+    if unexpected_query_anchors_a or unexpected_query_anchors_b:
+        return True
+
+    extra_context_a = context_terms_a - query_terms
+    extra_context_b = context_terms_b - query_terms
+    shared_context = extra_context_a & extra_context_b
+    unique_context_a = {
+        token for token in (extra_context_a - shared_context) if _is_context_disambiguator(token)
+    }
+    unique_context_b = {
+        token for token in (extra_context_b - shared_context) if _is_context_disambiguator(token)
+    }
+    return bool(unique_context_a and unique_context_b)
 
 
 def _stage4_logical_consistency(
@@ -473,22 +559,35 @@ def _stage4_logical_consistency(
             )
 
     # Check 2: Contradictory numeric ranges
-    chunk_ranges: list[tuple[str, tuple[float, float], set[str]]] = []
+    chunk_ranges: list[tuple[str, tuple[float, float], set[str], set[str]]] = []
     for chunk in chunks:
-        for r, anchors in _extract_anchored_numeric_ranges(chunk.content, query_terms):
+        for r, anchors, context_terms in _extract_anchored_numeric_ranges(
+            chunk.content,
+            query_terms,
+        ):
             chunk_ranges.append(
                 (
                     chunk.chunk_id,
                     r,
                     anchors,
+                    context_terms,
                 )
             )
 
     contradictions: list[str] = []
-    for i, (id_a, range_a, anchors_a) in enumerate(chunk_ranges):
-        for id_b, range_b, anchors_b in chunk_ranges[i + 1 :]:
-            shared_query_anchors = anchors_a & anchors_b
-            if id_a != id_b and shared_query_anchors and _ranges_contradict(range_a, range_b):
+    for i, (id_a, range_a, anchors_a, context_terms_a) in enumerate(chunk_ranges):
+        for id_b, range_b, anchors_b, context_terms_b in chunk_ranges[i + 1 :]:
+            if (
+                id_a != id_b
+                and not _query_binding_is_ambiguous(
+                    anchors_a,
+                    anchors_b,
+                    context_terms_a,
+                    context_terms_b,
+                    query_terms,
+                )
+                and _ranges_contradict(range_a, range_b)
+            ):
                 contradictions.append(
                     f"{id_a}({range_a[0]}-{range_a[1]}) vs {id_b}({range_b[0]}-{range_b[1]})"
                 )
