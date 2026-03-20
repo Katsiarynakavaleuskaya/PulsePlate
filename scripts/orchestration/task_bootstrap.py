@@ -39,7 +39,11 @@ from scripts.orchestration.agent_consistency_loader import (
 )
 from scripts.orchestration.native_subagent_bridge import build_native_subagent_bridge
 from scripts.orchestration.route_with_telemetry import TELEMETRY_PATH, route
-from scripts.orchestration.routing_graph_loader import load_routing_graph
+from scripts.orchestration.routing_graph_loader import (
+    BootstrapLaneActivation,
+    load_bootstrap_lane_activations,
+    load_routing_graph,
+)
 from scripts.orchestration.requested_agents import normalize_requested_agents
 from scripts.orchestration.skill_router import route_skills
 
@@ -55,18 +59,6 @@ PRIVILEGED_REVIEW_PREFIXES: tuple[str, ...] = (
     ".github/workflows/",
     "ios/fastlane/",
     "scripts/orchestration/",
-)
-JUDGMENT_TRIGGER_TERMS: tuple[str, ...] = (
-    "judgment",
-    "adjudication",
-    "evidence reconciliation",
-    "evidence_reconciliation",
-    "verification-first",
-    "verification_first",
-    "creative_research",
-    "creative research",
-    "fitchef",
-    "fit_chef",
 )
 
 
@@ -124,8 +116,12 @@ def _judgment_lane_enabled(
     goal: str,
     task_class: str,
     candidate_paths: list[str] | tuple[str, ...],
+    activation: BootstrapLaneActivation | None,
 ) -> bool:
     """Return True when the task clearly targets the judgment/adjudication lane."""
+
+    if activation is None:
+        return False
 
     normalized_haystack = " ".join(
         [
@@ -134,7 +130,7 @@ def _judgment_lane_enabled(
             *(path.lower() for path in candidate_paths),
         ]
     )
-    return any(term in normalized_haystack for term in JUDGMENT_TRIGGER_TERMS)
+    return any(term in normalized_haystack for term in activation.signal_terms)
 
 
 def _partition_native_secondaries(
@@ -344,6 +340,7 @@ def build_task_packet(
         goal=goal,
     )
     routing = load_routing_graph()
+    bootstrap_lane_activations = load_bootstrap_lane_activations()
     decision = route(
         domain,
         task_class,
@@ -408,6 +405,7 @@ def build_task_packet(
         goal=goal,
         task_class=task_class,
         candidate_paths=normalized_paths,
+        activation=bootstrap_lane_activations.get("judgment"),
     )
     if judgment_enabled:
         decision_contract = {

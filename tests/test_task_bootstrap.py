@@ -15,6 +15,7 @@ from core.judgment import (
     UNCERTAINTY_FIELDS,
 )
 from scripts.orchestration.context_pack import REPO_ROOT, normalize_repo_path
+from scripts.orchestration.routing_graph_loader import BootstrapLaneActivation
 from scripts.orchestration.task_bootstrap import (
     _resolve_output_path,
     build_task_packet,
@@ -111,6 +112,54 @@ def test_task_bootstrap_enables_judgment_lane_for_underscore_triggers() -> None:
     assert packet["decision_contract"]["mode"] == "verification_first"
     assert packet["decision_contract"]["judgment_enabled"] is True
     assert packet["judgment_budget"]["max_provider_calls"] == 0
+
+
+def test_task_bootstrap_uses_loader_backed_judgment_activation(monkeypatch) -> None:
+    """Judgment-lane enablement must follow routing-graph loader metadata."""
+
+    monkeypatch.setattr(
+        "scripts.orchestration.task_bootstrap.load_bootstrap_lane_activations",
+        lambda: {
+            "judgment": BootstrapLaneActivation(
+                lane="judgment",
+                signal_terms=("custom-lane-trigger",),
+                decision_mode="verification_first",
+            )
+        },
+    )
+
+    packet = build_task_packet(
+        goal="Prepare custom-lane-trigger follow-up",
+        task_class="Documentation",
+        candidate_paths=["docs/orchestration/AGENT_ROUTING_GRAPH.md"],
+    )
+
+    assert packet["decision_contract"]["mode"] == "verification_first"
+    assert packet["decision_contract"]["judgment_enabled"] is True
+
+
+def test_task_bootstrap_does_not_fall_back_to_removed_hardcoded_terms(monkeypatch) -> None:
+    """Custom loader metadata should fully replace legacy hardcoded trigger terms."""
+
+    monkeypatch.setattr(
+        "scripts.orchestration.task_bootstrap.load_bootstrap_lane_activations",
+        lambda: {
+            "judgment": BootstrapLaneActivation(
+                lane="judgment",
+                signal_terms=("custom-lane-trigger",),
+                decision_mode="verification_first",
+            )
+        },
+    )
+
+    packet = build_task_packet(
+        goal="Prepare evidence_reconciliation follow-up",
+        task_class="Documentation",
+        candidate_paths=["docs/orchestration/AGENT_ROUTING_GRAPH.md"],
+    )
+
+    assert packet["decision_contract"]["mode"] == "standard"
+    assert packet["decision_contract"]["judgment_enabled"] is False
 
 
 def test_task_bootstrap_includes_scoped_agents_only_once() -> None:

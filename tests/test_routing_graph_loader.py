@@ -5,7 +5,9 @@ from pathlib import Path
 import pytest
 
 from scripts.orchestration.routing_graph_loader import (
+    BootstrapLaneActivation,
     DomainRoute,
+    load_bootstrap_lane_activations,
     load_declared_clusters,
     load_routing_graph,
 )
@@ -24,6 +26,10 @@ _MINIMAL_TABLE = (
     "|----------|---------|-----------------|-----------|----------|\n"
 )
 
+_MINIMAL_BOOTSTRAP_LANE_TABLE = (
+    "| Lane | Signal | Decision Mode |\n" "|------|--------|---------------|\n"
+)
+
 _EXPECTED_DECLARED_CLUSTERS = {"backend", "platform", "ops", "ml", "safety", "growth"}
 
 
@@ -32,6 +38,7 @@ def _build_routing_doc(
     routing_table: str,
     *,
     prelude: str = "# Routing Graph\n\n",
+    bootstrap_lane_table: str = "",
 ) -> str:
     """Build a minimal routing graph doc with canonical section headers."""
 
@@ -41,6 +48,11 @@ def _build_routing_doc(
         + cluster_definitions
         + "## 4. Domains → Agents\n\n"
         + routing_table
+        + (
+            "## 5. Bootstrap Lane Activation\n\n" + bootstrap_lane_table
+            if bootstrap_lane_table
+            else ""
+        )
     )
 
 
@@ -236,6 +248,74 @@ def test_load_declared_clusters_parses_cluster_definition_table() -> None:
 
     declared = load_declared_clusters()
     assert declared == _EXPECTED_DECLARED_CLUSTERS
+
+
+def test_load_bootstrap_lane_activations_parses_canonical_section() -> None:
+    """Bootstrap-lane metadata should parse from the canonical routing graph."""
+
+    activations = load_bootstrap_lane_activations()
+
+    assert activations["judgment"] == BootstrapLaneActivation(
+        lane="judgment",
+        signal_terms=(
+            "judgment",
+            "adjudication",
+            "evidence reconciliation",
+            "evidence_reconciliation",
+            "verification-first",
+            "verification_first",
+            "creative research",
+            "creative_research",
+            "fitchef",
+            "fit_chef",
+            "docs/orchestration/judgment_adjudication_sublane_protocol.md",
+            "docs/orchestration/evidence_reconciliation_protocol.md",
+            "core/judgment.py",
+        ),
+        decision_mode="verification_first",
+    )
+
+
+def test_bootstrap_lane_activation_rejects_mode_drift(tmp_path: Path) -> None:
+    """The same lane must not change decision mode across multiple signal rows."""
+
+    mode_drift_path = tmp_path / "bootstrap_lane_mode_drift.md"
+    mode_drift_path.write_text(
+        _build_routing_doc(
+            _MINIMAL_CLUSTER_DEFINITIONS,
+            _MINIMAL_TABLE + "| docs | ops | agent-a | | reviewer-a |\n",
+            bootstrap_lane_table=(
+                _MINIMAL_BOOTSTRAP_LANE_TABLE
+                + "| judgment | judgment | verification_first |\n"
+                + "| judgment | adjudication | standard |\n"
+            ),
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="Bootstrap lane activation changes decision mode within the same lane: judgment -> verification_first, standard",
+    ):
+        load_bootstrap_lane_activations(mode_drift_path)
+
+
+def test_missing_bootstrap_lane_section_raises(tmp_path: Path) -> None:
+    """Bootstrap lane activation section is mandatory for the dedicated loader."""
+
+    missing_bootstrap_path = tmp_path / "missing_bootstrap_lanes.md"
+    missing_bootstrap_path.write_text(
+        _build_routing_doc(
+            _MINIMAL_CLUSTER_DEFINITIONS,
+            _MINIMAL_TABLE + "| docs | ops | agent-a | | reviewer-a |\n",
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(
+        ValueError, match="Routing graph section not found: 5. Bootstrap Lane Activation"
+    ):
+        load_bootstrap_lane_activations(missing_bootstrap_path)
 
 
 def test_load_declared_clusters_raises_for_missing_file(tmp_path: Path) -> None:
