@@ -52,19 +52,32 @@ Evidence: core/rag/philosophy_pipeline.py:454-460; core/rag/philosophy_pipeline.
 Reason: Expanding numeric context disambiguators for units and measurement systems is a bounded enhancement, but it needs an explicit false-positive review and additional regression coverage before widening the current token set.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1198#discussion_r2966989340
 
+Disposition: FIXED
+Commit: f4efaa39
+Evidence: docs/roadmap/BACKLOG_LEDGER.md:7196-7239; tests/test_philosophy_pipeline.py:489-497
+Reason: The new deferred ledger items now expose explicit structured `Priority` fields, and the cohort-specific protein regression test now varies only cohort while keeping the per-meal units identical across both chunks.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1198#discussion_r2967271810 -> f4efaa39
+
+Disposition: DEFERRED
+Backlog: docs/roadmap/BACKLOG_LEDGER.md:7241-7256
+Evidence: scripts/orchestration/task_bootstrap.py:59-70; scripts/orchestration/task_bootstrap.py:122-137; scripts/orchestration/route_with_telemetry.py:1-5; scripts/orchestration/routing_graph_loader.py:1-24
+Reason: Replacing the bootstrap-local judgment trigger vocabulary with a canonical routing/config source changes shared orchestration behavior and bootstrap tests, so it is tracked as a dedicated follow-up instead of being rushed into this near-ready PR.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1198#discussion_r2967271824
+
 Disposition: NOT-A-BUG
 Evidence: docs/review/PR_1197_FIXED_MAPPING.md:45-49
 Reason: The referenced PR 1197 artifact now keeps every merge-readiness checkbox unchecked on the current head, so this historical nitpick does not require an additional standalone change beyond the current artifact state.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1198#discussion_r2966989363
 
 Disposition: NOT-A-BUG
-Evidence: core/judgment.py:188-244; scripts/orchestration/task_bootstrap.py:59-68; docs/orchestration/EVIDENCE_RECONCILIATION_PROTOCOL.md:7-18; docs/orchestration/JUDGMENT_ADJUDICATION_SUBLANE_PROTOCOL.md:7-26; docs/roadmap/BACKLOG_LEDGER.md:7211-7236
+Evidence: core/judgment.py:188-244; scripts/orchestration/task_bootstrap.py:59-70; docs/orchestration/EVIDENCE_RECONCILIATION_PROTOCOL.md:7-18; docs/orchestration/JUDGMENT_ADJUDICATION_SUBLANE_PROTOCOL.md:7-26; docs/roadmap/BACKLOG_LEDGER.md:7196-7256; tests/test_philosophy_pipeline.py:489-507
 Reason: These review-summary URLs aggregate inline findings that are explicitly dispositioned above; once the mapped thread URLs are closed, the review-level summaries do not introduce independent unresolved actions.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1198#pullrequestreview-3982838510
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1198#pullrequestreview-3982859156
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1198#pullrequestreview-3982874893
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1198#pullrequestreview-3982920585
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1198#pullrequestreview-3983058550
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1198#pullrequestreview-3983267538
 
 ## Merge Readiness
 - [ ] All required checks pass
