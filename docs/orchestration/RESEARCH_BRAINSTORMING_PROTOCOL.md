@@ -24,6 +24,11 @@ Use this protocol when the task requires:
 
 If the task class is `creative_research`, this protocol remains the brainstorm / research entrypoint, but phase semantics and hypothesis / scorecard contracts come from `docs/orchestration/CREATIVE_RESEARCH_SUBLANE_PROTOCOL.md`.
 
+If the task requires verification-first judgment or claim reconciliation before promotion, the brainstorm output must also name the adjudication path and evidence reconciliation contract:
+
+- `docs/orchestration/JUDGMENT_ADJUDICATION_SUBLANE_PROTOCOL.md`
+- `docs/orchestration/EVIDENCE_RECONCILIATION_PROTOCOL.md`
+
 Non-goal: this is not for “trivial changes” (see Task definition in root `AGENTS.md`).
 
 ---

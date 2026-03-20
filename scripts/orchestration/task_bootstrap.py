@@ -17,6 +17,15 @@ BOOTSTRAP_REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(BOOTSTRAP_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(BOOTSTRAP_REPO_ROOT))
 
+from core.judgment import (
+    CLAIM_EVIDENCE_FIELDS,
+    CLAIM_TYPES,
+    EVIDENCE_MODES,
+    JUDGMENT_FLOW,
+    PROMOTION_LABELS,
+    SUPPORT_STATUSES,
+    UNCERTAINTY_FIELDS,
+)
 from scripts.orchestration.context_pack import (
     REPO_ROOT,
     collect_context_pack,
@@ -46,6 +55,18 @@ PRIVILEGED_REVIEW_PREFIXES: tuple[str, ...] = (
     ".github/workflows/",
     "ios/fastlane/",
     "scripts/orchestration/",
+)
+JUDGMENT_TRIGGER_TERMS: tuple[str, ...] = (
+    "judgment",
+    "adjudication",
+    "evidence reconciliation",
+    "evidence_reconciliation",
+    "verification-first",
+    "verification_first",
+    "creative_research",
+    "creative research",
+    "fitchef",
+    "fit_chef",
 )
 
 
@@ -96,6 +117,24 @@ def _requires_security_review(candidate_paths: list[str] | tuple[str, ...]) -> b
         )
         for path in candidate_paths
     )
+
+
+def _judgment_lane_enabled(
+    *,
+    goal: str,
+    task_class: str,
+    candidate_paths: list[str] | tuple[str, ...],
+) -> bool:
+    """Return True when the task clearly targets the judgment/adjudication lane."""
+
+    normalized_haystack = " ".join(
+        [
+            goal.strip().lower(),
+            task_class.strip().lower(),
+            *(path.lower() for path in candidate_paths),
+        ]
+    )
+    return any(term in normalized_haystack for term in JUDGMENT_TRIGGER_TERMS)
 
 
 def _partition_native_secondaries(
@@ -365,6 +404,51 @@ def build_task_packet(
         reviewer=requested_agent_resolution["reviewer"],
         advisory_agents=advisory_agents,
     )
+    judgment_enabled = _judgment_lane_enabled(
+        goal=goal,
+        task_class=task_class,
+        candidate_paths=normalized_paths,
+    )
+    if judgment_enabled:
+        decision_contract = {
+            "mode": "verification_first",
+            "judgment_enabled": True,
+            "claim_taxonomy": list(CLAIM_TYPES),
+            "flow": list(JUDGMENT_FLOW),
+        }
+        judgment_budget = {
+            "skeptic_pass_required": True,
+            "verifier_pass_required": True,
+            "max_provider_calls": 0,
+            "uncertainty_split_required": True,
+        }
+        result_adjudication = {
+            "claim_evidence_fields": list(CLAIM_EVIDENCE_FIELDS),
+            "support_statuses": list(SUPPORT_STATUSES),
+            "evidence_modes": list(EVIDENCE_MODES),
+            "uncertainty_fields": list(UNCERTAINTY_FIELDS),
+            "promotion_labels": list(PROMOTION_LABELS),
+        }
+    else:
+        decision_contract = {
+            "mode": "standard",
+            "judgment_enabled": False,
+            "claim_taxonomy": [],
+            "flow": [],
+        }
+        judgment_budget = {
+            "skeptic_pass_required": False,
+            "verifier_pass_required": False,
+            "max_provider_calls": 0,
+            "uncertainty_split_required": False,
+        }
+        result_adjudication = {
+            "claim_evidence_fields": [],
+            "support_statuses": [],
+            "evidence_modes": [],
+            "uncertainty_fields": [],
+            "promotion_labels": [],
+        }
 
     return {
         "schema_version": SCHEMA_VERSION,
@@ -382,6 +466,9 @@ def build_task_packet(
         "required_context": context_pack,
         "recommended_skills": [item["skill"] for item in skill_routing["recommended"]],
         "skill_routing": skill_routing,
+        "decision_contract": decision_contract,
+        "judgment_budget": judgment_budget,
+        "result_adjudication": result_adjudication,
         "native_subagent_bridge": native_subagent_bridge,
         "routing_rationale": decision.rationale,
     }

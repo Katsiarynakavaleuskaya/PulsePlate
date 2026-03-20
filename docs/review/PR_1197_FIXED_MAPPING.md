@@ -42,9 +42,8 @@ Evidence: core/rag/philosophy_pipeline.py:439; tests/test_philosophy_pipeline.py
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1197#discussion_r2966580767 -> 75373257
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1197#pullrequestreview-3982525511 -> 75373257
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1197#discussion_r2966640668 -> 75373257
-
 ## Merge Readiness
 - [ ] All required checks pass
 - [ ] No unresolved review threads
 - [ ] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
-- [x] Pre-commit green
+- [ ] Pre-commit green

@@ -52,6 +52,7 @@ Forbidden in sub-lane docs:
 Current governed sub-lane:
 
 - `docs/orchestration/CREATIVE_RESEARCH_SUBLANE_PROTOCOL.md`
+- `docs/orchestration/JUDGMENT_ADJUDICATION_SUBLANE_PROTOCOL.md`
 
 ---
 
