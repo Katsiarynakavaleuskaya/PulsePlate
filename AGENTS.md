@@ -577,6 +577,13 @@ A repository-wide guard that runs early in CI to prevent PR bloat and mixed conc
 - Allowlist: `tests/guards/wellness_language_allowlist.txt`; in-file marker: `pulseplate-allow:blocker-example`
 - LLM outputs used in product copy/coaching must pass `philosophy_validator` (BLOCKER = rewrite). See `core.insight.philosophy_validator.validate_llm_output`.
 
+**Stage-4 short-anchor contradiction policy (Hard rule):**
+
+- Short specific query anchors such as `BMI`, `BP`, and `B12` are valid contradiction anchors.
+- Do not apply blanket anchor-specificity tightening without negative tests that keep short-anchor cases valid.
+- If query binding is ambiguous, suppress contradiction rather than escalate it.
+- Bot suggestions that materially change contradiction heuristics default to a separate backlog-backed PR unless they are a proven bugfix with tests.
+
 **FitChef initiative policy (Hard rule):**
 
 - The current live FitChef public canon remains `/api/v1/insight/fitchef*`; do not rename, migrate, or deprecate these routes in foundation or visual-lane PRs.
