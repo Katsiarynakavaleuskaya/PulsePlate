@@ -46,4 +46,4 @@ Evidence: core/rag/philosophy_pipeline.py:439; tests/test_philosophy_pipeline.py
 - [ ] All required checks pass
 - [ ] No unresolved review threads
 - [ ] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
-- [x] Pre-commit green
+- [ ] Pre-commit green
