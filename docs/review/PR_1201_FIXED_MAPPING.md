@@ -9,13 +9,18 @@
 
 Disposition: FIXED
 Commit: 8836405e
-Evidence: `docs/architecture/C4_AI_BOUNDED_CONTEXT_PACKET_2026-03-20.md:130`, `docs/architecture/C4_AI_BOUNDED_CONTEXT_PACKET_2026-03-20.md:136`, `docs/review/PR_1201_FIXED_MAPPING.md:14`, `docs/review/PR_1201_FIXED_MAPPING.md:32`
+Evidence: `docs/architecture/C4_AI_BOUNDED_CONTEXT_PACKET_2026-03-20.md:156`, `docs/architecture/C4_AI_BOUNDED_CONTEXT_PACKET_2026-03-20.md:162`, `docs/review/PR_1201_FIXED_MAPPING.md:42`
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1201#pullrequestreview-3983945669 -> 8836405e
 
 Disposition: FIXED
 Commit: b7e79e9e
-Evidence: `docs/architecture/C4_AI_BOUNDED_CONTEXT_PACKET_2026-03-20.md:98`
+Evidence: `docs/architecture/C4_AI_BOUNDED_CONTEXT_PACKET_2026-03-20.md:124`
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1201#pullrequestreview-3983950112 -> b7e79e9e
+
+Disposition: FIXED
+Commit: 580bdd3d
+Evidence: `docs/architecture/C4_AI_BOUNDED_CONTEXT_PACKET_2026-03-20.md:61`, `docs/architecture/C4_AI_BOUNDED_CONTEXT_PACKET_2026-03-20.md:63`, `docs/architecture/C4_AI_BOUNDED_CONTEXT_PACKET_2026-03-20.md:76`, `docs/architecture/C4_AI_BOUNDED_CONTEXT_PACKET_2026-03-20.md:80`, `docs/architecture/C4_AI_BOUNDED_CONTEXT_PACKET_2026-03-20.md:124`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1201#pullrequestreview-3983967946 -> 580bdd3d
 
 ## Merge Readiness
 
@@ -27,6 +32,7 @@ Evidence: `docs/architecture/C4_AI_BOUNDED_CONTEXT_PACKET_2026-03-20.md:98`
   - `9d183cc7` — `docs(pr): mark PR_1201 no-actionable baseline`
   - `8836405e` — `docs(architecture): tighten C4 validation wording`
   - `b7e79e9e` — `docs(architecture): polish C4 packet wording`
+  - `580bdd3d` — `docs(architecture): add C4 ownership evidence`
 - Current scope discipline:
   - packet-only docs/architecture PR
   - no runtime, route, public API, schema, or OpenAPI changes
