@@ -58,6 +58,32 @@ The current runtime remains distributed, but the target ownership boundary is:
   - runtime policy assembly
   - safety / evaluation ownership mapping
 
+### Evidence
+
+- `app/routers/*` remains the HTTP edge: `app/routers/fitchef_insight.py:45`
+  defines the router surface, and `app/routers/fitchef_insight.py:101` maps
+  request input into a service task before delegating to `app.services.*`.
+- `app/services/*` remains thin app-layer orchestration/tracing glue:
+  `app/services/insight_runtime.py:1` documents that tracing stays out of
+  `core/`, `app/services/insight_runtime.py:78` wraps retrieval with app-layer
+  spans, and `app/services/insight_runtime.py:109` delegates runtime generation
+  without owning retrieval primitives.
+- `core/rag/*` owns retrieval and orchestration primitives:
+  `core/rag/orchestration.py:121` exposes the retrieval + validation pipeline,
+  `core/rag/orchestration.py:176` executes retrieval/prompt assembly, and
+  `core/rag/validation.py:110` validates retrieved chunks against wellness
+  boundaries.
+- `core/insight/*` owns insight-domain helpers, prompt shaping, and validation:
+  `core/insight/safety.py:10` redacts prompt context, `core/insight/llm_provider_loader.py:34`
+  keeps provider loading lazy for insight callers, and
+  `core/insight/philosophy_validator.py:84` validates wellness-safe output.
+- future `core/ai/*` remains a documented target, not a created package:
+  `docs/architecture/ADR_AI_RUNTIME_BOUNDED_CONTEXT_SEAM_2026-03-09.md:36`
+  keeps packet-only preparation separate from implementation, and
+  `docs/architecture/ADR_AI_RUNTIME_BOUNDED_CONTEXT_SEAM_2026-03-09.md:46`
+  reserves the canonical package boundary for provider, safety, and evaluation
+  ownership.
+
 ## Future Implementation Stack
 
 The later implementation under `PR-TBD-AI-BOUNDED-CONTEXT` is expected to land
@@ -95,7 +121,7 @@ This packet only freezes that decomposition. It does not perform any step above.
 
 ## Canonical Wording Rules
 
-Any draft PR or follow-up docs generated from this packet must state all the
+Any draft PR or follow-up docs generated from this packet must state the
 following:
 
 - this is a **packet-only** change
