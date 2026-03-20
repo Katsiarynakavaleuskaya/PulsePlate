@@ -102,10 +102,11 @@ def _make_fake_recursive_structured(
     user_tier: str | None = None,
     subject_id: int | None = None,
     philo_validation_enabled: bool = False,
+    optimization_enabled: bool = False,
 ) -> _FakeRAGContext:
     """Fake recursive retriever with deeper hops and refined query chain."""
     # Intentionally unused: keep signature parity with real recursive retriever.
-    _ = (philo_validation_enabled, subject_id)
+    _ = (philo_validation_enabled, optimization_enabled, subject_id)
     chunks = [
         _FakeRAGChunk(
             chunk_id="recursive.md:1",
@@ -468,6 +469,37 @@ class TestInsightV1RAGFields:
         assert data["verification_rate"] == 0.8
         assert "rag_recursive_path" in data["reason_codes"]
         assert "verification_first_rewrite" in data["reason_codes"]
+
+    def test_recursive_optimization_enabled_preserves_recursive_api_contract(
+        self,
+        client: TestClient,
+        monkeypatch: pytest.MonkeyPatch,
+        vip_headers: dict[str, str],
+    ) -> None:
+        """Recursive optimization must preserve the existing public response fields."""
+        import llm
+
+        monkeypatch.setenv("FEATURE_INSIGHT", "true")
+        monkeypatch.setenv("FEATURE_RAG", "true")
+        monkeypatch.setenv("FEATURE_RAG_RECURSIVE", "true")
+        monkeypatch.setenv("FEATURE_RAG_RECURSIVE_OPTIMIZATION", "true")
+        monkeypatch.setattr(llm, "get_provider", lambda: _EchoProvider(), raising=True)
+        monkeypatch.setattr(
+            "core.rag.recursive_retrieval.retrieve_recursive_context_structured",
+            _make_fake_recursive_structured,
+            raising=True,
+        )
+
+        resp = client.post("/api/v1/insight", json={"text": "What is BMI?"}, headers=vip_headers)
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["rag_used"] is True
+        assert data["hops"] == 2
+        assert data["latency_ms"] == 55
+        assert data["confidence"] == 0.82
+        assert isinstance(data["sources"], list)
+        assert data["contradiction_count"] == 0
         assert "verification_first_fallback" not in data["reason_codes"]
 
     def test_insight_text_not_contaminated_by_source_headers(

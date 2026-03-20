@@ -288,6 +288,54 @@ def test_refine_query_ignores_prompt_injection_tokens() -> None:
     assert "system" not in result
 
 
+def test_increment_stat_handles_bool_and_non_numeric_values() -> None:
+    """Optimization stat counters must handle bool and unexpected values safely."""
+    import core.rag.recursive_retrieval as recursive
+
+    stats = recursive._make_optimization_stats(enabled=True)
+    stats["flag_like"] = True
+    stats["bad_value"] = "oops"
+
+    recursive._increment_stat(stats, "flag_like")
+    recursive._increment_stat(stats, "bad_value")
+
+    assert stats["flag_like"] == 2
+    assert stats["bad_value"] == 1
+
+
+def test_refine_query_uses_cached_tokens_when_available() -> None:
+    """Cached chunk tokens should increment refinement cache hit counters."""
+    import core.rag.recursive_retrieval as recursive
+
+    chunks = [
+        RAGChunk(
+            chunk_id="cache-1",
+            file="doc.md",
+            content="Fiber protein vegetables improve satiety.",
+            score=0.8,
+        )
+    ]
+    token_cache: dict[tuple[str, str], list[str]] = {}
+    stats = recursive._make_optimization_stats(enabled=True)
+
+    first = recursive._refine_query(
+        "What should I eat?",
+        chunks,
+        token_cache=token_cache,
+        stats=stats,
+    )
+    second = recursive._refine_query(
+        "What should I eat?",
+        chunks,
+        token_cache=token_cache,
+        stats=stats,
+    )
+
+    assert first == second
+    assert stats["refinement_cache_hits"] == 1
+    assert stats["cache_hits"] == 1
+
+
 def test_apply_verification_skips_pipeline_when_disabled(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -359,6 +407,43 @@ def test_recursive_breaks_when_first_hop_is_empty(
     assert result.chunks == []
 
 
+def test_optimized_recursive_breaks_when_later_hop_is_empty(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Optimized path should record empty-hop stop when a later hop returns nothing."""
+    import core.rag.recursive_retrieval as recursive
+
+    monkeypatch.setattr(recursive, "MAX_RAG_HOPS", 3)
+    monkeypatch.setattr(recursive, "MAX_REFINEMENT_PASSES", 3)
+    monkeypatch.setattr(recursive, "MAX_VERIFICATION_QUERIES", 0)
+    monkeypatch.setattr(recursive, "RAG_PIPELINE_TIMEOUT_SEC", 100.0)
+    monkeypatch.setattr(recursive, "MIN_CONFIDENCE_GAIN_PER_HOP", -1.0)
+
+    def _fake_retrieve(query: str, **_: Any) -> RAGContext:
+        if "novelword" in query:
+            return _ctx(query, [], confidence=0.0)
+        return _ctx(
+            query,
+            [
+                RAGChunk(
+                    chunk_id="seed",
+                    file="doc.md",
+                    content="novelword recovery guidance",
+                    score=0.8,
+                )
+            ],
+            confidence=0.8,
+        )
+
+    monkeypatch.setattr("core.rag.vector_rag.retrieve_context_structured", _fake_retrieve)
+
+    result = retrieve_recursive_context_structured("empty hop", optimization_enabled=True)
+
+    assert result.hops == 2
+    assert result.optimization_stats is not None
+    assert result.optimization_stats["stop_reason"] == "empty_hop"
+
+
 def test_recursive_breaks_when_verification_removes_all_chunks(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -424,3 +509,210 @@ def test_recursive_breaks_when_refinement_does_not_change_query(
     result = retrieve_recursive_context_structured("what and where")
     assert result.hops == 1
     assert result.refined_queries == ["what and where"]
+
+
+def test_optimized_recursive_breaks_when_refinement_does_not_change_query(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Optimized path should record a deterministic no-query-change stop reason."""
+    import core.rag.recursive_retrieval as recursive
+
+    monkeypatch.setattr(recursive, "MAX_RAG_HOPS", 4)
+    monkeypatch.setattr(recursive, "MAX_REFINEMENT_PASSES", 4)
+    monkeypatch.setattr(recursive, "MAX_VERIFICATION_QUERIES", 0)
+    monkeypatch.setattr(recursive, "RAG_PIPELINE_TIMEOUT_SEC", 100.0)
+    monkeypatch.setattr(recursive, "MIN_CONFIDENCE_GAIN_PER_HOP", -1.0)
+
+    monkeypatch.setattr(
+        "core.rag.vector_rag.retrieve_context_structured",
+        lambda query, **_: _ctx(
+            query,
+            [
+                RAGChunk(
+                    chunk_id="same-query",
+                    file="doc.md",
+                    content="This and that with where when.",
+                    score=0.6,
+                )
+            ],
+            confidence=0.6,
+        ),
+    )
+
+    result = retrieve_recursive_context_structured("what and where", optimization_enabled=True)
+
+    assert result.hops == 1
+    assert result.refined_queries == ["what and where"]
+    assert result.optimization_stats is not None
+    assert result.optimization_stats["stop_reason"] == "no_material_query_change"
+    assert result.optimization_stats["early_stop_no_query_change"] is True
+
+
+def test_optimized_recursive_breaks_when_no_new_usable_chunks(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Optimized path should stop when a later hop adds no new usable evidence."""
+    import core.rag.recursive_retrieval as recursive
+
+    monkeypatch.setattr(recursive, "MAX_RAG_HOPS", 3)
+    monkeypatch.setattr(recursive, "MAX_REFINEMENT_PASSES", 3)
+    monkeypatch.setattr(recursive, "MAX_VERIFICATION_QUERIES", 0)
+    monkeypatch.setattr(recursive, "RAG_PIPELINE_TIMEOUT_SEC", 100.0)
+    monkeypatch.setattr(recursive, "MIN_CONFIDENCE_GAIN_PER_HOP", -1.0)
+
+    def _fake_retrieve(query: str, **_: Any) -> RAGContext:
+        return _ctx(
+            query,
+            [
+                RAGChunk(
+                    chunk_id="a-high",
+                    file="doc.md",
+                    content="novelword high confidence evidence",
+                    score=0.9,
+                )
+            ],
+            confidence=0.9,
+        )
+
+    monkeypatch.setattr("core.rag.vector_rag.retrieve_context_structured", _fake_retrieve)
+
+    result = retrieve_recursive_context_structured("base query", optimization_enabled=True)
+
+    assert result.hops == 2
+    assert [chunk.chunk_id for chunk in result.chunks] == ["a-high"]
+    assert result.optimization_stats is not None
+    assert result.optimization_stats["stop_reason"] == "no_new_usable_chunks"
+    assert result.optimization_stats["early_stop_no_new_chunks"] is True
+
+
+def test_optimized_recursive_replaces_existing_chunk_when_score_improves(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Improved repeated evidence should replace the older score instead of stopping."""
+    import core.rag.recursive_retrieval as recursive
+
+    monkeypatch.setattr(recursive, "MAX_RAG_HOPS", 2)
+    monkeypatch.setattr(recursive, "MAX_REFINEMENT_PASSES", 2)
+    monkeypatch.setattr(recursive, "MAX_VERIFICATION_QUERIES", 0)
+    monkeypatch.setattr(recursive, "RAG_PIPELINE_TIMEOUT_SEC", 100.0)
+    monkeypatch.setattr(recursive, "MIN_CONFIDENCE_GAIN_PER_HOP", -1.0)
+
+    def _fake_retrieve(query: str, **_: Any) -> RAGContext:
+        score = 0.9 if "novelword" in query else 0.4
+        return _ctx(
+            query,
+            [
+                RAGChunk(
+                    chunk_id="same-id",
+                    file="doc.md",
+                    content="novelword evidence",
+                    score=score,
+                )
+            ],
+            confidence=score,
+        )
+
+    monkeypatch.setattr("core.rag.vector_rag.retrieve_context_structured", _fake_retrieve)
+
+    result = retrieve_recursive_context_structured("improve score", optimization_enabled=True)
+
+    assert result.hops == 2
+    assert result.chunks[0].chunk_id == "same-id"
+    assert result.chunks[0].score == 0.9
+
+
+def test_optimized_recursive_memoizes_duplicate_query_retrievals_within_single_run(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Request-scope memoization should reuse repeated retrieval inputs safely."""
+    import core.rag.recursive_retrieval as recursive
+
+    monkeypatch.setattr(recursive, "MAX_RAG_HOPS", 3)
+    monkeypatch.setattr(recursive, "MAX_REFINEMENT_PASSES", 3)
+    monkeypatch.setattr(recursive, "MAX_VERIFICATION_QUERIES", 0)
+    monkeypatch.setattr(recursive, "RAG_PIPELINE_TIMEOUT_SEC", 100.0)
+    monkeypatch.setattr(recursive, "MIN_CONFIDENCE_GAIN_PER_HOP", -1.0)
+
+    retrieval_calls: list[str] = []
+
+    def _fake_retrieve(query: str, **_: Any) -> RAGContext:
+        retrieval_calls.append(query)
+        chunk_id = "base" if query == "base query" else "extra"
+        content = "fiber signal" if chunk_id == "base" else "protein signal"
+        return _ctx(
+            query,
+            [
+                RAGChunk(
+                    chunk_id=chunk_id,
+                    file="doc.md",
+                    content=content,
+                    score=0.8,
+                )
+            ],
+            confidence=0.8,
+        )
+
+    refined_queries = iter(["base query extra", "base query"])
+
+    monkeypatch.setattr("core.rag.vector_rag.retrieve_context_structured", _fake_retrieve)
+    monkeypatch.setattr(
+        recursive,
+        "_refine_query",
+        lambda query, chunks, **kwargs: next(refined_queries),
+    )
+
+    result = retrieve_recursive_context_structured("base query", optimization_enabled=True)
+
+    assert retrieval_calls == ["base query", "base query extra"]
+    assert result.hops == 3
+    assert result.optimization_stats is not None
+    assert result.optimization_stats["retrieval_cache_hits"] == 1
+    assert result.optimization_stats["cache_hits"] == 1
+    assert result.optimization_stats["stop_reason"] == "no_new_usable_chunks"
+
+
+def test_optimized_recursive_post_hop_timeout_sets_latency_stop_reason(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Post-hop timeout recheck should stop before another refinement pass."""
+    import core.rag.recursive_retrieval as recursive
+
+    perf_counter_values = iter([0.0, 0.0, 1.0, 1.0])
+
+    monkeypatch.setattr(recursive, "MAX_RAG_HOPS", 2)
+    monkeypatch.setattr(recursive, "MAX_REFINEMENT_PASSES", 2)
+    monkeypatch.setattr(recursive, "MAX_VERIFICATION_QUERIES", 0)
+    monkeypatch.setattr(recursive, "RAG_PIPELINE_TIMEOUT_SEC", 0.5)
+    monkeypatch.setattr(recursive.time, "perf_counter", lambda: next(perf_counter_values))
+    monkeypatch.setattr(
+        "core.rag.vector_rag.retrieve_context_structured",
+        lambda query, **_: _ctx(
+            query,
+            [RAGChunk(chunk_id="late", file="doc.md", content="signal token", score=0.7)],
+            confidence=0.7,
+        ),
+    )
+
+    result = retrieve_recursive_context_structured("timeout later", optimization_enabled=True)
+
+    assert result.optimization_stats is not None
+    assert result.optimization_stats["stop_reason"] == "latency_budget"
+    assert result.optimization_stats["early_stop_latency_budget"] is True
+
+
+def test_optimized_recursive_fail_safe_on_internal_error_records_stats(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Optimization failures must degrade to the existing safe empty context."""
+
+    def _boom(*_: Any, **__: Any) -> RAGContext:
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr("core.rag.vector_rag.retrieve_context_structured", _boom)
+
+    result = retrieve_recursive_context_structured("safe fallback", optimization_enabled=True)
+
+    assert result.chunks == []
+    assert result.confidence == 0.0
+    assert result.optimization_stats is not None
+    assert result.optimization_stats["enabled"] is True
