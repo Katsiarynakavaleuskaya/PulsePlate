@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 import pytest
 
 from scripts.orchestration.skill_router import (
@@ -12,6 +13,36 @@ from scripts.orchestration.skill_router import (
     route_skills,
     select_recommended_skills,
 )
+
+POLICY_DOC_PATH = (
+    Path(__file__).resolve().parents[1] / "docs/orchestration/AGENT_SKILL_ROUTING_POLICY.md"
+)
+
+EXPECTED_REQUESTED_AGENT_POLICY_ROWS: tuple[str, ...] = (
+    "| `agent-coordinator` | `docs-sync`, `agents-md`, `pulseplate-gates` |",
+    "| `bug-hunter` | `bug-triage`, `pulseplate-gates`, `pulseplate-guards` |",
+    "| `security-auditor` | Auto-routed: `security-best-practices`, `security-threat-model`, `pulseplate-guards`; companion/manual-only: `cybersecurity-skills` (~734 skills, approximate; see `tools/cybersecurity_skills/index.json`) |",
+    "| `backend-engineer` | `pulseplate-backend-endpoints`, `pulseplate-openapi-sync`, `pulseplate-gates` |",
+    "| `qa-engineer-agent` | `bug-triage`, `pulseplate-gates`, `code-review-expert` |",
+    "| `frontend-engineer` | `pulseplate-frontend-ui`, `pulseplate-gates`, `vercel-react-best-practices` |",
+    "| `ml-engineer-agent` | `pulseplate-gates`, `docs-sync`, `openai-docs` |",
+    "| `data-scientist-agent` | `docs-sync`, `pulseplate-gates`, `pulseplate-ai-reports` |",
+    "| `web-research-agent` | `docs-sync`, `pulseplate-ai-reports`, `notion-research-documentation` |",
+)
+
+EXPECTED_PRIVILEGED_SURFACE_POLICY_LINES: tuple[str, ...] = (
+    "- `.github/workflows/**`",
+    "- `ios/fastlane/**`",
+    "- `scripts/orchestration/**`",
+    "- merge-governance scripts under `scripts/ci/**`",
+    "- merge-governance docs under `docs/orchestration/**` and `docs/review/**`",
+)
+
+
+def _read_policy_doc() -> str:
+    """Load the canonical policy markdown for doc-to-implementation parity checks."""
+
+    return POLICY_DOC_PATH.read_text(encoding="utf-8")
 
 
 def test_skill_router_prefers_orchestration_docs_skills() -> None:
@@ -99,6 +130,13 @@ def test_requested_agent_companion_guidance_stays_manual_only() -> None:
     assert not recommended_skills.intersection(
         REQUESTED_AGENT_COMPANION_SKILL_BUNDLES["security-auditor"]
     )
+
+
+@pytest.mark.parametrize("expected_row", EXPECTED_REQUESTED_AGENT_POLICY_ROWS)
+def test_requested_agent_policy_rows_stay_in_sync(expected_row: str) -> None:
+    """Canonical policy rows should stay explicit so router parity tests have a stable contract."""
+
+    assert expected_row in _read_policy_doc()
 
 
 def test_requested_agent_bundle_boosts_existing_skill_without_duplication() -> None:
@@ -418,6 +456,16 @@ def test_privileged_surface_prefixes_stay_in_sync_with_policy_coverage() -> None
     assert "scripts/orchestration/" in PRIVILEGED_SURFACE_PREFIXES
     assert "scripts/ci/" in PRIVILEGED_SURFACE_PREFIXES
     assert "docs/review/" in PRIVILEGED_SURFACE_PREFIXES
+
+
+@pytest.mark.parametrize(
+    "expected_line",
+    EXPECTED_PRIVILEGED_SURFACE_POLICY_LINES,
+)
+def test_privileged_surface_policy_lines_stay_in_sync(expected_line: str) -> None:
+    """Canonical privileged-surface bullets should stay locked to deterministic tests."""
+
+    assert expected_line in _read_policy_doc()
 
 
 def test_skill_router_prefix_match_is_boundary_aware() -> None:
