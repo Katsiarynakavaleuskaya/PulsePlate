@@ -417,6 +417,7 @@ def test_skill_router_boosts_security_skills_for_privileged_surfaces() -> None:
         ("ios/fastlane/Fastfile", "release", "ios/fastlane/"),
         ("scripts/orchestration/skill_router.py", "orchestration", "scripts/orchestration/"),
         ("scripts/ci/check_pr_merge_readiness.py", "qa", "scripts/ci/"),
+        ("docs/orchestration/AGENT_ROUTING_GRAPH.md", "orchestration", "docs/orchestration/"),
         ("docs/review/PR_999_FIXED_MAPPING.md", "qa", "docs/review/"),
     ),
 )

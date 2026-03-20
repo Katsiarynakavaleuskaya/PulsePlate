@@ -146,7 +146,7 @@ The coordinator may use installed skills when they improve delivery and align wi
 
 ## 4a. Privileged Surface Trigger
 
-The following touched paths must automatically boost security-oriented skills and review:
+The following touched paths must automatically boost security-oriented skills:
 
 - `.github/workflows/**`
 - `ios/fastlane/**`
@@ -157,7 +157,8 @@ The following touched paths must automatically boost security-oriented skills an
 Expected behavior:
 
 - add `security-best-practices` and/or `pulseplate-guards` when the task packet touches these paths;
-- keep `security-auditor` in the review path even if the dominant domain is docs, release, or orchestration;
+- keep `security-auditor` in the executable review path for the canonical bootstrap privileged-review prefixes in `scripts/orchestration/task_bootstrap.py` (`.github/workflows/**`, `ios/fastlane/**`, `scripts/orchestration/**`);
+- merge-governance docs/scripts under `scripts/ci/**`, `docs/orchestration/**`, and `docs/review/**` remain privileged for skill routing in this PR, but do not widen reviewer selection or native subagent transport;
 - security-auditor may reference `cybersecurity-skills` bundle (repo path: `tools/cybersecurity_skills/`; index: `tools/cybersecurity_skills/index.json`) for subdomain-specific procedures (API Security, DevSecOps, Web App Sec, Container Security).
 
 ---

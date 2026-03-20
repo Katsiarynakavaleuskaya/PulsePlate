@@ -36,5 +36,5 @@ Evidence: [tests/test_skill_router.py](/private/tmp/pulseplate-pr3-skill-router-
 ## Merge Readiness
 - [ ] All required checks pass
 - [ ] No unresolved review threads
-- [x] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
-- [x] Pre-commit green
+- [ ] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
+- [ ] Pre-commit green
