@@ -28,6 +28,12 @@ Evidence: `docs/audit/PR_1199_RECURSIVE_RUNTIME_W1_BENCHMARK.md:22`, `docs/audit
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1199#discussion_r2967182759 -> d703a2c9
 
+Disposition: FIXED
+Commit: 96ffff1e
+Evidence: `core/rag/recursive_retrieval.py:358`, `core/rag/recursive_retrieval.py:364`, `tests/test_recursive_rag.py:715`, `tests/test_insight_rag_response_fields.py:500`, `tests/test_insight_rag_response_fields.py:506`
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1199#pullrequestreview-3983458952 -> 96ffff1e
+
 Disposition: NOT-A-BUG
 Evidence: `docs/review/PR_1199_FIXED_MAPPING.md:16`, `docs/review/PR_1199_FIXED_MAPPING.md:25`, `docs/review/PR_1199_FIXED_MAPPING.md:32`
 Reason: These review-summary URLs aggregate inline findings already dispositioned separately in this artifact and do not add independent unresolved work on current head.
