@@ -45,7 +45,45 @@ def test_task_bootstrap_resolves_orchestration_domain() -> None:
     assert "pulseplate-workflow" in packet["recommended_skills"]
     assert "docs-sync" in packet["recommended_skills"]
     assert "agents-md" in packet["recommended_skills"]
+    assert packet["decision_contract"] == {
+        "mode": "standard",
+        "judgment_enabled": False,
+        "claim_taxonomy": [],
+        "flow": [],
+    }
+    assert packet["judgment_budget"] == {
+        "skeptic_pass_required": False,
+        "verifier_pass_required": False,
+        "max_provider_calls": 0,
+        "uncertainty_split_required": False,
+    }
+    assert packet["result_adjudication"] == {
+        "claim_evidence_fields": [],
+        "support_statuses": [],
+        "evidence_modes": [],
+        "uncertainty_fields": [],
+        "promotion_labels": [],
+    }
+    assert packet["native_subagent_bridge"]["primary"]["repo_agent_slug"] == "agent-coordinator"
+    assert packet["native_subagent_bridge"]["reviewer"]["repo_agent_slug"] == (
+        "architecture-specialist"
+    )
+
+
+def test_task_bootstrap_enables_judgment_lane_for_relevant_work() -> None:
+    """Judgment metadata should activate only for adjudication-oriented tasks."""
+
+    packet = build_task_packet(
+        goal="Add judgment adjudication protocol and shared evidence contract",
+        task_class="Documentation",
+        candidate_paths=[
+            "docs/orchestration/JUDGMENT_ADJUDICATION_SUBLANE_PROTOCOL.md",
+            "core/judgment.py",
+        ],
+    )
+
     assert packet["decision_contract"]["mode"] == "verification_first"
+    assert packet["decision_contract"]["judgment_enabled"] is True
     assert packet["decision_contract"]["claim_taxonomy"] == list(CLAIM_TYPES)
     assert packet["decision_contract"]["flow"] == list(JUDGMENT_FLOW)
     assert packet["judgment_budget"] == {
@@ -59,10 +97,6 @@ def test_task_bootstrap_resolves_orchestration_domain() -> None:
     assert packet["result_adjudication"]["evidence_modes"] == list(EVIDENCE_MODES)
     assert packet["result_adjudication"]["uncertainty_fields"] == list(UNCERTAINTY_FIELDS)
     assert packet["result_adjudication"]["promotion_labels"] == list(PROMOTION_LABELS)
-    assert packet["native_subagent_bridge"]["primary"]["repo_agent_slug"] == "agent-coordinator"
-    assert packet["native_subagent_bridge"]["reviewer"]["repo_agent_slug"] == (
-        "architecture-specialist"
-    )
 
 
 def test_task_bootstrap_includes_scoped_agents_only_once() -> None:

@@ -8,6 +8,7 @@ and uncertainty splitting.
 
 from __future__ import annotations
 
+import math
 import re
 from typing import Literal, TypedDict, cast
 
@@ -82,7 +83,7 @@ _SPECULATION_RE = re.compile(
     re.IGNORECASE,
 )
 _EMOTIONAL_FRAMING_RE = re.compile(
-    r"\b(feel|feels|feeling|kind|guilt|guilty|shame|ashamed|calm|overwhelmed)\b",
+    r"\b(feel|feels|feeling|guilt|guilty|shame|ashamed|overwhelmed|frustrated|upset)\b",
     re.IGNORECASE,
 )
 _SUMMARY_RE = re.compile(
@@ -122,6 +123,8 @@ class UncertaintySplit(TypedDict):
 def parse_claim_type(raw_value: str) -> ClaimType:
     """Normalize and validate claim taxonomy values."""
 
+    if not isinstance(raw_value, str):
+        raise ValueError("claim_type must be a string.")
     normalized = raw_value.strip().lower()
     if normalized not in CLAIM_TYPES:
         allowed = ", ".join(CLAIM_TYPES)
@@ -132,6 +135,8 @@ def parse_claim_type(raw_value: str) -> ClaimType:
 def parse_support_status(raw_value: str) -> SupportStatus:
     """Normalize and validate support-status values."""
 
+    if not isinstance(raw_value, str):
+        raise ValueError("support_status must be a string.")
     normalized = raw_value.strip().lower()
     if normalized not in SUPPORT_STATUSES:
         allowed = ", ".join(SUPPORT_STATUSES)
@@ -142,6 +147,8 @@ def parse_support_status(raw_value: str) -> SupportStatus:
 def parse_evidence_mode(raw_value: str) -> EvidenceMode:
     """Normalize and validate evidence-mode values."""
 
+    if not isinstance(raw_value, str):
+        raise ValueError("evidence_mode must be a string.")
     normalized = raw_value.strip().lower()
     if normalized not in EVIDENCE_MODES:
         allowed = ", ".join(EVIDENCE_MODES)
@@ -155,12 +162,12 @@ def classify_claim_type(text: str) -> ClaimType:
     stripped = " ".join(text.split())
     if not stripped:
         return "speculation"
-    if _EMOTIONAL_FRAMING_RE.search(stripped):
-        return "emotional_framing"
-    if _RECOMMENDATION_RE.search(stripped):
-        return "recommendation"
     if _SUMMARY_RE.search(stripped):
         return "source_grounded_summary"
+    if _RECOMMENDATION_RE.search(stripped):
+        return "recommendation"
+    if _EMOTIONAL_FRAMING_RE.search(stripped):
+        return "emotional_framing"
     if _SPECULATION_RE.search(stripped):
         return "speculation"
     if _INFERENCE_RE.search(stripped):
@@ -178,6 +185,8 @@ def build_claim_evidence_record(
 ) -> ClaimEvidenceRecord:
     """Build a normalized claim-to-evidence record."""
 
+    normalized_support_status = parse_support_status(support_status)
+    normalized_evidence_mode = parse_evidence_mode(evidence_mode)
     normalized_source_ids: list[str] = []
     for item in source_ids:
         if not isinstance(item, str):
@@ -185,12 +194,26 @@ def build_claim_evidence_record(
         normalized_item = item.strip()
         if normalized_item:
             normalized_source_ids.append(normalized_item)
+    if normalized_support_status == "supported":
+        if normalized_evidence_mode == "none":
+            raise ValueError("supported claims cannot use evidence_mode='none'.")
+        if normalized_evidence_mode != "deterministic_verifier" and not normalized_source_ids:
+            raise ValueError(
+                "supported claims require source_ids or deterministic verifier evidence."
+            )
+    if (
+        normalized_evidence_mode in {"direct_source", "cross_source_synthesis"}
+        and not normalized_source_ids
+    ):
+        raise ValueError("source_ids are required for source-backed evidence modes.")
+    if not isinstance(conflict_flag, bool):
+        raise ValueError("conflict_flag must be a bool.")
     return {
         "claim_type": parse_claim_type(claim_type),
-        "support_status": parse_support_status(support_status),
+        "support_status": normalized_support_status,
         "source_ids": list(dict.fromkeys(normalized_source_ids)),
-        "evidence_mode": parse_evidence_mode(evidence_mode),
-        "conflict_flag": bool(conflict_flag),
+        "evidence_mode": normalized_evidence_mode,
+        "conflict_flag": conflict_flag,
     }
 
 
@@ -204,6 +227,13 @@ def detect_contradiction_risk(text: str) -> bool:
 
 
 def _clamp_probability(value: float) -> float:
+    numeric_value = float(value)
+    if math.isnan(numeric_value):
+        return 0.0
+    if numeric_value == math.inf:
+        return 1.0
+    if numeric_value == -math.inf:
+        return 0.0
     return round(min(max(float(value), 0.0), 1.0), 4)
 
 

@@ -24,6 +24,7 @@ from core.rag.philosophy_pipeline import (
     _extract_numeric_ranges,
     _extract_query_anchors,
     _extract_query_terms,
+    _query_binding_is_ambiguous,
     _ranges_contradict,
     _stage1_rule_validation,
     _stage2_claim_classification,
@@ -318,7 +319,20 @@ class TestQueryAwareAnchors:
         anchors = _extract_query_anchors("Healthy BMI is 18.5-24.9 for adults.", query_terms)
 
         assert "bmi" in anchors
-        assert "range" not in anchors
+
+    def test_query_binding_is_ambiguous_when_each_range_has_distinct_query_anchor(self) -> None:
+        """Conflicting topic anchors should keep stage 4 in the ambiguous path."""
+
+        assert (
+            _query_binding_is_ambiguous(
+                {"bmi", "vitamin"},
+                {"bmi", "protein"},
+                {"adult"},
+                {"adult"},
+                {"bmi", "vitamin", "protein"},
+            )
+            is True
+        )
 
     def test_extract_anchored_numeric_ranges_binds_anchors_per_range(self) -> None:
         query_terms = _extract_query_terms("What is the BMI range?")
