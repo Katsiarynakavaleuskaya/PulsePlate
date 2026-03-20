@@ -465,12 +465,14 @@ def _query_binding_is_ambiguous(
     if not shared_query_anchors:
         return True
 
-    if shared_query_anchors != anchors_a or shared_query_anchors != anchors_b:
+    asymmetric_query_anchors = anchors_a != anchors_b
+    if asymmetric_query_anchors:
         return True
 
     extra_context_a = context_terms_a - query_terms
     extra_context_b = context_terms_b - query_terms
-    return bool(extra_context_a and extra_context_b and extra_context_a != extra_context_b)
+    divergent_context = extra_context_a and extra_context_b and extra_context_a != extra_context_b
+    return bool(divergent_context)
 
 
 def _stage4_logical_consistency(
