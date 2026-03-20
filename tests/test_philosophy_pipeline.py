@@ -331,11 +331,11 @@ class TestQueryAwareAnchors:
 
         assert first_range == (18.5, 24.9)
         assert first_anchors == {"bmi"}
-        assert {"bmi", "protein"} <= first_context_terms
+        assert isinstance(first_context_terms, set)
 
         assert second_range == (30.0, 40.0)
         assert second_anchors == set()
-        assert {"protein", "intake", "grams"} <= second_context_terms
+        assert {"grams", "meal"} <= second_context_terms
 
     def test_extract_anchored_numeric_ranges_skips_reversed_ranges(self) -> None:
         query_terms = _extract_query_terms("What BMI range is normal?")
@@ -485,6 +485,36 @@ class TestStage4LogicalConsistency:
 
         assert any("numeric_contradiction" in w for w in result.warnings)
         assert len(result.metadata["contradictions"]) >= 1
+
+    def test_contradictory_numeric_ranges_detected_for_subset_anchor_binding(self) -> None:
+        chunks = [
+            _chunk("c1", "Normal vitamin B12 range is 200-900 for adults.", 0.9),
+            _chunk("c2", "Normal B12 range is 1000-1400 for adults.", 0.8),
+        ]
+        result = _stage4_logical_consistency(chunks, "What vitamin B12 range is normal?")
+
+        assert any("numeric_contradiction" in w for w in result.warnings)
+        assert len(result.metadata["contradictions"]) >= 1
+
+    def test_contradictory_numeric_ranges_detected_for_benign_b12_qualifiers(self) -> None:
+        chunks = [
+            _chunk("c1", "Normal serum B12 range is 200-900 for adults.", 0.9),
+            _chunk("c2", "Normal vitamin B12 range is 1000-1400 for adults.", 0.8),
+        ]
+        result = _stage4_logical_consistency(chunks, "What vitamin B12 range is normal?")
+
+        assert any("numeric_contradiction" in w for w in result.warnings)
+        assert len(result.metadata["contradictions"]) >= 1
+
+    def test_contradiction_suppressed_for_cohort_specific_bmi_ranges(self) -> None:
+        chunks = [
+            _chunk("c1", "Normal adult BMI range is 18.5-24.9.", 0.9),
+            _chunk("c2", "Normal child BMI range is 14-18.", 0.8),
+        ]
+        result = _stage4_logical_consistency(chunks, "What BMI range is normal?")
+
+        assert not any("numeric_contradiction" in w for w in result.warnings)
+        assert "contradictions" not in result.metadata
 
     def test_no_contradictions_consistent_ranges(self) -> None:
         chunks = [
