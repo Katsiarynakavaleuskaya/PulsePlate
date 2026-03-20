@@ -2,30 +2,26 @@
 
 ## Discussion Thread Pass
 
-- [ ] Discussion-thread pass completed
-- [ ] Fixed in commit mapping completed
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
 
-No review threads or actionable bot comments have been dispositioned on the
-current head yet.
-
-Current packet commits on this lane:
-
-- `175cffc2` — `docs(architecture): add C4 bounded-context packet`
-- `80f7dd8e` — `docs(architecture): sync bounded-context seam ADR`
-
-Current scope discipline:
-
-- packet-only docs/architecture PR
-- no runtime, route, public API, schema, or OpenAPI changes
-- `ledger-p1-ai-bounded-context-extraction` remains open
-- `PR-TBD-AI-BOUNDED-CONTEXT` remains the implementation PR identity
-- `#1200` is operational context only and remains out of scope
+- No actionable review comments
 
 ## Merge Readiness
 
 - Status: draft / not ready to merge.
+- Current packet commits:
+  - `175cffc2` — `docs(architecture): add C4 bounded-context packet`
+  - `80f7dd8e` — `docs(architecture): sync bounded-context seam ADR`
+  - `ea1b64ef` — `docs(pr): add PR_1201 fixed mapping`
+- Current scope discipline:
+  - packet-only docs/architecture PR
+  - no runtime, route, public API, schema, or OpenAPI changes
+  - `ledger-p1-ai-bounded-context-extraction` remains open
+  - `PR-TBD-AI-BOUNDED-CONTEXT` remains the implementation PR identity
+  - `#1200` is operational context only and remains out of scope
 - Required before merge:
   - record all actionable review dispositions in this artifact
   - resolve review threads only after disposition evidence exists
