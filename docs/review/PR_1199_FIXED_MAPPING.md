@@ -49,6 +49,12 @@ Evidence: `core/rag/recursive_retrieval.py:307`, `core/rag/recursive_retrieval.p
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1199#discussion_r2967543420 -> dacd0765
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1199#pullrequestreview-3983573176 -> dacd0765
 
+Disposition: NOT-A-BUG
+Evidence: `core/rag/contracts.py:36`, `core/rag/recursive_retrieval.py:324`
+Reason: `OptimizationStopReason.REFINEMENT_BUDGET` is already defined in the canonical enum contract and the call site references the existing member without drift.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1199#discussion_r2967589853
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1199#pullrequestreview-3983628624
+
 ## Merge Readiness
 
 - Status: not ready to merge; canonical mapping is present on current head, but unresolved review threads must be resolved online and current-head CI/bot passes must still settle green.
