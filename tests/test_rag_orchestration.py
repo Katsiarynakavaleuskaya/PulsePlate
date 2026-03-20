@@ -583,6 +583,41 @@ class TestRetrieveAndValidateRag:
         assert "claim_speculation" in result.warnings[1]
 
     @pytest.mark.asyncio
+    async def test_ambiguity_suppression_keeps_output_chunks_and_confidence(self) -> None:
+        """Ambiguous Stage-4 contradiction checks must not alter output chunk confidence."""
+        chunks = [
+            _make_chunk("c1", content="Healthy BMI is 18.5-24.9 for adults.", score=0.9),
+            _make_chunk("c2", content="Normal BMI range is 30-40 in this system.", score=0.8),
+        ]
+        rag_ctx = _make_rag_context(chunks=chunks, confidence=0.42)
+
+        with (
+            patch(
+                "asyncio.to_thread",
+                new_callable=AsyncMock,
+                return_value=rag_ctx,
+            ),
+            patch("core.rag.vector_rag.retrieve_context_structured"),
+            patch(
+                "core.rag.formatting.format_rag_chunks_for_prompt",
+                return_value="Chunk1\nChunk2",
+            ),
+            patch(
+                "core.insight.safety.redact_rag_context_for_insight",
+                return_value="Chunk1\nChunk2",
+            ),
+        ):
+            result = await retrieve_and_validate_rag(
+                "What is a normal healthy range?",
+                philo_validation_enabled=True,
+            )
+
+        assert result.rag_actually_used is True
+        assert len(result.chunks) == 2
+        assert result.confidence == 0.85
+        assert not any("numeric_contradiction" in warning for warning in result.warnings)
+
+    @pytest.mark.asyncio
     async def test_failsafe_on_exception_returns_empty(self) -> None:
         """On any exception, returns empty result (fail-safe)."""
         with patch(
