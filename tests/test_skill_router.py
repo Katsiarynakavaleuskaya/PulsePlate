@@ -455,6 +455,7 @@ def test_privileged_surface_prefixes_stay_in_sync_with_policy_coverage() -> None
     assert "ios/fastlane/" in PRIVILEGED_SURFACE_PREFIXES
     assert "scripts/orchestration/" in PRIVILEGED_SURFACE_PREFIXES
     assert "scripts/ci/" in PRIVILEGED_SURFACE_PREFIXES
+    assert "docs/orchestration/" in PRIVILEGED_SURFACE_PREFIXES
     assert "docs/review/" in PRIVILEGED_SURFACE_PREFIXES
 
 
