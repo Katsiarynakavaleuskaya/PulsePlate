@@ -48,6 +48,14 @@ Reason: These review-summary URLs aggregate inline findings already dispositione
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1199#pullrequestreview-3983159980
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1199#pullrequestreview-3983161099
 
+Disposition: FIXED
+Commit: dacd0765
+Evidence: `core/rag/recursive_retrieval.py:307`, `core/rag/recursive_retrieval.py:347`, `tests/test_recursive_rag.py:668`, `tests/test_insight_rag_response_fields.py:38`, `tests/test_insight_rag_response_fields.py:129`
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1199#discussion_r2967543417 -> dacd0765
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1199#discussion_r2967543420 -> dacd0765
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1199#pullrequestreview-3983573176 -> dacd0765
+
 ## Merge Readiness
 
 - Status: not ready to merge; canonical mapping is present on current head, but unresolved review threads must be resolved online and current-head CI/bot passes must still settle green.
