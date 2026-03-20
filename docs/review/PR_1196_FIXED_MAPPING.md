@@ -5,7 +5,11 @@
 - [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
-- No actionable review comments
+
+Disposition: FIXED
+Commit: a8510cd9
+Evidence: `AGENTS.md:582-584` now defines short anchors as acronym-style examples and makes ambiguity suppression concrete through multiple plausible referents or no single tested anchor match.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1196#issuecomment-4098342621 -> a8510cd9
 
 ## Merge Readiness
 - [ ] All required checks pass
