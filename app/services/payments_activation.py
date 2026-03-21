@@ -14,7 +14,7 @@ import hashlib
 import hmac
 import httpx
 import json
-from typing import Any, Literal, cast, overload
+from typing import Any, Literal, overload
 from uuid import uuid4
 
 from pydantic import ValidationError
@@ -999,10 +999,13 @@ def _build_activation_contract_from_entry(
         return None
     if expires_at is None:
         return None
-    accepted_ios_status = cast(
-        Literal[IosVerificationStatus.active, IosVerificationStatus.expired],
-        ios_status,
-    )
+    if ios_status is IosVerificationStatus.active:
+        accepted_ios_status: Literal[
+            IosVerificationStatus.active,
+            IosVerificationStatus.expired,
+        ] = IosVerificationStatus.active
+    else:
+        accepted_ios_status = IosVerificationStatus.expired
     try:
         return IOSVerifiedActivationResult(
             transaction_id=transaction_id,
