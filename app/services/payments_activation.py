@@ -46,6 +46,7 @@ from app.schemas.payments import (
     SubscriptionTierValue,
 )
 from app.services import subscriptions as subscriptions_store
+from core.billing_policy import manual_monthly_entitlement_expires_at
 from core.db import get_session_factory
 from settings import require_apple_shared_secret
 
@@ -209,6 +210,18 @@ def _plan_to_subscription_tier(plan: SubscriptionPlan) -> SubscriptionTier:
     """Map plan to persisted subscription tier."""
 
     return SubscriptionTier(_plan_to_tier(plan).value)
+
+
+def _manual_plan_expires_at(*, plan: SubscriptionPlan, activated_at: datetime) -> datetime:
+    """Derive bounded expiry for verified manual monthly plans.
+
+    RU: Manual monthly plans должны получать детерминированный bounded expiry.
+    EN: Verified manual monthly plans must persist a deterministic bounded expiry.
+    """
+
+    if plan not in {SubscriptionPlan.pro_monthly, SubscriptionPlan.vip_monthly}:
+        raise ValueError(f"unsupported subscription plan: {plan}")
+    return manual_monthly_entitlement_expires_at(activated_at=activated_at)
 
 
 def _reconcile_status_from_subscription_status(
@@ -678,21 +691,27 @@ def _to_response(
     return response
 
 
-def _current_manual_response_overrides(
+def _current_response_overrides(
     *,
     session: Any,
     audit: SubscriptionActivationAudit,
 ) -> tuple[Subscription | None, ReconcileStatus | None, str | None]:
-    """Return manual-reconcile overrides for current-state read paths."""
+    """Return current-state overrides for activation read paths.
 
-    if audit.source == PaymentSource.ios_app_store.value:
-        return None, None, None
+    RU: Для readback-эндпоинтов источником истины остаётся текущее persisted
+    subscription state, а не исторический audit snapshot.
+    EN: For readback endpoints, current persisted subscription state remains the
+    source of truth rather than the historical audit snapshot.
+    """
+
     subscription = subscriptions_store.get_subscription_by_id(
         session=session,
         subscription_id=audit.subscription_id,
     )
     if subscription is None:
         return None, None, None
+    if subscription.user_id != audit.user_id:
+        raise ActivationAccessForbiddenError("activation access forbidden")
     latest_audit = subscriptions_store.get_latest_audit_for_subscription(
         session=session,
         subscription_id=subscription.id,
@@ -706,9 +725,16 @@ def _current_manual_response_overrides(
     if isinstance(raw_external_txn, str) and raw_external_txn.strip():
         external_txn_id = raw_external_txn.strip()
 
+    reconcile_status = None
+    if (
+        audit.source != PaymentSource.ios_app_store.value
+        and latest_audit.status == subscription.status
+    ):
+        reconcile_status = _parse_optional_reconcile_status(latest_summary.get("reconcile_status"))
+
     return (
         subscription,
-        _parse_optional_reconcile_status(latest_summary.get("reconcile_status")),
+        reconcile_status,
         external_txn_id,
     )
 
@@ -1340,7 +1366,13 @@ def get_activation(
     user_id: int | None = None,
     issuer: str | None = None,
 ) -> SubscriptionActivationResponse | None:
-    """Fetch activation event by id with user-level access control."""
+    """Fetch activation view by id with user-level access control.
+
+    RU: Readback keyed by activation id returns the current persisted entitlement
+    view for that activation lineage, not a frozen audit-only snapshot.
+    EN: Activation-id readback returns the current persisted entitlement view for
+    the activation lineage rather than a frozen audit-only snapshot.
+    """
 
     resolved_user_id = _resolve_user_id(user_id=user_id, issuer=issuer)
     session_factory = get_session_factory()
@@ -1351,7 +1383,7 @@ def get_activation(
             return None
         if audit.user_id != resolved_user_id:
             raise ActivationAccessForbiddenError("activation access forbidden")
-        subscription, reconcile_status, external_txn_id = _current_manual_response_overrides(
+        subscription, reconcile_status, external_txn_id = _current_response_overrides(
             session=session,
             audit=audit,
         )
@@ -1387,7 +1419,7 @@ def get_reconcile_activation_status(
             raise ActivationStateError(
                 "manual reconciliation status is unavailable for ios_app_store"
             )
-        subscription, reconcile_status, external_txn_id = _current_manual_response_overrides(
+        subscription, reconcile_status, external_txn_id = _current_response_overrides(
             session=session,
             audit=audit,
         )
@@ -1495,6 +1527,18 @@ def reconcile_activation(
             else SubscriptionStatus.rejected.value
         )
         subscription.activated_at = now if payload.decision is ReconcileDecision.verified else None
+        requested_plan = _parse_optional_plan(
+            (initial_audit.evidence_summary or {}).get("requested_plan")
+        )
+        if payload.decision is ReconcileDecision.verified:
+            if requested_plan is None:
+                raise ActivationStateError("manual reconcile requires requested plan")
+            subscription.expires_at = _manual_plan_expires_at(
+                plan=requested_plan,
+                activated_at=now,
+            )
+        else:
+            subscription.expires_at = None
         subscription.updated_at = now
 
         initial_summary = initial_audit.evidence_summary or {}
