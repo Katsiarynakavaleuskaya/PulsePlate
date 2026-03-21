@@ -9,10 +9,12 @@
 
 ## Merge Readiness
 - Status: ready for review / not ready to merge.
-- Current fix commit:
+- Current fix commits:
   - `31e4678f` — `fix(ci): migrate gha actions to node24`
+  - `c82c1eb4` — `fix(ci): upgrade checkout artifact actions`
 - Current scope discipline:
   - GitHub Actions runtime migration from Node20-based action SHAs to Node24-compatible SHAs
+  - migration now includes `actions/checkout` and `actions/upload-artifact` on the in-scope CI/build workflows that still emitted Node20 warnings
   - explicit Buildx GHA cache scopes for `build.yml` and `cd.yml`
   - no product runtime or API behavior changes
 - Local validation executed on this lane:
