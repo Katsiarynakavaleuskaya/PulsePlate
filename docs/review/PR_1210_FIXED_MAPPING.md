@@ -150,13 +150,37 @@ Reason: this follow-up CodeRabbit review is an aggregate shell for the preview-c
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1210#pullrequestreview-3986056610
 Disposition: NOT-A-BUG
 Evidence: `tests/AGENTS.md:10`, `tests/AGENTS.md:13`, `docs/library/decisions/ADR_DESIGN_AGENT_RUNTIME_PR_CHAIN_2026-03-21.md:17`
-Reason: the latest CodeRabbit review requests optional maintainability improvements (test payload factory extraction and ADR exit-criteria expansion), but it does not identify a correctness defect in the merged runtime hardening; the current tests remain isolated and deterministic, and the ADR already records the bounded staged rollout for this initiative.
+Reason: this CodeRabbit review shell aggregates inline follow-ups; the concrete ADR exit-criteria thread is fixed below, while the remaining test-helper refactor note is an optional maintainability suggestion rather than a correctness defect for this PR.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1210#pullrequestreview-3986058811 -> a86c6618
 Disposition: FIXED
 Commit: a86c6618
 Evidence: `docs/design/CODE_NATIVE_DESIGN_RUNTIME.md:106`, `docs/design/CODE_NATIVE_DESIGN_RUNTIME.md:115`, `docs/design/CODE_NATIVE_DESIGN_RUNTIME.md:119`, `scripts/design/contracts.py:120`, `scripts/design/execute_design.py:194`, `scripts/design/verify_design.py:308`
 Reason: cubic found three stale evidence anchors in the runtime documentation; the follow-up docs fix retargets `render_ops`, `section_count`, and preview `interaction_contract` references to the current source lines.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1210#discussion_r2969607359 -> 4d9ac375
+Disposition: FIXED
+Commit: 4d9ac375
+Evidence: `docs/library/decisions/ADR_DESIGN_AGENT_RUNTIME_PR_CHAIN_2026-03-21.md:58`, `docs/library/decisions/ADR_DESIGN_AGENT_RUNTIME_PR_CHAIN_2026-03-21.md:62`, `docs/roadmap/BACKLOG_LEDGER.md:495`
+Reason: added explicit ADR exit criteria tied to the existing initiative umbrella item, required PR stages, bug-hunter post-open pass, verification gates, and promotion/backlog closure conditions.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1210#discussion_r2969610265 -> a86c6618
+Disposition: FIXED
+Commit: a86c6618
+Evidence: `docs/design/CODE_NATIVE_DESIGN_RUNTIME.md:119`, `scripts/design/verify_design.py:308`
+Reason: corrected the preview `interaction_contract` evidence anchor so it points to the actual interaction-mode validation logic rather than preview-count checks.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1210#discussion_r2969610269 -> a86c6618
+Disposition: FIXED
+Commit: a86c6618
+Evidence: `docs/design/CODE_NATIVE_DESIGN_RUNTIME.md:115`, `scripts/design/execute_design.py:194`
+Reason: corrected the `section_count` evidence anchor to the actual manifest export field instead of the adjacent `adapter_name` line.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1210#discussion_r2969610270 -> a86c6618
+Disposition: FIXED
+Commit: a86c6618
+Evidence: `docs/design/CODE_NATIVE_DESIGN_RUNTIME.md:106`, `scripts/design/contracts.py:120`
+Reason: corrected the `render_ops` evidence anchor so it points to the required render-ops field rather than the neighboring `nodes` reference.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1210#issuecomment-4103200561
 Disposition: NOT-A-BUG
