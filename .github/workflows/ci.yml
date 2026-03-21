@@ -389,6 +389,16 @@ jobs:
           python -m pip install -r requirements.txt -c constraints.txt
           python -m pip install -r requirements-dev.txt -c constraints.txt
 
+      - name: Setup Node.js
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+        with:
+          node-version: "20.11.1"
+          cache: "npm"
+          cache-dependency-path: package-lock.json
+
+      - name: Install root Node dependencies
+        run: npm ci
+
       - name: Clean Python cache
         uses: ./.github/actions/clean-python-cache
 
@@ -501,6 +511,16 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -r requirements.txt -c constraints.txt
           python -m pip install -r requirements-dev.txt -c constraints.txt
+
+      - name: Setup Node.js
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+        with:
+          node-version: "20.11.1"
+          cache: "npm"
+          cache-dependency-path: package-lock.json
+
+      - name: Install root Node dependencies
+        run: npm ci
 
       - name: Clean Python cache
         uses: ./.github/actions/clean-python-cache
@@ -615,6 +635,16 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -r requirements.txt -c constraints.txt
           python -m pip install -r requirements-dev.txt -c constraints.txt
+
+      - name: Setup Node.js
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+        with:
+          node-version: "20.11.1"
+          cache: "npm"
+          cache-dependency-path: package-lock.json
+
+      - name: Install root Node dependencies
+        run: npm ci
 
       - name: Clean Python cache
         uses: ./.github/actions/clean-python-cache

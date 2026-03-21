@@ -154,6 +154,16 @@ jobs:
           python -m pip install -r requirements.txt -c constraints.txt
           python -m pip install -r requirements-dev.txt -c constraints.txt
 
+      - name: Setup Node.js
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+        with:
+          node-version: "20.11.1"
+          cache: "npm"
+          cache-dependency-path: package-lock.json
+
+      - name: Install root Node dependencies
+        run: npm ci
+
       # Diagnostics enabled in PR jobs only to reduce CI noise and verify nh3 availability
       # after runtime import fix (see core/data_sanitizer.py _require_nh3)
       - name: Diagnostics - Python, pip, and nh3 installation
