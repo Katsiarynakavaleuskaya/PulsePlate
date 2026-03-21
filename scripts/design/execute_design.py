@@ -86,7 +86,13 @@ def execute_instruction(instruction: dict[str, Any], adapter_name: str) -> dict[
     """Execute one instruction payload through the configured adapter seam."""
 
     adapter = resolve_execution_adapter(adapter_name)
-    results = adapter.execute(instruction)
+    raw_results = adapter.execute(instruction)
+    if not isinstance(raw_results, dict):
+        raise ValueError(
+            f"Invalid results emitted by {adapter_name}: expected object, "
+            f"got {type(raw_results).__name__}"
+        )
+    results: dict[str, Any] = raw_results
 
     canvas_artifact = results.get("canvas_artifact")
     if canvas_artifact is not None and not isinstance(canvas_artifact, dict):
