@@ -8,9 +8,11 @@
 - No actionable review comments
 
 ## Merge Readiness
-- Status: ready for review / not ready to merge.
-- Current fix commit:
-  - `c057a744` — `docs(ledger): track gha node24 cache cleanup`
+- Review status: ready for review.
+- Merge status: not ready to merge.
+- Current fix commits:
+  - `2bf2a857` — `docs(review): add pr 1205 mapping artifact`
+  - `3105dff5` — `docs(ledger): link gha follow-up pr`
 - Current scope discipline:
   - backlog-intake only for the GHA Node 24 / cache-warning follow-up
   - no GitHub Actions workflow edits in this PR
