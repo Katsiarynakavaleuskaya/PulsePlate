@@ -20,13 +20,32 @@ chain with four bounded stages:
 1. PR1: brainstorm, routing, synthesis, promotion, and backlog linkage
 2. PR2: additive adaptive-presentation semantics via `interaction_contract`
 3. PR3: deterministic HTML/browser preview on top of `pulseplate_canvas_v1`
-4. PR4: optional bounded creative-research lane after runtime and preview
-   contracts stabilize. Evidence: `scripts/design/contracts.py:206`,
+4. design-agent PR4: optional bounded creative-research lane after runtime and
+   preview contracts stabilize. Evidence: `scripts/design/contracts.py:206`,
    `scripts/design/canvas_artifact.py:153`, `scripts/design/html_preview.py:67`
 
 `bug-hunter` is required as a post-open fix lane for every PR in this
 initiative before review-ready status can be claimed. Evidence:
 `.cursor/agents/bug-hunter.md:1`, `docs/orchestration/AGENT_ROUTING_GRAPH.md:71`
+
+## Current-state interpretation after merged baseline
+
+The original staged rollout remains historically accurate as the accepted
+implementation direction, but the current repo state has moved forward:
+
+- baseline PR1 artifact publishing is already realized in `main`
+- baseline PR2 adaptive runtime semantics are already realized in `main`
+- baseline PR3 deterministic preview semantics are already realized in `main`
+- no design-agent-specific PR4 follow-up has been opened yet
+
+Current-state tracking now belongs to:
+
+- `docs/design/DESIGN_AGENT_RUNTIME_PR_CHAIN.md`
+- `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-design-agent-runtime-pr-chain`
+
+This ADR remains part of the historical evidence pack and accepted direction;
+it is not the primary status tracker for whether baseline stages are already
+merged.
 
 ## Why this direction
 
@@ -59,8 +78,9 @@ initiative before review-ready status can be claimed. Evidence:
 
 This ADR is considered realized when all bounded rollout gates below are true:
 
-1. PR1, PR2, and PR3 from the initiative chain are merged; PR4 remains optional
-   and only proceeds if runtime and preview contracts stay bounded. Evidence:
+1. PR1, PR2, and PR3 from the initiative chain are merged; design-agent PR4
+   remains optional and only proceeds if runtime and preview contracts stay
+   bounded. Evidence:
    `docs/design/DESIGN_AGENT_RUNTIME_PR_CHAIN.md:20`,
    `docs/roadmap/BACKLOG_LEDGER.md:499`
 2. Each merged initiative PR completed its post-open `bug-hunter` fix pass

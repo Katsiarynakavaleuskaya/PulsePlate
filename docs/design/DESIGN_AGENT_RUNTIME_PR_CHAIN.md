@@ -19,15 +19,34 @@ This means the first wave allows agents to generate, visualize, and adapt the
 presentation layer inside governed contracts, but it does not allow them to
 change live product UI or become a new source of truth for domain logic.
 
+## 1a. Realized baseline state
+
+This initiative is no longer a forward-only plan. The merged baseline in
+`main`, anchored by `PR #1210`, already realizes the original PR1-PR3 intent:
+
+| Initiative stage | Current state | Canonical evidence |
+|------------------|---------------|--------------------|
+| PR1: Brainstorm + scope contract | Realized in `main` | `docs/library/brainstorm/2026-03-21_design-agent-runtime-pr-chain.md`, `docs/library/decisions/ADR_DESIGN_AGENT_RUNTIME_PR_CHAIN_2026-03-21.md`, `docs/library/promotion/2026-03-21_design-agent-runtime-pr-chain_promotion-log.md` |
+| PR2: Adaptive runtime semantics | Realized in `main` | `PR #1210`, `scripts/design/contracts.py:206`, `scripts/design/canvas_artifact.py:153`, `scripts/design/execution_adapters.py:36` |
+| PR3: Browser/HTML preview lane | Realized in `main` | `PR #1210`, `scripts/design/html_preview.py:67`, `scripts/design/execute_design.py:117`, `scripts/design/verify_design.py:267` |
+| Design-agent PR4: Bounded creative research | No design-agent-specific follow-up opened yet | Explicit bounded packet still required before opening |
+
+The next canonical PR for this initiative is therefore a docs/governance
+realignment bridge that aligns the initiative chain with the already merged
+baseline. It is not a retroactive runtime reimplementation of PR1-PR3.
+
 ## 2. Operating assumptions
 
 - One PR = one dedicated worktree.
 - Do not reuse `worktrees/design_gen_pr2_code_native` for this initiative.
 - Preferred worktree naming:
-  - `worktrees/design-agent-pr1-brainstorm`
-  - `worktrees/design-agent-pr2-runtime`
-  - `worktrees/design-agent-pr3-preview`
-  - `worktrees/design-agent-pr4-creative-research`
+  - immediate bridge PR: `worktrees/design-agent-pr-chain-realignment`
+  - historical baseline naming that is already realized in `main`:
+    - `worktrees/design-agent-pr1-brainstorm`
+    - `worktrees/design-agent-pr2-runtime`
+    - `worktrees/design-agent-pr3-preview`
+  - reserved follow-up only:
+    - `worktrees/design-agent-pr4-creative-research`
 - Human approval remains required for promotion of visual or runtime changes.
 - `bug-hunter` is mandatory after each PR is opened and before review-ready
   status is claimed.
@@ -150,7 +169,7 @@ Rules:
 - no live self-modifying UI
 - preview must not become a second topology source
 
-### PR4: Optional Bounded Creative Research Lane
+### Design-agent PR4: Optional Bounded Creative Research Lane
 
 Open only after PR2 and PR3 stabilize.
 
@@ -162,6 +181,30 @@ Rules:
 - immutable oracles
 - promotion / defer / discard decisions required
 
+## 5a. Current status matrix
+
+| Stage | Scope type | Status | Notes |
+|-------|------------|--------|-------|
+| PR1 | docs-only | merged baseline realized | Initiative docs, routing, synthesis, and promotion artifacts already exist in `main` |
+| PR2 | internal runtime contract | merged baseline realized | `interaction_contract` is additive and fail-closed in the governed instruction/canvas pipeline |
+| PR3 | internal preview lane | merged baseline realized | Deterministic HTML preview is present and verified as a derived review lane |
+| Design-agent PR4 | bounded experimentation | no design-agent-specific follow-up opened yet | Remains optional and blocked until an explicit bounded packet is approved |
+
+## 5b. Next PR after realignment
+
+After the realignment bridge PR merges, the next feature PR for this initiative
+may only be one of the following:
+
+1. bounded `design-agent PR4` creative-research work under the experimentation protocol; or
+2. a separate targeted runtime-gap PR if a real unresolved contract gap is
+   discovered after realignment.
+
+The next PR must not be a retro-duplicate of PR1, PR2, or PR3, because those
+baseline stages are already realized in the merged repo state.
+
+The canonical execution packet for that bridge PR lives at:
+`docs/orchestration/DESIGN_AGENT_RUNTIME_REALIGNMENT_PACKET.md`.
+
 ## 6. Interfaces and contract changes
 
 ### Public contracts
@@ -169,7 +212,7 @@ Rules:
 - PR1: unchanged
 - PR2: unchanged
 - PR3: unchanged
-- PR4: unchanged
+- Design-agent PR4: unchanged
 
 ### Internal contracts
 
@@ -181,7 +224,7 @@ Rules:
 - PR3 adds:
   - internal preview CLI
   - generated HTML artifact / local preview output
-- PR4 changes:
+- Design-agent PR4 changes:
   - experimentation artifacts only
 
 ## 7. Tests and acceptance
@@ -213,7 +256,7 @@ Rules:
   - `web.progress`
 - verification coverage for preview metadata
 
-### PR4
+### Design-agent PR4
 
 - experiment packet tests
 - offline evaluation tests
@@ -224,10 +267,17 @@ Rules:
 
 For every PR in this chain, after push:
 
-1. `qa-engineer-agent` performs acceptance and readiness review.
-2. `bug-hunter` performs a mandatory post-open bug-fix pass and returns either:
-   - fixes, or
-   - explicit `no findings`
+1. `qa-engineer-agent` must complete the acceptance/readiness pass.
+2. `bug-hunter` must complete the mandatory post-open bug-fix pass.
+
+For this bridge PR, the canonical packet contract, field list, and minimum
+command set live in
+`docs/orchestration/DESIGN_AGENT_RUNTIME_REALIGNMENT_PACKET.md`.
+
+Future initiative PRs must preserve the same coordinator-owned invariant:
+`qa-engineer-agent -> bug-hunter` completes before review-ready is claimed, and
+any PR-local packet should publish the exact acceptance/bug packet fields for
+that lane instead of duplicating them here.
 
 The PR must not be called review-ready before both steps complete.
 
