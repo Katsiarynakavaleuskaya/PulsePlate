@@ -40,6 +40,12 @@ Evidence: `core/judgment.py:247-255` now passes the raw `conflict_flag` value th
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1208#pullrequestreview-3985920222 -> 6d834271
 
 Disposition: NOT-A-BUG
+Evidence: `core/judgment.py:255`, `core/judgment.py:356-385`, and `tests/test_judgment_core.py:314-328`.
+Reason: Review comment `2969487999` proposes optional `0/1` coercion, but this evaluator intentionally keeps `conflict_flag` strict-bool-only and now documents that contract with an explicit regression test. The follow-up shell `3985938670` is likewise a maintainability suggestion (threshold constants) rather than a correctness defect; the current decision tree is deterministic and already covered by the existing calibrated-decision tests.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1208#discussion_r2969487999
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1208#pullrequestreview-3985938670
+
+Disposition: NOT-A-BUG
 Evidence: `core/judgment.py:291-294` and `core/judgment_eval.py:351-365`.
 Reason: Review `3985794972` is an aggregate shell; its concrete actionable threads are mapped individually above (`2969313278`, `2969313279`) and do not require a separate shell-specific code change.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1208#pullrequestreview-3985794972
