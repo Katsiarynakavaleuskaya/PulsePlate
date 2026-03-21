@@ -12,6 +12,7 @@
 - Merge status: not ready to merge yet.
 - Current fix commits:
   - `5bfa8a45` — `docs(orchestration): realign design-agent chain`
+  - `8d24505d` — `docs(review): add PR 1219 mapping artifact`
 - Current scope discipline:
   - docs/governance-only realignment bundle
   - no runtime, API, preview-renderer, or product-surface changes
