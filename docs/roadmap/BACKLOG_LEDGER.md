@@ -1015,11 +1015,11 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Follow the canonical DoD recorded under `ledger-p1-ios-subscription-manager`
 
 <a id="ledger-p1-ios-storekit-products"></a>
-- [ ] P1: iOS StoreKit products contract and setup baseline
+- [x] P1: iOS StoreKit products contract and setup baseline
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
   - Target PR: PR #1172 (contract baseline landed) -> PR #1189 (operational/setup close-out)
-  - Status: 🟡 Contract baseline is merged; PR #1189 carries the operational/setup close-out and this item remains open until that PR merges
+  - Status: ✅ Contract baseline merged in PR #1172; operational/setup close-out merged in PR #1189 and future setup work must use the canonical checklist
   - Area: ios / release / billing operations
   - Finding Type: store configuration readiness
   - Reason (EN): PR #1172 already versioned the canonical StoreKit product IDs and setup baseline in-repo. The remaining B3 work was to consolidate the surviving operational release/setup residue into one canonical checklist and make all Batch B follow-through docs point back to that contract instead of drifting into parallel setup notes after PR #1185 / PR #1187.
