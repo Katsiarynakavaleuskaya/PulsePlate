@@ -5,7 +5,17 @@
 - [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
-- Pending post-review mapping refresh after 2026-03-21 bot feedback
+### FIXED
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1216#pullrequestreview-3986186379 -> c21dbad2
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1216#pullrequestreview-3986187034 -> c21dbad2
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1216#discussion_r2969750859 -> c21dbad2
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1216#discussion_r2969750861 -> c21dbad2
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1216#discussion_r2969753693 -> c21dbad2
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1216#discussion_r2969753695 -> c21dbad2
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1216#discussion_r2969753696 -> c21dbad2
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1216#discussion_r2969753697 -> c21dbad2
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1216#discussion_r2969753698 -> c21dbad2
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1216#pullrequestreview-3986189419 -> c21dbad2
 
 ## Merge Readiness
 - [ ] All required checks pass
