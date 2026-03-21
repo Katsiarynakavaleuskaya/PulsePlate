@@ -278,6 +278,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/pro/fitchef/explain": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Fitchef Distortion Simulator
+         * @description Generate the bounded PRO distortion-simulator surface.
+         */
+        post: operations["fitchef_distortion_simulator_api_v1_pro_fitchef_explain_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/pro/meal/shopping-list": {
         parameters: {
             query?: never;
@@ -2490,6 +2510,58 @@ export interface components {
             preview: string;
             /** Score */
             score: number;
+        };
+        /**
+         * FitChefDistortionSimulatorRequest
+         * @description Distortion-simulator request payload.
+         */
+        FitChefDistortionSimulatorRequest: {
+            /** Automatic Thought */
+            automatic_thought: string;
+            /** Emotion */
+            emotion: string;
+            /** Goal */
+            goal?: string | null;
+            /** Situation */
+            situation: string;
+        };
+        /**
+         * FitChefDistortionSimulatorResponse
+         * @description Public distortion-simulator response envelope.
+         */
+        FitChefDistortionSimulatorResponse: {
+            /** Balanced Reframe */
+            balanced_reframe: string;
+            /** Confidence */
+            confidence: number;
+            /** Distortion Labels */
+            distortion_labels: string[];
+            /** Evidence Against */
+            evidence_against: string[];
+            /** Evidence For */
+            evidence_for: string[];
+            /** Next Small Action */
+            next_small_action: string;
+            /**
+             * Quota State
+             * @enum {string}
+             */
+            quota_state: "not_consumed" | "consumed";
+            /**
+             * Scenario
+             * @constant
+             */
+            scenario: "distortion_simulator";
+            /** Sources */
+            sources: components["schemas"]["FitChefCoachingSourceItem"][];
+            /** Transparency Notice Id */
+            transparency_notice_id: string;
+            /** Warnings */
+            warnings: string[];
+            /** Wellness Boundary */
+            wellness_boundary: string;
+            /** Why It Matches */
+            why_it_matches: string;
         };
         /**
          * FitChefMascotInsightResponse
@@ -5187,6 +5259,93 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    fitchef_distortion_simulator_api_v1_pro_fitchef_explain_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FitChefDistortionSimulatorRequest"];
+            };
+        };
+        responses: {
+            /** @description FitChef distortion simulator generated */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FitChefDistortionSimulatorResponse"];
+                };
+            };
+            /** @description Unsafe AI input blocked */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FitChefCoachingErrorResponse"];
+                };
+            };
+            /** @description API key required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FitChefCoachingErrorResponse"];
+                };
+            };
+            /** @description PRO tier required */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FitChefCoachingErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Rate limit exceeded */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitErrorResponse"];
+                };
+            };
+            /** @description Feature disabled or provider unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FitChefCoachingErrorResponse"];
+                };
+            };
+            /** @description LLM provider call timed out */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FitChefCoachingErrorResponse"];
+                };
             };
         };
     };

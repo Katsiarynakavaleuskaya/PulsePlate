@@ -6,6 +6,7 @@ EN: Deterministic helper functions for text-only FitChef coaching.
 
 from __future__ import annotations
 
+import json
 import re
 from dataclasses import dataclass
 from typing import Callable
@@ -20,6 +21,37 @@ _BULLET_LINE_RE = re.compile(r"^\s*(?:[-*•]|\d+[.)])\s*(.+?)\s*$")
 _DEFAULT_ACTION_KEYWORDS = ("try", "start", "choose", "add")
 _WEEKLY_REFLECTION_ACTION_KEYWORDS = ("keep", "plan", "notice", *_DEFAULT_ACTION_KEYWORDS)
 _SLIP_SUPPORT_ACTION_KEYWORDS = ("pause", "restart", "return", "plan", *_DEFAULT_ACTION_KEYWORDS)
+_DEFAULT_LIST_LIMIT = 3
+_DISTORTION_LABEL_ALIASES: dict[str, str] = {
+    "all_or_nothing_thinking": "all_or_nothing_thinking",
+    "all or nothing thinking": "all_or_nothing_thinking",
+    "black and white thinking": "all_or_nothing_thinking",
+    "catastrophizing": "catastrophizing",
+    "emotional_reasoning": "emotional_reasoning",
+    "emotional reasoning": "emotional_reasoning",
+    "should_statements": "should_statements",
+    "should statements": "should_statements",
+    "mental_filtering": "mental_filtering",
+    "mental filtering": "mental_filtering",
+}
+_DEFAULT_DISTORTION_LABEL = "emotional_reasoning"
+
+
+@dataclass(frozen=True)
+class FitChefDistortionDraft:
+    """Structured distortion-simulator draft.
+
+    RU: Нормализованный structured draft для distortion simulator.
+    EN: Normalized structured draft for the distortion simulator.
+    """
+
+    distortion_labels: list[str]
+    why_it_matches: str
+    evidence_for: list[str]
+    evidence_against: list[str]
+    balanced_reframe: str
+    next_small_action: str
+    warnings: list[str]
 
 
 @dataclass(frozen=True)
@@ -205,6 +237,131 @@ def prepare_slip_support_draft(
     )
 
 
+def build_distortion_simulator_prompt(
+    situation: str,
+    automatic_thought: str,
+    emotion: str,
+    goal: str | None,
+    rag_context: str,
+) -> str:
+    """Build the structured distortion-simulator prompt."""
+
+    goal_line = f"Goal: {goal}" if goal else "Goal: not provided"
+    system_prompt = """You are FitChef, a wellness-only CBT coaching surface for PulsePlate.
+
+Return only one JSON object with this exact shape:
+{
+  "distortion_labels": ["all_or_nothing_thinking"],
+  "why_it_matches": "string",
+  "evidence_for": ["string"],
+  "evidence_against": ["string"],
+  "balanced_reframe": "string",
+  "next_small_action": "string"
+}
+
+Rules:
+- Use only these distortion labels: all_or_nothing_thinking, catastrophizing, emotional_reasoning, should_statements, mental_filtering
+- Keep the response wellness-only and non-clinical
+- Do not diagnose, treat, or use therapist framing
+- Keep evidence items concrete and short
+- Keep next_small_action realistic and behavior-sized
+"""
+
+    if rag_context:
+        return f"""{system_prompt}
+
+Relevant CBT context:
+{rag_context}
+
+Situation: {situation}
+Automatic thought: {automatic_thought}
+Emotion: {emotion}
+{goal_line}
+""".strip()
+
+    return f"""{system_prompt}
+
+Situation: {situation}
+Automatic thought: {automatic_thought}
+Emotion: {emotion}
+{goal_line}
+""".strip()
+
+
+def prepare_distortion_simulator_draft(
+    raw_text: str,
+    *,
+    situation: str,
+    automatic_thought: str,
+    emotion: str,
+    goal: str | None,
+) -> FitChefDistortionDraft:
+    """Normalize distortion-simulator provider output into a safe structured draft."""
+
+    warnings: list[str] = []
+    try:
+        payload = _extract_json_payload(raw_text)
+    except ValueError:
+        warnings.append("structured_parse_fallback")
+        return _fallback_distortion_draft(
+            situation=situation,
+            automatic_thought=automatic_thought,
+            emotion=emotion,
+            goal=goal,
+            warnings=warnings,
+        )
+
+    labels = _normalize_distortion_labels(payload.get("distortion_labels"))
+    why_it_matches = _normalize_structured_string(payload.get("why_it_matches"))
+    evidence_for = _normalize_string_list(payload.get("evidence_for"))
+    evidence_against = _normalize_string_list(payload.get("evidence_against"))
+    balanced_reframe = _normalize_structured_string(payload.get("balanced_reframe"))
+    next_small_action = _normalize_structured_string(payload.get("next_small_action"))
+
+    if not why_it_matches:
+        why_it_matches = _build_distortion_reason(
+            labels=labels,
+            automatic_thought=automatic_thought,
+        )
+    if not evidence_for:
+        evidence_for = _fallback_evidence_for(emotion=emotion)
+    if not evidence_against:
+        evidence_against = _fallback_evidence_against(goal=goal)
+    if not balanced_reframe:
+        balanced_reframe = _fallback_balanced_reframe(
+            automatic_thought=automatic_thought,
+            goal=goal,
+        )
+    if not next_small_action:
+        next_small_action = _fallback_next_small_action(goal=goal)
+
+    if not _structured_texts_are_safe(
+        why_it_matches,
+        *evidence_for,
+        *evidence_against,
+        balanced_reframe,
+        next_small_action,
+    ):
+        warnings.append("wellness_language_rewritten")
+        return _fallback_distortion_draft(
+            situation=situation,
+            automatic_thought=automatic_thought,
+            emotion=emotion,
+            goal=goal,
+            warnings=warnings,
+        )
+
+    return FitChefDistortionDraft(
+        distortion_labels=labels,
+        why_it_matches=why_it_matches,
+        evidence_for=evidence_for,
+        evidence_against=evidence_against,
+        balanced_reframe=balanced_reframe,
+        next_small_action=next_small_action,
+        warnings=warnings,
+    )
+
+
 def _prepare_fitchef_draft(
     *,
     raw_text: str,
@@ -377,3 +534,182 @@ def _extract_action_items(text: str, *, action_keywords: tuple[str, ...]) -> lis
         if len(items) >= _ACTION_ITEM_LIMIT:
             break
     return items[:_ACTION_ITEM_LIMIT]
+
+
+def _extract_json_payload(raw_message: str) -> dict[str, object]:
+    """Extract the first JSON object from provider text, tolerating fenced output."""
+
+    stripped = raw_message.strip()
+    if stripped.startswith("```"):
+        stripped = stripped.strip("`")
+        if stripped.lower().startswith("json"):
+            stripped = stripped[4:].strip()
+    if stripped.startswith("{") and stripped.endswith("}"):
+        loaded = json.loads(stripped)
+        if isinstance(loaded, dict):
+            return loaded
+    start = stripped.find("{")
+    end = stripped.rfind("}")
+    if start == -1 or end == -1 or start >= end:
+        raise ValueError("Provider response did not contain a JSON object.")
+    loaded = json.loads(stripped[start : end + 1])
+    if not isinstance(loaded, dict):
+        raise ValueError("Provider response JSON must be an object.")
+    return loaded
+
+
+def _normalize_structured_string(raw_value: object) -> str:
+    """Normalize a structured string field."""
+
+    if not isinstance(raw_value, str):
+        return ""
+    return " ".join(raw_value.split())[:_MAX_MESSAGE_LENGTH].strip()
+
+
+def _normalize_string_list(raw_value: object) -> list[str]:
+    """Normalize a short list of strings."""
+
+    if not isinstance(raw_value, list):
+        return []
+    normalized = [
+        _normalize_structured_string(item)
+        for item in raw_value
+        if _normalize_structured_string(item)
+    ]
+    return normalized[:_DEFAULT_LIST_LIMIT]
+
+
+def _normalize_distortion_labels(raw_value: object) -> list[str]:
+    """Normalize distortion labels to the canonical stable label set."""
+
+    values = raw_value if isinstance(raw_value, list) else [raw_value]
+    normalized: list[str] = []
+    for value in values:
+        if not isinstance(value, str):
+            continue
+        canonical = _DISTORTION_LABEL_ALIASES.get(value.strip().lower())
+        if canonical and canonical not in normalized:
+            normalized.append(canonical)
+    if normalized:
+        return normalized
+    return [_DEFAULT_DISTORTION_LABEL]
+
+
+def _infer_distortion_labels(automatic_thought: str) -> list[str]:
+    """Infer at least one canonical distortion label from the automatic thought."""
+
+    lowered = automatic_thought.lower()
+    labels: list[str] = []
+    if any(token in lowered for token in ("always", "never", "ruined", "perfect", "completely")):
+        labels.append("all_or_nothing_thinking")
+    if any(
+        token in lowered
+        for token in ("disaster", "awful", "terrible", "never reach", "nothing will")
+    ):
+        labels.append("catastrophizing")
+    if "should" in lowered or "must" in lowered or "ought" in lowered:
+        labels.append("should_statements")
+    if "i feel" in lowered or "feels like" in lowered:
+        labels.append("emotional_reasoning")
+    if any(
+        token in lowered
+        for token in ("only", "nothing good", "all i can see", "but i still failed")
+    ):
+        labels.append("mental_filtering")
+    if labels:
+        return labels[:2]
+    return [_DEFAULT_DISTORTION_LABEL]
+
+
+def _build_distortion_reason(*, labels: list[str], automatic_thought: str) -> str:
+    """Return a deterministic short explanation for the detected distortion labels."""
+
+    label = labels[0] if labels else _DEFAULT_DISTORTION_LABEL
+    if label == "all_or_nothing_thinking":
+        return (
+            "The thought turns one moment into an all-or-total conclusion instead of leaving room "
+            "for a middle ground."
+        )
+    if label == "catastrophizing":
+        return "The thought jumps quickly from a setback to the worst-case outcome."
+    if label == "should_statements":
+        return "The thought uses rigid rules that create pressure instead of workable guidance."
+    if label == "mental_filtering":
+        return "The thought zooms in on the negative part and screens out the rest of the picture."
+    if "feel" in automatic_thought.lower():
+        return "The thought treats a difficult feeling as proof, even though feelings are not the whole evidence."
+    return "The thought is being treated as a fact even though it may be only one interpretation."
+
+
+def _fallback_evidence_for(*, emotion: str) -> list[str]:
+    """Return deterministic evidence-for items without inventing facts."""
+
+    return [
+        f"You reported feeling {emotion.strip() or 'strong emotion'} in this situation.",
+        "The thought may fit part of the moment even if it does not describe the whole pattern.",
+    ]
+
+
+def _fallback_evidence_against(*, goal: str | None) -> list[str]:
+    """Return deterministic evidence-against items."""
+
+    items = [
+        "One difficult moment does not define the full day or the long-term pattern.",
+        "A more useful response can still happen at the next meal, snack, or planning moment.",
+    ]
+    if goal:
+        items.insert(1, f"Your goal can still be supported by the next small step toward {goal}.")
+    return items[:_DEFAULT_LIST_LIMIT]
+
+
+def _fallback_balanced_reframe(*, automatic_thought: str, goal: str | None) -> str:
+    """Return a deterministic balanced reframe."""
+
+    if goal:
+        return (
+            "This moment is frustrating, but it does not erase the bigger goal. "
+            f"I can answer the thought kindly and take one next step that still supports {goal}."
+        )
+    return (
+        "This moment is real, but the first automatic thought is not the only interpretation. "
+        "I can step back, use the evidence, and choose one calmer next action."
+    )
+
+
+def _fallback_next_small_action(*, goal: str | None) -> str:
+    """Return a deterministic next-small-action field."""
+
+    if goal:
+        return f"Choose one meal or habit step in the next 24 hours that clearly supports {goal}."
+    return "Write one kinder replacement thought and pair it with one concrete next meal or habit step."
+
+
+def _fallback_distortion_draft(
+    *,
+    situation: str,
+    automatic_thought: str,
+    emotion: str,
+    goal: str | None,
+    warnings: list[str],
+) -> FitChefDistortionDraft:
+    """Return a safe deterministic fallback for the distortion simulator."""
+
+    labels = _infer_distortion_labels(automatic_thought)
+    return FitChefDistortionDraft(
+        distortion_labels=labels,
+        why_it_matches=_build_distortion_reason(labels=labels, automatic_thought=automatic_thought),
+        evidence_for=_fallback_evidence_for(emotion=emotion),
+        evidence_against=_fallback_evidence_against(goal=goal),
+        balanced_reframe=_fallback_balanced_reframe(
+            automatic_thought=automatic_thought,
+            goal=goal,
+        ),
+        next_small_action=_fallback_next_small_action(goal=goal),
+        warnings=warnings,
+    )
+
+
+def _structured_texts_are_safe(*values: str) -> bool:
+    """Return True when all structured strings pass the wellness-safe validator."""
+
+    return all(validate_llm_output(value, domain="fitchef_mascot").ok for value in values if value)

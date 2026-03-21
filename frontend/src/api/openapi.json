@@ -1881,6 +1881,147 @@
         "title": "FitChefCoachingSourceItem",
         "type": "object"
       },
+      "FitChefDistortionSimulatorRequest": {
+        "description": "Distortion-simulator request payload.",
+        "properties": {
+          "automatic_thought": {
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Automatic Thought",
+            "type": "string"
+          },
+          "emotion": {
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Emotion",
+            "type": "string"
+          },
+          "goal": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Goal"
+          },
+          "situation": {
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Situation",
+            "type": "string"
+          }
+        },
+        "required": [
+          "situation",
+          "automatic_thought",
+          "emotion"
+        ],
+        "title": "FitChefDistortionSimulatorRequest",
+        "type": "object"
+      },
+      "FitChefDistortionSimulatorResponse": {
+        "description": "Public distortion-simulator response envelope.",
+        "properties": {
+          "balanced_reframe": {
+            "minLength": 1,
+            "title": "Balanced Reframe",
+            "type": "string"
+          },
+          "confidence": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Confidence",
+            "type": "number"
+          },
+          "distortion_labels": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Distortion Labels",
+            "type": "array"
+          },
+          "evidence_against": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Evidence Against",
+            "type": "array"
+          },
+          "evidence_for": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Evidence For",
+            "type": "array"
+          },
+          "next_small_action": {
+            "minLength": 1,
+            "title": "Next Small Action",
+            "type": "string"
+          },
+          "quota_state": {
+            "enum": [
+              "not_consumed",
+              "consumed"
+            ],
+            "title": "Quota State",
+            "type": "string"
+          },
+          "scenario": {
+            "const": "distortion_simulator",
+            "title": "Scenario",
+            "type": "string"
+          },
+          "sources": {
+            "items": {
+              "$ref": "#/components/schemas/FitChefCoachingSourceItem"
+            },
+            "title": "Sources",
+            "type": "array"
+          },
+          "transparency_notice_id": {
+            "title": "Transparency Notice Id",
+            "type": "string"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Warnings",
+            "type": "array"
+          },
+          "wellness_boundary": {
+            "title": "Wellness Boundary",
+            "type": "string"
+          },
+          "why_it_matches": {
+            "minLength": 1,
+            "title": "Why It Matches",
+            "type": "string"
+          }
+        },
+        "required": [
+          "scenario",
+          "distortion_labels",
+          "why_it_matches",
+          "evidence_for",
+          "evidence_against",
+          "balanced_reframe",
+          "next_small_action",
+          "sources",
+          "confidence",
+          "warnings",
+          "quota_state",
+          "transparency_notice_id",
+          "wellness_boundary"
+        ],
+        "title": "FitChefDistortionSimulatorResponse",
+        "type": "object"
+      },
       "FitChefMascotInsightResponse": {
         "description": "Public mascot insight response envelope.",
         "properties": {
@@ -7059,6 +7200,115 @@
         "tags": [
           "CBT",
           "pro"
+        ]
+      }
+    },
+    "/api/v1/pro/fitchef/explain": {
+      "post": {
+        "description": "Generate the bounded PRO distortion-simulator surface.",
+        "operationId": "fitchef_distortion_simulator_api_v1_pro_fitchef_explain_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FitChefDistortionSimulatorRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FitChefDistortionSimulatorResponse"
+                }
+              }
+            },
+            "description": "FitChef distortion simulator generated"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FitChefCoachingErrorResponse"
+                }
+              }
+            },
+            "description": "Unsafe AI input blocked"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FitChefCoachingErrorResponse"
+                }
+              }
+            },
+            "description": "API key required"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FitChefCoachingErrorResponse"
+                }
+              }
+            },
+            "description": "PRO tier required"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitErrorResponse"
+                }
+              }
+            },
+            "description": "Rate limit exceeded"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FitChefCoachingErrorResponse"
+                }
+              }
+            },
+            "description": "Feature disabled or provider unavailable"
+          },
+          "504": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FitChefCoachingErrorResponse"
+                }
+              }
+            },
+            "description": "LLM provider call timed out"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Fitchef Distortion Simulator",
+        "tags": [
+          "coaching",
+          "fitchef",
+          "structured"
         ]
       }
     },

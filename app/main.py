@@ -25,6 +25,7 @@ import app.routers.realtime_ws as realtime_ws
 from app.routers.billing import register_billing_routes
 from app.routers.cbt_insight import router as cbt_insight_router
 from app.routers.feedback import router as feedback_router
+from app.routers.fitchef_structured import router as fitchef_structured_router
 from app.routers.legal import router as legal_router
 
 app: FastAPI = _legacy_app
@@ -33,6 +34,7 @@ _WS_ROUTE_PATHS: tuple[str, str] = ("/api/v1/pro/ws", "/ws")
 _FEEDBACK_ROUTE_PATH: str = "/api/v1/feedback/rag"
 _TERMS_ROUTE_PATH: str = "/terms"
 _CBT_INSIGHT_ROUTE_PATH: str = "/api/v1/pro/cbt/insight"
+_FITCHEF_STRUCTURED_ROUTE_PATH: str = "/api/v1/pro/fitchef/explain"
 _CREATIVE_RESEARCH_PILOT_ROUTE_PATH: str = "/api/v1/internal/creative-research/pilot"
 
 
@@ -134,6 +136,9 @@ def ensure_canonical_app_bootstrap(target_app: FastAPI) -> FastAPI:
 
     if not _has_route(app, _CBT_INSIGHT_ROUTE_PATH, "POST"):
         app.include_router(cbt_insight_router)
+
+    if not _has_route(app, _FITCHEF_STRUCTURED_ROUTE_PATH, "POST"):
+        app.include_router(fitchef_structured_router)
 
     if not _has_route(app, _CREATIVE_RESEARCH_PILOT_ROUTE_PATH, "POST"):
         app.include_router(creative_research_internal_router)
