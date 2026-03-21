@@ -355,8 +355,8 @@ def evaluate_fitchef_replay_case(case: FitChefReplayCaseRecord) -> FitChefReplay
         evidence_coverage = min(support_ratio, 0.5)
         actionability_confidence = scores["actionability"] / 5
     elif len(case["support_markers"]) <= 2:
-        retrieval_confidence = min(max(support_ratio, 0.6), 0.6)
-        evidence_coverage = min(max(support_ratio, 0.6), 0.6)
+        retrieval_confidence = min(support_ratio, 0.6)
+        evidence_coverage = min(support_ratio, 0.6)
         actionability_confidence = scores["actionability"] / 5
     else:
         retrieval_confidence = support_ratio

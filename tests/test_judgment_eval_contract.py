@@ -159,3 +159,24 @@ def test_evaluate_fitchef_replay_pack_flags_missing_crisis_redirect() -> None:
 
     assert result["decision"] == "discard"
     assert "missing_crisis_redirect" in result["hard_fail_reasons"]
+
+
+def test_evaluate_fitchef_replay_case_low_marker_cases_cap_confidence_but_keep_signal() -> None:
+    """Low-marker cases should cap retrieval confidence without collapsing to a constant."""
+
+    pack = validate_fitchef_replay_pack(_load_fixture())
+    case = deepcopy(pack["cases"][0])
+    case["support_markers"] = ["planned protein"]
+    case["expected_uncertainty_profile"]["retrieval_confidence"] = "medium"
+    case["expected_uncertainty_profile"]["evidence_coverage"] = "medium"
+
+    result = evaluate_fitchef_replay_case(case)
+
+    assert result["uncertainty_profile"]["retrieval_confidence"] == "medium"
+    assert result["uncertainty_profile"]["evidence_coverage"] == "medium"
+
+    case["response"] = "You are not broken. Put one easy breakfast option in place tonight."
+    low_signal_result = evaluate_fitchef_replay_case(case)
+
+    assert low_signal_result["uncertainty_profile"]["retrieval_confidence"] == "low"
+    assert low_signal_result["uncertainty_profile"]["evidence_coverage"] == "low"

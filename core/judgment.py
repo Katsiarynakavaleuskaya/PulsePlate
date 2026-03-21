@@ -285,11 +285,12 @@ def _clamp_probability(value: float) -> float:
 def _coerce_probability_field(raw_value: object, *, field_name: str) -> float:
     """Convert uncertainty payload fields into floats with deterministic errors."""
 
-    if isinstance(raw_value, bool) or not isinstance(raw_value, (int, float, str)):
+    value = raw_value
+    if isinstance(value, bool) or not isinstance(value, (int, float, str)):
         raise ValueError(f"{field_name} must be a float-like value.")
     try:
-        return float(raw_value)
-    except ValueError as exc:
+        return float(value)
+    except (TypeError, ValueError) as exc:
         raise ValueError(f"{field_name} must be a float-like value.") from exc
 
 

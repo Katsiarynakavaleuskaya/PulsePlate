@@ -341,6 +341,25 @@ def test_validate_uncertainty_split_rejects_unparseable_string_values() -> None:
         )
 
 
+def test_validate_uncertainty_split_rejects_float_type_errors() -> None:
+    """Custom float-like failures must still collapse into the shared ValueError."""
+
+    class BrokenFloat(str):
+        def __float__(self) -> float:
+            raise TypeError("broken float conversion")
+
+    with pytest.raises(ValueError, match="evidence_coverage must be a float-like value"):
+        validate_uncertainty_split(
+            {
+                "retrieval_confidence": 0.7,
+                "evidence_coverage": BrokenFloat("0.5"),
+                "contradiction_risk": 0.1,
+                "actionability_confidence": 0.9,
+                "personalization_conflict": 0.1,
+            }
+        )
+
+
 def test_select_calibrated_decision_promotes_supported_low_conflict_payload() -> None:
     """Supported claims with bounded uncertainty should promote."""
 
