@@ -5,25 +5,83 @@
 - [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1219#discussion_r2969725697 -> b1c60f1c
+Disposition: FIXED
+Commit: b1c60f1c
+Evidence: `docs/orchestration/AGENTS.md:5`, `docs/orchestration/AGENTS.md:8`, `docs/orchestration/AGENTS.md:15`
+Reason: added the scoped orchestration `AGENTS.md` update documenting the bridge routing, mandatory post-open lane, and the requirement to refresh the PR body after the canonical review artifact changes.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1219#discussion_r2969725700 -> b1c60f1c
+Disposition: FIXED
+Commit: b1c60f1c
+Evidence: `docs/orchestration/DESIGN_AGENT_RUNTIME_REALIGNMENT_PACKET.md:103`, `docs/orchestration/DESIGN_AGENT_RUNTIME_REALIGNMENT_PACKET.md:107`
+Reason: aligned the minimum command set with the canonical bridge artifact bundle and restored the ADR file to the documented docs-gate invocation.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1219#discussion_r2969725705 -> b1c60f1c
+Disposition: FIXED
+Commit: b1c60f1c
+Evidence: `docs/roadmap/BACKLOG_LEDGER.md:499`
+Reason: normalized the umbrella ledger entry to canonical `Target PR` notation using `PR #1219` and the reserved `PR-TBD-DESIGN-AGENT-PR4` placeholder instead of worktree labels.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1219#discussion_r2969726473 -> b1c60f1c
+Disposition: FIXED
+Commit: b1c60f1c
+Evidence: `docs/orchestration/DESIGN_AGENT_RUNTIME_REALIGNMENT_PACKET.md:107`, `docs/orchestration/DESIGN_AGENT_RUNTIME_REALIGNMENT_PACKET.md:108`
+Reason: clarified that `check_docs_phase1_gates.py` is retained only as a repo-parity audit/security gate for this lane and paired it with the explicit PR-body Phase2 gate so the packet no longer implies file-specific docs validation occurred when it did not.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1219#discussion_r2969726476 -> b1c60f1c
+Disposition: FIXED
+Commit: b1c60f1c
+Evidence: `docs/orchestration/DESIGN_AGENT_RUNTIME_REALIGNMENT_PACKET.md:150`, `docs/orchestration/DESIGN_AGENT_RUNTIME_REALIGNMENT_PACKET.md:153`
+Reason: restored `make verify` to the merge-ready contract so the packet stays aligned with the repo-wide hard gate and the initiative chain SoT.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1219#discussion_r2969728273 -> b1c60f1c
+Disposition: FIXED
+Commit: b1c60f1c
+Evidence: `docs/orchestration/DESIGN_AGENT_RUNTIME_REALIGNMENT_PACKET.md:103`, `docs/orchestration/DESIGN_AGENT_RUNTIME_REALIGNMENT_PACKET.md:107`
+Reason: cubic found the missing ADR validation in the packet; the minimum command set now includes the ADR file alongside the other bridge artifacts.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1219#discussion_r2969728275 -> 3f1a5bbc
+Disposition: FIXED
+Commit: 3f1a5bbc
+Evidence: `docs/orchestration/DESIGN_AGENT_RUNTIME_REALIGNMENT_PACKET.md:131`, `docs/orchestration/DESIGN_AGENT_RUNTIME_REALIGNMENT_PACKET.md:134`
+Reason: cubic found that the pre-open scope statement omitted ADR alignment; the packet now explicitly scopes the bridge PR to chain, ledger, packet, and ADR changes.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1219#pullrequestreview-3986163687 -> b1c60f1c
+Disposition: FIXED
+Commit: b1c60f1c
+Evidence: `docs/design/DESIGN_AGENT_RUNTIME_PR_CHAIN.md:22`, `docs/design/DESIGN_AGENT_RUNTIME_PR_CHAIN.md:30`, `docs/orchestration/DESIGN_AGENT_RUNTIME_REALIGNMENT_PACKET.md:89`
+Reason: Sourcery's shell review asked for anchor drift cleanup and one canonical acceptance/bug-packet source; the chain doc now points at `canvas_artifact.py:153`, and the packet is explicitly designated as the field-level canonical contract for the bridge review loop.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1219#pullrequestreview-3986164985
+Disposition: NOT-A-BUG
+Evidence: `docs/review/PR_1219_FIXED_MAPPING.md:8`
+Reason: this CodeRabbit review URL is an aggregate shell; its concrete actionable inline comments are dispositioned individually in this artifact, so the shell itself does not carry a separate unresolved action.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1219#pullrequestreview-3986165586
+Disposition: NOT-A-BUG
+Evidence: `docs/review/PR_1219_FIXED_MAPPING.md:8`
+Reason: this Codex review URL is an aggregate shell; the actionable inline Codex suggestions are dispositioned explicitly in this artifact and no separate shell-level remediation remains.
 
 ## Merge Readiness
-- Review status: draft-stage advisory bot comments only; no actionable review findings are posted on the current PR head yet.
+- Review status: post-open bot feedback is mapped to concrete dispositions on the current local head; strict current-head PR governance re-check and thread resolution remain pending until the updated artifact is pushed.
 - Merge status: not ready to merge yet.
 - Current fix commits:
   - `5bfa8a45` — `docs(orchestration): realign design-agent chain`
   - `8d24505d` — `docs(review): add PR 1219 mapping artifact`
+  - `bf97643d` — `docs(review): refresh PR 1219 readiness artifact`
+  - `b1c60f1c` — `docs(agents): update instructions`
+  - `3f1a5bbc` — `docs(orchestration): close packet scope drift`
 - Current scope discipline:
   - docs/governance-only realignment bundle
   - no runtime, API, preview-renderer, or product-surface changes
   - reserved `design-agent PR4` slot remains unopened
 - Local validation executed on this lane:
   - `python3 scripts/orchestration/check_preflight.py`
-  - `python3 scripts/orchestration/check_agent_consistency.py`
-  - `python3 scripts/ci/check_docs_phase1_gates.py --files docs/design/DESIGN_AGENT_RUNTIME_PR_CHAIN.md docs/roadmap/BACKLOG_LEDGER.md docs/orchestration/DESIGN_AGENT_RUNTIME_REALIGNMENT_PACKET.md docs/library/decisions/ADR_DESIGN_AGENT_RUNTIME_PR_CHAIN_2026-03-21.md`
-  - `pre-commit run --all-files`
+  - `make verify`
 - Required before merge:
-  - remove draft and complete the post-open review cycle
-  - record explicit dispositions if any actionable bot comments or review threads appear
-  - re-run strict merge-readiness checks against the current PR head
-  - pass `make verify`
+  - push the current local commits and refresh the PR body mirror after this artifact update
+  - re-run strict review disposition and merge-readiness checks against the current PR head
+  - resolve remaining review threads only after pushed evidence exists
+  - confirm current-head required checks are green with no pending required jobs
+  - confirm no actionable bot comments remain outside this mapping
