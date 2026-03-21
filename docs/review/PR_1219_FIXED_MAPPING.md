@@ -81,7 +81,7 @@ Reason: this cubic review URL is an aggregate shell; the actionable inline cubic
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1219#discussion_r2969766361
 Disposition: FIXED
-Commit: TBD
+Commit: 393619d4
 Evidence: `docs/review/PR_1219_FIXED_MAPPING.md:20`, `docs/review/PR_1219_FIXED_MAPPING.md:23`
 Reason: cubic found stale evidence anchors for the `r2969725702` mapping entry; the evidence line now points to the actual merge-readiness bullets cited by that FIXED disposition.
 
