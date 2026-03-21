@@ -7,30 +7,32 @@
 ## Fixed in Commit Mapping
 Disposition: FIXED
 Commit: see mapping entries below
-Evidence: `.github/workflows/ci.yml:134`, `.github/workflows/frontend-ci.yml:15`, `.github/workflows/accessibility.yml:1`, `.github/actions/npm-ci-with-retry/action.yml:1`, `frontend/package.json:29`, `frontend/package-lock.json:1`, `docs/dev/PLAYWRIGHT_E2E_RUNBOOK.md:40`, `frontend/AGENTS.md:8`, `scripts/frontend_npm.sh:4`, `Makefile:427`
+Evidence: `.github/workflows/ci.yml:134`, `.github/workflows/frontend-ci.yml:15`, `.github/workflows/accessibility.yml:1`, `.github/actions/npm-ci-with-retry/action.yml:20`, `frontend/package.json:29`, `frontend/package-lock.json:1`, `docs/dev/PLAYWRIGHT_E2E_RUNBOOK.md:40`, `frontend/AGENTS.md:8`, `scripts/frontend_npm.sh:6`, `Makefile:427`
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1209#pullrequestreview-3985902115 -> 5fa9db40
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1209#pullrequestreview-3985928654 -> 5c0c40bb
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1209#pullrequestreview-3985929753 -> 9d16d47d
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1209#pullrequestreview-3985943334 -> 9d16d47d
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1209#pullrequestreview-3985943493 -> 9d16d47d
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1209#pullrequestreview-3985996931 -> 3815c555
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1209#pullrequestreview-3985999056 -> 3815c555
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1209#discussion_r2969442865 -> 5fa9db40
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1209#discussion_r2969444773 -> eab0e344
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1209#discussion_r2969478121 -> 5c0c40bb
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1209#discussion_r2969478126 -> 5c0c40bb
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1209#discussion_r2969478129 -> 5c0c40bb
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1209#discussion_r2969478130 -> 5c0c40bb
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1209#discussion_r2969494473 -> 3815c555
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1209#discussion_r2969494692 -> 9d16d47d
-
-Disposition: NOT-A-BUG
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1209#discussion_r2969494473
-Reason: CodeRabbit's claim that `npx -y node@<version>` cannot switch the runtime is not reproduced in this repository environment.
-Evidence: `scripts/frontend_npm.sh:4-27`, `Makefile:420-428`; local repro on 21 March 2026 showed `node -p 'process.versions.node'` => `25.6.1`, `npx -y node@22.22.1 -p 'process.versions.node'` => `22.22.1`, and `./scripts/frontend_npm.sh --version` => `11.9.0`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1209#discussion_r2969550044 -> 3815c555
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1209#discussion_r2969550505 -> 3815c555
 
 ## Merge Readiness
-- Review status: draft.
-- Merge status: not ready to merge.
+- Review status: ready for review.
+- Merge status: waiting on current-head CI and final strict merge gate.
 - Current fix commits:
+  - `3815c555` — `fix(ci): harden node helper and action`
+  - `40f47b01` — `docs(review): map pr1209 latest reviews`
   - `9d16d47d` — `fix(ci): tighten node22 frontend bootstrap`
   - `5c0c40bb` — `fix(ci): track node22 workflow inputs`
   - `eab0e344` — `fix(ci): enforce local frontend node22 parity`
@@ -39,9 +41,9 @@ Evidence: `scripts/frontend_npm.sh:4-27`, `Makefile:420-428`; local repro on 21 
   - align touched frontend/OpenAPI-sync workflows to Node `22.22.1`
   - align frontend engine contract to Node `>=22.0.0 <23.0.0`
   - harden touched CI/frontend `npm ci` steps with bounded retry flags for transient registry resets
-  - enforce exact `.nvmrc` matching in the local frontend npm helper before allowing direct `npm`
+  - fail fast when local `node`/`npm` are missing, block too-old Node runtimes, and avoid implicit registry bootstrap for newer local shells
   - tighten local frontend install path to `npm ci` lockfile semantics
-  - remove unnecessary `actions: write` from accessibility workflow and constrain composite-action `working-directory` input
+  - remove unnecessary `actions: write` from accessibility workflow and normalize/comprehensively guard composite-action `working-directory` input against traversal
   - no backend API or schema contract change intended
 - Carryover / deferred context:
   - this PR is an explicit stopgap/hygiene slice ahead of the broader Node 24/cache-warning cleanup track still recorded in [`docs/roadmap/BACKLOG_LEDGER.md`](../roadmap/BACKLOG_LEDGER.md#ledger-p2-gha-node24-cache-warning-cleanup)
@@ -49,8 +51,8 @@ Evidence: `scripts/frontend_npm.sh:4-27`, `Makefile:420-428`; local repro on 21 
   - `python3 -m scripts.orchestration.check_preflight`
   - `python3 scripts/orchestration/check_agent_consistency.py`
   - `./scripts/frontend_npm.sh --version`
-  - `./scripts/frontend_npm.sh --prefix frontend ci --no-audit --no-fund`
-  - `./scripts/frontend_npm.sh --prefix frontend run build`
+  - `cd frontend && npm ci`
+  - `cd frontend && npm run build`
   - `make openapi`
   - `. .venv/bin/activate && python -m pytest -q tests/test_openapi_determinism.py`
   - `pre-commit run --all-files`
