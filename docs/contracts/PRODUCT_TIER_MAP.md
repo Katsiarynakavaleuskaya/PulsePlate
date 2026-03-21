@@ -109,14 +109,15 @@
 - `pro_registration.py` = **технический модуль регистрации**, не бизнес-уровень
 - `premium_week.py` = **deprecated**, мигрирует на `pro.py`
 
-### FitChef structured coach follow-up (contract-frozen, not live)
+### FitChef structured coach follow-up
 
 | Функция | Endpoint | Статус | Требует tier | Canonical reference |
 | --- | --- | --- | --- | --- |
 | FitChef explain | `/api/v1/pro/fitchef/explain` | 🧭 contract-frozen | PRO | `docs/contracts/FITCHEF_STRUCTURED_COACH_CONTRACT.md` |
 | FitChef recommend | `/api/v1/pro/fitchef/recommend` | 🧭 contract-frozen | PRO | `docs/contracts/FITCHEF_STRUCTURED_COACH_CONTRACT.md` |
 
-> Эти endpoints ещё не реализованы. PR-4 фиксирует только route family и tier semantics для будущего PRO structured coach runtime.
+> `POST /api/v1/pro/fitchef/explain` remains the first bounded structured rollout target for the CBT Coaching Wave: `Distortion Simulator`.
+> `POST /api/v1/pro/fitchef/recommend` remains a contract-frozen follow-up for the structured next-step recommendation lane.
 
 ---
 
@@ -171,7 +172,7 @@
 - ❌ PRO не может реализовывать VIP-логику
 - VIP endpoints используют `require_vip_tier()` middleware
 
-### FitChef structured coach follow-up (contract-frozen, not live)
+### FitChef structured coach follow-up
 
 | Функция | Endpoint | Статус | Требует tier | Canonical reference |
 | --- | --- | --- | --- | --- |
@@ -179,7 +180,8 @@
 | FitChef chat | `/api/v1/vip/fitchef/chat` | 🧭 contract-frozen | VIP | `docs/contracts/FITCHEF_STRUCTURED_COACH_CONTRACT.md` |
 | FitChef week repair | `/api/v1/vip/fitchef/week-repair` | 🧭 contract-frozen | VIP | `docs/contracts/FITCHEF_STRUCTURED_COACH_CONTRACT.md` |
 
-> Эти endpoints ещё не реализованы. PR-4 фиксирует additive structured coach contract, при этом live `/api/v1/insight/fitchef*` family остаётся каноном.
+> `POST /api/v1/vip/fitchef/insight` remains the first bounded VIP structured rollout target for the CBT Coaching Wave: `Identity Loop Mapper`.
+> `chat` and `week-repair` remain additive contract-frozen follow-ups; live `/api/v1/insight/fitchef*` family remains canonical and unmigrated.
 
 ---
 
