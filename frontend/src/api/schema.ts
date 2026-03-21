@@ -5588,6 +5588,15 @@ export interface operations {
                     "application/json": components["schemas"]["SubscriptionActivationResponse"];
                 };
             };
+            /** @description Canonical activation payload is required on this route */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentErrorResponse"];
+                };
+            };
             /** @description Missing or invalid transport protection */
             401: {
                 headers: {
@@ -5615,13 +5624,13 @@ export interface operations {
                     "application/json": components["schemas"]["PaymentErrorResponse"];
                 };
             };
-            /** @description Canonical activation payload is required on this route */
+            /** @description Validation Error */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["PaymentErrorResponse"];
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
             /** @description Apple receipt verification upstream error */

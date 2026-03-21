@@ -76,16 +76,16 @@ def _resolve_activation_user(x_api_key: str | None) -> CurrentUser:
     "/activate",
     response_model=SubscriptionActivationResponse,
     responses={
+        status.HTTP_400_BAD_REQUEST: {
+            "description": "Canonical activation payload is required on this route",
+            "model": PaymentErrorResponse,
+        },
         status.HTTP_401_UNAUTHORIZED: {
             "description": "Missing or invalid transport protection",
             "model": PaymentErrorResponse,
         },
         status.HTTP_403_FORBIDDEN: {
             "description": "iOS activation requires receipt_data or Apple verification failed",
-            "model": PaymentErrorResponse,
-        },
-        status.HTTP_422_UNPROCESSABLE_CONTENT: {
-            "description": "Canonical activation payload is required on this route",
             "model": PaymentErrorResponse,
         },
         status.HTTP_502_BAD_GATEWAY: {
@@ -113,7 +113,7 @@ async def activate_subscription(
         current_user = _resolve_activation_user(x_api_key)
         if not payload.uses_canonical_payload:
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                status_code=status.HTTP_400_BAD_REQUEST,
                 detail="canonical activation payload is required on this route",
             )
         if payload.source is PaymentSource.ios_app_store:
@@ -152,7 +152,7 @@ async def activate_subscription(
             status_code=exc.status_code,
             code=exc.error_code,
             message=exc.error_message,
-            detail=str(exc) or exc.error_message,
+            detail=exc.error_message,
         )
 
     response.status_code = status.HTTP_200_OK

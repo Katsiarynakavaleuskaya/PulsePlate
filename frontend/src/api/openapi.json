@@ -7724,6 +7724,16 @@
             },
             "description": "Successful Response"
           },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentErrorResponse"
+                }
+              }
+            },
+            "description": "Canonical activation payload is required on this route"
+          },
           "401": {
             "content": {
               "application/json": {
@@ -7758,11 +7768,11 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/PaymentErrorResponse"
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             },
-            "description": "Canonical activation payload is required on this route"
+            "description": "Validation Error"
           },
           "502": {
             "content": {
