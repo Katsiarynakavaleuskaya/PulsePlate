@@ -202,11 +202,21 @@ def _subscription_row(
     *,
     tier: str,
     status: str,
+    source: str = "ios_app_store",
     expires_at: object = None,
+    activated_at: object = None,
+    created_at: object = None,
 ) -> SimpleNamespace:
     """Build minimal persisted subscription row for api_tiers unit tests."""
 
-    return SimpleNamespace(tier=tier, status=status, expires_at=expires_at)
+    return SimpleNamespace(
+        tier=tier,
+        status=status,
+        source=source,
+        expires_at=expires_at,
+        activated_at=activated_at,
+        created_at=created_at,
+    )
 
 
 def _request_with_cookie(token: str) -> Request:
@@ -336,6 +346,62 @@ class TestDBLookupHelpers:
         assert result.tier is None
         assert session.closed is True
 
+    def test_compat_paid_expires_at_returns_none_for_non_manual_sources(self) -> None:
+        """Compatibility expiry must not apply outside legacy manual payment sources."""
+
+        subscription = _subscription_row(
+            tier="vip",
+            status="active",
+            source="ios_app_store",
+            expires_at=None,
+            activated_at=datetime.now(timezone.utc),
+        )
+
+        assert api_tiers_mod._compat_paid_expires_at(subscription, None) is None
+
+    def test_compat_paid_expires_at_returns_none_without_created_at(self) -> None:
+        """Legacy compat expiry must fail closed when created_at evidence is missing."""
+
+        subscription = _subscription_row(
+            tier="vip",
+            status="active",
+            source="swift_manual",
+            expires_at=None,
+            activated_at=datetime.now(timezone.utc),
+            created_at=None,
+        )
+
+        assert api_tiers_mod._compat_paid_expires_at(subscription, None) is None
+
+    def test_lookup_tier_from_db_rejects_invalid_legacy_manual_activated_at_type(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Malformed legacy manual activated_at values must fail closed."""
+
+        import core.db as core_db
+
+        session = _FakeSession()
+        monkeypatch.setattr(core_db, "get_session_factory", lambda: (lambda: session))
+        monkeypatch.setattr(
+            subscriptions_store,
+            "list_subscriptions_for_user",
+            lambda **_kwargs: [
+                _subscription_row(
+                    tier="vip",
+                    status="active",
+                    source="swift_manual",
+                    expires_at=None,
+                    activated_at="not-a-datetime",
+                )
+            ],
+        )
+
+        result = api_tiers_mod._lookup_tier_from_db("key")
+
+        assert result.status == DBLookupStatus.INVALID_TIER
+        assert result.tier is None
+        assert session.closed is True
+
     def test_lookup_tier_from_db_returns_parsed_tier(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test DB lookup returns parsed tier for valid active subscription state."""
         import core.db as core_db
@@ -345,7 +411,13 @@ class TestDBLookupHelpers:
         monkeypatch.setattr(
             subscriptions_store,
             "list_subscriptions_for_user",
-            lambda **_kwargs: [_subscription_row(tier="vip", status="active")],
+            lambda **_kwargs: [
+                _subscription_row(
+                    tier="vip",
+                    status="active",
+                    expires_at=datetime.now(timezone.utc) + timedelta(days=14),
+                )
+            ],
         )
         result = api_tiers_mod._lookup_tier_from_db("key")
         assert result.status == DBLookupStatus.HIT
@@ -385,7 +457,11 @@ class TestDBLookupHelpers:
             subscriptions_store,
             "list_subscriptions_for_user",
             lambda **_kwargs: [
-                _subscription_row(tier="vip", status="active"),
+                _subscription_row(
+                    tier="vip",
+                    status="active",
+                    expires_at=datetime.now(timezone.utc) + timedelta(days=14),
+                ),
                 _subscription_row(tier="not_a_tier", status="active"),
             ],
         )
