@@ -13,7 +13,11 @@ from fastapi import HTTPException, status
 from fastapi.concurrency import run_in_threadpool
 from fastapi.encoders import jsonable_encoder
 
-from app.middleware.api_tiers import derive_subject_id_from_api_key
+from app.middleware.api_tiers import (
+    SubscriptionTier,
+    derive_subject_id_from_api_key,
+    get_subscription_tier,
+)
 from app.schemas.fitchef import (
     FitChefCoachInsightResult,
     FitChefCoachInsightTaskEnvelope,
@@ -69,6 +73,40 @@ CBT_POLICY_ALLOWLIST = {
 }
 WeeklyPlanBuilder = Callable[..., Any]
 ShoppingFollowupBuilder = Callable[..., ShoppingListDTO]
+
+
+def _resolve_paid_runtime_tier(api_key: str) -> Literal["PRO", "VIP"]:
+    """Resolve the effective paid tier for PRO-accessible runtime surfaces.
+
+    RU: Возвращает фактический платный tier для runtime surface с PRO-доступом.
+    EN: Returns the effective paid tier for runtime surfaces that allow PRO access.
+    """
+
+    return "VIP" if get_subscription_tier(api_key) is SubscriptionTier.VIP else "PRO"
+
+
+def _require_llm_provider() -> Any:
+    """Return a usable LLM provider or fail closed with a stable 503.
+
+    RU: Возвращает валидный LLM provider или fail-closed с устойчивым 503.
+    EN: Returns a usable LLM provider or fails closed with a stable 503.
+    """
+
+    try:
+        from llm import get_provider
+    except ImportError:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="LLM provider not available",
+        ) from None
+
+    provider = get_provider()
+    if provider is None or not callable(getattr(provider, "generate", None)):
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="LLM provider not available",
+        )
+    return provider
 
 
 def _build_fitchef_reflection_query(summary: str, goal: str | None) -> str:
@@ -430,9 +468,7 @@ async def _run_fitchef_vip_text_task(
         ) from exc
 
     try:
-        from llm import get_provider
-
-        provider = get_provider()
+        provider = _require_llm_provider()
 
         allowed = await run_in_threadpool(
             attempt_consume_llm_monthly_quota,
@@ -565,8 +601,6 @@ async def _run_fitchef_structured_task(
 
     transparency_notice = get_transparency_registry().get("fitchef_structured_v1")
     if transparency_notice is None:
-        transparency_notice = get_transparency_registry().get("ai_generated_insight")
-    if transparency_notice is None:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="transparency_registry_unavailable",
@@ -604,9 +638,7 @@ async def _run_fitchef_structured_task(
         ) from exc
 
     try:
-        from llm import get_provider
-
-        provider = get_provider()
+        provider = _require_llm_provider()
         allowed = await run_in_threadpool(
             attempt_consume_llm_monthly_quota,
             config.api_key,
@@ -676,6 +708,7 @@ async def run_coach_insight_task(
     warnings: list[str] = []
     redaction_applied = False
     sanitization_applied = False
+    effective_tier = _resolve_paid_runtime_tier(api_key)
 
     try:
         await run_in_threadpool(
@@ -701,7 +734,7 @@ async def run_coach_insight_task(
         from core.rag.vector_rag import retrieve_context_structured
 
         with retrieval_span(
-            user_tier="PRO",
+            user_tier=effective_tier,
             route=endpoint,
             max_chunks=5,
             agent_id="cbt-agent",
@@ -711,7 +744,7 @@ async def run_coach_insight_task(
                 safe_query,
                 max_chunks=5,
                 agent_id="cbt-agent",
-                user_tier="PRO",
+                user_tier=effective_tier,
                 subject_id=derive_subject_id_from_api_key(api_key),
             )
             set_attributes(span, **{"pulseplate.rag.hops": rag_ctx.hops})
@@ -788,10 +821,11 @@ async def run_coach_insight_task(
         ) from exc
 
     try:
+        provider = _require_llm_provider()
         allowed = await run_in_threadpool(
             attempt_consume_llm_monthly_quota,
             api_key,
-            tier="PRO",
+            tier=effective_tier,
         )
         if not allowed:
             raise HTTPException(
@@ -799,13 +833,9 @@ async def run_coach_insight_task(
                 detail="quota_exceeded",
             )
         quota_state = "consumed"
-
-        from llm import get_provider
-
-        provider = get_provider()
         with llm_span(
             provider_name=getattr(provider, "name", "unknown"),
-            user_tier="PRO",
+            user_tier=effective_tier,
             route=endpoint,
             prompt_text=prompt,
         ) as span:
@@ -879,7 +909,7 @@ async def run_distortion_simulator_task(
             endpoint=task.input.endpoint,
             method=task.input.method,
             mode=task.mode,
-            tier="PRO",
+            tier=_resolve_paid_runtime_tier(task.input.api_key),
             rag_target="corpus://cbt-agent",
             agent_id="cbt-agent",
             prompt_builder=lambda rag_context: build_distortion_simulator_prompt(

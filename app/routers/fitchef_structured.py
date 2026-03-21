@@ -34,7 +34,7 @@ from app.services import fitchef_runtime
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(tags=["fitchef", "coaching", "structured"])
+router = APIRouter(tags=["pro", "fitchef", "coaching", "structured"])
 
 FITCHEF_STRUCTURED_FLAG_ENV = "FEATURE_FITCHEF_STRUCTURED_COACH"
 FITCHEF_STRUCTURED_EXECUTION_MODE_ENV = "FITCHEF_STRUCTURED_COACH_EXECUTION_MODE"
@@ -50,18 +50,21 @@ def _is_fitchef_structured_enabled() -> bool:
 def _require_fitchef_structured_mode() -> FitChefStructuredMode:
     """Resolve and validate the structured-coach execution mode."""
 
+    raw_execution_mode = os.getenv(FITCHEF_STRUCTURED_EXECUTION_MODE_ENV)
     try:
         execution_mode = cast(
             FitChefStructuredMode,
-            normalize_execution_mode(os.getenv(FITCHEF_STRUCTURED_EXECUTION_MODE_ENV)),
+            normalize_execution_mode(raw_execution_mode),
         )
-        require_execution_mode(execution_mode)
     except RuntimeError as exc:
         logger.error("FitChef structured execution mode misconfigured", exc_info=True)
         raise HTTPException(
             status_code=503,
             detail="agent_execution_mode_misconfigured",
         ) from exc
+
+    try:
+        require_execution_mode(execution_mode)
     except PermissionError:
         detail = f"agent_execution_{execution_mode.replace('-', '_')}"
         raise HTTPException(status_code=503, detail=detail)
@@ -76,7 +79,6 @@ def _require_fitchef_structured_mode() -> FitChefStructuredMode:
         400: {"description": "Unsafe AI input blocked", "model": FitChefCoachingErrorResponse},
         401: {"description": "API key required", "model": FitChefCoachingErrorResponse},
         403: {"description": "PRO tier required", "model": FitChefCoachingErrorResponse},
-        429: {"description": "Rate limit exceeded or monthly quota exhausted"},
         503: {
             "description": "Feature disabled or provider unavailable",
             "model": FitChefCoachingErrorResponse,

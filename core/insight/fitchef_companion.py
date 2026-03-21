@@ -541,9 +541,12 @@ def _extract_json_payload(raw_message: str) -> dict[str, object]:
 
     stripped = raw_message.strip()
     if stripped.startswith("```"):
-        stripped = stripped.strip("`")
-        if stripped.lower().startswith("json"):
-            stripped = stripped[4:].strip()
+        newline_index = stripped.find("\n")
+        if newline_index != -1:
+            stripped = stripped[newline_index + 1 :]
+            if stripped.endswith("```"):
+                stripped = stripped[:-3]
+            stripped = stripped.strip()
     if stripped.startswith("{") and stripped.endswith("}"):
         loaded = json.loads(stripped)
         if isinstance(loaded, dict):

@@ -213,12 +213,18 @@ def test_fitchef_slip_support_rate_limited_200_then_429() -> None:
     assert r3.json()["detail"] == expected_detail
 
 
-def test_fitchef_distortion_simulator_rate_limited_200_then_429() -> None:
+def test_fitchef_distortion_simulator_rate_limited_200_then_429(
+    pro_headers: dict[str, str],
+) -> None:
     """Test /api/v1/pro/fitchef/explain returns 200 twice, then 429."""
 
     app, _ = create_rate_limited_app()
     client = TestClient(app)
-    headers = {"accept-language": "en", "x-test-id": "fitchef-distortion"}
+    headers = {
+        **pro_headers,
+        "accept-language": "en",
+        "x-test-id": "fitchef-distortion",
+    }
     payload = {
         "situation": "late dessert",
         "automatic_thought": "I ruined the day",

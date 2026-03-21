@@ -59,34 +59,38 @@ class TestFitChefDistortionSimulatorRoute:
     @pytest.fixture(autouse=True)
     def setup(
         self,
-        client: TestClient,
+        app: FastAPI,
         pro_headers: dict[str, str],
+        vip_headers: dict[str, str],
         monkeypatch: pytest.MonkeyPatch,
         tmp_path: Path,
     ) -> None:
-        self.client = client
-        self.pro_headers = pro_headers
-        self.monkeypatch = monkeypatch
-        self.url = "/api/v1/pro/fitchef/explain"
-        self.monkeypatch.setenv("FEATURE_FITCHEF_STRUCTURED_COACH", "true")
-        self.monkeypatch.setenv("FITCHEF_STRUCTURED_COACH_EXECUTION_MODE", "auto-safe")
-        self.monkeypatch.setenv(
-            "AGENT_CONTROL_AUDIT_LOG_PATH",
-            str(tmp_path / "fitchef-structured-audit.jsonl"),
-        )
-        self.monkeypatch.setattr(
-            "app.services.fitchef_runtime.get_transparency_registry",
-            lambda: {
-                "fitchef_structured_v1": {
-                    "surface_id": "fitchef_structured_v1",
-                    "boundary": "Wellness coaching only.",
-                }
-            },
-        )
-        self.monkeypatch.setattr(
-            "core.rag.vector_rag.retrieve_context_structured",
-            lambda *args, **kwargs: _make_rag_context(),
-        )
+        with TestClient(app) as test_client:
+            self.client = test_client
+            self.pro_headers = pro_headers
+            self.vip_headers = vip_headers
+            self.monkeypatch = monkeypatch
+            self.url = "/api/v1/pro/fitchef/explain"
+            self.monkeypatch.setenv("FEATURE_FITCHEF_STRUCTURED_COACH", "true")
+            self.monkeypatch.setenv("FITCHEF_STRUCTURED_COACH_EXECUTION_MODE", "auto-safe")
+            self.monkeypatch.setenv(
+                "AGENT_CONTROL_AUDIT_LOG_PATH",
+                str(tmp_path / "fitchef-structured-audit.jsonl"),
+            )
+            self.monkeypatch.setattr(
+                "app.services.fitchef_runtime.get_transparency_registry",
+                lambda: {
+                    "fitchef_structured_v1": {
+                        "surface_id": "fitchef_structured_v1",
+                        "boundary": "Wellness coaching only.",
+                    }
+                },
+            )
+            self.monkeypatch.setattr(
+                "core.rag.vector_rag.retrieve_context_structured",
+                lambda *args, **kwargs: _make_rag_context(),
+            )
+            yield
 
     def test_missing_api_key_returns_401(self) -> None:
         """Structured PRO route must reject missing auth."""
@@ -291,11 +295,50 @@ class TestFitChefDistortionSimulatorRoute:
         assert cast(list[str], data["sources"]) == []
         assert isinstance(data["balanced_reframe"], str)
 
+    def test_vip_caller_uses_vip_quota_bucket_on_pro_route(self) -> None:
+        """VIP callers on a PRO route must keep VIP quota accounting."""
+
+        quota_tiers: list[str] = []
+        mock_provider = MagicMock()
+        mock_provider.generate.return_value = """
+        {
+          "distortion_labels": ["all_or_nothing_thinking"],
+          "why_it_matches": "The thought turns one dessert into a total-day verdict.",
+          "evidence_for": ["Dessert happened and the guilt feels real."],
+          "evidence_against": ["One dessert does not define the full day."],
+          "balanced_reframe": "This was one moment, not the whole pattern.",
+          "next_small_action": "Choose one balanced next meal."
+        }
+        """
+
+        def _track_quota(_api_key: str, *, tier: str) -> bool:
+            quota_tiers.append(tier)
+            return True
+
+        self.monkeypatch.setattr(
+            "app.services.fitchef_runtime.attempt_consume_llm_monthly_quota",
+            _track_quota,
+        )
+        self.monkeypatch.setattr("llm.get_provider", lambda: mock_provider)
+
+        response = self.client.post(
+            self.url,
+            json={
+                "situation": "I ate dessert after dinner",
+                "automatic_thought": "I ruined the whole day",
+                "emotion": "guilt",
+            },
+            headers=self.vip_headers,
+        )
+
+        assert response.status_code == 200
+        assert quota_tiers == ["VIP"]
+
     def test_openapi_documents_distortion_simulator_contract(self) -> None:
         """OpenAPI must expose the structured PRO route and its key responses."""
 
         response = self.client.get("/openapi.json")
-        schema = response.json()
+        schema = _json_body(response)
         responses = schema["paths"][self.url]["post"]["responses"]
         assert {"200", "400", "403", "429", "503", "504"} <= set(responses)
         assert (
@@ -548,6 +591,28 @@ class TestFitChefStructuredRuntimeCoverage:
         assert exc_info.value.detail == "transparency_registry_incomplete"
 
     @pytest.mark.asyncio
+    async def test_runtime_missing_structured_notice_does_not_fallback(self) -> None:
+        """Structured runtime must not fall back to the generic transparency notice."""
+
+        from app.services import fitchef_runtime
+
+        self.monkeypatch.setattr(
+            "app.services.fitchef_runtime.get_transparency_registry",
+            lambda: {
+                "ai_generated_insight": {
+                    "surface_id": "ai_generated_insight",
+                    "boundary": "Wellness coaching only.",
+                }
+            },
+        )
+
+        with pytest.raises(HTTPException) as exc_info:
+            await fitchef_runtime.run_distortion_simulator_task(self._distortion_task())
+
+        assert exc_info.value.status_code == 503
+        assert exc_info.value.detail == "transparency_registry_unavailable"
+
+    @pytest.mark.asyncio
     async def test_runtime_llm_gate_failure_returns_503(self) -> None:
         """Structured runtime must fail closed on LLM audit-gate errors."""
 
@@ -649,6 +714,31 @@ class TestFitChefStructuredRuntimeCoverage:
             "llm.get_provider",
             lambda: (_ for _ in ()).throw(ImportError("provider missing")),
         )
+
+        with pytest.raises(HTTPException) as exc_info:
+            await fitchef_runtime.run_distortion_simulator_task(self._distortion_task())
+
+        assert exc_info.value.status_code == 503
+        assert exc_info.value.detail == "LLM provider not available"
+        assert quota_calls == []
+
+    @pytest.mark.asyncio
+    async def test_runtime_provider_none_returns_503_without_quota_debit(self) -> None:
+        """A missing configured provider must fail before quota consumption."""
+
+        from app.services import fitchef_runtime
+
+        quota_calls: list[str] = []
+
+        self.monkeypatch.setattr(
+            "core.rag.vector_rag.retrieve_context_structured",
+            lambda *args, **kwargs: _make_rag_context(),
+        )
+        self.monkeypatch.setattr(
+            "app.services.fitchef_runtime.attempt_consume_llm_monthly_quota",
+            lambda *args, **kwargs: quota_calls.append("quota") or True,
+        )
+        self.monkeypatch.setattr("llm.get_provider", lambda: None)
 
         with pytest.raises(HTTPException) as exc_info:
             await fitchef_runtime.run_distortion_simulator_task(self._distortion_task())
