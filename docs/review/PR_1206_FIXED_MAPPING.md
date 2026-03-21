@@ -19,7 +19,7 @@
   - no product runtime or API behavior changes
 - Local validation executed on this lane:
   - `python3 scripts/orchestration/check_preflight.py --mode analyze --path .github/workflows/ci.yml --path .github/workflows/build.yml --path .github/workflows/cd.yml --path .github/workflows/pr-tests.yml --path .github/workflows/pr-coverage.yml --path .github/actions/python-setup/action.yml`
-  - `python3 scripts/orchestration/check_preflight.py --mode execute --path .github/workflows/ci.yml --path .github/workflows/build.yml --path .github/workflows/cd.yml --path .github/workflows/pr-tests.yml --path .github/workflows/pr-coverage.yml --path .github/workflows/accessibility.yml --path .github/workflows/frontend-ci.yml --path .github/workflows/nightly-tests.yml --path .github/workflows/nightly.yml --path .github/actions/python-setup/action.yml --path github/actions/python-setup/action.yml --primary agent-coordinator --reviewer security-auditor`
+  - `python3 scripts/orchestration/check_preflight.py --mode execute --path .github/workflows/ci.yml --path .github/workflows/build.yml --path .github/workflows/cd.yml --path .github/workflows/pr-tests.yml --path .github/workflows/pr-coverage.yml --path .github/workflows/accessibility.yml --path .github/workflows/frontend-ci.yml --path .github/workflows/nightly-tests.yml --path .github/workflows/nightly.yml --path .github/actions/python-setup/action.yml --primary agent-coordinator --reviewer security-auditor`
   - `pre-commit run --all-files`
   - `make verify`
 - Required before merge:
