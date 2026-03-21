@@ -46,10 +46,10 @@ to `.github/workflows/cd.yml`:
   `linux/amd64`, uses `cache-to: ...mode=min,ignore-error=true`, and sets
   `provenance: false` for publish.
 - `.github/workflows/cd.yml:73`, `.github/workflows/cd.yml:80`,
-  `.github/workflows/cd.yml:84` align the staging CD image build with the same
+  `.github/workflows/cd.yml:85` align the staging CD image build with the same
   cache/provenance workaround profile.
-- `.github/workflows/cd.yml:260`, `.github/workflows/cd.yml:268`,
-  `.github/workflows/cd.yml:272` align the production CD image build with the
+- `.github/workflows/cd.yml:261`, `.github/workflows/cd.yml:269`,
+  `.github/workflows/cd.yml:274` align the production CD image build with the
   same cache/provenance workaround profile.
 
 ## Exit Criteria / Definition of Done
