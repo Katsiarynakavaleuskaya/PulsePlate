@@ -7,13 +7,17 @@
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1208#discussion_r2969313278 -> `34fff143`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1208#discussion_r2969313279 -> `34fff143`
+- No other actionable review comments currently.
 
 ## Merge Readiness
 
-- Status: draft / not ready to merge.
+- Status: ready for review / not ready to merge.
 - Current packet commits:
   - `cd3a3752` — `feat: add fitchef judgment offline eval`
+  - `0e28d2ae` — `docs(pr): scaffold pr 1208 governance`
+  - `34fff143` — `fix: address sourcery judgment review`
 - Current scope discipline:
   - offline eval contract, deterministic evaluator, fixture pack, and safety-validator hardening only
   - no public FitChef route changes
