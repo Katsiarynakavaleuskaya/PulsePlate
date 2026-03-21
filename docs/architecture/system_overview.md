@@ -97,6 +97,10 @@ Historical ADR: `docs/architecture/ADR-002-openapi-schema-only-mode.md` (superse
   - LLM/exports endpoints must be rate-limited and have deterministic 429 tests; rate limiting is proxy-aware and privacy-friendly.
 - **AI bounded-context entry seam**
   - `/api/v1/insight` and `/insight` remain legacy compatibility endpoints, but runtime preparation/provider selection now enters through `core/ai/*` while traced execution stays in `app/services/*`.
+  - Evidence:
+    - `legacy_app.py:2251-2275`
+    - `core/ai/insight_runtime.py:142-187`
+    - `app/services/insight_application_service.py:35-94`
 
 ## Maintenance rule
 

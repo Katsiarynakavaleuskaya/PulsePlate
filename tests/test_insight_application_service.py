@@ -2,13 +2,29 @@
 
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from types import SimpleNamespace
+from typing import Any
 
 import pytest
 
 from app.services.insight_application_service import execute_insight_request
 from core.ai.insight_runtime import InsightTransparencyNotice
+from core.insight.llm_provider_loader import LLMProvider
+
+
+class _FakeProvider:
+    """Minimal provider stub matching the insight runtime protocol.
+
+    RU: Минимальный provider stub для типобезопасного тестового seams.
+    EN: Minimal provider stub for type-safe testing seams.
+    """
+
+    name: str = "fake-provider"
+
+    def generate(self, prompt: str) -> Awaitable[str]:
+        raise RuntimeError(f"Unexpected provider.generate call for prompt={prompt!r}")
 
 
 @pytest.mark.asyncio
@@ -17,7 +33,7 @@ async def test_execute_insight_request_uses_injected_dependencies(
 ) -> None:
     """Service must preserve injected patch-points and response mapping."""
 
-    observed: dict[str, object] = {}
+    observed: dict[str, Any] = {}
 
     @dataclass
     class _Request:
@@ -26,13 +42,17 @@ async def test_execute_insight_request_uses_injected_dependencies(
     def _input_guard(text: str) -> None:
         observed["guard_text"] = text
 
-    def _provider_loader() -> object:
+    def _provider_loader() -> LLMProvider:
         observed["provider_loader_called"] = True
-        return object()
+        return _FakeProvider()
 
     def _transparency_loader() -> tuple[str, str]:
         observed["transparency_loader_called"] = True
         return ("ai_generated_insight", "Wellness only.")
+
+    def _direct_provider_factory() -> LLMProvider:
+        observed["direct_provider_factory_called"] = True
+        return _FakeProvider()
 
     def _response_factory(**payload: object) -> dict[str, object]:
         observed["response_payload"] = payload
@@ -95,6 +115,7 @@ async def test_execute_insight_request_uses_injected_dependencies(
         input_guard=_input_guard,
         provider_loader=_provider_loader,
         transparency_loader=_transparency_loader,
+        direct_provider_factory=_direct_provider_factory,
         response_factory=_response_factory,
         source_item_factory=_source_item_factory,
     )
@@ -107,6 +128,7 @@ async def test_execute_insight_request_uses_injected_dependencies(
         "philosophy_linguistic_enabled": False,
         "provider_loader": _provider_loader,
         "transparency_loader": _transparency_loader,
+        "direct_provider_factory": _direct_provider_factory,
     }
     assert observed["generate_kwargs"]["subject_id"] == 123
     assert observed["generate_kwargs"]["route_path"] == "/api/v1/insight"

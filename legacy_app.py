@@ -2269,6 +2269,7 @@ async def _execute_insight_request(
             input_guard=require_safe_ai_agent_input,
             provider_loader=_load_insight_provider,
             transparency_loader=_require_ai_generated_insight_notice,
+            direct_provider_factory=_DirectInsightProviderStub,
             response_factory=InsightResponse,
             source_item_factory=RAGSourceItem,
         ),

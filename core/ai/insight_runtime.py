@@ -10,9 +10,13 @@ AI runtime preparation behind a stable bounded-context package.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Callable, Mapping
+from typing import Callable, Mapping
 
-from core.insight.llm_provider_loader import load_llm_get_provider
+from core.insight.llm_provider_loader import (
+    LLMProvider,
+    LLMProviderFactory,
+    load_llm_get_provider,
+)
 from core.insight.philosophical_runtime import PhilosophicalRuntime, RouteDecision
 
 
@@ -38,14 +42,14 @@ class PreparedInsightRuntime:
 
     runtime: PhilosophicalRuntime
     decision: RouteDecision
-    provider: Any
+    provider: LLMProvider
     transparency_notice: InsightTransparencyNotice
 
 
 class DirectInsightProviderStub:
     """Provider stub used when the runtime can answer locally without an LLM call."""
 
-    name = "philosophical_runtime"
+    name: str = "philosophical_runtime"
 
     async def generate(self, text: str) -> str:
         raise RuntimeError("Direct runtime route must not call provider.generate")
@@ -53,8 +57,8 @@ class DirectInsightProviderStub:
 
 def load_insight_provider(
     *,
-    provider_factory_loader: Callable[[], Callable[[], Any | None]] | None = None,
-) -> Any:
+    provider_factory_loader: Callable[[], LLMProviderFactory] | None = None,
+) -> LLMProvider:
     """Load configured LLM provider while preserving lazy import behavior."""
 
     if provider_factory_loader is None:
@@ -65,7 +69,10 @@ def load_insight_provider(
     except Exception as exc:  # pragma: no cover - covered via legacy/service tests
         raise InsightProviderLoadError("LLM module is not available") from exc
 
-    provider = get_provider()
+    try:
+        provider = get_provider()
+    except Exception as exc:  # pragma: no cover - covered via legacy/service tests
+        raise InsightProviderLoadError("LLM provider initialization failed") from exc
     if provider is None:
         raise InsightProviderLoadError("No LLM provider configured")
     return provider
@@ -105,16 +112,42 @@ def require_ai_generated_insight_notice(
     )
 
 
+def _coerce_transparency_notice(
+    loaded_notice: tuple[str, str] | InsightTransparencyNotice,
+) -> InsightTransparencyNotice:
+    """Normalize custom transparency-loader output into the canonical notice."""
+
+    if isinstance(loaded_notice, InsightTransparencyNotice):
+        return loaded_notice
+
+    try:
+        surface_id, boundary = loaded_notice
+    except Exception as exc:
+        raise InsightTransparencyUnavailableError("transparency_registry_unavailable") from exc
+
+    if (
+        not isinstance(surface_id, str)
+        or not surface_id
+        or not isinstance(boundary, str)
+        or not boundary
+    ):
+        raise InsightTransparencyUnavailableError("transparency_registry_unavailable")
+
+    return InsightTransparencyNotice(
+        surface_id=surface_id,
+        wellness_boundary=boundary,
+    )
+
+
 def prepare_insight_runtime(
     *,
     text: str,
     use_rag: bool,
     philosophy_router_enabled: bool,
     philosophy_linguistic_enabled: bool,
-    provider_loader: Callable[[], Any] | None = None,
-    transparency_loader: (
-        Callable[[], tuple[str, str]] | Callable[[], InsightTransparencyNotice] | None
-    ) = None,
+    provider_loader: Callable[[], LLMProvider | None] | None = None,
+    transparency_loader: Callable[[], tuple[str, str] | InsightTransparencyNotice] | None = None,
+    direct_provider_factory: Callable[[], LLMProvider] | None = None,
 ) -> PreparedInsightRuntime:
     """Prepare runtime, route decision, provider, and transparency metadata.
 
@@ -134,20 +167,15 @@ def prepare_insight_runtime(
     if transparency_loader is None:
         transparency_notice = require_ai_generated_insight_notice()
     else:
-        loaded_notice = transparency_loader()
-        if isinstance(loaded_notice, InsightTransparencyNotice):
-            transparency_notice = loaded_notice
-        else:
-            surface_id, boundary = loaded_notice
-            transparency_notice = InsightTransparencyNotice(
-                surface_id=surface_id,
-                wellness_boundary=boundary,
-            )
+        transparency_notice = _coerce_transparency_notice(transparency_loader())
 
     if decision.needs_generation:
         provider = load_insight_provider() if provider_loader is None else provider_loader()
+        if provider is None:
+            raise InsightProviderLoadError("No LLM provider configured")
     else:
-        provider = DirectInsightProviderStub()
+        provider_factory = direct_provider_factory or DirectInsightProviderStub
+        provider = provider_factory()
 
     return PreparedInsightRuntime(
         runtime=runtime,

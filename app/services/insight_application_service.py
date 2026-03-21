@@ -19,6 +19,8 @@ from app.utils.feature_flags import (
     is_philosophy_validation_enabled,
     is_recursive_rag_enabled,
 )
+from core.ai.insight_runtime import InsightTransparencyNotice
+from core.insight.llm_provider_loader import LLMProvider
 from core.ai import prepare_insight_runtime
 
 INSIGHT_TEXT_MAX_LENGTH = 2000
@@ -37,8 +39,9 @@ async def execute_insight_request(
     user_tier: str,
     subject_id: int | None = None,
     input_guard: Callable[[str], object],
-    provider_loader: Callable[[], Any],
-    transparency_loader: Callable[[], tuple[str, str]],
+    provider_loader: Callable[[], LLMProvider | None],
+    transparency_loader: Callable[[], tuple[str, str] | InsightTransparencyNotice],
+    direct_provider_factory: Callable[[], LLMProvider] | None = None,
     response_factory: Callable[..., Any],
     source_item_factory: Callable[..., Any],
 ) -> Any:
@@ -57,6 +60,7 @@ async def execute_insight_request(
         philosophy_linguistic_enabled=philosophy_linguistic_enabled,
         provider_loader=provider_loader,
         transparency_loader=transparency_loader,
+        direct_provider_factory=direct_provider_factory,
     )
 
     runtime_result = await generate_traced_insight(
