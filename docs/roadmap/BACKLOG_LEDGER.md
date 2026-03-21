@@ -290,6 +290,27 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 
 ### P1
 
+<a id="ledger-p1-business-wave-runtime-follow-through"></a>
+- [ ] P1: Business wave runtime follow-through after governance/docs foundation
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-BUSINESS-WAVE-RUNTIME-FOLLOW-THROUGH
+  - Area: business / runtime / governance carryover
+  - Reason: The governance-first business wave intentionally avoids mutating `app/routers/business.py` and `core/business_bayesian_analyzer.py` in the first pass. A dedicated follow-up PR must audit runtime completeness, contract posture, any promotion from internal analyzer surfaces to broader business workflows, and any executive document layer that duplicates facts already owned by `docs/audience_pack/*`.
+  - Links:
+    - `docs/orchestration/BUSINESS_WAVE_PR_SERIES_RUNBOOK.md`
+    - `docs/orchestration/BUSINESS_WAVE_TASK_PACKET_2026-03-21.md`
+    - `docs/library/brainstorm/2026-03-21_business-wave-b2b-collateral.md`
+    - `docs/audience_pack/README.md`
+    - `docs/executive/PR_PORTFOLIO_BRIEF_DIRECTORS_2026-03.md`
+    - `app/routers/business.py`
+    - `core/business_bayesian_analyzer.py`
+  - DoD:
+    - Runtime business analyzer completeness is audited against the governance/business-line SoT
+    - Any missing runtime/business contracts are either implemented or explicitly deferred with ledger proof
+    - No client-side or external-facing business automation path is introduced without reviewed runtime contract evidence
+    - Any executive document layer that rephrases `docs/audience_pack/*` is either eliminated, linked back to canon, or explicitly deferred with ledger proof
+
 <a id="ledger-p1-pr1185-cubic-activation-contract"></a>
 - [ ] P1: PR #1185 Cubic activation contract refinements (deferred)
   - Owner: @katsiaryna_kavaleuskaya
