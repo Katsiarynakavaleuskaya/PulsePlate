@@ -123,6 +123,8 @@ or `figma_make`; Tokens Studio does not become a separate source lane.
 - HTML/browser preview is allowed only as a derived review surface generated
   from `pulseplate_canvas_v1`; it must remain read-only and must not become a
   second topology source
+- preview metadata must remain manifest-safe and repo-relative; absolute local
+  filesystem paths must not become part of the tracked contract
 - live external adapters are future work and must preserve the same instruction
   and manifest contract
 

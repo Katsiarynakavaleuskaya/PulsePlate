@@ -118,6 +118,21 @@
     "Color.surface",
     "Color.accentGreen"
   ],
+  "interaction_contract": {
+    "interaction_mode": "review_and_inspect",
+    "checkpoint_policy": "export_and_recovery_gates",
+    "adaptation_scope": [
+      "copy",
+      "layout",
+      "modality",
+      "order_of_disclosure"
+    ],
+    "modality_hints": [
+      "visual",
+      "text"
+    ],
+    "explanation_strategy": "inline_rationale"
+  },
   "governance_checks": [
     "verify_token_usage",
     "verify_hpp_compliance",

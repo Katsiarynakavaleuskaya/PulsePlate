@@ -284,6 +284,8 @@ def verify_screen(screen_id: str, manifest: dict[str, Any]) -> dict[str, Any]:
                 output_path = str(preview_artifact.get("output_path", "")).strip()
                 if not output_path:
                     preview_errors.append("preview output_path must be non-empty")
+                elif Path(output_path).is_absolute():
+                    preview_errors.append("preview output_path must be repo-relative")
 
                 expected_preview_counts = {
                     "section_count": len(instruction.get("sections", [])),

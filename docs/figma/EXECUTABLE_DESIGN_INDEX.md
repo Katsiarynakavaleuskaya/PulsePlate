@@ -22,6 +22,7 @@ python scripts/design/execute_design.py --screen ios.home --validate-only
 python scripts/design/execute_design.py --screen ios.home --execute
 
 # Execute and emit governed HTML preview from pulseplate_canvas_v1
+# The preview lane auto-selects `code_native_canvas` when needed.
 python scripts/design/execute_design.py --screen ios.home --execute --emit-preview
 
 # Or render preview directly from manifest/canvas artifact
@@ -132,6 +133,7 @@ python scripts/design/execute_design.py --screen <screen_id> --execute
 python scripts/design/verify_design.py --screen <screen_id>
 
 # Generate or refresh HTML preview
+# The preview metadata stays repo-relative under artifacts/design_previews/.
 python scripts/design/execute_design.py --screen <screen_id> --execute --emit-preview
 
 # Check manifest

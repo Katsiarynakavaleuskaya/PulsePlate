@@ -34,6 +34,7 @@ from scripts.design.html_preview import HtmlPreviewArtifact, write_html_preview
 
 # Project root for resolving paths
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+PREVIEW_REQUIRED_ADAPTER = "code_native_canvas"
 
 
 def load_instruction(screen_id: str) -> dict[str, Any]:
@@ -130,6 +131,26 @@ def generate_preview_artifact(
     preview_artifact = write_html_preview(screen_id, canvas_artifact, output_path)
     results["preview_artifact"] = preview_artifact
     return preview_artifact
+
+
+def resolve_runtime_adapter(
+    adapter_name: str,
+    *,
+    emit_preview: bool,
+) -> tuple[str, str | None]:
+    """Normalize CLI adapter selection for governed preview execution."""
+
+    if not emit_preview or adapter_name == PREVIEW_REQUIRED_ADAPTER:
+        return adapter_name, None
+
+    if adapter_name == "deterministic_stub":
+        return (
+            PREVIEW_REQUIRED_ADAPTER,
+            "Preview requires code_native_canvas; auto-selecting code_native_canvas "
+            "for preview emission.",
+        )
+
+    raise ValueError(f"HTML preview requires {PREVIEW_REQUIRED_ADAPTER}; got {adapter_name}")
 
 
 def update_manifest(screen_id: str, results: dict[str, Any]) -> None:
@@ -274,9 +295,21 @@ def main() -> int:
         print("\nUse --execute to run via the selected adapter (currently simulated)")
         return 0
 
+    try:
+        adapter_name, adapter_notice = resolve_runtime_adapter(
+            args.adapter,
+            emit_preview=args.emit_preview,
+        )
+    except ValueError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 1
+
+    if adapter_notice:
+        print(f"\n{adapter_notice}")
+
     # Execute (currently simulated)
     print("\nExecuting design instructions...")
-    results = execute_instruction(instruction, args.adapter)
+    results = execute_instruction(instruction, adapter_name)
 
     print("\nExecution results:")
     print(f"  Status: {results.get('status')}")

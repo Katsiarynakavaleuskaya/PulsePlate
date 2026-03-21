@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -110,6 +111,30 @@ def test_validate_governance_rejects_missing_contract_fields() -> None:
     errors = execute_design.validate_governance(instruction)
 
     assert any("Missing required instruction field" in error for error in errors)
+
+
+def test_checked_in_instruction_inventory_passes_governance() -> None:
+    for screen_id in sorted(generate_figma_instructions.PAGE_MAPPING):
+        errors = execute_design.validate_governance(execute_design.load_instruction(screen_id))
+        assert not errors, f"{screen_id}: {errors}"
+
+
+def test_execute_design_main_validate_only_accepts_checked_in_inventory(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["execute_design.py", "--screen", "ios.home", "--validate-only"],
+    )
+
+    exit_code = execute_design.main()
+    captured = capsys.readouterr()
+
+    assert exit_code == 0
+    assert "Governance validation: PASSED" in captured.out
+    assert captured.err == ""
 
 
 def test_update_manifest_records_surface_and_layout_pattern(
@@ -558,6 +583,7 @@ def test_generate_preview_artifact_updates_manifest(
     result = execute_design.execute_instruction(payload, "code_native_canvas")
     preview_output = tmp_path / "artifacts" / "design_previews" / "web_progress.html"
 
+    monkeypatch.setattr(html_preview, "PROJECT_ROOT", tmp_path)
     execute_design.generate_preview_artifact(
         "web.progress",
         result,
@@ -570,7 +596,9 @@ def test_generate_preview_artifact_updates_manifest(
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     export = manifest["exports"][0]
     assert export["preview_artifact"]["preview_version"] == "pulseplate_html_preview_v1"
-    assert export["preview_artifact"]["output_path"] == str(preview_output)
+    assert (
+        export["preview_artifact"]["output_path"] == "artifacts/design_previews/web_progress.html"
+    )
     assert preview_output.exists()
 
 
@@ -587,6 +615,7 @@ def test_verify_screen_accepts_preview_artifact_metadata(
 
     result = execute_design.execute_instruction(payload, "code_native_canvas")
     preview_output = tmp_path / "artifacts" / "design_previews" / "web_progress.html"
+    monkeypatch.setattr(html_preview, "PROJECT_ROOT", tmp_path)
     execute_design.generate_preview_artifact(
         "web.progress",
         result,
@@ -624,6 +653,90 @@ def test_verify_screen_accepts_preview_artifact_metadata(
         check["check"] == "preview_artifact" and check["status"] == "pass"
         for check in verification["checks"]
     )
+
+
+def test_verify_screen_rejects_absolute_preview_artifact_path(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    instruction_path = tmp_path / "scripts" / "design" / "instructions" / "web_progress.json"
+    instruction_path.parent.mkdir(parents=True)
+    payload = generate_figma_instructions.instruction_to_dict(
+        generate_figma_instructions.generate_screen_instruction("web.progress")
+    )
+    instruction_path.write_text(json.dumps(payload), encoding="utf-8")
+
+    result = execute_design.execute_instruction(payload, "code_native_canvas")
+    preview_artifact = {
+        "preview_version": "pulseplate_html_preview_v1",
+        "screen_id": "web.progress",
+        "output_path": str(tmp_path / "artifacts" / "design_previews" / "web_progress.html"),
+        "section_count": len(payload["sections"]),
+        "node_count": len(payload["component_hierarchy"]),
+        "render_op_count": len(payload["instructions"]),
+        "interaction_mode": payload["interaction_contract"]["interaction_mode"],
+    }
+    manifest = {
+        "exports": [
+            {
+                "screen_id": "web.progress",
+                "status": result["status"],
+                "surface": result["surface"],
+                "layout_archetype": result["layout_archetype"],
+                "layout_pattern": result["layout_pattern"],
+                "interaction_contract": result["interaction_contract"],
+                "section_count": result["section_count"],
+                "adapter_name": result["adapter_name"],
+                "adapter_mode": result["adapter_mode"],
+                "artifact_type": result["artifact_type"],
+                "artifact_version": result["artifact_version"],
+                "node_count": len(result["created_nodes"]),
+                "component_count": result["component_count"],
+                "nodes": result["created_nodes"],
+                "canvas_artifact": result["canvas_artifact"],
+                "preview_artifact": preview_artifact,
+            }
+        ]
+    }
+
+    monkeypatch.setattr(verify_design, "PROJECT_ROOT", tmp_path)
+    verification = verify_design.verify_screen("web.progress", manifest)
+
+    assert any(
+        check["check"] == "preview_artifact" and check["status"] == "fail"
+        for check in verification["checks"]
+    )
+    assert "preview output_path must be repo-relative" in verification["errors"]
+
+
+def test_execute_design_main_emit_preview_auto_selects_code_native_canvas(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    payload = generate_figma_instructions.instruction_to_dict(
+        generate_figma_instructions.generate_screen_instruction("web.progress")
+    )
+
+    monkeypatch.setattr(execute_design, "load_instruction", lambda _screen_id: payload)
+    monkeypatch.setattr(execute_design, "log_execution", lambda _screen_id, _results: None)
+    monkeypatch.setattr(execute_design, "update_manifest", lambda _screen_id, _results: None)
+    monkeypatch.setattr(html_preview, "PROJECT_ROOT", tmp_path)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["execute_design.py", "--screen", "web.progress", "--execute", "--emit-preview"],
+    )
+
+    exit_code = execute_design.main()
+    captured = capsys.readouterr()
+    preview_path = tmp_path / "artifacts" / "design_previews" / "web_progress.html"
+
+    assert exit_code == 0
+    assert "auto-selecting code_native_canvas" in captured.out
+    assert "Adapter: code_native_canvas (artifact_emit)" in captured.out
+    assert "HTML preview: artifacts/design_previews/web_progress.html" in captured.out
+    assert preview_path.exists()
 
 
 def test_validate_governance_rejects_invalid_hierarchy_payload() -> None:

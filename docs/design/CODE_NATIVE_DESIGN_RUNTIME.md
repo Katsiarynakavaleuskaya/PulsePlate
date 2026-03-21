@@ -121,6 +121,9 @@ Manifest-safe metadata for `code_native_canvas` must also record:
 - `preview_artifact` when HTML preview generation is enabled. Evidence:
   `scripts/design/execute_design.py:149`,
   `scripts/design/verify_design.py:317`
+- `preview_artifact.output_path` as a repo-relative local artifact path, not an
+  absolute workstation path. Evidence: `scripts/design/html_preview.py:37`,
+  `scripts/design/verify_design.py:284`
 
 ## 5. Non-goals for current phase
 

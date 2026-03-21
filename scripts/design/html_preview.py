@@ -38,6 +38,25 @@ def default_preview_output_path(screen_id: str) -> Path:
     return PROJECT_ROOT / "artifacts" / "design_previews" / f"{screen_id.replace('.', '_')}.html"
 
 
+def _resolve_preview_paths(screen_id: str, output_path: Path | None) -> tuple[Path, str]:
+    """Return absolute write path plus manifest-safe repo-relative metadata path."""
+
+    project_root = PROJECT_ROOT.resolve()
+    candidate_output_path = output_path or default_preview_output_path(screen_id)
+    if not candidate_output_path.is_absolute():
+        candidate_output_path = project_root / candidate_output_path
+
+    resolved_output_path = candidate_output_path.resolve()
+    try:
+        manifest_output_path = resolved_output_path.relative_to(project_root).as_posix()
+    except ValueError as exc:
+        raise ValueError(
+            "HTML preview output must stay within the repo root for manifest-safe metadata"
+        ) from exc
+
+    return resolved_output_path, manifest_output_path
+
+
 def _html_list_item(label: str, value: str) -> str:
     return (
         f'<li><span class="label">{html.escape(label)}</span>'
@@ -295,7 +314,7 @@ def write_html_preview(
 ) -> HtmlPreviewArtifact:
     """Write one deterministic HTML preview artifact to a local-only path."""
 
-    resolved_output_path = output_path or default_preview_output_path(screen_id)
+    resolved_output_path, manifest_output_path = _resolve_preview_paths(screen_id, output_path)
     resolved_output_path.parent.mkdir(parents=True, exist_ok=True)
     html_preview = render_html_preview(canvas_artifact)
     resolved_output_path.write_text(html_preview, encoding="utf-8")
@@ -304,7 +323,7 @@ def write_html_preview(
     return {
         "preview_version": HTML_PREVIEW_VERSION,
         "screen_id": screen_id,
-        "output_path": str(resolved_output_path),
+        "output_path": manifest_output_path,
         "section_count": len(cast(list[dict[str, Any]], canvas_artifact["sections"])),
         "node_count": len(cast(list[dict[str, Any]], canvas_artifact["nodes"])),
         "render_op_count": len(cast(list[dict[str, Any]], canvas_artifact["render_ops"])),
