@@ -147,12 +147,34 @@ Disposition: NOT-A-BUG
 Evidence: `docs/review/PR_1210_FIXED_MAPPING.md:8`, `docs/figma/EXECUTABLE_DESIGN_INDEX.md:135`
 Reason: this follow-up CodeRabbit review is an aggregate shell for the preview-command comment already fixed on `discussion_r2969557257`.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1210#pullrequestreview-3986056610
+Disposition: NOT-A-BUG
+Evidence: `tests/AGENTS.md:10`, `tests/AGENTS.md:13`, `docs/library/decisions/ADR_DESIGN_AGENT_RUNTIME_PR_CHAIN_2026-03-21.md:17`
+Reason: the latest CodeRabbit review requests optional maintainability improvements (test payload factory extraction and ADR exit-criteria expansion), but it does not identify a correctness defect in the merged runtime hardening; the current tests remain isolated and deterministic, and the ADR already records the bounded staged rollout for this initiative.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1210#pullrequestreview-3986058811 -> a86c6618
+Disposition: FIXED
+Commit: a86c6618
+Evidence: `docs/design/CODE_NATIVE_DESIGN_RUNTIME.md:106`, `docs/design/CODE_NATIVE_DESIGN_RUNTIME.md:115`, `docs/design/CODE_NATIVE_DESIGN_RUNTIME.md:119`, `scripts/design/contracts.py:120`, `scripts/design/execute_design.py:194`, `scripts/design/verify_design.py:308`
+Reason: cubic found three stale evidence anchors in the runtime documentation; the follow-up docs fix retargets `render_ops`, `section_count`, and preview `interaction_contract` references to the current source lines.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1210#issuecomment-4103200561
+Disposition: NOT-A-BUG
+Evidence: `AGENTS.md:8`, `AGENTS.md:136`, `RUNBOOK_AGENT.md:128`
+Reason: CodeRabbit's summary issue comment is advisory and does not add an independent merge-blocking action beyond the concrete inline review items already dispositioned in this artifact.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1210#issuecomment-4103200686
+Disposition: NOT-A-BUG
+Evidence: `scripts/design/execute_design.py:117`, `scripts/design/execution_adapters.py:36`, `docs/review/PR_1210_FIXED_MAPPING.md:33`
+Reason: Sourcery's summary issue comment duplicates already-tracked themes; the preview hardening was fixed in code, and the remaining type-centralization suggestion is architectural follow-up rather than a correctness bug for this PR.
+
 ## Merge Readiness
 - Review status: in progress; canonical mapping is now recorded, strict PR governance re-check and thread resolution remain pending on pushed head.
 - Merge status: not ready to merge yet.
 - Current fix commits:
   - `928e211a` — `fix(design-runtime): repair preview inventory flow`
   - `cfaa619c` — `fix(design-runtime): close review hardening gaps`
+  - `a86c6618` — `docs(design-runtime): correct evidence anchors`
 - Current scope discipline:
   - design-agent runtime hardening only
   - preview generation / verification fail-closed behavior
