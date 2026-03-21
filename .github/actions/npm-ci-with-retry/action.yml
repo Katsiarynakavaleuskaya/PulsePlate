@@ -16,7 +16,15 @@ runs:
         WORKING_DIRECTORY: ${{ inputs.working-directory }}
       run: |
         set -euo pipefail
-        case "${WORKING_DIRECTORY}" in
+
+        # Normalize leading "./" and reject traversal before changing directories.
+        # Нормализуем "./" и запрещаем traversal до смены директории.
+        NORMALIZED_WORKING_DIRECTORY="${WORKING_DIRECTORY#./}"
+        if [[ -z "${NORMALIZED_WORKING_DIRECTORY}" ]]; then
+          NORMALIZED_WORKING_DIRECTORY="."
+        fi
+
+        case "${NORMALIZED_WORKING_DIRECTORY}" in
           "." | "frontend" | frontend/*) ;;
           *)
             echo "Unsupported working-directory '${WORKING_DIRECTORY}' for npm-ci-with-retry." >&2
@@ -24,7 +32,14 @@ runs:
             ;;
         esac
 
-        cd "${WORKING_DIRECTORY}"
+        case "${NORMALIZED_WORKING_DIRECTORY}" in
+          *".."*)
+            echo "Path traversal is not allowed in working-directory '${WORKING_DIRECTORY}'." >&2
+            exit 1
+            ;;
+        esac
+
+        cd "${NORMALIZED_WORKING_DIRECTORY}"
         for attempt in 1 2 3; do
           npm ci \
             --fetch-retries=5 \

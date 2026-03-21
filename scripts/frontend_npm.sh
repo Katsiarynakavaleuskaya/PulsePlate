@@ -3,25 +3,33 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 EXPECTED_NODE_VERSION="$(tr -d '[:space:]' < "${REPO_ROOT}/.nvmrc")"
-CURRENT_NODE_VERSION="$(node -p 'process.versions.node')"
-
-if [[ "${CURRENT_NODE_VERSION}" == "${EXPECTED_NODE_VERSION}" ]]; then
-  exec npm "$@"
+if ! command -v node >/dev/null 2>&1; then
+  echo "node is required on PATH to run frontend commands. Install Node ${EXPECTED_NODE_VERSION} and retry." >&2
+  exit 1
 fi
 
-NPM_EXECUTABLE="$(command -v npm || true)"
-if [[ -z "${NPM_EXECUTABLE}" ]]; then
+if ! command -v npm >/dev/null 2>&1; then
   echo "npm is required on PATH to run frontend commands." >&2
   exit 1
 fi
 
-NPM_ROOT="$(npm root -g 2>/dev/null || true)"
-NPM_CLI_JS="${NPM_ROOT}/npm/bin/npm-cli.js"
+CURRENT_NODE_VERSION="$(node -p 'process.versions.node')"
+EXPECTED_NODE_MAJOR="${EXPECTED_NODE_VERSION%%.*}"
+CURRENT_NODE_MAJOR="${CURRENT_NODE_VERSION%%.*}"
 
-if [[ -z "${NPM_ROOT}" || ! -f "${NPM_CLI_JS}" ]]; then
-  echo "Unable to locate npm-cli.js via 'npm root -g'; ensure npm is installed correctly." >&2
+# Fail closed on too-old Node, but keep local newer runtimes usable without
+# registry bootstrap so OpenAPI and frontend helper flows remain deterministic.
+# Запрещаем слишком старый Node, но не уходим в сетевой bootstrap для новых
+# локальных версий, чтобы OpenAPI/Frontend helper оставались детерминированными.
+if (( CURRENT_NODE_MAJOR < EXPECTED_NODE_MAJOR )); then
+  echo "Frontend commands require Node ${EXPECTED_NODE_VERSION} or newer major runtime; current runtime is ${CURRENT_NODE_VERSION}." >&2
+  echo "Activate the repo Node version via your local toolchain (for example nvm/fnm/volta) and retry." >&2
   exit 1
 fi
 
-echo "Bootstrapping frontend npm under Node ${EXPECTED_NODE_VERSION} (current: ${CURRENT_NODE_VERSION})." >&2
-exec npx -y "node@${EXPECTED_NODE_VERSION}" "${NPM_CLI_JS}" "$@"
+if [[ "${CURRENT_NODE_VERSION}" != "${EXPECTED_NODE_VERSION}" ]]; then
+  echo "Warning: repo baseline is Node ${EXPECTED_NODE_VERSION}, current runtime is ${CURRENT_NODE_VERSION}." >&2
+  echo "Continuing with the installed Node runtime to avoid implicit network bootstrap; switch to ${EXPECTED_NODE_VERSION} for exact CI parity." >&2
+fi
+
+exec npm "$@"
