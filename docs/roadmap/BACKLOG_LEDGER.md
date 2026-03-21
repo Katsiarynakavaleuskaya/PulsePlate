@@ -1813,7 +1813,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Skill-router parity with policy docs and requested-agent bundles
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-TBD-SKILL-ROUTER-PARITY
+  - Target PR: PR #1202
   - Area: orchestration / skills / bootstrap
   - Finding Type: policy-implementation drift
   - Reason: The canonical skill routing policy now documents requested-agent helper bundles and conditional skills such as `gh-address-comments` and `vercel-react-best-practices`; router logic and tests must stay in lockstep so coordinator packets do not promise skills that the runtime selector never emits.

@@ -14,7 +14,7 @@ from typing import Any
 from scripts.orchestration.context_pack import normalize_text, repo_relative_paths
 from scripts.orchestration.requested_agents import normalize_requested_agents
 
-ROUTING_POLICY_VERSION = "2026-03-08"
+ROUTING_POLICY_VERSION = "2026-03-21"
 SELECTION_MODE = "deterministic-weighted"
 
 ALWAYS_ON_SKILLS: tuple[str, ...] = ("pulseplate-workflow",)
@@ -41,6 +41,24 @@ REQUESTED_AGENT_SKILL_BUNDLES: dict[str, tuple[str, ...]] = {
         "pulseplate-ai-reports",
         "notion-research-documentation",
     ),
+}
+
+REQUESTED_AGENT_COMPANION_SKILL_BUNDLES: dict[str, tuple[str, ...]] = {
+    "security-auditor": ("cybersecurity-skills",),
+}
+
+PRIVILEGED_SURFACE_PREFIXES: tuple[str, ...] = (
+    ".github/workflows/",
+    "ios/fastlane/",
+    "scripts/orchestration/",
+    "scripts/ci/",
+    "docs/orchestration/",
+    "docs/review/",
+)
+
+PRIVILEGED_SURFACE_SKILL_BUNDLES: dict[str, int] = {
+    "security-best-practices": 4,
+    "pulseplate-guards": 4,
 }
 
 SCRAPING_BLOCK_PATTERNS: tuple[tuple[str, str], ...] = (
@@ -132,7 +150,12 @@ SKILL_RULES: tuple[SkillRule, ...] = (
         rationale="Handle architecture guards, fail-closed policy checks, and security-oriented invariants.",
         min_score=3,
         domain_weights={"security": 2, "qa": 2, "orchestration": 1, "backend": 1},
-        path_prefixes=("app/security/", "tests/", "tests/guards/", "scripts/orchestration/"),
+        path_prefixes=(
+            "app/security/",
+            "tests/",
+            "tests/guards/",
+            *PRIVILEGED_SURFACE_PREFIXES,
+        ),
         keywords=(
             "guard",
             "policy",
@@ -336,11 +359,7 @@ SKILL_RULES: tuple[SkillRule, ...] = (
         domain_weights={"security": 3, "orchestration": 1, "backend": 1, "release": 1},
         path_prefixes=(
             "app/security/",
-            ".github/workflows/",
-            "ios/fastlane/",
-            "scripts/orchestration/",
-            "docs/orchestration/",
-            "docs/review/",
+            *PRIVILEGED_SURFACE_PREFIXES,
         ),
         keywords=(
             "security",
@@ -416,6 +435,17 @@ def _match_keywords(keywords: tuple[str, ...], normalized_text: str) -> list[str
     return matched
 
 
+def _match_path_prefixes(
+    prefixes: tuple[str, ...],
+    normalized_paths: list[str],
+) -> list[str]:
+    """Return matched normalized prefixes for the provided repo-relative paths."""
+
+    return [
+        prefix for prefix in prefixes if any(_has_prefix(path, prefix) for path in normalized_paths)
+    ]
+
+
 def _score_rule(
     *,
     rule: SkillRule,
@@ -443,11 +473,7 @@ def _score_rule(
         score += weight
         reasons.append(f"domain:{domain}(+{weight})")
 
-    matched_prefixes = [
-        prefix
-        for prefix in rule.path_prefixes
-        if any(_has_prefix(path, prefix) for path in normalized_paths)
-    ]
+    matched_prefixes = _match_path_prefixes(rule.path_prefixes, normalized_paths)
     if matched_prefixes:
         prefix_score = len(matched_prefixes) * 2
         score += prefix_score
@@ -466,6 +492,35 @@ def _score_rule(
         "rationale": rule.rationale,
         "reasons": reasons,
     }
+
+
+def _apply_bundle_reason(
+    *,
+    selected_by_skill: dict[str, dict[str, Any]],
+    skill: str,
+    boost: int,
+    reason: str,
+    fallback_rationale: str,
+) -> None:
+    """Apply deterministic bundle/privileged boost without duplicating entries."""
+
+    existing = selected_by_skill.get(skill)
+    if existing is None:
+        rule = SKILL_RULES_BY_SKILL.get(skill)
+        category = rule.category if rule is not None else "bundle"
+        rationale = rule.rationale if rule is not None else fallback_rationale
+        selected_by_skill[skill] = {
+            "skill": skill,
+            "score": boost,
+            "category": category,
+            "rationale": rationale,
+            "reasons": [reason],
+        }
+        return
+
+    existing["score"] = int(existing["score"]) + boost
+    if reason not in existing["reasons"]:
+        existing["reasons"].append(reason)
 
 
 def route_skills(
@@ -505,31 +560,33 @@ def route_skills(
     ]
 
     selected_by_skill = {item["skill"]: item for item in selected}
+    privileged_surface_matches = _match_path_prefixes(PRIVILEGED_SURFACE_PREFIXES, normalized_paths)
+    for privileged_surface in privileged_surface_matches:
+        for skill, boost in PRIVILEGED_SURFACE_SKILL_BUNDLES.items():
+            _apply_bundle_reason(
+                selected_by_skill=selected_by_skill,
+                skill=skill,
+                boost=boost,
+                reason=f"privileged-surface:{privileged_surface}(+{boost})",
+                fallback_rationale=(
+                    "Privileged automation and merge-governance surfaces require "
+                    "deterministic security skill coverage."
+                ),
+            )
+
     for requested_agent in normalized_requested_agents:
         bundle = REQUESTED_AGENT_SKILL_BUNDLES.get(requested_agent, ())
         for bundled_skill in bundle:
-            existing = selected_by_skill.get(bundled_skill)
-            if existing is None:
-                rule = SKILL_RULES_BY_SKILL.get(bundled_skill)
-                category = rule.category if rule is not None else "bundle"
-                rationale = (
-                    rule.rationale
-                    if rule is not None
-                    else f"Default skill bundle for requested agent `{requested_agent}`."
-                )
-                selected_by_skill[bundled_skill] = {
-                    "skill": bundled_skill,
-                    "score": 6,
-                    "category": category,
-                    "rationale": rationale,
-                    "reasons": [f"requested-agent:{requested_agent}(+6)"],
-                }
-                continue
-
-            existing["score"] = int(existing["score"]) + 2
-            reason = f"requested-agent:{requested_agent}(+2)"
-            if reason not in existing["reasons"]:
-                existing["reasons"].append(reason)
+            boost = 6 if bundled_skill not in selected_by_skill else 2
+            _apply_bundle_reason(
+                selected_by_skill=selected_by_skill,
+                skill=bundled_skill,
+                boost=boost,
+                reason=f"requested-agent:{requested_agent}(+{boost})",
+                fallback_rationale=(
+                    f"Default skill bundle for requested agent `{requested_agent}`."
+                ),
+            )
 
     selected = list(selected_by_skill.values())
     selected.sort(key=lambda item: (-int(item["score"]), item["skill"]))

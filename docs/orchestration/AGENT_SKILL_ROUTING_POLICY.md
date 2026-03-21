@@ -91,7 +91,7 @@ domain routing first and then apply these **default helper bundles**:
 |-----------------|-----------------------|
 | `agent-coordinator` | `docs-sync`, `agents-md`, `pulseplate-gates` |
 | `bug-hunter` | `bug-triage`, `pulseplate-gates`, `pulseplate-guards` |
-| `security-auditor` | `security-best-practices`, `security-threat-model`, `pulseplate-guards`, `cybersecurity-skills` (~734 skills, approximate; see `tools/cybersecurity_skills/index.json`) |
+| `security-auditor` | Auto-routed: `security-best-practices`, `security-threat-model`, `pulseplate-guards`; companion/manual-only: `cybersecurity-skills` (~734 skills, approximate; see `tools/cybersecurity_skills/index.json`) |
 | `backend-engineer` | `pulseplate-backend-endpoints`, `pulseplate-openapi-sync`, `pulseplate-gates` |
 | `qa-engineer-agent` | `bug-triage`, `pulseplate-gates`, `code-review-expert` |
 | `frontend-engineer` | `pulseplate-frontend-ui`, `pulseplate-gates`, `vercel-react-best-practices` |
@@ -102,6 +102,12 @@ domain routing first and then apply these **default helper bundles**:
 These bundles are bootstrapping helpers, not authority overrides. They do not bypass
 `AGENT_ROUTING_GRAPH.md` or reviewer requirements.
 
+Companion note:
+
+- `cybersecurity-skills` is intentionally companion/manual-only guidance for `security-auditor`.
+- It must not be emitted as a deterministic `recommended_skills` slug by `scripts/orchestration/skill_router.py`.
+- If a security review needs one of those specialized playbooks, the coordinator or reviewer may invoke it deliberately after routing resolves.
+
 ---
 
 ## 4. Installed Skills Policy For This Project
@@ -111,7 +117,6 @@ The coordinator may use installed skills when they improve delivery and align wi
 ### Preferred by default
 
 - Repo-tracked PulsePlate skills in `tools/codex_skills/`
-- `cybersecurity-skills` bundle (maps to `tools/cybersecurity_skills/skills/` or `$CODEX_HOME/skills` when installed; ~734 skills, approximate; see `tools/cybersecurity_skills/index.json`; agentskills.io; installed by default via `scripts/install_codex_skills.sh`)
 - `docs-sync`
 - `bug-triage`
 - `code-review-expert`
@@ -124,6 +129,7 @@ The coordinator may use installed skills when they improve delivery and align wi
 ### Conditional by task fit
 
 - `security-best-practices`, `security-threat-model`, `security-ownership-map`
+- `cybersecurity-skills` as companion/manual follow-up for `security-auditor` only (maps to `tools/cybersecurity_skills/skills/` or `$CODEX_HOME/skills` when installed; ~734 skills, approximate; see `tools/cybersecurity_skills/index.json`; installed by default via `scripts/install_codex_skills.sh`)
 - `create-pr`, `commit-work`, `release-notes`, `gh-address-comments`, `gh-fix-ci`, `ci-fix`
 - `sora`, `imagegen`, `speech`
 - `vercel-react-best-practices`, `vercel-react-native-skills`
@@ -140,17 +146,19 @@ The coordinator may use installed skills when they improve delivery and align wi
 
 ## 4a. Privileged Surface Trigger
 
-The following touched paths must automatically boost security-oriented skills and review:
+The following touched paths must automatically boost security-oriented skills:
 
 - `.github/workflows/**`
 - `ios/fastlane/**`
 - `scripts/orchestration/**`
-- merge-governance scripts and docs under `docs/orchestration/`
+- merge-governance scripts under `scripts/ci/**`
+- merge-governance docs under `docs/orchestration/**` and `docs/review/**`
 
 Expected behavior:
 
 - add `security-best-practices` and/or `pulseplate-guards` when the task packet touches these paths;
-- keep `security-auditor` in the review path even if the dominant domain is docs, release, or orchestration;
+- keep `security-auditor` in the executable review path for the canonical bootstrap privileged-review prefixes in `scripts/orchestration/task_bootstrap.py` (`.github/workflows/**`, `ios/fastlane/**`, `scripts/orchestration/**`);
+- merge-governance docs/scripts under `scripts/ci/**`, `docs/orchestration/**`, and `docs/review/**` remain privileged for skill routing in this PR, but do not widen reviewer selection or native subagent transport;
 - security-auditor may reference `cybersecurity-skills` bundle (repo path: `tools/cybersecurity_skills/`; index: `tools/cybersecurity_skills/index.json`) for subdomain-specific procedures (API Security, DevSecOps, Web App Sec, Container Security).
 
 ---

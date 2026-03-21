@@ -46,6 +46,20 @@ Use the agent-coordinator subagent to [task description]
 
 The coordinator will automatically delegate to specialized agents and synthesize their work.
 
+### Skill-Router Sync Note
+
+When a PR changes `scripts/orchestration/skill_router.py` or
+`docs/orchestration/AGENT_SKILL_ROUTING_POLICY.md`, verify the agent-facing
+instructions still match the live contract:
+
+- `security-auditor` auto-routes `security-best-practices`,
+  `security-threat-model`, and `pulseplate-guards`
+- `cybersecurity-skills` stays companion/manual-only and must not appear in
+  deterministic `recommended_skills`
+- merge-governance paths under `scripts/ci/**`, `docs/orchestration/**`, and
+  `docs/review/**` are privileged for skill routing, but executable reviewer
+  widening still follows `scripts/orchestration/task_bootstrap.py`
+
 **Starting a new task:**
 - See canonical definition: `AGENTS.md` (Agent Coordination section)
 - Templates: `docs/orchestration/*.template.md`
