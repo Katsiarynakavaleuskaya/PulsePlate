@@ -6,32 +6,37 @@
 
 ## Fixed in Commit Mapping
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1207#discussion_r2969286594 -> 415c3562
-  Disposition: FIXED
-  Commit: 415c3562
-  Evidence: `ios/PulsePlate/Services/SubscriptionManager.swift:252`, `ios/PulsePlate/Services/SubscriptionManager.swift:260`, `ios/PulsePlate/Services/SubscriptionManager.swift:276`, `ios/PulsePlateTests/Services/SubscriptionManagerTests.swift:390`
-  Reason: sanitized persisted activation pointers before refresh fetch and added regression coverage proving blank stored IDs are cleared without backend fetch.
+Disposition: FIXED
+Commit: 415c3562
+Evidence: `ios/PulsePlate/Services/SubscriptionManager.swift:252`, `ios/PulsePlate/Services/SubscriptionManager.swift:260`, `ios/PulsePlate/Services/SubscriptionManager.swift:276`, `ios/PulsePlateTests/Services/SubscriptionManagerTests.swift:390`
+Reason: sanitized persisted activation pointers before refresh fetch and added regression coverage proving blank stored IDs are cleared without backend fetch.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1207#pullrequestreview-3985774046 -> 415c3562
-  Disposition: FIXED
-  Commit: 415c3562
-  Evidence: `ios/PulsePlate/Services/SubscriptionManager.swift:252`, `ios/PulsePlate/Services/SubscriptionManager.swift:260`, `ios/PulsePlate/Services/SubscriptionManager.swift:276`, `ios/PulsePlateTests/Services/SubscriptionManagerTests.swift:236`, `ios/PulsePlateTests/Services/SubscriptionManagerTests.swift:390`
-  Reason: normalized stored activation pointers before refresh fetch, short-circuited blank stored IDs locally, and added restore/refresh regression coverage for blank activation identifiers.
+Disposition: FIXED
+Commit: 415c3562
+Evidence: `ios/PulsePlate/Services/SubscriptionManager.swift:252`, `ios/PulsePlate/Services/SubscriptionManager.swift:260`, `ios/PulsePlate/Services/SubscriptionManager.swift:276`, `ios/PulsePlateTests/Services/SubscriptionManagerTests.swift:236`, `ios/PulsePlateTests/Services/SubscriptionManagerTests.swift:390`
+Reason: normalized stored activation pointers before refresh fetch, short-circuited blank stored IDs locally, and added restore/refresh regression coverage for blank activation identifiers.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1207#pullrequestreview-3985772768 -> 415c3562
-  Disposition: FIXED
-  Commit: 415c3562
-  Evidence: `ios/PulsePlate/Services/SubscriptionManager.swift:93`, `ios/PulsePlate/Services/SubscriptionManager.swift:360`
-  Reason: added explicit runtime logging for blank or whitespace-only activation identifiers.
+Disposition: FIXED
+Commit: 415c3562
+Evidence: `ios/PulsePlate/Services/SubscriptionManager.swift:93`, `ios/PulsePlate/Services/SubscriptionManager.swift:360`
+Reason: added explicit runtime logging for blank or whitespace-only activation identifiers.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1207#pullrequestreview-3985772768
-  Disposition: NOT-A-BUG
-  Evidence: `ios/AGENTS.md:86`, `ios/AGENTS.md:88`, `ios/AGENTS.md:92`
-  Reason: activation-ID normalization stays in `SubscriptionManager` by design because this seam is orchestration-only and backend-owned; moving validation into transport DTOs would broaden scope and weaken the thin-client boundary without a current second caller.
+Disposition: NOT-A-BUG
+Evidence: `ios/AGENTS.md:86`, `ios/AGENTS.md:88`, `ios/AGENTS.md:92`
+Reason: activation-ID normalization stays in `SubscriptionManager` by design because this seam is orchestration-only and backend-owned; moving validation into transport DTOs would broaden scope and weaken the thin-client boundary without a current second caller.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1207#issuecomment-4102765863
-  Disposition: NOT-A-BUG
-  Evidence: `AGENTS.md:3`, `AGENTS.md:8`, `RUNBOOK_AGENT.md:113`
-  Reason: CodeRabbit's docstring coverage warning is advisory and not part of this repo's blocking merge gates; the required local bundle is `pre-commit run --all-files` plus `make verify`, both green on this lane.
+Disposition: NOT-A-BUG
+Evidence: `AGENTS.md:3`, `AGENTS.md:8`, `RUNBOOK_AGENT.md:113`
+Reason: CodeRabbit's docstring coverage warning is advisory and not part of this repo's blocking merge gates; the required local bundle is `pre-commit run --all-files` plus `make verify`, both green on this lane.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1207#issuecomment-4102765990
-  Disposition: NOT-A-BUG
-  Evidence: `ios/PulsePlate/Services/SubscriptionManager.swift:93`, `ios/AGENTS.md:88`
-  Reason: the Sourcery review-guide comment duplicates the actionable review above and adds no independent unresolved item after the FIXED and NOT-A-BUG dispositions recorded here.
+Disposition: NOT-A-BUG
+Evidence: `ios/PulsePlate/Services/SubscriptionManager.swift:93`, `ios/AGENTS.md:88`
+Reason: the Sourcery review-guide comment duplicates the actionable review above and adds no independent unresolved item after the FIXED and NOT-A-BUG dispositions recorded here.
 
 ## Merge Readiness
 - Status: in progress; draft removed, local gates green, waiting for pushed head + current-head CI/governance re-check.
