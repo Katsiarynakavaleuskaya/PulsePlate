@@ -37,7 +37,7 @@ jobs:
       ios: ${{ steps.filter.outputs.ios }}
     steps:
       - name: Checkout
-        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
 
@@ -59,7 +59,7 @@ jobs:
     timeout-minutes: 2
     steps:
       - name: Checkout
-        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
 
@@ -106,7 +106,7 @@ jobs:
     timeout-minutes: 2
     steps:
       - name: Checkout
-        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Check Trivy ignore-policy expiry dates
         run: python3 scripts/ci/check_trivy_ignore_policy_expiry.py
@@ -123,7 +123,7 @@ jobs:
       pull-requests: read
     steps:
       - name: Checkout
-        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
 
@@ -211,7 +211,7 @@ jobs:
       pull-requests: read
     steps:
       - name: Checkout
-        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Setup Python
         uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
@@ -233,7 +233,7 @@ jobs:
       pull-requests: read
     steps:
       - name: Checkout
-        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Setup Python
         uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
@@ -253,7 +253,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Checkout
-        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Setup Python environment
         uses: ./.github/actions/python-setup
@@ -272,7 +272,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Checkout
-        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Setup Python environment
         uses: ./.github/actions/python-setup
@@ -294,7 +294,7 @@ jobs:
 
       - name: Upload bandit artifact
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: bandit-report
           path: bandit-report.json
@@ -310,7 +310,7 @@ jobs:
       ENVIRONMENT: test
     steps:
       - name: Checkout
-        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Setup Python environment
         uses: ./.github/actions/python-setup
@@ -358,7 +358,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Setup Python environment
         uses: ./.github/actions/python-setup
@@ -433,7 +433,7 @@ jobs:
 
       - name: Upload coverage artifact (3.13.6 only)
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: coverage-xml-${{ env.COVERAGE_PY }}
           path: coverage.xml
@@ -442,7 +442,7 @@ jobs:
 
       - name: Upload JUnit test report
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: junit-${{ env.COVERAGE_PY }}
           path: tests/results.xml
@@ -464,7 +464,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Setup Python environment
         uses: ./.github/actions/python-setup
@@ -539,7 +539,7 @@ jobs:
 
       - name: Upload coverage artifact (3.13.6 only)
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: coverage-xml-${{ env.COVERAGE_PY }}
           path: coverage.xml
@@ -548,7 +548,7 @@ jobs:
 
       - name: Upload JUnit test report
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: junit-${{ env.COVERAGE_PY }}
           path: tests/results.xml
@@ -570,7 +570,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Setup Python environment
         uses: ./.github/actions/python-setup
@@ -651,7 +651,7 @@ jobs:
 
       - name: Upload coverage artifact (all Python versions)
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: coverage-xml-${{ matrix.python-version }}
           path: coverage.xml
@@ -660,7 +660,7 @@ jobs:
 
       - name: Upload JUnit test report
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: junit-${{ matrix.python-version }}
           path: tests/results.xml
@@ -679,7 +679,7 @@ jobs:
       id-token: write
     steps:
       - name: Checkout
-        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Download coverage artifact (Python 3.13.6)
         uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.6.2
@@ -709,7 +709,7 @@ jobs:
       id-token: write
     steps:
       - name: Checkout
-        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Download coverage artifact (Python 3.13.6)
         uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.6.2
@@ -739,7 +739,7 @@ jobs:
       id-token: write
     steps:
       - name: Checkout
-        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Download coverage artifact (Python 3.11)
         uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.6.2
@@ -784,7 +784,7 @@ jobs:
     needs: [changes]
     steps:
       - name: Checkout
-        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Select Xcode (pin 16.x compatible with iOS 18.5/18.6 runtimes)
         id: select-xcode
@@ -1152,7 +1152,7 @@ jobs:
     needs: [changes]
     steps:
       - name: Checkout
-        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Select Xcode (pin 16.x compatible with iOS 18.5/18.6 runtimes)
         id: select-xcode
@@ -1499,7 +1499,7 @@ jobs:
 
       - name: Upload xcresult on failure (crash evidence)
         if: failure()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: ios-ui-smoke-xcresult-${{ github.run_id }}
           path: ios/.derivedData/Logs/Test/
