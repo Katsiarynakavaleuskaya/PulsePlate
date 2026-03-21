@@ -5,11 +5,11 @@
 - [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1207#pullrequestreview-3985774046 -> `415c3562`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1207#pullrequestreview-3985774046 -> 415c3562
   Disposition: FIXED
   Evidence: `ios/PulsePlate/Services/SubscriptionManager.swift:252`, `ios/PulsePlate/Services/SubscriptionManager.swift:260`, `ios/PulsePlate/Services/SubscriptionManager.swift:276`, `ios/PulsePlateTests/Services/SubscriptionManagerTests.swift:236`, `ios/PulsePlateTests/Services/SubscriptionManagerTests.swift:390`
   Reason: normalized stored activation pointers before refresh fetch, short-circuited blank stored IDs locally, and added restore/refresh regression coverage for blank activation identifiers.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1207#pullrequestreview-3985772768 -> `415c3562`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1207#pullrequestreview-3985772768 -> 415c3562
   Disposition: FIXED
   Evidence: `ios/PulsePlate/Services/SubscriptionManager.swift:93`, `ios/PulsePlate/Services/SubscriptionManager.swift:360`
   Reason: added explicit runtime logging for blank or whitespace-only activation identifiers.
