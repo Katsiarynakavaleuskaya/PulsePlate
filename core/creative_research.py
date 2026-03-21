@@ -40,6 +40,13 @@ PROMOTION_DECISIONS: tuple[CreativeResearchPromotionDecision, ...] = (
     "discard",
 )
 DISCOVERY_REQUIRED_FIELDS: tuple[str, ...] = ("mechanism", "evidence_needed", "falsifier")
+SCIENTIFIC_DISCOVERY_FIELDS: tuple[str, ...] = (
+    "alternative_explanations",
+    "counterevidence",
+    "stopping_rule",
+    "decision_rule",
+    "minimum_observation",
+)
 
 
 class CreativeResearchCandidateRecord(TypedDict):
@@ -53,6 +60,11 @@ class CreativeResearchCandidateRecord(TypedDict):
     confidence: CreativeResearchConfidence
     known_risks: list[str]
     wellness_boundary: str
+    alternative_explanations: list[str]
+    counterevidence: list[str]
+    stopping_rule: str
+    decision_rule: str
+    minimum_observation: str
 
 
 class CreativeResearchBundleRecord(TypedDict):
@@ -236,10 +248,24 @@ def _require_object_mapping(
 
 
 def _require_non_empty_string(payload: dict[str, object], *, key: str, label: str) -> str:
-    value = str(payload.get(key, "")).strip()
+    raw_value = payload.get(key, "")
+    if not isinstance(raw_value, str):
+        raise ValueError(f"{label} {key} must be a string.")
+    value = raw_value.strip()
     if not value:
         raise ValueError(f"{label} must include a non-empty {key}.")
     return value
+
+
+def _normalize_optional_string_field(payload: dict[str, object], *, key: str, label: str) -> str:
+    """Return optional string fields without coercing non-string payloads."""
+
+    raw_value = payload.get(key, "")
+    if raw_value is None:
+        return ""
+    if not isinstance(raw_value, str):
+        raise ValueError(f"{label} {key} must be a string.")
+    return raw_value.strip()
 
 
 def _normalize_string_list(raw: object, *, label: str) -> list[str]:
@@ -394,6 +420,29 @@ def validate_bundle(payload: object) -> CreativeResearchBundleRecord:
                 key="wellness_boundary",
                 label=label,
             ),
+            "alternative_explanations": _normalize_string_list(
+                candidate_payload.get("alternative_explanations", []),
+                label=f"{label} alternative_explanations",
+            ),
+            "counterevidence": _normalize_string_list(
+                candidate_payload.get("counterevidence", []),
+                label=f"{label} counterevidence",
+            ),
+            "stopping_rule": _normalize_optional_string_field(
+                candidate_payload,
+                key="stopping_rule",
+                label=label,
+            ),
+            "decision_rule": _normalize_optional_string_field(
+                candidate_payload,
+                key="decision_rule",
+                label=label,
+            ),
+            "minimum_observation": _normalize_optional_string_field(
+                candidate_payload,
+                key="minimum_observation",
+                label=label,
+            ),
         }
         candidates.append(candidate)
 
@@ -457,6 +506,12 @@ def build_scorecard(
             candidate["mechanism"],
             candidate["evidence_needed"],
             candidate["falsifier"],
+            candidate["wellness_boundary"],
+            " ".join(candidate.get("alternative_explanations", [])),
+            " ".join(candidate.get("counterevidence", [])),
+            candidate.get("stopping_rule", ""),
+            candidate.get("decision_rule", ""),
+            candidate.get("minimum_observation", ""),
         ]
     )
     report = validate_llm_output(combined_text, domain="creative_research")
@@ -467,6 +522,17 @@ def build_scorecard(
         controls.append("corpus_overlap_high")
     if not report.ok:
         controls.append("unsafe_wellness_language")
+    missing_scientific_fields = [
+        field_name
+        for field_name in SCIENTIFIC_DISCOVERY_FIELDS
+        if (
+            not candidate.get(field_name, "")
+            if isinstance(candidate.get(field_name, ""), str)
+            else not candidate.get(field_name, [])
+        )
+    ]
+    if missing_scientific_fields:
+        controls.append("missing_scientific_research_fields")
 
     originality = _score_from_thresholds(reference_overlap, (0.2, 0.3, 0.45, 0.6, 0.75))
     flexibility = (
@@ -568,6 +634,8 @@ def select_promotion_decision(
         or scorecard["hallucination_risk"] >= 4
     ):
         return "discard", "interesting but unverified hypothesis"
+    if "missing_scientific_research_fields" in negative_controls:
+        return "defer", "interesting but unverified hypothesis"
 
     promotable = (
         scorecard["originality"] >= 3
@@ -664,6 +732,7 @@ def evaluate_bundle(bundle: object) -> CreativeResearchEvaluationResultRecord:
 __all__ = [
     "CONFIDENCE_LEVELS",
     "DISCOVERY_REQUIRED_FIELDS",
+    "SCIENTIFIC_DISCOVERY_FIELDS",
     "OUTPUT_CLASSES",
     "PROMOTION_DECISIONS",
     "SCHEMA_VERSION",

@@ -57,6 +57,16 @@ def test_validate_bundle_rejects_unknown_confidence_level() -> None:
         validate_bundle(bundle)
 
 
+def test_validate_bundle_rejects_non_string_scientific_fields() -> None:
+    """Scientific discovery text fields must reject non-string payloads."""
+
+    bundle = _load_fixture("bundle_valid.json")
+    bundle["candidates"][0]["stopping_rule"] = []
+
+    with pytest.raises(ValueError, match="candidate #1 stopping_rule must be a string"):
+        validate_bundle(bundle)
+
+
 def test_evaluate_bundle_classifies_valid_output_types() -> None:
     """Valid PR-B fixture candidates should map to the three governed output classes."""
 
@@ -68,6 +78,24 @@ def test_evaluate_bundle_classifies_valid_output_types() -> None:
     assert by_id["hyp-weekend"]["output_class"] == "anomaly_explanation_candidate"
     assert by_id["hyp-batch"]["promotion_decision"] == "promote"
     assert result["summary"]["candidate_count"] == 3
+
+
+def test_evaluate_bundle_downgrades_missing_scientific_structure() -> None:
+    """Missing scientific discovery fields must downgrade without breaking parsing."""
+
+    bundle = _load_fixture("bundle_valid.json")
+    bundle["candidates"][0]["alternative_explanations"] = []
+    bundle["candidates"][0]["counterevidence"] = []
+    bundle["candidates"][0]["stopping_rule"] = ""
+    bundle["candidates"][0]["decision_rule"] = ""
+    bundle["candidates"][0]["minimum_observation"] = ""
+
+    result = evaluate_bundle(bundle)
+    by_id = {candidate["candidate_id"]: candidate for candidate in result["candidates"]}
+
+    assert "missing_scientific_research_fields" in by_id["hyp-batch"]["negative_controls_triggered"]
+    assert by_id["hyp-batch"]["promotion_decision"] == "defer"
+    assert by_id["hyp-batch"]["presentation_label"] == "interesting but unverified hypothesis"
 
 
 def test_count_hints_matches_token_boundaries_for_short_markers() -> None:
@@ -200,6 +228,11 @@ def test_build_scorecard_covers_high_specificity_and_non_wellness_boundary() -> 
         "confidence": "low",
         "known_risks": ["confounding"],
         "wellness_boundary": "General lifestyle support.",
+        "alternative_explanations": ["A stronger shopping routine may explain the gain."],
+        "counterevidence": ["Adherence may still fail when fallback meals are visible."],
+        "stopping_rule": "Stop after repeated null results across comparable cohorts.",
+        "decision_rule": "Promote only if adherence rises without more burden.",
+        "minimum_observation": "At least two comparable observation windows.",
     }
 
     scorecard, controls = build_scorecard(

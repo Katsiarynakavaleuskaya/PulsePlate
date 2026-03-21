@@ -40,6 +40,11 @@ def test_normalize_provider_candidate_defaults_unknown_confidence_and_boundary()
             "falsifier": "If the pattern stays flat, reject it.",
             "confidence": "certain",
             "known_risks": "not-a-list",
+            "alternative_explanations": "not-a-list",
+            "counterevidence": "not-a-list",
+            "stopping_rule": ["not-a-string"],
+            "decision_rule": {"bad": "shape"},
+            "minimum_observation": 14,
             "wellness_boundary": "   ",
         },
         index=3,
@@ -48,6 +53,11 @@ def test_normalize_provider_candidate_defaults_unknown_confidence_and_boundary()
     assert candidate["candidate_id"] == "candidate-3"
     assert candidate["confidence"] == "unknown"
     assert candidate["known_risks"] == []
+    assert candidate["alternative_explanations"] == []
+    assert candidate["counterevidence"] == []
+    assert candidate["stopping_rule"] == ""
+    assert candidate["decision_rule"] == ""
+    assert candidate["minimum_observation"] == ""
     assert candidate["wellness_boundary"] == (
         "Wellness only; not diagnosis, treatment, or medical advice."
     )

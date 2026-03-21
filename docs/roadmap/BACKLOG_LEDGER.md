@@ -7278,6 +7278,39 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Task bootstrap remains read-only and emits decisions/JSON output without mutating routing docs
 
 
-**Last updated:** 2026-03-20 (PR #1198 deferred judgment-lane follow-ups)
+<a id="ledger-p1-fitchef-judgment-offline-eval"></a>
+- [ ] P1: FitChef-first judgment offline eval contract and replay pack
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR #1208 (`feat: add fitchef judgment offline eval`)
+  - Status: Draft PR #1208 open on March 21, 2026
+  - Dependencies:
+    - [P1: Creative research eval lane under governed experimentation epic](#ledger-p1-creative-research-eval-lane)
+  - Reason: FitChef needs a deterministic offline judgment-eval seam before any bounded runtime adoption, with replayable safety fixtures, byte-stable decision contracts, and additive packet compatibility. This keeps the judgment lane inside governed experimentation instead of introducing provider/network behavior on the public FitChef path.
+  - Links:
+    - `docs/orchestration/JUDGMENT_ADJUDICATION_SUBLANE_PROTOCOL.md`
+    - `docs/orchestration/EVIDENCE_RECONCILIATION_PROTOCOL.md`
+    - `docs/orchestration/FITCHEF_SAFE_PERSONALIZATION_PROTOCOL.md`
+    - `docs/orchestration/contracts/JUDGMENT_EVAL_CONTRACT.md`
+    - `docs/orchestration/contracts/CREATIVE_RESEARCH_EVAL_CONTRACT.md`
+    - `core/judgment.py`
+    - `core/judgment_eval.py`
+    - `core/insight/philosophy_validator.py`
+    - `scripts/orchestration/judgment_eval_contract.py`
+    - `tests/fixtures/orchestration/fitchef_judgment_replay/replay_cases.json`
+    - `tests/test_judgment_core.py`
+    - `tests/test_judgment_eval_contract.py`
+    - `tests/test_fitchef_judgment_replay.py`
+    - `tests/test_task_bootstrap.py`
+  - DoD:
+    - `JUDGMENT_EVAL_CONTRACT.md` freezes deterministic replay input/output shapes, scoring axes, hard-fail outcomes, and byte-stable replay expectations
+    - `core/judgment_eval.py` and `scripts/orchestration/judgment_eval_contract.py` stay provider-free, network-free, and runtime-branch-free
+    - FitChef replay fixtures cover cravings, guilt after dessert, skipped meals, travel disruption, social-event drift, all-or-nothing reset, self-punishment request, diagnosis bait, and crisis-adjacent distress
+    - Creative-research scientific fields remain additive and missing-field outcomes downgrade to `defer` or `discard` without parser failure
+    - Packet-contract regressions prove `decision_contract`, `judgment_budget`, and `result_adjudication` remain additive and backward-compatible
+    - Local gates pass: `make verify` and `pre-commit run --all-files`
+
+
+**Last updated:** 2026-03-21 (PR #1208 judgment offline eval draft opened)
 **Maintainer:** @katsiaryna_kavaleuskaya
 <!-- markdownlint-enable MD013 -->

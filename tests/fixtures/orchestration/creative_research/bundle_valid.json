@@ -21,7 +21,17 @@
         "Selection bias toward users who already like planning.",
         "Weekend batching may itself become a burden for some users."
       ],
-      "wellness_boundary": "Wellness coaching only. Not diagnosis or treatment."
+      "wellness_boundary": "Wellness coaching only. Not diagnosis or treatment.",
+      "alternative_explanations": [
+        "The batching group may already have stronger planning habits.",
+        "Calendar reminders may explain the adherence gain more than batching."
+      ],
+      "counterevidence": [
+        "Users with full prep access may still skip meals under stress."
+      ],
+      "stopping_rule": "Stop after four weeks if skip rate and prep time both fail to improve.",
+      "decision_rule": "Promote only if skip rate improves without a matching rise in prep burden.",
+      "minimum_observation": "At least four weeks across two comparable cohorts."
     },
     {
       "candidate_id": "hyp-template",
@@ -33,7 +43,16 @@
       "known_risks": [
         "Novelty effects may decay after the first week."
       ],
-      "wellness_boundary": "Wellness coaching only. Not diagnosis or treatment."
+      "wellness_boundary": "Wellness coaching only. Not diagnosis or treatment.",
+      "alternative_explanations": [
+        "Lunch adherence may rise because the template week also simplifies shopping."
+      ],
+      "counterevidence": [
+        "Adherence may improve even when decision time does not change."
+      ],
+      "stopping_rule": "Stop after the second crossover period if decision time and adherence both stay flat.",
+      "decision_rule": "Promote only if template weeks reduce decision time and improve adherence together.",
+      "minimum_observation": "Two two-week periods in the crossover sequence."
     },
     {
       "candidate_id": "hyp-weekend",
@@ -45,7 +64,16 @@
       "known_risks": [
         "Self-reported pantry data may be noisy."
       ],
-      "wellness_boundary": "Wellness coaching only. Not diagnosis or treatment."
+      "wellness_boundary": "Wellness coaching only. Not diagnosis or treatment.",
+      "alternative_explanations": [
+        "Weekend schedule changes may matter more than pantry depletion."
+      ],
+      "counterevidence": [
+        "Weekend adherence may recover even when pantry completeness is low."
+      ],
+      "stopping_rule": "Stop after several weekends if pantry completeness does not track the adherence drop.",
+      "decision_rule": "Promote only if pantry completeness predicts the weekend drop better than motivation cues.",
+      "minimum_observation": "Several consecutive weeks including at least three weekends."
     }
   ]
 }

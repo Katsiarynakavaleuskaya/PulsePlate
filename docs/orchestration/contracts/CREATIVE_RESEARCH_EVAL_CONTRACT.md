@@ -66,6 +66,14 @@ Discovery fields that may be empty but trigger downgrade when missing:
 - `evidence_needed`
 - `falsifier`
 
+Scientific structure fields that may be empty but trigger downgrade when missing:
+
+- `alternative_explanations[]`
+- `counterevidence[]`
+- `stopping_rule`
+- `decision_rule`
+- `minimum_observation`
+
 ---
 
 ## 2. Output classes
@@ -81,6 +89,8 @@ Canonical downgrade rule:
 
 - If `mechanism`, `evidence_needed`, or `falsifier` is missing, the candidate becomes
   `creative_ideation` even if the prose sounds novel.
+- If scientific structure fields are missing, parsing still succeeds but the evaluator must
+  downgrade the promotion decision to `defer` or `discard`.
 
 ---
 
