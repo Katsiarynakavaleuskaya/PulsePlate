@@ -24,6 +24,24 @@ class FitChefWeeklyReflectionRequest(BaseModel):
     goal: str | None = Field(default=None, max_length=200)
 
 
+class FitChefDistortionSimulatorRequest(BaseModel):
+    """Distortion-simulator request payload."""
+
+    situation: str = Field(..., min_length=1, max_length=500)
+    automatic_thought: str = Field(..., min_length=1, max_length=500)
+    emotion: str = Field(..., min_length=1, max_length=120)
+    goal: str | None = Field(default=None, max_length=200)
+
+
+class FitChefIdentityLoopMapperRequest(BaseModel):
+    """Identity-loop mapper request payload."""
+
+    goal: str = Field(..., min_length=1, max_length=200)
+    recent_pattern: str = Field(..., min_length=1, max_length=500)
+    self_talk: str = Field(..., min_length=1, max_length=500)
+    trigger_context: str | None = Field(default=None, max_length=200)
+
+
 class FitChefSlipSupportRequest(BaseModel):
     """Slip-support request payload."""
 
@@ -65,6 +83,49 @@ class FitChefCoachingResponseBase(BaseModel):
     confidence: float = Field(..., ge=0.0, le=1.0)
     warnings: list[str] = Field(...)
     action_items: list[str] = Field(...)
+    quota_state: Literal["not_consumed", "consumed"]
+    transparency_notice_id: str
+    wellness_boundary: str
+
+
+class FitChefDistortionSimulatorResponse(BaseModel):
+    """Public distortion-simulator response envelope."""
+
+    scenario: Literal["distortion_simulator"] = Field(...)
+    distortion_labels: list[str] = Field(...)
+    why_it_matches: str = Field(..., min_length=1)
+    evidence_for: list[str] = Field(...)
+    evidence_against: list[str] = Field(...)
+    balanced_reframe: str = Field(..., min_length=1)
+    next_small_action: str = Field(..., min_length=1)
+    sources: list[FitChefCoachingSourceItem] = Field(...)
+    confidence: float = Field(..., ge=0.0, le=1.0)
+    warnings: list[str] = Field(...)
+    quota_state: Literal["not_consumed", "consumed"]
+    transparency_notice_id: str
+    wellness_boundary: str
+
+
+class FitChefIdentityLoopView(BaseModel):
+    """Public identity-loop block."""
+
+    belief: str = Field(..., min_length=1)
+    behavior: str = Field(..., min_length=1)
+    short_term_reward: str = Field(..., min_length=1)
+    long_term_cost: str = Field(..., min_length=1)
+
+
+class FitChefIdentityLoopMapperResponse(BaseModel):
+    """Public identity-loop mapper response envelope."""
+
+    scenario: Literal["identity_loop_mapper"] = Field(...)
+    identity_loop: FitChefIdentityLoopView = Field(...)
+    identity_shift_statement: str = Field(..., min_length=1)
+    replacement_action: str = Field(..., min_length=1)
+    repair_if_slip: str = Field(..., min_length=1)
+    sources: list[FitChefCoachingSourceItem] = Field(...)
+    confidence: float = Field(..., ge=0.0, le=1.0)
+    warnings: list[str] = Field(...)
     quota_state: Literal["not_consumed", "consumed"]
     transparency_notice_id: str
     wellness_boundary: str

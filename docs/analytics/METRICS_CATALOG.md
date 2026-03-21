@@ -173,6 +173,119 @@ Daily
 
 ---
 
+## Distortion reframe completion rate
+
+#### Definition
+
+Percent of Distortion Simulator sessions that reach a completed reframe state with at least
+one accepted balanced reframe.
+
+#### Formula
+
+```text
+distortion_reframe_completion_rate =
+  completed_distortion_reframe_sessions / distortion_simulator_starts
+```
+
+#### Owner
+
+Product + Data
+
+#### Update frequency
+
+Daily
+
+#### Change history
+
+- 2026-03-21: initial CBT Coaching Wave definition
+
+---
+
+## Identity loop completion rate
+
+#### Definition
+
+Percent of Identity Loop Mapper sessions that complete the identity-loop structure and
+produce an explicit replacement action.
+
+#### Formula
+
+```text
+identity_loop_completion_rate =
+  completed_identity_loop_sessions / identity_loop_mapper_starts
+```
+
+#### Owner
+
+Product + Data
+
+#### Update frequency
+
+Daily
+
+#### Change history
+
+- 2026-03-21: initial CBT Coaching Wave definition
+
+---
+
+## Next action commit rate
+
+#### Definition
+
+Percent of completed CBT coaching sessions where the user explicitly commits to one small
+next action.
+
+#### Formula
+
+```text
+next_action_commit_rate =
+  sessions_with_next_action_commit / completed_coaching_sessions
+```
+
+#### Owner
+
+Product + Growth
+
+#### Update frequency
+
+Daily
+
+#### Change history
+
+- 2026-03-21: initial CBT Coaching Wave definition
+
+---
+
+## Identity to action followthrough D7
+
+#### Definition
+
+Percent of users who complete an Identity Loop Mapper session and then record the mapped
+replacement action within 7 days.
+
+#### Formula
+
+```text
+identity_to_action_followthrough_d7 =
+  users_with_identity_loop_and_followthrough_by_day_7 /
+  users_with_completed_identity_loop
+```
+
+#### Owner
+
+Product + Data
+
+#### Update frequency
+
+Daily
+
+#### Change history
+
+- 2026-03-21: initial CBT Coaching Wave definition
+
+---
+
 ## Soft paywall view rate
 
 #### Definition
@@ -362,9 +475,13 @@ Per offline replay run
 
 ---
 
-## Event taxonomy (growth funnel)
+## Event taxonomy (growth funnel + coaching)
 
-Canonical event families and payload contracts for the growth funnel (onboarding → paywall → conversion → retention). Runtime implementation: `frontend/src/lib/telemetry/eventRegistry.ts`. This section is the doc SoT for semantics; code must stay aligned.
+Canonical event families and payload contracts for the growth funnel
+(onboarding → paywall → conversion → retention) plus the coaching loop
+(start → structured reflection → next action → revisit). Runtime implementation:
+`frontend/src/lib/telemetry/eventRegistry.ts`. This section is the doc SoT for
+semantics; code must stay aligned.
 
 ### Funnel stages and owners
 
@@ -374,6 +491,7 @@ Canonical event families and payload contracts for the growth funnel (onboarding
 | Paywall | Growth | Daily | paywall_viewed, paywall_cta_clicked, vip_paywall_* |
 | Conversion (trial) | Growth + Finance | Daily | trial_started |
 | Retention | Product + Data | Daily / Weekly | retention_heartbeat (d1/d7/d30) |
+| Coaching | Product + Data | Daily | coaching_session_started, coaching_reframe_completed, coaching_identity_map_completed, coaching_next_action_committed, coaching_revisit |
 
 ### Growth funnel events (required fields)
 
@@ -385,6 +503,11 @@ Canonical event families and payload contracts for the growth funnel (onboarding
 | paywall_cta_clicked | source, ctaId, tierContext | CTA click for upgrade/trial |
 | trial_started | source, planType | User started trial |
 | retention_heartbeat | dayBucket (d1/d7/d30), source | Cohort activity signal |
+| coaching_session_started | scenario, source, variant, tier, sessionId | Coaching loop entry for one bounded surface |
+| coaching_reframe_completed | scenario, source, variant, tier, sessionId | Distortion Simulator completion signal |
+| coaching_identity_map_completed | scenario, source, variant, tier, sessionId | Identity Loop Mapper completion signal |
+| coaching_next_action_committed | scenario, source, variant, tier, sessionId, goalId? | Explicit next-step commitment after coaching |
+| coaching_revisit | scenario, source, variant, tier, sessionId | Return signal for coaching continuity |
 
 ### VIP / paywall UX events (required fields)
 

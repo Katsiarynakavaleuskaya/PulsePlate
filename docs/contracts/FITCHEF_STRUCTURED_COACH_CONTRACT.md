@@ -1,7 +1,7 @@
 # FitChef Structured Coach Contract
 
-**Status:** Contract freeze for additive structured coach surfaces
-**Date:** 2026-03-13
+**Status:** Contract freeze with first bounded runtime surfaces live
+**Date:** 2026-03-21
 **Owner:** @katsiaryna_kavaleuskaya
 
 ## Summary
@@ -15,13 +15,16 @@ Identifier note:
 - GitHub review artifact for this lane: `PR #1159`
 
 The current public mascot routes under `/api/v1/insight/fitchef*` remain live,
-canonical, and unmigrated in this phase. PR-4 defines future structured coach
-surfaces under `/api/v1/pro/fitchef/*` and `/api/v1/vip/fitchef/*` so later
-runtime PRs can implement them without reopening route naming, tier semantics,
-or client-envelope rules.
+canonical, and unmigrated. The structured coach family stays additive.
 
-This is a docs-only contract phase. It does not add runtime behavior, OpenAPI
-paths, or client integrations yet.
+As of `21 March 2026`, the first two bounded runtime surfaces are live:
+
+- `POST /api/v1/pro/fitchef/explain`
+- `POST /api/v1/vip/fitchef/insight`
+
+The remaining structured coach paths stay contract-frozen follow-ups so later
+runtime PRs do not need to reopen route naming, tier semantics, or client
+envelope rules.
 
 ## Relationship to the live mascot canon
 
@@ -51,6 +54,32 @@ paths, or client integrations yet.
 
 These paths are contract-frozen for future implementation PRs and must stay
 additive to the live mascot family.
+
+## Wave-aligned capability mapping
+
+The current contract-freeze lane now aligns to the docs-first **CBT Coaching Wave**
+without changing route naming or public mascot canon.
+
+### PRO mapping
+
+- `POST /api/v1/pro/fitchef/explain`
+  - intended first bounded capability: `Distortion Simulator`
+  - shape direction: structured thought-record style reframing tool
+- `POST /api/v1/pro/fitchef/recommend`
+  - intended first bounded capability: action-oriented follow-up after reframing
+  - shape direction: structured next-step recommendation, not open-ended chat
+
+### VIP mapping
+
+- `POST /api/v1/vip/fitchef/insight`
+  - intended first bounded capability: `Identity Loop Mapper`
+  - shape direction: belief -> behavior -> payoff -> replacement action
+- `POST /api/v1/vip/fitchef/week-repair`
+  - intended first bounded capability: identity-aware repair after slips
+  - shape direction: recovery and continuity, not punishment
+- `POST /api/v1/vip/fitchef/chat`
+  - remains a future broader structured coach surface
+  - must not become the first implementation target ahead of bounded structured tools
 
 ## Tier policy freeze
 
@@ -110,6 +139,15 @@ Additional freeze points:
 
 Future public FitChef structured-coach responses must be schema-driven and
 renderable by thin clients without parsing prose into product state.
+
+### CBT Coaching Wave framework
+
+Future bounded coaching surfaces should align to the default framework:
+
+`Trigger -> Thought -> Distortion -> Reframe -> Action -> Reflection`
+
+This framework is additive guidance for future implementation PRs. It does not change the
+status of current routes or current public envelopes in this contract lane.
 
 ### Required top-level direction
 
@@ -214,8 +252,7 @@ Future structured coach implementation must:
 ## Explicit non-goals
 
 - renaming or migrating `/api/v1/insight/fitchef*`
-- shipping runtime code in this PR
-- adding OpenAPI paths in this PR
+- expanding beyond the first bounded live surfaces (`/api/v1/pro/fitchef/explain`, `/api/v1/vip/fitchef/insight`) in this lane
 - adding frontend or iOS FitChef runtime consumers
 - mixing website brand rollout or App Store assets into this contract lane
 

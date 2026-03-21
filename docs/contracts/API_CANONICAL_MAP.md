@@ -47,11 +47,14 @@ These routes are the current canonical operator surface.
 | FitChef mascot insight | `/api/v1/insight/fitchef` | POST | VIP-only (`require_vip_tier()`) | Canonical FitChef mascot coaching route under the insight namespace; feature-gated by `FEATURE_FITCHEF_MASCOT` |
 | FitChef weekly reflection | `/api/v1/insight/fitchef/weekly-reflection` | POST | VIP-only (`require_vip_tier()`) | Canonical FitChef weekly reflection route under the insight namespace; feature-gated by `FEATURE_FITCHEF_MASCOT` |
 | FitChef slip support | `/api/v1/insight/fitchef/slip-support` | POST | VIP-only (`require_vip_tier()`) | Canonical FitChef slip-support route under the insight namespace; feature-gated by `FEATURE_FITCHEF_MASCOT` |
+| FitChef explain | `/api/v1/pro/fitchef/explain` | POST | PRO-only (`require_pro_tier()`) | Bounded structured coaching surface for Distortion Simulator; feature-gated by `FEATURE_FITCHEF_STRUCTURED_COACH` |
+| FitChef identity loop insight | `/api/v1/vip/fitchef/insight` | POST | VIP-only (`require_vip_tier()`) | Bounded structured coaching surface for Identity Loop Mapper; feature-gated by `FEATURE_FITCHEF_STRUCTURED_COACH` |
 
 FitChef initiative note:
 - The live mascot routes above remain canonical during the FitChef umbrella foundation and visual/App Store waves.
 - The live mascot routes above remain canonical after the structured-coach contract freeze as well; they are not migrated by that phase.
-- Future structured-coach surfaces under `/api/v1/pro/fitchef/*` and `/api/v1/vip/fitchef/*` are contract-frozen additive surfaces only, pending later runtime PRs.
+- `POST /api/v1/pro/fitchef/explain` and `POST /api/v1/vip/fitchef/insight` are now live first bounded structured-coach surfaces.
+- Other structured-coach surfaces under `/api/v1/pro/fitchef/*` and `/api/v1/vip/fitchef/*` remain contract-frozen additive follow-ups.
 - Canonical reference: `docs/contracts/FITCHEF_INITIATIVE_FOUNDATION.md`.
 - Contract freeze reference: `docs/contracts/FITCHEF_STRUCTURED_COACH_CONTRACT.md`.
 
