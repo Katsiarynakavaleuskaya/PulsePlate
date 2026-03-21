@@ -192,6 +192,11 @@ Disposition: NOT-A-BUG
 Evidence: `scripts/design/execute_design.py:117`, `scripts/design/execution_adapters.py:36`, `docs/review/PR_1210_FIXED_MAPPING.md:33`
 Reason: Sourcery's summary issue comment duplicates already-tracked themes; the preview hardening was fixed in code, and the remaining type-centralization suggestion is architectural follow-up rather than a correctness bug for this PR.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1210#pullrequestreview-3986077125
+Disposition: NOT-A-BUG
+Evidence: `docs/library/decisions/ADR_DESIGN_AGENT_RUNTIME_PR_CHAIN_2026-03-21.md:33`, `docs/library/decisions/ADR_DESIGN_AGENT_RUNTIME_PR_CHAIN_2026-03-21.md:39`
+Reason: this final CodeRabbit review contains a readability-only wording nit on ADR bullet openings; it does not identify a correctness, governance, or merge-readiness defect in the staged design-runtime rollout.
+
 ## Merge Readiness
 - Review status: in progress; canonical mapping is now recorded, strict PR governance re-check and thread resolution remain pending on pushed head.
 - Merge status: not ready to merge yet.
