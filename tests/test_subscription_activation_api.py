@@ -971,6 +971,36 @@ def test_manual_sources_create_pending_manual_review(
     assert payload["activated_at"] is None
 
 
+def test_canonical_manual_activation_can_reconcile_verified_with_default_plan(
+    client: TestClient,
+    pro_headers: dict[str, str],
+) -> None:
+    activation = client.post(
+        "/api/v1/pro/payments/activate",
+        headers=pro_headers,
+        json=_manual_payload(source="erip_qr", source_reference="ERIP-QR-verified-1"),
+    )
+    assert activation.status_code == 200, activation.text
+    activation_payload = _json(activation)
+
+    reconcile = client.post(
+        "/api/v1/pro/payments/ru-by/reconcile",
+        headers=pro_headers,
+        json={
+            "intent_id": activation_payload["activation_id"],
+            "client_event_id": "evt-erip-canonical-reconcile-1",
+            "decision": "verified",
+            "external_txn_id": "erip-settled-canonical-1",
+        },
+    )
+    assert reconcile.status_code == 200, reconcile.text
+    reconcile_payload = _json(reconcile)
+    assert reconcile_payload["status"] == "active"
+    assert reconcile_payload["reconcile_status"] == "verified"
+    assert reconcile_payload["subscription_tier"] == "pro"
+    assert reconcile_payload["expires_at"] is not None
+
+
 def test_manual_replay_is_stable_after_payload_normalization(
     client: TestClient,
     pro_headers: dict[str, str],

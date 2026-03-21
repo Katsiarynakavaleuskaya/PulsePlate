@@ -394,9 +394,11 @@ def _normalize_canonical_manual_activation(
 
     amount_minor = _amount_to_minor_units(manual_payload.submitted_amount)
     safe_payload = request_payload.model_dump(mode="json", exclude_none=True)
+    requested_plan = request_payload.plan or SubscriptionPlan.pro_monthly
+    requested_tier = _plan_to_subscription_tier(requested_plan)
     return NormalizedActivation(
         source=source,
-        tier=SubscriptionTier.pro,
+        tier=requested_tier,
         status=SubscriptionStatus.pending_manual_review,
         platform=PaymentPlatform.web,
         idempotency_key=_build_idempotency_key(
@@ -411,13 +413,15 @@ def _normalize_canonical_manual_activation(
         provider_receipt_hash=None,
         submitted_amount_minor=amount_minor,
         submitted_currency=manual_payload.submitted_currency,
-        requested_plan=None,
+        requested_plan=requested_plan,
         external_txn_id=None,
         reconcile_status=ReconcileStatus.pending,
         evidence_summary={
             "source_reference": manual_payload.source_reference,
             "submitted_amount_minor": amount_minor,
             "submitted_currency": manual_payload.submitted_currency,
+            "requested_plan": requested_plan.value,
+            "subscription_tier": _plan_to_tier(requested_plan).value,
         },
     )
 
