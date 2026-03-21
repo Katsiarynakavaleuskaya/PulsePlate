@@ -384,9 +384,20 @@ def test_validate_canvas_artifact_rejects_interaction_contract_drift() -> None:
     assert any("canvas interaction_contract mismatch" in error for error in errors)
 
 
-def test_render_html_preview_is_deterministic() -> None:
+@pytest.mark.parametrize(
+    ("screen_id", "expected_interaction_mode"),
+    [
+        ("ios.home", "delegate_with_checkpoints"),
+        ("web.plate", "guided_adjustment"),
+        ("web.progress", "review_and_inspect"),
+    ],
+)
+def test_render_html_preview_is_deterministic_for_representative_surfaces(
+    screen_id: str,
+    expected_interaction_mode: str,
+) -> None:
     payload = generate_figma_instructions.instruction_to_dict(
-        generate_figma_instructions.generate_screen_instruction("web.progress")
+        generate_figma_instructions.generate_screen_instruction(screen_id)
     )
     canvas_artifact = build_canvas_artifact(payload)
 
@@ -395,8 +406,10 @@ def test_render_html_preview_is_deterministic() -> None:
 
     assert first_preview == second_preview
     assert 'data-preview-version="pulseplate_html_preview_v1"' in first_preview
-    assert "dashboard-detail-stack" in first_preview
-    assert "review_and_inspect" in first_preview
+    assert screen_id in first_preview
+    assert payload["layout_pattern"] in first_preview
+    assert payload["component_hierarchy"][0]["component_id"] in first_preview
+    assert expected_interaction_mode in first_preview
 
 
 def test_verify_screen_distinguishes_not_executed(
