@@ -32,15 +32,15 @@ Disposition: NOT-A-BUG
 Evidence: `ios/PulsePlate/Services/SubscriptionManager.swift:93`, `ios/AGENTS.md:88`
 Reason: the Sourcery review-guide comment duplicates the actionable review above and adds no independent unresolved item after the FIXED and NOT-A-BUG dispositions recorded here.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1207#pullrequestreview-3985798146 -> 9938ce65
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1207#pullrequestreview-3985798146 -> 81ea1995
 Disposition: FIXED
-Commit: 9938ce65
+Commit: 81ea1995
 Evidence: `docs/review/PR_1207_FIXED_MAPPING.md:20`, `docs/review/PR_1207_FIXED_MAPPING.md:31`
 Reason: cubic identified an ambiguous double-disposition on the same review URL; this artifact now assigns a single disposition to the Sourcery review and keeps each review URL unique.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1207#discussion_r2969317746 -> 9938ce65
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1207#discussion_r2969317746 -> 81ea1995
 Disposition: FIXED
-Commit: 9938ce65
+Commit: 81ea1995
 Evidence: `docs/review/PR_1207_FIXED_MAPPING.md:20`, `docs/review/PR_1207_FIXED_MAPPING.md:31`
 Reason: fixed the exact mapping ambiguity called out by cubic on the review thread by removing the duplicate disposition for the same review URL.
 
