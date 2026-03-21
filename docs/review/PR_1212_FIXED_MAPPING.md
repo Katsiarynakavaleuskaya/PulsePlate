@@ -62,10 +62,41 @@ Disposition: FIXED
 Commit: 0b53fed5
 Evidence: docs/review/PR_1212_FIXED_MAPPING.md:5
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1212#pullrequestreview-3986196948 -> 4c8eaa0d
+Disposition: FIXED
+Commit: 4c8eaa0d
+Evidence: app/routers/pro_payments.py:79; app/routers/pro_payments.py:116; tests/test_pro_payments_openapi_contract.py:36
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1212#discussion_r2969761922 -> 4c8eaa0d
+Disposition: FIXED
+Commit: 4c8eaa0d
+Evidence: app/routers/pro_payments.py:79; app/routers/pro_payments.py:116; tests/test_subscription_activation_api.py:1124
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1212#discussion_r2969769493 -> 4c8eaa0d
+Disposition: FIXED
+Commit: 4c8eaa0d
+Evidence: app/routers/pro_payments.py:79; app/routers/pro_payments.py:116; app/routers/pro_payments.py:155; tests/test_pro_payments_openapi_contract.py:36
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1212#discussion_r2969769497 -> 4c8eaa0d
+Disposition: FIXED
+Commit: 4c8eaa0d
+Evidence: app/routers/pro_payments.py:150; app/routers/pro_payments.py:155
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1212#discussion_r2969769501
+Disposition: NOT-A-BUG
+Evidence: app/middleware/api_tiers.py:209; app/middleware/api_tiers.py:212; app/middleware/api_tiers.py:217; tests/test_api_tiers.py:349; tests/test_api_tiers.py:390
+Reason: The non-manual-source test returns at the source guard before created_at is read, and the malformed-activated_at test fails at activated_at normalization before created_at is consulted, so both tests already isolate the intended branches.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1212#pullrequestreview-3986203435
+Disposition: NOT-A-BUG
+Evidence: docs/review/PR_1212_FIXED_MAPPING.md:62; docs/review/PR_1212_FIXED_MAPPING.md:74
+Reason: This review is a wrapper packet for child comments with mixed dispositions; its actionable items are fully covered by the FIXED entries for discussion_r2969769493/discussion_r2969769497 and the NOT-A-BUG entry for discussion_r2969769501 above.
+
 ## Merge Readiness
 
 - Status: ready for review / not ready to merge.
 - Current packet commits:
+  - `4c8eaa0d` — `fix(payments): align activation error contract`
   - `231839ce` — `fix(payments): close pr 1212 runtime blockers`
   - `05df5f15` — `chore(pre-commit): apply hook fixes`
   - `d85e7f1d` — `docs(roadmap): sync Batch B close-out after PR #1207`
@@ -95,5 +126,6 @@ Evidence: docs/review/PR_1212_FIXED_MAPPING.md:5
   - `python3 scripts/orchestration/check_agent_consistency.py`
   - `pre-commit run --all-files`
   - `make verify`
-  - `pytest -q tests/test_subscription_activation_api.py tests/test_pro_payments_openapi_contract.py`
+  - `make openapi`
+  - `pytest -q tests/test_subscription_activation_api.py tests/test_pro_payments_openapi_contract.py tests/test_api_tiers.py`
   - `pre-commit run --hook-stage push mypy --files app/services/payments_activation.py`
