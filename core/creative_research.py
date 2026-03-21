@@ -248,10 +248,24 @@ def _require_object_mapping(
 
 
 def _require_non_empty_string(payload: dict[str, object], *, key: str, label: str) -> str:
-    value = str(payload.get(key, "")).strip()
+    raw_value = payload.get(key, "")
+    if not isinstance(raw_value, str):
+        raise ValueError(f"{label} {key} must be a string.")
+    value = raw_value.strip()
     if not value:
         raise ValueError(f"{label} must include a non-empty {key}.")
     return value
+
+
+def _normalize_optional_string_field(payload: dict[str, object], *, key: str, label: str) -> str:
+    """Return optional string fields without coercing non-string payloads."""
+
+    raw_value = payload.get(key, "")
+    if raw_value is None:
+        return ""
+    if not isinstance(raw_value, str):
+        raise ValueError(f"{label} {key} must be a string.")
+    return raw_value.strip()
 
 
 def _normalize_string_list(raw: object, *, label: str) -> list[str]:
@@ -414,9 +428,21 @@ def validate_bundle(payload: object) -> CreativeResearchBundleRecord:
                 candidate_payload.get("counterevidence", []),
                 label=f"{label} counterevidence",
             ),
-            "stopping_rule": str(candidate_payload.get("stopping_rule", "")).strip(),
-            "decision_rule": str(candidate_payload.get("decision_rule", "")).strip(),
-            "minimum_observation": str(candidate_payload.get("minimum_observation", "")).strip(),
+            "stopping_rule": _normalize_optional_string_field(
+                candidate_payload,
+                key="stopping_rule",
+                label=label,
+            ),
+            "decision_rule": _normalize_optional_string_field(
+                candidate_payload,
+                key="decision_rule",
+                label=label,
+            ),
+            "minimum_observation": _normalize_optional_string_field(
+                candidate_payload,
+                key="minimum_observation",
+                label=label,
+            ),
         }
         candidates.append(candidate)
 
@@ -480,6 +506,12 @@ def build_scorecard(
             candidate["mechanism"],
             candidate["evidence_needed"],
             candidate["falsifier"],
+            candidate["wellness_boundary"],
+            " ".join(candidate.get("alternative_explanations", [])),
+            " ".join(candidate.get("counterevidence", [])),
+            candidate.get("stopping_rule", ""),
+            candidate.get("decision_rule", ""),
+            candidate.get("minimum_observation", ""),
         ]
     )
     report = validate_llm_output(combined_text, domain="creative_research")

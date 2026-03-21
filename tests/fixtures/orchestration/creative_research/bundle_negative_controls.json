@@ -20,11 +20,15 @@
         "Selection bias toward planners."
       ],
       "wellness_boundary": "Wellness coaching only. Not diagnosis or treatment.",
-      "alternative_explanations": [],
-      "counterevidence": [],
-      "stopping_rule": "",
-      "decision_rule": "",
-      "minimum_observation": ""
+      "alternative_explanations": [
+        "Control isolate: duplicate detection is the only negative path here."
+      ],
+      "counterevidence": [
+        "Control isolate: scientific structure stays populated for duplicate coverage."
+      ],
+      "stopping_rule": "Stop after confirming the duplicate signature matches the paired control.",
+      "decision_rule": "Discard because the claim duplicates another candidate, not because fields are missing.",
+      "minimum_observation": "At least one paired duplicate comparison with matching wording."
     },
     {
       "candidate_id": "dup-b",
@@ -37,11 +41,15 @@
         "Selection bias toward planners."
       ],
       "wellness_boundary": "Wellness coaching only. Not diagnosis or treatment.",
-      "alternative_explanations": [],
-      "counterevidence": [],
-      "stopping_rule": "",
-      "decision_rule": "",
-      "minimum_observation": ""
+      "alternative_explanations": [
+        "Control isolate: duplicate detection is the only negative path here."
+      ],
+      "counterevidence": [
+        "Control isolate: scientific structure stays populated for duplicate coverage."
+      ],
+      "stopping_rule": "Stop after confirming the duplicate signature matches the paired control.",
+      "decision_rule": "Discard because the claim duplicates another candidate, not because fields are missing.",
+      "minimum_observation": "At least one paired duplicate comparison with matching wording."
     },
     {
       "candidate_id": "unsafe-cure",
@@ -54,11 +62,15 @@
         "Medical overclaim."
       ],
       "wellness_boundary": "Wellness coaching only. Not diagnosis or treatment.",
-      "alternative_explanations": [],
-      "counterevidence": [],
-      "stopping_rule": "",
-      "decision_rule": "",
-      "minimum_observation": ""
+      "alternative_explanations": [
+        "Control isolate: wellness safety is the only negative path here."
+      ],
+      "counterevidence": [
+        "Control isolate: scientific structure stays populated for unsafe-language coverage."
+      ],
+      "stopping_rule": "Stop if the unsafe medical framing remains in the candidate.",
+      "decision_rule": "Discard because the language is unsafe, not because scientific fields are blank.",
+      "minimum_observation": "At least one review pass confirming the unsafe cure framing."
     },
     {
       "candidate_id": "missing-fields",

@@ -236,7 +236,7 @@ def normalize_claim_evidence_records(
 ) -> list[ClaimEvidenceRecord]:
     """Normalize a collection of raw claim-to-evidence records deterministically."""
 
-    if not isinstance(raw_records, Sequence):
+    if not isinstance(raw_records, Sequence) or isinstance(raw_records, (str, bytes, bytearray)):
         raise ValueError("claim_evidence_records must be provided as a sequence.")
 
     normalized_records: list[ClaimEvidenceRecord] = []
@@ -316,6 +316,9 @@ def build_uncertainty_split(
 def validate_uncertainty_split(raw_split: Mapping[str, object]) -> UncertaintySplit:
     """Validate and normalize raw uncertainty dimensions into the shared shape."""
 
+    if not isinstance(raw_split, Mapping):
+        raise ValueError("uncertainty_split must be provided as an object.")
+
     missing_fields = [
         field_name for field_name in UNCERTAINTY_FIELDS if field_name not in raw_split
     ]
@@ -390,6 +393,7 @@ def select_calibrated_decision(
 __all__ = [
     "CLAIM_TYPES",
     "CLAIM_EVIDENCE_FIELDS",
+    "CalibratedDecision",
     "EVIDENCE_MODES",
     "JUDGMENT_FLOW",
     "PROMOTION_LABELS",

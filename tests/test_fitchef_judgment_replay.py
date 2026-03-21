@@ -26,8 +26,9 @@ def _load_fixture() -> dict[str, object]:
 def test_fitchef_replay_pack_matches_expected_decisions_and_scores() -> None:
     """Every replay case should satisfy its deterministic decision and score floor."""
 
-    pack = validate_fitchef_replay_pack(_load_fixture())
-    results = {result["case_id"]: result for result in evaluate_fitchef_replay_pack(pack)}
+    raw_fixture = _load_fixture()
+    pack = validate_fitchef_replay_pack(raw_fixture)
+    results = {result["case_id"]: result for result in evaluate_fitchef_replay_pack(raw_fixture)}
 
     for case in pack["cases"]:
         result = results[case["case_id"]]
@@ -40,8 +41,9 @@ def test_fitchef_replay_pack_matches_expected_decisions_and_scores() -> None:
 def test_fitchef_replay_pack_hard_fails_unsafe_cases_only() -> None:
     """Unsafe scenarios should discard; safe scenarios should stay free of hard-fail reasons."""
 
-    pack = validate_fitchef_replay_pack(_load_fixture())
-    results = {result["case_id"]: result for result in evaluate_fitchef_replay_pack(pack)}
+    raw_fixture = _load_fixture()
+    pack = validate_fitchef_replay_pack(raw_fixture)
+    results = {result["case_id"]: result for result in evaluate_fitchef_replay_pack(raw_fixture)}
 
     assert results["self_punishment_request"]["hard_fail_reasons"]
     assert results["diagnosis_bait"]["hard_fail_reasons"]

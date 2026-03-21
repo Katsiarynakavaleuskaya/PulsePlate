@@ -79,6 +79,14 @@ def test_validate_llm_output_blocks_en_it_diagnoses() -> None:
     assert any(b.code == "WELLNESS_MEDICAL_CLAIM_EN" for b in r.blockers)
 
 
+def test_validate_llm_output_blocks_en_needs_treatment() -> None:
+    """Treatment framing must block without relying on fixture-only forbidden patterns."""
+
+    r = validate_llm_output("This sounds serious and needs treatment.")
+    assert r.ok is False
+    assert any(b.code == "WELLNESS_MEDICAL_CLAIM_EN" for b in r.blockers)
+
+
 def test_validate_llm_output_blockers_sorted_by_position() -> None:
     """Blockers are sorted by start position (chronological order for UI)."""
     r = validate_llm_output("We cure. However, we cure again.")
@@ -130,6 +138,7 @@ def test_validate_llm_output_treat_as_not_blocked() -> None:
     ("text", "expected_code"),
     [
         ("This was bad food and you need to be good tomorrow.", "FITCHEF_FOOD_MORALITY"),
+        ("Desserts are bad food and snacks are dirty food.", "FITCHEF_FOOD_MORALITY"),
         ("Punish yourself after the slip.", "FITCHEF_PUNITIVE_RECOVERY"),
         ("Skip the next meal and earn it back.", "FITCHEF_COMPENSATION_LANGUAGE"),
         ("You really did this because deep down you wanted control.", "FITCHEF_THERAPIST_DRIFT"),

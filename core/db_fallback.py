@@ -143,7 +143,7 @@ def _configure_session_bindings(
     # can surface degraded states. This uses a lazy import and silently
     # no-ops if the metrics client is not available.
     try:  # pragma: no cover - metrics instrumentation is optional
-        from core import metrics as _metrics  # type: ignore[attr-defined]
+        from core import metrics as _metrics
 
         client = getattr(_metrics, "metrics_client", None)
         if client is not None:

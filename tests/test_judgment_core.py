@@ -297,6 +297,13 @@ def test_normalize_claim_evidence_records_rejects_non_sequence_payload() -> None
         normalize_claim_evidence_records(1)  # type: ignore[arg-type]
 
 
+def test_normalize_claim_evidence_records_rejects_string_sequence_payload() -> None:
+    """String payloads must not be iterated as claim-record sequences."""
+
+    with pytest.raises(ValueError, match="claim_evidence_records must be provided as a sequence"):
+        normalize_claim_evidence_records("not-a-record-sequence")  # type: ignore[arg-type]
+
+
 def test_normalize_claim_evidence_records_rejects_non_mapping_member() -> None:
     """Every claim record item must remain object-shaped."""
 
@@ -309,6 +316,13 @@ def test_validate_uncertainty_split_requires_all_fields() -> None:
 
     with pytest.raises(ValueError, match="uncertainty_split is missing required fields"):
         validate_uncertainty_split({"retrieval_confidence": 0.5})
+
+
+def test_validate_uncertainty_split_rejects_non_mapping_payload() -> None:
+    """Scalar uncertainty payloads must fail with a deterministic ValueError."""
+
+    with pytest.raises(ValueError, match="uncertainty_split must be provided as an object"):
+        validate_uncertainty_split(1)  # type: ignore[arg-type]
 
 
 def test_validate_uncertainty_split_rejects_non_float_like_values() -> None:
@@ -401,7 +415,7 @@ def test_select_calibrated_decision_discards_contradicted_payload() -> None:
         uncertainty_split={
             "retrieval_confidence": 0.9,
             "evidence_coverage": 0.9,
-            "contradiction_risk": 0.9,
+            "contradiction_risk": 0.1,
             "actionability_confidence": 0.9,
             "personalization_conflict": 0.1,
         },
@@ -463,6 +477,63 @@ def test_select_calibrated_decision_discards_high_personalization_conflict() -> 
     assert decision == {
         "decision": "discard",
         "rationale": "personalization conflict remains too high",
+    }
+
+
+def test_select_calibrated_decision_defers_supported_but_under_supported_payload() -> None:
+    """Supported claims should defer when evidence stays below promotion thresholds."""
+
+    decision = select_calibrated_decision(
+        claim_records=[
+            {
+                "claim_type": "recommendation",
+                "support_status": "supported",
+                "source_ids": ["marker:next_meal"],
+                "evidence_mode": "direct_source",
+                "conflict_flag": False,
+            }
+        ],
+        uncertainty_split={
+            "retrieval_confidence": 0.4,
+            "evidence_coverage": 0.5,
+            "contradiction_risk": 0.1,
+            "actionability_confidence": 0.6,
+            "personalization_conflict": 0.1,
+        },
+    )
+
+    assert decision == {
+        "decision": "defer",
+        "rationale": "safe but still under-supported",
+    }
+
+
+def test_select_calibrated_decision_discards_boundary_blocked_payload() -> None:
+    """Boundary-blocked payloads must discard before any promotion or defer path."""
+
+    decision = select_calibrated_decision(
+        claim_records=[
+            {
+                "claim_type": "recommendation",
+                "support_status": "supported",
+                "source_ids": ["marker:next_meal"],
+                "evidence_mode": "direct_source",
+                "conflict_flag": False,
+            }
+        ],
+        uncertainty_split={
+            "retrieval_confidence": 0.9,
+            "evidence_coverage": 0.8,
+            "contradiction_risk": 0.1,
+            "actionability_confidence": 0.9,
+            "personalization_conflict": 0.1,
+        },
+        boundary_blocked=True,
+    )
+
+    assert decision == {
+        "decision": "discard",
+        "rationale": "safety boundary blocked promotion",
     }
 
 

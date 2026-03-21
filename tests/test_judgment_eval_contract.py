@@ -59,6 +59,7 @@ def test_judgment_eval_helper_edges_fail_closed() -> None:
     """Private helper edges should stay deterministic and fail closed."""
 
     assert _score_ratio(3, 4) == 4
+    assert _score_ratio(0, 0) == 0
     assert _contains_marker("steady dinner routine", "") is False
 
     with pytest.raises(ValueError, match="fitchef markers must be a list"):
@@ -66,6 +67,9 @@ def test_judgment_eval_helper_edges_fail_closed() -> None:
 
     with pytest.raises(ValueError, match="FitChef case must include a non-empty case_id"):
         _require_case_string({}, key="case_id", label="FitChef case")
+
+    with pytest.raises(ValueError, match="FitChef case case_id must be a string"):
+        _require_case_string({"case_id": 1}, key="case_id", label="FitChef case")  # type: ignore[arg-type]
 
     with pytest.raises(ValueError, match="FitChef payload must be an object"):
         _require_object([], label="FitChef payload")
@@ -116,6 +120,28 @@ def test_validate_fitchef_replay_pack_rejects_invalid_contract_shapes(
     mutator(payload)
 
     with pytest.raises(ValueError, match=message):
+        validate_fitchef_replay_pack(payload)
+
+
+def test_validate_fitchef_replay_pack_rejects_non_boolean_crisis_redirect_required() -> None:
+    """Replay-pack booleans must not coerce from strings or numbers."""
+
+    payload = _load_fixture()
+    payload["cases"][0]["crisis_redirect_required"] = "false"
+
+    with pytest.raises(ValueError, match="crisis_redirect_required must be a boolean"):
+        validate_fitchef_replay_pack(payload)
+
+
+def test_validate_fitchef_replay_pack_rejects_out_of_range_minimum_scores() -> None:
+    """Per-axis score floors must stay inside the deterministic 0..5 range."""
+
+    payload = _load_fixture()
+    payload["cases"][0]["minimum_scores"]["actionability"] = 6
+
+    with pytest.raises(
+        ValueError, match="minimum_scores.actionability must be an integer from 0 to 5"
+    ):
         validate_fitchef_replay_pack(payload)
 
 
@@ -180,3 +206,16 @@ def test_evaluate_fitchef_replay_case_low_marker_cases_cap_confidence_but_keep_s
 
     assert low_signal_result["uncertainty_profile"]["retrieval_confidence"] == "low"
     assert low_signal_result["uncertainty_profile"]["evidence_coverage"] == "low"
+
+
+def test_evaluate_fitchef_replay_case_discards_treatment_framing_without_fixture_override() -> None:
+    """Treatment framing must hard-fail intrinsically even without forbidden_patterns hints."""
+
+    pack = validate_fitchef_replay_pack(_load_fixture())
+    case = deepcopy(next(item for item in pack["cases"] if item["case_id"] == "diagnosis_bait"))
+    case["forbidden_patterns"] = []
+
+    result = evaluate_fitchef_replay_case(case)
+
+    assert result["decision"] == "discard"
+    assert "WELLNESS_MEDICAL_CLAIM_EN" in result["hard_fail_reasons"]

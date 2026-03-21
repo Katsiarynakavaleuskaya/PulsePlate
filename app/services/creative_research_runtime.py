@@ -158,6 +158,9 @@ def _normalize_provider_candidate(
 ) -> CreativeResearchCandidateRecord:
     """Normalize provider output into the creative-research contract."""
 
+    def _normalize_optional_string(raw_value: object) -> str:
+        return raw_value.strip() if isinstance(raw_value, str) else ""
+
     confidence = str(candidate.get("confidence", "unknown")).strip().lower() or "unknown"
     if confidence not in CONFIDENCE_LEVELS:
         confidence = "unknown"
@@ -180,20 +183,21 @@ def _normalize_provider_candidate(
     else:
         counterevidence = []
     candidate_record: CreativeResearchCandidateRecord = {
-        "candidate_id": str(candidate.get("candidate_id", "")).strip() or f"candidate-{index}",
-        "claim": str(candidate.get("claim", "")).strip(),
-        "mechanism": str(candidate.get("mechanism", "")).strip(),
-        "evidence_needed": str(candidate.get("evidence_needed", "")).strip(),
-        "falsifier": str(candidate.get("falsifier", "")).strip(),
+        "candidate_id": _normalize_optional_string(candidate.get("candidate_id", ""))
+        or f"candidate-{index}",
+        "claim": _normalize_optional_string(candidate.get("claim", "")),
+        "mechanism": _normalize_optional_string(candidate.get("mechanism", "")),
+        "evidence_needed": _normalize_optional_string(candidate.get("evidence_needed", "")),
+        "falsifier": _normalize_optional_string(candidate.get("falsifier", "")),
         "confidence": normalized_confidence,
         "known_risks": known_risks,
         "alternative_explanations": alternative_explanations,
         "counterevidence": counterevidence,
-        "stopping_rule": str(candidate.get("stopping_rule", "")).strip(),
-        "decision_rule": str(candidate.get("decision_rule", "")).strip(),
-        "minimum_observation": str(candidate.get("minimum_observation", "")).strip(),
+        "stopping_rule": _normalize_optional_string(candidate.get("stopping_rule", "")),
+        "decision_rule": _normalize_optional_string(candidate.get("decision_rule", "")),
+        "minimum_observation": _normalize_optional_string(candidate.get("minimum_observation", "")),
         "wellness_boundary": (
-            str(candidate.get("wellness_boundary", "")).strip()
+            _normalize_optional_string(candidate.get("wellness_boundary", ""))
             or "Wellness only; not diagnosis, treatment, or medical advice."
         ),
     }

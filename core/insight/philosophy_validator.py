@@ -37,7 +37,8 @@ _BLOCKER_PATTERNS: List[Tuple[str, re.Pattern[str]]] = [
         re.compile(
             r"\b(we\s+cure|we\s+diagnose|will\s+cure|will\s+diagnose"
             r"|cures?\s+your|cures?\s+the|diagnoses?\s+your|diagnoses?\s+the"
-            r"|(?:this|it)\s+(?:cures?|diagnoses?))\b",
+            r"|(?:this|it)\s+(?:cures?|diagnoses?)"
+            r"|(?:need|needs|require|requires)\s+(?:medical\s+)?treatment)\b",
             re.IGNORECASE,
         ),
     ),
@@ -67,7 +68,7 @@ _BLOCKER_PATTERNS: List[Tuple[str, re.Pattern[str]]] = [
     (
         "FITCHEF_FOOD_MORALITY",
         re.compile(
-            r"\b(good|bad|clean|dirty)\s+(food|foods|meal|meals|eating|dessert|snack)\b"
+            r"\b(good|bad|clean|dirty)\s+(food|foods|meal|meals|eating|dessert|desserts|snack|snacks)\b"
             r"|\b(cheat\s+meal|cheat\s+day)\b",
             re.IGNORECASE,
         ),

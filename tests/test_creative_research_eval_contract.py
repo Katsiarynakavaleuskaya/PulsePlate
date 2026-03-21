@@ -57,6 +57,16 @@ def test_validate_bundle_rejects_unknown_confidence_level() -> None:
         validate_bundle(bundle)
 
 
+def test_validate_bundle_rejects_non_string_scientific_fields() -> None:
+    """Scientific discovery text fields must reject non-string payloads."""
+
+    bundle = _load_fixture("bundle_valid.json")
+    bundle["candidates"][0]["stopping_rule"] = []
+
+    with pytest.raises(ValueError, match="candidate #1 stopping_rule must be a string"):
+        validate_bundle(bundle)
+
+
 def test_evaluate_bundle_classifies_valid_output_types() -> None:
     """Valid PR-B fixture candidates should map to the three governed output classes."""
 
