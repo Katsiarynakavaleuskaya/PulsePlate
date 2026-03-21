@@ -1767,44 +1767,6 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Wellness-safe language and disclaimer references are explicit in the lane docs
 
 
-<a id="ledger-p2-movement-performance-coaching-wave"></a>
-- [ ] P2: Movement/performance coaching expansion lane
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P2 (future product expansion / non-core coaching scope)
-  - Target PR: PR-TBD-MOVEMENT-PERFORMANCE-COACHING-WAVE
-  - Status: 📋 Planned
-  - Reason (EN): The CBT Coaching Wave intentionally starts with cognition-first product surfaces. Movement, performance, and training-adjacent coaching should stay deferred until the structured reflection lanes are stable, so the next expansion can be packaged as a bounded product slice instead of widening the initial coaching umbrella too early.
-  - Links:
-    - `docs/insights/CBT_COACHING_PRODUCT_WAVE.md`
-    - `docs/library/promotion/2026-03-21_cbt_coaching_wave_promotion-log.md`
-    - `docs/contracts/FITCHEF_STRUCTURED_COACH_CONTRACT.md`
-    - `docs/analytics/METRICS_CATALOG.md`
-  - DoD:
-    - One bounded movement/performance concept exists with explicit tier, route family, and safety framing
-    - The expansion does not modify the live `/api/v1/insight/fitchef*` canon
-    - Measurement plan defines activation, retention, and safety-review metrics before runtime work starts
-    - Follow-up implementation remains separate from the cognition-first CBT coaching rollout
-
-
-<a id="ledger-p2-personal-experiment-dashboard"></a>
-- [ ] P2: Personal experiment dashboard lane
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P2 (analytics UX / founder tooling)
-  - Target PR: PR-TBD-PERSONAL-EXPERIMENT-DASHBOARD
-  - Status: 📋 Planned
-  - Reason (EN): The repo already has experiment governance and metrics catalogs, but a user-facing dashboard would create a separate product and analytics UX lane. It should remain deferred until the first coaching reports and structured runtime surfaces establish which metrics, experiments, and decision rules are stable enough to expose to users.
-  - Links:
-    - `docs/insights/CBT_COACHING_PRODUCT_WAVE.md`
-    - `docs/library/promotion/2026-03-21_cbt_coaching_wave_promotion-log.md`
-    - `docs/analytics/EXPERIMENT_REGISTRY.md`
-    - `docs/analytics/DASHBOARD_BASELINE_REQUIREMENTS.md`
-  - DoD:
-    - Dashboard scope is limited to canonical experiment and metric objects already defined in repo contracts
-    - User-facing dashboard copy avoids diagnostic or therapist framing
-    - Every exposed chart/card has owner, metric definition, and decision rule
-    - Follow-up PR keeps dashboard UX separate from structured coach runtime changes
-
-
 - [ ] P2: FitChef App Store localization RU
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2 (ASO / localization)
@@ -2072,6 +2034,42 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 
 
 ### P2
+
+<a id="ledger-p2-movement-performance-coaching-wave"></a>
+- [ ] P2: Movement/performance coaching expansion lane
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2 (future product expansion / non-core coaching scope)
+  - Target PR: PR-TBD-MOVEMENT-PERFORMANCE-COACHING-WAVE
+  - Status: 📋 Planned
+  - Reason (EN): The CBT Coaching Wave intentionally starts with cognition-first product surfaces. Movement, performance, and training-adjacent coaching should stay deferred until the structured reflection lanes are stable, so the next expansion can be packaged as a bounded product slice instead of widening the initial coaching umbrella too early.
+  - Links:
+    - `docs/insights/CBT_COACHING_PRODUCT_WAVE.md`
+    - `docs/library/promotion/2026-03-21_cbt_coaching_wave_promotion-log.md`
+    - `docs/contracts/FITCHEF_STRUCTURED_COACH_CONTRACT.md`
+    - `docs/analytics/METRICS_CATALOG.md`
+  - DoD:
+    - One bounded movement/performance concept exists with explicit tier, route family, and safety framing
+    - The expansion does not modify the live `/api/v1/insight/fitchef*` canon
+    - Measurement plan defines activation, retention, and safety-review metrics before runtime work starts
+    - Follow-up implementation remains separate from the cognition-first CBT coaching rollout
+
+<a id="ledger-p2-personal-experiment-dashboard"></a>
+- [ ] P2: Personal experiment dashboard lane
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2 (analytics UX / founder tooling)
+  - Target PR: PR-TBD-PERSONAL-EXPERIMENT-DASHBOARD
+  - Status: 📋 Planned
+  - Reason (EN): The repo already has experiment governance and metrics catalogs, but a user-facing dashboard would create a separate product and analytics UX lane. It should remain deferred until the first coaching reports and structured runtime surfaces establish which metrics, experiments, and decision rules are stable enough to expose to users.
+  - Links:
+    - `docs/insights/CBT_COACHING_PRODUCT_WAVE.md`
+    - `docs/library/promotion/2026-03-21_cbt_coaching_wave_promotion-log.md`
+    - `docs/analytics/EXPERIMENT_REGISTRY.md`
+    - `docs/analytics/DASHBOARD_BASELINE_REQUIREMENTS.md`
+  - DoD:
+    - Dashboard scope is limited to canonical experiment and metric objects already defined in repo contracts
+    - User-facing dashboard copy avoids diagnostic or therapist framing
+    - Every exposed chart/card has owner, metric definition, and decision rule
+    - Follow-up PR keeps dashboard UX separate from structured coach runtime changes
 
 <a id="ledger-p2-gha-node24-cache-warning-cleanup"></a>
 - [ ] P2: GitHub Actions Node 24 migration and cache-warning cleanup

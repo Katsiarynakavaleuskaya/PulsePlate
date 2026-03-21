@@ -362,6 +362,315 @@ Per offline replay run
 
 ---
 
+## Distortion reframe completion rate (`distortion_reframe_completion_rate`)
+
+#### Definition
+
+Percent of started Distortion Simulator sessions that reach a completed balanced
+reframe output in the same attribution window.
+
+#### Formula
+
+```text
+distortion_reframe_completion_rate =
+  completed_distortion_reframe_sessions / started_distortion_reframe_sessions
+```
+
+#### Owner
+
+Product + Wellness AI
+
+#### Update frequency
+
+Daily
+
+#### Change history
+
+- 2026-03-21: initial definition for the CBT Coaching Wave docs-first contract
+
+---
+
+## Challenge acceptance rate (`challenge_acceptance_rate`)
+
+#### Definition
+
+Percent of completed Distortion Simulator sessions where the user explicitly
+accepts or keeps the suggested challenge/reframe step.
+
+#### Formula
+
+```text
+challenge_acceptance_rate =
+  sessions_with_accepted_challenge / completed_distortion_reframe_sessions
+```
+
+#### Owner
+
+Product + Wellness AI
+
+#### Update frequency
+
+Daily
+
+#### Change history
+
+- 2026-03-21: initial definition for the CBT Coaching Wave docs-first contract
+
+---
+
+## Next action commit rate (`next_action_commit_rate`)
+
+#### Definition
+
+Percent of completed Distortion Simulator sessions where the user commits to one
+explicit next small action.
+
+#### Formula
+
+```text
+next_action_commit_rate =
+  sessions_with_next_action_commit / completed_distortion_reframe_sessions
+```
+
+#### Owner
+
+Product + Wellness AI
+
+#### Update frequency
+
+Daily
+
+#### Change history
+
+- 2026-03-21: initial definition for the CBT Coaching Wave docs-first contract
+
+---
+
+## 7d revisit rate (`7d_revisit_rate`)
+
+#### Definition
+
+Percent of users who complete a Distortion Simulator session and return to any
+CBT coaching surface within 7 days.
+
+#### Formula
+
+```text
+7d_revisit_rate =
+  users_who_revisit_cbt_surface_within_7d / users_who_completed_distortion_reframe
+```
+
+#### Owner
+
+Product + Data
+
+#### Update frequency
+
+Daily
+
+#### Change history
+
+- 2026-03-21: initial definition for the CBT Coaching Wave docs-first contract
+
+---
+
+## Identity loop completion rate (`identity_loop_completion_rate`)
+
+#### Definition
+
+Percent of started Identity Loop Mapper sessions that return the full
+identity-loop response envelope within the attribution window.
+
+#### Formula
+
+```text
+identity_loop_completion_rate =
+  completed_identity_loop_sessions / started_identity_loop_sessions
+```
+
+#### Owner
+
+Product + Wellness AI
+
+#### Update frequency
+
+Daily
+
+#### Change history
+
+- 2026-03-21: initial definition for the CBT Coaching Wave docs-first contract
+
+---
+
+## Identity to action followthrough 7d (`identity_to_action_followthrough_7d`)
+
+#### Definition
+
+Percent of completed Identity Loop Mapper sessions where the recommended
+replacement action is completed or explicitly confirmed within 7 days.
+
+#### Formula
+
+```text
+identity_to_action_followthrough_7d =
+  sessions_with_followthrough_within_7d / completed_identity_loop_sessions
+```
+
+#### Owner
+
+Product + Data
+
+#### Update frequency
+
+Daily
+
+#### Change history
+
+- 2026-03-21: initial definition for the CBT Coaching Wave docs-first contract
+
+---
+
+## Repeat reflection rate (`repeat_reflection_rate`)
+
+#### Definition
+
+Percent of users who complete one Identity Loop Mapper session and complete at
+least one additional reflection session inside the attribution window.
+
+#### Formula
+
+```text
+repeat_reflection_rate =
+  users_with_repeat_identity_reflection / users_who_completed_identity_loop
+```
+
+#### Owner
+
+Product + Wellness AI
+
+#### Update frequency
+
+Daily
+
+#### Change history
+
+- 2026-03-21: initial definition for the CBT Coaching Wave docs-first contract
+
+---
+
+## Goal alignment score (`goal_alignment_score`)
+
+#### Definition
+
+Canonical scored measure of how well the returned action plan aligns with the
+user-stated goal and the structured coaching context for the same session.
+
+#### Formula
+
+```text
+goal_alignment_score =
+  aligned_goal_checks_passed / total_goal_alignment_checks
+```
+
+#### Owner
+
+Product + AI Quality
+
+#### Update frequency
+
+Daily
+
+#### Change history
+
+- 2026-03-21: initial definition for the CBT Coaching Wave docs-first contract
+
+---
+
+## Support ticket rate (`support_ticket_rate`)
+
+#### Definition
+
+Percent of active users in the aggregation window who create a support ticket
+linked to the relevant product surface or experiment.
+
+#### Formula
+
+```text
+support_ticket_rate =
+  users_with_support_ticket_window / active_users_window
+```
+
+#### Owner
+
+Support + Product
+
+#### Update frequency
+
+Daily
+
+#### Change history
+
+- 2026-03-21: initial definition for the CBT Coaching Wave docs-first contract
+
+---
+
+## Therapy or medical language leakage rate (`therapy_medical_language_leakage_rate`)
+
+#### Definition
+
+Percent of sampled CBT coaching responses in the aggregation window that breach
+the wellness-only language boundary by introducing therapy, diagnosis, or
+medical-advice phrasing.
+
+#### Formula
+
+```text
+therapy_medical_language_leakage_rate =
+  responses_flagged_for_boundary_leakage / sampled_cbt_coaching_responses
+```
+
+#### Owner
+
+AI Quality + Safety
+
+#### Update frequency
+
+Daily
+
+#### Change history
+
+- 2026-03-21: initial definition for the CBT Coaching Wave docs-first contract
+
+---
+
+## Session abandonment rate (`session_abandonment_rate`)
+
+#### Definition
+
+Percent of started CBT coaching sessions that end before a usable coaching
+result or explicit dismissal event is produced.
+
+#### Formula
+
+```text
+session_abandonment_rate =
+  abandoned_cbt_coaching_sessions / started_cbt_coaching_sessions
+```
+
+#### Owner
+
+Product + Data
+
+#### Update frequency
+
+Daily
+
+#### Change history
+
+- 2026-03-21: initial definition for the CBT Coaching Wave docs-first contract
+
+---
+
 ## Event taxonomy (growth funnel)
 
 Canonical event families and payload contracts for the growth funnel (onboarding → paywall → conversion → retention). Runtime implementation: `frontend/src/lib/telemetry/eventRegistry.ts`. This section is the doc SoT for semantics; code must stay aligned.
