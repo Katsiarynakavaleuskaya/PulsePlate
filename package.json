@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "[![codecov](https://codecov.io/gh/Katsiarynakavaleuskaya/PulsePlate/branch/main/graph/badge.svg)](https://codecov.io/gh/Katsiarynakavaleuskaya/PulsePlate)",
   "main": "worker.js",
+  "type": "module",
   "directories": {
     "doc": "docs",
     "test": "tests"
