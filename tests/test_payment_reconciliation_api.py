@@ -10,13 +10,19 @@ from tests.payment_test_utils import json_response_payload as _json
 pytestmark = pytest.mark.usefixtures("reset_payments_state")
 
 
-def _create_manual_intent(client: TestClient, headers: dict[str, str], *, source: str) -> str:
+def _create_manual_intent(
+    client: TestClient,
+    headers: dict[str, str],
+    *,
+    source: str,
+    plan: str = "vip_monthly",
+) -> str:
     response = client.post(
         "/api/v1/pro/payments/ru-by/manual-intent",
         headers=headers,
         json={
             "source": source,
-            "plan": "vip_monthly",
+            "plan": plan,
             "client_event_id": f"evt-{source}-intent-1",
             "external_txn_id": f"{source}-intent-1",
             "amount_minor": 2999,
@@ -27,7 +33,12 @@ def _create_manual_intent(client: TestClient, headers: dict[str, str], *, source
     return _json(response)["activation_id"]
 
 
-def _create_manual_intent_via_service(*, issuer: str, source: str) -> str:
+def _create_manual_intent_via_service(
+    *,
+    issuer: str,
+    source: str,
+    plan: str = "vip_monthly",
+) -> str:
     from app.schemas.payments import ManualRailIntentRequest
     from app.services import payments_activation
 
@@ -35,7 +46,7 @@ def _create_manual_intent_via_service(*, issuer: str, source: str) -> str:
         payload=ManualRailIntentRequest.model_validate(
             {
                 "source": source,
-                "plan": "vip_monthly",
+                "plan": plan,
                 "client_event_id": f"evt-{source}-service-intent-1",
                 "external_txn_id": f"{source}-service-intent-1",
                 "amount_minor": 2999,
@@ -94,13 +105,16 @@ def test_manual_reconcile_verified_flow(
     assert payload["subscription_tier"] == "vip"
     assert payload["external_txn_id"] == "swift-settled-1"
     assert payload["intent_id"] == intent_id
+    assert payload["expires_at"] is not None
 
     status_response = client.get(
         f"/api/v1/pro/payments/ru-by/reconcile/{intent_id}",
         headers=pro_headers,
     )
     assert status_response.status_code == 200, status_response.text
-    assert _json(status_response)["status"] == "active"
+    status_payload = _json(status_response)
+    assert status_payload["status"] == "active"
+    assert status_payload["expires_at"] is not None
 
 
 def test_manual_reconcile_is_idempotent(

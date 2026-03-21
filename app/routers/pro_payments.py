@@ -84,6 +84,14 @@ def _resolve_activation_user(x_api_key: str | None) -> CurrentUser:
             "description": "iOS activation requires receipt_data or Apple verification failed",
             "model": PaymentErrorResponse,
         },
+        status.HTTP_502_BAD_GATEWAY: {
+            "description": "Apple receipt verification upstream error",
+            "model": PaymentErrorResponse,
+        },
+        status.HTTP_504_GATEWAY_TIMEOUT: {
+            "description": "Apple receipt verification timed out",
+            "model": PaymentErrorResponse,
+        },
         status.HTTP_409_CONFLICT: {
             "description": "Deterministic activation conflict",
             "model": PaymentErrorResponse,
@@ -135,6 +143,13 @@ async def activate_subscription(
             message=exc.error_message or "Activation reverification rejected",
             detail=str(exc),
         )
+    except payments_activation.AppleVerifyTransportError as exc:
+        return _payment_error_response(
+            status_code=exc.status_code,
+            code=exc.error_code,
+            message=exc.error_message,
+            detail=str(exc) or exc.error_message,
+        )
 
     response.status_code = status.HTTP_200_OK
     return activation
@@ -162,7 +177,7 @@ def get_subscription_activation(
     activation_id: str,
     x_api_key: str | None = Security(api_key_header),
 ) -> SubscriptionActivationResponse | JSONResponse:
-    """Get persisted activation event by ID."""
+    """Get current persisted entitlement view for an activation lineage."""
 
     try:
         current_user = _resolve_activation_user(x_api_key)

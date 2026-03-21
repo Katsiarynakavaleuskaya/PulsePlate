@@ -4,7 +4,7 @@ import os
 from pathlib import Path
 import subprocess
 import sys
-from typing import Any
+from typing import Any, cast
 from datetime import datetime, timedelta, timezone
 
 from fastapi.testclient import TestClient
@@ -33,6 +33,7 @@ from app.schemas.payments import (
     SubscriptionTier,
 )
 from app.services import payments_activation
+from core.billing_policy import manual_monthly_entitlement_expires_at
 from core import db as core_db
 
 
@@ -113,6 +114,17 @@ def _apple_response_for_receipt(receipt_data: str) -> dict[str, Any]:
                     "expires_date_ms": far_future_2099_05_ms,
                     "transaction_id": "txn-vip-route-1",
                     "original_transaction_id": "txn-vip-route-1",
+                }
+            ],
+        },
+        "base64_receipt_blob_server_truth_vip": {
+            "status": 0,
+            "latest_receipt_info": [
+                {
+                    "product_id": "com.pulseplate.vip.monthly",
+                    "expires_date_ms": far_future_2099_05_ms,
+                    "transaction_id": "txn-server-truth-vip-1",
+                    "original_transaction_id": "orig-server-truth-vip-1",
                 }
             ],
         },
@@ -278,6 +290,26 @@ def _set_subscription_status_for_user_source(
         subscription = session.execute(statement).scalar_one()
         subscription.status = status
         subscription.expires_at = expires_at
+        session.commit()
+    finally:
+        session.close()
+
+
+def _set_subscription_user_id_for_source(
+    *,
+    user_id: int,
+    source: str,
+    new_user_id: int,
+) -> None:
+    session_factory = core_db.get_session_factory()
+    session = session_factory()
+    try:
+        statement = select(Subscription).where(
+            Subscription.user_id == user_id,
+            Subscription.source == source,
+        )
+        subscription = session.execute(statement).scalar_one()
+        subscription.user_id = new_user_id
         session.commit()
     finally:
         session.close()
@@ -597,6 +629,93 @@ def test_ios_forged_verification_result_rejected_activation_reverify(
     assert response.status_code == 403, response.text
     payload = _json(response)
     assert payload.get("code") == "activation_reverify_rejected"
+
+    subscription_count, audit_count = _load_counts()
+    assert subscription_count == 0
+    assert audit_count == 0
+
+
+def test_ios_server_verified_receipt_overrides_client_claims(
+    client: TestClient,
+    pro_headers: dict[str, str],
+) -> None:
+    """Server-verified Apple receipt must win over conflicting client claims."""
+
+    response = client.post(
+        "/api/v1/pro/payments/activate",
+        headers=pro_headers,
+        json=_ios_payload(
+            transaction_id="txn-client-claim-1",
+            product_id="com.pulseplate.premium.monthly",
+            tier="pro",
+            status="active",
+            expires_at="2026-06-01T00:00:00Z",
+            receipt_data="base64_receipt_blob_server_truth_vip",
+        ),
+    )
+    assert response.status_code == 200, response.text
+    payload = _json(response)
+    assert payload["subscription_tier"] == "vip"
+    assert payload["product_id"] == "com.pulseplate.vip.monthly"
+    assert payload["source_reference"] == "txn-server-truth-vip-1"
+
+    subscription = _load_subscription_for_user_source(payload["user_id"], "ios_app_store")
+    assert subscription.tier == SubscriptionTier.vip.value
+    assert subscription.product_id == "com.pulseplate.vip.monthly"
+    assert subscription.source_reference == "txn-server-truth-vip-1"
+    assert subscription.expires_at is not None
+
+
+def test_ios_activation_returns_504_on_apple_verify_timeout(
+    client: TestClient,
+    pro_headers: dict[str, str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Apple verify timeouts must surface as deterministic 504 without persistence."""
+
+    async def _raise_timeout(receipt_data: str) -> AppleReceiptVerificationResponse:
+        del receipt_data
+        raise payments_activation.AppleVerifyTimeoutError()
+
+    monkeypatch.setattr(payments_activation, "verify_apple_receipt", _raise_timeout)
+
+    response = client.post(
+        "/api/v1/pro/payments/activate",
+        headers=pro_headers,
+        json=_ios_payload(receipt_data="base64_receipt_blob_timeout"),
+    )
+    assert response.status_code == 504, response.text
+    payload = _json(response)
+    assert payload["code"] == "APPLE_VERIFY_TIMEOUT"
+    assert payload["message"] == "Apple receipt verification timed out"
+
+    subscription_count, audit_count = _load_counts()
+    assert subscription_count == 0
+    assert audit_count == 0
+
+
+def test_ios_activation_returns_502_on_apple_verify_upstream_error(
+    client: TestClient,
+    pro_headers: dict[str, str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Apple verify upstream failures must surface as deterministic 502 without persistence."""
+
+    async def _raise_transport_error(receipt_data: str) -> AppleReceiptVerificationResponse:
+        del receipt_data
+        raise payments_activation.AppleVerifyTransportError()
+
+    monkeypatch.setattr(payments_activation, "verify_apple_receipt", _raise_transport_error)
+
+    response = client.post(
+        "/api/v1/pro/payments/activate",
+        headers=pro_headers,
+        json=_ios_payload(receipt_data="base64_receipt_blob_upstream_error"),
+    )
+    assert response.status_code == 502, response.text
+    payload = _json(response)
+    assert payload["code"] == "APPLE_UPSTREAM_ERROR"
+    assert payload["message"] == "Apple receipt verification failed"
 
     subscription_count, audit_count = _load_counts()
     assert subscription_count == 0
@@ -959,6 +1078,81 @@ def test_get_activation_happy_path(
     assert payload["source_reference"] == "txn-get-1"
 
 
+def test_get_activation_reflects_current_ios_subscription_state(
+    client: TestClient,
+    pro_headers: dict[str, str],
+) -> None:
+    """iOS activation fetch must read current persisted subscription truth."""
+
+    created = client.post(
+        "/api/v1/pro/payments/activate",
+        headers=pro_headers,
+        json=_ios_payload(transaction_id="txn-current-state-1"),
+    )
+    assert created.status_code == 200, created.text
+
+    created_payload = _json(created)
+    activation_id = created_payload["activation_id"]
+    user_id = created_payload["user_id"]
+
+    _set_subscription_status_for_user_source(
+        user_id=user_id,
+        source="ios_app_store",
+        status="cancelled",
+    )
+
+    fetched = client.get(
+        f"/api/v1/pro/payments/activations/{activation_id}",
+        headers=pro_headers,
+    )
+    assert fetched.status_code == 200, fetched.text
+
+    payload = _json(fetched)
+    assert payload["activation_id"] == activation_id
+    assert payload["status"] == "cancelled"
+
+
+def test_get_activation_reflects_latest_ios_renewal_state(
+    client: TestClient,
+    pro_headers: dict[str, str],
+) -> None:
+    """Stored activation pointers must replay the latest iOS subscription state."""
+
+    first = client.post(
+        "/api/v1/pro/payments/activate",
+        headers=pro_headers,
+        json=_ios_payload(
+            transaction_id="txn-renewal-status-1",
+            expires_at="2026-04-01T00:00:00Z",
+            receipt_data="base64_receipt_blob_renewal_1",
+        ),
+    )
+    assert first.status_code == 200, first.text
+    first_activation_id = _json(first)["activation_id"]
+
+    second = client.post(
+        "/api/v1/pro/payments/activate",
+        headers=pro_headers,
+        json=_ios_payload(
+            transaction_id="txn-renewal-status-2",
+            expires_at="2026-05-01T00:00:00Z",
+            receipt_data="base64_receipt_blob_renewal_2",
+        ),
+    )
+    assert second.status_code == 200, second.text
+
+    fetched = client.get(
+        f"/api/v1/pro/payments/activations/{first_activation_id}",
+        headers=pro_headers,
+    )
+    assert fetched.status_code == 200, fetched.text
+
+    payload = _json(fetched)
+    assert payload["activation_id"] == first_activation_id
+    assert payload["source_reference"] == "txn-renewal-2"
+    assert str(payload["expires_at"]).startswith("2099-05-01T00:00:00")
+
+
 def test_get_activation_wrong_user_returns_403(
     client: TestClient,
     pro_headers: dict[str, str],
@@ -982,6 +1176,39 @@ def test_get_activation_wrong_user_returns_403(
     assert payload["code"] == "forbidden"
     assert payload["detail"] == ACTIVATION_ACCESS_FORBIDDEN_DETAIL
     assert "activation access forbidden" not in payload["detail"]
+
+
+def test_get_activation_fails_closed_when_subscription_owner_drifts(
+    client: TestClient,
+    pro_headers: dict[str, str],
+) -> None:
+    """Current-state activation readback must fail closed on ownership drift."""
+
+    created = client.post(
+        "/api/v1/pro/payments/activate",
+        headers=pro_headers,
+        json=_ios_payload(transaction_id="txn-owner-drift-1"),
+    )
+    assert created.status_code == 200, created.text
+
+    created_payload = _json(created)
+    activation_id = created_payload["activation_id"]
+    user_id = created_payload["user_id"]
+    _set_subscription_user_id_for_source(
+        user_id=user_id,
+        source="ios_app_store",
+        new_user_id=user_id + 1000,
+    )
+
+    response = client.get(
+        f"/api/v1/pro/payments/activations/{activation_id}",
+        headers=pro_headers,
+    )
+    assert response.status_code == 403, response.text
+    payload = _json(response)
+    assert payload["status"] == "error"
+    assert payload["code"] == "forbidden"
+    assert payload["detail"] == ACTIVATION_ACCESS_FORBIDDEN_DETAIL
 
 
 def test_get_activation_missing_transport_protection_returns_401(
@@ -1339,6 +1566,26 @@ def test_internal_helper_rejects_invalid_amount() -> None:
 def test_internal_helper_rejects_negative_amount() -> None:
     with pytest.raises(ValueError, match="submitted_amount must be non-negative"):
         payments_activation._amount_to_minor_units("-1.00")
+
+
+def test_internal_manual_plan_expiry_helper_rejects_unknown_plan() -> None:
+    with pytest.raises(ValueError, match="unsupported subscription plan"):
+        payments_activation._manual_plan_expires_at(
+            plan=cast(Any, "enterprise"),
+            activated_at=datetime(2026, 4, 1, 0, 0, tzinfo=timezone.utc),
+        )
+
+
+def test_manual_monthly_entitlement_expires_at_normalizes_naive_timestamp() -> None:
+    """RU: Shared manual expiry policy должна нормализовать naive timestamps в UTC.
+    EN: Shared manual expiry policy must normalize naive timestamps to UTC.
+    """
+
+    expires_at = manual_monthly_entitlement_expires_at(
+        activated_at=datetime(2026, 3, 21, 10, 30, 0),
+    )
+
+    assert expires_at == datetime(2026, 4, 20, 10, 30, 0, tzinfo=timezone.utc)
 
 
 def test_internal_reconcile_status_helper_covers_all_paths() -> None:
@@ -1709,6 +1956,77 @@ def test_reconcile_activation_rejects_non_pending_subscription_state(
                 }
             ),
         )
+
+
+def test_reconcile_activation_requires_requested_plan_for_verified_manual_flow(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class DummySession:
+        def __init__(self) -> None:
+            self.rolled_back = False
+
+        def rollback(self) -> None:
+            self.rolled_back = True
+
+        def close(self) -> None:
+            return None
+
+    audit = type(
+        "Audit",
+        (),
+        {
+            "id": "activation-1",
+            "user_id": 1,
+            "source": "erip_qr",
+            "subscription_id": "sub-1",
+            "evidence_summary": {},
+        },
+    )()
+    subscription = type(
+        "Subscription",
+        (),
+        {
+            "status": SubscriptionStatus.pending_manual_review.value,
+            "activated_at": None,
+            "expires_at": None,
+            "updated_at": None,
+        },
+    )()
+    session = DummySession()
+
+    monkeypatch.setattr(payments_activation, "get_session_factory", lambda: (lambda: session))
+    monkeypatch.setattr(
+        payments_activation.subscriptions_store,
+        "get_audit_by_id",
+        lambda **_: audit,
+    )
+    monkeypatch.setattr(
+        payments_activation.subscriptions_store,
+        "get_audit_by_user_key",
+        lambda **_: None,
+    )
+    monkeypatch.setattr(
+        payments_activation.subscriptions_store,
+        "get_subscription_by_id",
+        lambda **_: subscription,
+    )
+
+    with pytest.raises(
+        payments_activation.ActivationStateError,
+        match="manual reconcile requires requested plan",
+    ):
+        payments_activation.reconcile_activation(
+            user_id=1,
+            payload=payments_activation.ManualRailReconcileRequest.model_validate(
+                {
+                    "intent_id": "activation-1",
+                    "client_event_id": "evt-reconcile-missing-plan-1",
+                    "decision": "verified",
+                }
+            ),
+        )
+
+    assert session.rolled_back is True
 
 
 def test_reset_state_rolls_back_on_sqlalchemy_error(
