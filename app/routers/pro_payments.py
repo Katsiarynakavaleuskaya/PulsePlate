@@ -7,7 +7,7 @@ EN: Runtime endpoints for activation + persisted subscription state.
 
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, Response, Security, status
+from fastapi import APIRouter, Response, Security, status
 from fastapi.responses import JSONResponse
 
 from app.http_error_details import (
@@ -76,12 +76,24 @@ def _resolve_activation_user(x_api_key: str | None) -> CurrentUser:
     "/activate",
     response_model=SubscriptionActivationResponse,
     responses={
+        status.HTTP_400_BAD_REQUEST: {
+            "description": "Canonical activation payload is required on this route",
+            "model": PaymentErrorResponse,
+        },
         status.HTTP_401_UNAUTHORIZED: {
             "description": "Missing or invalid transport protection",
             "model": PaymentErrorResponse,
         },
         status.HTTP_403_FORBIDDEN: {
             "description": "iOS activation requires receipt_data or Apple verification failed",
+            "model": PaymentErrorResponse,
+        },
+        status.HTTP_502_BAD_GATEWAY: {
+            "description": "Apple receipt verification upstream error",
+            "model": PaymentErrorResponse,
+        },
+        status.HTTP_504_GATEWAY_TIMEOUT: {
+            "description": "Apple receipt verification timed out",
             "model": PaymentErrorResponse,
         },
         status.HTTP_409_CONFLICT: {
@@ -100,8 +112,10 @@ async def activate_subscription(
     try:
         current_user = _resolve_activation_user(x_api_key)
         if not payload.uses_canonical_payload:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            return _payment_error_response(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                code="invalid_activation_payload",
+                message="Canonical activation payload is required",
                 detail="canonical activation payload is required on this route",
             )
         if payload.source is PaymentSource.ios_app_store:
@@ -135,6 +149,13 @@ async def activate_subscription(
             message=exc.error_message or "Activation reverification rejected",
             detail=str(exc),
         )
+    except payments_activation.AppleVerifyTransportError as exc:
+        return _payment_error_response(
+            status_code=exc.status_code,
+            code=exc.error_code,
+            message=exc.error_message,
+            detail=exc.error_message,
+        )
 
     response.status_code = status.HTTP_200_OK
     return activation
@@ -162,7 +183,7 @@ def get_subscription_activation(
     activation_id: str,
     x_api_key: str | None = Security(api_key_header),
 ) -> SubscriptionActivationResponse | JSONResponse:
-    """Get persisted activation event by ID."""
+    """Get current persisted entitlement view for an activation lineage."""
 
     try:
         current_user = _resolve_activation_user(x_api_key)

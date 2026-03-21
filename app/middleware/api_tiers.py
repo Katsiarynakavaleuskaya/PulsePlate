@@ -41,6 +41,10 @@ from app.schemas.payments import (
 from app.security.web_session import WEB_SESSION_COOKIE_NAME, verify_web_session
 
 from app.utils.feature_flags import is_vip_module_enabled
+from core.billing_policy import (
+    is_legacy_manual_compat_row,
+    manual_monthly_entitlement_expires_at,
+)
 from settings import (
     get_runtime_env_name,
     is_explicit_developer_env,
@@ -192,6 +196,32 @@ def _tier_rank(tier: SubscriptionTier) -> int:
     }[tier]
 
 
+def _compat_paid_expires_at(
+    subscription: object,
+    expires_at: datetime | None,
+    *,
+    now: datetime,
+) -> datetime | None:
+    """Derive bounded expiry for legacy manual paid rows that predate persisted expiry."""
+
+    if expires_at is not None:
+        return expires_at
+    source = getattr(subscription, "source", None)
+    if source not in {"erip_qr", "swift_manual"}:
+        return None
+    activated_at = _normalize_utc_datetime(getattr(subscription, "activated_at", None))
+    if activated_at is None:
+        return None
+    if activated_at > now:
+        return None
+    created_at = _normalize_utc_datetime(getattr(subscription, "created_at", None))
+    if created_at is None:
+        return None
+    if not is_legacy_manual_compat_row(created_at=created_at):
+        return None
+    return manual_monthly_entitlement_expires_at(activated_at=activated_at)
+
+
 def _lookup_tier_from_db(api_key: str) -> DBLookupResult:
     """Try to resolve API key tier from persisted subscriptions with explicit outcome.
 
@@ -247,6 +277,14 @@ def _lookup_tier_from_db(api_key: str) -> DBLookupResult:
         try:
             expires_at = _normalize_utc_datetime(raw_expires_at)
         except TypeError:
+            saw_invalid_state = True
+            continue
+        try:
+            expires_at = _compat_paid_expires_at(subscription, expires_at, now=now)
+        except TypeError:
+            saw_invalid_state = True
+            continue
+        if parsed_tier is not SubscriptionTier.FREE and expires_at is None:
             saw_invalid_state = True
             continue
         if expires_at is not None and expires_at <= now:

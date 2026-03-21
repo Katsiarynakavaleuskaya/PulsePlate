@@ -184,6 +184,14 @@ curl -fsS https://.../metrics | grep http_requests_total
   fallback). `MISS` may fallback only during migration; plan DB-authoritative follow-up.
 - Never fail-open on tier checks.
 
+## Billing truth close-out policy
+
+- Protected PRO/VIP access must derive only from persisted backend entitlement state.
+- Manual verified compat may unlock legacy paid rows only when `activated_at` is present and usable.
+- Rows without usable activation evidence must fail closed and must not unlock protected routes.
+- Apple upstream transport failures must return deterministic backend error envelopes.
+- Activation readback endpoints expose the current entitlement view unless a different contract is documented explicitly.
+
 ## WebSocket realtime hardening (PR-783 follow-up)
 
 - Any change to `/ws` message handling MUST include deterministic tests for:
