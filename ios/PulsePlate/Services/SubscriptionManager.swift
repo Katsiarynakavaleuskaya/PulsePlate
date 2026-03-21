@@ -176,7 +176,7 @@ final class SubscriptionManager: ObservableObject {
                 finishOperation(.purchase, token: token)
                 flowState = .pendingApproval
                 return
-            case .success(let transaction):
+            case .success:
                 let receiptData = try await storeKitManager.currentReceiptData()
                 flowState = .sendingReceipt
                 let verification = try await billingService.verifyReceipt(
@@ -191,7 +191,8 @@ final class SubscriptionManager: ObservableObject {
                     request: activationRequest,
                     apiKey: apiKey
                 )
-                activationPointerStore.saveActivationID(activation.activationID)
+                let activationID = try validatedActivationID(activation.activationID)
+                activationPointerStore.saveActivationID(activationID)
                 finishOperation(.purchase, token: token)
                 await refreshEntitlement(trigger: .postPurchase)
             }
@@ -228,7 +229,8 @@ final class SubscriptionManager: ObservableObject {
                 request: activationRequest,
                 apiKey: apiKey
             )
-            activationPointerStore.saveActivationID(activation.activationID)
+            let activationID = try validatedActivationID(activation.activationID)
+            activationPointerStore.saveActivationID(activationID)
             finishOperation(.restore, token: token)
             await refreshEntitlement(trigger: .postRestore)
         } catch {
@@ -268,7 +270,11 @@ final class SubscriptionManager: ObservableObject {
                 return
             }
 
-            let snapshot = makeEntitlementSnapshot(from: activation)
+            let activationID = try validatedActivationID(activation.activationID)
+            let snapshot = makeEntitlementSnapshot(
+                from: activation,
+                activationID: activationID
+            )
             entitlement = snapshot
             activationPointerStore.saveActivationID(snapshot.activationID)
             finishOperation(operation, token: token)
@@ -322,15 +328,24 @@ final class SubscriptionManager: ObservableObject {
     }
 
     private func makeEntitlementSnapshot(
-        from response: SubscriptionActivationResponseDTO
+        from response: SubscriptionActivationResponseDTO,
+        activationID: String
     ) -> EntitlementSnapshot {
         EntitlementSnapshot(
-            activationID: response.activationID,
+            activationID: activationID,
             tier: (response.tier ?? response.subscriptionTier ?? "").lowercased(),
             status: response.status.lowercased(),
             expiresAt: parseISO8601(response.expiresAt),
             productID: response.productID
         )
+    }
+
+    private func validatedActivationID(_ rawValue: String) throws -> String {
+        let normalizedValue = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard normalizedValue.isEmpty == false else {
+            throw SubscriptionManagerError.missingActivationID
+        }
+        return normalizedValue
     }
 
 

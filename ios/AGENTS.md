@@ -83,6 +83,14 @@
 - FREE-tier iOS surfaces may show bounded/static FitChef guidance, but must not expose open-ended coach runtime.
 - Mascot or App Store asset changes must land through dedicated asset-focused PRs; docs/policy PRs must not mix in binary asset promotion.
 
+## iOS billing runtime thin-client policy
+
+- `SubscriptionManager` is orchestration-only; entitlement truth remains backend-owned.
+- StoreKit purchase success must not unlock paid UI until backend verification, activation, and refresh confirm entitlement.
+- Missing, stale, or malformed activation payload or activation context must keep UI locked (fail-closed).
+- All billing-runtime calls must go through `APIClient` / `HTTPClient`; direct `URLSession` networking is forbidden on this seam.
+- App relaunch or foreground refresh with stored activation context must re-check entitlement with the backend instead of inferring tier locally.
+
 ## Enforced CI Rules (Anti-Duplication)
 
 **Guard test:** `ThinClientGuardsTests` in `PulsePlateTests/Guards/`
