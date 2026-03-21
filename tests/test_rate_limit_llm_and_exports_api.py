@@ -79,6 +79,11 @@ def create_rate_limited_app() -> tuple[FastAPI, Limiter]:
     async def fitchef_slip_support(request: Request) -> dict[str, str]:
         return {"message": "slip support"}
 
+    @router.post("/api/v1/pro/fitchef/explain")
+    @test_limiter.limit("2/minute")
+    async def fitchef_distortion_simulator(request: Request) -> dict[str, str]:
+        return {"scenario": "distortion_simulator"}
+
     @router.post("/api/v1/internal/creative-research/pilot")
     @test_limiter.limit("2/minute")
     async def creative_research_pilot(request: Request) -> dict[str, str]:
@@ -197,6 +202,38 @@ def test_fitchef_slip_support_rate_limited_200_then_429() -> None:
     r1 = client.post("/api/v1/insight/fitchef/slip-support", json=payload, headers=headers)
     r2 = client.post("/api/v1/insight/fitchef/slip-support", json=payload, headers=headers)
     r3 = client.post("/api/v1/insight/fitchef/slip-support", json=payload, headers=headers)
+
+    assert r1.status_code == 200
+    assert r2.status_code == 200
+    assert r3.status_code == 429
+    assert r3.headers.get("content-type", "").startswith("application/json")
+
+    lang = normalize_lang("en")
+    expected_detail = t(lang, "rate_limit.exceeded")
+    assert r3.json()["detail"] == expected_detail
+
+
+def test_fitchef_distortion_simulator_rate_limited_200_then_429(
+    pro_headers: dict[str, str],
+) -> None:
+    """Test /api/v1/pro/fitchef/explain returns 200 twice, then 429."""
+
+    app, _ = create_rate_limited_app()
+    client = TestClient(app)
+    headers = {
+        **pro_headers,
+        "accept-language": "en",
+        "x-test-id": "fitchef-distortion",
+    }
+    payload = {
+        "situation": "late dessert",
+        "automatic_thought": "I ruined the day",
+        "emotion": "guilt",
+    }
+
+    r1 = client.post("/api/v1/pro/fitchef/explain", json=payload, headers=headers)
+    r2 = client.post("/api/v1/pro/fitchef/explain", json=payload, headers=headers)
+    r3 = client.post("/api/v1/pro/fitchef/explain", json=payload, headers=headers)
 
     assert r1.status_code == 200
     assert r2.status_code == 200
