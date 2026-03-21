@@ -47,6 +47,11 @@ Evidence: app/services/insight_application_service.py:31-39; app/services/insigh
 Reason: The review-shell URL only summarizes the inline CodeRabbit finding above and does not introduce an additional unresolved action once the mapped thread is dispositioned.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1203#pullrequestreview-3985580981
 
+Disposition: NOT-A-BUG
+Evidence: app/services/insight_application_service.py:57-64; app/security/agent_input_guard.py:267-276; legacy_app.py:2269-2277
+Reason: The shared insight service treats `input_guard` as a fail-closed validation seam, not a sanitizer. The production guard `require_safe_ai_agent_input()` returns the original text unchanged or raises a stable 400, so consuming a return value would not change runtime behavior and is not required to preserve the current legacy length contract.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1203#pullrequestreview-3985624764
+
 ## Merge Readiness
 - [ ] All required checks pass
 - [ ] No unresolved review threads
