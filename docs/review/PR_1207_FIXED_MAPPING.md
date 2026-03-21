@@ -17,16 +17,10 @@ Commit: 415c3562
 Evidence: `ios/PulsePlate/Services/SubscriptionManager.swift:252`, `ios/PulsePlate/Services/SubscriptionManager.swift:260`, `ios/PulsePlate/Services/SubscriptionManager.swift:276`, `ios/PulsePlateTests/Services/SubscriptionManagerTests.swift:236`, `ios/PulsePlateTests/Services/SubscriptionManagerTests.swift:390`
 Reason: normalized stored activation pointers before refresh fetch, short-circuited blank stored IDs locally, and added restore/refresh regression coverage for blank activation identifiers.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1207#pullrequestreview-3985772768 -> 415c3562
-Disposition: FIXED
-Commit: 415c3562
-Evidence: `ios/PulsePlate/Services/SubscriptionManager.swift:93`, `ios/PulsePlate/Services/SubscriptionManager.swift:360`
-Reason: added explicit runtime logging for blank or whitespace-only activation identifiers.
-
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1207#pullrequestreview-3985772768
 Disposition: NOT-A-BUG
-Evidence: `ios/AGENTS.md:86`, `ios/AGENTS.md:88`, `ios/AGENTS.md:92`
-Reason: activation-ID normalization stays in `SubscriptionManager` by design because this seam is orchestration-only and backend-owned; moving validation into transport DTOs would broaden scope and weaken the thin-client boundary without a current second caller.
+Evidence: `ios/PulsePlate/Services/SubscriptionManager.swift:93`, `ios/PulsePlate/Services/SubscriptionManager.swift:360`, `ios/AGENTS.md:86`, `ios/AGENTS.md:88`, `ios/AGENTS.md:92`
+Reason: the review bundles two high-level suggestions into one review URL; for governance this review is classified as NOT-A-BUG because runtime logging for invalid activation identifiers is already present and DTO-level normalization remains intentionally out of scope for the thin-client boundary.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1207#issuecomment-4102765863
 Disposition: NOT-A-BUG
@@ -37,6 +31,18 @@ Reason: CodeRabbit's docstring coverage warning is advisory and not part of this
 Disposition: NOT-A-BUG
 Evidence: `ios/PulsePlate/Services/SubscriptionManager.swift:93`, `ios/AGENTS.md:88`
 Reason: the Sourcery review-guide comment duplicates the actionable review above and adds no independent unresolved item after the FIXED and NOT-A-BUG dispositions recorded here.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1207#pullrequestreview-3985798146 -> 9938ce65
+Disposition: FIXED
+Commit: 9938ce65
+Evidence: `docs/review/PR_1207_FIXED_MAPPING.md:20`, `docs/review/PR_1207_FIXED_MAPPING.md:31`
+Reason: cubic identified an ambiguous double-disposition on the same review URL; this artifact now assigns a single disposition to the Sourcery review and keeps each review URL unique.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1207#discussion_r2969317746 -> 9938ce65
+Disposition: FIXED
+Commit: 9938ce65
+Evidence: `docs/review/PR_1207_FIXED_MAPPING.md:20`, `docs/review/PR_1207_FIXED_MAPPING.md:31`
+Reason: fixed the exact mapping ambiguity called out by cubic on the review thread by removing the duplicate disposition for the same review URL.
 
 ## Merge Readiness
 - Status: in progress; draft removed, local gates green, waiting for pushed head + current-head CI/governance re-check.
