@@ -68,7 +68,7 @@ Evidence: .github/workflows/cd.yml:257
   - `pre-commit run --all-files`
   - `make verify`
 - Required before merge:
-  - refresh the canonical artifact if review or bot comments appear
-  - confirm current-head required checks are green with no pending required jobs
-  - inspect current-head logs for residual cache noise and document any remaining transient backend-only warnings before merge
-  - confirm no actionable bot comments remain
+  - [ ] refresh the canonical artifact if review or bot comments appear
+  - [ ] confirm current-head required checks are green with no pending required jobs
+  - [ ] inspect current-head logs for residual cache noise and document any remaining transient backend-only warnings before merge
+  - [ ] confirm no actionable bot comments remain
