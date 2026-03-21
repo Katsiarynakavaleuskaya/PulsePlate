@@ -8,8 +8,12 @@ from types import SimpleNamespace
 from typing import Any
 
 import pytest
+from fastapi import HTTPException, status
 
-from app.services.insight_application_service import execute_insight_request
+from app.services.insight_application_service import (
+    INSIGHT_TEXT_MAX_LENGTH,
+    execute_insight_request,
+)
 from core.ai.insight_runtime import InsightTransparencyNotice
 from core.insight.llm_provider_loader import LLMProvider
 
@@ -135,3 +139,54 @@ async def test_execute_insight_request_uses_injected_dependencies(
     assert response["provider"] == "fake-provider"
     assert response["transparency_notice_id"] == "ai_generated_insight"
     assert response["sources"][0]["chunk_id"] == "c1"
+
+
+@pytest.mark.asyncio
+async def test_execute_insight_request_rejects_oversized_prompt(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Oversized prompt text must fail fast with 413 instead of silent truncation."""
+
+    observed: dict[str, Any] = {}
+
+    @dataclass
+    class _Request:
+        text: str
+
+    def _input_guard(text: str) -> None:
+        observed["guard_text"] = text
+
+    def _provider_loader() -> LLMProvider:
+        raise AssertionError("provider loader must not run for oversized prompts")
+
+    def _transparency_loader() -> tuple[str, str]:
+        raise AssertionError("transparency loader must not run for oversized prompts")
+
+    def _response_factory(**payload: object) -> dict[str, object]:
+        return dict(payload)
+
+    def _source_item_factory(**payload: object) -> dict[str, object]:
+        return dict(payload)
+
+    monkeypatch.setattr(
+        "app.services.insight_application_service.prepare_insight_runtime",
+        lambda **kwargs: observed.setdefault("prepare_kwargs", kwargs),
+        raising=True,
+    )
+
+    with pytest.raises(HTTPException) as exc_info:
+        await execute_insight_request(
+            _Request(text="x" * (INSIGHT_TEXT_MAX_LENGTH + 1)),
+            route_path="/api/v1/insight",
+            user_tier="VIP",
+            input_guard=_input_guard,
+            provider_loader=_provider_loader,
+            transparency_loader=_transparency_loader,
+            response_factory=_response_factory,
+            source_item_factory=_source_item_factory,
+        )
+
+    assert observed["guard_text"] == "x" * (INSIGHT_TEXT_MAX_LENGTH + 1)
+    assert "prepare_kwargs" not in observed
+    assert exc_info.value.status_code == status.HTTP_413_CONTENT_TOO_LARGE
+    assert exc_info.value.detail == "Prompt too long"

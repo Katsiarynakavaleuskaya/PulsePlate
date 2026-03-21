@@ -10,6 +10,8 @@ import os
 from collections.abc import Callable
 from typing import Any
 
+from fastapi import HTTPException, status
+
 from app.services.insight_runtime import generate_traced_insight
 from app.utils.feature_flags import (
     is_philosophy_linguistic_enabled,
@@ -27,9 +29,14 @@ INSIGHT_TEXT_MAX_LENGTH = 2000
 
 
 def _ensure_insight_text_length(prompt_text: str) -> str:
-    """Return prompt text trimmed to the canonical insight limit."""
+    """Return prompt text when within limits; reject oversized prompts."""
 
-    return prompt_text[:INSIGHT_TEXT_MAX_LENGTH]
+    if len(prompt_text) > INSIGHT_TEXT_MAX_LENGTH:
+        raise HTTPException(
+            status_code=status.HTTP_413_CONTENT_TOO_LARGE,
+            detail="Prompt too long",
+        )
+    return prompt_text
 
 
 async def execute_insight_request(
