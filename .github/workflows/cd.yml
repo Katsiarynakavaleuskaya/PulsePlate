@@ -75,9 +75,10 @@ jobs:
           tags: ${{ env.REGISTRY }}/${{ steps.image-name.outputs.image_name }}:staging-latest
           # Omit cache-from to avoid 404 BlobNotFound when the GHA cache entry
           # is missing or evicted mid-build. mode=min keeps export bounded.
+          # Explicit workflow scope avoids collisions with build.yml cache exports.
           # ignore-error=true prevents CD failure on transient cache backend
           # issues while still allowing image publication.
-          cache-to: type=gha,mode=min,ignore-error=true
+          cache-to: type=gha,scope=cd-staging-${{ github.ref_name }},mode=min,ignore-error=true
           # Disable provenance to avoid buildx/GHA cache export failures
           # ("cache entry no longer exists" / BlobNotFound). Trade-off: SLSA
           # attestations are disabled, so cosign verify-attestation will fail
@@ -264,9 +265,10 @@ jobs:
           tags: ${{ env.REGISTRY }}/${{ steps.image-name.outputs.image_name }}:prod-${{ github.ref_name }}
           # Omit cache-from to avoid 404 BlobNotFound when the GHA cache entry
           # is missing or evicted mid-build. mode=min keeps export bounded.
+          # Explicit workflow scope avoids collisions with build.yml and staging cache exports.
           # ignore-error=true prevents CD failure on transient cache backend
           # issues while still allowing image publication.
-          cache-to: type=gha,mode=min,ignore-error=true
+          cache-to: type=gha,scope=cd-production-${{ github.ref_name }},mode=min,ignore-error=true
           # Disable provenance to avoid buildx/GHA cache export failures
           # ("cache entry no longer exists" / BlobNotFound). Trade-off: SLSA
           # attestations are disabled, so cosign verify-attestation will fail
