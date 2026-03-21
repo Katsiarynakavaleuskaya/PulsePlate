@@ -145,6 +145,8 @@ jobs:
 
       - name: Install dependencies
         uses: ./.github/actions/npm-ci-with-retry
+        with:
+          working-directory: frontend
 
       - name: Install Playwright browser
         run: npx playwright install --with-deps chromium

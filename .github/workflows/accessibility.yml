@@ -16,6 +16,8 @@ on:
     branches: [main]
     paths:
       - 'frontend/**'
+      - '.nvmrc'
+      - '.github/actions/npm-ci-with-retry/**'
       - 'frontend/vite.config.ts'
       - 'frontend/package.json'
       - 'frontend/tsconfig.json'
@@ -24,6 +26,8 @@ on:
     branches: [main, feat/**, fix/**]
     paths:
       - 'frontend/**'
+      - '.nvmrc'
+      - '.github/actions/npm-ci-with-retry/**'
       - 'frontend/vite.config.ts'
       - 'frontend/package.json'
       - 'frontend/tsconfig.json'

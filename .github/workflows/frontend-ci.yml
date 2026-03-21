@@ -16,6 +16,8 @@ on:
     branches: [main, feat/**, fix/**]
     paths:
       - 'frontend/**'
+      - '.nvmrc'
+      - '.github/actions/npm-ci-with-retry/**'
       - 'tokens/**'
       - 'docs/design/TOKENS_SOT.md'
       - 'docs/design/TOKEN_PIPELINE_GOVERNANCE.md'
@@ -43,6 +45,8 @@ on:
     branches: [main, feat/**, fix/**]
     paths:
       - 'frontend/**'
+      - '.nvmrc'
+      - '.github/actions/npm-ci-with-retry/**'
       - 'tokens/**'
       - 'docs/design/TOKENS_SOT.md'
       - 'docs/design/TOKEN_PIPELINE_GOVERNANCE.md'
