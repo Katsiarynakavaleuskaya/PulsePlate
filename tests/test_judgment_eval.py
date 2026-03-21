@@ -121,4 +121,6 @@ def test_main_returns_clean_error_on_write_failure(
     exit_code = judgment_eval.main(["--input", str(input_path)])
 
     assert exit_code == 1
-    assert "disk full" in capsys.readouterr().err
+    stderr = capsys.readouterr().err
+    assert "disk full" in stderr
+    assert "Traceback" not in stderr
