@@ -22,6 +22,7 @@ It exists to keep:
 ## Source of Truth
 
 - Coordinator workflow: `docs/orchestration/workflow.md`
+- Canonical orchestration governance contract: `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md`
 - Research brainstorming protocol: `docs/orchestration/RESEARCH_BRAINSTORMING_PROTOCOL.md`
 - Worktree/promotion runbook: `docs/orchestration/AGENT_KNOWLEDGE_LIBRARY_WORKTREE_RUNBOOK.md`
 - Audience-pack entrypoint: `docs/audience_pack/README.md`
@@ -33,7 +34,7 @@ It exists to keep:
 
 Build a reusable business-development system around existing repo canon:
 - director-level business orchestration,
-- B2B proposal and pitch-deck specs in markdown,
+- B2B proposal and pitch-deck specs in Markdown,
 - JS builders that generate `.docx` and `.pptx` from repo-managed specs,
 - explicit review/merge cadence for a small PR series.
 
