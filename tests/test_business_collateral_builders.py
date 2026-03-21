@@ -11,6 +11,7 @@ import pytest
 
 REPO_ROOT: Path = Path(__file__).resolve().parents[1]
 WORDPROCESSING_ML_NAMESPACE = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}t"
+SUBPROCESS_TIMEOUT_SECONDS = 120
 
 
 def _node_binary_or_skip() -> str:
@@ -20,27 +21,29 @@ def _node_binary_or_skip() -> str:
     return node_binary
 
 
+def _run_subprocess(command: list[str]) -> subprocess.CompletedProcess[str]:
+    try:
+        return subprocess.run(
+            command,
+            cwd=REPO_ROOT,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=SUBPROCESS_TIMEOUT_SECONDS,
+        )
+    except subprocess.TimeoutExpired as exc:
+        pytest.fail(f"subprocess timed out after {SUBPROCESS_TIMEOUT_SECONDS}s: {exc.cmd}")
+
+
 def _run_builder(script_relative_path: str, output_path: Path) -> subprocess.CompletedProcess[str]:
     node_binary = _node_binary_or_skip()
     script_path = REPO_ROOT / script_relative_path
-    return subprocess.run(
-        [node_binary, str(script_path), "--output", str(output_path)],
-        cwd=REPO_ROOT,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+    return _run_subprocess([node_binary, str(script_path), "--output", str(output_path)])
 
 
 def _run_node_eval(script: str) -> subprocess.CompletedProcess[str]:
     node_binary = _node_binary_or_skip()
-    return subprocess.run(
-        [node_binary, "-e", script],
-        cwd=REPO_ROOT,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+    return _run_subprocess([node_binary, "-e", script])
 
 
 def _read_office_document_xml(output_path: Path, member_name: str) -> str:
