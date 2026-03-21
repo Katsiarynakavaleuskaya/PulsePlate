@@ -27,11 +27,11 @@
 ## Deferred items
 
 - Item: Movement/performance-specific product expansion
-  - Ledger link: `docs/roadmap/BACKLOG_LEDGER.md`
+  - Ledger link: `docs/roadmap/BACKLOG_LEDGER.md#ledger-p2-movement-performance-coaching-wave`
   - Owner: @katsiaryna_kavaleuskaya
-  - Target PR: PR-TBD-MOVEMENT-INTELLIGENCE-DISCOVERY
+  - Target PR: PR-TBD-MOVEMENT-PERFORMANCE-COACHING-WAVE
 
 - Item: User-facing personal experiment dashboard
-  - Ledger link: `docs/roadmap/BACKLOG_LEDGER.md`
+  - Ledger link: `docs/roadmap/BACKLOG_LEDGER.md#ledger-p2-personal-experiment-dashboard`
   - Owner: @katsiaryna_kavaleuskaya
   - Target PR: PR-TBD-PERSONAL-EXPERIMENT-DASHBOARD
