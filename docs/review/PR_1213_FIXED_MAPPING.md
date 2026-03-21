@@ -37,6 +37,7 @@ Reason: No standalone defect remains once the child threads are dispositioned.
 Disposition: NOT-A-BUG
 Evidence: `docs/review/PR_1213_FIXED_MAPPING.md:7-36` now includes the parser-required `Reason:` line for NOT-A-BUG entries.
 Reason: cubic identified an artifact-format defect on the prior head; the current head already satisfies the parser contract, so no additional code/docs change beyond this artifact refresh is required.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1213#discussion_r2969780102
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1213#pullrequestreview-3986212503
 
 ## Merge Readiness
