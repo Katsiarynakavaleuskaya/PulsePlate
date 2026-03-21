@@ -1973,6 +1973,28 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 
 ### P2
 
+<a id="ledger-p2-gha-node24-cache-warning-cleanup"></a>
+- [ ] P2: GitHub Actions Node 24 migration and cache-warning cleanup
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2 (CI hygiene / advisory reliability)
+  - Target PR: PR-TBD-GHA-NODE24-CACHE-CLEANUP
+  - Status: 📋 Planned
+  - Area: ci / github-actions / cache
+  - Finding Type: advisory workflow debt
+  - Reason (EN): The PR #1204 merge cycle completed successfully, but current workflows still emit repeated Node.js 20 deprecation warnings and transient GHA cache warnings (`Cache service responded with 400`, `CreateCacheEntry ... 409 Conflict`, cache save/restore service noise). This is non-blocking today, but it should be cleaned up before GitHub forces JavaScript actions onto Node 24 by default.
+  - Links:
+    - `.github/workflows/build.yml`
+    - `.github/workflows/ci.yml`
+    - `.github/workflows/pr-tests.yml`
+    - `.github/workflows/pr-coverage.yml`
+    - `.github/workflows/cd.yml`
+    - `docs/review/PR_1204_FIXED_MAPPING.md`
+  - DoD:
+    - Representative CI workflows use Node 24 compatible action SHAs where upgrades are available
+    - Cache usage in `build.yml`, `ci.yml`, and related PR workflows is re-audited for avoidable restore/save warnings
+    - A fresh representative PR run completes without Node 20 deprecation warnings
+    - Remaining cache warnings, if any, are explicitly documented as accepted transient backend noise rather than unexplained CI debt
+
 <a id="ledger-p2-ios-agents-only-testing-centralize"></a>
 - [ ] P2: Centralize ios/AGENTS.md -only-testing list (Sourcery follow-up)
   - Owner: @katsiaryna_kavaleuskaya
