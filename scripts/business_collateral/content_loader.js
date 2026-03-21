@@ -35,6 +35,11 @@ function parseMarkdownBlocks(markdown) {
       continue;
     }
 
+    if (/^<!--.*-->$/.test(line)) {
+      flushParagraph(paragraphBuffer, blocks);
+      continue;
+    }
+
     if (line.startsWith("# ")) {
       flushParagraph(paragraphBuffer, blocks);
       title = line.replace(/^#\s+/, "").trim();
@@ -63,7 +68,7 @@ function parseMarkdownBlocks(markdown) {
       flushParagraph(paragraphBuffer, blocks);
       blocks.push({
         type: "bullet",
-        text: line.replace(/^-+\s+/, "").trim(),
+        text: line.replace(/^-\s+/, "").trim(),
       });
       continue;
     }
@@ -81,9 +86,23 @@ function parseProposalSpec() {
     "audience_pack",
     "B2B_PARTNERSHIP_PROPOSAL_SPEC.md",
   );
+  const { title: fallbackTitle, blocks } = parseMarkdownBlocks(readUtf8(sourcePath));
+  const proposalTitleIndex = blocks.findIndex(
+    (block) => block.type === "heading1" && /^Proposal Title$/i.test(block.text),
+  );
+  const proposalTitleBlock = blocks[proposalTitleIndex + 1];
+  const hasProposalTitle =
+    proposalTitleIndex >= 0 &&
+    proposalTitleBlock &&
+    proposalTitleBlock.type === "paragraph" &&
+    proposalTitleBlock.text;
+
   return {
     sourcePath,
-    ...parseMarkdownBlocks(readUtf8(sourcePath)),
+    title: hasProposalTitle ? proposalTitleBlock.text : fallbackTitle,
+    blocks: hasProposalTitle
+      ? blocks.filter((_, index) => index !== proposalTitleIndex && index !== proposalTitleIndex + 1)
+      : blocks,
   };
 }
 

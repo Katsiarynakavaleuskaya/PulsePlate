@@ -18,6 +18,11 @@ def _run_builder(script_relative_path: str, output_path: Path) -> subprocess.Com
     )
 
 
+def _read_office_document_xml(output_path: Path, member_name: str) -> str:
+    with zipfile.ZipFile(output_path) as archive:
+        return archive.read(member_name).decode("utf-8")
+
+
 def test_b2b_proposal_builder_creates_docx(tmp_path: Path) -> None:
     output_path = tmp_path / "proposal.docx"
     result = _run_builder("scripts/business_collateral/build_b2b_proposal.js", output_path)
@@ -27,8 +32,11 @@ def test_b2b_proposal_builder_creates_docx(tmp_path: Path) -> None:
     assert output_path.stat().st_size > 0
     assert str(output_path) in result.stdout
 
-    with zipfile.ZipFile(output_path) as archive:
-        assert "word/document.xml" in archive.namelist()
+    document_xml = _read_office_document_xml(output_path, "word/document.xml")
+
+    assert "PulsePlate partnership proposal for wellness and nutrition workflows" in document_xml
+    assert "PulsePlate B2B Partnership Proposal Spec" not in document_xml
+    assert "markdownlint-disable" not in document_xml
 
 
 def test_b2b_pitch_deck_builder_creates_pptx(tmp_path: Path) -> None:
