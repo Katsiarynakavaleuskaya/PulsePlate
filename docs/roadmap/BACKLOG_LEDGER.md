@@ -1977,7 +1977,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P2: GitHub Actions Node 24 migration and cache-warning cleanup
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2 (CI hygiene / advisory reliability)
-  - Target PR: PR-TBD-GHA-NODE24-CACHE-CLEANUP
+  - Target PR: PR #1206 (`fix(ci): migrate gha actions to node24`)
   - Status: 📋 Planned
   - Area: ci / github-actions / cache
   - Finding Type: advisory workflow debt
