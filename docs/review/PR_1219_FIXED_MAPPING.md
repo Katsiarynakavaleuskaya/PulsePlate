@@ -20,7 +20,7 @@ Reason: aligned the minimum command set with the canonical bridge artifact bundl
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1219#discussion_r2969725702 -> f7306a50
 Disposition: FIXED
 Commit: f7306a50
-Evidence: `docs/review/PR_1219_FIXED_MAPPING.md:88`, `docs/review/PR_1219_FIXED_MAPPING.md:91`
+Evidence: `docs/review/PR_1219_FIXED_MAPPING.md:99`, `docs/review/PR_1219_FIXED_MAPPING.md:102`
 Reason: refreshed the canonical review artifact so the merge-readiness section now includes the missing `bf97643d` readiness-refresh commit alongside the later post-open fix commits.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1219#discussion_r2969725705 -> b1c60f1c
@@ -90,9 +90,20 @@ Disposition: NOT-A-BUG
 Evidence: `docs/review/PR_1219_FIXED_MAPPING.md:82`, `docs/review/PR_1219_FIXED_MAPPING.md:85`
 Reason: this cubic review shell only aggregates the inline stale-evidence finding at `discussion_r2969766361`; once that inline comment is fixed and mapped explicitly, the shell carries no separate unresolved action.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1219#discussion_r2969789940
+Disposition: FIXED
+Commit: PENDING_COMMIT_SHA
+Evidence: `docs/review/PR_1219_FIXED_MAPPING.md:20`, `docs/review/PR_1219_FIXED_MAPPING.md:23`
+Reason: cubic found that the later evidence refresh for `discussion_r2969725702` drifted again after adding the prior cubic-shell mapping; the evidence line now cites the actual merge-readiness bullets rather than the cubic shell block.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1219#pullrequestreview-3986221494
+Disposition: NOT-A-BUG
+Evidence: `docs/review/PR_1219_FIXED_MAPPING.md:93`, `docs/review/PR_1219_FIXED_MAPPING.md:96`
+Reason: this cubic review shell only aggregates the inline stale-anchor finding at `discussion_r2969789940`; once that inline comment is fixed and mapped explicitly, the shell carries no separate unresolved action.
+
 ## Merge Readiness
-- Review status: post-open bot feedback is mapped to concrete dispositions on the current local head; strict current-head PR governance re-check and thread resolution remain pending until the updated artifact is pushed.
-- Merge status: not ready to merge yet.
+- Review status: current-head bot feedback is mapped except for the latest cubic stale-anchor follow-up, which is fixed locally in this artifact and pending push/thread resolution.
+- Merge status: pending final local verify rerun on this worktree and final strict governance re-check after the latest artifact commit is pushed.
 - Current fix commits:
   - `5bfa8a45` — `docs(orchestration): realign design-agent chain`
   - `8d24505d` — `docs(review): add PR 1219 mapping artifact`
@@ -100,6 +111,8 @@ Reason: this cubic review shell only aggregates the inline stale-evidence findin
   - `b1c60f1c` — `docs(agents): update instructions`
   - `3f1a5bbc` — `docs(orchestration): close packet scope drift`
   - `f7306a50` — `docs(review): map current PR 1219 feedback`
+  - `393619d4` — `docs(review): fix cubic evidence mapping`
+  - `79f91baf` — `docs(review): map cubic evidence fix commit`
 - Current scope discipline:
   - docs/governance-only realignment bundle
   - no runtime, API, preview-renderer, or product-surface changes
