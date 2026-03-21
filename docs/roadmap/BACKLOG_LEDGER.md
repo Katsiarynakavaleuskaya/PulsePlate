@@ -1667,7 +1667,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: FitChef umbrella initiative foundation
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (orchestration / brand / App Store / coaching)
-  - Target PR: PR #1140 -> PR #1143 -> PR #1150 -> PR #1154 -> PR #1159 (structured coach contract freeze) -> PR-TBD-FITCHEF-DOMAIN-SHELL -> PR-TBD-FITCHEF-PRO-RUNTIME -> PR-TBD-FITCHEF-VIP-RUNTIME -> PR-TBD-FITCHEF-LOCALIZATION-RU -> PR-TBD-FITCHEF-LOCALIZATION-ES
+  - Target PR: PR #1140 -> PR #1143 -> PR #1150 -> PR #1154 -> PR #1159 (structured coach contract freeze) -> PR-TBD-CBT-COACHING-WAVE-DOCS -> PR-TBD-DISTORTION-SIMULATOR-PRO-RUNTIME -> PR-TBD-IDENTITY-LOOP-MAPPER-VIP-RUNTIME -> PR-TBD-SIGNAL-NOISE-REPORT-LANE -> PR-TBD-FITCHEF-LOCALIZATION-RU -> PR-TBD-FITCHEF-LOCALIZATION-ES
   - Status: 🚧 In progress
   - Reason (EN): FitChef already exists as a live VIP mascot/coaching surface under `/api/v1/insight/fitchef*`, but the next product wave needs one governed umbrella epic that preserves the current canon while splitting future work into clean PR families: visual/App Store, then structured coaching/runtime. This foundation also isolates mascot/App Icon asset promotion from docs/contracts work so local asset diffs never leak into governance PRs.
   - Links:
@@ -1677,6 +1677,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `docs/contracts/FITCHEF_APP_STORE_PRODUCTION_PACK_EN.md`
     - `docs/contracts/FITCHEF_STRUCTURED_COACH_CONTRACT.md`
     - `docs/contracts/FITCHEF_MASCOT_PHASE2_CONTRACT.md`
+    - `docs/insights/CBT_COACHING_PRODUCT_WAVE.md`
     - `docs/contracts/API_CANONICAL_MAP.md`
     - `app/routers/fitchef_insight.py`
     - `app/services/fitchef_runtime.py`
@@ -1688,10 +1689,12 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `PR #1154` merged on March 13, 2026 for the governed `EN` App Store production pack lane
     - `PR #1159` structured coach contract is the active lane from a clean worktree off `origin/main`
     - `PR #1159` scope is docs-only: additive route family freeze, DTO direction, tier semantics, and coexistence rules with the live mascot canon
+    - `PR-TBD-CBT-COACHING-WAVE-DOCS` is the docs-first research promotion lane for Distortion Simulator, Identity Loop Mapper, Signal vs Noise reports, and the FitChef coaching framework
   - Subtracks:
     - FitChef visual identity and mascot system
     - App Store screenshot and preview pack
     - FitChef structured coach contract
+    - CBT Coaching Wave docs-first promotion
     - FitChef PRO structured coach runtime
     - FitChef VIP deep-coach runtime
     - FitChef analytics and action routing
@@ -1703,6 +1706,65 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - First App Store localization wave is fixed as `EN` only
     - `RU` and `ES` localization follow-ups are anchored as separate backlog items with their own target PR placeholders
     - Foundation/docs PRs remain docs-only and do not carry mascot or App Icon binary asset promotion
+
+
+<a id="ledger-p1-distortion-simulator-wave"></a>
+- [ ] P1: Distortion Simulator structured coaching lane
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (product differentiation / CBT coaching)
+  - Target PR: PR-TBD-DISTORTION-SIMULATOR-PRO-RUNTIME
+  - Status: 📋 Planned
+  - Reason (EN): The repo already contains CBT distortion taxonomy and structured thought-record knowledge, but no bounded product surface turns that into a governed, measurable PRO coaching tool. The first implementation lane should package that knowledge as a `Distortion Simulator` instead of broad open-ended chat.
+  - Links:
+    - `docs/insights/CBT_COACHING_PRODUCT_WAVE.md`
+    - `docs/cbt/cognitive_restructuring.md`
+    - `docs/cbt/thought_records.md`
+    - `docs/contracts/FITCHEF_STRUCTURED_COACH_CONTRACT.md`
+    - `docs/analytics/METRICS_CATALOG.md`
+  - DoD:
+    - Distortion Simulator contract is additive to the existing structured coach route family
+    - Runtime remains wellness-only, request-scoped, and non-clinical
+    - Response includes structured reframe fields plus `sources[]`, `confidence`, `warnings`, and transparency metadata
+    - Deterministic tests cover auth, quota, rate limit, and structured response contract
+
+
+<a id="ledger-p1-identity-loop-mapper-wave"></a>
+- [ ] P1: Identity Loop Mapper reflective coaching lane
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (premium reflection / behavior change)
+  - Target PR: PR-TBD-IDENTITY-LOOP-MAPPER-VIP-RUNTIME
+  - Status: 📋 Planned
+  - Reason (EN): Weekly reflection and slip-support already exist, but the next premium layer should formalize belief -> behavior -> payoff -> replacement action mapping as a bounded VIP tool rather than widening into generic chat. This gives the reflection lane a stronger product identity without changing the live mascot canon.
+  - Links:
+    - `docs/insights/CBT_COACHING_PRODUCT_WAVE.md`
+    - `docs/psychology/motivation_theories.md`
+    - `docs/orchestration/FITCHEF_SAFE_PERSONALIZATION_PROTOCOL.md`
+    - `docs/contracts/FITCHEF_STRUCTURED_COACH_CONTRACT.md`
+    - `docs/analytics/METRICS_CATALOG.md`
+  - DoD:
+    - Identity Loop Mapper contract is additive to existing VIP structured coach plans
+    - Runtime preserves safe personalization rules and avoids therapist/diagnostic framing
+    - Structured output covers belief, behavior, reward, replacement action, and repair path
+    - Deterministic tests cover auth, quota, rate limit, and response envelope stability
+
+
+<a id="ledger-p1-signal-noise-report-lane"></a>
+- [ ] P1: Signal vs Noise report lane for CBT coaching GTM
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (GTM / product strategy / founder content)
+  - Target PR: PR-TBD-SIGNAL-NOISE-REPORT-LANE
+  - Status: 📋 Planned
+  - Reason (EN): The article-inspired `Signal vs Noise` concept fits the repo better as a high-signal weekly report and founder-content pipeline than as a runtime feature. The lane should reuse the existing AI report templates and KPI-driven GTM structure so content decisions stay measurable and wellness-safe.
+  - Links:
+    - `docs/insights/CBT_COACHING_PRODUCT_WAVE.md`
+    - `docs/audience_pack/AI_REPORT_TEMPLATES.md`
+    - `docs/marketing/GTM_NOTES_DEV_ONLY.md`
+    - `docs/audience_pack/MARKETING_DESIGN_OVERVIEW.md`
+  - DoD:
+    - One canonical report/playbook lane exists for weekly high-signal coaching and wellness AI briefs
+    - Report outputs stay separate from runtime surfaces and do not create new open-ended LLM endpoints
+    - Every report block ends with owner, metric, and decision rule
+    - Wellness-safe language and disclaimer references are explicit in the lane docs
 
 
 - [ ] P2: FitChef App Store localization RU
