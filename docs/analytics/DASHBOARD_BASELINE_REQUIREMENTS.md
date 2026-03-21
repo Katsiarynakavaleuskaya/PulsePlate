@@ -39,7 +39,7 @@
 | Cost | Platform spend (LLM/API), Primary DB or usage logs (active users) | — |
 | Coaching | Client events (`coaching_*`), Primary DB or usage logs for revisit/followthrough | Experiment assignments, tier context |
 
-Schema and field semantics: `DATA_CATALOG.md`. Event taxonomy: `METRICS_CATALOG.md` → "Event taxonomy (growth funnel + coaching contract targets)".
+Schema and field semantics: `DATA_CATALOG.md`. Event taxonomy: `METRICS_CATALOG.md` → "Event taxonomy (growth funnel + coaching)".
 
 ---
 
