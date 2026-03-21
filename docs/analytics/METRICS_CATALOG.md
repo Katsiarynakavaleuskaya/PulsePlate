@@ -446,7 +446,7 @@ Daily
 
 ---
 
-## 7d revisit rate (`7d_revisit_rate`)
+## 7d revisit rate (`revisit_rate_7d`)
 
 #### Definition
 
@@ -456,7 +456,7 @@ CBT coaching surface within 7 days.
 #### Formula
 
 ```text
-7d_revisit_rate =
+revisit_rate_7d =
   users_who_revisit_cbt_surface_within_7d / users_who_completed_distortion_reframe
 ```
 

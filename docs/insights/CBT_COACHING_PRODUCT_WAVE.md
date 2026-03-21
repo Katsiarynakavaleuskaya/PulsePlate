@@ -207,7 +207,7 @@ Secondary metrics:
 
 - `challenge_acceptance_rate`
 - `next_action_commit_rate`
-- `7d_revisit_rate`
+- `revisit_rate_7d`
 
 ### Identity Loop Mapper
 
