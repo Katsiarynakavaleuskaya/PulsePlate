@@ -55,6 +55,30 @@ initiative before review-ready status can be claimed. Evidence:
 - PR cadence is intentionally slower because post-open `bug-hunter` review is
   mandatory.
 
+## Exit criteria
+
+This ADR is considered realized when all bounded rollout gates below are true:
+
+1. PR1, PR2, and PR3 from the initiative chain are merged; PR4 remains optional
+   and only proceeds if runtime and preview contracts stay bounded. Evidence:
+   `docs/design/DESIGN_AGENT_RUNTIME_PR_CHAIN.md:20`,
+   `docs/roadmap/BACKLOG_LEDGER.md:499`
+2. Each merged initiative PR completed its post-open `bug-hunter` fix pass
+   before review-ready status was claimed. Evidence:
+   `.cursor/agents/bug-hunter.md:1`,
+   `docs/roadmap/BACKLOG_LEDGER.md:509`
+3. Automated verification stays green for the runtime seam: instruction and
+   manifest semantics are covered by the governed contract tests, and the
+   deterministic browser preview remains validated on top of
+   `pulseplate_canvas_v1`. Evidence: `scripts/design/contracts.py:206`,
+   `scripts/design/html_preview.py:67`,
+   `tests/test_design_generation_pipeline.py:723`,
+   `tests/test_design_generation_pipeline.py:902`
+4. Promotion artifacts and backlog linkage remain published and current for the
+   initiative umbrella item until the ledger item is closed. Evidence:
+   `docs/library/promotion/2026-03-21_design-agent-runtime-pr-chain_promotion-log.md:1`,
+   `docs/roadmap/BACKLOG_LEDGER.md:495`
+
 ## Promotion targets
 
 - Initiative SoT:
