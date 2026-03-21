@@ -210,9 +210,12 @@ These labels are deterministic summaries of the internal numeric split; they do 
 
 When continuity fields are present, the evaluator must emit:
 
+- `continuity_evaluated`
 - `recognized_user_context`
 - `fabricated_memory_detected`
 - `safe_degradation`
 - `continuity_pass`
+
+`continuity_evaluated=false` means the pack did not opt into continuity checks, so `continuity_pass` must not be treated as a green continuity judgment for that case.
 
 These signals are internal-only offline eval metadata. They do not widen FitChef runtime schemas or authorize persistent memory.

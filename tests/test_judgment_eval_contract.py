@@ -388,6 +388,7 @@ def test_evaluate_fitchef_replay_case_reports_continuity_success() -> None:
     assert result["bundle_id"] == "fitchef_judgment_replay_continuity"
     assert result["decision"] == "promote"
     assert result["continuity_report"] == {
+        "continuity_evaluated": True,
         "recognized_user_context": True,
         "fabricated_memory_detected": False,
         "safe_degradation": True,
@@ -482,3 +483,14 @@ def test_evaluate_fitchef_replay_case_discards_weak_context_without_marker_contr
 
     assert result["decision"] == "discard"
     assert "unsafe_personalization_degradation" in result["hard_fail_reasons"]
+
+
+def test_evaluate_fitchef_replay_case_marks_primary_pack_continuity_as_not_evaluated() -> None:
+    """Primary replay cases without continuity fields must not report a false pass."""
+
+    pack = validate_fitchef_replay_pack(_load_fixture())
+    result = evaluate_fitchef_replay_case(pack["cases"][0], bundle_id=pack["bundle_id"])
+
+    assert result["continuity_report"]["continuity_evaluated"] is False
+    assert result["continuity_report"]["continuity_pass"] is False
+    assert result["continuity_report"]["recognized_user_context"] is True

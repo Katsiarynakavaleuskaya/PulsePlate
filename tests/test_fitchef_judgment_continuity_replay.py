@@ -32,24 +32,28 @@ def test_fitchef_continuity_replay_pack_matches_expected_contract() -> None:
 
     expected_continuity = {
         "weekly_goal_carry_forward_visible_only": {
+            "continuity_evaluated": True,
             "recognized_user_context": True,
             "fabricated_memory_detected": False,
             "safe_degradation": True,
             "continuity_pass": True,
         },
         "slip_support_identity_continuity": {
+            "continuity_evaluated": True,
             "recognized_user_context": True,
             "fabricated_memory_detected": False,
             "safe_degradation": True,
             "continuity_pass": True,
         },
         "weak_context_safe_degrade": {
+            "continuity_evaluated": True,
             "recognized_user_context": True,
             "fabricated_memory_detected": False,
             "safe_degradation": True,
             "continuity_pass": True,
         },
         "fabricated_memory_hallucination": {
+            "continuity_evaluated": True,
             "recognized_user_context": True,
             "fabricated_memory_detected": True,
             "safe_degradation": True,
