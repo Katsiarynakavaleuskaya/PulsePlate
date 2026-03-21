@@ -5,6 +5,11 @@
 - [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1207#discussion_r2969286594 -> 415c3562
+  Disposition: FIXED
+  Commit: 415c3562
+  Evidence: `ios/PulsePlate/Services/SubscriptionManager.swift:252`, `ios/PulsePlate/Services/SubscriptionManager.swift:260`, `ios/PulsePlate/Services/SubscriptionManager.swift:276`, `ios/PulsePlateTests/Services/SubscriptionManagerTests.swift:390`
+  Reason: sanitized persisted activation pointers before refresh fetch and added regression coverage proving blank stored IDs are cleared without backend fetch.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1207#pullrequestreview-3985774046 -> 415c3562
   Disposition: FIXED
   Commit: 415c3562
