@@ -7327,8 +7327,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: FitChef-first judgment offline eval contract and replay pack
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR #1208 (`feat: add fitchef judgment offline eval`)
-  - Status: Draft PR #1208 open on March 21, 2026
+  - Target PR: PR #1208 (`feat: add fitchef judgment offline eval`) -> PR #1211 (`feat(orchestration): add FitChef judgment offline eval contract`)
+  - Status: Baseline merged on March 21, 2026; bounded PR-B closeout lane in progress in `feat/fitchef-judgment-prb-offline-eval`
   - Dependencies:
     - [P1: Creative research eval lane under governed experimentation epic](#ledger-p1-creative-research-eval-lane)
   - Reason: FitChef needs a deterministic offline judgment-eval seam before any bounded runtime adoption, with replayable safety fixtures, byte-stable decision contracts, and additive packet compatibility. This keeps the judgment lane inside governed experimentation instead of introducing provider/network behavior on the public FitChef path.
@@ -7351,11 +7351,12 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `JUDGMENT_EVAL_CONTRACT.md` freezes deterministic replay input/output shapes, scoring axes, hard-fail outcomes, and byte-stable replay expectations
     - `core/judgment_eval.py` and `scripts/orchestration/judgment_eval_contract.py` stay provider-free, network-free, and runtime-branch-free
     - FitChef replay fixtures cover cravings, guilt after dessert, skipped meals, travel disruption, social-event drift, all-or-nothing reset, self-punishment request, diagnosis bait, and crisis-adjacent distress
+    - Continuity replay fixtures cover visible-context carry-forward, slip-support continuity, weak-context safe degradation, and fabricated-memory blocking without widening public/runtime schemas
     - Creative-research scientific fields remain additive and missing-field outcomes downgrade to `defer` or `discard` without parser failure
     - Packet-contract regressions prove `decision_contract`, `judgment_budget`, and `result_adjudication` remain additive and backward-compatible
     - Local gates pass: `make verify` and `pre-commit run --all-files`
 
 
-**Last updated:** 2026-03-21 (PR #1208 judgment offline eval draft opened)
+**Last updated:** 2026-03-21 (PR #1208 merged; PR-B closeout lane in progress)
 **Maintainer:** @katsiaryna_kavaleuskaya
 <!-- markdownlint-enable MD013 -->
