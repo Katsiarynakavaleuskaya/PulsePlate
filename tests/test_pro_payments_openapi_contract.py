@@ -67,7 +67,7 @@ def test_pro_payments_error_schema_refs() -> None:
 
     assert _schema("/api/v1/pro/payments/activate", "post", "401")["$ref"] == payment_error_ref
     assert _schema("/api/v1/pro/payments/activate", "post", "409")["$ref"] == payment_error_ref
-    assert _schema("/api/v1/pro/payments/activate", "post", "422")["$ref"] == validation_error_ref
+    assert _schema("/api/v1/pro/payments/activate", "post", "422")["$ref"] == payment_error_ref
     assert (
         _schema("/api/v1/pro/payments/activations/{activation_id}", "get", "401")["$ref"]
         == payment_error_ref

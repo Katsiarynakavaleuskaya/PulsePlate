@@ -84,6 +84,10 @@ def _resolve_activation_user(x_api_key: str | None) -> CurrentUser:
             "description": "iOS activation requires receipt_data or Apple verification failed",
             "model": PaymentErrorResponse,
         },
+        status.HTTP_422_UNPROCESSABLE_CONTENT: {
+            "description": "Canonical activation payload is required on this route",
+            "model": PaymentErrorResponse,
+        },
         status.HTTP_502_BAD_GATEWAY: {
             "description": "Apple receipt verification upstream error",
             "model": PaymentErrorResponse,

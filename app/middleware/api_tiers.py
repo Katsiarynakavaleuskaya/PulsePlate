@@ -196,7 +196,12 @@ def _tier_rank(tier: SubscriptionTier) -> int:
     }[tier]
 
 
-def _compat_paid_expires_at(subscription: object, expires_at: datetime | None) -> datetime | None:
+def _compat_paid_expires_at(
+    subscription: object,
+    expires_at: datetime | None,
+    *,
+    now: datetime,
+) -> datetime | None:
     """Derive bounded expiry for legacy manual paid rows that predate persisted expiry."""
 
     if expires_at is not None:
@@ -206,6 +211,8 @@ def _compat_paid_expires_at(subscription: object, expires_at: datetime | None) -
         return None
     activated_at = _normalize_utc_datetime(getattr(subscription, "activated_at", None))
     if activated_at is None:
+        return None
+    if activated_at > now:
         return None
     created_at = _normalize_utc_datetime(getattr(subscription, "created_at", None))
     if created_at is None:
@@ -273,7 +280,7 @@ def _lookup_tier_from_db(api_key: str) -> DBLookupResult:
             saw_invalid_state = True
             continue
         try:
-            expires_at = _compat_paid_expires_at(subscription, expires_at)
+            expires_at = _compat_paid_expires_at(subscription, expires_at, now=now)
         except TypeError:
             saw_invalid_state = True
             continue

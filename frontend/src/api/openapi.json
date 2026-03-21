@@ -7758,11 +7758,11 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/PaymentErrorResponse"
                 }
               }
             },
-            "description": "Validation Error"
+            "description": "Canonical activation payload is required on this route"
           },
           "502": {
             "content": {

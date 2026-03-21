@@ -212,6 +212,16 @@ def _plan_to_subscription_tier(plan: SubscriptionPlan) -> SubscriptionTier:
     return SubscriptionTier(_plan_to_tier(plan).value)
 
 
+def _plan_from_subscription_tier_value(tier_value: SubscriptionTierValue) -> SubscriptionPlan:
+    """Map legacy paid-tier values back to the canonical monthly plan contract."""
+
+    if tier_value is SubscriptionTierValue.vip:
+        return SubscriptionPlan.vip_monthly
+    if tier_value is SubscriptionTierValue.pro:
+        return SubscriptionPlan.pro_monthly
+    raise ValueError(f"unsupported subscription tier value: {tier_value}")
+
+
 def _manual_plan_expires_at(*, plan: SubscriptionPlan, activated_at: datetime) -> datetime:
     """Derive bounded expiry for verified manual monthly plans.
 
@@ -272,12 +282,9 @@ def _response_tier_value(
 ) -> SubscriptionTierValue | None:
     """Resolve legacy subscription_tier field for compatibility responses."""
 
-    tier_value = _parse_optional_subscription_tier_value(evidence_summary.get("subscription_tier"))
-    if tier_value is not None:
-        return tier_value
     if tier in {SubscriptionTier.pro, SubscriptionTier.vip}:
         return SubscriptionTierValue(tier.value)
-    return None
+    return _parse_optional_subscription_tier_value(evidence_summary.get("subscription_tier"))
 
 
 def _resolve_user_id(
@@ -742,6 +749,29 @@ def _current_response_overrides(
         reconcile_status,
         external_txn_id,
     )
+
+
+def _infer_manual_reconcile_plan(
+    *,
+    audit: SubscriptionActivationAudit,
+    subscription: Subscription,
+) -> SubscriptionPlan | None:
+    """Infer manual reconcile plan from canonical audit data or compat tier hints."""
+
+    evidence_summary = audit.evidence_summary or {}
+    requested_plan = _parse_optional_plan(evidence_summary.get("requested_plan"))
+    if requested_plan is not None:
+        return requested_plan
+
+    compat_tier = _parse_optional_subscription_tier_value(evidence_summary.get("subscription_tier"))
+    if compat_tier is not None:
+        return _plan_from_subscription_tier_value(compat_tier)
+
+    persisted_tier = _parse_optional_subscription_tier_value(getattr(subscription, "tier", None))
+    if persisted_tier is not None:
+        return _plan_from_subscription_tier_value(persisted_tier)
+
+    return None
 
 
 def _parse_optional_reconcile_status(raw_value: Any) -> ReconcileStatus | None:
@@ -1398,6 +1428,8 @@ def get_activation(
             session=session,
             audit=audit,
         )
+        if subscription is None:
+            return None
         return _to_response(
             activation_id=activation_id,
             audit=audit,
@@ -1538,8 +1570,9 @@ def reconcile_activation(
             else SubscriptionStatus.rejected.value
         )
         subscription.activated_at = now if payload.decision is ReconcileDecision.verified else None
-        requested_plan = _parse_optional_plan(
-            (initial_audit.evidence_summary or {}).get("requested_plan")
+        requested_plan = _infer_manual_reconcile_plan(
+            audit=initial_audit,
+            subscription=subscription,
         )
         if payload.decision is ReconcileDecision.verified:
             if requested_plan is None:

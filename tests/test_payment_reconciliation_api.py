@@ -1,13 +1,22 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from typing import cast
 
 from fastapi.testclient import TestClient
 import pytest
 
+from core.billing_policy import manual_monthly_entitlement_expires_at
 from tests.payment_test_utils import json_response_payload as _json
 
 pytestmark = pytest.mark.usefixtures("reset_payments_state")
+
+
+def _parse_utc_datetime(raw_value: str) -> datetime:
+    parsed = datetime.fromisoformat(raw_value.replace("Z", "+00:00"))
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
 
 
 def _create_manual_intent(
@@ -106,6 +115,11 @@ def test_manual_reconcile_verified_flow(
     assert payload["external_txn_id"] == "swift-settled-1"
     assert payload["intent_id"] == intent_id
     assert payload["expires_at"] is not None
+    assert payload["activated_at"] is not None
+
+    activated_at = _parse_utc_datetime(str(payload["activated_at"]))
+    expires_at = _parse_utc_datetime(str(payload["expires_at"]))
+    assert expires_at == manual_monthly_entitlement_expires_at(activated_at=activated_at)
 
     status_response = client.get(
         f"/api/v1/pro/payments/ru-by/reconcile/{intent_id}",
@@ -114,7 +128,41 @@ def test_manual_reconcile_verified_flow(
     assert status_response.status_code == 200, status_response.text
     status_payload = _json(status_response)
     assert status_payload["status"] == "active"
-    assert status_payload["expires_at"] is not None
+    assert status_payload["expires_at"] == payload["expires_at"]
+
+
+def test_manual_reconcile_verified_flow_with_pro_monthly_plan(
+    client: TestClient,
+    pro_headers: dict[str, str],
+) -> None:
+    intent_id = _create_manual_intent(
+        client,
+        pro_headers,
+        source="erip_qr",
+        plan="pro_monthly",
+    )
+
+    reconcile = client.post(
+        "/api/v1/pro/payments/ru-by/reconcile",
+        headers=pro_headers,
+        json={
+            "intent_id": intent_id,
+            "client_event_id": "evt-erip-reconcile-pro-1",
+            "decision": "verified",
+            "external_txn_id": "erip-settled-pro-1",
+        },
+    )
+    assert reconcile.status_code == 200, reconcile.text
+
+    payload = _json(reconcile)
+    assert payload["status"] == "active"
+    assert payload["subscription_tier"] == "pro"
+    assert payload["expires_at"] is not None
+    assert payload["activated_at"] is not None
+
+    activated_at = _parse_utc_datetime(str(payload["activated_at"]))
+    expires_at = _parse_utc_datetime(str(payload["expires_at"]))
+    assert expires_at == manual_monthly_entitlement_expires_at(activated_at=activated_at)
 
 
 def test_manual_reconcile_is_idempotent(

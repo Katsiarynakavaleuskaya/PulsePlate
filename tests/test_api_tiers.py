@@ -357,7 +357,14 @@ class TestDBLookupHelpers:
             activated_at=datetime.now(timezone.utc),
         )
 
-        assert api_tiers_mod._compat_paid_expires_at(subscription, None) is None
+        assert (
+            api_tiers_mod._compat_paid_expires_at(
+                subscription,
+                None,
+                now=datetime.now(timezone.utc),
+            )
+            is None
+        )
 
     def test_compat_paid_expires_at_returns_none_without_created_at(self) -> None:
         """Legacy compat expiry must fail closed when created_at evidence is missing."""
@@ -371,7 +378,14 @@ class TestDBLookupHelpers:
             created_at=None,
         )
 
-        assert api_tiers_mod._compat_paid_expires_at(subscription, None) is None
+        assert (
+            api_tiers_mod._compat_paid_expires_at(
+                subscription,
+                None,
+                now=datetime.now(timezone.utc),
+            )
+            is None
+        )
 
     def test_lookup_tier_from_db_rejects_invalid_legacy_manual_activated_at_type(
         self, monkeypatch: pytest.MonkeyPatch

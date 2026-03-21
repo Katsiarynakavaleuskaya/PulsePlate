@@ -250,6 +250,24 @@ def test_lookup_tier_from_db_rejects_post_cutoff_manual_row_without_expiry() -> 
     assert result.tier is None
 
 
+def test_lookup_tier_from_db_rejects_future_dated_legacy_manual_activation() -> None:
+    """Legacy manual compat must fail closed when activated_at is in the future."""
+
+    _persist_subscription(
+        api_key="future-legacy-manual-key",  # pragma: allowlist secret
+        source="swift_manual",
+        tier="vip",
+        status="active",
+        expires_at=None,
+        activated_at=datetime.now(timezone.utc) + timedelta(days=1),
+        created_at=LEGACY_MANUAL_COMPAT_CUTOFF - timedelta(days=1),
+    )
+
+    result = api_tiers_mod._lookup_tier_from_db("future-legacy-manual-key")
+    assert result.status == DBLookupStatus.INVALID_TIER
+    assert result.tier is None
+
+
 def test_lookup_tier_from_db_returns_invalid_tier_for_malformed_expiry(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

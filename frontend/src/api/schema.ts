@@ -5615,13 +5615,13 @@ export interface operations {
                     "application/json": components["schemas"]["PaymentErrorResponse"];
                 };
             };
-            /** @description Validation Error */
+            /** @description Canonical activation payload is required on this route */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/json": components["schemas"]["PaymentErrorResponse"];
                 };
             };
             /** @description Apple receipt verification upstream error */

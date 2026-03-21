@@ -28,9 +28,11 @@ from app.schemas.payments import (
     ManualActivationPayload,
     PaymentSource,
     ReconcileStatus,
+    SubscriptionPlan,
     SubscriptionActivationResponse,
     SubscriptionStatus,
     SubscriptionTier,
+    SubscriptionTierValue,
 )
 from app.services import payments_activation
 from core.billing_policy import manual_monthly_entitlement_expires_at
@@ -81,6 +83,17 @@ def _apple_response_for_receipt(receipt_data: str) -> dict[str, Any]:
                     "expires_date_ms": far_future_2099_05_ms,
                     "transaction_id": "txn-renewal-2",
                     "original_transaction_id": "txn-renewal-2",
+                }
+            ],
+        },
+        "base64_receipt_blob_renewal_vip": {
+            "status": 0,
+            "latest_receipt_info": [
+                {
+                    "product_id": "com.pulseplate.vip.monthly",
+                    "expires_date_ms": far_future_2099_05_ms,
+                    "transaction_id": "txn-renewal-vip",
+                    "original_transaction_id": "txn-renewal-vip",
                 }
             ],
         },
@@ -273,6 +286,18 @@ def _load_audit(activation_id: str) -> SubscriptionActivationAudit:
         session.close()
 
 
+def _update_audit_evidence_summary(activation_id: str, evidence_summary: dict[str, Any]) -> None:
+    session_factory = core_db.get_session_factory()
+    session = session_factory()
+    try:
+        audit = session.get(SubscriptionActivationAudit, activation_id)
+        assert audit is not None
+        audit.evidence_summary = evidence_summary
+        session.commit()
+    finally:
+        session.close()
+
+
 def _set_subscription_status_for_user_source(
     *,
     user_id: int,
@@ -310,6 +335,21 @@ def _set_subscription_user_id_for_source(
         )
         subscription = session.execute(statement).scalar_one()
         subscription.user_id = new_user_id
+        session.commit()
+    finally:
+        session.close()
+
+
+def _delete_subscription_for_user_source(*, user_id: int, source: str) -> None:
+    session_factory = core_db.get_session_factory()
+    session = session_factory()
+    try:
+        statement = select(Subscription).where(
+            Subscription.user_id == user_id,
+            Subscription.source == source,
+        )
+        subscription = session.execute(statement).scalar_one()
+        session.delete(subscription)
         session.commit()
     finally:
         session.close()
@@ -1164,9 +1204,11 @@ def test_get_activation_reflects_latest_ios_renewal_state(
         "/api/v1/pro/payments/activate",
         headers=pro_headers,
         json=_ios_payload(
-            transaction_id="txn-renewal-status-2",
+            transaction_id="txn-renewal-vip",
+            product_id="com.pulseplate.vip.monthly",
+            tier="vip",
             expires_at="2026-05-01T00:00:00Z",
-            receipt_data="base64_receipt_blob_renewal_2",
+            receipt_data="base64_receipt_blob_renewal_vip",
         ),
     )
     assert second.status_code == 200, second.text
@@ -1179,8 +1221,36 @@ def test_get_activation_reflects_latest_ios_renewal_state(
 
     payload = _json(fetched)
     assert payload["activation_id"] == first_activation_id
-    assert payload["source_reference"] == "txn-renewal-2"
+    assert payload["source_reference"] == "txn-renewal-vip"
+    assert payload["tier"] == "vip"
+    assert payload["subscription_tier"] == "vip"
     assert str(payload["expires_at"]).startswith("2099-05-01T00:00:00")
+
+
+def test_get_activation_returns_404_when_current_subscription_is_missing(
+    client: TestClient,
+    pro_headers: dict[str, str],
+) -> None:
+    created = client.post(
+        "/api/v1/pro/payments/activate",
+        headers=pro_headers,
+        json=_ios_payload(transaction_id="txn-missing-current-sub-1"),
+    )
+    assert created.status_code == 200, created.text
+
+    created_payload = _json(created)
+    activation_id = created_payload["activation_id"]
+    user_id = created_payload["user_id"]
+    _delete_subscription_for_user_source(user_id=user_id, source="ios_app_store")
+
+    fetched = client.get(
+        f"/api/v1/pro/payments/activations/{activation_id}",
+        headers=pro_headers,
+    )
+    assert fetched.status_code == 404, fetched.text
+    payload = _json(fetched)
+    assert payload["code"] == "not_found"
+    assert payload["detail"] == activation_id
 
 
 def test_get_activation_wrong_user_returns_403(
@@ -1988,7 +2058,37 @@ def test_reconcile_activation_rejects_non_pending_subscription_state(
         )
 
 
-def test_reconcile_activation_requires_requested_plan_for_verified_manual_flow(
+def test_reconcile_activation_infers_requested_plan_from_persisted_tier(
+    client: TestClient,
+    pro_headers: dict[str, str],
+) -> None:
+    activation = client.post(
+        "/api/v1/pro/payments/activate",
+        headers=pro_headers,
+        json=_manual_payload(source="erip_qr", source_reference="ERIP-QR-legacy-plan-1"),
+    )
+    assert activation.status_code == 200, activation.text
+
+    activation_id = _json(activation)["activation_id"]
+    _update_audit_evidence_summary(activation_id, {})
+
+    reconcile = client.post(
+        "/api/v1/pro/payments/ru-by/reconcile",
+        headers=pro_headers,
+        json={
+            "intent_id": activation_id,
+            "client_event_id": "evt-reconcile-missing-plan-1",
+            "decision": "verified",
+            "external_txn_id": "erip-settled-missing-plan-1",
+        },
+    )
+    assert reconcile.status_code == 200, reconcile.text
+    payload = _json(reconcile)
+    assert payload["status"] == "active"
+    assert payload["subscription_tier"] == "pro"
+
+
+def test_reconcile_activation_requires_requested_plan_when_no_compat_tier_exists(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     class DummySession:
@@ -2016,6 +2116,7 @@ def test_reconcile_activation_requires_requested_plan_for_verified_manual_flow(
         "Subscription",
         (),
         {
+            "tier": None,
             "status": SubscriptionStatus.pending_manual_review.value,
             "activated_at": None,
             "expires_at": None,
@@ -2088,6 +2189,31 @@ def test_reset_state_rolls_back_on_sqlalchemy_error(
     payments_activation.reset_state()
 
     assert session.rolled_back is True
+
+
+def test_plan_from_subscription_tier_value_maps_vip_monthly() -> None:
+    assert (
+        payments_activation._plan_from_subscription_tier_value(SubscriptionTierValue.vip)
+        is SubscriptionPlan.vip_monthly
+    )
+
+
+def test_plan_from_subscription_tier_value_rejects_unsupported_tier() -> None:
+    with pytest.raises(ValueError, match="unsupported subscription tier value"):
+        payments_activation._plan_from_subscription_tier_value(cast(Any, "enterprise"))
+
+
+def test_infer_manual_reconcile_plan_uses_compat_subscription_tier() -> None:
+    audit = type("Audit", (), {"evidence_summary": {"subscription_tier": "vip"}})()
+    subscription = type("Subscription", (), {"tier": None})()
+
+    assert (
+        payments_activation._infer_manual_reconcile_plan(
+            audit=cast(Any, audit),
+            subscription=cast(Any, subscription),
+        )
+        is SubscriptionPlan.vip_monthly
+    )
 
 
 def test_subscription_activation_migration_smoke(
