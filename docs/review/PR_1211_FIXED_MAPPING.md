@@ -45,6 +45,11 @@ Evidence: `docs/review/PR_1211_FIXED_MAPPING.md:1`
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1211#discussion_r2969598481 -> 98f83935
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1211#discussion_r2969598483 -> 98f83935
 
+Disposition: FIXED
+Commit: 8cbaedde
+Evidence: `tests/test_judgment_eval.py:124`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1211#discussion_r2969724361 -> 8cbaedde
+
 Disposition: NOT-A-BUG
 Evidence: `core/judgment_eval.py:38`, `core/judgment_eval.py:269`, `tests/test_judgment_eval.py:48`
 Reason: Sourcery summary `3986040523` only aggregates the two inline findings above plus high-level wording about visible-history grounding and the bundle-id constant, both already covered by the mapped substantive fixes.
@@ -80,6 +85,7 @@ Reason: Cubic summary `3986077347` only aggregates the trailing-user-prompt stri
   - `6f0eac11` — `docs(pr): refresh pr 1211 mapping`
   - `4ad97b00` — `fix(orchestration): close fitchef replay review gaps`
   - `1218a5e5` — `fix(orchestration): mark continuity evaluation explicitly`
+  - `8cbaedde` — `test(orchestration): assert clean eval stderr`
 - Current scope discipline:
   - offline deterministic judgment eval only
   - no public route changes
