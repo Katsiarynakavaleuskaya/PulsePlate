@@ -5,10 +5,12 @@ import shutil
 import subprocess
 import zipfile
 from pathlib import Path
+from xml.etree import ElementTree
 
 import pytest
 
 REPO_ROOT: Path = Path(__file__).resolve().parents[1]
+WORDPROCESSING_ML_NAMESPACE = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}t"
 
 
 def _node_binary_or_skip() -> str:
@@ -46,6 +48,13 @@ def _read_office_document_xml(output_path: Path, member_name: str) -> str:
         return archive.read(member_name).decode("utf-8")
 
 
+def _extract_docx_text(document_xml: str) -> str:
+    # RU: Собираем текст из всех text-run, чтобы тест не зависел от внутреннего XML-разбиения DOCX.
+    # EN: Join all DOCX text runs so assertions do not depend on internal XML run splitting.
+    root = ElementTree.fromstring(document_xml)
+    return "".join(node.text or "" for node in root.iter(WORDPROCESSING_ML_NAMESPACE))
+
+
 def test_b2b_proposal_builder_creates_docx(tmp_path: Path) -> None:
     output_path = tmp_path / "proposal.docx"
     result = _run_builder("scripts/business_collateral/build_b2b_proposal.js", output_path)
@@ -56,10 +65,11 @@ def test_b2b_proposal_builder_creates_docx(tmp_path: Path) -> None:
     assert str(output_path) in result.stdout
 
     document_xml = _read_office_document_xml(output_path, "word/document.xml")
+    document_text = _extract_docx_text(document_xml)
 
-    assert "PulsePlate partnership proposal for wellness and nutrition workflows" in document_xml
-    assert "PulsePlate B2B Partnership Proposal Spec" not in document_xml
-    assert "markdownlint-disable" not in document_xml
+    assert "PulsePlate partnership proposal for wellness and nutrition workflows" in document_text
+    assert "PulsePlate B2B Partnership Proposal Spec" not in document_text
+    assert "markdownlint-disable" not in document_text
 
 
 def test_markdown_parser_skips_multiline_html_comments() -> None:
