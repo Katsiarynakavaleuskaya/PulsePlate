@@ -1,16 +1,39 @@
 from __future__ import annotations
 
+import json
+import shutil
 import subprocess
 import zipfile
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
+import pytest
+
+REPO_ROOT: Path = Path(__file__).resolve().parents[1]
+
+
+def _node_binary_or_skip() -> str:
+    node_binary = shutil.which("node")
+    if node_binary is None:
+        pytest.skip("node executable not found in PATH")
+    return node_binary
 
 
 def _run_builder(script_relative_path: str, output_path: Path) -> subprocess.CompletedProcess[str]:
+    node_binary = _node_binary_or_skip()
     script_path = REPO_ROOT / script_relative_path
     return subprocess.run(
-        ["node", str(script_path), "--output", str(output_path)],
+        [node_binary, str(script_path), "--output", str(output_path)],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+
+def _run_node_eval(script: str) -> subprocess.CompletedProcess[str]:
+    node_binary = _node_binary_or_skip()
+    return subprocess.run(
+        [node_binary, "-e", script],
         cwd=REPO_ROOT,
         capture_output=True,
         text=True,
@@ -37,6 +60,29 @@ def test_b2b_proposal_builder_creates_docx(tmp_path: Path) -> None:
     assert "PulsePlate partnership proposal for wellness and nutrition workflows" in document_xml
     assert "PulsePlate B2B Partnership Proposal Spec" not in document_xml
     assert "markdownlint-disable" not in document_xml
+
+
+def test_markdown_parser_skips_multiline_html_comments() -> None:
+    script = """
+const { parseMarkdownBlocks } = require("./scripts/business_collateral/content_loader");
+const result = parseMarkdownBlocks(`<!-- markdownlint-disable
+still a comment -->
+
+## Visible Heading
+
+Visible paragraph.`);
+process.stdout.write(JSON.stringify(result));
+"""
+    result = _run_node_eval(script)
+
+    assert result.returncode == 0, result.stderr
+
+    payload = json.loads(result.stdout)
+
+    assert payload["blocks"] == [
+        {"type": "heading1", "text": "Visible Heading"},
+        {"type": "paragraph", "text": "Visible paragraph."},
+    ]
 
 
 def test_b2b_pitch_deck_builder_creates_pptx(tmp_path: Path) -> None:

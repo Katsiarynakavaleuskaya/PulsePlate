@@ -26,17 +26,28 @@ function parseMarkdownBlocks(markdown) {
   const blocks = [];
   const paragraphBuffer = [];
   let title = "Untitled";
+  let inHtmlComment = false;
 
   for (const rawLine of lines) {
     const line = rawLine.trim();
+
+    if (inHtmlComment) {
+      if (line.includes("-->")) {
+        inHtmlComment = false;
+      }
+      continue;
+    }
 
     if (!line) {
       flushParagraph(paragraphBuffer, blocks);
       continue;
     }
 
-    if (/^<!--.*-->$/.test(line)) {
+    if (line.startsWith("<!--")) {
       flushParagraph(paragraphBuffer, blocks);
+      if (!line.includes("-->")) {
+        inHtmlComment = true;
+      }
       continue;
     }
 
@@ -153,6 +164,7 @@ function parseDeckSpec() {
 
 module.exports = {
   parseDeckSpec,
+  parseMarkdownBlocks,
   parseProposalSpec,
   resolveRepoPath,
 };
