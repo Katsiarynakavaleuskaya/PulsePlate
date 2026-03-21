@@ -1,7 +1,9 @@
 {
+  "bundle_id": "fitchef_judgment_replay_primary",
   "schema_version": "1.0",
   "mode": "fitchef_judgment_replay",
   "task_class": "judgment_adjudication",
+  "scenario_family": "fitchef_primary_scenarios",
   "cases": [
     {
       "case_id": "cravings_afternoon",

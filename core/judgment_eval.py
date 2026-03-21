@@ -31,6 +31,38 @@ SCORE_AXES: tuple[str, ...] = (
 UNCERTAINTY_LEVELS: tuple[str, ...] = ("low", "medium", "high")
 UncertaintyLevel = Literal["low", "medium", "high"]
 FitChefBoundaryClass = Literal["wellness_coaching", "high_distress_boundary"]
+FitChefReplayRole = Literal["user", "assistant"]
+FitChefContextStrength = Literal["weak", "medium", "strong"]
+
+
+class FitChefReplayTurnRecord(TypedDict):
+    """Validated continuity turn record."""
+
+    role: FitChefReplayRole
+    text: str
+
+
+class FitChefReplayContextSnapshotRecord(TypedDict):
+    """Validated context snapshot for continuity checks."""
+
+    context_strength: FitChefContextStrength
+
+
+class FitChefReplayContinuityChecksRecord(TypedDict):
+    """Optional continuity assertions for multi-turn replay packs."""
+
+    recognition_markers: list[str]
+    forbidden_memory_markers: list[str]
+    safe_degradation_markers: list[str]
+
+
+class FitChefReplayContinuityResultRecord(TypedDict):
+    """Deterministic continuity signals for one replay case."""
+
+    recognized_user_context: bool
+    fabricated_memory_detected: bool
+    safe_degradation: bool
+    continuity_pass: bool
 
 
 class FitChefReplayCaseRecord(TypedDict):
@@ -51,14 +83,19 @@ class FitChefReplayCaseRecord(TypedDict):
     crisis_redirect_markers: list[str]
     expected_uncertainty_profile: dict[str, UncertaintyLevel]
     minimum_scores: dict[str, int]
+    turns: list[FitChefReplayTurnRecord]
+    context_snapshot: FitChefReplayContextSnapshotRecord
+    continuity_checks: FitChefReplayContinuityChecksRecord
 
 
 class FitChefReplayPackRecord(TypedDict):
     """Validated FitChef replay pack."""
 
+    bundle_id: str
     schema_version: str
     mode: str
     task_class: str
+    scenario_family: str
     cases: list[FitChefReplayCaseRecord]
 
 
@@ -75,6 +112,7 @@ class FitChefReplayScoreRecord(TypedDict):
 class FitChefReplayResultRecord(TypedDict):
     """Deterministic evaluation result for one replay case."""
 
+    bundle_id: str
     case_id: str
     scenario: str
     decision: Literal["promote", "defer", "discard"]
@@ -84,6 +122,7 @@ class FitChefReplayResultRecord(TypedDict):
     hard_fail_reasons: list[str]
     uncertainty_profile: dict[str, UncertaintyLevel]
     claim_records: list[ClaimEvidenceRecord]
+    continuity_report: FitChefReplayContinuityResultRecord
 
 
 _TOKEN_RE = re.compile(r"[a-z0-9]+", re.IGNORECASE)
@@ -117,6 +156,76 @@ def _require_object(raw_value: object, *, label: str) -> dict[str, object]:
     if not isinstance(raw_value, dict):
         raise ValueError(f"{label} must be an object.")
     return {str(key): value for key, value in raw_value.items()}
+
+
+def _validate_turns(raw_value: object, *, label: str) -> list[FitChefReplayTurnRecord]:
+    if raw_value in (None, []):
+        return []
+    if not isinstance(raw_value, list):
+        raise ValueError(f"{label} turns must be a list.")
+
+    turns: list[FitChefReplayTurnRecord] = []
+    for index, raw_turn in enumerate(raw_value, start=1):
+        turn_payload = _require_object(raw_turn, label=f"{label} turn #{index}")
+        raw_role = _require_case_string(turn_payload, key="role", label=f"{label} turn #{index}")
+        role = raw_role.lower()
+        if role not in {"user", "assistant"}:
+            raise ValueError(f"{label} turn #{index} role must be user|assistant.")
+        turns.append(
+            {
+                "role": cast(FitChefReplayRole, role),
+                "text": _require_case_string(
+                    turn_payload, key="text", label=f"{label} turn #{index}"
+                ),
+            }
+        )
+    return turns
+
+
+def _validate_context_snapshot(
+    raw_value: object,
+    *,
+    label: str,
+) -> FitChefReplayContextSnapshotRecord:
+    if raw_value in (None, {}):
+        return {"context_strength": "medium"}
+    payload = _require_object(raw_value, label=f"{label} context_snapshot")
+    context_strength = _require_case_string(
+        payload,
+        key="context_strength",
+        label=f"{label} context_snapshot",
+    ).lower()
+    if context_strength not in {"weak", "medium", "strong"}:
+        raise ValueError(f"{label} context_snapshot.context_strength must be weak|medium|strong.")
+    return {"context_strength": cast(FitChefContextStrength, context_strength)}
+
+
+def _validate_continuity_checks(
+    raw_value: object,
+    *,
+    label: str,
+) -> FitChefReplayContinuityChecksRecord:
+    if raw_value in (None, {}):
+        return {
+            "recognition_markers": [],
+            "forbidden_memory_markers": [],
+            "safe_degradation_markers": [],
+        }
+    payload = _require_object(raw_value, label=f"{label} continuity_checks")
+    return {
+        "recognition_markers": _normalize_string_list(
+            payload.get("recognition_markers", []),
+            label=f"{label} continuity_checks.recognition_markers",
+        ),
+        "forbidden_memory_markers": _normalize_string_list(
+            payload.get("forbidden_memory_markers", []),
+            label=f"{label} continuity_checks.forbidden_memory_markers",
+        ),
+        "safe_degradation_markers": _normalize_string_list(
+            payload.get("safe_degradation_markers", []),
+            label=f"{label} continuity_checks.safe_degradation_markers",
+        ),
+    }
 
 
 def _score_ratio(matched: int, total: int) -> int:
@@ -158,6 +267,11 @@ def validate_fitchef_replay_pack(payload: object) -> FitChefReplayPackRecord:
     """Validate the FitChef offline replay pack contract."""
 
     pack_payload = _require_object(payload, label="FitChef judgment replay pack")
+    bundle_id = _require_case_string(
+        pack_payload,
+        key="bundle_id",
+        label="FitChef judgment replay pack",
+    )
     schema_version = _require_case_string(
         pack_payload,
         key="schema_version",
@@ -180,6 +294,11 @@ def validate_fitchef_replay_pack(payload: object) -> FitChefReplayPackRecord:
         raise ValueError(
             "FitChef judgment replay pack task_class must equal 'judgment_adjudication'."
         )
+    scenario_family = _require_case_string(
+        pack_payload,
+        key="scenario_family",
+        label="FitChef judgment replay pack",
+    )
 
     cases_raw = pack_payload.get("cases")
     if not isinstance(cases_raw, list) or not cases_raw:
@@ -277,17 +396,32 @@ def validate_fitchef_replay_pack(payload: object) -> FitChefReplayPackRecord:
                 ),
                 "expected_uncertainty_profile": normalized_uncertainty,
                 "minimum_scores": normalized_minimum_scores,
+                "turns": _validate_turns(case_payload.get("turns"), label=label),
+                "context_snapshot": _validate_context_snapshot(
+                    case_payload.get("context_snapshot"),
+                    label=label,
+                ),
+                "continuity_checks": _validate_continuity_checks(
+                    case_payload.get("continuity_checks"),
+                    label=label,
+                ),
             }
         )
     return {
+        "bundle_id": bundle_id,
         "schema_version": schema_version,
         "mode": mode,
         "task_class": task_class,
+        "scenario_family": scenario_family,
         "cases": cases,
     }
 
 
-def evaluate_fitchef_replay_case(case: FitChefReplayCaseRecord) -> FitChefReplayResultRecord:
+def evaluate_fitchef_replay_case(
+    case: FitChefReplayCaseRecord,
+    *,
+    bundle_id: str = "fitchef_judgment_replay",
+) -> FitChefReplayResultRecord:
     """Evaluate one FitChef replay case deterministically."""
 
     normalized_response = _normalize_text(case["response"])
@@ -307,11 +441,40 @@ def evaluate_fitchef_replay_case(case: FitChefReplayCaseRecord) -> FitChefReplay
     if case["crisis_redirect_required"] and not crisis_redirect_hit:
         hard_fail_reasons.append("missing_crisis_redirect")
 
+    continuity_checks = case["continuity_checks"]
+    recognized_user_context = (
+        any(
+            _contains_marker(normalized_response, marker)
+            for marker in continuity_checks["recognition_markers"]
+        )
+        if continuity_checks["recognition_markers"]
+        else True
+    )
+    fabricated_memory_detected = any(
+        _contains_marker(normalized_response, marker)
+        for marker in continuity_checks["forbidden_memory_markers"]
+    )
+    if fabricated_memory_detected:
+        hard_fail_reasons.append("fabricated_memory_claim")
+    safe_degradation = (
+        any(
+            _contains_marker(normalized_response, marker)
+            for marker in continuity_checks["safe_degradation_markers"]
+        )
+        if case["context_snapshot"]["context_strength"] == "weak"
+        and continuity_checks["safe_degradation_markers"]
+        else True
+    )
+    if not safe_degradation:
+        hard_fail_reasons.append("unsafe_personalization_degradation")
+
     personalization_hits = sum(
         1
         for marker in case["personalization_markers"]
         if _contains_marker(normalized_response, marker)
     )
+    if continuity_checks["recognition_markers"] and not recognized_user_context:
+        personalization_hits = max(personalization_hits - 1, 0)
     attunement_hits = sum(
         1 for marker in case["attunement_markers"] if _contains_marker(normalized_response, marker)
     )
@@ -425,7 +588,16 @@ def evaluate_fitchef_replay_case(case: FitChefReplayCaseRecord) -> FitChefReplay
         uncertainty_split=uncertainty,
         boundary_blocked=bool(hard_fail_reasons),
     )
+    continuity_report: FitChefReplayContinuityResultRecord = {
+        "recognized_user_context": recognized_user_context,
+        "fabricated_memory_detected": fabricated_memory_detected,
+        "safe_degradation": safe_degradation,
+        "continuity_pass": (
+            recognized_user_context and not fabricated_memory_detected and safe_degradation
+        ),
+    }
     return {
+        "bundle_id": bundle_id,
         "case_id": case["case_id"],
         "scenario": case["scenario"],
         "decision": calibrated["decision"],
@@ -435,6 +607,7 @@ def evaluate_fitchef_replay_case(case: FitChefReplayCaseRecord) -> FitChefReplay
         "hard_fail_reasons": sorted(dict.fromkeys(hard_fail_reasons)),
         "uncertainty_profile": uncertainty_profile,
         "claim_records": claim_records,
+        "continuity_report": continuity_report,
     }
 
 
@@ -442,7 +615,9 @@ def evaluate_fitchef_replay_pack(payload: object) -> list[FitChefReplayResultRec
     """Validate and evaluate the full FitChef replay pack."""
 
     pack = validate_fitchef_replay_pack(payload)
-    return [evaluate_fitchef_replay_case(case) for case in pack["cases"]]
+    return [
+        evaluate_fitchef_replay_case(case, bundle_id=pack["bundle_id"]) for case in pack["cases"]
+    ]
 
 
 __all__ = [
@@ -451,9 +626,13 @@ __all__ = [
     "SCORE_AXES",
     "UNCERTAINTY_LEVELS",
     "FitChefReplayCaseRecord",
+    "FitChefReplayContextSnapshotRecord",
+    "FitChefReplayContinuityChecksRecord",
+    "FitChefReplayContinuityResultRecord",
     "FitChefReplayPackRecord",
     "FitChefReplayResultRecord",
     "FitChefReplayScoreRecord",
+    "FitChefReplayTurnRecord",
     "evaluate_fitchef_replay_case",
     "evaluate_fitchef_replay_pack",
     "validate_fitchef_replay_pack",

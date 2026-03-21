@@ -29,10 +29,21 @@ FIXTURE_PATH = (
     / "fitchef_judgment_replay"
     / "replay_cases.json"
 )
+CONTINUITY_FIXTURE_PATH = (
+    Path(__file__).resolve().parent
+    / "fixtures"
+    / "orchestration"
+    / "fitchef_judgment_replay"
+    / "replay_continuity_cases.json"
+)
 
 
 def _load_fixture() -> dict[str, object]:
     return json.loads(FIXTURE_PATH.read_text(encoding="utf-8"))
+
+
+def _load_continuity_fixture() -> dict[str, object]:
+    return json.loads(CONTINUITY_FIXTURE_PATH.read_text(encoding="utf-8"))
 
 
 def test_validate_fitchef_replay_pack_accepts_fixture() -> None:
@@ -40,9 +51,21 @@ def test_validate_fitchef_replay_pack_accepts_fixture() -> None:
 
     pack = validate_fitchef_replay_pack(_load_fixture())
 
+    assert pack["bundle_id"] == "fitchef_judgment_replay_primary"
     assert pack["mode"] == "fitchef_judgment_replay"
     assert pack["task_class"] == "judgment_adjudication"
+    assert pack["scenario_family"] == "fitchef_primary_scenarios"
     assert len(pack["cases"]) == 9
+
+
+def test_validate_fitchef_replay_pack_accepts_continuity_fixture() -> None:
+    """Continuity replay packs must validate inside the same offline contract."""
+
+    pack = validate_fitchef_replay_pack(_load_continuity_fixture())
+
+    assert pack["bundle_id"] == "fitchef_judgment_replay_continuity"
+    assert pack["scenario_family"] == "fitchef_continuity_scenarios"
+    assert len(pack["cases"]) == 4
 
 
 def test_validate_fitchef_replay_pack_rejects_missing_scores() -> None:
@@ -133,6 +156,49 @@ def test_validate_fitchef_replay_pack_rejects_non_boolean_crisis_redirect_requir
         validate_fitchef_replay_pack(payload)
 
 
+def test_validate_fitchef_replay_pack_rejects_invalid_turn_role() -> None:
+    """Continuity turns must use canonical user|assistant roles only."""
+
+    payload = _load_continuity_fixture()
+    payload["cases"][0]["turns"][0]["role"] = "coach"
+
+    with pytest.raises(ValueError, match="role must be user\\|assistant"):
+        validate_fitchef_replay_pack(payload)
+
+
+def test_validate_fitchef_replay_pack_rejects_non_list_turns() -> None:
+    """Continuity turns must be encoded as a list of turn records."""
+
+    payload = _load_continuity_fixture()
+    payload["cases"][0]["turns"] = "not-a-list"
+
+    with pytest.raises(ValueError, match="turns must be a list"):
+        validate_fitchef_replay_pack(payload)
+
+
+def test_validate_fitchef_replay_pack_rejects_invalid_context_strength() -> None:
+    """Context strength must stay within the fixed weak/medium/strong vocabulary."""
+
+    payload = _load_continuity_fixture()
+    payload["cases"][0]["context_snapshot"]["context_strength"] = "unknown"
+
+    with pytest.raises(ValueError, match="context_strength must be weak\\|medium\\|strong"):
+        validate_fitchef_replay_pack(payload)
+
+
+def test_validate_fitchef_replay_pack_rejects_invalid_continuity_marker_lists() -> None:
+    """Continuity marker collections must remain deterministic string lists."""
+
+    payload = _load_continuity_fixture()
+    payload["cases"][0]["continuity_checks"]["forbidden_memory_markers"] = "not-a-list"
+
+    with pytest.raises(
+        ValueError,
+        match="continuity_checks.forbidden_memory_markers must be a list",
+    ):
+        validate_fitchef_replay_pack(payload)
+
+
 def test_validate_fitchef_replay_pack_rejects_out_of_range_minimum_scores() -> None:
     """Per-axis score floors must stay inside the deterministic 0..5 range."""
 
@@ -152,6 +218,7 @@ def test_evaluate_fitchef_replay_case_emits_claim_records_and_uncertainty() -> N
     result = evaluate_fitchef_replay_case(pack["cases"][0])
 
     assert result["decision"] == "promote"
+    assert result["bundle_id"] == "fitchef_judgment_replay"
     assert result["claim_records"]
     assert result["uncertainty_profile"]["actionability_confidence"] == "high"
     assert result["scores"]["boundary_adherence"] >= 4
@@ -219,3 +286,76 @@ def test_evaluate_fitchef_replay_case_discards_treatment_framing_without_fixture
 
     assert result["decision"] == "discard"
     assert "WELLNESS_MEDICAL_CLAIM_EN" in result["hard_fail_reasons"]
+
+
+def test_evaluate_fitchef_replay_case_reports_continuity_success() -> None:
+    """Visible continuity markers should be reflected in the continuity report."""
+
+    pack = validate_fitchef_replay_pack(_load_continuity_fixture())
+    case = next(
+        item
+        for item in pack["cases"]
+        if item["case_id"] == "weekly_goal_carry_forward_visible_only"
+    )
+
+    result = evaluate_fitchef_replay_case(case, bundle_id=pack["bundle_id"])
+
+    assert result["bundle_id"] == "fitchef_judgment_replay_continuity"
+    assert result["decision"] == "promote"
+    assert result["continuity_report"] == {
+        "recognized_user_context": True,
+        "fabricated_memory_detected": False,
+        "safe_degradation": True,
+        "continuity_pass": True,
+    }
+
+
+def test_evaluate_fitchef_replay_case_discards_fabricated_memory() -> None:
+    """Fabricated memory claims must fail closed even without other safety blockers."""
+
+    pack = validate_fitchef_replay_pack(_load_continuity_fixture())
+    case = next(
+        item for item in pack["cases"] if item["case_id"] == "fabricated_memory_hallucination"
+    )
+
+    result = evaluate_fitchef_replay_case(case, bundle_id=pack["bundle_id"])
+
+    assert result["decision"] == "discard"
+    assert "fabricated_memory_claim" in result["hard_fail_reasons"]
+    assert result["continuity_report"]["fabricated_memory_detected"] is True
+
+
+def test_evaluate_fitchef_replay_case_discards_unsafe_weak_context_personalization() -> None:
+    """Weak-context cases must fail closed when safe degradation language is missing."""
+
+    pack = validate_fitchef_replay_pack(_load_continuity_fixture())
+    case = deepcopy(
+        next(item for item in pack["cases"] if item["case_id"] == "weak_context_safe_degrade")
+    )
+    case["response"] = "You always struggle on late nights, so keep dinner simple tonight."
+
+    result = evaluate_fitchef_replay_case(case, bundle_id=pack["bundle_id"])
+
+    assert result["decision"] == "discard"
+    assert "unsafe_personalization_degradation" in result["hard_fail_reasons"]
+
+
+def test_evaluate_fitchef_replay_case_penalizes_missing_recognition_markers() -> None:
+    """Missing visible-context carry-forward should reduce personalization confidence."""
+
+    pack = validate_fitchef_replay_pack(_load_continuity_fixture())
+    case = deepcopy(
+        next(
+            item
+            for item in pack["cases"]
+            if item["case_id"] == "weekly_goal_carry_forward_visible_only"
+        )
+    )
+    case["response"] = (
+        "A dessert slip does not erase the day. Restart with the next meal and set one evening cue before tomorrow."
+    )
+
+    result = evaluate_fitchef_replay_case(case, bundle_id=pack["bundle_id"])
+
+    assert result["continuity_report"]["recognized_user_context"] is False
+    assert result["scores"]["personalization_relevance"] == 2
