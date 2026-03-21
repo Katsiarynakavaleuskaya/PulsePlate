@@ -104,7 +104,7 @@ Required artifact fields:
 - `nodes`. Evidence: `scripts/design/canvas_artifact.py:61`,
   `scripts/design/contracts.py:118`, `scripts/design/contracts.py:680`
 - `render_ops`. Evidence: `scripts/design/canvas_artifact.py:62`,
-  `scripts/design/contracts.py:119`, `scripts/design/contracts.py:680`
+  `scripts/design/contracts.py:120`, `scripts/design/contracts.py:680`
 
 Manifest-safe metadata for `code_native_canvas` must also record:
 
@@ -113,11 +113,11 @@ Manifest-safe metadata for `code_native_canvas` must also record:
 - `artifact_version`. Evidence: `scripts/design/execution_adapters.py:117`,
   `scripts/design/execute_design.py:200`
 - `section_count`. Evidence: `scripts/design/execution_adapters.py:111`,
-  `scripts/design/execute_design.py:195`
+  `scripts/design/execute_design.py:194`
 - `component_count`. Evidence: `scripts/design/execution_adapters.py:112`,
   `scripts/design/execute_design.py:202`
 - `interaction_contract`. Evidence: `scripts/design/execute_design.py:183`,
-  `scripts/design/verify_design.py:302`
+  `scripts/design/verify_design.py:308`
 - `preview_artifact` when HTML preview generation is enabled. Evidence:
   `scripts/design/execute_design.py:141`,
   `scripts/design/verify_design.py:267`
