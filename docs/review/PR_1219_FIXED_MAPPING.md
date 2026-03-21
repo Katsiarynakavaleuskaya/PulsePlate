@@ -92,7 +92,7 @@ Reason: this cubic review shell only aggregates the inline stale-evidence findin
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1219#discussion_r2969789940
 Disposition: FIXED
-Commit: PENDING_COMMIT_SHA
+Commit: fa8662bb
 Evidence: `docs/review/PR_1219_FIXED_MAPPING.md:20`, `docs/review/PR_1219_FIXED_MAPPING.md:23`
 Reason: cubic found that the later evidence refresh for `discussion_r2969725702` drifted again after adding the prior cubic-shell mapping; the evidence line now cites the actual merge-readiness bullets rather than the cubic shell block.
 
@@ -102,8 +102,8 @@ Evidence: `docs/review/PR_1219_FIXED_MAPPING.md:93`, `docs/review/PR_1219_FIXED_
 Reason: this cubic review shell only aggregates the inline stale-anchor finding at `discussion_r2969789940`; once that inline comment is fixed and mapped explicitly, the shell carries no separate unresolved action.
 
 ## Merge Readiness
-- Review status: current-head bot feedback is mapped except for the latest cubic stale-anchor follow-up, which is fixed locally in this artifact and pending push/thread resolution.
-- Merge status: pending final local verify rerun on this worktree and final strict governance re-check after the latest artifact commit is pushed.
+- Review status: current-head bot feedback is fully dispositioned locally; push + final strict governance re-check remain to publish the latest cubic stale-anchor fix and resolve its thread.
+- Merge status: local `make verify` passed on this worktree; remaining step is publishing this mapping commit, refreshing the PR body mirror, and re-running strict PR governance against the pushed head.
 - Current fix commits:
   - `5bfa8a45` — `docs(orchestration): realign design-agent chain`
   - `8d24505d` — `docs(review): add PR 1219 mapping artifact`
@@ -113,6 +113,7 @@ Reason: this cubic review shell only aggregates the inline stale-anchor finding 
   - `f7306a50` — `docs(review): map current PR 1219 feedback`
   - `393619d4` — `docs(review): fix cubic evidence mapping`
   - `79f91baf` — `docs(review): map cubic evidence fix commit`
+  - `fa8662bb` — `docs(review): refresh cubic anchors`
 - Current scope discipline:
   - docs/governance-only realignment bundle
   - no runtime, API, preview-renderer, or product-surface changes
