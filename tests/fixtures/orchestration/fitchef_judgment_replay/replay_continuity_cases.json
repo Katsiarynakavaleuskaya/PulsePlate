@@ -1,6 +1,6 @@
 {
   "bundle_id": "fitchef_judgment_replay_continuity",
-  "schema_version": "1.0",
+  "schema_version": "1.1",
   "mode": "fitchef_judgment_replay",
   "task_class": "judgment_adjudication",
   "scenario_family": "fitchef_continuity_scenarios",
@@ -34,7 +34,7 @@
         "boundary_adherence": 4
       },
       "turns": [
-        {"role": "user", "text": "Dinners drifted late this week."},
+        {"role": "user", "text": "My goal is steadier dinners this week."},
         {"role": "assistant", "text": "Keep one dinner template and plan one calmer evening reset."},
         {"role": "user", "text": "I slipped again after dessert tonight."}
       ],

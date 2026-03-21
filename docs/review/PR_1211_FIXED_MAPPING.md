@@ -2,15 +2,12 @@
 
 ## Discussion Thread Pass
 
-- [ ] Discussion-thread pass completed
-- [ ] Fixed in commit mapping completed
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
 
-Disposition: FIXED
-Commit: `3cdb6e85`
-Evidence: `core/judgment_eval.py:34` adds continuity-only replay types, `core/judgment_eval.py:161` validates optional replay turns/context/continuity checks, `core/judgment_eval.py:441` evaluates recognition/fabricated-memory/safe-degradation signals, `scripts/orchestration/judgment_eval.py:1` adds the offline eval runner, `tests/test_fitchef_judgment_continuity_replay.py:1` and `tests/test_judgment_eval.py:1` lock the new replay/runner coverage, and `docs/orchestration/contracts/JUDGMENT_EVAL_CONTRACT.md:16` documents the additive contract.
-- Initial implementation commit; no review threads recorded yet.
+- No actionable review comments
 
 ## Merge Readiness
 

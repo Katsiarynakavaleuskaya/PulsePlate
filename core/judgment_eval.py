@@ -19,7 +19,8 @@ from core.judgment import (
     select_calibrated_decision,
 )
 
-JUDGMENT_EVAL_SCHEMA_VERSION = "1.0"
+JUDGMENT_EVAL_SCHEMA_VERSION = "1.1"
+LEGACY_JUDGMENT_EVAL_SCHEMA_VERSION = "1.0"
 FITCHEF_REPLAY_MODE = "fitchef_judgment_replay"
 SCORE_AXES: tuple[str, ...] = (
     "personalization_relevance",
@@ -263,24 +264,63 @@ def _label_uncertainty(value: float) -> UncertaintyLevel:
     return "low"
 
 
+def _history_turns(case: FitChefReplayCaseRecord) -> list[FitChefReplayTurnRecord]:
+    """Return visible replay history before the current prompt turn."""
+
+    turns = case["turns"]
+    if turns and _normalize_text(turns[-1]["text"]) == _normalize_text(case["prompt"]):
+        return turns[:-1]
+    return turns
+
+
+def _history_contains_marker(case: FitChefReplayCaseRecord, marker: str) -> bool:
+    """Ground continuity markers in visible replay history only."""
+
+    return any(_contains_marker(turn["text"], marker) for turn in _history_turns(case))
+
+
 def validate_fitchef_replay_pack(payload: object) -> FitChefReplayPackRecord:
     """Validate the FitChef offline replay pack contract."""
 
     pack_payload = _require_object(payload, label="FitChef judgment replay pack")
-    bundle_id = _require_case_string(
-        pack_payload,
-        key="bundle_id",
-        label="FitChef judgment replay pack",
-    )
     schema_version = _require_case_string(
         pack_payload,
         key="schema_version",
         label="FitChef judgment replay pack",
     )
-    if schema_version != JUDGMENT_EVAL_SCHEMA_VERSION:
+    if schema_version not in {
+        LEGACY_JUDGMENT_EVAL_SCHEMA_VERSION,
+        JUDGMENT_EVAL_SCHEMA_VERSION,
+    }:
         raise ValueError(
             "FitChef judgment replay pack schema_version must equal "
-            f"{JUDGMENT_EVAL_SCHEMA_VERSION!r}."
+            f"{LEGACY_JUDGMENT_EVAL_SCHEMA_VERSION!r} or {JUDGMENT_EVAL_SCHEMA_VERSION!r}."
+        )
+    # RU: 1.1 makes bundle_id/scenario_family explicit; 1.0 stays backward-compatible.
+    # EN: 1.1 requires explicit bundle_id/scenario_family; 1.0 remains backward-compatible.
+    if schema_version == JUDGMENT_EVAL_SCHEMA_VERSION:
+        bundle_id = _require_case_string(
+            pack_payload,
+            key="bundle_id",
+            label="FitChef judgment replay pack",
+        )
+        scenario_family = _require_case_string(
+            pack_payload,
+            key="scenario_family",
+            label="FitChef judgment replay pack",
+        )
+    else:
+        raw_bundle_id = pack_payload.get("bundle_id", "")
+        bundle_id = (
+            raw_bundle_id.strip()
+            if isinstance(raw_bundle_id, str) and raw_bundle_id.strip()
+            else "legacy_fitchef_judgment_replay"
+        )
+        raw_scenario_family = pack_payload.get("scenario_family", "")
+        scenario_family = (
+            raw_scenario_family.strip()
+            if isinstance(raw_scenario_family, str) and raw_scenario_family.strip()
+            else "legacy_fitchef_replay_scenarios"
         )
     mode = _require_case_string(pack_payload, key="mode", label="FitChef judgment replay pack")
     if mode != FITCHEF_REPLAY_MODE:
@@ -294,12 +334,6 @@ def validate_fitchef_replay_pack(payload: object) -> FitChefReplayPackRecord:
         raise ValueError(
             "FitChef judgment replay pack task_class must equal 'judgment_adjudication'."
         )
-    scenario_family = _require_case_string(
-        pack_payload,
-        key="scenario_family",
-        label="FitChef judgment replay pack",
-    )
-
     cases_raw = pack_payload.get("cases")
     if not isinstance(cases_raw, list) or not cases_raw:
         raise ValueError("FitChef judgment replay pack cases must be a non-empty list.")
@@ -359,54 +393,73 @@ def validate_fitchef_replay_pack(payload: object) -> FitChefReplayPackRecord:
         if not isinstance(crisis_redirect_required, bool):
             raise ValueError(f"{label} crisis_redirect_required must be a boolean.")
 
-        cases.append(
-            {
-                "case_id": _require_case_string(case_payload, key="case_id", label=label),
-                "scenario": _require_case_string(case_payload, key="scenario", label=label),
-                "prompt": _require_case_string(case_payload, key="prompt", label=label),
-                "response": _require_case_string(case_payload, key="response", label=label),
-                "boundary_class": cast(FitChefBoundaryClass, boundary_class),
-                "expected_decision": cast(
-                    Literal["promote", "defer", "discard"], expected_decision
-                ),
-                "forbidden_patterns": _normalize_string_list(
-                    case_payload.get("forbidden_patterns", []),
-                    label=f"{label} forbidden_patterns",
-                ),
-                "support_markers": _normalize_string_list(
-                    case_payload.get("support_markers", []),
-                    label=f"{label} support_markers",
-                ),
-                "personalization_markers": _normalize_string_list(
-                    case_payload.get("personalization_markers", []),
-                    label=f"{label} personalization_markers",
-                ),
-                "attunement_markers": _normalize_string_list(
-                    case_payload.get("attunement_markers", []),
-                    label=f"{label} attunement_markers",
-                ),
-                "action_markers": _normalize_string_list(
-                    case_payload.get("action_markers", []),
-                    label=f"{label} action_markers",
-                ),
-                "crisis_redirect_required": crisis_redirect_required,
-                "crisis_redirect_markers": _normalize_string_list(
-                    case_payload.get("crisis_redirect_markers", []),
-                    label=f"{label} crisis_redirect_markers",
-                ),
-                "expected_uncertainty_profile": normalized_uncertainty,
-                "minimum_scores": normalized_minimum_scores,
-                "turns": _validate_turns(case_payload.get("turns"), label=label),
-                "context_snapshot": _validate_context_snapshot(
-                    case_payload.get("context_snapshot"),
-                    label=label,
-                ),
-                "continuity_checks": _validate_continuity_checks(
-                    case_payload.get("continuity_checks"),
-                    label=label,
-                ),
-            }
+        prompt = _require_case_string(case_payload, key="prompt", label=label)
+        turns = _validate_turns(case_payload.get("turns"), label=label)
+        context_snapshot = _validate_context_snapshot(
+            case_payload.get("context_snapshot"),
+            label=label,
         )
+        continuity_checks = _validate_continuity_checks(
+            case_payload.get("continuity_checks"),
+            label=label,
+        )
+        case_record: FitChefReplayCaseRecord = {
+            "case_id": _require_case_string(case_payload, key="case_id", label=label),
+            "scenario": _require_case_string(case_payload, key="scenario", label=label),
+            "prompt": prompt,
+            "response": _require_case_string(case_payload, key="response", label=label),
+            "boundary_class": cast(FitChefBoundaryClass, boundary_class),
+            "expected_decision": cast(Literal["promote", "defer", "discard"], expected_decision),
+            "forbidden_patterns": _normalize_string_list(
+                case_payload.get("forbidden_patterns", []),
+                label=f"{label} forbidden_patterns",
+            ),
+            "support_markers": _normalize_string_list(
+                case_payload.get("support_markers", []),
+                label=f"{label} support_markers",
+            ),
+            "personalization_markers": _normalize_string_list(
+                case_payload.get("personalization_markers", []),
+                label=f"{label} personalization_markers",
+            ),
+            "attunement_markers": _normalize_string_list(
+                case_payload.get("attunement_markers", []),
+                label=f"{label} attunement_markers",
+            ),
+            "action_markers": _normalize_string_list(
+                case_payload.get("action_markers", []),
+                label=f"{label} action_markers",
+            ),
+            "crisis_redirect_required": crisis_redirect_required,
+            "crisis_redirect_markers": _normalize_string_list(
+                case_payload.get("crisis_redirect_markers", []),
+                label=f"{label} crisis_redirect_markers",
+            ),
+            "expected_uncertainty_profile": normalized_uncertainty,
+            "minimum_scores": normalized_minimum_scores,
+            "turns": turns,
+            "context_snapshot": context_snapshot,
+            "continuity_checks": continuity_checks,
+        }
+        if continuity_checks["recognition_markers"] and not _history_turns(case_record):
+            raise ValueError(
+                f"{label} continuity_checks.recognition_markers require at least one prior turn."
+            )
+        if any(
+            not _history_contains_marker(case_record, marker)
+            for marker in continuity_checks["recognition_markers"]
+        ):
+            raise ValueError(
+                f"{label} continuity_checks.recognition_markers must be grounded in visible replay history."
+            )
+        if (
+            context_snapshot["context_strength"] == "weak"
+            and not continuity_checks["safe_degradation_markers"]
+        ):
+            raise ValueError(
+                f"{label} weak-context cases must define continuity_checks.safe_degradation_markers."
+            )
+        cases.append(case_record)
     return {
         "bundle_id": bundle_id,
         "schema_version": schema_version,
@@ -442,14 +495,20 @@ def evaluate_fitchef_replay_case(
         hard_fail_reasons.append("missing_crisis_redirect")
 
     continuity_checks = case["continuity_checks"]
+    grounded_recognition_markers = [
+        marker
+        for marker in continuity_checks["recognition_markers"]
+        if _history_contains_marker(case, marker)
+    ]
     recognized_user_context = (
         any(
-            _contains_marker(normalized_response, marker)
-            for marker in continuity_checks["recognition_markers"]
+            _contains_marker(normalized_response, marker) for marker in grounded_recognition_markers
         )
         if continuity_checks["recognition_markers"]
         else True
     )
+    if continuity_checks["recognition_markers"] and not grounded_recognition_markers:
+        hard_fail_reasons.append("ungrounded_context_reference")
     fabricated_memory_detected = any(
         _contains_marker(normalized_response, marker)
         for marker in continuity_checks["forbidden_memory_markers"]
@@ -462,7 +521,6 @@ def evaluate_fitchef_replay_case(
             for marker in continuity_checks["safe_degradation_markers"]
         )
         if case["context_snapshot"]["context_strength"] == "weak"
-        and continuity_checks["safe_degradation_markers"]
         else True
     )
     if not safe_degradation:
@@ -473,8 +531,9 @@ def evaluate_fitchef_replay_case(
         for marker in case["personalization_markers"]
         if _contains_marker(normalized_response, marker)
     )
-    if continuity_checks["recognition_markers"] and not recognized_user_context:
+    if grounded_recognition_markers and not recognized_user_context:
         personalization_hits = max(personalization_hits - 1, 0)
+        hard_fail_reasons.append("missing_visible_context_carry_forward")
     attunement_hits = sum(
         1 for marker in case["attunement_markers"] if _contains_marker(normalized_response, marker)
     )

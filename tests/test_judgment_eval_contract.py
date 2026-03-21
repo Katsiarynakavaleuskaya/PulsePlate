@@ -68,6 +68,20 @@ def test_validate_fitchef_replay_pack_accepts_continuity_fixture() -> None:
     assert len(pack["cases"]) == 4
 
 
+def test_validate_fitchef_replay_pack_accepts_legacy_v1_without_new_top_level_fields() -> None:
+    """Legacy 1.0 replay packs should stay readable after the 1.1 contract bump."""
+
+    payload = _load_fixture()
+    payload["schema_version"] = "1.0"
+    del payload["bundle_id"]
+    del payload["scenario_family"]
+
+    pack = validate_fitchef_replay_pack(payload)
+
+    assert pack["bundle_id"] == "legacy_fitchef_judgment_replay"
+    assert pack["scenario_family"] == "legacy_fitchef_replay_scenarios"
+
+
 def test_validate_fitchef_replay_pack_rejects_missing_scores() -> None:
     """Missing per-axis scores must fail closed."""
 
@@ -103,7 +117,7 @@ def test_judgment_eval_helper_edges_fail_closed() -> None:
     [
         (
             lambda payload: payload.__setitem__("schema_version", "9.9"),
-            "schema_version must equal",
+            "schema_version must equal '1.0' or '1.1'",
         ),
         (
             lambda payload: payload.__setitem__("mode", "wrong-mode"),
@@ -195,6 +209,47 @@ def test_validate_fitchef_replay_pack_rejects_invalid_continuity_marker_lists() 
     with pytest.raises(
         ValueError,
         match="continuity_checks.forbidden_memory_markers must be a list",
+    ):
+        validate_fitchef_replay_pack(payload)
+
+
+def test_validate_fitchef_replay_pack_rejects_ungrounded_recognition_markers() -> None:
+    """Continuity carry-forward markers must exist in visible replay history."""
+
+    payload = _load_continuity_fixture()
+    payload["cases"][0]["continuity_checks"]["recognition_markers"] = ["imagined phrase"]
+
+    with pytest.raises(
+        ValueError,
+        match="continuity_checks.recognition_markers must be grounded in visible replay history",
+    ):
+        validate_fitchef_replay_pack(payload)
+
+
+def test_validate_fitchef_replay_pack_rejects_recognition_without_prior_turns() -> None:
+    """Carry-forward assertions require prior visible history."""
+
+    payload = _load_continuity_fixture()
+    payload["cases"][0]["turns"] = []
+
+    with pytest.raises(
+        ValueError,
+        match="continuity_checks.recognition_markers require at least one prior turn",
+    ):
+        validate_fitchef_replay_pack(payload)
+
+
+def test_validate_fitchef_replay_pack_rejects_weak_context_without_safe_degradation_markers() -> (
+    None
+):
+    """Weak-context continuity cases must declare safe degradation language."""
+
+    payload = _load_continuity_fixture()
+    payload["cases"][2]["continuity_checks"]["safe_degradation_markers"] = []
+
+    with pytest.raises(
+        ValueError,
+        match="weak-context cases must define continuity_checks.safe_degradation_markers",
     ):
         validate_fitchef_replay_pack(payload)
 
@@ -340,8 +395,8 @@ def test_evaluate_fitchef_replay_case_discards_unsafe_weak_context_personalizati
     assert "unsafe_personalization_degradation" in result["hard_fail_reasons"]
 
 
-def test_evaluate_fitchef_replay_case_penalizes_missing_recognition_markers() -> None:
-    """Missing visible-context carry-forward should reduce personalization confidence."""
+def test_evaluate_fitchef_replay_case_discards_missing_recognition_markers() -> None:
+    """Missing visible-context carry-forward should fail closed for continuity cases."""
 
     pack = validate_fitchef_replay_pack(_load_continuity_fixture())
     case = deepcopy(
@@ -357,5 +412,43 @@ def test_evaluate_fitchef_replay_case_penalizes_missing_recognition_markers() ->
 
     result = evaluate_fitchef_replay_case(case, bundle_id=pack["bundle_id"])
 
+    assert result["decision"] == "discard"
     assert result["continuity_report"]["recognized_user_context"] is False
+    assert "missing_visible_context_carry_forward" in result["hard_fail_reasons"]
     assert result["scores"]["personalization_relevance"] == 2
+
+
+def test_evaluate_fitchef_replay_case_discards_ungrounded_recognition_markers() -> None:
+    """Echoed but ungrounded carry-forward markers must not pass continuity."""
+
+    pack = validate_fitchef_replay_pack(_load_continuity_fixture())
+    case = deepcopy(
+        next(
+            item
+            for item in pack["cases"]
+            if item["case_id"] == "weekly_goal_carry_forward_visible_only"
+        )
+    )
+    case["continuity_checks"]["recognition_markers"] = ["imagined phrase"]
+    case["response"] = "An imagined phrase does not erase tonight. Restart with the next meal."
+
+    result = evaluate_fitchef_replay_case(case, bundle_id=pack["bundle_id"])
+
+    assert result["decision"] == "discard"
+    assert result["continuity_report"]["recognized_user_context"] is False
+    assert "ungrounded_context_reference" in result["hard_fail_reasons"]
+
+
+def test_evaluate_fitchef_replay_case_discards_weak_context_without_marker_contract() -> None:
+    """Weak-context continuity should fail closed when marker contract is removed post-validation."""
+
+    pack = validate_fitchef_replay_pack(_load_continuity_fixture())
+    case = deepcopy(
+        next(item for item in pack["cases"] if item["case_id"] == "weak_context_safe_degrade")
+    )
+    case["continuity_checks"]["safe_degradation_markers"] = []
+
+    result = evaluate_fitchef_replay_case(case, bundle_id=pack["bundle_id"])
+
+    assert result["decision"] == "discard"
+    assert "unsafe_personalization_degradation" in result["hard_fail_reasons"]
