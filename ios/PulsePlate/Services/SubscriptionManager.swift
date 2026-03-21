@@ -1,5 +1,6 @@
 import Combine
 import Foundation
+import OSLog
 
 struct SubscriptionErrorState: Equatable, Sendable {
     let message: String
@@ -89,6 +90,10 @@ final class SubscriptionManager: ObservableObject {
 
         return [fractionalFormatter, basicFormatter]
     }()
+    private static let logger = Logger(
+        subsystem: "PulsePlate",
+        category: "SubscriptionManager"
+    )
 
     @Published private(set) var products: [SubscriptionProduct] = []
     @Published private(set) var catalogState: ProductCatalogState = .idle
@@ -176,7 +181,7 @@ final class SubscriptionManager: ObservableObject {
                 finishOperation(.purchase, token: token)
                 flowState = .pendingApproval
                 return
-            case .success(let transaction):
+            case .success:
                 let receiptData = try await storeKitManager.currentReceiptData()
                 flowState = .sendingReceipt
                 let verification = try await billingService.verifyReceipt(
@@ -191,7 +196,8 @@ final class SubscriptionManager: ObservableObject {
                     request: activationRequest,
                     apiKey: apiKey
                 )
-                activationPointerStore.saveActivationID(activation.activationID)
+                let activationID = try validatedActivationID(activation.activationID)
+                activationPointerStore.saveActivationID(activationID)
                 finishOperation(.purchase, token: token)
                 await refreshEntitlement(trigger: .postPurchase)
             }
@@ -228,7 +234,8 @@ final class SubscriptionManager: ObservableObject {
                 request: activationRequest,
                 apiKey: apiKey
             )
-            activationPointerStore.saveActivationID(activation.activationID)
+            let activationID = try validatedActivationID(activation.activationID)
+            activationPointerStore.saveActivationID(activationID)
             finishOperation(.restore, token: token)
             await refreshEntitlement(trigger: .postRestore)
         } catch {
@@ -242,7 +249,19 @@ final class SubscriptionManager: ObservableObject {
             return
         }
 
-        guard let activationID = activationPointerStore.loadActivationID(), activationID.isEmpty == false else {
+        guard let rawActivationID = activationPointerStore.loadActivationID() else {
+            finishOperation(operation, token: token)
+            clearErrorState()
+            entitlement = nil
+            flowState = .idle
+            return
+        }
+
+        let storedActivationID: String
+        do {
+            storedActivationID = try validatedActivationID(rawActivationID)
+        } catch {
+            activationPointerStore.clearActivationID()
             finishOperation(operation, token: token)
             clearErrorState()
             entitlement = nil
@@ -255,7 +274,7 @@ final class SubscriptionManager: ObservableObject {
             clearErrorState()
             flowState = .refreshingEntitlement
             let activation = try await billingService.fetchActivationStatus(
-                activationID: activationID,
+                activationID: storedActivationID,
                 apiKey: apiKey
             )
 
@@ -268,7 +287,11 @@ final class SubscriptionManager: ObservableObject {
                 return
             }
 
-            let snapshot = makeEntitlementSnapshot(from: activation)
+            let activationID = try validatedActivationID(activation.activationID)
+            let snapshot = makeEntitlementSnapshot(
+                from: activation,
+                activationID: activationID
+            )
             entitlement = snapshot
             activationPointerStore.saveActivationID(snapshot.activationID)
             finishOperation(operation, token: token)
@@ -322,15 +345,25 @@ final class SubscriptionManager: ObservableObject {
     }
 
     private func makeEntitlementSnapshot(
-        from response: SubscriptionActivationResponseDTO
+        from response: SubscriptionActivationResponseDTO,
+        activationID: String
     ) -> EntitlementSnapshot {
         EntitlementSnapshot(
-            activationID: response.activationID,
+            activationID: activationID,
             tier: (response.tier ?? response.subscriptionTier ?? "").lowercased(),
             status: response.status.lowercased(),
             expiresAt: parseISO8601(response.expiresAt),
             productID: response.productID
         )
+    }
+
+    private func validatedActivationID(_ rawValue: String) throws -> String {
+        let normalizedValue = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard normalizedValue.isEmpty == false else {
+            Self.logger.error("Subscription activation id validation failed: blank or whitespace-only value.")
+            throw SubscriptionManagerError.missingActivationID
+        }
+        return normalizedValue
     }
 
 

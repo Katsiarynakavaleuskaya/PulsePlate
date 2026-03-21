@@ -102,6 +102,35 @@ final class SubscriptionManagerTests: XCTestCase {
         }
     }
 
+    func test_purchaseBlankActivationIDFailsClosed() async {
+        let storeKit = MockStoreKitManager()
+        let billing = MockSubscriptionBillingService()
+        let pointerStore = InMemoryActivationPointerStore()
+        let manager = makeManager(
+            storeKit: storeKit,
+            billing: billing,
+            pointerStore: pointerStore
+        )
+
+        storeKit.purchaseResult = .success(.fixture())
+        storeKit.receiptData = "receipt-123"
+        billing.verifyResult = .activeVerify()
+        billing.activateResult = .activeActivation(id: "   ")
+
+        await manager.purchase(productID: "com.pulseplate.premium.monthly")
+
+        XCTAssertNil(pointerStore.activationID)
+        XCTAssertNil(manager.entitlement)
+        XCTAssertEqual(billing.verifyCallCount, 1)
+        XCTAssertEqual(billing.activateCallCount, 1)
+        XCTAssertEqual(billing.fetchCallCount, 0)
+        if case .failed(let message) = manager.flowState {
+            XCTAssertTrue(message.contains("activation id"))
+        } else {
+            XCTFail("Expected failed state")
+        }
+    }
+
     func test_purchaseForwardsBackendActivationPayloadUnchanged() async {
         let storeKit = MockStoreKitManager()
         let billing = MockSubscriptionBillingService()
@@ -202,6 +231,34 @@ final class SubscriptionManagerTests: XCTestCase {
         XCTAssertEqual(storeKit.syncCallCount, 1)
         XCTAssertEqual(manager.flowState, .unlocked)
         XCTAssertEqual(pointerStore.activationID, "act-restore")
+    }
+
+    func test_restoreBlankActivationIDFailsClosed() async {
+        let storeKit = MockStoreKitManager()
+        let billing = MockSubscriptionBillingService()
+        let pointerStore = InMemoryActivationPointerStore(activationID: "act-existing")
+        let manager = makeManager(
+            storeKit: storeKit,
+            billing: billing,
+            pointerStore: pointerStore
+        )
+
+        storeKit.latestVerifiedTransaction = .fixture()
+        storeKit.receiptData = "receipt-restore"
+        billing.verifyResult = .restoredVerify()
+        billing.activateResult = .activeActivation(id: "   ")
+
+        await manager.restore()
+
+        XCTAssertEqual(pointerStore.activationID, "act-existing")
+        XCTAssertNil(manager.entitlement)
+        XCTAssertEqual(billing.activateCallCount, 1)
+        XCTAssertEqual(billing.fetchCallCount, 0)
+        if case .failed(let message) = manager.flowState {
+            XCTAssertTrue(message.contains("activation id"))
+        } else {
+            XCTFail("Expected failed state")
+        }
     }
 
     func test_appRelaunchWithActivationIDRefreshesEntitlement() async {
@@ -305,6 +362,44 @@ final class SubscriptionManagerTests: XCTestCase {
 
         XCTAssertNil(pointerStore.activationID)
         XCTAssertNil(manager.entitlement)
+        XCTAssertEqual(manager.flowState, .idle)
+        XCTAssertNil(manager.lastError)
+    }
+
+    func test_refreshWithBlankActivationIDResponseFailsClosed() async {
+        let billing = MockSubscriptionBillingService()
+        let pointerStore = InMemoryActivationPointerStore(activationID: "act-existing")
+        let manager = makeManager(
+            billing: billing,
+            pointerStore: pointerStore
+        )
+
+        billing.fetchResult = .activeActivation(id: "")
+
+        await manager.refreshEntitlement(trigger: .manualRetry)
+
+        XCTAssertEqual(pointerStore.activationID, "act-existing")
+        XCTAssertNil(manager.entitlement)
+        if case .failed(let message) = manager.flowState {
+            XCTAssertTrue(message.contains("activation id"))
+        } else {
+            XCTFail("Expected failed state")
+        }
+    }
+
+    func test_refreshWithStoredBlankActivationIDClearsPointerWithoutFetch() async {
+        let billing = MockSubscriptionBillingService()
+        let pointerStore = InMemoryActivationPointerStore(activationID: "   ")
+        let manager = makeManager(
+            billing: billing,
+            pointerStore: pointerStore
+        )
+
+        await manager.refreshEntitlement(trigger: .manualRetry)
+
+        XCTAssertNil(pointerStore.activationID)
+        XCTAssertNil(manager.entitlement)
+        XCTAssertEqual(billing.fetchCallCount, 0)
         XCTAssertEqual(manager.flowState, .idle)
         XCTAssertNil(manager.lastError)
     }
