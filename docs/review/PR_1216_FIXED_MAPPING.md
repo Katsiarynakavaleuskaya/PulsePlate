@@ -5,10 +5,10 @@
 - [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
-- No actionable review comments
+- Pending post-review mapping refresh after 2026-03-21 bot feedback
 
 ## Merge Readiness
 - [ ] All required checks pass
 - [ ] No unresolved review threads
 - [ ] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
-- [x] Pre-commit green
+- [ ] Pre-commit green

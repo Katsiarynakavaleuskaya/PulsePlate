@@ -14,6 +14,11 @@ It exists to keep:
 - agent orchestration synchronized with audience-pack SoT,
 - collateral generation automated without promoting generated binaries into git.
 
+## Contract Boundaries
+
+- This runbook owns process, merge cadence, sync points, and hard rules for the wave.
+- `docs/orchestration/BUSINESS_WAVE_TASK_PACKET_2026-03-21.md` owns branch-scoped success criteria, artifact inventory, and deliverable planning.
+
 ## Source of Truth
 
 - Coordinator workflow: `docs/orchestration/workflow.md`
@@ -89,7 +94,7 @@ Build a reusable business-development system around existing repo canon:
 
 - Do not edit the current dirty branch `feat/b4-billing-truth-closeout`.
 - Do not treat external `.docx` or pasted JS snippets as canonical truth.
-- Do not copy unsourced claims from `/Users/katsiaryna_kavaleuskaya/Downloads/PulsePlate_BusinessPlan.docx` into repo SoT without placeholders or evidence anchors.
+- Do not copy unsourced claims from external business plan documents or downloaded `.docx` drafts into repo SoT without placeholders or evidence anchors.
 - Do not commit generated `.docx`, `.pptx`, montages, PDFs, or temp renders.
 - Do not move business logic into clients or runtime routes as part of this wave.
 - Do not create a new `business-director-agent` unless the existing role cannot be safely extended.
@@ -100,7 +105,7 @@ Build a reusable business-development system around existing repo canon:
 - `python3 scripts/orchestration/check_agent_consistency.py`
 - `pre-commit run --all-files`
 - `make verify`
-- `pytest -q tests/test_business_collateral_builders.py`
+- `pytest -q tests/test_business_collateral_builders.py` (PR-3+ only, after builders are added)
 
 ## Deferred from This Wave
 

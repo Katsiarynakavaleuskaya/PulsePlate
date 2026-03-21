@@ -26,7 +26,7 @@
 
 ### External inputs treated as non-canonical source material
 
-- `/Users/katsiaryna_kavaleuskaya/Downloads/PulsePlate_BusinessPlan.docx`
+- `ATTACHMENT: PulsePlate_BusinessPlan.docx` (local external draft, non-canonical)
   - Use: business framing input, pricing/partnership idea extraction, B2B deck/proposal inspiration
   - Restriction: not a source of truth; any claim promoted into repo docs must either link to repo evidence or remain a `[VERIFY_*]` placeholder
 - User-provided JS snippets for `docx` / `pptx`
@@ -35,10 +35,10 @@
 
 ## Conclusions
 
-1. `docs/audience_pack/*` is already the correct canonical layer for business and external communication.
-2. The missing layer is not a second fact canon; it is a thin executive packaging layer plus deterministic builders.
-3. `business-strategist-agent` should absorb director-level business ownership instead of spawning a duplicate role.
-4. Generated partner-facing assets should be built from repo markdown and remain local-only artifacts.
+1. `docs/audience_pack/*` is already the correct canonical layer for business and external communication. Evidence: `docs/audience_pack/README.md:15`, `docs/audience_pack/LIVING_DOCUMENT_PROTOCOL.md:16`
+2. The missing layer is not a second fact canon; it is a thin executive packaging layer plus deterministic builders. Evidence: `docs/orchestration/BUSINESS_WAVE_TASK_PACKET_2026-03-21.md:16`, `docs/orchestration/BUSINESS_WAVE_PR_SERIES_RUNBOOK.md:29`
+3. `business-strategist-agent` should absorb director-level business ownership instead of spawning a duplicate role. Evidence: `.cursor/agents/business-strategist-agent.md:23`, `docs/orchestration/BUSINESS_WAVE_TASK_PACKET_2026-03-21.md:15`
+4. Generated partner-facing assets should be built from repo markdown and remain local-only artifacts. Evidence: `docs/orchestration/BUSINESS_WAVE_TASK_PACKET_2026-03-21.md:17`, `docs/orchestration/BUSINESS_WAVE_PR_SERIES_RUNBOOK.md:54`
 
 ## Promotion Decision
 
