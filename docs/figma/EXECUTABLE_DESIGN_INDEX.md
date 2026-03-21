@@ -1,7 +1,7 @@
 <!-- markdownlint-disable MD013 -->
 # Executable Design Index (PulsePlate H+P+Pr)
 
-**Date:** 2026-02-24
+**Date:** 2026-03-21
 **Scope:** Home + Plate + Progress (iOS + Web)
 **Status:** Active
 
@@ -132,9 +132,9 @@ python scripts/design/execute_design.py --screen <screen_id> --execute
 # Verify results
 python scripts/design/verify_design.py --screen <screen_id>
 
-# Generate or refresh HTML preview
+# Generate or refresh HTML preview (no design re-execution)
 # The preview metadata stays repo-relative under artifacts/design_previews/.
-python scripts/design/execute_design.py --screen <screen_id> --execute --emit-preview
+python scripts/design/html_preview.py --screen <screen_id>
 
 # Check manifest
 cat docs/design/figma-manifest.json | jq '.exports'

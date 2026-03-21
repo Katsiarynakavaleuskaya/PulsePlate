@@ -72,16 +72,20 @@ def _normalize_token_constraints(raw_value: Any) -> list[str]:
 
 
 def _build_interaction_contract(instruction: dict[str, Any]) -> InteractionContract:
-    interaction_contract = cast(dict[str, Any], instruction["interaction_contract"])
+    interaction_contract = instruction["interaction_contract"]
+    if not isinstance(interaction_contract, dict):
+        raise ValueError("interaction_contract must be an object")
+
+    adaptation_scope = interaction_contract.get("adaptation_scope")
+    modality_hints = interaction_contract.get("modality_hints")
+    if not isinstance(adaptation_scope, list) or not isinstance(modality_hints, list):
+        raise ValueError("interaction_contract list fields must be lists")
+
     return {
         "interaction_mode": str(interaction_contract["interaction_mode"]),
         "checkpoint_policy": str(interaction_contract["checkpoint_policy"]),
-        "adaptation_scope": [
-            str(adaptation_scope) for adaptation_scope in interaction_contract["adaptation_scope"]
-        ],
-        "modality_hints": [
-            str(modality_hint) for modality_hint in interaction_contract["modality_hints"]
-        ],
+        "adaptation_scope": [str(scope) for scope in adaptation_scope],
+        "modality_hints": [str(hint) for hint in modality_hints],
         "explanation_strategy": str(interaction_contract["explanation_strategy"]),
     }
 

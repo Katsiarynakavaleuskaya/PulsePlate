@@ -9,8 +9,8 @@
 - Existing code-native design runtime SoT:
   - `docs/design/CODE_NATIVE_DESIGN_RUNTIME.md:12`
   - `docs/design/CODE_NATIVE_DESIGN_RUNTIME.md:31`
-  - `scripts/design/execution_adapters.py:79`
-  - `scripts/design/canvas_artifact.py:96`
+  - `scripts/design/execution_adapters.py:90`
+  - `scripts/design/canvas_artifact.py:153`
 - Existing design-tooling source precedence:
   - `docs/runbooks/DESIGN_TOOLING_OPERATING_MODEL.md:15`
   - `docs/runbooks/DESIGN_TOOLING_OPERATING_MODEL.md:92`

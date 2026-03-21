@@ -33,6 +33,9 @@ class DeterministicStubExecutionAdapter:
         screen_id = instruction.get("screen_id", "unknown")
         instructions_list = instruction.get("instructions", [])
         sections = instruction.get("sections", [])
+        interaction_contract = instruction.get("interaction_contract")
+        if interaction_contract is not None and not isinstance(interaction_contract, dict):
+            raise ValueError("interaction_contract must be an object when provided")
 
         results: dict[str, Any] = {
             "screen_id": screen_id,
@@ -41,7 +44,7 @@ class DeterministicStubExecutionAdapter:
             "surface": instruction.get("surface"),
             "layout_archetype": instruction.get("layout_archetype"),
             "layout_pattern": instruction.get("layout_pattern"),
-            "interaction_contract": instruction.get("interaction_contract"),
+            "interaction_contract": interaction_contract,
             "section_count": len(sections) if isinstance(sections, list) else 0,
             "adapter_name": self.adapter_name,
             "adapter_mode": self.adapter_mode,

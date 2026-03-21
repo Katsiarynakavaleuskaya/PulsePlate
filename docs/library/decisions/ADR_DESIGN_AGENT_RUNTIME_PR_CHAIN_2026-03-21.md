@@ -21,10 +21,12 @@ chain with four bounded stages:
 2. PR2: additive adaptive-presentation semantics via `interaction_contract`
 3. PR3: deterministic HTML/browser preview on top of `pulseplate_canvas_v1`
 4. PR4: optional bounded creative-research lane after runtime and preview
-   contracts stabilize
+   contracts stabilize. Evidence: `scripts/design/contracts.py:206`,
+   `scripts/design/canvas_artifact.py:153`, `scripts/design/html_preview.py:67`
 
 `bug-hunter` is required as a post-open fix lane for every PR in this
-initiative before review-ready status can be claimed.
+initiative before review-ready status can be claimed. Evidence:
+`.cursor/agents/bug-hunter.md:1`, `docs/orchestration/AGENT_ROUTING_GRAPH.md:71`
 
 ## Why this direction
 

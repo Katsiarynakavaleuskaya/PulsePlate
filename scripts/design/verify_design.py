@@ -281,11 +281,17 @@ def verify_screen(screen_id: str, manifest: dict[str, Any]) -> dict[str, Any]:
                         f"preview screen_id mismatch: expected {screen_id}, "
                         f"got {preview_artifact.get('screen_id')}"
                     )
-                output_path = str(preview_artifact.get("output_path", "")).strip()
-                if not output_path:
+                output_path = preview_artifact.get("output_path")
+                if not isinstance(output_path, str) or not output_path.strip():
                     preview_errors.append("preview output_path must be non-empty")
                 elif Path(output_path).is_absolute():
                     preview_errors.append("preview output_path must be repo-relative")
+                else:
+                    resolved_preview_path = (PROJECT_ROOT / output_path).resolve()
+                    try:
+                        resolved_preview_path.relative_to(PROJECT_ROOT.resolve())
+                    except ValueError:
+                        preview_errors.append("preview output_path must stay within the repo root")
 
                 expected_preview_counts = {
                     "section_count": len(instruction.get("sections", [])),
@@ -299,7 +305,7 @@ def verify_screen(screen_id: str, manifest: dict[str, Any]) -> dict[str, Any]:
                             f"got {preview_artifact.get(field_name)}"
                         )
 
-                interaction_contract = screen_export.get("interaction_contract")
+                interaction_contract = instruction.get("interaction_contract")
                 if isinstance(interaction_contract, dict):
                     expected_interaction_mode = interaction_contract.get("interaction_mode")
                     if preview_artifact.get("interaction_mode") != expected_interaction_mode:

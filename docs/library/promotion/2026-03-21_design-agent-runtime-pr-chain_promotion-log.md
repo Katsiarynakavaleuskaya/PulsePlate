@@ -28,7 +28,7 @@
 
 - Existing design runtime and `pulseplate_canvas_v1` SoT already exist:
   `docs/design/CODE_NATIVE_DESIGN_RUNTIME.md:31`,
-  `scripts/design/canvas_artifact.py:96`
+  `scripts/design/canvas_artifact.py:153`
 - Existing backlog already tracks adapter seam, artifact convergence, HTML
   preview, compiler, and Phase 2 env/API automation:
   `docs/roadmap/BACKLOG_LEDGER.md:496`,

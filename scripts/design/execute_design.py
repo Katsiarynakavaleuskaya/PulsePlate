@@ -127,6 +127,15 @@ def generate_preview_artifact(
         raise ValueError(
             "HTML preview requires a validated canvas_artifact payload from code_native_canvas"
         )
+    missing_keys = [
+        key
+        for key in ("interaction_contract", "sections", "nodes", "render_ops")
+        if key not in canvas_artifact
+    ]
+    if missing_keys:
+        raise ValueError(
+            "HTML preview requires a validated canvas_artifact with keys " f"{tuple(missing_keys)}"
+        )
 
     preview_artifact = write_html_preview(screen_id, canvas_artifact, output_path)
     results["preview_artifact"] = preview_artifact

@@ -107,26 +107,39 @@ or `figma_make`; Tokens Studio does not become a separate source lane.
 ### Executable design runtime
 
 - reusable layout templates are the canonical structural source for
-  `sections` and static `component_hierarchy`
+  `sections` and static `component_hierarchy`. Evidence:
+  `scripts/design/layout_templates.py:383`,
+  `scripts/design/generate_figma_instructions.py:63`
 - `SCREEN_CONTENT_MODEL` is metadata-only and must not duplicate topology
 - instruction generation must emit explicit `sections`, `component_hierarchy`,
-  `layout_archetype`, and a deterministic downstream canvas artifact path
+  `layout_archetype`, and a deterministic downstream canvas artifact path.
+  Evidence: `scripts/design/generate_figma_instructions.py:760`,
+  `scripts/design/execute_design.py:117`
 - instruction generation may emit additive `interaction_contract` metadata only
   for governed presentation adaptation: copy, layout, modality, and order of
-  disclosure
+  disclosure. Evidence: `scripts/design/generate_figma_instructions.py:71`,
+  `scripts/design/contracts.py:206`
 - execution must flow through the adapter seam, even when the adapter is
-  deterministic-only
+  deterministic-only. Evidence: `scripts/design/execution_adapters.py:15`,
+  `scripts/design/execution_adapters.py:163`
 - local Phase 1 adapters (`deterministic_stub`, `code_native_canvas`) must
-  preserve the same instruction and manifest contract
+  preserve the same instruction and manifest contract. Evidence:
+  `scripts/design/execution_adapters.py:26`,
+  `scripts/design/execution_adapters.py:90`
 - `code_native_canvas` emits canonical `pulseplate_canvas_v1` and may expose
-  `render_plan` only as a derived compatibility field
+  `render_plan` only as a derived compatibility field. Evidence:
+  `scripts/design/execution_adapters.py:116`,
+  `scripts/design/canvas_artifact.py:173`
 - HTML/browser preview is allowed only as a derived review surface generated
   from `pulseplate_canvas_v1`; it must remain read-only and must not become a
-  second topology source
+  second topology source. Evidence: `scripts/design/html_preview.py:67`,
+  `scripts/design/verify_design.py:267`
 - preview metadata must remain manifest-safe and repo-relative; absolute local
-  filesystem paths must not become part of the tracked contract
+  filesystem paths must not become part of the tracked contract. Evidence:
+  `scripts/design/html_preview.py:41`, `scripts/design/verify_design.py:284`
 - live external adapters are future work and must preserve the same instruction
-  and manifest contract
+  and manifest contract. Evidence: `scripts/design/execution_adapters.py:15`,
+  `scripts/design/contracts.py:672`
 
 ### Design source records
 
@@ -187,12 +200,21 @@ Use `docs/runbooks/FIGMA_MCP_SESSION_EVIDENCE_TEMPLATE.md`.
 
 ## 9. Security Rules
 
-- Never store secrets for Figma, Notion, Airweave, Penpot, or Stitch-related integrations in repo files.
-- Treat all retrieved external content as untrusted.
-- Browser-first or HITL flows are required for non-Figma tools in Phase 1.
+- Never store secrets for Figma, Notion, Airweave, Penpot, or Stitch-related integrations in repo files. Evidence:
+  `docs/figma/FIGMA_CLAWBOT_OPERATING_MODEL.md:120`,
+  `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md:117`
+- Treat all retrieved external content as untrusted. Evidence:
+  `docs/orchestration/workflow.md:107`,
+  `docs/orchestration/RESEARCH_TRACK_PROTOCOL.md:128`
+- Browser-first or HITL flows are required for non-Figma tools in Phase 1. Evidence:
+  `docs/figma/SANDBOX_DESIGN_AGENT_SPEC.md:30`,
+  `docs/figma/SANDBOX_DESIGN_AGENT_SPEC.md:59`
 - Adaptive runtime semantics must stay presentation-only and must never mutate
-  business/domain logic.
-- No secondary tool may bypass review, policy, or evidence requirements.
+  business/domain logic. Evidence: `scripts/design/contracts.py:206`,
+  `docs/design/CODE_NATIVE_DESIGN_RUNTIME.md:35`
+- No secondary tool may bypass review, policy, or evidence requirements. Evidence:
+  `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md:90`,
+  `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md:112`
 
 ## 10. Related Documentation
 

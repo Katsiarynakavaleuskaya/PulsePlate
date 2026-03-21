@@ -157,7 +157,7 @@ Open only after PR2 and PR3 stabilize.
 Rules:
 
 - internal only
-- experimentation protocol only
+- experimentation protocol constrained
 - fixed budgets
 - immutable oracles
 - promotion / defer / discard decisions required
