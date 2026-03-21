@@ -27,6 +27,16 @@ Disposition: FIXED
 Commit: 275d49cf
 Evidence: docs/review/PR_1206_FIXED_MAPPING.md:36
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1206#pullrequestreview-3985760787
+Disposition: NOT-A-BUG
+Evidence: docs/review/PR_1206_FIXED_MAPPING.md:35
+Reason: The latest CodeRabbit review shell only aggregates the new merge-readiness checklist formatting note, which is captured as a concrete FIXED inline disposition immediately below.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1206#discussion_r2969268832 -> 1e9090a3
+Disposition: FIXED
+Commit: 1e9090a3
+Evidence: docs/review/PR_1206_FIXED_MAPPING.md:81
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1206#pullrequestreview-3985688582
 Disposition: NOT-A-BUG
 Evidence: docs/review/PR_1206_FIXED_MAPPING.md:30
@@ -57,6 +67,7 @@ Evidence: .github/workflows/cd.yml:257
   - `31e4678f` — `fix(ci): migrate gha actions to node24`
   - `c82c1eb4` — `fix(ci): upgrade checkout artifact actions`
   - `275d49cf` — `fix(ci): complete node24 workflow migration`
+  - `1e9090a3` — `docs(review): add merge checklist boxes`
 - Current scope discipline:
   - GitHub Actions runtime migration from Node20-based action SHAs to Node24-compatible SHAs
   - migration now includes `actions/checkout` and `actions/upload-artifact` on the in-scope CI/build workflows that still emitted Node20 warnings
