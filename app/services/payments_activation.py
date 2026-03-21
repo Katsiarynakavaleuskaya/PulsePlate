@@ -14,7 +14,7 @@ import hashlib
 import hmac
 import httpx
 import json
-from typing import Any, Literal, overload
+from typing import Any, overload
 from uuid import uuid4
 
 from pydantic import ValidationError
@@ -221,7 +221,8 @@ def _manual_plan_expires_at(*, plan: SubscriptionPlan, activated_at: datetime) -
 
     if plan not in {SubscriptionPlan.pro_monthly, SubscriptionPlan.vip_monthly}:
         raise ValueError(f"unsupported subscription plan: {plan}")
-    return manual_monthly_entitlement_expires_at(activated_at=activated_at)
+    expires_at: datetime = manual_monthly_entitlement_expires_at(activated_at=activated_at)
+    return expires_at
 
 
 def _reconcile_status_from_subscription_status(
@@ -999,20 +1000,23 @@ def _build_activation_contract_from_entry(
         return None
     if expires_at is None:
         return None
-    if ios_status is IosVerificationStatus.active:
-        accepted_ios_status: Literal[
-            IosVerificationStatus.active,
-            IosVerificationStatus.expired,
-        ] = IosVerificationStatus.active
-    else:
-        accepted_ios_status = IosVerificationStatus.expired
     try:
+        if ios_status is IosVerificationStatus.active:
+            return IOSVerifiedActivationResult(
+                transaction_id=transaction_id,
+                original_transaction_id=_entry_original_transaction_id(entry),
+                product_id=product_id,
+                subscription_tier=SubscriptionTierValue(subscription_tier.value),
+                status=IosVerificationStatus.active,
+                expires_at=expires_at,
+                platform=PaymentPlatform.ios,
+            )
         return IOSVerifiedActivationResult(
             transaction_id=transaction_id,
             original_transaction_id=_entry_original_transaction_id(entry),
             product_id=product_id,
             subscription_tier=SubscriptionTierValue(subscription_tier.value),
-            status=accepted_ios_status,
+            status=IosVerificationStatus.expired,
             expires_at=expires_at,
             platform=PaymentPlatform.ios,
         )
