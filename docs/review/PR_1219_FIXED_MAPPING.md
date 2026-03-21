@@ -17,6 +17,12 @@ Commit: b1c60f1c
 Evidence: `docs/orchestration/DESIGN_AGENT_RUNTIME_REALIGNMENT_PACKET.md:103`, `docs/orchestration/DESIGN_AGENT_RUNTIME_REALIGNMENT_PACKET.md:107`
 Reason: aligned the minimum command set with the canonical bridge artifact bundle and restored the ADR file to the documented docs-gate invocation.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1219#discussion_r2969725702 -> f7306a50
+Disposition: FIXED
+Commit: f7306a50
+Evidence: `docs/review/PR_1219_FIXED_MAPPING.md:49`, `docs/review/PR_1219_FIXED_MAPPING.md:54`
+Reason: refreshed the canonical review artifact so the merge-readiness section now includes the missing `bf97643d` readiness-refresh commit alongside the later post-open fix commits.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1219#discussion_r2969725705 -> b1c60f1c
 Disposition: FIXED
 Commit: b1c60f1c
@@ -63,6 +69,11 @@ Disposition: NOT-A-BUG
 Evidence: `docs/review/PR_1219_FIXED_MAPPING.md:8`
 Reason: this Codex review URL is an aggregate shell; the actionable inline Codex suggestions are dispositioned explicitly in this artifact and no separate shell-level remediation remains.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1219#pullrequestreview-3986166781
+Disposition: NOT-A-BUG
+Evidence: `docs/review/PR_1219_FIXED_MAPPING.md:8`
+Reason: this cubic review URL is an aggregate shell; the actionable inline cubic findings are dispositioned explicitly in this artifact, so the shell itself does not carry a separate unresolved action.
+
 ## Merge Readiness
 - Review status: post-open bot feedback is mapped to concrete dispositions on the current local head; strict current-head PR governance re-check and thread resolution remain pending until the updated artifact is pushed.
 - Merge status: not ready to merge yet.
@@ -72,6 +83,7 @@ Reason: this Codex review URL is an aggregate shell; the actionable inline Codex
   - `bf97643d` — `docs(review): refresh PR 1219 readiness artifact`
   - `b1c60f1c` — `docs(agents): update instructions`
   - `3f1a5bbc` — `docs(orchestration): close packet scope drift`
+  - `f7306a50` — `docs(review): map current PR 1219 feedback`
 - Current scope discipline:
   - docs/governance-only realignment bundle
   - no runtime, API, preview-renderer, or product-surface changes
