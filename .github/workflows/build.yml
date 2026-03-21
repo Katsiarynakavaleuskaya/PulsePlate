@@ -26,13 +26,13 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435
 
       - name: Build Docker image (local, for tests)
-        uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25 # v5
+        uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7.0.0
         with:
           context: .
           platforms: linux/amd64
@@ -40,9 +40,10 @@ jobs:
           load: true
           tags: pulseplate:test
           # Omit cache-from to avoid 404 BlobNotFound when GHA cache entry is missing; still write cache for publish job.
+          # Explicit workflow scope avoids cross-workflow cache entry collisions on the shared GHA backend.
           # mode=min to avoid 30+ min export (mode=max exports every layer -> huge upload to GHA).
           # ignore-error=true keeps build green when GHA cache backend is transiently unavailable.
-          cache-to: type=gha,mode=min,ignore-error=true
+          cache-to: type=gha,scope=build-production-${{ github.ref_name }},mode=min,ignore-error=true
           target: production
 
       - name: Test Docker image
@@ -104,7 +105,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Install Trivy via apt
         run: |
@@ -143,7 +144,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435
@@ -175,7 +176,7 @@ jobs:
 
 
       - name: Build and push Docker image
-        uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25 # v5
+        uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7.0.0
         with:
           context: .
           # Single-arch for cache/push stability (CodeRabbit discussion_r2869743452). Restore linux/arm64 when GHA cache/provenance is stable.
@@ -183,10 +184,10 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
+          cache-from: type=gha,scope=build-production-${{ github.ref_name }}
           # mode=min to match build job and keep cache export/import fast (mode=max can hang 30+ min on export).
           # ignore-error=true prevents publish failure when cache exporter returns transient BlobNotFound.
-          cache-to: type=gha,mode=min,ignore-error=true
+          cache-to: type=gha,scope=build-production-${{ github.ref_name }},mode=min,ignore-error=true
           # Disable provenance to prevent GHA cache export errors ("cache entry no longer exists").
           # Trade-off: SLSA attestations disabled; cosign verify-attestation will fail. Re-enable when buildx/GHA fix is available.
           provenance: false
@@ -229,7 +230,7 @@ jobs:
           output-file: sbom.spdx.json
 
       - name: Upload SBOM
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: sbom
           path: sbom.spdx.json
