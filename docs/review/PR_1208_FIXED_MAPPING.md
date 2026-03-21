@@ -34,6 +34,11 @@ Evidence: `core/creative_research.py:250-268` rejects non-string scientific fiel
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1208#discussion_r2969319617 -> 2fa6e95e
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1208#pullrequestreview-3985876233 -> 2fa6e95e
 
+Disposition: FIXED
+Commit: 6d834271
+Evidence: `core/judgment.py:247-255` now passes the raw `conflict_flag` value through without misleading pseudo-coercion, and `tests/test_judgment_core.py:314-328` locks the strict-bool-only normalization contract for non-bool payloads.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1208#pullrequestreview-3985920222 -> 6d834271
+
 Disposition: NOT-A-BUG
 Evidence: `core/judgment.py:291-294` and `core/judgment_eval.py:351-365`.
 Reason: Review `3985794972` is an aggregate shell; its concrete actionable threads are mapped individually above (`2969313278`, `2969313279`) and do not require a separate shell-specific code change.
