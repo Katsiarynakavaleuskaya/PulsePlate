@@ -7,7 +7,7 @@ EN: Runtime endpoints for activation + persisted subscription state.
 
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, Response, Security, status
+from fastapi import APIRouter, Response, Security, status
 from fastapi.responses import JSONResponse
 
 from app.http_error_details import (
@@ -112,8 +112,10 @@ async def activate_subscription(
     try:
         current_user = _resolve_activation_user(x_api_key)
         if not payload.uses_canonical_payload:
-            raise HTTPException(
+            return _payment_error_response(
                 status_code=status.HTTP_400_BAD_REQUEST,
+                code="invalid_activation_payload",
+                message="Canonical activation payload is required",
                 detail="canonical activation payload is required on this route",
             )
         if payload.source is PaymentSource.ios_app_store:

@@ -1123,6 +1123,9 @@ def test_activate_subscription_legacy_body_is_rejected_on_runtime_route(
     )
     assert response.status_code == 400, response.text
     payload = _json(response)
+    assert payload["status"] == "error"
+    assert payload["code"] == "invalid_activation_payload"
+    assert payload["message"] == "Canonical activation payload is required"
     assert payload["detail"] == "canonical activation payload is required on this route"
 
 
