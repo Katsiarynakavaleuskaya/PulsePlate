@@ -13,8 +13,7 @@
   - this PR replaces stacked child `#1218`, which previously targeted `feat/business-wave-director-contract`
 
 ## Fixed in Commit Mapping
-- No actionable review comments yet on replacement PR `#1221`
-- Legacy artifact `PR_1218_FIXED_MAPPING.md` was intentionally not carried into this lane; all new review dispositions start from `PR_1221_FIXED_MAPPING.md`
+- No actionable review comments
 
 ## Merge Readiness
 - [ ] All required checks pass
@@ -22,3 +21,4 @@
 - [ ] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
 - [x] `pre-commit run --all-files`
 - [x] `make verify`
+- Replacement-lane note: `PR_1218_FIXED_MAPPING.md` was intentionally not carried into this lane; all new review dispositions start from `PR_1221_FIXED_MAPPING.md`
