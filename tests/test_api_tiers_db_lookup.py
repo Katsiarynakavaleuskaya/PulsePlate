@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
+from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
@@ -17,6 +18,7 @@ from app.middleware.api_tiers import (
 from app.models import Subscription
 from app.services import payments_activation
 from core import db as core_db
+from core.billing_policy import LEGACY_MANUAL_COMPAT_CUTOFF
 
 
 @pytest.fixture(autouse=True)
@@ -33,12 +35,17 @@ def _persist_subscription(
     tier: str,
     status: str,
     expires_at: datetime | None = None,
+    activated_at: datetime | None | object = ...,
+    created_at: datetime | None = None,
 ) -> None:
     """Insert a persisted subscription row for DB-backed authz tests."""
 
     session_factory = core_db.get_session_factory()
     session = session_factory()
     now = datetime.now(timezone.utc)
+    persisted_activated_at = (
+        (now if status == "active" else None) if activated_at is ... else activated_at
+    )
     try:
         session.add(
             Subscription(
@@ -51,7 +58,9 @@ def _persist_subscription(
                 source_reference=f"{source}:{api_key}",
                 product_id=f"com.pulseplate.{tier}.monthly",
                 expires_at=expires_at,
-                activated_at=now if status == "active" else None,
+                activated_at=persisted_activated_at,
+                created_at=created_at or now,
+                updated_at=created_at or now,
             )
         )
         session.commit()
@@ -187,6 +196,106 @@ def test_lookup_tier_from_db_returns_invalid_tier_for_malformed_status() -> None
     assert result.tier is None
 
 
+def test_lookup_tier_from_db_uses_compat_expiry_for_legacy_manual_rows() -> None:
+    """Legacy manual rows without expiry should derive bounded access from activated_at."""
+
+    _persist_subscription(
+        api_key="legacy-manual-key",  # pragma: allowlist secret
+        source="swift_manual",
+        tier="vip",
+        status="active",
+        expires_at=None,
+        created_at=LEGACY_MANUAL_COMPAT_CUTOFF - timedelta(days=1),
+    )
+
+    result = api_tiers_mod._lookup_tier_from_db("legacy-manual-key")
+    assert result.status == DBLookupStatus.HIT
+    assert result.tier == SubscriptionTier.VIP
+
+
+def test_lookup_tier_from_db_returns_invalid_tier_for_active_paid_row_without_expiry_or_activation() -> (
+    None
+):
+    """Broken paid rows still fail closed when no expiry fallback can be derived."""
+
+    _persist_subscription(
+        api_key="manual-no-expiry-key",  # pragma: allowlist secret
+        source="swift_manual",
+        tier="vip",
+        status="active",
+        expires_at=None,
+        activated_at=None,
+    )
+
+    result = api_tiers_mod._lookup_tier_from_db("manual-no-expiry-key")
+    assert result.status == DBLookupStatus.INVALID_TIER
+    assert result.tier is None
+
+
+def test_lookup_tier_from_db_rejects_post_cutoff_manual_row_without_expiry() -> None:
+    """Post-rollout manual rows without expiry must fail closed even with activated_at."""
+
+    _persist_subscription(
+        api_key="post-cutoff-manual-key",  # pragma: allowlist secret
+        source="swift_manual",
+        tier="vip",
+        status="active",
+        expires_at=None,
+        activated_at=LEGACY_MANUAL_COMPAT_CUTOFF + timedelta(hours=2),
+        created_at=LEGACY_MANUAL_COMPAT_CUTOFF + timedelta(hours=2),
+    )
+
+    result = api_tiers_mod._lookup_tier_from_db("post-cutoff-manual-key")
+    assert result.status == DBLookupStatus.INVALID_TIER
+    assert result.tier is None
+
+
+def test_lookup_tier_from_db_rejects_future_dated_legacy_manual_activation() -> None:
+    """Legacy manual compat must fail closed when activated_at is in the future."""
+
+    _persist_subscription(
+        api_key="future-legacy-manual-key",  # pragma: allowlist secret
+        source="swift_manual",
+        tier="vip",
+        status="active",
+        expires_at=None,
+        activated_at=datetime.now(timezone.utc) + timedelta(days=1),
+        created_at=LEGACY_MANUAL_COMPAT_CUTOFF - timedelta(days=1),
+    )
+
+    result = api_tiers_mod._lookup_tier_from_db("future-legacy-manual-key")
+    assert result.status == DBLookupStatus.INVALID_TIER
+    assert result.tier is None
+
+
+def test_lookup_tier_from_db_returns_invalid_tier_for_malformed_expiry(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Malformed expiry payloads must fail closed."""
+
+    def _broken_list_subscriptions_for_user(
+        *, session: object, user_id: int
+    ) -> list[SimpleNamespace]:
+        del session, user_id
+        return [
+            SimpleNamespace(
+                source="ios_app_store",
+                tier="vip",
+                status="active",
+                expires_at="not-a-datetime",
+            )
+        ]
+
+    monkeypatch.setattr(
+        "app.services.subscriptions.list_subscriptions_for_user",
+        _broken_list_subscriptions_for_user,
+    )
+
+    result = api_tiers_mod._lookup_tier_from_db("malformed-expiry-key")
+    assert result.status == DBLookupStatus.INVALID_TIER
+    assert result.tier is None
+
+
 def test_lookup_tier_from_db_fails_closed_for_mixed_valid_and_malformed_rows() -> None:
     """Mixed persisted rows must deny paid access when any row is malformed."""
 
@@ -208,6 +317,27 @@ def test_lookup_tier_from_db_fails_closed_for_mixed_valid_and_malformed_rows() -
 
     result = api_tiers_mod._lookup_tier_from_db("mixed-malformed-key")
     assert result.status == DBLookupStatus.INVALID_TIER
+    assert result.tier is None
+
+
+def test_lookup_tier_from_db_returns_error_when_subscription_store_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """DB lookup errors must stay explicit and fail closed."""
+
+    def _raising_list_subscriptions_for_user(
+        *, session: object, user_id: int
+    ) -> list[Subscription]:
+        del session, user_id
+        raise RuntimeError("db lookup failed")
+
+    monkeypatch.setattr(
+        "app.services.subscriptions.list_subscriptions_for_user",
+        _raising_list_subscriptions_for_user,
+    )
+
+    result = api_tiers_mod._lookup_tier_from_db("db-error-key")
+    assert result.status == DBLookupStatus.ERROR
     assert result.tier is None
 
 

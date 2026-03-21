@@ -14,15 +14,16 @@
 ## Evidence
 
 - Evidence 1:
-  `docs/cbt/cognitive_restructuring.md` already defines the canonical distortion taxonomy.
+  `docs/cbt/cognitive_restructuring.md:9-49` defines the canonical distortion taxonomy.
 - Evidence 2:
-  `docs/contracts/FITCHEF_STRUCTURED_COACH_CONTRACT.md` already freezes additive future
-  route families for PRO and VIP structured coach surfaces.
+  `docs/contracts/FITCHEF_STRUCTURED_COACH_CONTRACT.md:17-24` and
+  `docs/contracts/FITCHEF_STRUCTURED_COACH_CONTRACT.md:39-53` freeze additive
+  future route families for PRO and VIP structured coach surfaces.
 - Evidence 3:
-  `docs/analytics/METRICS_CATALOG.md`,
-  `docs/analytics/EXPERIMENT_REGISTRY.md`, and
-  `docs/analytics/DASHBOARD_BASELINE_REQUIREMENTS.md`
-  already provide measurement and experiment governance.
+  `docs/analytics/METRICS_CATALOG.md:365-670`,
+  `docs/analytics/EXPERIMENT_REGISTRY.md:12-44`, and
+  `docs/analytics/DASHBOARD_BASELINE_REQUIREMENTS.md:11-60`
+  provide measurement and experiment governance for the wave.
 
 ## Deferred items
 

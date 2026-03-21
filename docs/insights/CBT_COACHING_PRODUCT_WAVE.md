@@ -194,6 +194,9 @@ not become the first implementation target ahead of bounded structured tools.
 
 ## Measurement
 
+Canonical metric definitions for this wave must live in `docs/analytics/METRICS_CATALOG.md`,
+and the umbrella experiment row must live in `docs/analytics/EXPERIMENT_REGISTRY.md`.
+
 ### Distortion Simulator
 
 Primary metric:
@@ -204,7 +207,7 @@ Secondary metrics:
 
 - `challenge_acceptance_rate`
 - `next_action_commit_rate`
-- `7d_revisit_rate`
+- `revisit_rate_7d`
 
 ### Identity Loop Mapper
 

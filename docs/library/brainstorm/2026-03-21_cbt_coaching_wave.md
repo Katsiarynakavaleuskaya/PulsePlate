@@ -79,7 +79,7 @@ Status: promoted to docs-first SoT lane
 
 The repo already has enough foundation to justify one clear umbrella topic:
 
-**PulsePlate CBT Coaching Wave**
+### PulsePlate CBT Coaching Wave
 
 This wave should stay:
 

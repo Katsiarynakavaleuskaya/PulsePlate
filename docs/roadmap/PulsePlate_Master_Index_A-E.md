@@ -2,13 +2,13 @@
 Batches A–E in one operational view: what is archived, what executes next, what stays queued and what must wait.
 
 **Date:** 21 March 2026
-**Last sync:** B3 operational setup consolidation merged in PR #1189 after the StoreKit contract baseline in PR #1172 and B2 activation normalization in PR #1185.
+**Last sync:** B4 thin-client SubscriptionManager receipt-send flow merged in PR #1207 after B3 operational setup consolidation in PR #1189.
 
 ## Current truth
 
 | Current truth | What is next | What stays out of scope for now |
 |---------------|--------------|----------------------------------|
-| Batch A is archived after PR-6.<br/>Batch B monetization foundations already merged on `main` are:<br/>- B1 baseline runtime in PR #1182<br/>- StoreKit contract baseline in PR #1172<br/>- Thin SubscriptionManager groundwork in PR #1171<br/>- Apple verify -> activation normalization in PR #1185<br/>B3 operational/setup close-out merged in PR #1189. | The next Batch B work is follow-through, not first-pass baseline creation: backend-driven SubscriptionManager hardening and the remaining runtime cleanup around the merged billing truth. | Do not reopen baseline contract work, and do not mix unrelated AI/GTM or dependency-remediation scope into this lane. |
+| Batch A is archived after PR-6.<br/>Batch B monetization foundations already merged on `main` are:<br/>- B1 baseline runtime in PR #1182<br/>- StoreKit contract baseline in PR #1172<br/>- Apple verify -> activation normalization in PR #1185<br/>- B3 operational/setup close-out in PR #1189<br/>- B4 thin-client SubscriptionManager receipt-send flow in PR #1207 | Any remaining Batch B close-out should now be tracked as explicit backend/readiness follow-ups in the ledger; do not reopen the merged iOS thin-client handoff. | Do not reopen baseline contract work, and do not mix unrelated AI/GTM or dependency-remediation scope into this lane. |
 
 ## Batch B — Item-level execution tracker
 
@@ -17,7 +17,7 @@ Batches A–E in one operational view: what is archived, what executes next, wha
 | B1 | Payments RU/BY + iOS Baseline Runtime W1 | P0/P1 | **✅ Completed** | — | PR #1182 merged. |
 | B2 | Apple Receipt Verification Backend (full activation) | P0/P1 | **✅ Completed** | — | PR #1185 merged. |
 | B3 | StoreKit Product Contract and Operational Setup | P0/P1 | **✅ Completed** | — | PR #1189 merged; future TestFlight / App Store setup work must use the canonical checklist in `docs/contracts/IOS_STOREKIT_PRODUCTS_CONTRACT.md`. |
-| B4 | iOS SubscriptionManager Thin-Client Integration | P0/P1 | **Runtime client follow-through still pending** | After backend activation and StoreKit contract baseline are merged | Complete the thin-client activation handoff so iOS forwards backend activation contract data without rebuilding billing truth on-device. |
+| B4 | iOS SubscriptionManager Thin-Client Integration | P0/P1 | **✅ Completed** | — | PR #1207 merged; any residual Batch B cleanup must be tracked as a separate explicit follow-up instead of keeping B4 open. |
 
 **Batch rule:** PR-6 and Batch A governance work closed; do not mix with AI/GTM.
 

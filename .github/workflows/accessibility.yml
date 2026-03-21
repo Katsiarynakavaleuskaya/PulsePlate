@@ -1,8 +1,10 @@
 name: Accessibility Tests
 
+env:
+  FRONTEND_NODE_VERSION_FILE: ".nvmrc"
+
 permissions:
   contents: read
-  actions: write
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -13,6 +15,8 @@ on:
     branches: [main]
     paths:
       - 'frontend/**'
+      - '.nvmrc'
+      - '.github/actions/npm-ci-with-retry/**'
       - 'frontend/vite.config.ts'
       - 'frontend/package.json'
       - 'frontend/tsconfig.json'
@@ -21,6 +25,8 @@ on:
     branches: [main, feat/**, fix/**]
     paths:
       - 'frontend/**'
+      - '.nvmrc'
+      - '.github/actions/npm-ci-with-retry/**'
       - 'frontend/vite.config.ts'
       - 'frontend/package.json'
       - 'frontend/tsconfig.json'
@@ -47,12 +53,14 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
         with:
-          node-version: '20'
+          node-version-file: ${{ env.FRONTEND_NODE_VERSION_FILE }}
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
       - name: Install dependencies
-        run: npm ci
+        uses: ./.github/actions/npm-ci-with-retry
+        with:
+          working-directory: frontend
 
       - name: Prepare test-results directory
         run: mkdir -p test-results

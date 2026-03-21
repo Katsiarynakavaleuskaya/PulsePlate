@@ -5,16 +5,53 @@
 - [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
-- No actionable review comments
+Disposition: NOT-A-BUG
+Evidence: Sourcery review `#pullrequestreview-3986204688` contains no inline threads or actionable implementation findings.
+Reason: Reviewer-guide summary only; no standalone defect exists on the current head.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1213#pullrequestreview-3986204688
+
+Disposition: NOT-A-BUG
+Evidence: cubic review `#pullrequestreview-3986205428` explicitly reports `No issues found` across the reviewed files.
+Reason: Informational pass-only review; no code or docs change was requested.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1213#pullrequestreview-3986205428
+
+Disposition: FIXED
+Commit: 3238b1c6
+Evidence: `docs/analytics/METRICS_CATALOG.md:365`, `docs/analytics/EXPERIMENT_REGISTRY.md:17`, `docs/insights/CBT_COACHING_PRODUCT_WAVE.md:195`, `docs/library/brainstorm/2026-03-21_cbt_coaching_wave.md:82`, `docs/library/promotion/2026-03-21_cbt_coaching_wave_promotion-log.md:16`, `docs/library/research/2026-03-21_cbt_coaching_wave_evidence.md:14`, `docs/roadmap/BACKLOG_LEDGER.md:2036`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1213#discussion_r2969773425 -> 3238b1c6
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1213#discussion_r2969773427 -> 3238b1c6
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1213#discussion_r2969773738 -> 3238b1c6
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1213#discussion_r2969773741 -> 3238b1c6
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1213#discussion_r2969773742 -> 3238b1c6
+
+Disposition: NOT-A-BUG
+Evidence: The Codex review wrapper `#pullrequestreview-3986206530` only aggregates the two inline Codex findings fixed in `3238b1c6`.
+Reason: No standalone defect remains once the child threads are dispositioned.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1213#pullrequestreview-3986206530
+
+Disposition: NOT-A-BUG
+Evidence: The CodeRabbit review wrapper `#pullrequestreview-3986206758` only aggregates the three inline CodeRabbit findings fixed in `3238b1c6`.
+Reason: No standalone defect remains once the child threads are dispositioned.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1213#pullrequestreview-3986206758
+
+Disposition: NOT-A-BUG
+Evidence: `docs/review/PR_1213_FIXED_MAPPING.md:7-36` now includes the parser-required `Reason:` line for NOT-A-BUG entries.
+Reason: cubic identified an artifact-format defect on the prior head; the current head already satisfies the parser contract, so no additional code/docs change beyond this artifact refresh is required.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1213#discussion_r2969780102
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1213#pullrequestreview-3986212503
+
+Disposition: FIXED
+Commit: 4e75d023
+Evidence: `docs/analytics/METRICS_CATALOG.md:449`, `docs/analytics/METRICS_CATALOG.md:459`, `docs/insights/CBT_COACHING_PRODUCT_WAVE.md:210`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1213#discussion_r2969822156 -> 4e75d023
+
+Disposition: NOT-A-BUG
+Evidence: cubic review wrapper `#pullrequestreview-3986250499` only aggregates the inline metric-key finding fixed in `4e75d023`.
+Reason: No standalone defect remains once the child thread is dispositioned.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1213#pullrequestreview-3986250499
 
 ## Merge Readiness
-- Status: in progress; parent PR governance bootstrap in progress, not ready to merge.
-- Current scope discipline:
-  - docs-only CBT Coaching Wave promotion lane
-  - no runtime or route changes
-  - stacked parent for PR `#1214` and PR `#1215`
-- Required before merge-ready:
-  - sync PR body mirror with canonical Phase2 sections
-  - run bug-hunter first pass after PR update
-  - confirm current-head required checks are green with no pending required jobs
-  - re-run merge-readiness wrapper after the latest bot/review activity
+- [ ] All required checks are green on latest commit (no pending/rerun required)
+- [ ] No unresolved review threads
+- [ ] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
+- [ ] Wait-window completed after latest bot/review activity (do not merge on first green tick)

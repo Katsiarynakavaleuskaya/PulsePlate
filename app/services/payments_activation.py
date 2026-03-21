@@ -14,7 +14,7 @@ import hashlib
 import hmac
 import httpx
 import json
-from typing import Any, Literal, cast, overload
+from typing import Any, overload
 from uuid import uuid4
 
 from pydantic import ValidationError
@@ -46,6 +46,7 @@ from app.schemas.payments import (
     SubscriptionTierValue,
 )
 from app.services import subscriptions as subscriptions_store
+from core.billing_policy import manual_monthly_entitlement_expires_at
 from core.db import get_session_factory
 from settings import require_apple_shared_secret
 
@@ -211,6 +212,29 @@ def _plan_to_subscription_tier(plan: SubscriptionPlan) -> SubscriptionTier:
     return SubscriptionTier(_plan_to_tier(plan).value)
 
 
+def _plan_from_subscription_tier_value(tier_value: SubscriptionTierValue) -> SubscriptionPlan:
+    """Map legacy paid-tier values back to the canonical monthly plan contract."""
+
+    if tier_value is SubscriptionTierValue.vip:
+        return SubscriptionPlan.vip_monthly
+    if tier_value is SubscriptionTierValue.pro:
+        return SubscriptionPlan.pro_monthly
+    raise ValueError(f"unsupported subscription tier value: {tier_value}")
+
+
+def _manual_plan_expires_at(*, plan: SubscriptionPlan, activated_at: datetime) -> datetime:
+    """Derive bounded expiry for verified manual monthly plans.
+
+    RU: Manual monthly plans должны получать детерминированный bounded expiry.
+    EN: Verified manual monthly plans must persist a deterministic bounded expiry.
+    """
+
+    if plan not in {SubscriptionPlan.pro_monthly, SubscriptionPlan.vip_monthly}:
+        raise ValueError(f"unsupported subscription plan: {plan}")
+    expires_at: datetime = manual_monthly_entitlement_expires_at(activated_at=activated_at)
+    return expires_at
+
+
 def _reconcile_status_from_subscription_status(
     *,
     status: SubscriptionStatus,
@@ -258,12 +282,9 @@ def _response_tier_value(
 ) -> SubscriptionTierValue | None:
     """Resolve legacy subscription_tier field for compatibility responses."""
 
-    tier_value = _parse_optional_subscription_tier_value(evidence_summary.get("subscription_tier"))
-    if tier_value is not None:
-        return tier_value
     if tier in {SubscriptionTier.pro, SubscriptionTier.vip}:
         return SubscriptionTierValue(tier.value)
-    return None
+    return _parse_optional_subscription_tier_value(evidence_summary.get("subscription_tier"))
 
 
 def _resolve_user_id(
@@ -380,9 +401,11 @@ def _normalize_canonical_manual_activation(
 
     amount_minor = _amount_to_minor_units(manual_payload.submitted_amount)
     safe_payload = request_payload.model_dump(mode="json", exclude_none=True)
+    requested_plan = request_payload.plan or SubscriptionPlan.pro_monthly
+    requested_tier = _plan_to_subscription_tier(requested_plan)
     return NormalizedActivation(
         source=source,
-        tier=SubscriptionTier.pro,
+        tier=requested_tier,
         status=SubscriptionStatus.pending_manual_review,
         platform=PaymentPlatform.web,
         idempotency_key=_build_idempotency_key(
@@ -397,13 +420,15 @@ def _normalize_canonical_manual_activation(
         provider_receipt_hash=None,
         submitted_amount_minor=amount_minor,
         submitted_currency=manual_payload.submitted_currency,
-        requested_plan=None,
+        requested_plan=requested_plan,
         external_txn_id=None,
         reconcile_status=ReconcileStatus.pending,
         evidence_summary={
             "source_reference": manual_payload.source_reference,
             "submitted_amount_minor": amount_minor,
             "submitted_currency": manual_payload.submitted_currency,
+            "requested_plan": requested_plan.value,
+            "subscription_tier": _plan_to_tier(requested_plan).value,
         },
     )
 
@@ -678,21 +703,27 @@ def _to_response(
     return response
 
 
-def _current_manual_response_overrides(
+def _current_response_overrides(
     *,
     session: Any,
     audit: SubscriptionActivationAudit,
 ) -> tuple[Subscription | None, ReconcileStatus | None, str | None]:
-    """Return manual-reconcile overrides for current-state read paths."""
+    """Return current-state overrides for activation read paths.
 
-    if audit.source == PaymentSource.ios_app_store.value:
-        return None, None, None
+    RU: Для readback-эндпоинтов источником истины остаётся текущее persisted
+    subscription state, а не исторический audit snapshot.
+    EN: For readback endpoints, current persisted subscription state remains the
+    source of truth rather than the historical audit snapshot.
+    """
+
     subscription = subscriptions_store.get_subscription_by_id(
         session=session,
         subscription_id=audit.subscription_id,
     )
     if subscription is None:
         return None, None, None
+    if subscription.user_id != audit.user_id:
+        raise ActivationAccessForbiddenError("activation access forbidden")
     latest_audit = subscriptions_store.get_latest_audit_for_subscription(
         session=session,
         subscription_id=subscription.id,
@@ -706,11 +737,41 @@ def _current_manual_response_overrides(
     if isinstance(raw_external_txn, str) and raw_external_txn.strip():
         external_txn_id = raw_external_txn.strip()
 
+    reconcile_status = None
+    if (
+        audit.source != PaymentSource.ios_app_store.value
+        and latest_audit.status == subscription.status
+    ):
+        reconcile_status = _parse_optional_reconcile_status(latest_summary.get("reconcile_status"))
+
     return (
         subscription,
-        _parse_optional_reconcile_status(latest_summary.get("reconcile_status")),
+        reconcile_status,
         external_txn_id,
     )
+
+
+def _infer_manual_reconcile_plan(
+    *,
+    audit: SubscriptionActivationAudit,
+    subscription: Subscription,
+) -> SubscriptionPlan | None:
+    """Infer manual reconcile plan from canonical audit data or compat tier hints."""
+
+    evidence_summary = audit.evidence_summary or {}
+    requested_plan = _parse_optional_plan(evidence_summary.get("requested_plan"))
+    if requested_plan is not None:
+        return requested_plan
+
+    compat_tier = _parse_optional_subscription_tier_value(evidence_summary.get("subscription_tier"))
+    if compat_tier is not None:
+        return _plan_from_subscription_tier_value(compat_tier)
+
+    persisted_tier = _parse_optional_subscription_tier_value(getattr(subscription, "tier", None))
+    if persisted_tier is not None:
+        return _plan_from_subscription_tier_value(persisted_tier)
+
+    return None
 
 
 def _parse_optional_reconcile_status(raw_value: Any) -> ReconcileStatus | None:
@@ -973,17 +1034,23 @@ def _build_activation_contract_from_entry(
         return None
     if expires_at is None:
         return None
-    accepted_ios_status = cast(
-        Literal[IosVerificationStatus.active, IosVerificationStatus.expired],
-        ios_status,
-    )
     try:
+        if ios_status is IosVerificationStatus.active:
+            return IOSVerifiedActivationResult(
+                transaction_id=transaction_id,
+                original_transaction_id=_entry_original_transaction_id(entry),
+                product_id=product_id,
+                subscription_tier=SubscriptionTierValue(subscription_tier.value),
+                status=IosVerificationStatus.active,
+                expires_at=expires_at,
+                platform=PaymentPlatform.ios,
+            )
         return IOSVerifiedActivationResult(
             transaction_id=transaction_id,
             original_transaction_id=_entry_original_transaction_id(entry),
             product_id=product_id,
             subscription_tier=SubscriptionTierValue(subscription_tier.value),
-            status=accepted_ios_status,
+            status=IosVerificationStatus.expired,
             expires_at=expires_at,
             platform=PaymentPlatform.ios,
         )
@@ -1340,7 +1407,13 @@ def get_activation(
     user_id: int | None = None,
     issuer: str | None = None,
 ) -> SubscriptionActivationResponse | None:
-    """Fetch activation event by id with user-level access control."""
+    """Fetch activation view by id with user-level access control.
+
+    RU: Readback keyed by activation id returns the current persisted entitlement
+    view for that activation lineage, not a frozen audit-only snapshot.
+    EN: Activation-id readback returns the current persisted entitlement view for
+    the activation lineage rather than a frozen audit-only snapshot.
+    """
 
     resolved_user_id = _resolve_user_id(user_id=user_id, issuer=issuer)
     session_factory = get_session_factory()
@@ -1351,10 +1424,12 @@ def get_activation(
             return None
         if audit.user_id != resolved_user_id:
             raise ActivationAccessForbiddenError("activation access forbidden")
-        subscription, reconcile_status, external_txn_id = _current_manual_response_overrides(
+        subscription, reconcile_status, external_txn_id = _current_response_overrides(
             session=session,
             audit=audit,
         )
+        if subscription is None:
+            return None
         return _to_response(
             activation_id=activation_id,
             audit=audit,
@@ -1387,7 +1462,7 @@ def get_reconcile_activation_status(
             raise ActivationStateError(
                 "manual reconciliation status is unavailable for ios_app_store"
             )
-        subscription, reconcile_status, external_txn_id = _current_manual_response_overrides(
+        subscription, reconcile_status, external_txn_id = _current_response_overrides(
             session=session,
             audit=audit,
         )
@@ -1495,6 +1570,19 @@ def reconcile_activation(
             else SubscriptionStatus.rejected.value
         )
         subscription.activated_at = now if payload.decision is ReconcileDecision.verified else None
+        requested_plan = _infer_manual_reconcile_plan(
+            audit=initial_audit,
+            subscription=subscription,
+        )
+        if payload.decision is ReconcileDecision.verified:
+            if requested_plan is None:
+                raise ActivationStateError("manual reconcile requires requested plan")
+            subscription.expires_at = _manual_plan_expires_at(
+                plan=requested_plan,
+                activated_at=now,
+            )
+        else:
+            subscription.expires_at = None
         subscription.updated_at = now
 
         initial_summary = initial_audit.evidence_summary or {}

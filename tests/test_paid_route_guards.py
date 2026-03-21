@@ -13,6 +13,7 @@ from app.models import Subscription
 from app.schemas.payments import SubscriptionStatus
 from app.services import payments_activation
 from core import db as core_db
+from core.billing_policy import LEGACY_MANUAL_COMPAT_CUTOFF
 
 
 def _apple_response_for_receipt(receipt_data: str) -> dict[str, Any]:
@@ -172,6 +173,45 @@ def _set_subscription_status(*, api_key: str, source: str, status: str) -> None:
         session.close()
 
 
+def _persist_subscription(
+    *,
+    api_key: str,
+    source: str,
+    tier: str,
+    status: str,
+    expires_at: datetime | None,
+    activated_at: datetime | None | object = ...,
+    created_at: datetime | None = None,
+) -> None:
+    session_factory = core_db.get_session_factory()
+    session = session_factory()
+    persisted_activated_at = (
+        (datetime.now(timezone.utc) if status == "active" else None)
+        if activated_at is ...
+        else activated_at
+    )
+    try:
+        session.add(
+            Subscription(
+                id=str(uuid4()),
+                user_id=derive_subject_id_from_api_key(api_key),
+                source=source,
+                tier=tier,
+                status=status,
+                platform="web",
+                source_reference=f"{source}:{api_key}",
+                product_id=f"com.pulseplate.{tier}.monthly",
+                expires_at=expires_at,
+                activated_at=persisted_activated_at,
+                created_at=created_at or datetime.now(timezone.utc),
+                updated_at=created_at or datetime.now(timezone.utc),
+            )
+        )
+        session.commit()
+    finally:
+        session.close()
+
+
 def test_pro_header_without_persisted_entitlement_is_denied(
     client: TestClient,
     pro_headers: dict[str, str],
@@ -302,6 +342,189 @@ def test_manual_ru_by_entry_routes_remain_callable_before_entitlement(
 
     assert client.get("/api/v1/pro/session", headers=pro_headers).status_code == 403
     assert client.get("/api/v1/vip/health", headers=pro_headers).status_code == 403
+
+
+def test_verified_manual_vip_unlocks_pro_and_vip_routes(
+    client: TestClient,
+    vip_headers: dict[str, str],
+) -> None:
+    """Verified bounded manual VIP entitlement must unlock both paid surfaces."""
+
+    create_intent = client.post(
+        "/api/v1/pro/payments/ru-by/manual-intent",
+        headers=vip_headers,
+        json={
+            "source": "swift_manual",
+            "plan": "vip_monthly",
+            "client_event_id": "evt-manual-vip-intent-1",
+            "external_txn_id": "swift-manual-vip-1",
+            "amount_minor": 2999,
+            "currency": "BYN",
+        },
+    )
+    assert create_intent.status_code == 201, create_intent.text
+    intent_id = _json(create_intent)["intent_id"]
+
+    reconcile = client.post(
+        "/api/v1/pro/payments/ru-by/reconcile",
+        headers=vip_headers,
+        json={
+            "intent_id": intent_id,
+            "client_event_id": "evt-manual-vip-reconcile-1",
+            "decision": "verified",
+            "external_txn_id": "swift-manual-vip-settled-1",
+        },
+    )
+    assert reconcile.status_code == 200, reconcile.text
+    reconcile_payload = _json(reconcile)
+    assert reconcile_payload["status"] == "active"
+    assert reconcile_payload["subscription_tier"] == "vip"
+    assert reconcile_payload["expires_at"] is not None
+
+    subscription = _load_subscription(api_key=TEST_KEY_VIP, source="swift_manual")
+    assert subscription.status == SubscriptionStatus.active.value
+    assert subscription.expires_at is not None
+
+    assert client.get("/api/v1/pro/session", headers=vip_headers).status_code == 200
+    assert client.get("/api/v1/vip/health", headers=vip_headers).status_code == 200
+
+
+def test_verified_manual_pro_unlocks_only_pro_route(
+    client: TestClient,
+    pro_headers: dict[str, str],
+) -> None:
+    """Verified manual PRO entitlement must not unlock VIP-only routes."""
+
+    create_intent = client.post(
+        "/api/v1/pro/payments/ru-by/manual-intent",
+        headers=pro_headers,
+        json={
+            "source": "erip_qr",
+            "plan": "pro_monthly",
+            "client_event_id": "evt-manual-pro-intent-1",
+            "external_txn_id": "erip-manual-pro-1",
+            "amount_minor": 1999,
+            "currency": "BYN",
+        },
+    )
+    assert create_intent.status_code == 201, create_intent.text
+    intent_id = _json(create_intent)["intent_id"]
+
+    reconcile = client.post(
+        "/api/v1/pro/payments/ru-by/reconcile",
+        headers=pro_headers,
+        json={
+            "intent_id": intent_id,
+            "client_event_id": "evt-manual-pro-reconcile-1",
+            "decision": "verified",
+            "external_txn_id": "erip-manual-pro-settled-1",
+        },
+    )
+    assert reconcile.status_code == 200, reconcile.text
+    reconcile_payload = _json(reconcile)
+    assert reconcile_payload["subscription_tier"] == "pro"
+    assert reconcile_payload["expires_at"] is not None
+
+    assert client.get("/api/v1/pro/session", headers=pro_headers).status_code == 200
+    assert client.get("/api/v1/vip/health", headers=pro_headers).status_code == 403
+
+
+def test_rejected_manual_reconcile_keeps_paid_routes_denied(
+    client: TestClient,
+    pro_headers: dict[str, str],
+) -> None:
+    """Rejected manual reconciliation must not unlock canonical paid routes."""
+
+    create_intent = client.post(
+        "/api/v1/pro/payments/ru-by/manual-intent",
+        headers=pro_headers,
+        json={
+            "source": "erip_qr",
+            "plan": "pro_monthly",
+            "client_event_id": "evt-manual-rejected-intent-1",
+            "external_txn_id": "erip-manual-rejected-1",
+            "amount_minor": 1999,
+            "currency": "BYN",
+        },
+    )
+    assert create_intent.status_code == 201, create_intent.text
+    intent_id = _json(create_intent)["intent_id"]
+
+    reconcile = client.post(
+        "/api/v1/pro/payments/ru-by/reconcile",
+        headers=pro_headers,
+        json={
+            "intent_id": intent_id,
+            "client_event_id": "evt-manual-rejected-reconcile-1",
+            "decision": "rejected",
+            "external_txn_id": "erip-manual-rejected-final-1",
+        },
+    )
+    assert reconcile.status_code == 200, reconcile.text
+    reconcile_payload = _json(reconcile)
+    assert reconcile_payload["status"] == "rejected"
+    assert reconcile_payload["expires_at"] is None
+
+    assert client.get("/api/v1/pro/session", headers=pro_headers).status_code == 403
+    assert client.get("/api/v1/vip/health", headers=pro_headers).status_code == 403
+
+
+def test_active_paid_manual_row_without_expiry_fails_closed(
+    client: TestClient,
+    vip_headers: dict[str, str],
+) -> None:
+    """Broken manual paid rows without expiry must fail closed."""
+
+    _persist_subscription(
+        api_key=TEST_KEY_VIP,
+        source="swift_manual",
+        tier="vip",
+        status="active",
+        expires_at=None,
+        activated_at=None,
+    )
+
+    assert client.get("/api/v1/pro/session", headers=vip_headers).status_code == 403
+    assert client.get("/api/v1/vip/health", headers=vip_headers).status_code == 403
+
+
+def test_legacy_manual_row_without_expiry_uses_compat_activation_window(
+    client: TestClient,
+    vip_headers: dict[str, str],
+) -> None:
+    """Legacy manual paid rows should retain bounded access from activated_at."""
+
+    _persist_subscription(
+        api_key=TEST_KEY_VIP,
+        source="swift_manual",
+        tier="vip",
+        status="active",
+        expires_at=None,
+        created_at=LEGACY_MANUAL_COMPAT_CUTOFF - timedelta(days=1),
+    )
+
+    assert client.get("/api/v1/pro/session", headers=vip_headers).status_code == 200
+    assert client.get("/api/v1/vip/health", headers=vip_headers).status_code == 200
+
+
+def test_post_cutoff_manual_row_without_expiry_fails_closed(
+    client: TestClient,
+    vip_headers: dict[str, str],
+) -> None:
+    """Post-rollout malformed manual rows must not receive compat authz access."""
+
+    _persist_subscription(
+        api_key=TEST_KEY_VIP,
+        source="swift_manual",
+        tier="vip",
+        status="active",
+        expires_at=None,
+        activated_at=LEGACY_MANUAL_COMPAT_CUTOFF + timedelta(hours=1),
+        created_at=LEGACY_MANUAL_COMPAT_CUTOFF + timedelta(hours=1),
+    )
+
+    assert client.get("/api/v1/pro/session", headers=vip_headers).status_code == 403
+    assert client.get("/api/v1/vip/health", headers=vip_headers).status_code == 403
 
 
 def test_cancelled_entitlement_does_not_unlock_paid_routes(

@@ -138,6 +138,20 @@
     "--color-primary",
     "--color-surface"
   ],
+  "interaction_contract": {
+    "interaction_mode": "guided_adjustment",
+    "checkpoint_policy": "state_transition_gates",
+    "adaptation_scope": [
+      "copy",
+      "layout",
+      "order_of_disclosure"
+    ],
+    "modality_hints": [
+      "visual",
+      "touch"
+    ],
+    "explanation_strategy": "inline_rationale"
+  },
   "governance_checks": [
     "verify_token_usage",
     "verify_hpp_compliance",

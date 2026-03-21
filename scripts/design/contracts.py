@@ -34,6 +34,38 @@ SUPPORTED_LAYOUT_ARCHETYPES = {
     "navigation_shell",
 }
 
+SUPPORTED_INTERACTION_MODES = {
+    "delegate_with_checkpoints",
+    "guided_adjustment",
+    "review_and_inspect",
+}
+
+SUPPORTED_CHECKPOINT_POLICIES = {
+    "critical_actions_only",
+    "export_and_recovery_gates",
+    "state_transition_gates",
+}
+
+SUPPORTED_ADAPTATION_SCOPE_VALUES = {
+    "copy",
+    "layout",
+    "modality",
+    "order_of_disclosure",
+}
+
+SUPPORTED_MODALITY_HINTS = {
+    "text",
+    "touch",
+    "visual",
+    "voice",
+}
+
+SUPPORTED_EXPLANATION_STRATEGIES = {
+    "inline_rationale",
+    "on_demand_reasoning",
+    "progressive_disclosure",
+}
+
 REQUIRED_INSTRUCTION_FIELDS = {
     "screen_id",
     "page",
@@ -49,6 +81,7 @@ REQUIRED_INSTRUCTION_FIELDS = {
     "dimensions",
     "background_token",
     "token_constraints",
+    "interaction_contract",
     "governance_checks",
     "context_version",
     "instructions",
@@ -81,9 +114,18 @@ REQUIRED_CANVAS_FIELDS = {
     "dimensions",
     "background_token",
     "token_constraints",
+    "interaction_contract",
     "sections",
     "nodes",
     "render_ops",
+}
+
+REQUIRED_INTERACTION_CONTRACT_FIELDS = {
+    "interaction_mode",
+    "checkpoint_policy",
+    "adaptation_scope",
+    "modality_hints",
+    "explanation_strategy",
 }
 
 REQUIRED_CANVAS_RENDER_OP_FIELDS = {
@@ -135,6 +177,84 @@ def has_raw_hex(value: str) -> bool:
     return bool(RAW_HEX_RE.search(value))
 
 
+def _validate_allowed_string_list(
+    *,
+    values: Any,
+    field_label: str,
+    allowed_values: set[str],
+    errors: list[str],
+) -> None:
+    if not isinstance(values, list) or not values:
+        errors.append(f"{field_label} must be a non-empty list")
+        return
+
+    normalized_values = [str(value).strip() for value in values]
+    if any(not value for value in normalized_values):
+        errors.append(f"{field_label} contains an empty value")
+    if len(set(normalized_values)) != len(normalized_values):
+        errors.append(f"{field_label} must not contain duplicates")
+
+    unsupported_values = sorted(
+        {value for value in normalized_values if value and value not in allowed_values}
+    )
+    if unsupported_values:
+        errors.append(
+            f"{field_label} contains unsupported value(s): " + ", ".join(unsupported_values)
+        )
+
+
+def validate_interaction_contract(
+    interaction_contract: Any,
+    *,
+    field_label: str,
+) -> list[str]:
+    errors: list[str] = []
+
+    if not isinstance(interaction_contract, dict):
+        errors.append(f"{field_label} must be an object")
+        return errors
+
+    missing_fields = REQUIRED_INTERACTION_CONTRACT_FIELDS.difference(interaction_contract)
+    if missing_fields:
+        errors.append(f"{field_label} missing field(s): " + ", ".join(sorted(missing_fields)))
+        return errors
+
+    interaction_mode = str(interaction_contract.get("interaction_mode", "")).strip()
+    if not interaction_mode:
+        errors.append(f"{field_label}.interaction_mode must be non-empty")
+    elif interaction_mode not in SUPPORTED_INTERACTION_MODES:
+        errors.append(f"{field_label}.interaction_mode unsupported value: {interaction_mode}")
+
+    checkpoint_policy = str(interaction_contract.get("checkpoint_policy", "")).strip()
+    if not checkpoint_policy:
+        errors.append(f"{field_label}.checkpoint_policy must be non-empty")
+    elif checkpoint_policy not in SUPPORTED_CHECKPOINT_POLICIES:
+        errors.append(f"{field_label}.checkpoint_policy unsupported value: {checkpoint_policy}")
+
+    explanation_strategy = str(interaction_contract.get("explanation_strategy", "")).strip()
+    if not explanation_strategy:
+        errors.append(f"{field_label}.explanation_strategy must be non-empty")
+    elif explanation_strategy not in SUPPORTED_EXPLANATION_STRATEGIES:
+        errors.append(
+            f"{field_label}.explanation_strategy unsupported value: {explanation_strategy}"
+        )
+
+    _validate_allowed_string_list(
+        values=interaction_contract.get("adaptation_scope"),
+        field_label=f"{field_label}.adaptation_scope",
+        allowed_values=SUPPORTED_ADAPTATION_SCOPE_VALUES,
+        errors=errors,
+    )
+    _validate_allowed_string_list(
+        values=interaction_contract.get("modality_hints"),
+        field_label=f"{field_label}.modality_hints",
+        allowed_values=SUPPORTED_MODALITY_HINTS,
+        errors=errors,
+    )
+
+    return errors
+
+
 def validate_instruction_contract(instruction: dict[str, Any]) -> list[str]:
     errors: list[str] = []
 
@@ -152,6 +272,13 @@ def validate_instruction_contract(instruction: dict[str, Any]) -> list[str]:
         value = str(raw_value).strip()
         if not value:
             errors.append(f"Empty {field_name}")
+
+    errors.extend(
+        validate_interaction_contract(
+            instruction.get("interaction_contract"),
+            field_label="interaction_contract",
+        )
+    )
 
     layout_archetype = str(instruction.get("layout_archetype", "")).strip()
     if not layout_archetype:
@@ -572,6 +699,12 @@ def validate_canvas_artifact_contract(
         errors.append("canvas nodes must be a non-empty list")
     if not isinstance(render_ops, list) or not render_ops:
         errors.append("canvas render_ops must be a non-empty list")
+    errors.extend(
+        validate_interaction_contract(
+            canvas_artifact.get("interaction_contract"),
+            field_label="canvas interaction_contract",
+        )
+    )
     if errors:
         return errors
 
@@ -711,6 +844,7 @@ def validate_canvas_artifact_contract(
         "dimensions",
         "background_token",
         "token_constraints",
+        "interaction_contract",
     ):
         if canvas_artifact.get(field_name) != instruction.get(field_name):
             errors.append(
