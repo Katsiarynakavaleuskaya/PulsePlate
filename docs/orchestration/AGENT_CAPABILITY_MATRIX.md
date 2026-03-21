@@ -63,9 +63,9 @@ Slug-first: first column = canonical agent slug (aligns with inventory and routi
 | **designer-artist-agent** | Designer / Artist Agent | `frontend/`, assets | Emblem/logo production: SVG geometry, Figma/Sora/Nano Banana packets | Creative Designer | Coordinator |
 | **sora-prompt-engineer** | Sora Prompt Engineer | assets, `docs/sora/` | Sora prompt specs, anti-drift policy, visual QA gates | Creative Designer | Coordinator |
 | **app-store-release-agent** | App Store Release | `ios/`, `frontend/`, release docs | App Store metadata, screenshots, submission packs, release readiness | QA Engineer, Marketing | Creative Designer, Marketing |
-| **marketing-strategist** | Marketing | `docs/`, marketing materials | ASO/SEO, growth, positioning | Creative Designer | Coordinator |
+| **marketing-strategist** | Marketing | `docs/`, marketing materials | ASO/SEO, growth channels, positioning, funnel optimization | Creative Designer | Coordinator |
 | **wellness-analyst-agent** | Wellness Analyst | `docs/`, product strategy | Wellness opportunities, ethics notes, no-license entry ideas | — | Marketing, Business Strategist |
-| **business-strategist-agent** | Business Strategist | `docs/`, roadmap | Market entry, monetization sequencing, low-capex strategy | — | Marketing, Coordinator |
+| **business-strategist-agent** | Business Strategist / Director | `docs/`, roadmap, executive materials | Portfolio framing, B2B packaging, monetization sequencing, investor/partner narrative governance, KPI ownership | Marketing, Wellness Analyst | Marketing, Coordinator |
 | **ai-trend-reporter** | AI Trend Reporter | `docs/` | AI market reports (daily/weekly/monthly/quarterly), wellness GTM | — | Coordinator |
 | **cursor-specialist-agent** | Cursor Specialist | `.cursor/agents/`, `scripts/`, `docs/orchestration/` | Task bootstrap, context-pack hygiene, workflow ergonomics | Orchestration, QA Engineer | Dev Operator, Coordinator |
 | **tutor-mentor-agent** | Tutor / Mentor | `docs/`, onboarding artifacts | Explainability, onboarding, training guidance, role review | — | Coordinator |

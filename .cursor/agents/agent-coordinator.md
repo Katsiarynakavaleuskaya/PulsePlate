@@ -283,7 +283,7 @@ Wellness market opportunity analysis with ethics/regulatory framing and low-cape
 
 ### business-strategist-agent
 
-Market entry, monetization sequencing, and business decision framing for growth cluster work.
+Director-level business ownership for market entry, monetization sequencing, B2B packaging, partner/investor narrative governance, and KPI framing.
 
 **Canonical doc:** `.cursor/agents/business-strategist-agent.md`
 
