@@ -74,6 +74,19 @@ Commit: bb7f1f47
 Evidence: [tests/test_skill_router.py](../../tests/test_skill_router.py#L461) now enforces an exact finite privileged-prefix set instead of loose membership assertions.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1202#discussion_r2968151809 -> bb7f1f47
 
+Disposition: FIXED
+Commit: 10f224db
+Evidence: [tests/test_skill_router.py](../../tests/test_skill_router.py#L464) now asserts `PRIVILEGED_SURFACE_PREFIXES` contains no duplicates before checking the canonical finite set, so repeated privileged prefixes cannot silently inflate score boosts.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1202#pullrequestreview-3984282163 -> 10f224db
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1202#discussion_r2968172900 -> 10f224db
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1202#pullrequestreview-3984303815 -> 10f224db
+
+Disposition: FIXED
+Commit: 10f224db
+Evidence: [PR_1202_FIXED_MAPPING.md](./PR_1202_FIXED_MAPPING.md#L91) now points the merge-readiness governance evidence at the actual unchecked checklist lines instead of stale commit metadata.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1202#discussion_r2968187555 -> 10f224db
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1202#pullrequestreview-3984317992 -> 10f224db
+
 ## Merge Readiness
 - [ ] All required checks pass
 - [ ] No unresolved review threads
