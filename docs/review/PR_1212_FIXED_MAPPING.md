@@ -2,16 +2,16 @@
 
 ## Discussion Thread Pass
 
-- [ ] Discussion-thread pass completed
-- [ ] Fixed in commit mapping completed
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
 
-No review threads yet. Add FIXED / NOT-A-BUG / DEFERRED dispositions here once human or bot review comments arrive.
+- No actionable review comments
 
 ## Merge Readiness
 
-- Status: draft / not ready to merge.
+- Status: ready for review / not ready to merge.
 - Current packet commits:
   - `d85e7f1d` — `docs(roadmap): sync Batch B close-out after PR #1207`
   - `bf3c05a2` — `fix(payments): persist bounded manual activation expiry`
@@ -20,6 +20,7 @@ No review threads yet. Add FIXED / NOT-A-BUG / DEFERRED dispositions here once h
   - `e6708d9f` — `docs(api): sync backend billing truth contract`
   - `69b18ee1` — `fix(payments): narrow ios activation status typing`
   - `04e2cdaf` — `fix(payments): satisfy push-hook billing typing`
+  - `3870d514` — `fix(payments): restore canonical manual reconcile path`
 - Current scope discipline:
   - activation persistence semantics, backend entitlement routing truth, deterministic Apple upstream envelopes, generated OpenAPI/types sync, roadmap/index sync, and billing regression tests only
   - no App Store offers / ASC protected envs
