@@ -34,6 +34,19 @@ Reason: The review-summary URLs aggregate the inline bot findings dispositioned 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1203#pullrequestreview-3984313392
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1203#pullrequestreview-3984329399
 
+Disposition: FIXED
+Commit: dfbeae5d
+Evidence: app/services/insight_application_service.py:31-39; app/services/insight_application_service.py:57-64; tests/test_insight_application_service.py:145-192
+Reason: The shared insight service now rejects oversized prompt input with HTTP 413 before runtime preparation, preserving the legacy fail-closed contract and keeping truncation only on response text.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1203#discussion_r2969109594
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1203#discussion_r2969109594 -> dfbeae5d
+
+Disposition: NOT-A-BUG
+Evidence: app/services/insight_application_service.py:31-39; app/services/insight_application_service.py:57-64; tests/test_insight_application_service.py:145-192
+Reason: The review-shell URL only summarizes the inline CodeRabbit finding above and does not introduce an additional unresolved action once the mapped thread is dispositioned.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1203#pullrequestreview-3985580981
+
 ## Merge Readiness
 - [ ] All required checks pass
 - [ ] No unresolved review threads
