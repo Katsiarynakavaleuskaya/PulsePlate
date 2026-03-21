@@ -68,6 +68,15 @@ def _valid_provider_payload() -> str:
                     ),
                     "confidence": "medium",
                     "known_risks": ["self-report bias"],
+                    "alternative_explanations": [
+                        "Lower evening workload, not fallback dinners, may drive adherence gains."
+                    ],
+                    "counterevidence": [
+                        "If adherence improves equally on days without fallback prompts, the mechanism is overstated."
+                    ],
+                    "stopping_rule": "Stop after two weeks if adherence does not improve versus baseline.",
+                    "decision_rule": "Promote only if completion and adherence improve together without safety drift.",
+                    "minimum_observation": "At least 14 days of weekday and weekend adherence observations.",
                     "wellness_boundary": (
                         "Wellness only; not diagnosis, treatment, or medical advice."
                     ),
@@ -83,6 +92,15 @@ def _valid_provider_payload() -> str:
                     "falsifier": "",
                     "confidence": "high",
                     "known_risks": ["confounding events"],
+                    "alternative_explanations": [
+                        "Social plans, not depletion, may explain weekend adherence drops."
+                    ],
+                    "counterevidence": [
+                        "If Sunday adherence holds during equally busy weekends, depletion is not the key driver."
+                    ],
+                    "stopping_rule": "Stop if the Sunday pattern disappears across two comparison weeks.",
+                    "decision_rule": "Defer until weekend-specific observations distinguish depletion from scheduling effects.",
+                    "minimum_observation": "At least two weekends with matched adherence and context notes.",
                     "wellness_boundary": (
                         "Wellness only; not diagnosis, treatment, or medical advice."
                     ),

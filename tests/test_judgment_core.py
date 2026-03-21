@@ -18,9 +18,12 @@ from core.judgment import (
     build_uncertainty_split,
     classify_claim_type,
     detect_contradiction_risk,
+    normalize_claim_evidence_records,
     parse_claim_type,
     parse_evidence_mode,
     parse_support_status,
+    select_calibrated_decision,
+    validate_uncertainty_split,
 )
 
 
@@ -259,6 +262,217 @@ def test_build_claim_evidence_record_rejects_contradicted_claim_without_conflict
             evidence_mode="direct_source",
             conflict_flag=False,
         )
+
+
+def test_normalize_claim_evidence_records_normalizes_collections() -> None:
+    """Collections of claim records must normalize through the shared builder."""
+
+    records = normalize_claim_evidence_records(
+        [
+            {
+                "claim_type": "recommendation",
+                "support_status": "supported",
+                "source_ids": ["marker:next_meal"],
+                "evidence_mode": "direct_source",
+                "conflict_flag": False,
+            }
+        ]
+    )
+
+    assert records == [
+        {
+            "claim_type": "recommendation",
+            "support_status": "supported",
+            "source_ids": ["marker:next_meal"],
+            "evidence_mode": "direct_source",
+            "conflict_flag": False,
+        }
+    ]
+
+
+def test_normalize_claim_evidence_records_rejects_non_sequence_payload() -> None:
+    """Scalar record payloads must fail closed before normalization starts."""
+
+    with pytest.raises(ValueError, match="claim_evidence_records must be provided as a sequence"):
+        normalize_claim_evidence_records(1)  # type: ignore[arg-type]
+
+
+def test_normalize_claim_evidence_records_rejects_non_mapping_member() -> None:
+    """Every claim record item must remain object-shaped."""
+
+    with pytest.raises(ValueError, match="claim_evidence_record #1 must be an object"):
+        normalize_claim_evidence_records(["not-a-record"])  # type: ignore[list-item]
+
+
+def test_validate_uncertainty_split_requires_all_fields() -> None:
+    """Missing uncertainty fields must fail closed."""
+
+    with pytest.raises(ValueError, match="uncertainty_split is missing required fields"):
+        validate_uncertainty_split({"retrieval_confidence": 0.5})
+
+
+def test_validate_uncertainty_split_rejects_non_float_like_values() -> None:
+    """Non numeric uncertainty payloads must fail with deterministic field errors."""
+
+    with pytest.raises(ValueError, match="retrieval_confidence must be a float-like value"):
+        validate_uncertainty_split(
+            {
+                "retrieval_confidence": True,
+                "evidence_coverage": 0.8,
+                "contradiction_risk": 0.1,
+                "actionability_confidence": 0.9,
+                "personalization_conflict": 0.1,
+            }
+        )
+
+
+def test_validate_uncertainty_split_rejects_unparseable_string_values() -> None:
+    """Unparseable numeric strings must fail closed instead of coercing silently."""
+
+    with pytest.raises(ValueError, match="evidence_coverage must be a float-like value"):
+        validate_uncertainty_split(
+            {
+                "retrieval_confidence": 0.7,
+                "evidence_coverage": "not-a-number",
+                "contradiction_risk": 0.1,
+                "actionability_confidence": 0.9,
+                "personalization_conflict": 0.1,
+            }
+        )
+
+
+def test_select_calibrated_decision_promotes_supported_low_conflict_payload() -> None:
+    """Supported claims with bounded uncertainty should promote."""
+
+    decision = select_calibrated_decision(
+        claim_records=[
+            {
+                "claim_type": "recommendation",
+                "support_status": "supported",
+                "source_ids": ["marker:next_meal"],
+                "evidence_mode": "direct_source",
+                "conflict_flag": False,
+            }
+        ],
+        uncertainty_split={
+            "retrieval_confidence": 0.9,
+            "evidence_coverage": 0.8,
+            "contradiction_risk": 0.1,
+            "actionability_confidence": 0.9,
+            "personalization_conflict": 0.1,
+        },
+    )
+
+    assert decision["decision"] == "promote"
+
+
+def test_select_calibrated_decision_discards_contradicted_payload() -> None:
+    """Contradicted claims must discard even when actionability looks high."""
+
+    decision = select_calibrated_decision(
+        claim_records=[
+            {
+                "claim_type": "fact",
+                "support_status": "contradicted",
+                "source_ids": ["policy_boundary"],
+                "evidence_mode": "heuristic",
+                "conflict_flag": True,
+            }
+        ],
+        uncertainty_split={
+            "retrieval_confidence": 0.9,
+            "evidence_coverage": 0.9,
+            "contradiction_risk": 0.9,
+            "actionability_confidence": 0.9,
+            "personalization_conflict": 0.1,
+        },
+    )
+
+    assert decision["decision"] == "discard"
+
+
+def test_select_calibrated_decision_discards_high_contradiction_risk() -> None:
+    """High contradiction risk must discard even when the claim is otherwise supported."""
+
+    decision = select_calibrated_decision(
+        claim_records=[
+            {
+                "claim_type": "recommendation",
+                "support_status": "supported",
+                "source_ids": ["marker:next_meal"],
+                "evidence_mode": "direct_source",
+                "conflict_flag": False,
+            }
+        ],
+        uncertainty_split={
+            "retrieval_confidence": 0.9,
+            "evidence_coverage": 0.8,
+            "contradiction_risk": 0.7,
+            "actionability_confidence": 0.9,
+            "personalization_conflict": 0.1,
+        },
+    )
+
+    assert decision == {
+        "decision": "discard",
+        "rationale": "contradiction risk remains too high",
+    }
+
+
+def test_select_calibrated_decision_discards_high_personalization_conflict() -> None:
+    """High personalization conflict must block promotion deterministically."""
+
+    decision = select_calibrated_decision(
+        claim_records=[
+            {
+                "claim_type": "recommendation",
+                "support_status": "supported",
+                "source_ids": ["marker:next_meal"],
+                "evidence_mode": "direct_source",
+                "conflict_flag": False,
+            }
+        ],
+        uncertainty_split={
+            "retrieval_confidence": 0.9,
+            "evidence_coverage": 0.8,
+            "contradiction_risk": 0.1,
+            "actionability_confidence": 0.9,
+            "personalization_conflict": 0.8,
+        },
+    )
+
+    assert decision == {
+        "decision": "discard",
+        "rationale": "personalization conflict remains too high",
+    }
+
+
+def test_select_calibrated_decision_discards_unsupported_low_actionability_payload() -> None:
+    """Unsupported low-actionability payloads must discard instead of defer."""
+
+    decision = select_calibrated_decision(
+        claim_records=[
+            {
+                "claim_type": "speculation",
+                "support_status": "unsupported",
+                "source_ids": [],
+                "evidence_mode": "none",
+                "conflict_flag": False,
+            }
+        ],
+        uncertainty_split={
+            "retrieval_confidence": 0.2,
+            "evidence_coverage": 0.2,
+            "contradiction_risk": 0.1,
+            "actionability_confidence": 0.2,
+            "personalization_conflict": 0.1,
+        },
+    )
+
+    assert decision == {
+        "decision": "discard",
+        "rationale": "insufficient support for a promotable judgment",
+    }
 
 
 def test_detect_contradiction_risk_uses_deterministic_markers() -> None:

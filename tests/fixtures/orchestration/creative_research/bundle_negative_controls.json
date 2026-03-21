@@ -19,7 +19,12 @@
       "known_risks": [
         "Selection bias toward planners."
       ],
-      "wellness_boundary": "Wellness coaching only. Not diagnosis or treatment."
+      "wellness_boundary": "Wellness coaching only. Not diagnosis or treatment.",
+      "alternative_explanations": [],
+      "counterevidence": [],
+      "stopping_rule": "",
+      "decision_rule": "",
+      "minimum_observation": ""
     },
     {
       "candidate_id": "dup-b",
@@ -31,7 +36,12 @@
       "known_risks": [
         "Selection bias toward planners."
       ],
-      "wellness_boundary": "Wellness coaching only. Not diagnosis or treatment."
+      "wellness_boundary": "Wellness coaching only. Not diagnosis or treatment.",
+      "alternative_explanations": [],
+      "counterevidence": [],
+      "stopping_rule": "",
+      "decision_rule": "",
+      "minimum_observation": ""
     },
     {
       "candidate_id": "unsafe-cure",
@@ -43,7 +53,12 @@
       "known_risks": [
         "Medical overclaim."
       ],
-      "wellness_boundary": "Wellness coaching only. Not diagnosis or treatment."
+      "wellness_boundary": "Wellness coaching only. Not diagnosis or treatment.",
+      "alternative_explanations": [],
+      "counterevidence": [],
+      "stopping_rule": "",
+      "decision_rule": "",
+      "minimum_observation": ""
     },
     {
       "candidate_id": "missing-fields",
@@ -55,7 +70,12 @@
       "known_risks": [
         "Novelty may fade."
       ],
-      "wellness_boundary": "Wellness coaching only. Not diagnosis or treatment."
+      "wellness_boundary": "Wellness coaching only. Not diagnosis or treatment.",
+      "alternative_explanations": [],
+      "counterevidence": [],
+      "stopping_rule": "",
+      "decision_rule": "",
+      "minimum_observation": ""
     }
   ]
 }

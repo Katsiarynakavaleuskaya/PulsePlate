@@ -103,6 +103,11 @@ Required top-level shape:
       "falsifier": "...",
       "confidence": "low|medium|high|unknown",
       "known_risks": ["..."],
+      "alternative_explanations": ["..."],
+      "counterevidence": ["..."],
+      "stopping_rule": "...",
+      "decision_rule": "...",
+      "minimum_observation": "...",
       "wellness_boundary": "Wellness only; not diagnosis, treatment, or medical advice."
     }}
   ]
@@ -162,6 +167,18 @@ def _normalize_provider_candidate(
         known_risks = [str(item).strip() for item in known_risks_raw if str(item).strip()]
     else:
         known_risks = []
+    alternative_explanations_raw = candidate.get("alternative_explanations", [])
+    if isinstance(alternative_explanations_raw, list):
+        alternative_explanations = [
+            str(item).strip() for item in alternative_explanations_raw if str(item).strip()
+        ]
+    else:
+        alternative_explanations = []
+    counterevidence_raw = candidate.get("counterevidence", [])
+    if isinstance(counterevidence_raw, list):
+        counterevidence = [str(item).strip() for item in counterevidence_raw if str(item).strip()]
+    else:
+        counterevidence = []
     candidate_record: CreativeResearchCandidateRecord = {
         "candidate_id": str(candidate.get("candidate_id", "")).strip() or f"candidate-{index}",
         "claim": str(candidate.get("claim", "")).strip(),
@@ -170,6 +187,11 @@ def _normalize_provider_candidate(
         "falsifier": str(candidate.get("falsifier", "")).strip(),
         "confidence": normalized_confidence,
         "known_risks": known_risks,
+        "alternative_explanations": alternative_explanations,
+        "counterevidence": counterevidence,
+        "stopping_rule": str(candidate.get("stopping_rule", "")).strip(),
+        "decision_rule": str(candidate.get("decision_rule", "")).strip(),
+        "minimum_observation": str(candidate.get("minimum_observation", "")).strip(),
         "wellness_boundary": (
             str(candidate.get("wellness_boundary", "")).strip()
             or "Wellness only; not diagnosis, treatment, or medical advice."

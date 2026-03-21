@@ -124,3 +124,28 @@ def test_validate_llm_output_treat_as_not_blocked() -> None:
     """'treat as' / 'treatment' (excluded per precision>recall) does not block."""
     r = validate_llm_output("Treat this as a suggestion, not medical advice.")
     assert r.ok is True
+
+
+@pytest.mark.parametrize(
+    ("text", "expected_code"),
+    [
+        ("This was bad food and you need to be good tomorrow.", "FITCHEF_FOOD_MORALITY"),
+        ("Punish yourself after the slip.", "FITCHEF_PUNITIVE_RECOVERY"),
+        ("Skip the next meal and earn it back.", "FITCHEF_COMPENSATION_LANGUAGE"),
+        ("You really did this because deep down you wanted control.", "FITCHEF_THERAPIST_DRIFT"),
+        (
+            "I know exactly how you feel, and I promise everything will be okay.",
+            "FITCHEF_MANIPULATIVE_REASSURANCE",
+        ),
+    ],
+)
+def test_validate_llm_output_blocks_fitchef_anti_harm_lexicon(
+    text: str,
+    expected_code: str,
+) -> None:
+    """FitChef anti-harm phrases must fail closed in the validator."""
+
+    report = validate_llm_output(text, domain="fitchef_mascot")
+
+    assert report.ok is False
+    assert any(blocker.code == expected_code for blocker in report.blockers)

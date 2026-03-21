@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import math
 import re
-from typing import Literal, TypedDict, cast
+from typing import Literal, Mapping, Sequence, TypedDict, cast
 
 ClaimType = Literal[
     "fact",
@@ -120,6 +120,13 @@ class UncertaintySplit(TypedDict):
     personalization_conflict: float
 
 
+class CalibratedDecision(TypedDict):
+    """Deterministic promote/defer/discard helper payload."""
+
+    decision: Literal["promote", "defer", "discard"]
+    rationale: str
+
+
 def parse_claim_type(raw_value: str) -> ClaimType:
     """Normalize and validate claim taxonomy values."""
 
@@ -224,6 +231,37 @@ def build_claim_evidence_record(
     }
 
 
+def normalize_claim_evidence_records(
+    raw_records: Sequence[ClaimEvidenceRecord | Mapping[str, object]],
+) -> list[ClaimEvidenceRecord]:
+    """Normalize a collection of raw claim-to-evidence records deterministically."""
+
+    if not isinstance(raw_records, Sequence):
+        raise ValueError("claim_evidence_records must be provided as a sequence.")
+
+    normalized_records: list[ClaimEvidenceRecord] = []
+    for index, raw_record in enumerate(raw_records, start=1):
+        if not isinstance(raw_record, Mapping):
+            raise ValueError(f"claim_evidence_record #{index} must be an object.")
+        normalized_records.append(
+            build_claim_evidence_record(
+                claim_type=str(raw_record.get("claim_type", "")),
+                support_status=str(raw_record.get("support_status", "")),
+                source_ids=cast(
+                    list[str] | tuple[str, ...],
+                    raw_record.get("source_ids", []),
+                ),
+                evidence_mode=str(raw_record.get("evidence_mode", "")),
+                conflict_flag=(
+                    bool(raw_record.get("conflict_flag", False))
+                    if isinstance(raw_record.get("conflict_flag", False), bool)
+                    else cast(bool, raw_record.get("conflict_flag"))
+                ),
+            )
+        )
+    return normalized_records
+
+
 def detect_contradiction_risk(text: str) -> bool:
     """Return True when the text includes deterministic contradiction markers."""
 
@@ -242,6 +280,17 @@ def _clamp_probability(value: float) -> float:
     if numeric_value == -math.inf:
         return 0.0
     return round(min(max(float(value), 0.0), 1.0), 4)
+
+
+def _coerce_probability_field(raw_value: object, *, field_name: str) -> float:
+    """Convert uncertainty payload fields into floats with deterministic errors."""
+
+    if isinstance(raw_value, bool) or not isinstance(raw_value, (int, float, str)):
+        raise ValueError(f"{field_name} must be a float-like value.")
+    try:
+        return float(raw_value)
+    except ValueError as exc:
+        raise ValueError(f"{field_name} must be a float-like value.") from exc
 
 
 def build_uncertainty_split(
@@ -263,6 +312,80 @@ def build_uncertainty_split(
     }
 
 
+def validate_uncertainty_split(raw_split: Mapping[str, object]) -> UncertaintySplit:
+    """Validate and normalize raw uncertainty dimensions into the shared shape."""
+
+    missing_fields = [
+        field_name for field_name in UNCERTAINTY_FIELDS if field_name not in raw_split
+    ]
+    if missing_fields:
+        missing = ", ".join(missing_fields)
+        raise ValueError(f"uncertainty_split is missing required fields: {missing}.")
+    return build_uncertainty_split(
+        retrieval_confidence=_coerce_probability_field(
+            raw_split["retrieval_confidence"],
+            field_name="retrieval_confidence",
+        ),
+        evidence_coverage=_coerce_probability_field(
+            raw_split["evidence_coverage"],
+            field_name="evidence_coverage",
+        ),
+        contradiction_risk=_coerce_probability_field(
+            raw_split["contradiction_risk"],
+            field_name="contradiction_risk",
+        ),
+        actionability_confidence=_coerce_probability_field(
+            raw_split["actionability_confidence"],
+            field_name="actionability_confidence",
+        ),
+        personalization_conflict=_coerce_probability_field(
+            raw_split["personalization_conflict"],
+            field_name="personalization_conflict",
+        ),
+    )
+
+
+def select_calibrated_decision(
+    *,
+    claim_records: Sequence[ClaimEvidenceRecord | Mapping[str, object]],
+    uncertainty_split: Mapping[str, object],
+    boundary_blocked: bool = False,
+) -> CalibratedDecision:
+    """Return a stable promote/defer/discard decision from evidence and uncertainty."""
+
+    normalized_claim_records = normalize_claim_evidence_records(claim_records)
+    normalized_uncertainty = validate_uncertainty_split(uncertainty_split)
+
+    if boundary_blocked:
+        return {"decision": "discard", "rationale": "safety boundary blocked promotion"}
+
+    if any(
+        record["support_status"] == "contradicted" or record["conflict_flag"]
+        for record in normalized_claim_records
+    ):
+        return {"decision": "discard", "rationale": "material contradiction detected"}
+
+    material_supported = any(
+        record["claim_type"] in {"fact", "source_grounded_summary", "inference", "recommendation"}
+        and record["support_status"] in {"supported", "partially_supported"}
+        for record in normalized_claim_records
+    )
+    if normalized_uncertainty["contradiction_risk"] >= 0.6:
+        return {"decision": "discard", "rationale": "contradiction risk remains too high"}
+    if normalized_uncertainty["personalization_conflict"] >= 0.75:
+        return {"decision": "discard", "rationale": "personalization conflict remains too high"}
+    if (
+        material_supported
+        and normalized_uncertainty["retrieval_confidence"] >= 0.5
+        and normalized_uncertainty["evidence_coverage"] >= 0.6
+        and normalized_uncertainty["actionability_confidence"] >= 0.6
+    ):
+        return {"decision": "promote", "rationale": "supported claims and bounded uncertainty"}
+    if material_supported or normalized_uncertainty["actionability_confidence"] >= 0.5:
+        return {"decision": "defer", "rationale": "safe but still under-supported"}
+    return {"decision": "discard", "rationale": "insufficient support for a promotable judgment"}
+
+
 __all__ = [
     "CLAIM_TYPES",
     "CLAIM_EVIDENCE_FIELDS",
@@ -280,7 +403,10 @@ __all__ = [
     "build_uncertainty_split",
     "classify_claim_type",
     "detect_contradiction_risk",
+    "normalize_claim_evidence_records",
     "parse_claim_type",
     "parse_evidence_mode",
     "parse_support_status",
+    "select_calibrated_decision",
+    "validate_uncertainty_split",
 ]

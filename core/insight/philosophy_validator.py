@@ -8,6 +8,11 @@ Codes:
 - WELLNESS_GUARANTEE — outcome guarantees (non-falsifiable)
 - NON_FALSIFIABLE_VAGUE — vague unverifiable claims
 - POTENTIAL_CONTRADICTION — contradiction markers
+- FITCHEF_FOOD_MORALITY — food = moral worth framing
+- FITCHEF_PUNITIVE_RECOVERY — punitive recovery language
+- FITCHEF_COMPENSATION_LANGUAGE — compensatory food/exercise language
+- FITCHEF_THERAPIST_DRIFT — therapist-like motive interpretation
+- FITCHEF_MANIPULATIVE_REASSURANCE — manipulative certainty / emotional overclaim
 
 Report.ok is False only when BLOCKER-level findings exist.
 """
@@ -56,6 +61,42 @@ _BLOCKER_PATTERNS: List[Tuple[str, re.Pattern[str]]] = [
         "POTENTIAL_CONTRADICTION",
         re.compile(
             r"\b(however\s*,\s*we\s+cure|but\s+we\s+also\s+diagnose)\b",
+            re.IGNORECASE,
+        ),
+    ),
+    (
+        "FITCHEF_FOOD_MORALITY",
+        re.compile(
+            r"\b(good|bad|clean|dirty)\s+(food|foods|meal|meals|eating|dessert|snack)\b"
+            r"|\b(cheat\s+meal|cheat\s+day)\b",
+            re.IGNORECASE,
+        ),
+    ),
+    (
+        "FITCHEF_PUNITIVE_RECOVERY",
+        re.compile(
+            r"\b(punish\s+(yourself|the slip)|make\s+up\s+for\s+it|atone\s+for\s+it)\b",
+            re.IGNORECASE,
+        ),
+    ),
+    (
+        "FITCHEF_COMPENSATION_LANGUAGE",
+        re.compile(
+            r"\b(earn\s+it\s+back|burn\s+it\s+off|work\s+it\s+off|skip\s+the\s+next\s+meal)\b",
+            re.IGNORECASE,
+        ),
+    ),
+    (
+        "FITCHEF_THERAPIST_DRIFT",
+        re.compile(
+            r"\b(you\s+really\s+did\s+this\s+because|deep\s+down\s+you|your\s+inner\s+self)\b",
+            re.IGNORECASE,
+        ),
+    ),
+    (
+        "FITCHEF_MANIPULATIVE_REASSURANCE",
+        re.compile(
+            r"\b(i\s+know\s+exactly\s+how\s+you\s+feel|i\s+promise\s+everything\s+will\s+be\s+okay)\b",
             re.IGNORECASE,
         ),
     ),
