@@ -696,18 +696,22 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
       governed path
 
 <a id="ledger-p1-ios-subscription-manager"></a>
-- [ ] P1: iOS SubscriptionManager backend-driven integration
+- [x] P1: iOS SubscriptionManager backend-driven integration
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-TBD-IOS-SUBSCRIPTION-MANAGER
-  - Status: 📋 Planned
+  - Target PR: PR #1207
+  - Status: ✅ Merged in PR #1207; thin SubscriptionManager receipt-send flow now forwards backend activation truth and refreshes entitlement fail-closed
   - Area: iOS / payments / thin-client policy
   - Finding Type: monetization runtime follow-through
   - Reason (EN): The monetization baseline is iOS-first, but thin-client-safe subscription orchestration still needs an explicit app-side integration item rather than staying implicit inside the broader payments wave.
   - Links:
     - `docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md`
     - `docs/roadmap/P0_MASTER_CHECKLIST_PHASE_FIT_TRIAGE_2026-03-05.md`
-    - `ios/PulsePlate`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p0-billing-activation-service`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p0-billing-subscription-persistence`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p0-billing-entitlement-routing`
+    - `ios/PulsePlate/Services/SubscriptionManager.swift`
+    - `ios/PulsePlateTests/Services/SubscriptionManagerTests.swift`
   - DoD:
     - iOS subscription orchestration remains thin and backend-driven
     - Product/state transitions are deterministic and test-covered
