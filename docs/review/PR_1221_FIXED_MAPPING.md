@@ -34,6 +34,8 @@ Disposition: FIXED
 Commit: cf668f97d143dceba413f03d0291a885b79e20f6
 Evidence: `scripts/business_collateral/content_loader.js:24-52`, `scripts/business_collateral/content_loader.js:165-169`, `tests/test_business_collateral_builders.py:16-20`, `tests/test_business_collateral_builders.py:35-43`, `tests/test_business_collateral_builders.py:75-95`
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1221#discussion_r2970239236 -> cf668f97d143dceba413f03d0291a885b79e20f6
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1221#discussion_r2970243122 -> cf668f97d143dceba413f03d0291a885b79e20f6
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1221#discussion_r2970247806 -> cf668f97d143dceba413f03d0291a885b79e20f6
 
 Disposition: FIXED
 Commit: 9da57793121b40998319247fbf58f852dc0756b5
@@ -52,6 +54,15 @@ Disposition: NOT-A-BUG
 Evidence: `scripts/business_collateral/build_b2b_proposal.js:8-67`, `tests/test_business_collateral_builders.py:58-108`
 Reason: This thread requests optional JSDoc ergonomics, not a correctness or contract defect; the builder entrypoint is intentionally small, already locally validated, and no JS doc-type gate is enforced for this lane.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1221#discussion_r2970191926
+
+Disposition: NOT-A-BUG
+Evidence: `scripts/business_collateral/content_loader.js:24-116`, `.github/workflows/ci.yml:370-632`, `.github/workflows/pr-tests.yml:138-162`, `tests/test_business_collateral_builders.py:46-95`
+Reason: These review-level bot URLs are aggregate review summaries whose actionable findings are already dispositioned by the mapped inline thread URLs above, so no separate code change or additional backlog item exists beyond those underlying thread mappings.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1221#pullrequestreview-3986758431
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1221#pullrequestreview-3986769148
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1221#pullrequestreview-3986779718
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1221#pullrequestreview-3986822271
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1221#pullrequestreview-3986827064
 
 ## Merge Readiness
 - [ ] All required checks pass
