@@ -16,6 +16,7 @@
 - **Backend**
   - `app/` (FastAPI adapters): routers, schemas, middleware, bootstrap
   - `core/` (domain): BMI engine, nutrition logic, i18n, business rules
+  - `core/ai/` (canonical AI bounded-context entry seam): runtime preparation, provider loading, transparency ownership
   - `providers/` (LLM providers): Grok/Ollama/Pico/Stub (env-selected via `llm.py`)
 - **Infra**
   - DB: PostgreSQL (prod canonical), SQLite (dev/test fallback)
@@ -41,11 +42,12 @@ flowchart LR
 
   subgraph Backend
     ENTRY[app/main.py (canonical entrypoint)]
-    LEG[legacy_app.py (FastAPI app instance)]
-    API[app/ (routers + bootstrap)]
-    CORE[core/ (domain engine)]
-    LLM[llm.py (provider factory)]
-    PROV[providers/ (LLM adapters)]
+  LEG[legacy_app.py (compat app instance)]
+  API[app/ (routers + bootstrap)]
+  CORE[core/ (domain engine)]
+  AI[core/ai/ (AI bounded-context seam)]
+  LLM[llm.py (provider factory)]
+  PROV[providers/ (LLM adapters)]
   end
 
   DB[(DB)]
@@ -58,7 +60,8 @@ flowchart LR
   LEG -->|include_router / route handlers| API
 
   API -->|delegates business rules| CORE
-  API -->|/insight uses factory| LLM
+  LEG -->|/insight thin adapters| AI
+  AI -->|lazy provider loading| LLM
   LLM --> PROV
 
   CORE --> DB
@@ -92,6 +95,12 @@ Historical ADR: `docs/architecture/ADR-002-openapi-schema-only-mode.md` (superse
       - Evidence: `tests/test_openapi_determinism.py:17` (hash comparison)
 - **Rate limiting for expensive endpoints**
   - LLM/exports endpoints must be rate-limited and have deterministic 429 tests; rate limiting is proxy-aware and privacy-friendly.
+- **AI bounded-context entry seam**
+  - `/api/v1/insight` and `/insight` remain legacy compatibility endpoints, but runtime preparation/provider selection now enters through `core/ai/*` while traced execution stays in `app/services/*`.
+  - Evidence:
+    - `legacy_app.py:2251-2275`
+    - `core/ai/insight_runtime.py:142-187`
+    - `app/services/insight_application_service.py:35-94`
 
 ## Maintenance rule
 

@@ -1209,10 +1209,10 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Extract AI runtime into a dedicated bounded context
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-TBD-AI-BOUNDED-CONTEXT
+  - Target PR: PR `#1203`
   - Area: backend / AI runtime / architecture
   - Finding Type: bounded-context hardening
-  - Reason: AI logic, provider seams, and safety-related behavior are currently documented across runtime areas, but there is no canonical `core/ai/*` bounded context yet. This increases the risk of router/business-logic drift and makes AI safety ownership harder to enforce.
+  - Reason: AI logic, provider seams, and safety-related behavior were historically distributed across runtime areas. The canonical `core/ai/*` seam now exists, but the remaining consolidation still needs to remove transitional ownership outside that boundary. Follow-up tracking remains anchored here: `docs/roadmap/BACKLOG_LEDGER.md:1208`. Closure criteria: move the remaining provider/runtime ownership into `core/ai/*`, keep legacy/app layers as thin adapters, and verify ownership through canonical `file:line` evidence plus passing `make verify`.
   - Links:
     - `docs/architecture/providers_implementation.md`
     - `AGENTS.md`

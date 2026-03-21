@@ -129,7 +129,6 @@ from app.middleware.api_tiers import derive_subject_id_from_api_key, require_vip
 from app.security.llm_monthly_quota import (
     attempt_consume_vip_llm_monthly_quota,
 )
-from app.services.insight_runtime import generate_traced_insight
 from app.utils.nutrition_wrappers import (
     _calculate_all_bmr_wrapper,
     _calculate_all_tdee_wrapper,
@@ -2204,8 +2203,18 @@ INSIGHT_TEMP_UNAVAILABLE_CODE = "INSIGHT_TEMPORARILY_UNAVAILABLE"
 INSIGHT_TEMP_UNAVAILABLE_MESSAGE = "Insight is temporarily unavailable. Please try again later."
 
 
+from core.ai import (  # noqa: E402
+    DirectInsightProviderStub,
+    InsightProviderLoadError,
+    InsightTransparencyUnavailableError,
+    load_insight_provider as _core_load_insight_provider,
+    require_ai_generated_insight_notice as _core_require_ai_generated_insight_notice,
+)
 from core.insight.llm_provider_loader import (  # noqa: E402
     load_llm_get_provider as _load_llm_get_provider,
+)
+from app.services.insight_application_service import (  # noqa: E402
+    execute_insight_request as _execute_insight_request_via_service,
 )
 from app.security.agent_input_guard import (  # noqa: E402
     require_safe_ai_agent_input,
@@ -2222,54 +2231,24 @@ def _build_rag_source_items(chunks: list[Any]) -> list[RAGSourceItem]:
 def _load_insight_provider() -> Any:
     """Load configured LLM provider with legacy error contract preserved."""
     try:
-        get_provider = _load_llm_get_provider()
-    except Exception as e:
-        raise HTTPException(status_code=503, detail="LLM module is not available") from e
-
-    provider = get_provider()
-    if provider is None:
-        raise HTTPException(status_code=503, detail="No LLM provider configured")
-    return provider
+        return _core_load_insight_provider(provider_factory_loader=_load_llm_get_provider)
+    except InsightProviderLoadError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
 
 
 def _require_ai_generated_insight_notice() -> tuple[str, str]:
     """Return the required transparency notice id and boundary or fail closed."""
-    from core.compliance import get_transparency_registry
-
     try:
-        transparency_notice = get_transparency_registry().get("ai_generated_insight")
-    except Exception as exc:
+        notice = _core_require_ai_generated_insight_notice()
+    except InsightTransparencyUnavailableError as exc:
         raise HTTPException(
             status_code=fastapi_status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="transparency_registry_unavailable",
+            detail=str(exc),
         ) from exc
-    if not isinstance(transparency_notice, dict):
-        raise HTTPException(
-            status_code=fastapi_status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="transparency_registry_unavailable",
-        )
-    surface_id = transparency_notice.get("surface_id")
-    boundary = transparency_notice.get("boundary")
-    if (
-        not isinstance(surface_id, str)
-        or not surface_id
-        or not isinstance(boundary, str)
-        or not boundary
-    ):
-        raise HTTPException(
-            status_code=fastapi_status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="transparency_registry_unavailable",
-        )
-    return surface_id, boundary
+    return notice.surface_id, notice.wellness_boundary
 
 
-class _DirectInsightProviderStub:
-    """Provider stub used when the runtime can answer locally without an LLM call."""
-
-    name = "philosophical_runtime"
-
-    async def generate(self, text: str) -> str:
-        raise RuntimeError("Direct runtime route must not call provider.generate")
+_DirectInsightProviderStub = DirectInsightProviderStub
 
 
 async def _execute_insight_request(
@@ -2280,70 +2259,20 @@ async def _execute_insight_request(
     subject_id: int | None = None,
 ) -> InsightResponse:
     """Shared /insight execution path with philosophical runtime support."""
-    require_safe_ai_agent_input(req.text)
-    prompt_input = _ensure_insight_text_length(req.text)
-
-    use_rag = str(os.getenv("FEATURE_RAG", "")).strip().lower() in {"1", "true", "on", "yes"}
-    from app.utils.feature_flags import (
-        is_philosophy_linguistic_enabled,
-        is_philosophy_phase12_enabled,
-        is_philosophy_pragmatic_enabled,
-        is_philosophy_router_enabled,
-        is_philosophy_validation_enabled,
-        is_recursive_rag_enabled,
-    )
-    from core.insight.philosophical_runtime import PhilosophicalRuntime
-
-    runtime = PhilosophicalRuntime()
-    philosophy_router_enabled = is_philosophy_router_enabled()
-    philosophy_linguistic_enabled = is_philosophy_linguistic_enabled()
-    decision = runtime.preview_route(
-        text=prompt_input,
-        lang=None,
-        router_enabled=philosophy_router_enabled or philosophy_linguistic_enabled,
-        use_rag=use_rag,
-    )
-    transparency_notice_id, wellness_boundary = _require_ai_generated_insight_notice()
-    provider = (
-        _load_insight_provider() if decision.needs_generation else _DirectInsightProviderStub()
-    )
-    runtime_result = await generate_traced_insight(
-        runtime=runtime,
-        text=prompt_input,
-        lang=None,
-        provider=provider,
-        use_rag=use_rag,
-        philo_validation_enabled=is_philosophy_validation_enabled(),
-        recursive_rag_enabled=is_recursive_rag_enabled(),
-        subject_id=subject_id,
-        philosophy_router_enabled=philosophy_router_enabled,
-        philosophy_phase12_enabled=is_philosophy_phase12_enabled(),
-        philosophy_linguistic_enabled=philosophy_linguistic_enabled,
-        philosophy_pragmatic_enabled=is_philosophy_pragmatic_enabled(),
-        route_path=route_path,
-        route_type=decision.route_type.value,
-        user_tier=user_tier,
-    )
-    insight_text = runtime_result.insight[:INSIGHT_TEXT_MAX_LENGTH]
-    source_items = [RAGSourceItem(**item) for item in runtime_result.source_dicts]
-    return InsightResponse(
-        provider=runtime_result.provider_name,
-        insight=insight_text,
-        sources=source_items,
-        confidence=runtime_result.confidence,
-        rag_used=runtime_result.rag_used,
-        hops=runtime_result.hops,
-        latency_ms=runtime_result.latency_ms,
-        route_type=runtime_result.metadata.route_type,
-        depth_used=runtime_result.metadata.depth_used,
-        verification_rate=runtime_result.metadata.verification_rate,
-        falsifiability_rate=runtime_result.metadata.falsifiability_rate,
-        contradiction_count=runtime_result.metadata.contradiction_count,
-        reason_codes=runtime_result.metadata.reason_codes,
-        optimization_applied=runtime_result.metadata.optimization_applied,
-        automated_analysis=True,
-        transparency_notice_id=transparency_notice_id,
-        wellness_boundary=wellness_boundary,
+    return cast(
+        InsightResponse,
+        await _execute_insight_request_via_service(
+            req,
+            route_path=route_path,
+            user_tier=user_tier,
+            subject_id=subject_id,
+            input_guard=require_safe_ai_agent_input,
+            provider_loader=_load_insight_provider,
+            transparency_loader=_require_ai_generated_insight_notice,
+            direct_provider_factory=_DirectInsightProviderStub,
+            response_factory=InsightResponse,
+            source_item_factory=RAGSourceItem,
+        ),
     )
 
 
