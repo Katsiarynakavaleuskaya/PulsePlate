@@ -109,9 +109,20 @@ Disposition: NOT-A-BUG
 Evidence: `docs/review/PR_1219_FIXED_MAPPING.md:8`
 Reason: this cubic review shell only aggregates the inline stale-anchor finding at `discussion_r2969789940`; once that inline comment is fixed and mapped explicitly, the shell carries no separate unresolved action.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1219#discussion_r2969828611 -> 51b5db87
+Disposition: FIXED
+Commit: 51b5db87
+Evidence: `docs/review/PR_1219_FIXED_MAPPING.md:10`, `docs/review/PR_1219_FIXED_MAPPING.md:11`
+Reason: cubic found that the refreshed `r2969725702` evidence still drifted after later shell-only mapping entries were appended; the artifact now uses a stable top anchor block for merge-readiness proof so future append-only updates do not retarget the cited evidence lines.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1219#pullrequestreview-3986257013
+Disposition: NOT-A-BUG
+Evidence: `docs/review/PR_1219_FIXED_MAPPING.md:8`
+Reason: this cubic review shell only aggregates the inline stale-anchor finding at `discussion_r2969828611`; once that inline comment is fixed and mapped explicitly, the shell carries no separate unresolved action.
+
 ## Merge Readiness
-- Review status: current-head bot feedback is fully dispositioned locally; push + final strict governance re-check remain to publish the latest cubic stale-anchor fix and resolve its thread.
-- Merge status: local `make verify` passed on this worktree; remaining step is publishing this mapping commit, refreshing the PR body mirror, and re-running strict PR governance against the pushed head.
+- Review status: the final cubic stale-anchor finding is dispositioned locally; push + strict governance re-check remain before resolving its thread on GitHub.
+- Merge status: local `make verify` already passed on this worktree; remaining steps are pushing the latest governance-only commits, refreshing the PR body mirror, and re-running strict PR readiness checks against the pushed head.
 - Current fix commits:
   - `5bfa8a45` — `docs(orchestration): realign design-agent chain`
   - `8d24505d` — `docs(review): add PR 1219 mapping artifact`
@@ -122,6 +133,7 @@ Reason: this cubic review shell only aggregates the inline stale-anchor finding 
   - `393619d4` — `docs(review): fix cubic evidence mapping`
   - `79f91baf` — `docs(review): map cubic evidence fix commit`
   - `fa8662bb` — `docs(review): refresh cubic anchors`
+  - `51b5db87` — `docs(review): stabilize cubic evidence anchors`
 - Current scope discipline:
   - docs/governance-only realignment bundle
   - no runtime, API, preview-renderer, or product-surface changes
