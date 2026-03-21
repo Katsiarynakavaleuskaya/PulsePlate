@@ -14,6 +14,8 @@
 - Status: ready for review / not ready to merge
 - Current packet commits:
   - `3cdb6e85` — `feat(orchestration): add judgment eval continuity`
+  - `2c5c0e7f` — `docs(pr): scaffold pr 1211 governance`
+  - `98f83935` — `fix(orchestration): ground judgment continuity eval`
 - Current scope discipline:
   - offline deterministic judgment eval only
   - no public route changes
