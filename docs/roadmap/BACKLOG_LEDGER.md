@@ -2021,11 +2021,11 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P2: GitHub Actions Node 24 migration and cache-warning cleanup
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2 (CI hygiene / advisory reliability)
-  - Target PR: #1206 (`fix(ci): migrate gha actions to node24`)
-  - Status: 📋 Planned
+  - Target PR: #1206 (`fix(ci): migrate gha actions to node24`), follow-up carryover after #1209 (`fix(ci): align frontend openapi sync with node 22`)
+  - Status: 📋 Planned / carryover active
   - Area: ci / github-actions / cache
   - Finding Type: advisory workflow debt
-  - Reason (EN): The #1204 merge cycle completed successfully, but current workflows still emit repeated Node.js 20 deprecation warnings and transient GHA cache warnings (`Cache service responded with 400`, `CreateCacheEntry ... 409 Conflict`, cache save/restore service noise). This is non-blocking today, but it should be cleaned up before GitHub forces JavaScript actions onto Node 24 by default.
+  - Reason (EN): The #1204 merge cycle completed successfully, but workflows still required follow-up cleanup around Node-runtime drift and transient GHA cache warnings (`Cache service responded with 400`, `CreateCacheEntry ... 409 Conflict`, cache save/restore service noise). PR #1209 intentionally delivers the narrower Node 22 frontend/OpenAPI-sync stopgap so current-head CI stays stable while the broader Node 24/cache hygiene lane remains open until all representative workflows are re-audited.
   - Links:
     - [`.github/workflows/build.yml`](../../.github/workflows/build.yml)
     - [`.github/workflows/ci.yml`](../../.github/workflows/ci.yml)
@@ -2033,6 +2033,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - [`.github/workflows/pr-coverage.yml`](../../.github/workflows/pr-coverage.yml)
     - [`.github/workflows/cd.yml`](../../.github/workflows/cd.yml)
     - [`docs/review/PR_1204_FIXED_MAPPING.md`](../review/PR_1204_FIXED_MAPPING.md)
+    - [`docs/review/PR_1209_FIXED_MAPPING.md`](../review/PR_1209_FIXED_MAPPING.md)
   - DoD:
     - Representative CI workflows use Node 24-compatible action SHAs where upgrades are available
     - Cache usage in `build.yml`, `ci.yml`, and related PR workflows is re-audited for avoidable restore/save warnings
