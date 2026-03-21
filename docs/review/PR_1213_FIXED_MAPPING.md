@@ -40,6 +40,16 @@ Reason: cubic identified an artifact-format defect on the prior head; the curren
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1213#discussion_r2969780102
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1213#pullrequestreview-3986212503
 
+Disposition: FIXED
+Commit: 4e75d023
+Evidence: `docs/analytics/METRICS_CATALOG.md:449`, `docs/analytics/METRICS_CATALOG.md:459`, `docs/insights/CBT_COACHING_PRODUCT_WAVE.md:210`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1213#discussion_r2969822156 -> 4e75d023
+
+Disposition: NOT-A-BUG
+Evidence: cubic review wrapper `#pullrequestreview-3986250499` only aggregates the inline metric-key finding fixed in `4e75d023`.
+Reason: No standalone defect remains once the child thread is dispositioned.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1213#pullrequestreview-3986250499
+
 ## Merge Readiness
 - [ ] All required checks are green on latest commit (no pending/rerun required)
 - [ ] No unresolved review threads
