@@ -311,6 +311,23 @@ def test_normalize_claim_evidence_records_rejects_non_mapping_member() -> None:
         normalize_claim_evidence_records(["not-a-record"])  # type: ignore[list-item]
 
 
+def test_normalize_claim_evidence_records_rejects_non_bool_conflict_flag() -> None:
+    """Normalization must preserve strict bool validation for conflict_flag."""
+
+    with pytest.raises(ValueError, match="conflict_flag must be a bool"):
+        normalize_claim_evidence_records(
+            [
+                {
+                    "claim_type": "recommendation",
+                    "support_status": "supported",
+                    "source_ids": ["marker:next_meal"],
+                    "evidence_mode": "direct_source",
+                    "conflict_flag": "false",
+                }
+            ]
+        )
+
+
 def test_validate_uncertainty_split_requires_all_fields() -> None:
     """Missing uncertainty fields must fail closed."""
 

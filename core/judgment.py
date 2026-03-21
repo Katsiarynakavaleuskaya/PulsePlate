@@ -252,11 +252,7 @@ def normalize_claim_evidence_records(
                     raw_record.get("source_ids", []),
                 ),
                 evidence_mode=str(raw_record.get("evidence_mode", "")),
-                conflict_flag=(
-                    bool(raw_record.get("conflict_flag", False))
-                    if isinstance(raw_record.get("conflict_flag", False), bool)
-                    else cast(bool, raw_record.get("conflict_flag"))
-                ),
+                conflict_flag=cast(bool, raw_record.get("conflict_flag", False)),
             )
         )
     return normalized_records
