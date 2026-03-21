@@ -227,7 +227,7 @@ icon-silhouette-check:
 ##        make design-execute SCREEN=ios.home
 ##        make design-verify
 
-.PHONY: design-validate design-execute design-verify design-list
+.PHONY: design-validate design-execute design-verify design-list design-preview
 
 ## List available screens for design execution
 design-list:
@@ -258,6 +258,16 @@ endif
 design-verify:
 	@echo "$(YELLOW)✅ Verifying all designs...$(NC)"
 	python3 scripts/design/verify_design.py --all
+
+## Emit deterministic HTML preview for one executed screen
+design-preview:
+ifndef SCREEN
+	@echo "$(RED)❌ Error: SCREEN not specified$(NC)"
+	@echo "Usage: make design-preview SCREEN=web.progress"
+	@exit 1
+endif
+	@echo "$(YELLOW)🖥️  Emitting HTML preview for $(SCREEN)...$(NC)"
+	python3 scripts/design/html_preview.py --screen $(SCREEN)
 
 ## Coverage HTML and open report (uses .coveragerc)
 cov-html: ## Generate HTML coverage and open in browser

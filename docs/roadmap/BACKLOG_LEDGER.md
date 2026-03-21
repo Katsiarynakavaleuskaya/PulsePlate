@@ -492,6 +492,50 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - If figma-manifest unification is chosen, the schema/version/validation owner is documented; if not chosen, docs explicitly keep it informational
     - Active design-system docs continue to reference one governance path only
 
+<a id="ledger-p1-design-agent-runtime-pr-chain"></a>
+- [ ] P1: Coordinator-led design-agent runtime PR chain (PR1-PR4)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (design-runtime productization and orchestration)
+  - Target PR: PR1 `worktree/design-agent-pr1-brainstorm` -> PR2 `worktree/design-agent-pr2-runtime` -> PR3 `worktree/design-agent-pr3-preview` -> PR4 `worktree/design-agent-pr4-creative-research`
+  - Status: 🚧 PR1 scaffold active
+  - Area: scripts / orchestration / design-runtime / docs
+  - Finding Type: initiative umbrella and sequencing contract
+  - Reason: PulsePlate already has a governed code-native design runtime, but the
+    next wave needs a coordinated PR chain so adaptive presentation semantics,
+    deterministic browser preview, and bounded creative research ship through
+    one repo-first contract instead of becoming ad hoc design-agent behavior.
+    This initiative explicitly keeps `/tokens -> vocabulary -> instruction
+    contract -> pulseplate_canvas_v1` as the canonical source path and requires
+    `bug-hunter` as a mandatory post-open fix lane before each PR is considered
+    review-ready.
+  - Links:
+    - `docs/design/DESIGN_AGENT_RUNTIME_PR_CHAIN.md`
+    - `docs/library/brainstorm/2026-03-21_design-agent-runtime-pr-chain.md`
+    - `docs/library/research/2026-03-21_design-agent-runtime-pr-chain_evidence.md`
+    - `docs/library/decisions/ADR_DESIGN_AGENT_RUNTIME_PR_CHAIN_2026-03-21.md`
+    - `docs/library/promotion/2026-03-21_design-agent-runtime-pr-chain_promotion-log.md`
+    - `docs/design/CODE_NATIVE_DESIGN_RUNTIME.md`
+    - `docs/runbooks/DESIGN_TOOLING_OPERATING_MODEL.md`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-design-execution-adapter-seam`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-design-layout-archetype-templates`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-screen-content-template-convergence`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-design-html-preview`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-design-prompt-canvas-compiler`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-design-tooling-phase2-env-api`
+  - DoD:
+    - PR1 publishes the brainstorm, synthesis, promotion, and backlog-link
+      artifact pack for the initiative
+    - PR2 adds additive `interaction_contract` semantics to instructions,
+      `pulseplate_canvas_v1`, adapter metadata, and verification with fail-closed validation
+    - PR3 adds an internal deterministic HTML preview lane that consumes
+      `pulseplate_canvas_v1` without introducing a second topology source
+    - PR4, if opened, is explicitly bounded by experimentation protocol and
+      immutable-oracle rules
+    - Every PR in the chain documents and runs the mandatory
+      `qa-engineer-agent -> bug-hunter` post-open review loop
+    - No PR in the chain introduces public API changes or live self-modifying
+      UI without a separate approved follow-up
+
 <a id="ledger-p1-design-execution-adapter-seam"></a>
 - [ ] P1: Design execution adapter seam promotion beyond local artifact lane
   - Owner: @katsiaryna_kavaleuskaya
