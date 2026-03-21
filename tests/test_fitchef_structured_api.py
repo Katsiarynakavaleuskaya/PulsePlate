@@ -120,6 +120,42 @@ class TestFitChefDistortionSimulatorRoute:
         assert response.status_code == 503
         assert _json_body(response) == {"detail": "FEATURE_FITCHEF_STRUCTURED_COACH is disabled"}
 
+    def test_execution_mode_misconfigured_returns_503(self) -> None:
+        """Invalid execution mode must map to the stable misconfiguration detail."""
+
+        self.monkeypatch.setenv("FITCHEF_STRUCTURED_COACH_EXECUTION_MODE", "not-a-real-mode")
+
+        response = self.client.post(
+            self.url,
+            json={
+                "situation": "I ate dessert after dinner",
+                "automatic_thought": "I ruined the whole day",
+                "emotion": "guilt",
+            },
+            headers=self.pro_headers,
+        )
+
+        assert response.status_code == 503
+        assert _json_body(response) == {"detail": "agent_execution_mode_misconfigured"}
+
+    def test_execution_mode_review_required_returns_503(self) -> None:
+        """Review-required mode must fail closed on the bounded PRO route."""
+
+        self.monkeypatch.setenv("FITCHEF_STRUCTURED_COACH_EXECUTION_MODE", "review-required")
+
+        response = self.client.post(
+            self.url,
+            json={
+                "situation": "I ate dessert after dinner",
+                "automatic_thought": "I ruined the whole day",
+                "emotion": "guilt",
+            },
+            headers=self.pro_headers,
+        )
+
+        assert response.status_code == 503
+        assert _json_body(response) == {"detail": "agent_execution_review_required"}
+
     def test_unsafe_input_rejected_before_runtime(self) -> None:
         """Unsafe agent input must be blocked before runtime delegation."""
 
@@ -592,6 +628,34 @@ class TestFitChefStructuredRuntimeCoverage:
 
         assert exc_info.value.status_code == 504
         assert exc_info.value.detail == "LLM provider call timed out"
+
+    @pytest.mark.asyncio
+    async def test_runtime_provider_import_error_returns_503_without_quota_debit(self) -> None:
+        """ImportError from provider resolution must map to the stable 503 detail."""
+
+        from app.services import fitchef_runtime
+
+        quota_calls: list[str] = []
+
+        self.monkeypatch.setattr(
+            "core.rag.vector_rag.retrieve_context_structured",
+            lambda *args, **kwargs: _make_rag_context(),
+        )
+        self.monkeypatch.setattr(
+            "app.services.fitchef_runtime.attempt_consume_llm_monthly_quota",
+            lambda *args, **kwargs: quota_calls.append("quota") or True,
+        )
+        self.monkeypatch.setattr(
+            "llm.get_provider",
+            lambda: (_ for _ in ()).throw(ImportError("provider missing")),
+        )
+
+        with pytest.raises(HTTPException) as exc_info:
+            await fitchef_runtime.run_distortion_simulator_task(self._distortion_task())
+
+        assert exc_info.value.status_code == 503
+        assert exc_info.value.detail == "LLM provider not available"
+        assert quota_calls == []
 
     @pytest.mark.asyncio
     async def test_runtime_generation_failure_returns_structured_unavailable(self) -> None:

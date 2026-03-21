@@ -106,6 +106,20 @@ def test_extract_json_payload_rejects_non_object_json() -> None:
         _extract_json_payload("[1, 2, 3]")
 
 
+def test_extract_json_payload_rejects_non_dict_decoder_output(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Embedded payload parsing should fail closed when the decoder does not return a dict."""
+
+    monkeypatch.setattr(
+        "core.insight.fitchef_companion.json.loads",
+        lambda _raw: ["not", "a", "dict"],
+    )
+
+    with pytest.raises(ValueError, match="JSON must be an object"):
+        _extract_json_payload('prefix {"candidate": 2} suffix')
+
+
 def test_normalize_structured_string_and_list_fail_closed() -> None:
     """Normalization helpers should degrade cleanly on invalid shapes."""
 
@@ -120,6 +134,12 @@ def test_normalize_distortion_labels_defaults_when_unknown() -> None:
 
     assert _normalize_distortion_labels(["mental filtering"]) == ["mental_filtering"]
     assert _normalize_distortion_labels(["unknown"]) == ["emotional_reasoning"]
+
+
+def test_normalize_distortion_labels_ignores_non_string_values() -> None:
+    """Non-string distortion label candidates must be ignored safely."""
+
+    assert _normalize_distortion_labels([None, "mental filtering", 7]) == ["mental_filtering"]
 
 
 @pytest.mark.parametrize(
@@ -139,6 +159,14 @@ def test_infer_distortion_labels_covers_core_branches(
     """Automatic thought inference should map to canonical distortion labels."""
 
     assert expected_label in _infer_distortion_labels(automatic_thought)
+
+
+def test_infer_distortion_labels_defaults_when_no_pattern_matches() -> None:
+    """Inference should fall back to the canonical default when no heuristic matches."""
+
+    assert _infer_distortion_labels("A plain observation with no strong cognitive marker.") == [
+        "emotional_reasoning"
+    ]
 
 
 @pytest.mark.parametrize(
