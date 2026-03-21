@@ -5,12 +5,22 @@
 - [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
-- No actionable review comments at PR open.
+
+Disposition: FIXED
+Commit: dc0f2d50
+Evidence: `docs/architecture/ADR_DOCKER_BUILD_PROVENANCE_WORKAROUND_2026-03-01.md:48`, `docs/architecture/ADR_DOCKER_BUILD_PROVENANCE_WORKAROUND_2026-03-01.md:51`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1204#discussion_r2968185814 -> dc0f2d50
+
+Disposition: NOT-A-BUG
+Evidence: `docs/review/PR_1204_FIXED_MAPPING.md:9`, `docs/review/PR_1204_FIXED_MAPPING.md:12`
+Reason: The review summary URL only aggregates the single inline CodeRabbit finding that is dispositioned separately in this artifact and does not add independent unresolved work on current head.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1204#pullrequestreview-3984316347
 
 ## Merge Readiness
 - Status: ready for review / not ready to merge.
 - Current fix commit:
   - `f739223f` — `fix(cd): stabilize gha cache for staging and production`
+  - `dc0f2d50` — `docs(architecture): correct cd evidence anchors`
 - Current scope discipline:
   - workflow-only CD cache/provenance stabilization
   - ADR sync for the temporary workaround scope
