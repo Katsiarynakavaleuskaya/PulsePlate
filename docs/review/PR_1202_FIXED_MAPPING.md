@@ -22,6 +22,7 @@ Disposition: FIXED
 Commit: 63c3d434
 Evidence: [tests/test_skill_router.py](../../tests/test_skill_router.py#L459) now asserts `docs/orchestration/` is part of `PRIVILEGED_SURFACE_PREFIXES`, covering the gap identified by Sourcery.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1202#pullrequestreview-3984243649 -> 63c3d434
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1202#discussion_r2968113499 -> 63c3d434
 
 Disposition: FIXED
 Commit: 63c3d434
@@ -40,7 +41,7 @@ Evidence: [AGENT_SKILL_ROUTING_POLICY.md](../orchestration/AGENT_SKILL_ROUTING_P
 
 Disposition: FIXED
 Commit: 0aa1a30c
-Evidence: [PR_1202_FIXED_MAPPING.md](./PR_1202_FIXED_MAPPING.md#L37) keeps all merge-readiness checkboxes unchecked until the final merge cycle, matching the repo governance contract.
+Evidence: [PR_1202_FIXED_MAPPING.md](./PR_1202_FIXED_MAPPING.md#L78) keeps all merge-readiness checkboxes unchecked until the final merge cycle, matching the repo governance contract.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1202#discussion_r2968130384 -> 0aa1a30c
 
 Disposition: FIXED

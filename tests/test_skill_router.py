@@ -461,6 +461,7 @@ def test_privileged_surface_parity_emits_stable_security_metadata(
 def test_privileged_surface_prefixes_stay_in_sync_with_policy_coverage() -> None:
     """Policy-critical privileged surface prefixes should remain explicit and finite."""
 
+    assert len(PRIVILEGED_SURFACE_PREFIXES) == len(set(PRIVILEGED_SURFACE_PREFIXES))
     assert set(PRIVILEGED_SURFACE_PREFIXES) == {
         ".github/workflows/",
         "ios/fastlane/",
