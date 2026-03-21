@@ -9,6 +9,11 @@ Disposition: FIXED
 Commit: see mapping entries below
 Evidence: `.github/workflows/ci.yml:134`, `.github/workflows/frontend-ci.yml:15`, `.github/workflows/accessibility.yml:1`, `.github/actions/npm-ci-with-retry/action.yml:1`, `frontend/package.json:29`, `frontend/package-lock.json:1`, `docs/dev/PLAYWRIGHT_E2E_RUNBOOK.md:40`, `frontend/AGENTS.md:8`, `scripts/frontend_npm.sh:4`, `Makefile:427`
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1209#pullrequestreview-3985902115 -> 5fa9db40
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1209#pullrequestreview-3985928654 -> 5c0c40bb
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1209#pullrequestreview-3985929753 -> 9d16d47d
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1209#pullrequestreview-3985943334 -> 9d16d47d
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1209#pullrequestreview-3985943493 -> 9d16d47d
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1209#discussion_r2969442865 -> 5fa9db40
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1209#discussion_r2969444773 -> eab0e344
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1209#discussion_r2969478121 -> 5c0c40bb
