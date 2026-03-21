@@ -7763,6 +7763,26 @@
               }
             },
             "description": "Validation Error"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentErrorResponse"
+                }
+              }
+            },
+            "description": "Apple receipt verification upstream error"
+          },
+          "504": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentErrorResponse"
+                }
+              }
+            },
+            "description": "Apple receipt verification timed out"
           }
         },
         "security": [
@@ -7779,7 +7799,7 @@
     },
     "/api/v1/pro/payments/activations/{activation_id}": {
       "get": {
-        "description": "Get persisted activation event by ID.",
+        "description": "Get current persisted entitlement view for an activation lineage.",
         "operationId": "get_subscription_activation_api_v1_pro_payments_activations__activation_id__get",
         "parameters": [
           {
