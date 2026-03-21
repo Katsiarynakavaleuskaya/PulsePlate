@@ -1,5 +1,6 @@
 import Combine
 import Foundation
+import OSLog
 
 struct SubscriptionErrorState: Equatable, Sendable {
     let message: String
@@ -89,6 +90,10 @@ final class SubscriptionManager: ObservableObject {
 
         return [fractionalFormatter, basicFormatter]
     }()
+    private static let logger = Logger(
+        subsystem: "PulsePlate",
+        category: "SubscriptionManager"
+    )
 
     @Published private(set) var products: [SubscriptionProduct] = []
     @Published private(set) var catalogState: ProductCatalogState = .idle
@@ -244,7 +249,19 @@ final class SubscriptionManager: ObservableObject {
             return
         }
 
-        guard let activationID = activationPointerStore.loadActivationID(), activationID.isEmpty == false else {
+        guard let rawActivationID = activationPointerStore.loadActivationID() else {
+            finishOperation(operation, token: token)
+            clearErrorState()
+            entitlement = nil
+            flowState = .idle
+            return
+        }
+
+        let storedActivationID: String
+        do {
+            storedActivationID = try validatedActivationID(rawActivationID)
+        } catch {
+            activationPointerStore.clearActivationID()
             finishOperation(operation, token: token)
             clearErrorState()
             entitlement = nil
@@ -257,7 +274,7 @@ final class SubscriptionManager: ObservableObject {
             clearErrorState()
             flowState = .refreshingEntitlement
             let activation = try await billingService.fetchActivationStatus(
-                activationID: activationID,
+                activationID: storedActivationID,
                 apiKey: apiKey
             )
 
@@ -343,6 +360,7 @@ final class SubscriptionManager: ObservableObject {
     private func validatedActivationID(_ rawValue: String) throws -> String {
         let normalizedValue = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
         guard normalizedValue.isEmpty == false else {
+            Self.logger.error("Subscription activation id validation failed: blank or whitespace-only value.")
             throw SubscriptionManagerError.missingActivationID
         }
         return normalizedValue
