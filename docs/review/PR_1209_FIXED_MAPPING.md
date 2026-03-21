@@ -5,7 +5,7 @@
 - [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
-No review threads yet; artifact initialized before first human/bot review wave.
+- No actionable review comments
 
 ## Merge Readiness
 - Review status: draft.
