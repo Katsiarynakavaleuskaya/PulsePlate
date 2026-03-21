@@ -17,7 +17,7 @@ Canonical funnel: **onboarding → paywall → conversion → retention**.
 | Conversion | Growth + Finance | Daily | `METRICS_CATALOG.md` (Trial → Paid conversion) |
 | Retention | Product + Data | Daily / Weekly | `METRICS_CATALOG.md` (Retention D7, Retention D30) |
 
-Event taxonomy (names, required fields): `METRICS_CATALOG.md` → "Event taxonomy (growth funnel)".
+Event taxonomy (names, required fields): `METRICS_CATALOG.md` → "Event taxonomy (growth funnel + coaching contract targets)".
 
 ---
 

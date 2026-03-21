@@ -478,10 +478,13 @@ Per offline replay run
 ## Event taxonomy (growth funnel + coaching)
 
 Canonical event families and payload contracts for the growth funnel
-(onboarding → paywall → conversion → retention) plus the coaching loop
-(start → structured reflection → next action → revisit). Runtime implementation:
-`frontend/src/lib/telemetry/eventRegistry.ts`. This section is the doc SoT for
-semantics; code must stay aligned.
+(onboarding → paywall → conversion → retention) plus the planned coaching loop
+contract targets (start → structured reflection → next action → revisit).
+Runtime implementation today remains limited to the growth-funnel registry in
+`frontend/src/lib/telemetry/eventRegistry.ts`; coaching events below stay
+contract-frozen until the registry ships in a runtime lane. This section is the
+doc SoT for semantics and planned names, but planned coaching events must not be
+treated as emitted runtime telemetry yet.
 
 ### Funnel stages and owners
 
@@ -491,7 +494,7 @@ semantics; code must stay aligned.
 | Paywall | Growth | Daily | paywall_viewed, paywall_cta_clicked, vip_paywall_* |
 | Conversion (trial) | Growth + Finance | Daily | trial_started |
 | Retention | Product + Data | Daily / Weekly | retention_heartbeat (d1/d7/d30) |
-| Coaching | Product + Data | Daily | coaching_session_started, coaching_reframe_completed, coaching_identity_map_completed, coaching_next_action_committed, coaching_revisit |
+| Coaching | Product + Data | Daily | planned: coaching_session_started, coaching_reframe_completed, coaching_identity_map_completed, coaching_next_action_committed, coaching_revisit |
 
 ### Growth funnel events (required fields)
 
@@ -503,11 +506,11 @@ semantics; code must stay aligned.
 | paywall_cta_clicked | source, ctaId, tierContext | CTA click for upgrade/trial |
 | trial_started | source, planType | User started trial |
 | retention_heartbeat | dayBucket (d1/d7/d30), source | Cohort activity signal |
-| coaching_session_started | scenario, source, variant, tier, sessionId | Coaching loop entry for one bounded surface |
-| coaching_reframe_completed | scenario, source, variant, tier, sessionId | Distortion Simulator completion signal |
-| coaching_identity_map_completed | scenario, source, variant, tier, sessionId | Identity Loop Mapper completion signal |
-| coaching_next_action_committed | scenario, source, variant, tier, sessionId, goalId? | Explicit next-step commitment after coaching |
-| coaching_revisit | scenario, source, variant, tier, sessionId | Return signal for coaching continuity |
+| coaching_session_started | scenario, source, variant, tier, sessionId | Planned coaching loop entry for one bounded surface |
+| coaching_reframe_completed | scenario, source, variant, tier, sessionId | Planned Distortion Simulator completion signal |
+| coaching_identity_map_completed | scenario, source, variant, tier, sessionId | Planned Identity Loop Mapper completion signal |
+| coaching_next_action_committed | scenario, source, variant, tier, sessionId, goalId? | Planned explicit next-step commitment after coaching |
+| coaching_revisit | scenario, source, variant, tier, sessionId | Planned return signal for coaching continuity |
 
 ### VIP / paywall UX events (required fields)
 

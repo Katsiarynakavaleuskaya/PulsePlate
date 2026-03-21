@@ -1,6 +1,6 @@
 # FitChef Structured Coach Contract
 
-**Status:** Contract freeze with first bounded runtime surfaces live
+**Status:** Contract freeze for first bounded runtime rollout targets
 **Date:** 2026-03-21
 **Owner:** @katsiaryna_kavaleuskaya
 
@@ -17,7 +17,7 @@ Identifier note:
 The current public mascot routes under `/api/v1/insight/fitchef*` remain live,
 canonical, and unmigrated. The structured coach family stays additive.
 
-As of `21 March 2026`, the first two bounded runtime surfaces are live:
+As of `21 March 2026`, the first two bounded runtime surfaces are contract-frozen rollout targets:
 
 - `POST /api/v1/pro/fitchef/explain`
 - `POST /api/v1/vip/fitchef/insight`

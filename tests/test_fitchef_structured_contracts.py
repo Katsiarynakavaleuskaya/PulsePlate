@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 from app.schemas.fitchef import (
     FitChefDistortionSimulatorInput,
     FitChefDistortionSimulatorResult,
@@ -163,3 +165,105 @@ def test_structured_fitchef_public_request_and_response_contracts() -> None:
     assert identity_request.trigger_context == "work runs late"
     assert distortion_response.model_dump()["scenario"] == "distortion_simulator"
     assert identity_response.model_dump()["scenario"] == "identity_loop_mapper"
+
+
+@pytest.mark.parametrize(
+    ("payload", "field_name"),
+    [
+        (
+            {
+                "situation": "   ",
+                "automatic_thought": "I ruined the whole day",
+                "emotion": "guilt",
+                "goal": "steady dinners",
+            },
+            "situation",
+        ),
+        (
+            {
+                "situation": "Dessert after dinner",
+                "automatic_thought": "   ",
+                "emotion": "guilt",
+                "goal": "steady dinners",
+            },
+            "automatic_thought",
+        ),
+        (
+            {
+                "situation": "Dessert after dinner",
+                "automatic_thought": "I ruined the whole day",
+                "emotion": "   ",
+                "goal": "steady dinners",
+            },
+            "emotion",
+        ),
+        (
+            {
+                "situation": "Dessert after dinner",
+                "automatic_thought": "I ruined the whole day",
+                "emotion": "guilt",
+                "goal": "   ",
+            },
+            "goal",
+        ),
+    ],
+)
+def test_distortion_simulator_request_rejects_blank_transport_fields(
+    payload: dict[str, str],
+    field_name: str,
+) -> None:
+    """Structured request DTO must fail closed on whitespace-only values."""
+
+    with pytest.raises(ValueError, match="value must not be blank"):
+        FitChefDistortionSimulatorRequest(**payload)
+
+
+@pytest.mark.parametrize(
+    ("payload", "field_name"),
+    [
+        (
+            {
+                "goal": "   ",
+                "recent_pattern": "I stop planning dinner after one hard evening",
+                "self_talk": "I am too inconsistent",
+                "trigger_context": "work runs late",
+            },
+            "goal",
+        ),
+        (
+            {
+                "goal": "steady dinners",
+                "recent_pattern": "   ",
+                "self_talk": "I am too inconsistent",
+                "trigger_context": "work runs late",
+            },
+            "recent_pattern",
+        ),
+        (
+            {
+                "goal": "steady dinners",
+                "recent_pattern": "I stop planning dinner after one hard evening",
+                "self_talk": "   ",
+                "trigger_context": "work runs late",
+            },
+            "self_talk",
+        ),
+        (
+            {
+                "goal": "steady dinners",
+                "recent_pattern": "I stop planning dinner after one hard evening",
+                "self_talk": "I am too inconsistent",
+                "trigger_context": "   ",
+            },
+            "trigger_context",
+        ),
+    ],
+)
+def test_identity_loop_request_rejects_blank_transport_fields(
+    payload: dict[str, str],
+    field_name: str,
+) -> None:
+    """Identity-loop DTO must reject whitespace-only transport strings."""
+
+    with pytest.raises(ValueError, match="value must not be blank"):
+        FitChefIdentityLoopMapperRequest(**payload)

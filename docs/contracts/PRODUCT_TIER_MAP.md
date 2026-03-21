@@ -113,10 +113,10 @@
 
 | Функция | Endpoint | Статус | Требует tier | Canonical reference |
 | --- | --- | --- | --- | --- |
-| FitChef explain | `/api/v1/pro/fitchef/explain` | ⚠️ flag | PRO | `app/routers/fitchef_structured.py` (`FEATURE_FITCHEF_STRUCTURED_COACH`) |
+| FitChef explain | `/api/v1/pro/fitchef/explain` | 🧭 contract-frozen | PRO | `docs/contracts/FITCHEF_STRUCTURED_COACH_CONTRACT.md` |
 | FitChef recommend | `/api/v1/pro/fitchef/recommend` | 🧭 contract-frozen | PRO | `docs/contracts/FITCHEF_STRUCTURED_COACH_CONTRACT.md` |
 
-> `POST /api/v1/pro/fitchef/explain` now ships the first bounded structured capability for the CBT Coaching Wave: `Distortion Simulator`.
+> `POST /api/v1/pro/fitchef/explain` remains the first bounded structured rollout target for the CBT Coaching Wave: `Distortion Simulator`.
 > `POST /api/v1/pro/fitchef/recommend` remains a contract-frozen follow-up for the structured next-step recommendation lane.
 
 ---
@@ -176,11 +176,11 @@
 
 | Функция | Endpoint | Статус | Требует tier | Canonical reference |
 | --- | --- | --- | --- | --- |
-| FitChef insight | `/api/v1/vip/fitchef/insight` | ⚠️ flag | VIP | `app/routers/fitchef_structured.py` (`FEATURE_FITCHEF_STRUCTURED_COACH`) |
+| FitChef insight | `/api/v1/vip/fitchef/insight` | 🧭 contract-frozen | VIP | `docs/contracts/FITCHEF_STRUCTURED_COACH_CONTRACT.md` |
 | FitChef chat | `/api/v1/vip/fitchef/chat` | 🧭 contract-frozen | VIP | `docs/contracts/FITCHEF_STRUCTURED_COACH_CONTRACT.md` |
 | FitChef week repair | `/api/v1/vip/fitchef/week-repair` | 🧭 contract-frozen | VIP | `docs/contracts/FITCHEF_STRUCTURED_COACH_CONTRACT.md` |
 
-> `POST /api/v1/vip/fitchef/insight` now ships the first bounded VIP structured capability for the CBT Coaching Wave: `Identity Loop Mapper`.
+> `POST /api/v1/vip/fitchef/insight` remains the first bounded VIP structured rollout target for the CBT Coaching Wave: `Identity Loop Mapper`.
 > `chat` and `week-repair` remain additive contract-frozen follow-ups; live `/api/v1/insight/fitchef*` family remains canonical and unmigrated.
 
 ---

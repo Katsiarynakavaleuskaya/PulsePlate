@@ -32,6 +32,20 @@ class FitChefDistortionSimulatorRequest(BaseModel):
     emotion: str = Field(..., min_length=1, max_length=120)
     goal: str | None = Field(default=None, max_length=200)
 
+    @field_validator("situation", "automatic_thought", "emotion", "goal")
+    @classmethod
+    def validate_not_blank(cls, value: str | None) -> str | None:
+        """RU: Отклоняем blank/whitespace значения после trim.
+        EN: Reject blank or whitespace-only values after stripping.
+        """
+
+        if value is None:
+            return None
+        stripped_value = value.strip()
+        if not stripped_value:
+            raise ValueError("value must not be blank")
+        return stripped_value
+
 
 class FitChefIdentityLoopMapperRequest(BaseModel):
     """Identity-loop mapper request payload."""
@@ -40,6 +54,20 @@ class FitChefIdentityLoopMapperRequest(BaseModel):
     recent_pattern: str = Field(..., min_length=1, max_length=500)
     self_talk: str = Field(..., min_length=1, max_length=500)
     trigger_context: str | None = Field(default=None, max_length=200)
+
+    @field_validator("goal", "recent_pattern", "self_talk", "trigger_context")
+    @classmethod
+    def validate_not_blank(cls, value: str | None) -> str | None:
+        """RU: Отклоняем blank/whitespace значения после trim.
+        EN: Reject blank or whitespace-only values after stripping.
+        """
+
+        if value is None:
+            return None
+        stripped_value = value.strip()
+        if not stripped_value:
+            raise ValueError("value must not be blank")
+        return stripped_value
 
 
 class FitChefSlipSupportRequest(BaseModel):

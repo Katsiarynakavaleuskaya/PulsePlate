@@ -47,13 +47,11 @@ These routes are the current canonical operator surface.
 | FitChef mascot insight | `/api/v1/insight/fitchef` | POST | VIP-only (`require_vip_tier()`) | Canonical FitChef mascot coaching route under the insight namespace; feature-gated by `FEATURE_FITCHEF_MASCOT` |
 | FitChef weekly reflection | `/api/v1/insight/fitchef/weekly-reflection` | POST | VIP-only (`require_vip_tier()`) | Canonical FitChef weekly reflection route under the insight namespace; feature-gated by `FEATURE_FITCHEF_MASCOT` |
 | FitChef slip support | `/api/v1/insight/fitchef/slip-support` | POST | VIP-only (`require_vip_tier()`) | Canonical FitChef slip-support route under the insight namespace; feature-gated by `FEATURE_FITCHEF_MASCOT` |
-| FitChef explain | `/api/v1/pro/fitchef/explain` | POST | PRO-only (`require_pro_tier()`) | Bounded structured coaching surface for Distortion Simulator; feature-gated by `FEATURE_FITCHEF_STRUCTURED_COACH` |
-| FitChef identity loop insight | `/api/v1/vip/fitchef/insight` | POST | VIP-only (`require_vip_tier()`) | Bounded structured coaching surface for Identity Loop Mapper; feature-gated by `FEATURE_FITCHEF_STRUCTURED_COACH` |
 
 FitChef initiative note:
 - The live mascot routes above remain canonical during the FitChef umbrella foundation and visual/App Store waves.
 - The live mascot routes above remain canonical after the structured-coach contract freeze as well; they are not migrated by that phase.
-- `POST /api/v1/pro/fitchef/explain` and `POST /api/v1/vip/fitchef/insight` are now live first bounded structured-coach surfaces.
+- `POST /api/v1/pro/fitchef/explain` and `POST /api/v1/vip/fitchef/insight` remain contract-frozen rollout targets in this lane; they are not promoted to canonical runtime until router registration and OpenAPI exposure ship.
 - Other structured-coach surfaces under `/api/v1/pro/fitchef/*` and `/api/v1/vip/fitchef/*` remain contract-frozen additive follow-ups.
 - Canonical reference: `docs/contracts/FITCHEF_INITIATIVE_FOUNDATION.md`.
 - Contract freeze reference: `docs/contracts/FITCHEF_STRUCTURED_COACH_CONTRACT.md`.
@@ -91,6 +89,9 @@ These routes remain for compatibility and migration. They must not be described 
 - `docker compose` v2 migration for repo command surfaces: `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-compose-v2-migration`
 - AI runtime extraction into a dedicated bounded context: `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-ai-bounded-context-extraction`
 - FitChef umbrella foundation and preserved live-canon policy: `docs/contracts/FITCHEF_INITIATIVE_FOUNDATION.md`
+- Structured coach rollout targets kept planned in this phase:
+  - `POST /api/v1/pro/fitchef/explain`
+  - `POST /api/v1/vip/fitchef/insight`
 
 ## Legacy Compatibility Guidance
 
