@@ -51,6 +51,23 @@ Evidence: `tests/test_judgment_eval.py:124`
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1211#discussion_r2969724361 -> 8cbaedde
 
 Disposition: NOT-A-BUG
+Evidence: `core/judgment_eval.py:270`, `docs/orchestration/contracts/JUDGMENT_EVAL_CONTRACT.md:126`
+Reason: `_history_turns()` intentionally strips only an exact trailing user echo of the current `prompt`; non-exact trailing user turns remain legitimate prior history, and failing closed on any near-match would reject valid replay transcripts.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1211#discussion_r2969729759
+
+Disposition: NOT-A-BUG
+Evidence: `core/judgment_eval.py:496`, `tests/test_judgment_eval_contract.py:299`
+Reason: `evaluate_fitchef_replay_case()` keeps the default `bundle_id` as an intentional convenience for direct single-case evaluation; pack-level callers already pass the validated bundle explicitly, and the direct-call contract test locks the standalone default behavior.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1211#discussion_r2969729760
+
+Disposition: FIXED
+Commit: d5c8747b
+Evidence: `core/judgment_eval.py:283`, `core/judgment_eval.py:520`, `docs/orchestration/contracts/JUDGMENT_EVAL_CONTRACT.md:126`, `tests/test_fitchef_judgment_continuity_replay.py:26`, `tests/test_judgment_eval_contract.py:473`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1211#discussion_r2969729763 -> d5c8747b
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1211#discussion_r2969729764 -> d5c8747b
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1211#discussion_r2969729766 -> d5c8747b
+
+Disposition: NOT-A-BUG
 Evidence: `core/judgment_eval.py:38`, `core/judgment_eval.py:269`, `tests/test_judgment_eval.py:48`
 Reason: Sourcery summary `3986040523` only aggregates the two inline findings above plus high-level wording about visible-history grounding and the bundle-id constant, both already covered by the mapped substantive fixes.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1211#pullrequestreview-3986040523
@@ -75,6 +92,16 @@ Evidence: `core/judgment_eval.py:269`, `tests/test_judgment_eval_contract.py:258
 Reason: Cubic summary `3986077347` only aggregates the trailing-user-prompt strip fix already mapped to the inline thread above.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1211#pullrequestreview-3986077347
 
+Disposition: FIXED
+Commit: 8cbaedde
+Evidence: `tests/test_judgment_eval.py:124`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1211#pullrequestreview-3986164124 -> 8cbaedde
+
+Disposition: NOT-A-BUG
+Evidence: `core/judgment_eval.py:270`, `core/judgment_eval.py:496`, `core/judgment_eval.py:520`, `docs/orchestration/contracts/JUDGMENT_EVAL_CONTRACT.md:126`, `tests/test_fitchef_judgment_continuity_replay.py:26`, `tests/test_judgment_eval_contract.py:473`
+Reason: CodeRabbit summary `3986167821` only aggregates the five inline findings dispositioned immediately above in this artifact: two `NOT-A-BUG` clarifications on history boundary and explicit bundle passing, plus three `FIXED` items for direct-eval fail-closed continuity history, docs contract clarification, and duplicate `case_id` hardening in replay tests.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1211#pullrequestreview-3986167821
+
 ## Merge Readiness
 
 - Status: ready for review / not ready to merge
@@ -86,6 +113,8 @@ Reason: Cubic summary `3986077347` only aggregates the trailing-user-prompt stri
   - `4ad97b00` — `fix(orchestration): close fitchef replay review gaps`
   - `1218a5e5` — `fix(orchestration): mark continuity evaluation explicitly`
   - `8cbaedde` — `test(orchestration): assert clean eval stderr`
+  - `f1c4e103` — `docs(pr): refresh pr 1211 fixed mapping`
+  - `d5c8747b` — `fix(orchestration): harden continuity history checks`
 - Current scope discipline:
   - offline deterministic judgment eval only
   - no public route changes
