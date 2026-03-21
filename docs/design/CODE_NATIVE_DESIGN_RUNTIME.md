@@ -32,6 +32,17 @@ similar tools as the primary runtime dependency.
   the governed instruction contract. Evidence:
   `scripts/design/canvas_artifact.py:125`,
   `scripts/design/execution_adapters.py:92`
+- `interaction_contract` is an additive governed presentation contract carried
+  from instruction payload into `pulseplate_canvas_v1` without changing domain
+  logic or topology ownership. Evidence:
+  `scripts/design/generate_figma_instructions.py:74`,
+  `scripts/design/canvas_artifact.py:161`,
+  `scripts/design/contracts.py:185`
+- HTML/browser preview is a derived review lane generated from
+  `pulseplate_canvas_v1`; it is not a second topology source. Evidence:
+  `scripts/design/html_preview.py:1`,
+  `scripts/design/execute_design.py:159`,
+  `scripts/design/verify_design.py:101`
 
 ## 3. Runtime model
 
@@ -57,6 +68,8 @@ The runtime should be able to materialize:
 - `layout_archetype`
 - `sections`
 - `component_hierarchy`
+- `interaction_contract` with governed adaptive presentation semantics for
+  copy/layout/modality/order of disclosure only
 - deterministic `render_ops` derived from the instruction contract. Evidence:
   `scripts/design/canvas_artifact.py:96`,
   `scripts/design/contracts.py:642`
@@ -88,8 +101,10 @@ Required artifact fields:
   `scripts/design/contracts.py:84`, `scripts/design/contracts.py:553`
 - `nodes`. Evidence: `scripts/design/canvas_artifact.py:52`,
   `scripts/design/contracts.py:85`, `scripts/design/contracts.py:553`
-- `render_ops`. Evidence: `scripts/design/canvas_artifact.py:53`,
+- `interaction_contract`. Evidence: `scripts/design/canvas_artifact.py:53`,
   `scripts/design/contracts.py:86`, `scripts/design/contracts.py:553`
+- `render_ops`. Evidence: `scripts/design/canvas_artifact.py:53`,
+  `scripts/design/contracts.py:87`, `scripts/design/contracts.py:553`
 
 Manifest-safe metadata for `code_native_canvas` must also record:
 
@@ -101,17 +116,23 @@ Manifest-safe metadata for `code_native_canvas` must also record:
   `scripts/design/execute_design.py:130`
 - `component_count`. Evidence: `scripts/design/execution_adapters.py:107`,
   `scripts/design/execute_design.py:132`
+- `interaction_contract`. Evidence: `scripts/design/execute_design.py:145`,
+  `scripts/design/verify_design.py:308`
+- `preview_artifact` when HTML preview generation is enabled. Evidence:
+  `scripts/design/execute_design.py:149`,
+  `scripts/design/verify_design.py:317`
 
 ## 5. Non-goals for current phase
 
 - no live external design-tool execution
-- no browser-dependent rendering pipeline
+- no public or browser-authoritative rendering pipeline
 - no second hidden source of truth outside the repo
 
 ## 6. Security Notes
 
 - external design tools remain optional reference lanes only
 - runtime adapters must fail closed on unknown adapter names
+- interaction/adaptation semantics must fail closed on unknown values
 - execution should remain deterministic and local-only until explicitly promoted
 
 ## 7. Marketing & GTM

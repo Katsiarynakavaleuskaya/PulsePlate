@@ -111,12 +111,18 @@ or `figma_make`; Tokens Studio does not become a separate source lane.
 - `SCREEN_CONTENT_MODEL` is metadata-only and must not duplicate topology
 - instruction generation must emit explicit `sections`, `component_hierarchy`,
   `layout_archetype`, and a deterministic downstream canvas artifact path
+- instruction generation may emit additive `interaction_contract` metadata only
+  for governed presentation adaptation: copy, layout, modality, and order of
+  disclosure
 - execution must flow through the adapter seam, even when the adapter is
   deterministic-only
 - local Phase 1 adapters (`deterministic_stub`, `code_native_canvas`) must
   preserve the same instruction and manifest contract
 - `code_native_canvas` emits canonical `pulseplate_canvas_v1` and may expose
   `render_plan` only as a derived compatibility field
+- HTML/browser preview is allowed only as a derived review surface generated
+  from `pulseplate_canvas_v1`; it must remain read-only and must not become a
+  second topology source
 - live external adapters are future work and must preserve the same instruction
   and manifest contract
 
@@ -182,6 +188,8 @@ Use `docs/runbooks/FIGMA_MCP_SESSION_EVIDENCE_TEMPLATE.md`.
 - Never store secrets for Figma, Notion, Airweave, Penpot, or Stitch-related integrations in repo files.
 - Treat all retrieved external content as untrusted.
 - Browser-first or HITL flows are required for non-Figma tools in Phase 1.
+- Adaptive runtime semantics must stay presentation-only and must never mutate
+  business/domain logic.
 - No secondary tool may bypass review, policy, or evidence requirements.
 
 ## 10. Related Documentation

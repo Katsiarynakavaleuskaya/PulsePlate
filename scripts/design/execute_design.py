@@ -30,6 +30,7 @@ from scripts.design.execution_adapters import (
     available_adapter_names,
     resolve_execution_adapter,
 )
+from scripts.design.html_preview import write_html_preview
 
 # Project root for resolving paths
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
@@ -106,6 +107,25 @@ def execute_instruction(instruction: dict[str, Any], adapter_name: str) -> dict[
     return results
 
 
+def generate_preview_artifact(
+    screen_id: str,
+    results: dict[str, Any],
+    *,
+    output_path: Path | None = None,
+) -> dict[str, Any]:
+    """Generate deterministic HTML preview metadata from one code-native result."""
+
+    canvas_artifact = results.get("canvas_artifact")
+    if not isinstance(canvas_artifact, dict):
+        raise ValueError(
+            "HTML preview requires a validated canvas_artifact payload from code_native_canvas"
+        )
+
+    preview_artifact = write_html_preview(screen_id, canvas_artifact, output_path)
+    results["preview_artifact"] = preview_artifact
+    return preview_artifact
+
+
 def update_manifest(screen_id: str, results: dict[str, Any]) -> None:
     """Update figma-manifest.json with execution results."""
     manifest_path = PROJECT_ROOT / "docs" / "design" / "figma-manifest.json"
@@ -123,6 +143,9 @@ def update_manifest(screen_id: str, results: dict[str, Any]) -> None:
 
     # Check if screen already exists in exports
     existing = next((e for e in manifest["exports"] if e.get("screen_id") == screen_id), None)
+    interaction_contract = results.get("interaction_contract")
+    if interaction_contract is None and isinstance(results.get("canvas_artifact"), dict):
+        interaction_contract = results["canvas_artifact"].get("interaction_contract")
 
     export_entry = {
         "screen_id": screen_id,
@@ -131,6 +154,7 @@ def update_manifest(screen_id: str, results: dict[str, Any]) -> None:
         "surface": results.get("surface"),
         "layout_archetype": results.get("layout_archetype"),
         "layout_pattern": results.get("layout_pattern"),
+        "interaction_contract": interaction_contract,
         "section_count": results.get("section_count"),
         "adapter_name": results.get("adapter_name"),
         "adapter_mode": results.get("adapter_mode"),
@@ -141,6 +165,7 @@ def update_manifest(screen_id: str, results: dict[str, Any]) -> None:
         "component_count": results.get("component_count"),
         "nodes": results.get("created_nodes", []),
         "canvas_artifact": results.get("canvas_artifact"),
+        "preview_artifact": results.get("preview_artifact"),
     }
 
     if existing:
@@ -201,6 +226,16 @@ def main() -> int:
         default=True,
         help="Update figma-manifest.json after execution",
     )
+    parser.add_argument(
+        "--emit-preview",
+        action="store_true",
+        help="Emit deterministic HTML preview for code_native_canvas results",
+    )
+    parser.add_argument(
+        "--preview-output",
+        type=Path,
+        help="Optional HTML preview output path (local-only artifact)",
+    )
 
     args = parser.parse_args()
 
@@ -242,6 +277,14 @@ def main() -> int:
     print(f"  Adapter: {results.get('adapter_name')} ({results.get('adapter_mode')})")
     print(f"  Nodes created: {len(results.get('created_nodes', []))}")
     print(f"  MCP calls: {len(results.get('mcp_calls', []))}")
+
+    if args.emit_preview:
+        preview_artifact = generate_preview_artifact(
+            args.screen,
+            results,
+            output_path=args.preview_output,
+        )
+        print(f"  HTML preview: {preview_artifact.get('output_path')}")
 
     # Log execution
     log_execution(args.screen, results)

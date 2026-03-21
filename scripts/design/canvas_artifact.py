@@ -38,6 +38,14 @@ class CanvasRenderOp(TypedDict):
     states: list[str]
 
 
+class InteractionContract(TypedDict):
+    interaction_mode: str
+    checkpoint_policy: str
+    adaptation_scope: list[str]
+    modality_hints: list[str]
+    explanation_strategy: str
+
+
 class PulsePlateCanvasArtifact(TypedDict):
     canvas_version: str
     screen_id: str
@@ -48,6 +56,7 @@ class PulsePlateCanvasArtifact(TypedDict):
     dimensions: dict[str, int]
     background_token: str
     token_constraints: list[str]
+    interaction_contract: InteractionContract
     sections: list[CanvasSection]
     nodes: list[CanvasNode]
     render_ops: list[CanvasRenderOp]
@@ -60,6 +69,21 @@ def _normalize_token_constraints(raw_value: Any) -> list[str]:
         return []
 
     return [str(token) for token in raw_value]
+
+
+def _build_interaction_contract(instruction: dict[str, Any]) -> InteractionContract:
+    interaction_contract = cast(dict[str, Any], instruction["interaction_contract"])
+    return {
+        "interaction_mode": str(interaction_contract["interaction_mode"]),
+        "checkpoint_policy": str(interaction_contract["checkpoint_policy"]),
+        "adaptation_scope": [
+            str(adaptation_scope) for adaptation_scope in interaction_contract["adaptation_scope"]
+        ],
+        "modality_hints": [
+            str(modality_hint) for modality_hint in interaction_contract["modality_hints"]
+        ],
+        "explanation_strategy": str(interaction_contract["explanation_strategy"]),
+    }
 
 
 def _build_sections(instruction: dict[str, Any]) -> list[CanvasSection]:
@@ -135,6 +159,7 @@ def build_canvas_artifact(instruction: dict[str, Any]) -> PulsePlateCanvasArtifa
         "dimensions": cast(dict[str, int], instruction["dimensions"]),
         "background_token": str(instruction["background_token"]),
         "token_constraints": _normalize_token_constraints(instruction.get("token_constraints", [])),
+        "interaction_contract": _build_interaction_contract(instruction),
         "sections": _build_sections(instruction),
         "nodes": _build_nodes(instruction),
         "render_ops": _build_render_ops(instruction),

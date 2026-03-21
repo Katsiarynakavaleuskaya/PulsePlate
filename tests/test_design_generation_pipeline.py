@@ -8,7 +8,7 @@ import pytest
 
 from scripts.design.canvas_artifact import CANVAS_ARTIFACT_VERSION, build_canvas_artifact
 from scripts.design.contracts import validate_canvas_artifact_contract
-from scripts.design import execute_design, generate_figma_instructions, verify_design
+from scripts.design import execute_design, generate_figma_instructions, html_preview, verify_design
 from scripts.design.layout_templates import build_reusable_layout_template
 
 
@@ -30,6 +30,8 @@ def test_generated_instruction_includes_code_first_contract_fields() -> None:
     assert payload["component_hierarchy"][0]["component_id"] == "ios-home-shell"
     assert payload["component_hierarchy"][0]["hierarchy_level"] == 0
     assert "token_constraints" in payload
+    assert payload["interaction_contract"]["interaction_mode"] == "delegate_with_checkpoints"
+    assert payload["interaction_contract"]["checkpoint_policy"] == "critical_actions_only"
     assert payload["context_version"] == "code-first-ui-v1"
     assert payload["instructions"][0]["type"] == "create_frame"
     assert any(
@@ -235,6 +237,7 @@ def test_screen_content_model_keeps_metadata_only_authoring_path() -> None:
     assert "static_component_tree" not in content_model
     assert content_model["layout_template_key"] == "dashboard_recovery"
     assert content_model["cta_parent_id"] == "web-progress-header-utilities"
+    assert content_model["interaction_contract"]["interaction_mode"] == "review_and_inspect"
 
 
 def test_canvas_artifact_matches_instruction_contract() -> None:
@@ -246,9 +249,23 @@ def test_canvas_artifact_matches_instruction_contract() -> None:
     errors = validate_canvas_artifact_contract(canvas_artifact, payload)
 
     assert canvas_artifact["canvas_version"] == CANVAS_ARTIFACT_VERSION
+    assert canvas_artifact["interaction_contract"] == payload["interaction_contract"]
     assert len(canvas_artifact["nodes"]) == len(payload["component_hierarchy"])
     assert len(canvas_artifact["render_ops"]) == len(payload["instructions"])
     assert not errors
+
+
+def test_validate_governance_rejects_unknown_interaction_contract_value() -> None:
+    payload = generate_figma_instructions.instruction_to_dict(
+        generate_figma_instructions.generate_screen_instruction("web.home")
+    )
+    payload["interaction_contract"]["interaction_mode"] = "live_mutation"
+
+    errors = execute_design.validate_governance(payload)
+
+    assert any(
+        "interaction_contract.interaction_mode unsupported value" in error for error in errors
+    )
 
 
 def test_build_canvas_artifact_does_not_split_string_token_constraints() -> None:
@@ -355,6 +372,33 @@ def test_validate_canvas_artifact_rejects_render_op_name_drift() -> None:
     assert "canvas render_ops do not match instruction operations" in errors
 
 
+def test_validate_canvas_artifact_rejects_interaction_contract_drift() -> None:
+    payload = generate_figma_instructions.instruction_to_dict(
+        generate_figma_instructions.generate_screen_instruction("web.progress")
+    )
+    canvas_artifact = build_canvas_artifact(payload)
+    canvas_artifact["interaction_contract"]["checkpoint_policy"] = "critical_actions_only"
+
+    errors = validate_canvas_artifact_contract(canvas_artifact, payload)
+
+    assert any("canvas interaction_contract mismatch" in error for error in errors)
+
+
+def test_render_html_preview_is_deterministic() -> None:
+    payload = generate_figma_instructions.instruction_to_dict(
+        generate_figma_instructions.generate_screen_instruction("web.progress")
+    )
+    canvas_artifact = build_canvas_artifact(payload)
+
+    first_preview = html_preview.render_html_preview(canvas_artifact)
+    second_preview = html_preview.render_html_preview(canvas_artifact)
+
+    assert first_preview == second_preview
+    assert 'data-preview-version="pulseplate_html_preview_v1"' in first_preview
+    assert "dashboard-detail-stack" in first_preview
+    assert "review_and_inspect" in first_preview
+
+
 def test_verify_screen_distinguishes_not_executed(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -438,6 +482,7 @@ def test_update_manifest_records_canvas_artifact_metadata(
     assert export["artifact_version"] == CANVAS_ARTIFACT_VERSION
     assert export["component_count"] == len(payload["component_hierarchy"])
     assert export["canvas_artifact"]["canvas_version"] == CANVAS_ARTIFACT_VERSION
+    assert export["interaction_contract"]["interaction_mode"] == "review_and_inspect"
 
 
 def test_verify_screen_accepts_code_native_canvas_artifact(
@@ -479,6 +524,91 @@ def test_verify_screen_accepts_code_native_canvas_artifact(
     assert verification["status"] == "warn"
     assert any(
         check["check"] == "canvas_artifact" and check["status"] == "pass"
+        for check in verification["checks"]
+    )
+
+
+def test_generate_preview_artifact_updates_manifest(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    manifest_path = tmp_path / "docs" / "design" / "figma-manifest.json"
+    manifest_path.parent.mkdir(parents=True)
+    manifest_path.write_text(
+        json.dumps({"manifest_version": "1.0", "exports": []}),
+        encoding="utf-8",
+    )
+
+    payload = generate_figma_instructions.instruction_to_dict(
+        generate_figma_instructions.generate_screen_instruction("web.progress")
+    )
+    result = execute_design.execute_instruction(payload, "code_native_canvas")
+    preview_output = tmp_path / "artifacts" / "design_previews" / "web_progress.html"
+
+    execute_design.generate_preview_artifact(
+        "web.progress",
+        result,
+        output_path=preview_output,
+    )
+
+    monkeypatch.setattr(execute_design, "PROJECT_ROOT", tmp_path)
+    execute_design.update_manifest("web.progress", result)
+
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    export = manifest["exports"][0]
+    assert export["preview_artifact"]["preview_version"] == "pulseplate_html_preview_v1"
+    assert export["preview_artifact"]["output_path"] == str(preview_output)
+    assert preview_output.exists()
+
+
+def test_verify_screen_accepts_preview_artifact_metadata(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    instruction_path = tmp_path / "scripts" / "design" / "instructions" / "web_progress.json"
+    instruction_path.parent.mkdir(parents=True)
+    payload = generate_figma_instructions.instruction_to_dict(
+        generate_figma_instructions.generate_screen_instruction("web.progress")
+    )
+    instruction_path.write_text(json.dumps(payload), encoding="utf-8")
+
+    result = execute_design.execute_instruction(payload, "code_native_canvas")
+    preview_output = tmp_path / "artifacts" / "design_previews" / "web_progress.html"
+    execute_design.generate_preview_artifact(
+        "web.progress",
+        result,
+        output_path=preview_output,
+    )
+
+    manifest = {
+        "exports": [
+            {
+                "screen_id": "web.progress",
+                "status": result["status"],
+                "surface": result["surface"],
+                "layout_archetype": result["layout_archetype"],
+                "layout_pattern": result["layout_pattern"],
+                "interaction_contract": result["interaction_contract"],
+                "section_count": result["section_count"],
+                "adapter_name": result["adapter_name"],
+                "adapter_mode": result["adapter_mode"],
+                "artifact_type": result["artifact_type"],
+                "artifact_version": result["artifact_version"],
+                "node_count": len(result["created_nodes"]),
+                "component_count": result["component_count"],
+                "nodes": result["created_nodes"],
+                "canvas_artifact": result["canvas_artifact"],
+                "preview_artifact": result["preview_artifact"],
+            }
+        ]
+    }
+
+    monkeypatch.setattr(verify_design, "PROJECT_ROOT", tmp_path)
+    verification = verify_design.verify_screen("web.progress", manifest)
+
+    assert verification["status"] == "warn"
+    assert any(
+        check["check"] == "preview_artifact" and check["status"] == "pass"
         for check in verification["checks"]
     )
 

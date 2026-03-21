@@ -21,6 +21,12 @@ python scripts/design/execute_design.py --screen ios.home --validate-only
 # Execute a design
 python scripts/design/execute_design.py --screen ios.home --execute
 
+# Execute and emit governed HTML preview from pulseplate_canvas_v1
+python scripts/design/execute_design.py --screen ios.home --execute --emit-preview
+
+# Or render preview directly from manifest/canvas artifact
+python scripts/design/html_preview.py --screen ios.home
+
 # Verify all designs
 python scripts/design/verify_design.py --all
 ```
@@ -125,6 +131,9 @@ python scripts/design/execute_design.py --screen <screen_id> --execute
 # Verify results
 python scripts/design/verify_design.py --screen <screen_id>
 
+# Generate or refresh HTML preview
+python scripts/design/execute_design.py --screen <screen_id> --execute --emit-preview
+
 # Check manifest
 cat docs/design/figma-manifest.json | jq '.exports'
 
@@ -152,6 +161,7 @@ scripts/design/instructions/
 scripts/design/
 ├── generate_figma_instructions.py  # Generate instructions from docs
 ├── execute_design.py               # Execute via MCP
+├── html_preview.py                 # Derived HTML/browser preview lane
 └── verify_design.py                # Verify created designs
 ```
 
@@ -197,6 +207,9 @@ make design-execute SCREEN=ios.home
 
 # Verify all designs
 make design-verify
+
+# Render derived HTML preview
+make design-preview SCREEN=ios.home
 ```
 
 ## Canonical References
@@ -224,5 +237,6 @@ Recommended order:
 - Actual MCP execution requires Figma MCP connection (see MCP_SETUP_GUIDE.md)
 - Without MCP connection, execution is simulated
 - Manifest tracks both simulated and actual executions
+- HTML preview is derived from `pulseplate_canvas_v1` and remains read-only
 - Audit logs preserved in `docs/figma/execution_logs/`
 <!-- markdownlint-enable MD013 -->
