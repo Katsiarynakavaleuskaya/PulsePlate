@@ -424,7 +424,7 @@ frontend-install: ## Install frontend dependencies
 		&& cmp -s frontend/package-lock.json frontend/node_modules/.package-lock.json; then \
 		echo "Frontend dependencies already installed"; \
 	else \
-		./scripts/frontend_npm.sh --prefix frontend install --no-audit --no-fund && \
+		./scripts/frontend_npm.sh --prefix frontend ci --no-audit --no-fund && \
 		cp frontend/package-lock.json frontend/node_modules/.package-lock.json; \
 	fi
 

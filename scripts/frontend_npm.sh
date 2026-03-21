@@ -3,19 +3,23 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 EXPECTED_NODE_VERSION="$(tr -d '[:space:]' < "${REPO_ROOT}/.nvmrc")"
-EXPECTED_NODE_MAJOR="${EXPECTED_NODE_VERSION%%.*}"
 CURRENT_NODE_VERSION="$(node -p 'process.versions.node')"
-CURRENT_NODE_MAJOR="${CURRENT_NODE_VERSION%%.*}"
 
-if [[ "${CURRENT_NODE_MAJOR}" == "${EXPECTED_NODE_MAJOR}" ]]; then
+if [[ "${CURRENT_NODE_VERSION}" == "${EXPECTED_NODE_VERSION}" ]]; then
   exec npm "$@"
 fi
 
-NPM_ROOT="$(npm root -g 2>/dev/null)"
+NPM_EXECUTABLE="$(command -v npm || true)"
+if [[ -z "${NPM_EXECUTABLE}" ]]; then
+  echo "npm is required on PATH to run frontend commands." >&2
+  exit 1
+fi
+
+NPM_ROOT="$(npm root -g 2>/dev/null || true)"
 NPM_CLI_JS="${NPM_ROOT}/npm/bin/npm-cli.js"
 
-if [[ ! -f "${NPM_CLI_JS}" ]]; then
-  echo "Unable to locate npm-cli.js for frontend Node runtime bootstrap." >&2
+if [[ -z "${NPM_ROOT}" || ! -f "${NPM_CLI_JS}" ]]; then
+  echo "Unable to locate npm-cli.js via 'npm root -g'; ensure npm is installed correctly." >&2
   exit 1
 fi
 

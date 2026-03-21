@@ -12,9 +12,19 @@ runs:
   steps:
     - name: Run npm ci with retry
       shell: bash
+      env:
+        WORKING_DIRECTORY: ${{ inputs.working-directory }}
       run: |
         set -euo pipefail
-        cd "${{ inputs.working-directory }}"
+        case "${WORKING_DIRECTORY}" in
+          "." | "frontend" | frontend/*) ;;
+          *)
+            echo "Unsupported working-directory '${WORKING_DIRECTORY}' for npm-ci-with-retry." >&2
+            exit 1
+            ;;
+        esac
+
+        cd "${WORKING_DIRECTORY}"
         for attempt in 1 2 3; do
           npm ci \
             --fetch-retries=5 \
