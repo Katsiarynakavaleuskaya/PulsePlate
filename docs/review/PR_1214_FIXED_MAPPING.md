@@ -43,6 +43,16 @@ Evidence: The cubic review wrapper `#pullrequestreview-3986212569` only aggregat
 Reason: No standalone defect remains once the child threads are dispositioned.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1214#pullrequestreview-3986212569
 
+Disposition: FIXED
+Commit: 355f4505
+Evidence: `docs/analytics/DASHBOARD_BASELINE_REQUIREMENTS.md:42`, `docs/analytics/METRICS_CATALOG.md:478`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1214#discussion_r2969901875 -> 355f4505
+
+Disposition: NOT-A-BUG
+Evidence: cubic found the wrapper `#pullrequestreview-3986338700`, but it only aggregates the single taxonomy-title mismatch fixed in `355f4505`.
+Reason: No standalone defect remains once the mapped inline thread is fixed.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1214#pullrequestreview-3986338700
+
 ## Merge Readiness
 - [ ] All required checks are green on latest commit (no pending/rerun required)
 - [ ] No unresolved review threads
