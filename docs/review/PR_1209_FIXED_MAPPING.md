@@ -5,7 +5,10 @@
 - [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
-### FIXED
+Disposition: FIXED
+Commit: see mapping entries below
+Evidence: `.github/workflows/ci.yml:134`, `.github/workflows/frontend-ci.yml:15`, `.github/workflows/accessibility.yml:1`, `.github/actions/npm-ci-with-retry/action.yml:1`, `frontend/package.json:29`, `frontend/package-lock.json:1`, `docs/dev/PLAYWRIGHT_E2E_RUNBOOK.md:40`, `frontend/AGENTS.md:8`, `scripts/frontend_npm.sh:4`, `Makefile:427`
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1209#discussion_r2969442865 -> 5fa9db40
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1209#discussion_r2969444773 -> eab0e344
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1209#discussion_r2969478121 -> 5c0c40bb
@@ -14,10 +17,10 @@
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1209#discussion_r2969478130 -> 5c0c40bb
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1209#discussion_r2969494692 -> 9d16d47d
 
-### NOT-A-BUG
+Disposition: NOT-A-BUG
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1209#discussion_r2969494473
-  Evidence: [scripts/frontend_npm.sh](/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/worktrees/ci_main_openapi_sync_node22/scripts/frontend_npm.sh#L4), [scripts/frontend_npm.sh](/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/worktrees/ci_main_openapi_sync_node22/scripts/frontend_npm.sh#L27), [Makefile](/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/worktrees/ci_main_openapi_sync_node22/Makefile#L420), [Makefile](/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/worktrees/ci_main_openapi_sync_node22/Makefile#L427); local repro on 21 March 2026: `node -p 'process.versions.node'` => `25.6.1`, `npx -y node@22.22.1 -p 'process.versions.node'` => `22.22.1`, `./scripts/frontend_npm.sh --version` => `11.9.0`.
-  Reason: CodeRabbit's claim that `npx -y node@<version>` cannot switch the runtime is not reproduced in this repository's environment. The current helper executes npm-cli.js under the exact `.nvmrc` runtime, and CodeRabbit did not re-raise this issue on current head `9d16d47d22fe0f439a09725c895dd91ce6ef1ff5`.
+Reason: CodeRabbit's claim that `npx -y node@<version>` cannot switch the runtime is not reproduced in this repository environment.
+Evidence: `scripts/frontend_npm.sh:4-27`, `Makefile:420-428`; local repro on 21 March 2026 showed `node -p 'process.versions.node'` => `25.6.1`, `npx -y node@22.22.1 -p 'process.versions.node'` => `22.22.1`, and `./scripts/frontend_npm.sh --version` => `11.9.0`.
 
 ## Merge Readiness
 - Review status: draft.
