@@ -496,8 +496,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Coordinator-led design-agent runtime PR chain (PR1-PR4)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (design-runtime productization and orchestration)
-  - Target PR: PR1 `worktree/design-agent-pr1-brainstorm` -> PR2 `worktree/design-agent-pr2-runtime` -> PR3 `worktree/design-agent-pr3-preview` -> PR4 `worktree/design-agent-pr4-creative-research`
-  - Status: 🚧 PR1 scaffold active
+  - Target PR: bridge `worktree/design-agent-pr-chain-realignment` -> reserved `design-agent PR4 worktree/design-agent-pr4-creative-research`
+  - Status: 🚧 Baseline PR1-PR3 realized in `main`; realignment bridge pending
   - Area: scripts / orchestration / design-runtime / docs
   - Finding Type: initiative umbrella and sequencing contract
   - Reason: PulsePlate already has a governed code-native design runtime, but the
@@ -514,6 +514,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `docs/library/research/2026-03-21_design-agent-runtime-pr-chain_evidence.md`
     - `docs/library/decisions/ADR_DESIGN_AGENT_RUNTIME_PR_CHAIN_2026-03-21.md`
     - `docs/library/promotion/2026-03-21_design-agent-runtime-pr-chain_promotion-log.md`
+    - `docs/orchestration/DESIGN_AGENT_RUNTIME_REALIGNMENT_PACKET.md`
     - `docs/design/CODE_NATIVE_DESIGN_RUNTIME.md`
     - `docs/runbooks/DESIGN_TOOLING_OPERATING_MODEL.md`
     - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-design-execution-adapter-seam`
@@ -523,14 +524,17 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-design-prompt-canvas-compiler`
     - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-design-tooling-phase2-env-api`
   - DoD:
-    - PR1 publishes the brainstorm, synthesis, promotion, and backlog-link
-      artifact pack for the initiative
-    - PR2 adds additive `interaction_contract` semantics to instructions,
-      `pulseplate_canvas_v1`, adapter metadata, and verification with fail-closed validation
-    - PR3 adds an internal deterministic HTML preview lane that consumes
-      `pulseplate_canvas_v1` without introducing a second topology source
-    - PR4, if opened, is explicitly bounded by experimentation protocol and
-      immutable-oracle rules
+    - Baseline realized: PR1 artifact pack, PR2 additive `interaction_contract`,
+      and PR3 deterministic HTML preview lane are explicitly acknowledged as
+      already merged baseline state in `main`, primarily via `PR #1210`
+    - Realignment bridge merged: the chain SoT and umbrella ledger item are
+      state-aware and no longer describe the initiative as `PR1 scaffold active`
+    - Realignment bridge merged: `docs/orchestration/DESIGN_AGENT_RUNTIME_REALIGNMENT_PACKET.md`
+      canonically defines the docs-only coordinator cycle, routing, sync points,
+      acceptance packet, and bug packet for the bridge PR
+    - Design-agent PR4 remains optional, unopened, and explicitly reserved for
+      bounded creative-research work; the bridge PR does not consume that
+      reserved design-agent PR4 slot
     - Every PR in the chain documents and runs the mandatory
       `qa-engineer-agent -> bug-hunter` post-open review loop
     - No PR in the chain introduces public API changes or live self-modifying
