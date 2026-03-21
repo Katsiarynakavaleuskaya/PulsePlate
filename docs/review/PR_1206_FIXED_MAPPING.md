@@ -5,13 +5,58 @@
 - [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1206#pullrequestreview-3985686320
+Disposition: NOT-A-BUG
+Evidence: docs/review/PR_1206_FIXED_MAPPING.md:14
+Evidence: docs/review/PR_1206_FIXED_MAPPING.md:41
+Reason: This aggregate Sourcery shell is satisfied by the concrete FIXED inline disposition recorded below; the remaining setup-python/cache-scope notes are scope and maintainability suggestions, not unresolved correctness blockers for this Node24 migration lane.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1206#discussion_r2969212266 -> 275d49cf
+Disposition: FIXED
+Commit: 275d49cf
+Evidence: docs/review/PR_1206_FIXED_MAPPING.md:36
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1206#pullrequestreview-3985687974
+Disposition: NOT-A-BUG
+Evidence: docs/review/PR_1206_FIXED_MAPPING.md:25
+Evidence: docs/review/PR_1206_FIXED_MAPPING.md:41
+Reason: The aggregate CodeRabbit shell only pointed to the duplicate-path inline finding, which is captured as a concrete FIXED disposition immediately below; no additional unresolved shell-level action remains.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1206#discussion_r2969214206 -> 275d49cf
+Disposition: FIXED
+Commit: 275d49cf
+Evidence: docs/review/PR_1206_FIXED_MAPPING.md:36
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1206#pullrequestreview-3985688582
+Disposition: NOT-A-BUG
+Evidence: docs/review/PR_1206_FIXED_MAPPING.md:30
+Evidence: docs/review/PR_1206_FIXED_MAPPING.md:36
+Reason: cubic identified the same duplicate-path defect already recorded as a concrete FIXED inline disposition below, so the review shell itself has no separate remaining action.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1206#discussion_r2969215136 -> 275d49cf
+Disposition: FIXED
+Commit: 275d49cf
+Evidence: docs/review/PR_1206_FIXED_MAPPING.md:36
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1206#discussion_r2969216282 -> c82c1eb4
+Disposition: FIXED
+Commit: c82c1eb4
+Evidence: .github/workflows/pr-tests.yml:39
+Evidence: .github/workflows/ci.yml:40
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1206#discussion_r2969216283 -> 275d49cf
+Disposition: FIXED
+Commit: 275d49cf
+Evidence: .github/workflows/build.yml:35
+Evidence: .github/workflows/cd.yml:257
 
 ## Merge Readiness
-- Status: ready for review / not ready to merge.
+- Review status: ready for review.
+- Merge status: not ready to merge.
 - Current fix commits:
   - `31e4678f` — `fix(ci): migrate gha actions to node24`
   - `c82c1eb4` — `fix(ci): upgrade checkout artifact actions`
+  - `275d49cf` — `fix(ci): complete node24 workflow migration`
 - Current scope discipline:
   - GitHub Actions runtime migration from Node20-based action SHAs to Node24-compatible SHAs
   - migration now includes `actions/checkout` and `actions/upload-artifact` on the in-scope CI/build workflows that still emitted Node20 warnings
