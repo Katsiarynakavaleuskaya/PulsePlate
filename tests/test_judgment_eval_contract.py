@@ -11,6 +11,7 @@ import pytest
 
 from core.judgment_eval import (
     _contains_marker,
+    _history_turns,
     _normalize_string_list,
     _require_case_string,
     _require_object,
@@ -230,13 +231,42 @@ def test_validate_fitchef_replay_pack_rejects_recognition_without_prior_turns() 
     """Carry-forward assertions require prior visible history."""
 
     payload = _load_continuity_fixture()
-    payload["cases"][0]["turns"] = []
+    payload["cases"][0]["turns"] = [{"role": "user", "text": payload["cases"][0]["prompt"]}]
 
     with pytest.raises(
         ValueError,
-        match="continuity_checks.recognition_markers require at least one prior turn",
+        match="continuity checks require at least one prior user turn",
     ):
         validate_fitchef_replay_pack(payload)
+
+
+def test_validate_fitchef_replay_pack_rejects_continuity_history_without_leading_user_turn() -> (
+    None
+):
+    """Continuity replay history must start from a user turn."""
+
+    payload = _load_continuity_fixture()
+    payload["cases"][0]["turns"][0]["role"] = "assistant"
+
+    with pytest.raises(
+        ValueError,
+        match="continuity checks require replay history starting with a user turn",
+    ):
+        validate_fitchef_replay_pack(payload)
+
+
+def test_history_turns_preserves_trailing_assistant_echo() -> None:
+    """Assistant turns that echo the prompt text must stay in visible history."""
+
+    payload = _load_continuity_fixture()
+    case = payload["cases"][0]
+    case["turns"].append({"role": "assistant", "text": case["prompt"]})
+
+    pack = validate_fitchef_replay_pack(payload)
+
+    history_turns = _history_turns(pack["cases"][0])
+    assert history_turns[-1]["role"] == "assistant"
+    assert history_turns[-1]["text"] == case["prompt"]
 
 
 def test_validate_fitchef_replay_pack_rejects_weak_context_without_safe_degradation_markers() -> (

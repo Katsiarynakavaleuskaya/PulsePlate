@@ -7282,7 +7282,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: FitChef-first judgment offline eval contract and replay pack
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR #1208 (`feat: add fitchef judgment offline eval`)
+  - Target PR: PR #1208 (`feat: add fitchef judgment offline eval`) -> PR #1211 (`feat(orchestration): add FitChef judgment offline eval contract`)
   - Status: Baseline merged on March 21, 2026; bounded PR-B closeout lane in progress in `feat/fitchef-judgment-prb-offline-eval`
   - Dependencies:
     - [P1: Creative research eval lane under governed experimentation epic](#ledger-p1-creative-research-eval-lane)

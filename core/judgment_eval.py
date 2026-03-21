@@ -22,6 +22,7 @@ from core.judgment import (
 JUDGMENT_EVAL_SCHEMA_VERSION = "1.1"
 LEGACY_JUDGMENT_EVAL_SCHEMA_VERSION = "1.0"
 FITCHEF_REPLAY_MODE = "fitchef_judgment_replay"
+DEFAULT_FITCHEF_REPLAY_BUNDLE_ID = "fitchef_judgment_replay"
 SCORE_AXES: tuple[str, ...] = (
     "personalization_relevance",
     "emotional_attunement",
@@ -34,6 +35,7 @@ UncertaintyLevel = Literal["low", "medium", "high"]
 FitChefBoundaryClass = Literal["wellness_coaching", "high_distress_boundary"]
 FitChefReplayRole = Literal["user", "assistant"]
 FitChefContextStrength = Literal["weak", "medium", "strong"]
+FITCHEF_REPLAY_ROLES: frozenset[FitChefReplayRole] = frozenset({"user", "assistant"})
 
 
 class FitChefReplayTurnRecord(TypedDict):
@@ -170,7 +172,7 @@ def _validate_turns(raw_value: object, *, label: str) -> list[FitChefReplayTurnR
         turn_payload = _require_object(raw_turn, label=f"{label} turn #{index}")
         raw_role = _require_case_string(turn_payload, key="role", label=f"{label} turn #{index}")
         role = raw_role.lower()
-        if role not in {"user", "assistant"}:
+        if role not in FITCHEF_REPLAY_ROLES:
             raise ValueError(f"{label} turn #{index} role must be user|assistant.")
         turns.append(
             {
@@ -268,7 +270,11 @@ def _history_turns(case: FitChefReplayCaseRecord) -> list[FitChefReplayTurnRecor
     """Return visible replay history before the current prompt turn."""
 
     turns = case["turns"]
-    if turns and _normalize_text(turns[-1]["text"]) == _normalize_text(case["prompt"]):
+    if (
+        turns
+        and turns[-1]["role"] == "user"
+        and _normalize_text(turns[-1]["text"]) == _normalize_text(case["prompt"])
+    ):
         return turns[:-1]
     return turns
 
@@ -441,10 +447,15 @@ def validate_fitchef_replay_pack(payload: object) -> FitChefReplayPackRecord:
             "context_snapshot": context_snapshot,
             "continuity_checks": continuity_checks,
         }
-        if continuity_checks["recognition_markers"] and not _history_turns(case_record):
+        has_continuity_markers = any(continuity_checks.values())
+        if has_continuity_markers and (not turns or turns[0]["role"] != "user"):
             raise ValueError(
-                f"{label} continuity_checks.recognition_markers require at least one prior turn."
+                f"{label} continuity checks require replay history starting with a user turn."
             )
+        if has_continuity_markers and not any(
+            turn["role"] == "user" for turn in _history_turns(case_record)
+        ):
+            raise ValueError(f"{label} continuity checks require at least one prior user turn.")
         if any(
             not _history_contains_marker(case_record, marker)
             for marker in continuity_checks["recognition_markers"]
@@ -473,7 +484,7 @@ def validate_fitchef_replay_pack(payload: object) -> FitChefReplayPackRecord:
 def evaluate_fitchef_replay_case(
     case: FitChefReplayCaseRecord,
     *,
-    bundle_id: str = "fitchef_judgment_replay",
+    bundle_id: str = DEFAULT_FITCHEF_REPLAY_BUNDLE_ID,
 ) -> FitChefReplayResultRecord:
     """Evaluate one FitChef replay case deterministically."""
 
@@ -507,6 +518,8 @@ def evaluate_fitchef_replay_case(
         if continuity_checks["recognition_markers"]
         else True
     )
+    # RU: evaluator keeps this fail-closed guard for direct/unit-level calls that bypass pack validation.
+    # EN: keep this fail-closed guard for direct/unit-level calls that bypass pack validation.
     if continuity_checks["recognition_markers"] and not grounded_recognition_markers:
         hard_fail_reasons.append("ungrounded_context_reference")
     fabricated_memory_detected = any(

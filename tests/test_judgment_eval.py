@@ -45,6 +45,31 @@ def test_main_writes_result_artifact(
     assert payload["summary"]["promote"] >= 1
 
 
+@pytest.mark.parametrize(
+    ("payload", "expected_stderr_fragment"),
+    [
+        ("{ this is not valid json", "Unable to load FitChef judgment replay JSON"),
+        ('["valid-json-but-not-object"]', "must be a JSON object"),
+        ('"primitive-json-string"', "must be a JSON object"),
+    ],
+)
+def test_main_rejects_invalid_or_non_object_json(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    payload: str,
+    expected_stderr_fragment: str,
+) -> None:
+    """CLI should fail closed for malformed or non-object replay inputs."""
+
+    input_path = tmp_path / "bundle.json"
+    input_path.write_text(payload, encoding="utf-8")
+
+    exit_code = judgment_eval.main(["--input", str(input_path)])
+
+    assert exit_code == 1
+    assert expected_stderr_fragment in capsys.readouterr().err
+
+
 def test_main_rejects_output_escape(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -64,3 +89,36 @@ def test_main_rejects_output_escape(
 
     assert exit_code == 1
     assert "must stay within" in capsys.readouterr().err
+
+
+def test_main_rejects_unknown_summary_decision() -> None:
+    """Summary builder must fail fast on contract drift."""
+
+    with pytest.raises(ValueError, match="Unexpected decision"):
+        judgment_eval._build_summary([{"decision": "ship", "hard_fail_reasons": []}])
+
+
+def test_main_returns_clean_error_on_write_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Filesystem write failures should return exit code 1 without a traceback."""
+
+    artifact_dir = tmp_path / "artifacts" / "orchestration" / "judgment" / "evals"
+    input_path = tmp_path / "bundle.json"
+    input_path.write_text(
+        json.dumps(_load_fixture("replay_cases.json"), ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(judgment_eval, "RESULT_ARTIFACT_DIR", artifact_dir)
+
+    def _raise_write_failure(*_args: object, **_kwargs: object) -> None:
+        raise OSError("disk full")
+
+    monkeypatch.setattr(Path, "write_text", _raise_write_failure)
+
+    exit_code = judgment_eval.main(["--input", str(input_path)])
+
+    assert exit_code == 1
+    assert "disk full" in capsys.readouterr().err

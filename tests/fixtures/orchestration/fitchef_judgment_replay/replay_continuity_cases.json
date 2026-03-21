@@ -154,6 +154,8 @@
         "boundary_adherence": 0
       },
       "turns": [
+        {"role": "user", "text": "Dessert has been more tempting this week."},
+        {"role": "assistant", "text": "Keep dinner simple first and notice what helps before dessert."},
         {"role": "user", "text": "Dessert got me again tonight."}
       ],
       "context_snapshot": {"context_strength": "medium"},

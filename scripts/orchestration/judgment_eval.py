@@ -24,6 +24,7 @@ from scripts.orchestration.judgment_eval_contract import (
 )
 
 RESULT_ARTIFACT_DIR = REPO_ROOT / "artifacts" / "orchestration" / "judgment" / "evals"
+PROMOTION_DECISIONS = frozenset({"promote", "defer", "discard"})
 
 
 def _read_json_object(path: Path) -> dict[str, Any]:
@@ -72,8 +73,9 @@ def _build_summary(results: list[dict[str, Any]]) -> dict[str, int]:
     summary = {"promote": 0, "defer": 0, "discard": 0, "hard_fail": 0}
     for result in results:
         decision = str(result.get("decision", "")).strip().lower()
-        if decision in summary:
-            summary[decision] += 1
+        if decision not in PROMOTION_DECISIONS:
+            raise ValueError(f"Unexpected decision in replay result: {decision!r}")
+        summary[decision] += 1
         if result.get("hard_fail_reasons"):
             summary["hard_fail"] += 1
     return summary
@@ -102,7 +104,7 @@ def main(argv: list[str] | None = None) -> int:
             json.dumps(artifact, ensure_ascii=False, indent=2) + "\n",
             encoding="utf-8",
         )
-    except ValueError as exc:
+    except (OSError, ValueError) as exc:
         print(str(exc), file=sys.stderr)
         return 1
 
