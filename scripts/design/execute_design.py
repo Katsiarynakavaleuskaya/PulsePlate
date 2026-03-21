@@ -30,7 +30,7 @@ from scripts.design.execution_adapters import (
     available_adapter_names,
     resolve_execution_adapter,
 )
-from scripts.design.html_preview import write_html_preview
+from scripts.design.html_preview import HtmlPreviewArtifact, write_html_preview
 
 # Project root for resolving paths
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
@@ -86,7 +86,7 @@ def execute_instruction(instruction: dict[str, Any], adapter_name: str) -> dict[
     """Execute one instruction payload through the configured adapter seam."""
 
     adapter = resolve_execution_adapter(adapter_name)
-    results = cast(dict[str, Any], adapter.execute(instruction))
+    results = adapter.execute(instruction)
 
     canvas_artifact = results.get("canvas_artifact")
     if canvas_artifact is not None and not isinstance(canvas_artifact, dict):
@@ -112,7 +112,7 @@ def generate_preview_artifact(
     results: dict[str, Any],
     *,
     output_path: Path | None = None,
-) -> dict[str, Any]:
+) -> HtmlPreviewArtifact:
     """Generate deterministic HTML preview metadata from one code-native result."""
 
     canvas_artifact = results.get("canvas_artifact")
