@@ -470,6 +470,35 @@ def test_evaluate_fitchef_replay_case_discards_ungrounded_recognition_markers() 
     assert "ungrounded_context_reference" in result["hard_fail_reasons"]
 
 
+@pytest.mark.parametrize(
+    "mutated_turns",
+    [
+        [],
+        [{"role": "assistant", "text": "You already know the weekly goal."}],
+    ],
+)
+def test_evaluate_fitchef_replay_case_discards_invalid_continuity_history(
+    mutated_turns: list[dict[str, str]],
+) -> None:
+    """Direct case evaluation must fail closed when continuity history is invalid."""
+
+    pack = validate_fitchef_replay_pack(_load_continuity_fixture())
+    case = deepcopy(
+        next(
+            item
+            for item in pack["cases"]
+            if item["case_id"] == "weekly_goal_carry_forward_visible_only"
+        )
+    )
+    case["turns"] = mutated_turns
+
+    result = evaluate_fitchef_replay_case(case, bundle_id=pack["bundle_id"])
+
+    assert result["decision"] == "discard"
+    assert result["continuity_report"]["continuity_pass"] is False
+    assert "ungrounded_context_reference" in result["hard_fail_reasons"]
+
+
 def test_evaluate_fitchef_replay_case_discards_weak_context_without_marker_contract() -> None:
     """Weak-context continuity should fail closed when marker contract is removed post-validation."""
 

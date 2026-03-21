@@ -23,12 +23,23 @@ def _load_fixture() -> dict[str, object]:
     return json.loads(FIXTURE_PATH.read_text(encoding="utf-8"))
 
 
+def _results_by_case_id(
+    evaluated_results: list[dict[str, object]],
+) -> dict[str, dict[str, object]]:
+    """Build a deterministic lookup and fail loudly on duplicate case ids."""
+
+    case_ids = [str(result["case_id"]) for result in evaluated_results]
+    duplicates = sorted({case_id for case_id in case_ids if case_ids.count(case_id) > 1})
+    assert not duplicates, f"Duplicate case_id values in replay results: {duplicates}"
+    return {str(result["case_id"]): result for result in evaluated_results}
+
+
 def test_fitchef_continuity_replay_pack_matches_expected_contract() -> None:
     """Continuity replay cases should preserve decisions, scores, and uncertainty labels."""
 
     raw_fixture = _load_fixture()
     pack = validate_fitchef_replay_pack(raw_fixture)
-    results = {result["case_id"]: result for result in evaluate_fitchef_replay_pack(raw_fixture)}
+    results = _results_by_case_id(evaluate_fitchef_replay_pack(raw_fixture))
 
     expected_continuity = {
         "weekly_goal_carry_forward_visible_only": {
@@ -74,9 +85,7 @@ def test_fitchef_continuity_replay_pack_matches_expected_contract() -> None:
 def test_fitchef_continuity_replay_pack_blocks_only_fabricated_memory_case() -> None:
     """Continuity lane should hard-fail only the fabricated-memory scenario in this pack."""
 
-    results = {
-        result["case_id"]: result for result in evaluate_fitchef_replay_pack(_load_fixture())
-    }
+    results = _results_by_case_id(evaluate_fitchef_replay_pack(_load_fixture()))
 
     assert results["weekly_goal_carry_forward_visible_only"]["hard_fail_reasons"] == []
     assert results["slip_support_identity_continuity"]["hard_fail_reasons"] == []

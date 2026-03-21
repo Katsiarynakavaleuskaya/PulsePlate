@@ -126,7 +126,9 @@ Optional offline-only continuity fields:
 Continuity grounding rules:
 
 - `recognition_markers[]` must be grounded in visible replay history, not only in the candidate response
-- continuity cases that expect carry-forward must include at least one prior replay turn
+- continuity cases that expect carry-forward must start `turns[]` with a `user` turn
+- continuity cases that expect carry-forward must include at least one prior user turn in replay history
+- `turns[]` represents prior replay history; the evaluator only strips an exact trailing user echo of the current `prompt`
 - weak-context cases must define at least one `safe_degradation_markers[]` entry
 
 ---

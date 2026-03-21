@@ -280,6 +280,17 @@ def _history_turns(case: FitChefReplayCaseRecord) -> list[FitChefReplayTurnRecor
     return turns
 
 
+def _has_valid_continuity_history(case: FitChefReplayCaseRecord) -> bool:
+    """Return whether continuity checks are grounded in valid prior user history."""
+
+    turns = case["turns"]
+    return bool(
+        turns
+        and turns[0]["role"] == "user"
+        and any(turn["role"] == "user" for turn in _history_turns(case))
+    )
+
+
 def _history_contains_marker(case: FitChefReplayCaseRecord, marker: str) -> bool:
     """Ground continuity markers in visible replay history only."""
 
@@ -508,6 +519,9 @@ def evaluate_fitchef_replay_case(
 
     continuity_checks = case["continuity_checks"]
     continuity_evaluated = any(continuity_checks.values())
+    invalid_continuity_history = continuity_evaluated and not _has_valid_continuity_history(case)
+    if invalid_continuity_history:
+        hard_fail_reasons.append("ungrounded_context_reference")
     grounded_recognition_markers = [
         marker
         for marker in continuity_checks["recognition_markers"]
@@ -522,7 +536,11 @@ def evaluate_fitchef_replay_case(
     )
     # RU: evaluator keeps this fail-closed guard for direct/unit-level calls that bypass pack validation.
     # EN: keep this fail-closed guard for direct/unit-level calls that bypass pack validation.
-    if continuity_checks["recognition_markers"] and not grounded_recognition_markers:
+    if (
+        continuity_checks["recognition_markers"]
+        and not grounded_recognition_markers
+        and "ungrounded_context_reference" not in hard_fail_reasons
+    ):
         hard_fail_reasons.append("ungrounded_context_reference")
     fabricated_memory_detected = any(
         _contains_marker(normalized_response, marker)
