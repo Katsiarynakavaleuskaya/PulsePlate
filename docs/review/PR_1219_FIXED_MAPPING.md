@@ -20,7 +20,7 @@ Reason: aligned the minimum command set with the canonical bridge artifact bundl
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1219#discussion_r2969725702 -> f7306a50
 Disposition: FIXED
 Commit: f7306a50
-Evidence: `docs/review/PR_1219_FIXED_MAPPING.md:49`, `docs/review/PR_1219_FIXED_MAPPING.md:54`
+Evidence: `docs/review/PR_1219_FIXED_MAPPING.md:88`, `docs/review/PR_1219_FIXED_MAPPING.md:91`
 Reason: refreshed the canonical review artifact so the merge-readiness section now includes the missing `bf97643d` readiness-refresh commit alongside the later post-open fix commits.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1219#discussion_r2969725705 -> b1c60f1c
@@ -78,6 +78,17 @@ Reason: this Codex review URL is an aggregate shell; the actionable inline Codex
 Disposition: NOT-A-BUG
 Evidence: `docs/review/PR_1219_FIXED_MAPPING.md:8`
 Reason: this cubic review URL is an aggregate shell; the actionable inline cubic findings are dispositioned explicitly in this artifact, so the shell itself does not carry a separate unresolved action.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1219#discussion_r2969766361
+Disposition: FIXED
+Commit: TBD
+Evidence: `docs/review/PR_1219_FIXED_MAPPING.md:20`, `docs/review/PR_1219_FIXED_MAPPING.md:23`
+Reason: cubic found stale evidence anchors for the `r2969725702` mapping entry; the evidence line now points to the actual merge-readiness bullets cited by that FIXED disposition.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1219#pullrequestreview-3986200747
+Disposition: NOT-A-BUG
+Evidence: `docs/review/PR_1219_FIXED_MAPPING.md:82`, `docs/review/PR_1219_FIXED_MAPPING.md:85`
+Reason: this cubic review shell only aggregates the inline stale-evidence finding at `discussion_r2969766361`; once that inline comment is fixed and mapped explicitly, the shell carries no separate unresolved action.
 
 ## Merge Readiness
 - Review status: post-open bot feedback is mapped to concrete dispositions on the current local head; strict current-head PR governance re-check and thread resolution remain pending until the updated artifact is pushed.
