@@ -131,7 +131,7 @@ For this bridge PR, `bug-hunter` is specifically checking:
 ### 1. Pre-open
 
 - coordinator confirms isolated worktree and preflight pass
-- docs changes are scoped to chain doc, ledger item, and packet
+- docs changes are scoped to chain doc, ledger item, packet, and ADR alignment
 
 ### 2. Open PR
 
