@@ -92,10 +92,26 @@ Disposition: NOT-A-BUG
 Evidence: docs/review/PR_1212_FIXED_MAPPING.md:62; docs/review/PR_1212_FIXED_MAPPING.md:74
 Reason: This review is a wrapper packet for child comments with mixed dispositions; its actionable items are fully covered by the FIXED entries for discussion_r2969769493/discussion_r2969769497 and the NOT-A-BUG entry for discussion_r2969769501 above.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1212#pullrequestreview-3986218989
+Disposition: NOT-A-BUG
+Evidence: tests/test_subscription_activation_api.py:289; tests/test_subscription_activation_api.py:301; tests/test_subscription_activation_api.py:323; tests/test_subscription_activation_api.py:343
+Reason: CodeRabbit identified a test-only boilerplate nit. The four helpers intentionally keep their session lifecycle explicit at the mutation site so each audit/update/delete transaction boundary remains obvious inside the fixture layer; extracting another helper would add indirection without changing runtime behavior or contract coverage.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1212#discussion_r2969788219 -> ca24c050
+Disposition: FIXED
+Commit: ca24c050
+Evidence: app/routers/pro_payments.py:115; app/routers/pro_payments.py:117; tests/test_subscription_activation_api.py:1124; tests/test_subscription_activation_api.py:1127
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1212#pullrequestreview-3986220190
+Disposition: NOT-A-BUG
+Evidence: app/routers/pro_payments.py:115; tests/test_subscription_activation_api.py:1124
+Reason: This cubic wrapper review duplicates the single actionable child thread discussion_r2969788219; the underlying envelope mismatch is fixed in commit `ca24c050` and recorded directly above.
+
 ## Merge Readiness
 
 - Status: ready for review / not ready to merge.
 - Current packet commits:
+  - `ca24c050` — `fix(payments): restore 400 error envelope`
   - `4c8eaa0d` — `fix(payments): align activation error contract`
   - `231839ce` — `fix(payments): close pr 1212 runtime blockers`
   - `05df5f15` — `chore(pre-commit): apply hook fixes`
