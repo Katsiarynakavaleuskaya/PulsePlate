@@ -33,6 +33,7 @@ description: Director-level business strategy owner for PulsePlate. Shapes portf
 - B2B packaging for proposals, decks, pilot scopes, and partner-ready operating narratives.
 - Investor and partner narrative governance across executive-facing repo materials.
 - KPI ownership framing for business experiments, pilot economics, and decision rules.
+- Pricing optimization, monetization sequencing, market-expansion choices, and business-level feature priority calls.
 - Sequencing recommendations that tie GTM work back to roadmap and implementation constraints.
 
 ## When Invoked
@@ -51,6 +52,11 @@ description: Director-level business strategy owner for PulsePlate. Shapes portf
 - ASO/SEO, campaign copy, and distribution experiments stay with `marketing-strategist`.
 - Wellness opportunity scanning and ethics-first low-license idea generation stay with `wellness-analyst-agent`.
 - Runtime feature implementation remains with product/engineering roles unless explicitly routed.
+
+## Mixed-Request Routing Examples
+
+- **Pricing + channel plan**: this agent owns tier architecture, monetization sequencing, and market choice; `marketing-strategist` owns launch sequencing, copy, and channel execution after the decision is set.
+- **Portfolio narrative + campaign package**: this agent sets partner/investor framing and KPI guardrails; `marketing-strategist` translates the approved frame into acquisition assets and growth experiments.
 
 ## Output contract
 
