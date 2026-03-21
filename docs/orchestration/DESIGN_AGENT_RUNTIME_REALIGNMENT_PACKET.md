@@ -86,6 +86,10 @@ keeping the initiative-level runtime flow unchanged for future feature PRs.
 
 ## Acceptance packet contract
 
+This packet is the canonical field-level contract for the bridge PR review
+loop. The initiative chain doc keeps only the higher-level invariant that
+`qa-engineer-agent -> bug-hunter` must complete before review-ready.
+
 `qa-engineer-agent` must return all of the following before review-ready is
 claimed:
 
@@ -100,7 +104,8 @@ Minimum command set for this bridge PR:
 
 - `python3 scripts/orchestration/check_preflight.py`
 - `python3 scripts/orchestration/check_agent_consistency.py`
-- `python3 scripts/ci/check_docs_phase1_gates.py --files docs/design/DESIGN_AGENT_RUNTIME_PR_CHAIN.md docs/roadmap/BACKLOG_LEDGER.md docs/orchestration/DESIGN_AGENT_RUNTIME_REALIGNMENT_PACKET.md`
+- `python3 scripts/ci/check_docs_phase1_gates.py --files docs/design/DESIGN_AGENT_RUNTIME_PR_CHAIN.md docs/roadmap/BACKLOG_LEDGER.md docs/orchestration/DESIGN_AGENT_RUNTIME_REALIGNMENT_PACKET.md docs/library/decisions/ADR_DESIGN_AGENT_RUNTIME_PR_CHAIN_2026-03-21.md` (repo-parity docs gate; current bridge files sit outside the script's `docs/audit` / `docs/security` enforcement scope)
+- `python3 scripts/ci/check_pr_body_phase2_gates.py --pr-number <active-pr-number>`
 - `pre-commit run --all-files`
 
 ## Bug packet contract
@@ -145,6 +150,7 @@ The PR must not be called `review-ready` until both outputs exist.
 ### 4. Merge-ready loop
 
 - run the local docs/governance command set above
+- run `make verify`
 - if additional branch-level gates are required by PR policy, satisfy them
 - coordinator verifies current-head PR governance state through the canonical
   merge-readiness workflow before any final readiness claim

@@ -496,7 +496,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Coordinator-led design-agent runtime PR chain (PR1-PR4)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (design-runtime productization and orchestration)
-  - Target PR: bridge `worktree/design-agent-pr-chain-realignment` -> reserved `design-agent PR4 worktree/design-agent-pr4-creative-research`
+  - Target PR: PR `#1219` (realignment bridge) -> `PR-TBD-DESIGN-AGENT-PR4` (reserved `worktree/design-agent-pr4-creative-research`)
   - Status: 🚧 Baseline PR1-PR3 realized in `main`; realignment bridge pending
   - Area: scripts / orchestration / design-runtime / docs
   - Finding Type: initiative umbrella and sequencing contract

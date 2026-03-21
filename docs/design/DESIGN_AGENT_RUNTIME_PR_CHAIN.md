@@ -27,7 +27,7 @@ This initiative is no longer a forward-only plan. The merged baseline in
 | Initiative stage | Current state | Canonical evidence |
 |------------------|---------------|--------------------|
 | PR1: Brainstorm + scope contract | Realized in `main` | `docs/library/brainstorm/2026-03-21_design-agent-runtime-pr-chain.md`, `docs/library/decisions/ADR_DESIGN_AGENT_RUNTIME_PR_CHAIN_2026-03-21.md`, `docs/library/promotion/2026-03-21_design-agent-runtime-pr-chain_promotion-log.md` |
-| PR2: Adaptive runtime semantics | Realized in `main` | `PR #1210`, `scripts/design/contracts.py:206`, `scripts/design/canvas_artifact.py:166`, `scripts/design/execution_adapters.py:36` |
+| PR2: Adaptive runtime semantics | Realized in `main` | `PR #1210`, `scripts/design/contracts.py:206`, `scripts/design/canvas_artifact.py:153`, `scripts/design/execution_adapters.py:36` |
 | PR3: Browser/HTML preview lane | Realized in `main` | `PR #1210`, `scripts/design/html_preview.py:67`, `scripts/design/execute_design.py:117`, `scripts/design/verify_design.py:267` |
 | Design-agent PR4: Bounded creative research | No design-agent-specific follow-up opened yet | Explicit bounded packet still required before opening |
 
@@ -267,18 +267,17 @@ The canonical execution packet for that bridge PR lives at:
 
 For every PR in this chain, after push:
 
-1. `qa-engineer-agent` performs acceptance and readiness review and returns:
-   - acceptance checklist
-   - regression matrix
-   - required commands and expected pass outcomes
-   - residual risks and blocked scenarios
-2. `bug-hunter` performs a mandatory post-open bug-fix pass and returns either:
-   - a structured bug packet with:
-     - `root_cause`
-     - `file:line`
-     - `minimal_fix_scope`
-     - `tests_to_add_or_update`
-   - or explicit `no findings`
+1. `qa-engineer-agent` must complete the acceptance/readiness pass.
+2. `bug-hunter` must complete the mandatory post-open bug-fix pass.
+
+For this bridge PR, the canonical packet contract, field list, and minimum
+command set live in
+`docs/orchestration/DESIGN_AGENT_RUNTIME_REALIGNMENT_PACKET.md`.
+
+Future initiative PRs must preserve the same coordinator-owned invariant:
+`qa-engineer-agent -> bug-hunter` completes before review-ready is claimed, and
+any PR-local packet should publish the exact acceptance/bug packet fields for
+that lane instead of duplicating them here.
 
 The PR must not be called review-ready before both steps complete.
 
