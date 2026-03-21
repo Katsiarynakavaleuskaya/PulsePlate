@@ -300,12 +300,17 @@ This map reduces “missing context” failures by making required inputs explic
 - `AGENTS.md:265-269` (required reading + nearest scoped AGENTS)
 - `docs/roadmap/BACKLOG_LEDGER.md:1-40` (roadmap constraints and target PR planning)
 - `docs/analytics/README.md:14-29` (canonical analytics/growth index)
-- `.cursor/agents/business-strategist-agent.md:16-41` (canonical business-context index for pricing and GTM inputs)
+- `docs/audience_pack/README.md:1-44` (canonical audience-pack map)
+- `docs/audience_pack/FACTS_CANONICAL.md:1-103` (repo fact SoT for external business framing)
+- `docs/audience_pack/INVESTOR_PUBLIC_OVERVIEW.md:1-117` (public/investor narrative baseline)
+- `docs/audience_pack/MARKETING_DESIGN_OVERVIEW.md:1-100` (growth hypothesis and KPI framing)
+- `.cursor/agents/business-strategist-agent.md:16-57` (canonical business-context index for portfolio, pricing, B2B packaging, and KPI ownership)
 
 **Must know:**
 
-- Recommendations must include sequencing and tradeoffs, not only ideas (`.cursor/agents/business-strategist-agent.md:23-41`)
-- Business advice must connect back to current roadmap constraints (`.cursor/agents/business-strategist-agent.md:23-41`)
+- Recommendations must include sequencing and tradeoffs, not only ideas (`.cursor/agents/business-strategist-agent.md:23-57`)
+- Business advice must connect back to current roadmap constraints (`.cursor/agents/business-strategist-agent.md:23-57`)
+- Director-level outputs must govern partner/investor narrative framing without creating a second fact source (`.cursor/agents/business-strategist-agent.md:23-57`)
 
 ---
 
