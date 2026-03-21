@@ -32,15 +32,20 @@ Evidence: `.github/workflows/pr-tests.yml:138-162`
 
 Disposition: FIXED
 Commit: cf668f97d143dceba413f03d0291a885b79e20f6
-Evidence: `scripts/business_collateral/content_loader.js:24-52`, `scripts/business_collateral/content_loader.js:165-169`, `tests/test_business_collateral_builders.py:16-20`, `tests/test_business_collateral_builders.py:35-43`, `tests/test_business_collateral_builders.py:75-95`
+Evidence: `scripts/business_collateral/content_loader.js:24-52`, `scripts/business_collateral/content_loader.js:165-169`, `tests/test_business_collateral_builders.py:17-21`, `tests/test_business_collateral_builders.py:44-46`, `tests/test_business_collateral_builders.py:78-98`
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1221#discussion_r2970239236 -> cf668f97d143dceba413f03d0291a885b79e20f6
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1221#discussion_r2970243122 -> cf668f97d143dceba413f03d0291a885b79e20f6
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1221#discussion_r2970247806 -> cf668f97d143dceba413f03d0291a885b79e20f6
 
 Disposition: FIXED
 Commit: 9da57793121b40998319247fbf58f852dc0756b5
-Evidence: `tests/test_business_collateral_builders.py:46-55`, `tests/test_business_collateral_builders.py:58-72`
+Evidence: `tests/test_business_collateral_builders.py:49-58`, `tests/test_business_collateral_builders.py:61-75`
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1221#discussion_r2970247808 -> 9da57793121b40998319247fbf58f852dc0756b5
+
+Disposition: FIXED
+Commit: c4efd1670fecca573ae7742ea352ca35c347e664
+Evidence: `tests/test_business_collateral_builders.py:14-14`, `tests/test_business_collateral_builders.py:24-46`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1221#pullrequestreview-3986879392 -> c4efd1670fecca573ae7742ea352ca35c347e664
 
 Disposition: NOT-A-BUG
 Evidence: `package.json:5-15`, `scripts/business_collateral/package.json:1-2`, `worker.js:1-15`
@@ -51,12 +56,12 @@ Reason: Root package ESM and collateral CommonJS are intentionally separated by 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1221#discussion_r2970191929
 
 Disposition: NOT-A-BUG
-Evidence: `scripts/business_collateral/build_b2b_proposal.js:8-67`, `tests/test_business_collateral_builders.py:58-108`
+Evidence: `scripts/business_collateral/build_b2b_proposal.js:8-67`, `tests/test_business_collateral_builders.py:61-111`
 Reason: This thread requests optional JSDoc ergonomics, not a correctness or contract defect; the builder entrypoint is intentionally small, already locally validated, and no JS doc-type gate is enforced for this lane.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1221#discussion_r2970191926
 
 Disposition: NOT-A-BUG
-Evidence: `scripts/business_collateral/content_loader.js:24-116`, `.github/workflows/ci.yml:370-632`, `.github/workflows/pr-tests.yml:138-162`, `tests/test_business_collateral_builders.py:46-95`
+Evidence: `scripts/business_collateral/content_loader.js:24-116`, `.github/workflows/ci.yml:370-632`, `.github/workflows/pr-tests.yml:138-162`, `tests/test_business_collateral_builders.py:24-98`
 Reason: These review-level bot URLs are aggregate review summaries whose actionable findings are already dispositioned by the mapped inline thread URLs above, so no separate code change or additional backlog item exists beyond those underlying thread mappings.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1221#pullrequestreview-3986758431
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1221#pullrequestreview-3986769148
