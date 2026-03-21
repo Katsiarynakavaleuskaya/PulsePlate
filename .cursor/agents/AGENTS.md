@@ -64,6 +64,7 @@ Each agent file (`.cursor/agents/*.md`) must:
 - If agent file added/renamed: update coordinator "Available Agents" section in same PR
 - If agent capabilities change: update agent file only (coordinator references, doesn't duplicate)
 - If missing agent doc: record in `docs/roadmap/BACKLOG_LEDGER.md`
+- If business-cluster ownership changes, sync `.cursor/agents/business-strategist-agent.md`, `docs/orchestration/AGENT_INVENTORY.md`, `docs/orchestration/AGENT_CAPABILITY_MATRIX.md`, `docs/orchestration/AGENT_CONTEXT_MAP.md`, and `docs/agents/index.md` in the same PR
 
 ---
 
