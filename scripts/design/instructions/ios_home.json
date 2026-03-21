@@ -166,6 +166,20 @@
     "Color.appPrimary",
     "Color.surface"
   ],
+  "interaction_contract": {
+    "interaction_mode": "delegate_with_checkpoints",
+    "checkpoint_policy": "critical_actions_only",
+    "adaptation_scope": [
+      "copy",
+      "layout",
+      "order_of_disclosure"
+    ],
+    "modality_hints": [
+      "visual",
+      "touch"
+    ],
+    "explanation_strategy": "progressive_disclosure"
+  },
   "governance_checks": [
     "verify_token_usage",
     "verify_hpp_compliance",

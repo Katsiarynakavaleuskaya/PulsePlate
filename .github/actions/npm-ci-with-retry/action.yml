@@ -1,0 +1,54 @@
+name: npm ci with retry
+description: Install frontend dependencies with bounded retry flags for transient registry failures.
+
+inputs:
+  working-directory:
+    description: Directory where npm ci should run.
+    required: false
+    default: "."
+
+runs:
+  using: composite
+  steps:
+    - name: Run npm ci with retry
+      shell: bash
+      env:
+        WORKING_DIRECTORY: ${{ inputs.working-directory }}
+      run: |
+        set -euo pipefail
+
+        # Normalize leading "./" and reject traversal before changing directories.
+        # Нормализуем "./" и запрещаем traversal до смены директории.
+        NORMALIZED_WORKING_DIRECTORY="${WORKING_DIRECTORY#./}"
+        if [[ -z "${NORMALIZED_WORKING_DIRECTORY}" ]]; then
+          NORMALIZED_WORKING_DIRECTORY="."
+        fi
+
+        case "${NORMALIZED_WORKING_DIRECTORY}" in
+          "." | "frontend" | frontend/*) ;;
+          *)
+            echo "Unsupported working-directory '${WORKING_DIRECTORY}' for npm-ci-with-retry." >&2
+            exit 1
+            ;;
+        esac
+
+        case "${NORMALIZED_WORKING_DIRECTORY}" in
+          *".."*)
+            echo "Path traversal is not allowed in working-directory '${WORKING_DIRECTORY}'." >&2
+            exit 1
+            ;;
+        esac
+
+        cd "${NORMALIZED_WORKING_DIRECTORY}"
+        for attempt in 1 2 3; do
+          npm ci \
+            --fetch-retries=5 \
+            --fetch-retry-factor=2 \
+            --fetch-retry-mintimeout=20000 \
+            --fetch-retry-maxtimeout=120000 && exit 0
+          if [ "$attempt" -eq 3 ]; then
+            echo "npm ci failed after ${attempt} attempts"
+            exit 1
+          fi
+          sleep $((attempt * 15))
+        done

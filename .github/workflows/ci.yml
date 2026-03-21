@@ -6,6 +6,7 @@ name: CI
 
 env:
   COVERAGE_PY: "3.13.6"
+  FRONTEND_NODE_VERSION_FILE: ".nvmrc"
 
 permissions:
   contents: read
@@ -135,7 +136,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
         with:
-          node-version: "20.11.1"
+          node-version-file: ${{ env.FRONTEND_NODE_VERSION_FILE }}
 
       - name: Run Phase1 docs gates
         run: |
@@ -325,13 +326,14 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
         with:
-          node-version: "20.11.1"
+          node-version: "22.22.1"
           cache: "npm"
           cache-dependency-path: frontend/package-lock.json
 
       - name: Install frontend dependencies
-        working-directory: frontend
-        run: npm ci
+        uses: ./.github/actions/npm-ci-with-retry
+        with:
+          working-directory: frontend
 
       - name: Generate OpenAPI + TS types
         run: make openapi
@@ -364,6 +366,13 @@ jobs:
         uses: ./.github/actions/python-setup
         with:
           python-version: ${{ matrix.python-version }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+        with:
+          node-version-file: ${{ env.FRONTEND_NODE_VERSION_FILE }}
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
 
       - name: Cache pip dependencies
         uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
@@ -471,6 +480,13 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
+      - name: Setup Node.js
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+        with:
+          node-version-file: ${{ env.FRONTEND_NODE_VERSION_FILE }}
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
       - name: Cache pip dependencies
         uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
         continue-on-error: true  # GitHub Actions cache service may be unavailable
@@ -577,6 +593,13 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
           install-test-deps: "true"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+        with:
+          node-version-file: ${{ env.FRONTEND_NODE_VERSION_FILE }}
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
 
       - name: Cache pip dependencies
         uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4

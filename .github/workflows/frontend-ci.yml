@@ -1,5 +1,8 @@
 name: Frontend CI
 
+env:
+  FRONTEND_NODE_VERSION_FILE: ".nvmrc"
+
 permissions:
   contents: read
 
@@ -13,6 +16,8 @@ on:
     branches: [main, feat/**, fix/**]
     paths:
       - 'frontend/**'
+      - '.nvmrc'
+      - '.github/actions/npm-ci-with-retry/**'
       - 'tokens/**'
       - 'docs/design/TOKENS_SOT.md'
       - 'docs/design/TOKEN_PIPELINE_GOVERNANCE.md'
@@ -40,6 +45,8 @@ on:
     branches: [main, feat/**, fix/**]
     paths:
       - 'frontend/**'
+      - '.nvmrc'
+      - '.github/actions/npm-ci-with-retry/**'
       - 'tokens/**'
       - 'docs/design/TOKENS_SOT.md'
       - 'docs/design/TOKEN_PIPELINE_GOVERNANCE.md'
@@ -85,12 +92,14 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
         with:
-          node-version: '20.11.1'
+          node-version-file: ${{ env.FRONTEND_NODE_VERSION_FILE }}
           cache: 'npm'
           cache-dependency-path: frontend/package-lock.json
 
       - name: Install dependencies
-        run: npm ci
+        uses: ./.github/actions/npm-ci-with-retry
+        with:
+          working-directory: frontend
 
       - name: Setup environment variables
         run: |

@@ -227,7 +227,7 @@ icon-silhouette-check:
 ##        make design-execute SCREEN=ios.home
 ##        make design-verify
 
-.PHONY: design-validate design-execute design-verify design-list
+.PHONY: design-validate design-execute design-verify design-list design-preview
 
 ## List available screens for design execution
 design-list:
@@ -258,6 +258,16 @@ endif
 design-verify:
 	@echo "$(YELLOW)✅ Verifying all designs...$(NC)"
 	python3 scripts/design/verify_design.py --all
+
+## Emit deterministic HTML preview for one executed screen
+design-preview:
+ifndef SCREEN
+	@echo "$(RED)❌ Error: SCREEN not specified$(NC)"
+	@echo "Usage: make design-preview SCREEN=web.progress"
+	@exit 1
+endif
+	@echo "$(YELLOW)🖥️  Emitting HTML preview for $(SCREEN)...$(NC)"
+	python3 scripts/design/html_preview.py --screen $(SCREEN)
 
 ## Coverage HTML and open report (uses .coveragerc)
 cov-html: ## Generate HTML coverage and open in browser
@@ -417,15 +427,15 @@ smoke-8001: ## Smoke against http://127.0.0.1:8001
 ## Generate OpenAPI schema (backend) and regenerate frontend TypeScript types
 openapi: frontend-install ## Generate OpenAPI schema and regenerate FE types (deterministic)
 	PYTHONPATH=. python3 scripts/generate_openapi.py
-	cd frontend && npm run generate-types
+	./scripts/frontend_npm.sh --prefix frontend run generate-types
 ## Install frontend dependencies (run once or when package.json changes)
 frontend-install: ## Install frontend dependencies
 	@if [ -d frontend/node_modules ] && [ -f frontend/node_modules/.package-lock.json ] \
 		&& cmp -s frontend/package-lock.json frontend/node_modules/.package-lock.json; then \
 		echo "Frontend dependencies already installed"; \
 	else \
-		cd frontend && npm install --no-audit --no-fund && \
-		cp package-lock.json node_modules/.package-lock.json; \
+		./scripts/frontend_npm.sh --prefix frontend ci --no-audit --no-fund && \
+		cp frontend/package-lock.json frontend/node_modules/.package-lock.json; \
 	fi
 
 ## Verify OpenAPI schema + generated TypeScript types are in sync (no git diff)

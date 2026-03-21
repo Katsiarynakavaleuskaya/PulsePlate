@@ -68,6 +68,7 @@ class ScreenInstruction:
     dimensions: dict[str, int]
     background_token: str
     token_constraints: list[str]
+    interaction_contract: "InteractionContractSpec"
     ctas: list[CTASpec]
     governance_checks: list[str]
     context_version: str = ""
@@ -96,6 +97,25 @@ class ComponentNodeSpec:
     source_ref: str
 
 
+@dataclass
+class InteractionContractSpec:
+    """Governed adaptive-presentation contract for one screen."""
+
+    interaction_mode: str
+    checkpoint_policy: str
+    adaptation_scope: list[str]
+    modality_hints: list[str]
+    explanation_strategy: str
+
+
+class InteractionContractModel(TypedDict):
+    interaction_mode: str
+    checkpoint_policy: str
+    adaptation_scope: list[str]
+    modality_hints: list[str]
+    explanation_strategy: str
+
+
 class ScreenContentModel(TypedDict):
     surface: str
     layout_archetype: str
@@ -107,6 +127,7 @@ class ScreenContentModel(TypedDict):
     supporting_components: list[str]
     states: list[str]
     token_constraints: list[str]
+    interaction_contract: InteractionContractModel
 
 
 # Screen dimension presets
@@ -142,6 +163,13 @@ SCREEN_CONTENT_MODEL: dict[str, ScreenContentModel] = {
         "supporting_components": ["stats-card", "navigation/tab-bar", "badge"],
         "states": ["default", "feature-flagged", "loading", "error"],
         "token_constraints": ["Color.navy", "Color.appPrimary", "Color.surface"],
+        "interaction_contract": {
+            "interaction_mode": "delegate_with_checkpoints",
+            "checkpoint_policy": "critical_actions_only",
+            "adaptation_scope": ["copy", "layout", "order_of_disclosure"],
+            "modality_hints": ["visual", "touch"],
+            "explanation_strategy": "progressive_disclosure",
+        },
     },
     "ios.plate": {
         "surface": "ios_plate_screen",
@@ -154,6 +182,13 @@ SCREEN_CONTENT_MODEL: dict[str, ScreenContentModel] = {
         "supporting_components": ["badge", "dialog", "progress"],
         "states": ["default", "issue-recovery", "loading", "error"],
         "token_constraints": ["Color.navy", "Color.surface", "Color.appPrimary"],
+        "interaction_contract": {
+            "interaction_mode": "guided_adjustment",
+            "checkpoint_policy": "state_transition_gates",
+            "adaptation_scope": ["copy", "layout", "order_of_disclosure"],
+            "modality_hints": ["visual", "touch"],
+            "explanation_strategy": "inline_rationale",
+        },
     },
     "ios.progress": {
         "surface": "ios_progress_screen",
@@ -166,6 +201,13 @@ SCREEN_CONTENT_MODEL: dict[str, ScreenContentModel] = {
         "supporting_components": ["stats-card", "empty-state", "alert"],
         "states": ["default", "empty", "loading", "error"],
         "token_constraints": ["Color.navy", "Color.surface", "Color.accentGreen"],
+        "interaction_contract": {
+            "interaction_mode": "review_and_inspect",
+            "checkpoint_policy": "export_and_recovery_gates",
+            "adaptation_scope": ["copy", "layout", "modality", "order_of_disclosure"],
+            "modality_hints": ["visual", "text"],
+            "explanation_strategy": "inline_rationale",
+        },
     },
     "web.home": {
         "surface": "web_home_screen",
@@ -178,6 +220,13 @@ SCREEN_CONTENT_MODEL: dict[str, ScreenContentModel] = {
         "supporting_components": ["stats-card", "navigation/tab-bar", "badge"],
         "states": ["default", "feature-flagged", "loading", "error"],
         "token_constraints": ["--pp-navy", "--color-primary", "--color-surface"],
+        "interaction_contract": {
+            "interaction_mode": "delegate_with_checkpoints",
+            "checkpoint_policy": "critical_actions_only",
+            "adaptation_scope": ["copy", "layout", "order_of_disclosure"],
+            "modality_hints": ["visual", "touch"],
+            "explanation_strategy": "progressive_disclosure",
+        },
     },
     "web.plate": {
         "surface": "web_plate_screen",
@@ -190,6 +239,13 @@ SCREEN_CONTENT_MODEL: dict[str, ScreenContentModel] = {
         "supporting_components": ["badge", "dialog", "progress"],
         "states": ["default", "premium-gated", "loading", "error"],
         "token_constraints": ["--pp-navy", "--color-primary", "--color-surface"],
+        "interaction_contract": {
+            "interaction_mode": "guided_adjustment",
+            "checkpoint_policy": "state_transition_gates",
+            "adaptation_scope": ["copy", "layout", "order_of_disclosure"],
+            "modality_hints": ["visual", "touch"],
+            "explanation_strategy": "inline_rationale",
+        },
     },
     "web.progress": {
         "surface": "web_progress_screen",
@@ -202,6 +258,13 @@ SCREEN_CONTENT_MODEL: dict[str, ScreenContentModel] = {
         "supporting_components": ["stats-card", "tooltip", "alert"],
         "states": ["default", "loading", "empty", "error", "export-success"],
         "token_constraints": ["--pp-navy", "--color-success", "--color-surface"],
+        "interaction_contract": {
+            "interaction_mode": "review_and_inspect",
+            "checkpoint_policy": "export_and_recovery_gates",
+            "adaptation_scope": ["copy", "layout", "modality", "order_of_disclosure"],
+            "modality_hints": ["visual", "text"],
+            "explanation_strategy": "on_demand_reasoning",
+        },
     },
 }
 
@@ -554,6 +617,7 @@ def generate_screen_instruction(screen_id: str) -> ScreenInstruction:
         dimensions=dimensions,
         background_token=background_token,
         token_constraints=content_model["token_constraints"],
+        interaction_contract=InteractionContractSpec(**content_model["interaction_contract"]),
         ctas=ctas,
         governance_checks=[
             "verify_token_usage",
@@ -719,6 +783,13 @@ def instruction_to_dict(instruction: ScreenInstruction) -> dict[str, Any]:
         "dimensions": instruction.dimensions,
         "background_token": instruction.background_token,
         "token_constraints": instruction.token_constraints,
+        "interaction_contract": {
+            "interaction_mode": instruction.interaction_contract.interaction_mode,
+            "checkpoint_policy": instruction.interaction_contract.checkpoint_policy,
+            "adaptation_scope": list(instruction.interaction_contract.adaptation_scope),
+            "modality_hints": list(instruction.interaction_contract.modality_hints),
+            "explanation_strategy": instruction.interaction_contract.explanation_strategy,
+        },
         "governance_checks": instruction.governance_checks,
         "context_version": instruction.context_version,
         "instructions": instruction_payload,

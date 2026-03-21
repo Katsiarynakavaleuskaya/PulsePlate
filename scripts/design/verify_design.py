@@ -25,6 +25,7 @@ from scripts.design.contracts import (
     validate_canvas_artifact_contract,
     validate_instruction_contract,
 )
+from scripts.design.html_preview import HTML_PREVIEW_VERSION
 
 # Project root for resolving paths
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
@@ -262,6 +263,63 @@ def verify_screen(screen_id: str, manifest: dict[str, Any]) -> dict[str, Any]:
         else:
             result["checks"].append({"check": "canvas_artifact", "status": "missing"})
             result["errors"].append("code_native_canvas export missing canvas_artifact payload")
+
+        preview_artifact = screen_export.get("preview_artifact")
+        if preview_artifact is not None:
+            if not isinstance(preview_artifact, dict):
+                result["checks"].append({"check": "preview_artifact", "status": "fail"})
+                result["errors"].append("preview_artifact must be an object when present")
+            else:
+                preview_errors: list[str] = []
+                if preview_artifact.get("preview_version") != HTML_PREVIEW_VERSION:
+                    preview_errors.append(
+                        "preview_version mismatch: expected "
+                        f"{HTML_PREVIEW_VERSION}, got {preview_artifact.get('preview_version')}"
+                    )
+                if preview_artifact.get("screen_id") != screen_id:
+                    preview_errors.append(
+                        f"preview screen_id mismatch: expected {screen_id}, "
+                        f"got {preview_artifact.get('screen_id')}"
+                    )
+                output_path = preview_artifact.get("output_path")
+                if not isinstance(output_path, str) or not output_path.strip():
+                    preview_errors.append("preview output_path must be non-empty")
+                elif Path(output_path).is_absolute():
+                    preview_errors.append("preview output_path must be repo-relative")
+                else:
+                    resolved_preview_path = (PROJECT_ROOT / output_path).resolve()
+                    try:
+                        resolved_preview_path.relative_to(PROJECT_ROOT.resolve())
+                    except ValueError:
+                        preview_errors.append("preview output_path must stay within the repo root")
+
+                expected_preview_counts = {
+                    "section_count": len(instruction.get("sections", [])),
+                    "node_count": len(instruction.get("component_hierarchy", [])),
+                    "render_op_count": len(instruction.get("instructions", [])),
+                }
+                for field_name, expected_value in expected_preview_counts.items():
+                    if preview_artifact.get(field_name) != expected_value:
+                        preview_errors.append(
+                            f"preview {field_name} mismatch: expected {expected_value}, "
+                            f"got {preview_artifact.get(field_name)}"
+                        )
+
+                interaction_contract = instruction.get("interaction_contract")
+                if isinstance(interaction_contract, dict):
+                    expected_interaction_mode = interaction_contract.get("interaction_mode")
+                    if preview_artifact.get("interaction_mode") != expected_interaction_mode:
+                        preview_errors.append(
+                            "preview interaction_mode mismatch: expected "
+                            f"{expected_interaction_mode}, got "
+                            f"{preview_artifact.get('interaction_mode')}"
+                        )
+
+                if preview_errors:
+                    result["checks"].append({"check": "preview_artifact", "status": "fail"})
+                    result["errors"].extend(preview_errors)
+                else:
+                    result["checks"].append({"check": "preview_artifact", "status": "pass"})
 
     # Verify each CTA exists
     instruction_ctas = [
