@@ -139,24 +139,12 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
-          node-version: '22.22.1'
+          node-version-file: '.nvmrc'
           cache: 'npm'
           cache-dependency-path: frontend/package-lock.json
 
       - name: Install dependencies
-        run: |
-          for attempt in 1 2 3; do
-            npm ci \
-              --fetch-retries=5 \
-              --fetch-retry-factor=2 \
-              --fetch-retry-mintimeout=20000 \
-              --fetch-retry-maxtimeout=120000 && exit 0
-            if [ "$attempt" -eq 3 ]; then
-              echo "npm ci failed after ${attempt} attempts"
-              exit 1
-            fi
-            sleep $((attempt * 15))
-          done
+        uses: ./.github/actions/npm-ci-with-retry
 
       - name: Install Playwright browser
         run: npx playwright install --with-deps chromium

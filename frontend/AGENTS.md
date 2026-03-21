@@ -5,7 +5,7 @@
 - Key directories: `frontend/src/`, `frontend/src/api/`, `frontend/public/`.
 
 ## Commands (run from `frontend/`)
-- Runtime requirement: Node `22.x` (repo-canonical range: `>=22.0.0 <23.0.0`)
+- Runtime requirement: Node `22.x` (repo-canonical range: `>=22.0.0 <23.0.0`; CI pin lives in repo-root `.nvmrc`)
 - Install: `npm install`
 - Dev: `npm run dev`
 - Build: `npm run build`
