@@ -53,7 +53,9 @@ jobs:
         with:
           node-version-file: ${{ env.FRONTEND_NODE_VERSION_FILE }}
           cache: npm
-          cache-dependency-path: frontend/package-lock.json
+          cache-dependency-path: |
+            frontend/package-lock.json
+            package-lock.json
 
       - name: Cache pip
         uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
@@ -138,7 +140,9 @@ jobs:
         with:
           node-version-file: ${{ env.FRONTEND_NODE_VERSION_FILE }}
           cache: npm
-          cache-dependency-path: frontend/package-lock.json
+          cache-dependency-path: |
+            frontend/package-lock.json
+            package-lock.json
 
       - name: Cache pip
         uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
@@ -153,6 +157,9 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -r requirements.txt -c constraints.txt
           python -m pip install -r requirements-dev.txt -c constraints.txt
+
+      - name: Install root Node dependencies
+        run: npm ci
 
       # Diagnostics enabled in PR jobs only to reduce CI noise and verify nh3 availability
       # after runtime import fix (see core/data_sanitizer.py _require_nh3)
