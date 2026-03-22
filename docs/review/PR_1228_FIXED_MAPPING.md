@@ -20,6 +20,6 @@ Evidence: `deploy/Caddyfile.production:14`, `deploy/Caddyfile.production:100`, `
 
 ## Merge Readiness
 - [ ] All required checks pass
-- [ ] No unresolved review threads (resolve CodeRabbit + Cubic threads after this push once checks are green)
-- [ ] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
+- [x] No unresolved review threads (GitHub review threads resolved after fixes in `fdf1a191`)
+- [x] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
 - [x] Pre-commit green
