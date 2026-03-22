@@ -7488,7 +7488,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Nightly Full Tests Node 22 parity and release-gate selector alignment
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (CI stability / release safety)
-  - Target PR: PR #1226 (`fix/nightly-full-tests-node22-parity`)
+  - Target PR: PR `#1226` (`fix/nightly-full-tests-node22-parity`)
   - Status: In progress as of March 22, 2026
   - Reason: `Nightly Full Tests` failed on `main` after PR `#1209` moved OpenAPI/frontend flows to Node `22.22.1`, because `.github/workflows/nightly-tests.yml` still relied on the runner default Node `20.20.1`. Production release gating in `.github/workflows/cd.yml` also drifted to the legacy `nightly.yml` selector instead of the canonical `Nightly Full Tests` workflow.
   - Links:
@@ -7511,6 +7511,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Deferred hardening follow-up:
     - Evaluate `npm ci --ignore-scripts` or split frontend bootstrap into a
       narrower least-privileged nightly job once the parity fix is shipped.
+    - Evaluate extracting the Node/frontend bootstrap into a shared workflow or
+      composite action so `ci.yml` and `nightly-tests.yml` do not drift again.
 
 **Last updated:** 2026-03-22 (nightly full tests Node 22 parity lane opened)
 **Maintainer:** @katsiaryna_kavaleuskaya

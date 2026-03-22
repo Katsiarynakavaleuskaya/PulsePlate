@@ -16,13 +16,13 @@
   - `make: *** [Makefile:433: frontend-install] Error 1`
 
 ## Root Cause
-- PR `#1209` (`96502f42`, `fix(ci): align frontend openapi sync with node 22`) raised the repo frontend/OpenAPI runtime contract to Node `22.22.1` via [.nvmrc](/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/worktrees/nightly_full_tests_node22_fix/.nvmrc), [frontend/package.json](/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/worktrees/nightly_full_tests_node22_fix/frontend/package.json), and [scripts/frontend_npm.sh](/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/worktrees/nightly_full_tests_node22_fix/scripts/frontend_npm.sh).
-- `Nightly Full Tests` did not get the same Node bootstrap as the working OpenAPI sync lane in CI, so `make openapi` inside [tests/test_openapi_determinism.py](/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/worktrees/nightly_full_tests_node22_fix/tests/test_openapi_determinism.py) executed against the runner default Node `20.20.1`.
-- A second drift was found in [cd.yml](/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/worktrees/nightly_full_tests_node22_fix/.github/workflows/cd.yml): production gating still queried `nightly.yml` (`Nightly Tests`) instead of `nightly-tests.yml` (`Nightly Full Tests`).
+- PR `#1209` (`96502f42`, `fix(ci): align frontend openapi sync with node 22`) raised the repo frontend/OpenAPI runtime contract to Node `22.22.1` via [`.nvmrc`](../../.nvmrc), [`frontend/package.json`](../../frontend/package.json), and [`scripts/frontend_npm.sh`](../../scripts/frontend_npm.sh).
+- `Nightly Full Tests` did not get the same Node bootstrap as the working OpenAPI sync lane in CI, so `make openapi` inside [`tests/test_openapi_determinism.py`](../../tests/test_openapi_determinism.py) executed against the runner default Node `20.20.1`.
+- A second drift was found in [`cd.yml`](../../.github/workflows/cd.yml): production gating still queried `nightly.yml` (`Nightly Tests`) instead of `nightly-tests.yml` (`Nightly Full Tests`).
 
 ## Chosen Fix
-- Add Node `22.22.1` setup and frontend dependency bootstrap to [nightly-tests.yml](/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/worktrees/nightly_full_tests_node22_fix/.github/workflows/nightly-tests.yml) before pytest.
-- Point the production nightly gate in [cd.yml](/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/worktrees/nightly_full_tests_node22_fix/.github/workflows/cd.yml) at `nightly-tests.yml`.
+- Add Node `22.22.1` setup and frontend dependency bootstrap to [`nightly-tests.yml`](../../.github/workflows/nightly-tests.yml) before pytest.
+- Point the production nightly gate in [`cd.yml`](../../.github/workflows/cd.yml) at `nightly-tests.yml`.
 - Keep legacy `nightly.yml` intact for now; this triage only removes it from release gating.
 
 ## Repro Commands
