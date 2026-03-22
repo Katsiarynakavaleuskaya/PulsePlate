@@ -24,6 +24,11 @@ Commit: a769d1d2
 Evidence: `tests/test_coverage_improvement.py:42`, `tests/test_openapi_determinism.py:38`
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1229#discussion_r2972135433
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1229#discussion_r2972135434
+Disposition: FIXED
+Commit: 5252261e
+Evidence: `app/bootstrap/direct_api_root.py` (`DIRECT_API_ROOT_PROBE_MESSAGE`), `tests/test_direct_api_root_probe.py`, `tests/test_legacy_bmi_web_html_guard.py`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1229#discussion_r2972159157
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1229#discussion_r2972159163
 
 ## Merge Readiness
 - [ ] All required checks pass
