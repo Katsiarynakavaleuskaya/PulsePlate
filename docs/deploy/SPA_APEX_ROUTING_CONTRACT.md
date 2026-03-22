@@ -1,6 +1,6 @@
 # SPA at apex — routing contract (Caddy + FastAPI)
 
-**Status:** Contract for production/staging Caddy in [`deploy/Caddyfile.production`](../../deploy/Caddyfile.production).
+**Status:** Contract for production/staging Caddy in [`deploy/Caddyfile.production`](../../deploy/Caddyfile.production) (legacy matchers at `deploy/Caddyfile.production:12`).
 **Scope:** Edge routing only — no thin-client or OpenAPI changes.
 
 ## Goals
@@ -10,17 +10,20 @@
 
 ## Method split (SPA vs legacy POST)
 
-These paths are **React Router** pages for **GET** (see [`frontend/src/config/routes.ts`](../../frontend/src/config/routes.ts)) but **FastAPI** defines **POST** on the same path for legacy clients:
+These paths overlap between **legacy HTTP clients** and the SPA:
 
-| Path | GET | POST |
-|------|-----|------|
-| `/bmi` | SPA (`file_server` + fallback) | `reverse_proxy` → app |
-| `/plan` | SPA | `reverse_proxy` → app |
-| `/insight` | SPA | `reverse_proxy` → app |
-| `/premium_bmr` | SPA | `reverse_proxy` → app |
-| `/premium_targets` | SPA | `reverse_proxy` → app |
+- **`/bmi`**: **GET** is a React route ([`frontend/src/config/routes.ts:30`](../../frontend/src/config/routes.ts)); **POST** (and **OPTIONS** preflight) go to FastAPI.
+- **`/plan`**, **`/insight`**, **`/premium_bmr`**, **`/premium_targets`**: no SPA routes today — **GET**, **POST**, and **OPTIONS** go to FastAPI so browsers do not receive an empty SPA shell for direct GETs.
 
-Caddy matches **POST** only for this set before the general API matcher.
+| Path | GET | POST | OPTIONS |
+|------|-----|------|---------|
+| `/bmi` | SPA | `reverse_proxy` → app | `reverse_proxy` → app |
+| `/plan` | `reverse_proxy` → app | `reverse_proxy` → app | `reverse_proxy` → app |
+| `/insight` | `reverse_proxy` → app | `reverse_proxy` → app | `reverse_proxy` → app |
+| `/premium_bmr` | `reverse_proxy` → app | `reverse_proxy` → app | `reverse_proxy` → app |
+| `/premium_targets` | `reverse_proxy` → app | `reverse_proxy` → app | `reverse_proxy` → app |
+
+Caddy evaluates **POST**, then **OPTIONS**, then **GET** (legacy-only paths), then the general API matcher, then SPA `file_server`.
 
 ## Paths proxied to FastAPI (all methods unless noted)
 
@@ -47,12 +50,12 @@ Caddy matches **POST** only for this set before the general API matcher.
 
 ## Build-time API base
 
-- Docker build ARG `VITE_API_BASE` (default `https://pulseplate.app/api/v1`). Override for staging/other hosts when building the Caddy image.
+- Docker build ARG `VITE_API_BASE` (default same-origin `/api/v1`). Override with an absolute URL for split-origin or Workers-backed API builds ([`frontend/Dockerfile.caddy-spa:17`](../../frontend/Dockerfile.caddy-spa)).
 
 ## QA smoke checklist (after deploy)
 
 - **MIME:** `GET /` returns `text/html`; `GET /health` returns JSON (via proxy).
-- **Deep link:** `GET /bmi` (or another client route) serves SPA `index.html` (not API).
+- **Deep link:** `GET /bmi` serves SPA `index.html` (not API); `GET /plan` (no SPA route) is proxied to the app.
 - **Legacy POST:** `POST /bmi` (and peers) reaches FastAPI (not static 405 from `file_server`).
 - **OpenAPI:** `GET /openapi.json` proxied (200, JSON).
 - **Ops:** `GET /metrics` proxied when enabled; `GET /ready` behavior unchanged.

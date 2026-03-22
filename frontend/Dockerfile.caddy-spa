@@ -2,7 +2,7 @@
 # Multi-stage image: Vite build → Caddy with static SPA at /srv/frontend.
 # Build from repo root (recommended):
 #   docker compose -f deploy/docker-compose.production.yaml build caddy
-# Or with explicit API base for staging:
+# Or with explicit absolute API base (split-origin / Workers):
 #   docker build -f Dockerfile.caddy-spa --build-arg VITE_API_BASE=https://example.com/api/v1 -t pulseplate-caddy:local .
 
 FROM node:22-bookworm-slim AS frontend-build
@@ -14,8 +14,8 @@ RUN npm ci
 
 COPY . .
 
-# Same-origin production default; override per environment at build time.
-ARG VITE_API_BASE=https://pulseplate.app/api/v1
+# Same-origin default (/api/v1 on current host); override for split-origin builds.
+ARG VITE_API_BASE=/api/v1
 ENV VITE_API_BASE=${VITE_API_BASE}
 
 RUN npm run build

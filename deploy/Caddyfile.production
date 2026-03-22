@@ -17,6 +17,26 @@ www.{$PRODUCTION_DOMAIN} {
         reverse_proxy app:8000
     }
 
+    # RU: CORS preflight для legacy POST — не отдавать из file_server.
+    # EN: CORS preflight for legacy POST must reach FastAPI, not static fallback.
+    @legacy_options {
+        method OPTIONS
+        path /bmi /plan /insight /premium_bmr /premium_targets
+    }
+    handle @legacy_options {
+        reverse_proxy app:8000
+    }
+
+    # RU: GET на путях без SPA-маршрута — в FastAPI (404/405), не пустой shell.
+    # EN: GET on paths with no React route → FastAPI (404/405), not empty SPA shell.
+    @legacy_get {
+        method GET
+        path /plan /insight /premium_bmr /premium_targets
+    }
+    handle @legacy_get {
+        reverse_proxy app:8000
+    }
+
     # RU: Всё API и операционные пути — на FastAPI (без коллизий с GET SPA выше).
     # EN: API and ops paths → FastAPI (no GET collision with SPA for legacy POST paths).
     @api path /api* /health* /ready /metrics /ws* /docs* /redoc* /openapi.json /admin* /privacy /terms /debug_env
@@ -66,6 +86,22 @@ www.{$STAGING_FALLBACK_DOMAIN:pulseplate-staging.duckdns.org} {
         path /bmi /plan /insight /premium_bmr /premium_targets
     }
     handle @legacy_post {
+        reverse_proxy app:8000
+    }
+
+    @legacy_options {
+        method OPTIONS
+        path /bmi /plan /insight /premium_bmr /premium_targets
+    }
+    handle @legacy_options {
+        reverse_proxy app:8000
+    }
+
+    @legacy_get {
+        method GET
+        path /plan /insight /premium_bmr /premium_targets
+    }
+    handle @legacy_get {
         reverse_proxy app:8000
     }
 
