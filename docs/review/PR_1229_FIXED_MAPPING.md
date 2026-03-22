@@ -37,7 +37,7 @@ Commit: de54e75f
 Evidence: `app/bootstrap/legacy_bmi_web_html.py:20` (page title without stale year)
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1229#discussion_r2972135425
 Disposition: FIXED
-Commit: 81c71e64793e4ebcc22266ec668496a3bf008aaf
+Commit: 4ec3dd82
 Evidence: `README.md` (Development & Operations bullet: BMI UI path vs apex `/` contract)
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1229#discussion_r2972135431
 Disposition: FIXED
