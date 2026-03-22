@@ -122,8 +122,10 @@ class TestAPIEndpoints:
         """Test root endpoint returns proper HTML."""
         response = self.client.get("/")
         assert response.status_code == 200
-        assert "text/html" in response.headers["content-type"]
-        assert "BMI Calculator" in response.text
+        assert response.headers["content-type"].startswith("application/json")
+        payload = response.json()
+        assert payload["service"] == "pulseplate-api"
+        assert payload["links"]["legacy_bmi_web_ui"] == "/legacy/bmi-calculator"
 
     def test_favicon_endpoint(self):
         """Test favicon endpoint."""

@@ -2109,10 +2109,10 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 ### P2
 
 <a id="ledger-p2-legacy-app-direct-root-get-policy"></a>
-- [ ] P2: Policy for `GET /` on FastAPI when clients bypass Caddy (direct `app:8000` / uvicorn)
+- [x] P2: Policy for `GET /` on FastAPI when clients bypass Caddy (direct `app:8000` / uvicorn)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2 (deploy ergonomics / operator clarity)
-  - Target PR: PR-TBD-LEGACY-ROOT-GET-POLICY
+  - Target PR: (set at merge time — opened as direct-root JSON probe + `/legacy/bmi-calculator`)
   - Area: backend / deploy / legacy surface
   - Reason (EN): With SPA served at apex via Caddy, operators or health tools may still hit uvicorn directly. `legacy_app.py` behavior for `GET /` should be explicit: redirect to public origin, `404`, JSON probe, or documented “Caddy-only” with no code change — pick one and test if behavior changes.
   - Links:

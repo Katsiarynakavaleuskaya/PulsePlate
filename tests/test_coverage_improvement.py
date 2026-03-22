@@ -40,7 +40,7 @@ class TestCoverageImprovement:
             pass
 
         # Test the root endpoint more thoroughly
-        response = self.client.get("/")
+        response = self.client.get("/legacy/bmi-calculator")
         assert response.status_code == 200
         assert "BMI Calculator" in response.text
 

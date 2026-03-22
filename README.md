@@ -275,7 +275,8 @@ The merged food database follows a standardized schema:
 
 ### Web UI
 
-- `GET /` - Simple web interface for BMI calculation
+- `GET /` - Direct-API JSON probe when hitting FastAPI without Caddy (operators / scanners); apex browsers get the SPA from static hosting
+- `GET /legacy/bmi-calculator` - Legacy standalone HTML form for BMI (same UI historically served at `/`)
 
 ### Body Fat Estimation
 

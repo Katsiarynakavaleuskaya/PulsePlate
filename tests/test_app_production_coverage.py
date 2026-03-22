@@ -218,7 +218,6 @@ class TestAppProductionCoverage:
         # Проверяем, что root endpoint работает в production режиме
         response = client.get("/")
         assert response.status_code == 200
-
-        # Root endpoint может возвращать HTML, а не JSON
-        # root_data = response.json()
-        # assert "message" in root_data
+        assert response.headers["content-type"].startswith("application/json")
+        root_data = response.json()
+        assert root_data.get("service") == "pulseplate-api"

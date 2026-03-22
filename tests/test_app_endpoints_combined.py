@@ -52,9 +52,17 @@ class TestHealthAndMonitoringEndpoints:
             or "Prometheus client not available" in content
         )
 
-    def test_root_page_renders(self, client: TestClient) -> None:
-        """Test root / endpoint renders HTML BMI calculator"""
+    def test_root_returns_direct_api_probe(self, client: TestClient) -> None:
+        """Test GET / returns JSON when hitting FastAPI directly (Caddy serves SPA at apex)."""
         response = client.get("/")
+        assert response.status_code == 200
+        assert response.headers["content-type"].startswith("application/json")
+        data = response.json()
+        assert data["surface"] == "api"
+
+    def test_legacy_bmi_page_renders(self, client: TestClient) -> None:
+        """Legacy HTML BMI calculator remains on /legacy/bmi-calculator."""
+        response = client.get("/legacy/bmi-calculator")
         assert response.status_code == 200
         content = response.text
         assert "<title" in content

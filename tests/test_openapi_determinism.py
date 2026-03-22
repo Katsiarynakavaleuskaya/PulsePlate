@@ -24,6 +24,33 @@ def _tail_log(log_text: str) -> str:
     return "\n".join(lines[-_SUBPROCESS_LOG_TAIL_LINES:])
 
 
+def _node_major_meets_nvmrc(repo_root: Path) -> bool:
+    """
+    Match scripts/frontend_npm.sh: `make openapi` fails when Node major < .nvmrc major.
+
+    RU: Локально без Node 22 полный пайплайн не запускаем — скип вместо ложного FAIL.
+    EN: Skip determinism test when toolchain cannot run the real OpenAPI pipeline.
+    """
+    nvmrc = repo_root / ".nvmrc"
+    if not nvmrc.is_file():
+        return True
+    expected_major = int(nvmrc.read_text(encoding="utf-8").strip().split(".")[0])
+    proc = subprocess.run(
+        ["node", "-p", "parseInt(process.versions.node.split('.')[0], 10)"],
+        cwd=repo_root,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    if proc.returncode != 0:
+        return False
+    try:
+        current_major = int((proc.stdout or "").strip())
+    except ValueError:
+        return False
+    return current_major >= expected_major
+
+
 def _run_openapi_pipeline(repo_root: Path) -> None:
     """
     Run `make openapi` with bounded retry and actionable failure diagnostics.
@@ -74,11 +101,17 @@ def test_openapi_and_schema_ts_are_deterministic() -> None:
     - No drift occurs in openapi.json or schema.ts
     - Full pipeline (make openapi) is deterministic for CI and local development
     """
+    repo_root = Path(__file__).resolve().parents[1]
+
     # This test is meant for the dedicated CI job that has Node/npm installed.
     if not (shutil.which("node") and shutil.which("npm") and shutil.which("make")):
         pytest.skip("OpenAPI determinism test requires node/npm/make toolchain")
 
-    repo_root = Path(__file__).resolve().parents[1]
+    if not _node_major_meets_nvmrc(repo_root):
+        pytest.skip(
+            "OpenAPI determinism test requires Node major >= .nvmrc "
+            "(same gate as scripts/frontend_npm.sh / make openapi)"
+        )
     openapi_path = repo_root / "frontend" / "src" / "api" / "openapi.json"
     schema_path = repo_root / "frontend" / "src" / "api" / "schema.ts"
 

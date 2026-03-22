@@ -341,7 +341,7 @@ class TestAppMissingCoverage96:
 
     def test_root_endpoint(self):
         """Test root endpoint returns HTML."""
-        response = self.client.get("/")
+        response = self.client.get("/legacy/bmi-calculator")
         assert response.status_code == 200
         # Should return HTML content
         assert "text/html" in response.headers.get("content-type", "")

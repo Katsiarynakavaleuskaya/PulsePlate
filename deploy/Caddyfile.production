@@ -39,7 +39,7 @@ www.{$PRODUCTION_DOMAIN} {
 
     # RU: Всё API и операционные пути — на FastAPI (без коллизий с GET SPA выше).
     # EN: API and ops paths → FastAPI (no GET collision with SPA for legacy POST paths).
-    @api path /api* /health* /ready /metrics /ws* /docs* /redoc* /openapi.json /admin* /privacy /terms /debug_env
+    @api path /api* /health* /ready /metrics /ws* /docs* /redoc* /openapi.json /admin* /privacy /terms /debug_env /legacy*
     handle @api {
         reverse_proxy app:8000
     }
@@ -105,7 +105,7 @@ www.{$STAGING_FALLBACK_DOMAIN:pulseplate-staging.duckdns.org} {
         reverse_proxy app:8000
     }
 
-    @api path /api* /health* /ready /metrics /ws* /docs* /redoc* /openapi.json /admin* /privacy /terms /debug_env
+    @api path /api* /health* /ready /metrics /ws* /docs* /redoc* /openapi.json /admin* /privacy /terms /debug_env /legacy*
     handle @api {
         reverse_proxy app:8000
     }

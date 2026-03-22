@@ -209,7 +209,9 @@ def test_no_premium_week_router(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_root_endpoint(client: TestClient) -> None:
     response = client.get("/")
     assert response.status_code == 200
-    assert "PulsePlate" in response.text or "ok" in response.text
+    assert response.headers["content-type"].startswith("application/json")
+    probe = response.json()
+    assert probe.get("service") == "pulseplate-api"
 
 
 def test_invalid_route(client: TestClient) -> None:
