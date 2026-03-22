@@ -29,6 +29,34 @@ Commit: 5252261e
 Evidence: `app/bootstrap/direct_api_root.py` (`DIRECT_API_ROOT_PROBE_MESSAGE`), `tests/test_direct_api_root_probe.py`, `tests/test_legacy_bmi_web_html_guard.py`
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1229#discussion_r2972159157
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1229#discussion_r2972159163
+Disposition: NOT-A-BUG
+Evidence: `app/bootstrap/direct_api_root.py`, `app/bootstrap/legacy_bmi_web_html.py`, `tests/test_openapi_determinism.py` — Sourcery summary overlaps threads mapped below; bootstrap route constants and Node/.nvmrc CI gate are intentionally scoped as implemented.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1229#pullrequestreview-3988632955
+Disposition: FIXED
+Commit: de54e75f
+Evidence: `app/bootstrap/legacy_bmi_web_html.py:20` (page title without stale year)
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1229#discussion_r2972135425
+Disposition: FIXED
+Commit: 81c71e64793e4ebcc22266ec668496a3bf008aaf
+Evidence: `README.md` (Development & Operations bullet: BMI UI path vs apex `/` contract)
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1229#discussion_r2972135431
+Disposition: FIXED
+Commit: a769d1d2
+Evidence: `tests/test_openapi_determinism.py` (CI fail-closed when Node major < `.nvmrc`)
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1229#discussion_r2972135438
+Disposition: FIXED
+Commit: de54e75f
+Evidence: `app/main.py`, `app/bootstrap/legacy_bmi_web_html.py`, routing/docs batch (CodeRabbit review cycle 1)
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1229#pullrequestreview-3988641521
+Disposition: FIXED
+Commit: a126a079
+Evidence: `app/bootstrap/direct_api_root.py`, `tests/test_direct_api_root_probe.py`, `tests/test_legacy_bmi_web_html_guard.py` (CodeRabbit review cycles 2–3)
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1229#pullrequestreview-3988645373
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1229#pullrequestreview-3988648467
+Disposition: FIXED
+Commit: 5252261e
+Evidence: `app/bootstrap/direct_api_root.py` (`DIRECT_API_ROOT_PROBE_MESSAGE`), guard tests (Cubic P2 review)
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1229#pullrequestreview-3988659006
 
 ## Merge Readiness
 - [ ] All required checks pass
