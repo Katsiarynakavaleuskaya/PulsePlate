@@ -73,6 +73,12 @@ $DC_CMD pull caddy || {
 }
 
 echo ""
+echo "=== Step 1b: Pull app image (IMAGE_REF from registry) ==="
+$DC_CMD pull app || {
+    echo "⚠️  Warning: pull app failed — verify registry auth / IMAGE_REF in .env"
+}
+
+echo ""
 echo "=== Step 2: Build Caddy image (frontend dist + Caddyfile) ==="
 $DC_CMD build caddy || {
     echo "❌ Failed to build Caddy image"

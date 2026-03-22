@@ -1,6 +1,6 @@
 # SPA at apex — routing contract (Caddy + FastAPI)
 
-**Status:** Contract for production/staging Caddy in [`deploy/Caddyfile.production`](../../deploy/Caddyfile.production) (legacy matchers at `deploy/Caddyfile.production:12`).
+**Status:** Contract for production/staging Caddy in [`deploy/Caddyfile.production`](../../deploy/Caddyfile.production) (legacy matchers at `deploy/Caddyfile.production:14`).
 **Scope:** Edge routing only — no thin-client or OpenAPI changes.
 
 ## Goals
@@ -22,6 +22,8 @@ These paths overlap between **legacy HTTP clients** and the SPA:
 | `/insight` | `reverse_proxy` → app | `reverse_proxy` → app | `reverse_proxy` → app |
 | `/premium_bmr` | `reverse_proxy` → app | `reverse_proxy` → app | `reverse_proxy` → app |
 | `/premium_targets` | `reverse_proxy` → app | `reverse_proxy` → app | `reverse_proxy` → app |
+
+Caddy `path` matching is **exact** (no automatic trailing-slash merge). Legacy matchers list both `/foo` and `/foo/` for POST, OPTIONS, and GET so clients that append a trailing slash still hit FastAPI (`deploy/Caddyfile.production:14`).
 
 Caddy evaluates **POST**, then **OPTIONS**, then **GET** (legacy-only paths), then the general API matcher, then SPA `file_server`.
 

@@ -11,7 +11,7 @@ www.{$PRODUCTION_DOMAIN} {
     # EN: Legacy POST-only routes share paths with SPA GET (see SPA_APEX_ROUTING_CONTRACT.md).
     @legacy_post {
         method POST
-        path /bmi /plan /insight /premium_bmr /premium_targets
+        path /bmi /bmi/ /plan /plan/ /insight /insight/ /premium_bmr /premium_bmr/ /premium_targets /premium_targets/
     }
     handle @legacy_post {
         reverse_proxy app:8000
@@ -21,7 +21,7 @@ www.{$PRODUCTION_DOMAIN} {
     # EN: CORS preflight for legacy POST must reach FastAPI, not static fallback.
     @legacy_options {
         method OPTIONS
-        path /bmi /plan /insight /premium_bmr /premium_targets
+        path /bmi /bmi/ /plan /plan/ /insight /insight/ /premium_bmr /premium_bmr/ /premium_targets /premium_targets/
     }
     handle @legacy_options {
         reverse_proxy app:8000
@@ -31,7 +31,7 @@ www.{$PRODUCTION_DOMAIN} {
     # EN: GET on paths with no React route → FastAPI (404/405), not empty SPA shell.
     @legacy_get {
         method GET
-        path /plan /insight /premium_bmr /premium_targets
+        path /plan /plan/ /insight /insight/ /premium_bmr /premium_bmr/ /premium_targets /premium_targets/
     }
     handle @legacy_get {
         reverse_proxy app:8000
@@ -83,7 +83,7 @@ www.{$STAGING_FALLBACK_DOMAIN:pulseplate-staging.duckdns.org} {
 
     @legacy_post {
         method POST
-        path /bmi /plan /insight /premium_bmr /premium_targets
+        path /bmi /bmi/ /plan /plan/ /insight /insight/ /premium_bmr /premium_bmr/ /premium_targets /premium_targets/
     }
     handle @legacy_post {
         reverse_proxy app:8000
@@ -91,7 +91,7 @@ www.{$STAGING_FALLBACK_DOMAIN:pulseplate-staging.duckdns.org} {
 
     @legacy_options {
         method OPTIONS
-        path /bmi /plan /insight /premium_bmr /premium_targets
+        path /bmi /bmi/ /plan /plan/ /insight /insight/ /premium_bmr /premium_bmr/ /premium_targets /premium_targets/
     }
     handle @legacy_options {
         reverse_proxy app:8000
@@ -99,7 +99,7 @@ www.{$STAGING_FALLBACK_DOMAIN:pulseplate-staging.duckdns.org} {
 
     @legacy_get {
         method GET
-        path /plan /insight /premium_bmr /premium_targets
+        path /plan /plan/ /insight /insight/ /premium_bmr /premium_bmr/ /premium_targets /premium_targets/
     }
     handle @legacy_get {
         reverse_proxy app:8000
