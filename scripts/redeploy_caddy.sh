@@ -67,24 +67,37 @@ else
     exit 1
 fi
 
-echo "=== Step 1: Pull latest Caddy image ==="
+echo "=== Step 1: Pull Caddy image (no-op when service uses build:) ==="
 $DC_CMD pull caddy || {
-    echo "⚠️  Warning: Failed to pull Caddy image (may already be up to date)"
+    echo "⚠️  Warning: pull failed or skipped (expected when caddy uses compose build: context)"
 }
 
 echo ""
-echo "=== Step 2: Restart Caddy container ==="
+echo "=== Step 1b: Pull app image (IMAGE_REF from registry) ==="
+$DC_CMD pull app || {
+    echo "⚠️  Warning: pull app failed — verify registry auth / IMAGE_REF in .env"
+}
+
+echo ""
+echo "=== Step 2: Build Caddy image (frontend dist + Caddyfile) ==="
+$DC_CMD build caddy || {
+    echo "❌ Failed to build Caddy image"
+    exit 1
+}
+
+echo ""
+echo "=== Step 3: Restart Caddy container ==="
 $DC_CMD up -d caddy || {
     echo "❌ Failed to start Caddy container"
     exit 1
 }
 
 echo ""
-echo "=== Step 3: Check Caddy container status ==="
+echo "=== Step 4: Check Caddy container status ==="
 $DC_CMD ps caddy
 
 echo ""
-echo "=== Step 4: Show recent Caddy logs ==="
+echo "=== Step 5: Show recent Caddy logs ==="
 $DC_CMD logs --tail=100 caddy
 
 echo ""

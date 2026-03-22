@@ -120,8 +120,9 @@ docker compose -f docker-compose.production.yaml up -d --force-recreate app
 # Использовать скрипт (если скопировали на сервер)
 bash scripts/redeploy_caddy.sh
 
-# Или вручную
-docker compose -f docker-compose.production.yaml pull caddy
+# Или вручную (см. deploy/WORKFLOW.md:145 — сначала pull app, затем build caddy)
+docker compose -f docker-compose.production.yaml pull app
+docker compose -f docker-compose.production.yaml build caddy
 docker compose -f docker-compose.production.yaml up -d caddy
 docker compose -f docker-compose.production.yaml ps caddy
 docker compose -f docker-compose.production.yaml logs --tail=100 caddy

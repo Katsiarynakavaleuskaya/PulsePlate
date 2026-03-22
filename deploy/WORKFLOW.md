@@ -141,9 +141,10 @@ ssh root@pulseplate.app
 # Перейти в deploy директорию
 cd /srv/pulseplate-production
 
-# Обновить и перезапустить
-docker-compose -f docker-compose.production.yaml pull
-docker-compose -f docker-compose.production.yaml up -d --force-recreate
+# Обновить образ app из registry (IMAGE_REF), затем пересобрать Caddy из репозитория и перезапустить стек
+docker compose -f docker-compose.production.yaml pull app
+docker compose -f docker-compose.production.yaml build caddy
+docker compose -f docker-compose.production.yaml up -d --force-recreate
 
 # Проверить
 curl -fsS https://pulseplate.app/health | jq .
@@ -169,7 +170,7 @@ curl -fsS https://pulseplate.app/health | jq .
 | ------------------ | ---------------------------------------------- | --------------------------------------- |
 | **Cursor**         | Код, фиксы, коммиты, PR                       | Правка на сервере                       |
 | **GitHub Actions** | Автоматическая сборка Docker image             | Ручная сборка                           |
-| **DigitalOcean**   | `docker pull` + `docker-compose up`            | Правка кода, git clone, изменение файлов |
+| **DigitalOcean**   | `docker compose pull app` + `build caddy` + `up` (см. `scripts/redeploy_caddy.sh:76`) | Правка кода, git clone, изменение файлов |
 
 ---
 
