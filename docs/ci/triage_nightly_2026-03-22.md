@@ -38,6 +38,7 @@ gh run view 23395469933 --job 68057604027 --log-failed
 pre-commit run --all-files
 make verify
 gh workflow run "Nightly Full Tests" --ref fix/nightly-full-tests-node22-parity
+gh run watch "$(gh run list --workflow "Nightly Full Tests" --branch fix/nightly-full-tests-node22-parity --limit 1 --json databaseId --jq '.[0].databaseId')" --exit-status
 ```
 
 ## Links
