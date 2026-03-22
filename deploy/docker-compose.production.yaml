@@ -35,7 +35,11 @@ services:
       start_period: 40s
 
   caddy:
-    image: caddy:2.10.2
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile.caddy-spa
+      args:
+        VITE_API_BASE: ${VITE_API_BASE:-https://pulseplate.app/api/v1}
     restart: unless-stopped
     networks: [web]
     ports:

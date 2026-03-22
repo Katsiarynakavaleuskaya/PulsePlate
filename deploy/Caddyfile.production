@@ -6,7 +6,31 @@ www.{$PRODUCTION_DOMAIN} {
 
 {$PRODUCTION_DOMAIN} {
     encode gzip
-    reverse_proxy app:8000
+
+    # RU: Legacy POST-only маршруты совпадают с GET SPA (см. docs/deploy/SPA_APEX_ROUTING_CONTRACT.md).
+    # EN: Legacy POST-only routes share paths with SPA GET (see SPA_APEX_ROUTING_CONTRACT.md).
+    @legacy_post {
+        method POST
+        path /bmi /plan /insight /premium_bmr /premium_targets
+    }
+    handle @legacy_post {
+        reverse_proxy app:8000
+    }
+
+    # RU: Всё API и операционные пути — на FastAPI (без коллизий с GET SPA выше).
+    # EN: API and ops paths → FastAPI (no GET collision with SPA for legacy POST paths).
+    @api path /api* /health* /ready /metrics /ws* /docs* /redoc* /openapi.json /admin* /privacy /terms /debug_env
+    handle @api {
+        reverse_proxy app:8000
+    }
+
+    # RU: Статика SPA + fallback на index.html.
+    # EN: SPA static files + index.html fallback.
+    handle {
+        root * /srv/frontend
+        try_files {path} /index.html
+        file_server
+    }
 
     # RU: Безопасные заголовки по умолчанию (дополняет Cloudflare)
     # EN: Basic security headers (complements Cloudflare)
@@ -36,7 +60,25 @@ www.{$STAGING_FALLBACK_DOMAIN:pulseplate-staging.duckdns.org} {
 
 {$STAGING_FALLBACK_DOMAIN:pulseplate-staging.duckdns.org} {
     encode gzip
-    reverse_proxy app:8000
+
+    @legacy_post {
+        method POST
+        path /bmi /plan /insight /premium_bmr /premium_targets
+    }
+    handle @legacy_post {
+        reverse_proxy app:8000
+    }
+
+    @api path /api* /health* /ready /metrics /ws* /docs* /redoc* /openapi.json /admin* /privacy /terms /debug_env
+    handle @api {
+        reverse_proxy app:8000
+    }
+
+    handle {
+        root * /srv/frontend
+        try_files {path} /index.html
+        file_server
+    }
 
     header {
         Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
