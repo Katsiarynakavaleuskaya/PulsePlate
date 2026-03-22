@@ -275,7 +275,8 @@ The merged food database follows a standardized schema:
 
 ### Web UI
 
-- `GET /` - Simple web interface for BMI calculation
+- `GET /` - Direct-API JSON probe when hitting FastAPI without Caddy (operators / scanners); apex browsers get the SPA from static hosting
+- `GET /legacy/bmi-calculator` - Legacy standalone HTML form for BMI (same UI historically served at `/`)
 
 ### Body Fat Estimation
 
@@ -585,7 +586,7 @@ make lint
   - Comprehensive test suite with 97%+ coverage (enforced in CI)
   - Docker support with optimized production builds
   - CI/CD with GitHub Actions and automated security scans
-  - Simple web UI at root path for easy BMI calculation
+  - Legacy BMI HTML UI at `GET /legacy/bmi-calculator` (apex `/` is SPA or direct-API probe; see `docs/deploy/SPA_APEX_ROUTING_CONTRACT.md`)
   - Structured logging and request monitoring
   - **Pre-commit hooks** for code quality (Black, Ruff, MyPy, Bandit)
   - **Automatic cache cleanup** in CI and pre-commit hooks

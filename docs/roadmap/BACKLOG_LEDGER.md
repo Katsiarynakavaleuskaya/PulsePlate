@@ -2112,13 +2112,14 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P2: Policy for `GET /` on FastAPI when clients bypass Caddy (direct `app:8000` / uvicorn)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2 (deploy ergonomics / operator clarity)
-  - Target PR: PR-TBD-LEGACY-ROOT-GET-POLICY
+  - Target PR: #1229
   - Area: backend / deploy / legacy surface
   - Reason (EN): With SPA served at apex via Caddy, operators or health tools may still hit uvicorn directly. `legacy_app.py` behavior for `GET /` should be explicit: redirect to public origin, `404`, JSON probe, or documented “Caddy-only” with no code change — pick one and test if behavior changes.
+  - Note (EN): Keep **open** until PR #1229 is merged; close via **docs-only** follow-up that sets `[x]` with merge evidence (ledger closure rule — do not pre-close in the implementation PR).
   - Links:
     - `docs/deploy/SPA_APEX_ROUTING_CONTRACT.md`
     - `deploy/Caddyfile.production`
-    - `legacy_app.py`
+    - `app/main.py` (canonical bootstrap registers direct-root probe + legacy HTML route)
   - DoD:
     - Documented policy in contract or runbook with `file:line` evidence
     - If code changes: deterministic tests for chosen status/body

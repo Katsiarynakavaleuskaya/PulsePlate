@@ -23,7 +23,7 @@ import legacy_app
 def test_language_cookie_has_samesite_and_secure_guard() -> None:
     """Security: language cookie must include SameSite and Secure-on-HTTPS guard."""
     client = TestClient(legacy_app.app)
-    resp = client.get("/")
+    resp = client.get("/legacy/bmi-calculator")
     assert resp.status_code == 200
     assert "SameSite=Lax" in resp.text
     assert "window.location.protocol === 'https:'" in resp.text

@@ -7,6 +7,7 @@ Keep imports deterministic: do NOT use importlib exec_module, do NOT mutate sys.
 from __future__ import annotations
 
 from fastapi import FastAPI
+from fastapi.responses import HTMLResponse
 
 from legacy_app import (
     _install_openapi_builder,
@@ -15,6 +16,11 @@ from legacy_app import (
 
 # Register observability infrastructure (middleware + /metrics endpoint)
 # This must be done here, not in legacy_app.py, to keep legacy as a thin proxy
+from app.bootstrap.direct_api_root import (
+    LEGACY_BMI_WEB_ROUTE,
+    serve_direct_api_root_probe,
+    serve_legacy_bmi_calculator_web,
+)
 from app.bootstrap.food_search import register_food_search_backend
 from app.bootstrap.metrics import register_metrics
 from app.bootstrap.pro_contracts import register_pro_contract_routes
@@ -27,6 +33,7 @@ from app.routers.cbt_insight import router as cbt_insight_router
 from app.routers.feedback import router as feedback_router
 from app.routers.fitchef_structured import router as fitchef_structured_router
 from app.routers.legal import router as legal_router
+from app.schemas.direct_api_root import DirectApiRootProbe
 
 app: FastAPI = _legacy_app
 
@@ -54,6 +61,29 @@ def _has_route(
             continue
         methods = getattr(route, "methods", None) or set()
         if method_name is None or method_name in methods:
+            return True
+    return False
+
+
+def _route_has_endpoint(
+    target_app: FastAPI,
+    path: str,
+    method: str,
+    endpoint: object,
+) -> bool:
+    """True when ``path``+``method`` is already bound to the expected callable.
+
+    RU: Не считаем «маршрут есть», если на пути висит чужой handler (контракт другой).
+    EN: Path/method alone is insufficient — wrong handler means wrong contract.
+    """
+    method_name = method.upper()
+    for route in target_app.routes:
+        if getattr(route, "path", None) != path:
+            continue
+        methods = getattr(route, "methods", None) or set()
+        if method_name not in methods:
+            continue
+        if getattr(route, "endpoint", None) is endpoint:
             return True
     return False
 
@@ -114,6 +144,25 @@ def ensure_canonical_app_bootstrap(target_app: FastAPI) -> FastAPI:
     app = target_app
     _internalize_users_openapi_surface(app)
     _install_openapi_builder(app)
+
+    if not _route_has_endpoint(target_app, "/", "GET", serve_direct_api_root_probe):
+        target_app.add_api_route(
+            "/",
+            serve_direct_api_root_probe,
+            methods=["GET"],
+            include_in_schema=False,
+            response_model=DirectApiRootProbe,
+        )
+    if not _route_has_endpoint(
+        target_app, LEGACY_BMI_WEB_ROUTE, "GET", serve_legacy_bmi_calculator_web
+    ):
+        target_app.add_api_route(
+            LEGACY_BMI_WEB_ROUTE,
+            serve_legacy_bmi_calculator_web,
+            methods=["GET"],
+            include_in_schema=False,
+            response_class=HTMLResponse,
+        )
     register_food_search_backend(app)
     register_metrics(app)
     register_request_telemetry(app)

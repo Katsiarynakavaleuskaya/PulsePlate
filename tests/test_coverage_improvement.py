@@ -39,8 +39,8 @@ class TestCoverageImprovement:
             # This line is covered by the environment setup
             pass
 
-        # Test the root endpoint more thoroughly
-        response = self.client.get("/")
+        # Legacy embedded BMI calculator HTML (canonical path; GET / is JSON probe)
+        response = self.client.get("/legacy/bmi-calculator")
         assert response.status_code == 200
         assert "BMI Calculator" in response.text
 

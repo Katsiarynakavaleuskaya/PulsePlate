@@ -177,7 +177,7 @@ class TestTargetedCoverageImprovement:
         """Test root endpoint."""
         response = self.client.get("/")
         assert response.status_code == 200
-        assert "text/html" in response.headers["content-type"]
+        assert response.headers["content-type"].startswith("application/json")
 
     def test_favicon_endpoint(self):
         """Test favicon endpoint."""

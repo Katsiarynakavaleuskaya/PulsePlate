@@ -396,9 +396,9 @@ class TestAppSpecificCoverage96:
     # permissive to avoid brittle failures and can be tightened once the API
     # surface stabilizes.
 
-    def test_root_endpoint_html_content(self) -> None:
-        """Test root endpoint returns proper HTML content."""
-        response = self.client.get("/")
+    def test_legacy_bmi_web_ui_returns_html(self) -> None:
+        """Legacy embedded BMI page lives under /legacy/bmi-calculator (not GET /)."""
+        response = self.client.get("/legacy/bmi-calculator")
         assert response.status_code == 200
         assert "text/html" in response.headers.get("content-type", "")
         html_content = response.text

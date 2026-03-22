@@ -10,6 +10,8 @@ from __future__ import annotations
 import pytest
 from fastapi.testclient import TestClient
 
+from app.bootstrap.direct_api_root import LEGACY_BMI_WEB_ROUTE
+
 
 @pytest.mark.slow
 class TestSpanishEndToEndSmoke:
@@ -97,8 +99,8 @@ class TestSpanishEndToEndSmoke:
         # Verify Spanish language is processed (notes should be localized)
         assert isinstance(bmi_pro_result.get("notes"), list)
 
-        # 4. Test web interface with Spanish language parameter
-        web_response = self.client.get("/?lang=es")
+        # 4. Legacy embedded BMI web UI (Spanish) — canonical path (GET / is JSON probe)
+        web_response = self.client.get(f"{LEGACY_BMI_WEB_ROUTE}?lang=es")
         assert web_response.status_code == 200
         assert "text/html" in web_response.headers["content-type"]
 
