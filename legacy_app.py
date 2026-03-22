@@ -30,7 +30,7 @@ from typing import (
 
 import dotenv
 from fastapi import APIRouter, Body, Depends, FastAPI, HTTPException
-from fastapi.responses import HTMLResponse, JSONResponse, Response
+from fastapi.responses import JSONResponse, Response
 from pydantic import (
     BaseModel,
     ConfigDict,
