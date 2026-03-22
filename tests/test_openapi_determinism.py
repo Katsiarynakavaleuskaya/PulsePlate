@@ -35,7 +35,11 @@ def _node_major_meets_nvmrc(repo_root: Path) -> bool:
     nvmrc = repo_root / ".nvmrc"
     if not nvmrc.is_file():
         return True
-    expected_major = int(nvmrc.read_text(encoding="utf-8").strip().split(".")[0])
+    first_segment = nvmrc.read_text(encoding="utf-8").strip().split(".")[0].lstrip("v")
+    try:
+        expected_major = int(first_segment)
+    except ValueError:
+        return False
     proc = subprocess.run(
         ["node", "-p", "parseInt(process.versions.node.split('.')[0], 10)"],
         cwd=repo_root,
