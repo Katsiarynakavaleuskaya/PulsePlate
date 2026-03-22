@@ -6,6 +6,7 @@
 
 ## Fixed in Commit Mapping
 Disposition: FIXED
+Commit: 04366f44
 Evidence: `deploy/Caddyfile.production:12`, `frontend/src/api/client.ts:107`, `frontend/Dockerfile.caddy-spa:17`, `scripts/redeploy_caddy.sh:70`, `docs/deploy/SPA_APEX_ROUTING_CONTRACT.md:13`, `deploy/WORKFLOW.md:145`, `scripts/DIGITALOCEAN_CONSOLE_ACCESS.md:124`
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1228#pullrequestreview-3988553487
