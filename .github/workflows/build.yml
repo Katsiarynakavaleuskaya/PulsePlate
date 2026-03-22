@@ -138,7 +138,7 @@ jobs:
     needs: [build, security-scan]
     if: github.event_name != 'pull_request'
     permissions:
-      contents: read
+      contents: write
       packages: write # write implies read; required for GHCR push/pull
       security-events: write
 
