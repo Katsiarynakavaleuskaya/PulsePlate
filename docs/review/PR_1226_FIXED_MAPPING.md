@@ -1,0 +1,18 @@
+# PR 1226 — Fixed in Commit Mapping
+
+## Discussion Thread Pass
+- [ ] Discussion-thread pass completed
+- [ ] Fixed in commit mapping completed
+
+## Fixed in Commit Mapping
+
+No actionable review threads are mapped yet.
+
+Initial implementation commit:
+- `f996cc0a` — workflow parity fix, release-gate selector alignment, triage note, and backlog entry
+
+## Merge Readiness
+- [ ] All required checks pass
+- [ ] No unresolved review threads
+- [ ] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
+- [x] Pre-commit green
