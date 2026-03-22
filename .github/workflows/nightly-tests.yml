@@ -1,6 +1,9 @@
 # yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
 name: Nightly Full Tests
 
+env:
+  FRONTEND_NODE_VERSION_FILE: ".nvmrc"
+
 on:
   schedule:
     - cron: '0 2 * * *'
@@ -26,6 +29,13 @@ jobs:
         with:
           python-version: '3.13.6'
 
+      - name: Setup Node.js
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+        with:
+          node-version-file: ${{ env.FRONTEND_NODE_VERSION_FILE }}
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
       - name: Cache pip
         uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
         with:
@@ -39,6 +49,11 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -r requirements.txt -c constraints.txt
           python -m pip install -r requirements-dev.txt -c constraints.txt
+
+      - name: Install frontend dependencies
+        uses: ./.github/actions/npm-ci-with-retry
+        with:
+          working-directory: frontend
 
       - name: Run full test suite with coverage (include slow/MC)
         env:
