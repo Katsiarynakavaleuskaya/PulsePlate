@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+import os
 import shutil
 import subprocess
 from pathlib import Path
@@ -28,8 +29,8 @@ def _node_major_meets_nvmrc(repo_root: Path) -> bool:
     """
     Match scripts/frontend_npm.sh: `make openapi` fails when Node major < .nvmrc major.
 
-    RU: Локально без Node 22 полный пайплайн не запускаем — скип вместо ложного FAIL.
-    EN: Skip determinism test when toolchain cannot run the real OpenAPI pipeline.
+    RU: Локально без нужного Node major — скип; в CI (CI=true) — fail-closed, без «тихого» skip.
+    EN: Skip locally when Node is too old; in CI, callers must not skip silently.
     """
     nvmrc = repo_root / ".nvmrc"
     if not nvmrc.is_file():
@@ -108,6 +109,12 @@ def test_openapi_and_schema_ts_are_deterministic() -> None:
         pytest.skip("OpenAPI determinism test requires node/npm/make toolchain")
 
     if not _node_major_meets_nvmrc(repo_root):
+        if os.environ.get("CI") == "true":
+            pytest.fail(
+                "OpenAPI determinism must run in CI with Node major >= .nvmrc "
+                "(use node-version-file: env.FRONTEND_NODE_VERSION_FILE; "
+                "see scripts/frontend_npm.sh)."
+            )
         pytest.skip(
             "OpenAPI determinism test requires Node major >= .nvmrc "
             "(same gate as scripts/frontend_npm.sh / make openapi)"

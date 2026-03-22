@@ -79,6 +79,10 @@ def render_legacy_bmi_calculator_page(request: Request) -> HTMLResponse:
             const translations = {
                 en: {
                     title: "BMI Calculator",
+                    result_bmi: "BMI",
+                    result_category: "Category",
+                    result_note: "Note",
+                    result_error: "Error calculating BMI",
                     label_weight: "Weight (kg):",
                     label_height: "Height (m):",
                     label_age: "Age:",
@@ -96,6 +100,10 @@ def render_legacy_bmi_calculator_page(request: Request) -> HTMLResponse:
                 },
                 ru: {
                     title: "Калькулятор ИМТ",
+                    result_bmi: "ИМТ",
+                    result_category: "Категория",
+                    result_note: "Примечание",
+                    result_error: "Ошибка расчёта ИМТ",
                     label_weight: "Вес (кг):",
                     label_height: "Рост (м):",
                     label_age: "Возраст:",
@@ -113,6 +121,10 @@ def render_legacy_bmi_calculator_page(request: Request) -> HTMLResponse:
                 },
                 es: {
                     title: "Calculadora de IMC",
+                    result_bmi: "IMC",
+                    result_category: "Categoría",
+                    result_note: "Nota",
+                    result_error: "Error al calcular el IMC",
                     label_weight: "Peso (kg):",
                     label_height: "Altura (m):",
                     label_age: "Edad:",
@@ -130,28 +142,33 @@ def render_legacy_bmi_calculator_page(request: Request) -> HTMLResponse:
                 }
             };
 
+            const ALLOWED_LANGS = new Set(['en', 'ru', 'es']);
+
+            /** Allowlist URL/cookie lang to prevent cookie injection / odd payloads. */
+            function normalizeLang(raw) {
+                const code = String(raw || '').trim().toLowerCase();
+                return ALLOWED_LANGS.has(code) ? code : 'en';
+            }
+
             // Set language from cookie or URL parameter
             function getLanguage() {
-                // Check URL parameter first
                 const urlParams = new URLSearchParams(window.location.search);
                 if (urlParams.has('lang')) {
-                    return urlParams.get('lang');
+                    return normalizeLang(urlParams.get('lang'));
                 }
-                // Check cookie
                 const cookies = document.cookie.split(';');
                 for (let cookie of cookies) {
                     const [name, value] = cookie.trim().split('=');
                     if (name === 'lang') {
-                        return value;
+                        return normalizeLang(value);
                     }
                 }
-                // Default to English
                 return 'en';
             }
 
             // Update UI based on selected language
             function updateUILanguage(lang) {
-                const langCode = translations[lang] ? lang : 'en';
+                const langCode = normalizeLang(lang);
                 const t = translations[langCode];
 
                 // Update text elements
@@ -181,7 +198,7 @@ def render_legacy_bmi_calculator_page(request: Request) -> HTMLResponse:
 
             // Change language function
             function changeLanguage() {
-                const lang = document.getElementById('language').value;
+                const lang = normalizeLang(document.getElementById('language').value);
                 // Set cookie
                 // Security: add SameSite and conditionally Secure under HTTPS.
                 // RU: HttpOnly нельзя выставить из JS — это должен делать сервер.
@@ -190,6 +207,32 @@ def render_legacy_bmi_calculator_page(request: Request) -> HTMLResponse:
                 document.cookie = `lang=${lang}${cookieAttrs}`;
                 // Update UI
                 updateUILanguage(lang);
+            }
+
+            function showBmiResult(result) {
+                const langCode = normalizeLang(getLanguage());
+                const t = translations[langCode];
+                const box = document.getElementById('result');
+                box.replaceChildren();
+                box.style.display = 'block';
+                const h2 = document.createElement('h2');
+                h2.textContent = `${t.result_bmi}: ${result.bmi}`;
+                const pCat = document.createElement('p');
+                pCat.textContent = `${t.result_category}: ${result.category ?? ''}`;
+                const pNote = document.createElement('p');
+                pNote.textContent = `${t.result_note}: ${result.note ?? ''}`;
+                box.append(h2, pCat, pNote);
+            }
+
+            function showBmiError() {
+                const langCode = normalizeLang(getLanguage());
+                const t = translations[langCode];
+                const box = document.getElementById('result');
+                box.replaceChildren();
+                const p = document.createElement('p');
+                p.textContent = t.result_error;
+                box.append(p);
+                box.style.display = 'block';
             }
 
             document.getElementById('bmiForm').addEventListener('submit', async (e) => {
@@ -214,15 +257,9 @@ def render_legacy_bmi_calculator_page(request: Request) -> HTMLResponse:
                         body: JSON.stringify(data)
                     });
                     const result = await response.json();
-                    document.getElementById('result').innerHTML = `
-                        <h2>BMI: ${result.bmi}</h2>
-                        <p>Category: ${result.category}</p>
-                        <p>Note: ${result.note}</p>
-                    `;
-                    document.getElementById('result').style.display = 'block';
+                    showBmiResult(result);
                 } catch (error) {
-                    document.getElementById('result').innerHTML = '<p>Error calculating BMI</p>';
-                    document.getElementById('result').style.display = 'block';
+                    showBmiError();
                 }
             });
         </script>
