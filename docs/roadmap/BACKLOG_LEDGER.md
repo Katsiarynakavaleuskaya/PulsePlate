@@ -7484,6 +7484,34 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Local gates pass: `make verify` and `pre-commit run --all-files`
 
 
-**Last updated:** 2026-03-21 (PR #1208 merged; PR-B closeout lane in progress)
+<a id="ledger-p1-nightly-full-tests-node22-parity"></a>
+- [ ] P1: Nightly Full Tests Node 22 parity and release-gate selector alignment
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (CI stability / release safety)
+  - Target PR: PR-TBD (`fix/nightly-full-tests-node22-parity`)
+  - Status: In progress as of March 22, 2026
+  - Reason: `Nightly Full Tests` failed on `main` after PR `#1209` moved OpenAPI/frontend flows to Node `22.22.1`, because `.github/workflows/nightly-tests.yml` still relied on the runner default Node `20.20.1`. Production release gating in `.github/workflows/cd.yml` also drifted to the legacy `nightly.yml` selector instead of the canonical `Nightly Full Tests` workflow.
+  - Links:
+    - `docs/ci/triage_nightly_2026-03-22.md`
+    - `.github/workflows/nightly-tests.yml`
+    - `.github/workflows/cd.yml`
+    - `.nvmrc`
+    - `frontend/package.json`
+    - `scripts/frontend_npm.sh`
+    - `tests/test_openapi_determinism.py`
+    - Failed run: <https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/23395469933>
+    - Failed job: <https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/23395469933/job/68057604027>
+    - Regression introducer: <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1209>
+  - DoD:
+    - `Nightly Full Tests` provisions Node from `.nvmrc` and installs frontend dependencies before pytest
+    - `pytest -q tests/test_openapi_determinism.py` passes under the nightly workflow contract
+    - `cd.yml` production gate queries `nightly-tests.yml` / `Nightly Full Tests`
+    - `make verify` and `pre-commit run --all-files` pass on the fix branch
+    - Manual `Nightly Full Tests` dispatch on `main` passes after merge and before the next release tag
+  - Deferred hardening follow-up:
+    - Evaluate `npm ci --ignore-scripts` or split frontend bootstrap into a
+      narrower least-privileged nightly job once the parity fix is shipped.
+
+**Last updated:** 2026-03-22 (nightly full tests Node 22 parity lane opened)
 **Maintainer:** @katsiaryna_kavaleuskaya
 <!-- markdownlint-enable MD013 -->
