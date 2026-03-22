@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 
@@ -13,7 +14,8 @@ def test_legacy_bmi_calculator_template_avoids_innerhtml_for_results() -> None:
     assert (
         "innerHTML" not in text
     ), "legacy BMI HTML must use DOM textContent for user-visible API fields, not innerHTML"
+    normalized = re.sub(r"\s+", "", text.lower())
     assert (
-        "onchange=" not in text
+        "onchange=" not in normalized
     ), "legacy BMI HTML must bind events from the nonce'd script (CSP), not inline handlers"
     assert "response.ok" in text, "legacy BMI fetch must branch on HTTP ok before parsing JSON"
