@@ -38,14 +38,14 @@ Caddy evaluates **POST**, then **OPTIONS**, then **GET** (legacy-only paths), th
 | `/docs*`, `/redoc*`, `/openapi.json` | OpenAPI / docs |
 | `/admin*` | Admin |
 | `/privacy`, `/terms` | Legal JSON endpoints (no SPA route today) |
-| `/legacy*` | FastAPI-only legacy surfaces (embedded HTML BMI UI: `legacy_app.py:1493`) |
+| `/legacy*` | FastAPI-only legacy surfaces (embedded HTML BMI UI: registered in `app/main.py`, template `app/bootstrap/legacy_bmi_web_html.py`) |
 | `/debug_env` | Debug (gate in prod env) |
 
 **Caddy matcher evidence:** `/legacy*` is included in the `@api` path list in [`deploy/Caddyfile.production:42`](../../deploy/Caddyfile.production).
 
-## Direct uvicorn / bypass Caddy
+## Direct Uvicorn / bypass Caddy
 
-When traffic hits **FastAPI only** (port `8000`, misconfigured clients, internal probes), **`GET /`** returns a **small JSON probe** (stable `service` / `surface` / `links`; handler `legacy_app.py:1487`, payload builder `app/bootstrap/direct_api_root.py:18`). The historical embedded HTML calculator is at **`GET /legacy/bmi-calculator`** (`legacy_app.py:1493`, template `app/bootstrap/legacy_bmi_web_html.py:9`). Production browsers still receive **`text/html`** for **`GET /`** from Caddy’s `file_server` at apex; they do not see this JSON unless they bypass the edge.
+When traffic hits **FastAPI only** (port `8000`, misconfigured clients, internal probes), **`GET /`** returns a **small JSON probe** (stable `service` / `surface` / `links`; registration `app/main.py` → `serve_direct_api_root_probe`, payload builder `app/bootstrap/direct_api_root.py`). The historical embedded HTML calculator is at **`GET /legacy/bmi-calculator`** (same bootstrap, handler `serve_legacy_bmi_calculator_web`, template `app/bootstrap/legacy_bmi_web_html.py`). Production browsers still receive **`text/html`** for **`GET /`** from Caddy’s `file_server` at apex; they do not see this JSON unless they bypass the edge.
 
 **Operator trap:** `curl https://<your-apex-domain>/` **through Caddy** returns the SPA shell (`text/html`), **not** the JSON probe. Use direct uvicorn/port `8000`, or call **`GET /health`**, to verify the API behind the edge.
 

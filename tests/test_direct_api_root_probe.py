@@ -18,6 +18,7 @@ def test_get_slash_returns_json_probe() -> None:
     assert data["service"] == "pulseplate-api"
     assert data["surface"] == "api"
     assert "message" in data
+    assert "SPA" in data["message"]
     links = data["links"]
     assert links["health"] == "/health"
     assert links["docs"] == "/docs"

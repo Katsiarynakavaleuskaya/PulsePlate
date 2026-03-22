@@ -8,6 +8,7 @@ from fastapi import FastAPI
 
 import app
 import pytest
+from app.bootstrap.direct_api_root import LEGACY_BMI_WEB_ROUTE
 from tests.helpers.module_resolve import resolve_module
 
 
@@ -85,6 +86,8 @@ class TestAppImport:
         assert "/api/v1/feedback/rag" in route_paths
         assert "/api/v1/pro/cbt/insight" in route_paths
         assert "/ws" in route_paths
+        assert "/" in route_paths
+        assert LEGACY_BMI_WEB_ROUTE in route_paths
 
 
 class TestAppVIPIntegration:

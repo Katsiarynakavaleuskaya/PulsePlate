@@ -46,8 +46,6 @@ from starlette.concurrency import run_in_threadpool
 from starlette.requests import Request
 from settings import get_runtime_env_name, is_explicit_developer_env, is_production_like_env
 
-from app.bootstrap.direct_api_root import LEGACY_BMI_WEB_ROUTE, build_direct_api_root_probe
-from app.bootstrap.legacy_bmi_web_html import render_legacy_bmi_calculator_page
 from app.bootstrap.startup_guards import run_startup_guards
 from app.dependencies import validate_template_dir
 from app.http_error_details import (
@@ -74,7 +72,6 @@ from app.routers.shopping_list_pro import router as shopping_list_pro_router
 from app.routers.shoplist_export import router as shoplist_router
 from app.routers.users import router as users_router
 from app.schemas.bmr import BMRRequest, BMRRequestLegacy, BMRResponse
-from app.schemas.direct_api_root import DirectApiRootProbe
 from app.schemas.premium_contracts import (
     Activity,
     DietFlag,
@@ -1481,19 +1478,6 @@ def add_visualization_if_requested(result: Dict[str, Any], req: BMIRequest) -> N
 
 
 # ---------- Misc routes ----------
-
-
-@app.get("/", include_in_schema=False, response_model=DirectApiRootProbe)
-async def root() -> DirectApiRootProbe:
-    """JSON probe for direct uvicorn access; apex SPA is served by Caddy when configured."""
-    result: DirectApiRootProbe = build_direct_api_root_probe()
-    return result
-
-
-@app.get(LEGACY_BMI_WEB_ROUTE, include_in_schema=False, response_class=HTMLResponse)
-async def legacy_bmi_calculator_web(request: Request) -> HTMLResponse:
-    """Embedded legacy HTML BMI form (moved from ``GET /`` for operator clarity)."""
-    return render_legacy_bmi_calculator_page(request)
 
 
 @app.get("/favicon.ico")
