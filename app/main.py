@@ -65,6 +65,29 @@ def _has_route(
     return False
 
 
+def _route_has_endpoint(
+    target_app: FastAPI,
+    path: str,
+    method: str,
+    endpoint: object,
+) -> bool:
+    """True when ``path``+``method`` is already bound to the expected callable.
+
+    RU: Не считаем «маршрут есть», если на пути висит чужой handler (контракт другой).
+    EN: Path/method alone is insufficient — wrong handler means wrong contract.
+    """
+    method_name = method.upper()
+    for route in target_app.routes:
+        if getattr(route, "path", None) != path:
+            continue
+        methods = getattr(route, "methods", None) or set()
+        if method_name not in methods:
+            continue
+        if getattr(route, "endpoint", None) is endpoint:
+            return True
+    return False
+
+
 def _assert_no_duplicate_ws_route(target_app: FastAPI | None = None) -> None:
     """Fail fast when WS paths are already occupied before canonical registration.
 
@@ -122,7 +145,7 @@ def ensure_canonical_app_bootstrap(target_app: FastAPI) -> FastAPI:
     _internalize_users_openapi_surface(app)
     _install_openapi_builder(app)
 
-    if not _has_route(target_app, "/", "GET"):
+    if not _route_has_endpoint(target_app, "/", "GET", serve_direct_api_root_probe):
         target_app.add_api_route(
             "/",
             serve_direct_api_root_probe,
@@ -130,7 +153,9 @@ def ensure_canonical_app_bootstrap(target_app: FastAPI) -> FastAPI:
             include_in_schema=False,
             response_model=DirectApiRootProbe,
         )
-    if not _has_route(target_app, LEGACY_BMI_WEB_ROUTE, "GET"):
+    if not _route_has_endpoint(
+        target_app, LEGACY_BMI_WEB_ROUTE, "GET", serve_legacy_bmi_calculator_web
+    ):
         target_app.add_api_route(
             LEGACY_BMI_WEB_ROUTE,
             serve_legacy_bmi_calculator_web,

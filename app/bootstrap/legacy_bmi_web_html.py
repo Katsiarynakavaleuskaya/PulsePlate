@@ -17,7 +17,7 @@ def render_legacy_bmi_calculator_page(request: Request) -> HTMLResponse:
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>BMI Calculator 2025</title>
+        <title>BMI Calculator</title>
         <style{nonce_attr}>
             body { font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;
                    padding: 20px; }
@@ -30,7 +30,7 @@ def render_legacy_bmi_calculator_page(request: Request) -> HTMLResponse:
     <body>
         <div class="language-selector">
             <label for="language">Language:</label>
-            <select id="language" onchange="changeLanguage()">
+            <select id="language">
                 <option value="en">English</option>
                 <option value="ru">Русский</option>
                 <option value="es">Español</option>
@@ -195,6 +195,7 @@ def render_legacy_bmi_calculator_page(request: Request) -> HTMLResponse:
             // Set language selector based on current language
             const currentLang = getLanguage();
             updateUILanguage(currentLang);
+            document.getElementById('language').addEventListener('change', changeLanguage);
 
             // Change language function
             function changeLanguage() {
@@ -256,6 +257,9 @@ def render_legacy_bmi_calculator_page(request: Request) -> HTMLResponse:
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(data)
                     });
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}`);
+                    }
                     const result = await response.json();
                     showBmiResult(result);
                 } catch (error) {
