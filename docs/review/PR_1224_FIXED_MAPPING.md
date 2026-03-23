@@ -7,3 +7,4 @@ Disposition: FIXED
 Commit: 757f3efe
 Evidence: `requirements.txt`, `requirements-lock.txt`
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1224#discussion_r2970722271 -> 757f3efe
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1224#pullrequestreview-3987302363 -> 757f3efe
