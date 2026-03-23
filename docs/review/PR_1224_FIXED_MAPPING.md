@@ -3,4 +3,7 @@
 - [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
-- No actionable review comments
+Disposition: FIXED
+Commit: 757f3efe
+Evidence: `requirements.txt`, `requirements-lock.txt`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1224#discussion_r2970722271 -> 757f3efe
