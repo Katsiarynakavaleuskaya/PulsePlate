@@ -28,7 +28,8 @@
   "dependencies": {
     "@goplus/agentguard": "^1.0.4",
     "docx": "^9.6.1",
-    "pptxgenjs": "^4.0.1"
+    "pptxgenjs": "^4.0.1",
+    "thesvg": "^2.0.1"
   },
   "devDependencies": {
     "@cspell/dict-data-science": "^2.0.9",
