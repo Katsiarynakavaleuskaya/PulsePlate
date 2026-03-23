@@ -10,7 +10,7 @@ pytest-split~=0.11.0
 hypothesis~=6.151.9
 faker~=40.11.0  # Test data generation
 # coverage and diff-cover: use compatible release for stability
-coverage~=7.13.4
+coverage~=7.13.5
 diff-cover~=10.2.0
 # Code quality tools: use compatible release for stability
 flake8~=7.3.0
