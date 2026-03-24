@@ -23,6 +23,8 @@ from core.rag.rag_constants import (
     RAG_PIPELINE_TIMEOUT_SEC,
 )
 
+import core.rag.vector_rag as vector_rag
+
 logger = logging.getLogger(__name__)
 
 _TOKEN_RE = re.compile(r"[\w\-]+", re.UNICODE)
@@ -279,10 +281,8 @@ def _retrieve_vector_for_recursive_hop(
     optimization_stats: OptimizationStats | None,
 ) -> RAGContext:
     """Vector retrieve with optional request-scoped hop memo (optimization path only)."""
-    from core.rag.vector_rag import retrieve_context_structured
-
     if hop_vector_cache is None:
-        return retrieve_context_structured(
+        return vector_rag.retrieve_context_structured(
             current_query,
             max_chunks=limit,
             agent_id=agent_id,
@@ -295,7 +295,7 @@ def _retrieve_vector_for_recursive_hop(
         if optimization_stats is not None:
             _increment_stat(optimization_stats, "hop_vector_cache_hits")
         return cached
-    ctx = retrieve_context_structured(
+    ctx = vector_rag.retrieve_context_structured(
         current_query,
         max_chunks=limit,
         agent_id=agent_id,
