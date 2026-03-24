@@ -788,3 +788,167 @@ def test_optimized_recursive_preserves_partial_context_when_helper_raises(
     assert result.refined_queries == ["base query"]
     assert result.optimization_stats is not None
     assert result.optimization_stats["enabled"] is True
+
+
+def test_fifo_hop_vector_cache_evicts_oldest_when_full() -> None:
+    """Bounded FIFO must drop the oldest entry when capacity is exceeded."""
+    import core.rag.recursive_retrieval as recursive
+    from core.rag.contracts import RAGChunk, RAGContext
+
+    cache = recursive._FifoBoundedHopVectorCache(2)
+    key_a = ("a", 3, "", "", None)
+    key_b = ("b", 3, "", "", None)
+    key_c = ("c", 3, "", "", None)
+
+    def _ctx_for(label: str) -> RAGContext:
+        return RAGContext(
+            query=label,
+            refined_queries=[label],
+            chunks=[RAGChunk(chunk_id=label, file="d.md", content="ok", score=0.5)],
+            confidence=0.5,
+            hops=1,
+            latency_ms=1,
+        )
+
+    cache.put(key_a, _ctx_for("a"))
+    cache.put(key_b, _ctx_for("b"))
+    cache.put(key_c, _ctx_for("c"))
+
+    assert cache.get_copy(key_a) is None
+    assert cache.get_copy(key_b) is not None
+    assert cache.get_copy(key_c) is not None
+
+
+def test_fifo_hop_vector_cache_put_updates_existing_key_in_place() -> None:
+    """Replacing an existing key must refresh the snapshot without duplicate order slots."""
+    import core.rag.recursive_retrieval as recursive
+    from core.rag.contracts import RAGChunk, RAGContext
+
+    cache = recursive._FifoBoundedHopVectorCache(4)
+    key = ("same", 3, "", "", None)
+    first = RAGContext(
+        query="same",
+        refined_queries=["same"],
+        chunks=[RAGChunk(chunk_id="v1", file="d.md", content="one", score=0.4)],
+        confidence=0.4,
+        hops=1,
+        latency_ms=1,
+    )
+    second = RAGContext(
+        query="same",
+        refined_queries=["same"],
+        chunks=[RAGChunk(chunk_id="v2", file="d.md", content="two", score=0.9)],
+        confidence=0.9,
+        hops=1,
+        latency_ms=1,
+    )
+    cache.put(key, first)
+    cache.put(key, second)
+    out = cache.get_copy(key)
+    assert out is not None
+    assert out.chunks[0].chunk_id == "v2"
+
+
+def test_hop_vector_cache_key_normalizes_whitespace_and_splits_subject() -> None:
+    """Hop memo keys must be stable on whitespace and tenant-scoped."""
+    import core.rag.recursive_retrieval as recursive
+
+    k1 = recursive._hop_vector_cache_key("  a  b  ", 3, None, None, None)
+    k2 = recursive._hop_vector_cache_key("a b", 3, None, None, None)
+    assert k1 == k2
+
+    k3 = recursive._hop_vector_cache_key("a b", 3, None, None, 1)
+    k4 = recursive._hop_vector_cache_key("a b", 3, None, None, 2)
+    assert k3 != k4
+
+
+def test_hop_vector_cache_hits_on_revisited_query_across_hops(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """When a later hop repeats an earlier query, vector retrieve must be memoized."""
+    import core.rag.recursive_retrieval as recursive
+
+    monkeypatch.setattr(recursive, "MAX_RAG_HOPS", 3)
+    monkeypatch.setattr(recursive, "MAX_REFINEMENT_PASSES", 5)
+    monkeypatch.setattr(recursive, "MAX_VERIFICATION_QUERIES", 0)
+    monkeypatch.setattr(recursive, "MIN_CONFIDENCE_GAIN_PER_HOP", -1.0)
+
+    calls = {"n": 0}
+
+    def _fake_retrieve(query: str, **_: Any) -> RAGContext:
+        calls["n"] += 1
+        return _ctx(
+            query,
+            [
+                RAGChunk(
+                    chunk_id=f"doc-{len(query)}",
+                    file="doc.md",
+                    content=f"fiber vegetables nutrition guidance token{len(query)}",
+                    score=0.7,
+                )
+            ],
+            confidence=0.7,
+        )
+
+    monkeypatch.setattr("core.rag.vector_rag.retrieve_context_structured", _fake_retrieve)
+
+    def _fake_refine(current: str, *_args: Any, **_kwargs: Any) -> str:
+        if current == "first":
+            return "second"
+        if current == "second":
+            return "first"
+        return current
+
+    monkeypatch.setattr(recursive, "_refine_query", _fake_refine)
+
+    result = retrieve_recursive_context_structured("first", optimization_enabled=True)
+
+    assert result.optimization_stats is not None
+    assert result.optimization_stats["hop_vector_cache_hits"] >= 1
+    assert result.optimization_stats["hop_vector_retrieve_calls"] == 2
+    assert calls["n"] == 2
+
+
+def test_hop_vector_cache_disabled_when_optimization_flag_off(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Flag-off path must call vector retrieve once per hop (no memo layer)."""
+    import core.rag.recursive_retrieval as recursive
+
+    monkeypatch.setattr(recursive, "MAX_RAG_HOPS", 3)
+    monkeypatch.setattr(recursive, "MAX_REFINEMENT_PASSES", 5)
+    monkeypatch.setattr(recursive, "MAX_VERIFICATION_QUERIES", 0)
+    monkeypatch.setattr(recursive, "MIN_CONFIDENCE_GAIN_PER_HOP", -1.0)
+
+    calls = {"n": 0}
+
+    def _fake_retrieve(query: str, **_: Any) -> RAGContext:
+        calls["n"] += 1
+        return _ctx(
+            query,
+            [
+                RAGChunk(
+                    chunk_id=f"doc-{len(query)}",
+                    file="doc.md",
+                    content=f"fiber vegetables nutrition guidance token{len(query)}",
+                    score=0.7,
+                )
+            ],
+            confidence=0.7,
+        )
+
+    monkeypatch.setattr("core.rag.vector_rag.retrieve_context_structured", _fake_retrieve)
+
+    def _fake_refine(current: str, *_args: Any, **_kwargs: Any) -> str:
+        if current == "first":
+            return "second"
+        if current == "second":
+            return "first"
+        return current
+
+    monkeypatch.setattr(recursive, "_refine_query", _fake_refine)
+
+    result = retrieve_recursive_context_structured("first", optimization_enabled=False)
+
+    assert result.optimization_stats is None
+    assert calls["n"] == 3

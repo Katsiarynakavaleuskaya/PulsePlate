@@ -42,6 +42,8 @@ class OptimizationStats(TypedDict):
     enabled: bool
     refinement_cache_hits: int
     cache_hits: int
+    hop_vector_cache_hits: int
+    hop_vector_retrieve_calls: int
     verification_calls: int
     stop_reason: OptimizationStopReason
     early_stop_no_query_change: bool
