@@ -13,6 +13,12 @@ from core.time_utils import isoformat_utc
 from providers import ProviderBase
 
 logger = logging.getLogger(__name__)
+_PLACEHOLDER_API_KEYS = {
+    "__replace_me__",
+    "paste_your_real_key_here",
+    "changeme",
+    "your_api_key_here",
+}
 
 
 def _load_optional_provider(module_name: str, class_name: str) -> type[ProviderBase] | None:
@@ -116,13 +122,19 @@ def get_provider():
         if PerplexityProvider is not None:
             api_key = os.getenv("PERPLEXITY_API_KEY", "")
             model = os.getenv("PERPLEXITY_MODEL", "sonar")
-            endpoint = os.getenv("PERPLEXITY_ENDPOINT", "https://api.perplexity.ai/v1")
+            endpoint = os.getenv("PERPLEXITY_ENDPOINT", "https://api.perplexity.ai")
 
-            if not api_key.strip():
+            normalized_api_key = api_key.strip()
+            if not normalized_api_key or normalized_api_key.lower() in _PLACEHOLDER_API_KEYS:
                 return PerplexityLiteProvider()
 
             try:
-                return PerplexityProvider(endpoint=endpoint, api_key=api_key, model=model)
+                # Perplexity uses OpenAI-compatible init signature; we keep a single
+                # constructor path (no positional retry) to avoid silently masking
+                # schema/auth mistakes and to fail-closed into lite fallback.
+                return PerplexityProvider(
+                    endpoint=endpoint, api_key=normalized_api_key, model=model
+                )
             except Exception:
                 return PerplexityLiteProvider()
         else:

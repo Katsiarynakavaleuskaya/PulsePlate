@@ -192,7 +192,7 @@ class TestGetProviderGrok:
             assert provider is not None
 
             mock_grok_class.assert_called_once_with(
-                endpoint="https://api.perplexity.ai/v1",  # дефолтный endpoint
+                endpoint="https://api.perplexity.ai",  # дефолтный endpoint
                 api_key="xai-key-456",
                 model="sonar",  # дефолтная модель
             )
@@ -200,14 +200,13 @@ class TestGetProviderGrok:
     def test_get_provider_grok_defaults(self):
         """Тест дефолтных значений для Perplexity провайдера (fallback to PerplexityLiteProvider when no API key)"""
         with patch.dict(os.environ, {"LLM_PROVIDER": "perplexity"}, clear=False):
-            # Очищаем все Grok-related env vars
-            grok_vars = [
-                "PERPLEXITY_API_KEY",
+            # Очищаем все Perplexity-related env vars
+            perplexity_vars = [
                 "PERPLEXITY_API_KEY",
                 "PERPLEXITY_MODEL",
                 "PERPLEXITY_ENDPOINT",
             ]
-            for var in grok_vars:
+            for var in perplexity_vars:
                 if var in os.environ:
                     del os.environ[var]
 

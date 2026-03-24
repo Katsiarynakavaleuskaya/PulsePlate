@@ -105,3 +105,28 @@ def test_get_provider_perplexity_without_api_key_uses_lite(
     assert provider is not None
     assert isinstance(provider, llm.PerplexityLiteProvider)
     assert getattr(provider, "name", "") == "perplexity"
+
+
+def test_get_provider_perplexity_placeholder_key_uses_lite(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class _PerplexityProvider:
+        name = "perplexity"
+
+        def __init__(self, endpoint: str, model: str, api_key: str, /) -> None:
+            self.endpoint = endpoint
+            self.model = model
+            self.api_key = api_key
+
+        async def generate(self, text: str) -> str:
+            return text
+
+    monkeypatch.setattr(llm, "PerplexityProvider", _PerplexityProvider)
+    monkeypatch.setenv("LLM_PROVIDER", "perplexity")
+    monkeypatch.setenv("PERPLEXITY_API_KEY", "__replace_me__")
+
+    provider = llm.get_provider()
+
+    assert provider is not None
+    assert isinstance(provider, llm.PerplexityLiteProvider)
+    assert getattr(provider, "name", "") == "perplexity"
