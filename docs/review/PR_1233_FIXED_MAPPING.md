@@ -16,6 +16,12 @@ Evidence: `tests/test_recursive_rag.py` (`test_hop_vector_cache_hits_on_revisite
 Reason: Request-scoped hop memo is an intentional C3 optimization: bounded FIFO dedup when a normalized key repeats within a request (tests drive revisits via `_refine_query`); typical single-path refinement rarely collides, but the feature is covered and overhead is capped.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1233#discussion_r2983870123
 
+Disposition: FIXED
+Commit: 6b53b5f604ec217fdff39e141b1b6ddaf8de798d
+Evidence: `scripts/benchmark_recursive_rag_hop_cache.py` (fail-fast when `TESTING` is preset to a non-`true` value; `stop_reason` JSON uses `Enum.value`)
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1233#discussion_r2983896088 -> 6b53b5f604ec217fdff39e141b1b6ddaf8de798d
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1233#discussion_r2983896101 -> 6b53b5f604ec217fdff39e141b1b6ddaf8de798d
+
 ## Merge Readiness
 
 - [ ] All required checks pass
