@@ -9,6 +9,12 @@ Evidence: `.github/workflows/build.yml` — `publish` builds and pushes the imag
 Reason: Intentional resilience vs. upload-sarif hard-fail; observability via logs and workflow warning, not job failure after push.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1232#discussion_r2983561400
 
+Disposition: NOT-A-BUG
+Evidence: `docs/review/PR_1232_FIXED_MAPPING.md:2-3` — required “Discussion Thread Pass” checkboxes are `[x]` on branch head (already in `c3e180e2`). CodeRabbit text assumed `[ ]`; file matches `scripts/orchestration/review_mapping_artifact.py` expectations (`CHECKBOX_DISCUSSION_PASS`, `CHECKBOX_FIXED_MAPPING`).
+Reason: Bot finding does not match repository artifact state; mapping records disposition for merge-readiness URL matching.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1232#discussion_r2983583099
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1232#pullrequestreview-4001491973
+
 ## Merge Readiness
 - [ ] All required checks pass
 - [ ] No unresolved review threads (per disposition evidence)
