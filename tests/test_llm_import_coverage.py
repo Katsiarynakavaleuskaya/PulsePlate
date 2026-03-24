@@ -4,12 +4,24 @@ from __future__ import annotations
 
 import importlib
 import os
+import types
 from importlib import reload
 from unittest.mock import Mock, patch
 
 import pytest
 
 import llm
+
+
+def _llm_live() -> types.ModuleType:
+    """Canonical ``llm`` module (matches ``sys.modules``).
+
+    Some tests delete and re-import ``llm``; a module-level ``import llm`` can
+    become stale so ``importlib.reload`` raises ImportError (wrong object vs
+    ``sys.modules['llm']``).
+    """
+
+    return importlib.import_module("llm")
 
 
 @pytest.fixture(autouse=True)
@@ -20,6 +32,9 @@ def _llm_test_env(monkeypatch: pytest.MonkeyPatch) -> None:
 
 class TestImportFallbacks:
     def test_perplexity_import_exception_coverage(self) -> None:
+        global llm
+
+        llm_mod = _llm_live()
         original_import_module = importlib.import_module
         with patch("importlib.import_module") as mock_import:
 
@@ -29,15 +44,19 @@ class TestImportFallbacks:
                 return original_import_module(name, package)
 
             mock_import.side_effect = import_side_effect
-            reload(llm)
-            assert llm.PerplexityProvider is None
-            assert hasattr(llm, "PerplexityLiteProvider")
+            reload(llm_mod)
+            assert llm_mod.PerplexityProvider is None
+            assert hasattr(llm_mod, "PerplexityLiteProvider")
 
-        reload(llm)
+        # Use reload(importlib.import_module("llm")) so repo AST policy can resolve the
+        # target (forbid obfuscated reload(call()) patterns); _llm_live() is still the
+        # runtime-safe accessor when tests evict sys.modules["llm"].
+        llm = reload(importlib.import_module("llm"))
 
     @pytest.mark.asyncio
     async def test_perplexity_lite_provider_generate_coverage(self) -> None:
-        provider = llm.PerplexityLiteProvider()
+        llm_mod = _llm_live()
+        provider = llm_mod.PerplexityLiteProvider()
         assert provider.name == "perplexity"
         result = await provider.generate("test input")
         assert result.startswith("[perplexity-lite] ")
