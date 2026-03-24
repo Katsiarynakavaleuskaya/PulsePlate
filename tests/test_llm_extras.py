@@ -73,7 +73,7 @@ def test_get_provider_perplexity_with_api_key(monkeypatch: pytest.MonkeyPatch) -
     class _PerplexityProvider:
         name = "perplexity"
 
-        def __init__(self, endpoint: str, model: str, api_key: str, /) -> None:
+        def __init__(self, *, endpoint: str, model: str, api_key: str) -> None:
             self.endpoint = endpoint
             self.model = model
             self.api_key = api_key
@@ -83,22 +83,37 @@ def test_get_provider_perplexity_with_api_key(monkeypatch: pytest.MonkeyPatch) -
 
     monkeypatch.setattr(llm, "PerplexityProvider", _PerplexityProvider)
     monkeypatch.setenv("LLM_PROVIDER", "perplexity")
-    monkeypatch.setenv("PERPLEXITY_API_KEY", "pplx-key")
+    monkeypatch.setenv("PERPLEXITY_API_KEY", "pplx-key")  # pragma: allowlist secret
     monkeypatch.setenv("PERPLEXITY_MODEL", "sonar-pro")
     monkeypatch.setenv("PERPLEXITY_ENDPOINT", "https://api.perplexity.ai")
 
     provider = llm.get_provider()
 
     assert provider is not None
+    assert isinstance(provider, _PerplexityProvider)
+    assert provider.endpoint == "https://api.perplexity.ai"
+    assert provider.model == "sonar-pro"
+    assert provider.api_key == "pplx-key"  # pragma: allowlist secret
     assert getattr(provider, "name", "") == "perplexity"
 
 
 def test_get_provider_perplexity_without_api_key_uses_lite(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    class _PerplexityProvider:
+        name = "perplexity"
+
+        def __init__(self, *, endpoint: str, model: str, api_key: str) -> None:
+            self.endpoint = endpoint
+            self.model = model
+            self.api_key = api_key
+
+        async def generate(self, text: str) -> str:
+            return text
+
     monkeypatch.setenv("LLM_PROVIDER", "perplexity")
     monkeypatch.delenv("PERPLEXITY_API_KEY", raising=False)
-    monkeypatch.setattr(llm, "PerplexityProvider", None)
+    monkeypatch.setattr(llm, "PerplexityProvider", _PerplexityProvider)
 
     provider = llm.get_provider()
 
@@ -113,7 +128,7 @@ def test_get_provider_perplexity_placeholder_key_uses_lite(
     class _PerplexityProvider:
         name = "perplexity"
 
-        def __init__(self, endpoint: str, model: str, api_key: str, /) -> None:
+        def __init__(self, *, endpoint: str, model: str, api_key: str) -> None:
             self.endpoint = endpoint
             self.model = model
             self.api_key = api_key

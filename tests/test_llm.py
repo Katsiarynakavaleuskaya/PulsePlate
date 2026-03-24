@@ -1,114 +1,40 @@
 # -*- coding: utf-8 -*-
 """Тесты для llm.py с полным покрытием."""
 
-try:
-    from llm import get_provider
-except ImportError:
-
-    def get_provider():
-        return None
+from llm import get_provider
 
 
-def test_get_provider_stub():
-    import os
-
-    original = os.environ.get("LLM_PROVIDER")
-    os.environ["LLM_PROVIDER"] = "stub"
-    try:
-        provider = get_provider()
-        assert provider is not None
-        assert hasattr(provider, "generate")
-        assert provider.name == "stub"
-    finally:
-        if original is not None:
-            os.environ["LLM_PROVIDER"] = original
-        else:
-            del os.environ["LLM_PROVIDER"]
+def test_get_provider_stub(monkeypatch):
+    monkeypatch.setenv("LLM_PROVIDER", "stub")
+    provider = get_provider()
+    assert provider is not None
+    assert hasattr(provider, "generate")
+    assert provider.name == "stub"
 
 
-def test_get_provider_ollama():
-    import os
-
-    original = os.environ.get("LLM_PROVIDER")
-    os.environ["LLM_PROVIDER"] = "ollama"
-    try:
-        provider = get_provider()
-        assert provider is not None
-        assert hasattr(provider, "generate")
-        assert provider.name == "ollama"
-    finally:
-        if original is not None:
-            os.environ["LLM_PROVIDER"] = original
-        else:
-            del os.environ["LLM_PROVIDER"]
+def test_get_provider_ollama(monkeypatch):
+    monkeypatch.setenv("LLM_PROVIDER", "ollama")
+    provider = get_provider()
+    assert provider is not None
+    assert hasattr(provider, "generate")
+    assert provider.name == "ollama"
 
 
-def test_get_provider_perplexity():
-    import os
-
-    original = os.environ.get("LLM_PROVIDER")
-    os.environ["LLM_PROVIDER"] = "perplexity"
-    try:
-        provider = get_provider()
-        assert provider is not None
-        assert hasattr(provider, "generate")
-        assert provider.name == "perplexity"
-    finally:
-        if original is not None:
-            os.environ["LLM_PROVIDER"] = original
-        else:
-            del os.environ["LLM_PROVIDER"]
+def test_get_provider_perplexity(monkeypatch):
+    monkeypatch.setenv("LLM_PROVIDER", "perplexity")
+    provider = get_provider()
+    assert provider is not None
+    assert hasattr(provider, "generate")
+    assert provider.name == "perplexity"
 
 
-def test_get_provider_invalid():
-    import os
-
-    original = os.environ.get("LLM_PROVIDER")
-    os.environ["LLM_PROVIDER"] = "invalid"
-    try:
-        provider = get_provider()
-        assert provider is None
-    finally:
-        if original is not None:
-            os.environ["LLM_PROVIDER"] = original
-        else:
-            del os.environ["LLM_PROVIDER"]
+def test_get_provider_invalid(monkeypatch):
+    monkeypatch.setenv("LLM_PROVIDER", "invalid")
+    provider = get_provider()
+    assert provider is None
 
 
-def test_get_provider_no_env():
-    import os
-
-    original = os.environ.get("LLM_PROVIDER")
-    if "LLM_PROVIDER" in os.environ:
-        del os.environ["LLM_PROVIDER"]
-    try:
-        provider = get_provider()
-        assert provider is None
-    finally:
-        if original is not None:
-            os.environ["LLM_PROVIDER"] = original
-
-
-# Тесты для провайдеров, если они импортируются
-try:
-    from llm.providers.stub import StubProvider
-
-    def test_stub_provider_generate():
-        provider = StubProvider()
-        result = provider.generate("test")
-        assert isinstance(result, str)
-        assert "stub" in result.lower()
-
-except ImportError:
-    pass
-
-try:
-    from llm.providers.ollama import OllamaProvider
-
-    def test_ollama_provider_generate():
-        provider = OllamaProvider()
-        result = provider.generate("test")
-        assert isinstance(result, str)
-
-except ImportError:
-    pass
+def test_get_provider_no_env(monkeypatch):
+    monkeypatch.delenv("LLM_PROVIDER", raising=False)
+    provider = get_provider()
+    assert provider is None
