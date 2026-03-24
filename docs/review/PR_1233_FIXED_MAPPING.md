@@ -22,6 +22,16 @@ Evidence: `scripts/benchmark_recursive_rag_hop_cache.py` (fail-fast when `TESTIN
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1233#discussion_r2983896088 -> 6b53b5f604ec217fdff39e141b1b6ddaf8de798d
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1233#discussion_r2983896101 -> 6b53b5f604ec217fdff39e141b1b6ddaf8de798d
 
+Disposition: FIXED
+Commit: d0808ee6f77de72638003bfbd0d92b0682ec8717
+Evidence: `core/rag/recursive_retrieval.py`; Sourcery bot submitted-review rollup (same scope as inline threads mapped above)
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1233#pullrequestreview-4001819503 -> d0808ee6f77de72638003bfbd0d92b0682ec8717
+
+Disposition: FIXED
+Commit: 6b53b5f604ec217fdff39e141b1b6ddaf8de798d
+Evidence: `scripts/benchmark_recursive_rag_hop_cache.py`; CodeRabbit bot submitted-review rollup (same scope as inline threads mapped above)
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1233#pullrequestreview-4001862271 -> 6b53b5f604ec217fdff39e141b1b6ddaf8de798d
+
 ## Merge Readiness
 
 - [ ] All required checks pass
