@@ -31,6 +31,10 @@ services:
       - ALLOW_PROMPT_EVENTS=${ALLOW_PROMPT_EVENTS:-false}
       - CBT_AGENT_EXECUTION_MODE=${CBT_AGENT_EXECUTION_MODE:-auto-safe}
       - AGENT_CONTROL_AUDIT_LOG_PATH=${AGENT_CONTROL_AUDIT_LOG_PATH:-/app/logs/agent_control_audit.jsonl}
+      - LLM_PROVIDER=${LLM_PROVIDER:-perplexity}
+      - PERPLEXITY_API_KEY=${PERPLEXITY_API_KEY:-__replace_me__}
+      - PERPLEXITY_ENDPOINT=${PERPLEXITY_ENDPOINT:-https://api.perplexity.ai}
+      - PERPLEXITY_MODEL=${PERPLEXITY_MODEL:-sonar}
     volumes:
       - ./data:/app/data:ro
       - artifacts-volume:/app/artifacts:rw
@@ -78,6 +82,10 @@ services:
       - ALLOW_PROMPT_EVENTS=${ALLOW_PROMPT_EVENTS:-false}
       - CBT_AGENT_EXECUTION_MODE=${CBT_AGENT_EXECUTION_MODE:-auto-safe}
       - AGENT_CONTROL_AUDIT_LOG_PATH=${AGENT_CONTROL_AUDIT_LOG_PATH:-/app/logs/agent_control_audit.jsonl}
+      - LLM_PROVIDER=${LLM_PROVIDER:-perplexity}
+      - PERPLEXITY_API_KEY=${PERPLEXITY_API_KEY:-__replace_me__}
+      - PERPLEXITY_ENDPOINT=${PERPLEXITY_ENDPOINT:-https://api.perplexity.ai}
+      - PERPLEXITY_MODEL=${PERPLEXITY_MODEL:-sonar}
     volumes:
       - .:/app:rw
       - /app/__pycache__

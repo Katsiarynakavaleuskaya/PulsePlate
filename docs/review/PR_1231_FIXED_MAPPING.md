@@ -8,6 +8,7 @@ Commit: 81b79450
 Evidence: `llm.py`, `.env.example`, `tests/test_llm_comprehensive.py`, `tests/test_llm_extras.py`
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1231#discussion_r2981662350
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1231#discussion_r2981696506
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1231#discussion_r2981723514
 Disposition: FIXED
 Commit: 64244290
 Evidence: `scripts/validate-ci-environment.sh` (supported provider messages aligned with runtime)
@@ -27,6 +28,15 @@ Evidence: `tests/test_llm.py` (switch env mutation to `monkeypatch` for determin
 Disposition: NOT-A-BUG
 Evidence: `tests/test_llm_comprehensive.py` (`TestPerplexityLiteProvider.test_grok_lite_provider_through_exception`) intentionally validates provider-unavailable fallback path by setting `PerplexityProvider=None`; this is distinct from API-key guard coverage, which is already covered in `tests/test_llm_extras.py`.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1231#discussion_r2981723500
+Disposition: FIXED
+Commit: PENDING_PUSH
+Evidence: `docker-compose.yaml` (`pulseplate` + `pulseplate-dev` now export `LLM_PROVIDER`, `PERPLEXITY_API_KEY`, `PERPLEXITY_ENDPOINT`, `PERPLEXITY_MODEL`)
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1231#discussion_r2981733280
+Disposition: NOT-A-BUG
+Evidence: `docs/review/PR_1231_FIXED_MAPPING.md` entries above map all actionable inline comments; review-summary comments from bots are informational wrappers over already mapped items.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1231#pullrequestreview-3999279826
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1231#pullrequestreview-3999355816
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1231#pullrequestreview-3999367140
 
 ## Merge Readiness
 - [ ] All required checks pass
