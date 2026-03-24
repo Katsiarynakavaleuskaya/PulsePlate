@@ -49,10 +49,15 @@ def test_get_provider_ollama_typeerror_posargs_fallback(
 
     monkeypatch.setattr(llm, "OllamaProvider", OllamaProvider)
     monkeypatch.setenv("LLM_PROVIDER", "ollama")
+    monkeypatch.setenv("OLLAMA_ENDPOINT", "http://ollama.local:11434")
+    monkeypatch.setenv("OLLAMA_MODEL", "llama3.1:8b")
 
     provider = llm.get_provider()
 
     assert provider is not None
+    assert isinstance(provider, OllamaProvider)
+    assert provider.endpoint == "http://ollama.local:11434"
+    assert provider.model == "llama3.1:8b"
     assert getattr(provider, "name", "") == "ollama"
 
 
