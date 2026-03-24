@@ -26,11 +26,11 @@ Commit: 64244290
 Evidence: `tests/test_llm.py` (switch env mutation to `monkeypatch` for deterministic isolation)
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1231#discussion_r2981733319
 Disposition: FIXED
-Commit: PENDING_PUSH
+Commit: 307adf04
 Evidence: `tests/test_llm_extras.py` (`test_get_provider_ollama_typeerror_posargs_fallback` now asserts constructor path via type and env-bound fields)
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1231#discussion_r2981825324
 Disposition: FIXED
-Commit: PENDING_PUSH
+Commit: 307adf04
 Evidence: `tests/test_llm.py` (add `pytest.MonkeyPatch` annotations and `-> None` return types for modified test functions)
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1231#discussion_r2981825340
 Disposition: NOT-A-BUG
