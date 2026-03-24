@@ -23,8 +23,6 @@ from core.rag.rag_constants import (
     RAG_PIPELINE_TIMEOUT_SEC,
 )
 
-import core.rag.vector_rag as vector_rag
-
 logger = logging.getLogger(__name__)
 
 _TOKEN_RE = re.compile(r"[\w\-]+", re.UNICODE)
@@ -219,6 +217,33 @@ def _hop_vector_cache_key(
     )
 
 
+def _retrieve_context_structured(
+    query: str,
+    *,
+    max_chunks: int,
+    agent_id: str | None,
+    user_tier: str | None,
+    subject_id: int | None,
+) -> RAGContext:
+    """Lazy import of vector RAG so import-time failures stay outside this module.
+
+    RU: Ошибки импорта `vector_rag` не должны ломать загрузку `recursive_retrieval`.
+    EN: Keeps recursive retrieval importable when the vector stack is optional or broken.
+    """
+    import core.rag.vector_rag as vector_rag_mod
+
+    return cast(
+        RAGContext,
+        vector_rag_mod.retrieve_context_structured(
+            query,
+            max_chunks=max_chunks,
+            agent_id=agent_id,
+            user_tier=user_tier,
+            subject_id=subject_id,
+        ),
+    )
+
+
 def _copy_rag_context_snapshot(ctx: RAGContext) -> RAGContext:
     """Return an isolated copy so hop wrapping cannot mutate cached vector rows."""
     return RAGContext(
@@ -258,16 +283,18 @@ class _FifoBoundedHopVectorCache:
             return None
         return _copy_rag_context_snapshot(self._data[key])
 
-    def put(self, key: tuple[str, int, str, str, int | None], ctx: RAGContext) -> None:
+    def put(self, key: tuple[str, int, str, str, int | None], ctx: RAGContext) -> RAGContext:
+        """Store an isolated snapshot and return it (avoid second snapshot from raw ctx)."""
         snap = _copy_rag_context_snapshot(ctx)
         if key in self._data:
             self._data[key] = snap
-            return
+            return snap
         if len(self._order) >= self._max_entries:
             oldest = self._order.pop(0)
             self._data.pop(oldest, None)
         self._order.append(key)
         self._data[key] = snap
+        return snap
 
 
 def _retrieve_vector_for_recursive_hop(
@@ -282,15 +309,12 @@ def _retrieve_vector_for_recursive_hop(
 ) -> RAGContext:
     """Vector retrieve with optional request-scoped hop memo (optimization path only)."""
     if hop_vector_cache is None:
-        return cast(
-            RAGContext,
-            vector_rag.retrieve_context_structured(
-                current_query,
-                max_chunks=limit,
-                agent_id=agent_id,
-                user_tier=user_tier,
-                subject_id=subject_id,
-            ),
+        return _retrieve_context_structured(
+            current_query,
+            max_chunks=limit,
+            agent_id=agent_id,
+            user_tier=user_tier,
+            subject_id=subject_id,
         )
     key = _hop_vector_cache_key(current_query, limit, agent_id, user_tier, subject_id)
     cached = hop_vector_cache.get_copy(key)
@@ -298,20 +322,17 @@ def _retrieve_vector_for_recursive_hop(
         if optimization_stats is not None:
             _increment_stat(optimization_stats, "hop_vector_cache_hits")
         return cached
-    ctx = cast(
-        RAGContext,
-        vector_rag.retrieve_context_structured(
-            current_query,
-            max_chunks=limit,
-            agent_id=agent_id,
-            user_tier=user_tier,
-            subject_id=subject_id,
-        ),
+    ctx = _retrieve_context_structured(
+        current_query,
+        max_chunks=limit,
+        agent_id=agent_id,
+        user_tier=user_tier,
+        subject_id=subject_id,
     )
     if optimization_stats is not None:
         _increment_stat(optimization_stats, "hop_vector_retrieve_calls")
-    hop_vector_cache.put(key, ctx)
-    return _copy_rag_context_snapshot(ctx)
+    stored_snap = hop_vector_cache.put(key, ctx)
+    return _copy_rag_context_snapshot(stored_snap)
 
 
 def retrieve_recursive_context_structured(
