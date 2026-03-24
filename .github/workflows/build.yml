@@ -117,6 +117,7 @@ jobs:
           sudo apt-get install -y trivy
           trivy --version
 
+      # SARIF path must stay relative to GITHUB_WORKSPACE (hashFiles/upload-sarif assume repo root).
       - name: Run Trivy vulnerability scanner (filesystem scan)
         run: |
           trivy fs . \
@@ -126,9 +127,14 @@ jobs:
             --format sarif --output trivy-results.sarif --severity CRITICAL,HIGH \
             --ignore-unfixed --exit-code 0 --ignorefile .trivyignore
 
+      - name: Warn when Trivy filesystem SARIF is missing
+        if: ${{ hashFiles('trivy-results.sarif') == '' }}
+        run: |
+          echo "::warning::Trivy filesystem SARIF not produced; Security tab upload skipped."
+
       - name: Upload Trivy scan results to GitHub Security tab
+        if: ${{ hashFiles('trivy-results.sarif') != '' }}
         uses: github/codeql-action/upload-sarif@c00e4aee0547167576bc6663920491135a3dee27 # v4
-        if: ${{ always() }}
         with:
           sarif_file: 'trivy-results.sarif'
 
@@ -208,6 +214,10 @@ jobs:
           sudo apt-get install -y trivy
           trivy --version
 
+      # Image scan: --exit-code 0 makes findings report-only (no fail on vuln count).
+      # continue-on-error: true keeps the publish job moving when Trivy fails before SARIF exists
+      # (DB/network/registry); hashFiles guards upload-sarif. Do not change output path without
+      # updating hashFiles('trivy-image.sarif') and upload/warn steps (paths are workspace-relative).
       - name: Run Trivy vulnerability scanner (image scan, report-only)
         continue-on-error: true
         run: |
