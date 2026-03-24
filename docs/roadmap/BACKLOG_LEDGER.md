@@ -1257,6 +1257,10 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Hypothesis target (requires benchmark validation): caching, parallelization, early stopping (3-5x LLM calls acceptable, reduced to 1.5-2x with caching)
     - Validation evidence owner: [P1 Scientific reliability publication pipeline](#ledger-p1-scientific-reliability-pipeline)
     - Integration tests pass (end-to-end recursive pipeline)
+  - Merged increments (tracking only; parent P1 checkbox stays open until full DoD):
+    - PR: [#1233](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1233) — squash on `main`: `82f6aec24524306948ba67e774211c7cae8b494d` (2026-03-24).
+    - Scope (EN): Request-scoped FIFO hop-vector memoization for bounded recursive RAG when optimization is enabled; lazy-import hardening for `vector_rag`; benchmark script `scripts/benchmark_recursive_rag_hop_cache.py` (`stop_reason` as enum values); tests in `tests/test_recursive_rag.py`; merge-mapping artifact `docs/review/PR_1233_FIXED_MAPPING.md`.
+    - (RU: Инкремент: мемоизация hop-вектора в рамках запроса + бенч/тесты; родительский P1 по полному recursive-framework DoD не закрыт.)
 
 
 - [ ] Orchestration: implement AI multi-agent contracts (RAG/UQ/CV + safety) — runtime follow-up
