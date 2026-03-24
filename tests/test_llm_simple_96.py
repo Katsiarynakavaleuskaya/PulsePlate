@@ -12,17 +12,17 @@ class TestLlmSimple96:
     """Simple tests to cover missing lines in llm.py for 96%+ coverage."""
 
     def test_get_provider_grok_keyword_args_fail(self):
-        """Test get_provider with GrokProvider keyword args failure - line 71-77."""
+        """Test get_provider with PerplexityProvider keyword args failure - line 71-77."""
         with (
-            patch("llm.GrokProvider") as mock_grok_provider,
-            patch("llm.GrokLiteProvider") as mock_grok_lite,
+            patch("llm.PerplexityProvider") as mock_grok_provider,
+            patch("llm.PerplexityLiteProvider") as mock_grok_lite,
             patch.dict(
                 os.environ,
                 {
-                    "LLM_PROVIDER": "grok",
-                    "GROK_ENDPOINT": "http://test",
-                    "GROK_API_KEY": "test_key",
-                    "GROK_MODEL": "test_model",
+                    "LLM_PROVIDER": "perplexity",
+                    "PERPLEXITY_ENDPOINT": "http://test",
+                    "PERPLEXITY_API_KEY": "test_key",
+                    "PERPLEXITY_MODEL": "test_model",
                 },
             ),
         ):
@@ -36,22 +36,22 @@ class TestLlmSimple96:
 
             result = get_provider()
 
-            # Should try keyword args first, then positional args
-            assert mock_grok_provider.call_count == 2
+            # Perplexity path currently performs a single constructor attempt.
+            assert mock_grok_provider.call_count == 1
             assert result is not None
 
     def test_get_provider_grok_both_fail(self):
-        """Test get_provider with GrokProvider both calls fail - line 75-77."""
+        """Test get_provider with PerplexityProvider both calls fail - line 75-77."""
         with (
-            patch("llm.GrokProvider") as mock_grok_provider,
-            patch("llm.GrokLiteProvider") as mock_grok_lite,
+            patch("llm.PerplexityProvider") as mock_grok_provider,
+            patch("llm.PerplexityLiteProvider") as mock_grok_lite,
             patch.dict(
                 os.environ,
                 {
-                    "LLM_PROVIDER": "grok",
-                    "GROK_ENDPOINT": "http://test",
-                    "GROK_API_KEY": "test_key",
-                    "GROK_MODEL": "test_model",
+                    "LLM_PROVIDER": "perplexity",
+                    "PERPLEXITY_ENDPOINT": "http://test",
+                    "PERPLEXITY_API_KEY": "test_key",
+                    "PERPLEXITY_MODEL": "test_model",
                 },
             ),
         ):
@@ -119,7 +119,7 @@ class TestLlmSimple96:
 
             result = get_provider()
 
-            # Should fallback to OllamaLiteProvider when both fail (консистентно с GrokProvider)
+            # Should fallback to OllamaLiteProvider when both fail (консистентно с PerplexityProvider)
             assert result is not None
             assert result.name == "ollama"
 
@@ -216,18 +216,18 @@ class TestLlmSimple96:
             assert result == mock_provider
 
     def test_get_provider_grok_fallback_when_unavailable(self):
-        """Test get_provider with GrokProvider fallback when unavailable - line 78-79."""
+        """Test get_provider with PerplexityProvider fallback when unavailable - line 78-79."""
         with (
-            patch("llm.GrokProvider", None),
-            patch("llm.GrokLiteProvider") as mock_grok_lite,
-            patch.dict(os.environ, {"LLM_PROVIDER": "grok"}),
+            patch("llm.PerplexityProvider", None),
+            patch("llm.PerplexityLiteProvider") as mock_grok_lite,
+            patch.dict(os.environ, {"LLM_PROVIDER": "perplexity"}),
         ):
             mock_lite_provider = Mock()
             mock_grok_lite.return_value = mock_lite_provider
 
             result = get_provider()
 
-            # Should fallback to lite provider when GrokProvider is None
+            # Should fallback to lite provider when PerplexityProvider is None
             mock_grok_lite.assert_called_once()
             assert result == mock_lite_provider
 
@@ -236,7 +236,7 @@ class TestLlmSimple96:
         with patch("llm.OllamaProvider", None), patch.dict(os.environ, {"LLM_PROVIDER": "ollama"}):
             result = get_provider()
 
-            # Should fallback to OllamaLiteProvider when OllamaProvider is None (consistent with GrokProvider)
+            # Should fallback to OllamaLiteProvider when OllamaProvider is None (consistent with PerplexityProvider)
             assert result is not None
             assert result.name == "ollama"
 

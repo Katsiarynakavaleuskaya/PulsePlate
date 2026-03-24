@@ -21,7 +21,7 @@ def test__with_name_handles_attribute_error() -> None:
         __slots__ = ()
 
     obj = NoAttrs()
-    res = llm._with_name(obj, "any")  # type: ignore[attr-defined]
+    res = llm._with_name(obj, "any")
     assert res is obj
 
 
@@ -32,29 +32,6 @@ def test_get_provider_stub_branch(monkeypatch: pytest.MonkeyPatch) -> None:
 
     assert provider is not None
     assert getattr(provider, "name", "") == "stub"
-
-
-def test_get_provider_grok_env_block_executes(monkeypatch: pytest.MonkeyPatch) -> None:
-    class GrokProvider:
-        name = "grok"
-
-        def __init__(self, endpoint: str, model: str, api_key: str, /) -> None:
-            self.endpoint = endpoint
-            self.model = model
-            self.api_key = api_key
-
-        async def generate(self, text: str) -> str:
-            return text
-
-    monkeypatch.setattr(llm, "GrokProvider", GrokProvider)
-    monkeypatch.setenv("GROK_API_KEY", "dummy")
-    monkeypatch.delenv("XAI_API_KEY", raising=False)
-    monkeypatch.setenv("LLM_PROVIDER", "grok")
-
-    provider = llm.get_provider()
-
-    assert provider is not None
-    assert getattr(provider, "name", "") == "grok"
 
 
 def test_get_provider_ollama_typeerror_posargs_fallback(
@@ -72,10 +49,15 @@ def test_get_provider_ollama_typeerror_posargs_fallback(
 
     monkeypatch.setattr(llm, "OllamaProvider", OllamaProvider)
     monkeypatch.setenv("LLM_PROVIDER", "ollama")
+    monkeypatch.setenv("OLLAMA_ENDPOINT", "http://ollama.local:11434")
+    monkeypatch.setenv("OLLAMA_MODEL", "llama3.1:8b")
 
     provider = llm.get_provider()
 
     assert provider is not None
+    assert isinstance(provider, OllamaProvider)
+    assert provider.endpoint == "http://ollama.local:11434"
+    assert provider.model == "llama3.1:8b"
     assert getattr(provider, "name", "") == "ollama"
 
 
@@ -92,23 +74,79 @@ def test_get_provider_ollama_import_error_fallback(
     assert getattr(provider, "name", "") == "ollama"
 
 
-def test_get_provider_grok_missing_api_key_triggers_branch(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    class GrokProvider:
-        name = "grok"
+def test_get_provider_perplexity_with_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
+    class _PerplexityProvider:
+        name = "perplexity"
 
-        def __init__(self, *args: object, **kwargs: object) -> None:
-            self.args = args
-            self.kwargs = kwargs
+        def __init__(self, *, endpoint: str, model: str, api_key: str) -> None:
+            self.endpoint = endpoint
+            self.model = model
+            self.api_key = api_key
 
-    monkeypatch.setattr(llm, "GrokProvider", GrokProvider)
-    monkeypatch.delenv("GROK_API_KEY", raising=False)
-    monkeypatch.delenv("XAI_API_KEY", raising=False)
-    monkeypatch.setenv("LLM_PROVIDER", "grok")
+        async def generate(self, text: str) -> str:
+            return text
+
+    monkeypatch.setattr(llm, "PerplexityProvider", _PerplexityProvider)
+    monkeypatch.setenv("LLM_PROVIDER", "perplexity")
+    monkeypatch.setenv("PERPLEXITY_API_KEY", "pplx-key")  # pragma: allowlist secret
+    monkeypatch.setenv("PERPLEXITY_MODEL", "sonar-pro")
+    monkeypatch.setenv("PERPLEXITY_ENDPOINT", "https://api.perplexity.ai")
 
     provider = llm.get_provider()
 
     assert provider is not None
-    assert isinstance(provider, llm.GrokLiteProvider)
-    assert getattr(provider, "name", "") == "grok"
+    assert isinstance(provider, _PerplexityProvider)
+    assert provider.endpoint == "https://api.perplexity.ai"
+    assert provider.model == "sonar-pro"
+    assert provider.api_key == "pplx-key"  # pragma: allowlist secret
+    assert getattr(provider, "name", "") == "perplexity"
+
+
+def test_get_provider_perplexity_without_api_key_uses_lite(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class _PerplexityProvider:
+        name = "perplexity"
+
+        def __init__(self, *, endpoint: str, model: str, api_key: str) -> None:
+            self.endpoint = endpoint
+            self.model = model
+            self.api_key = api_key
+
+        async def generate(self, text: str) -> str:
+            return text
+
+    monkeypatch.setenv("LLM_PROVIDER", "perplexity")
+    monkeypatch.delenv("PERPLEXITY_API_KEY", raising=False)
+    monkeypatch.setattr(llm, "PerplexityProvider", _PerplexityProvider)
+
+    provider = llm.get_provider()
+
+    assert provider is not None
+    assert isinstance(provider, llm.PerplexityLiteProvider)
+    assert getattr(provider, "name", "") == "perplexity"
+
+
+def test_get_provider_perplexity_placeholder_key_uses_lite(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class _PerplexityProvider:
+        name = "perplexity"
+
+        def __init__(self, *, endpoint: str, model: str, api_key: str) -> None:
+            self.endpoint = endpoint
+            self.model = model
+            self.api_key = api_key
+
+        async def generate(self, text: str) -> str:
+            return text
+
+    monkeypatch.setattr(llm, "PerplexityProvider", _PerplexityProvider)
+    monkeypatch.setenv("LLM_PROVIDER", "perplexity")
+    monkeypatch.setenv("PERPLEXITY_API_KEY", "__replace_me__")
+
+    provider = llm.get_provider()
+
+    assert provider is not None
+    assert isinstance(provider, llm.PerplexityLiteProvider)
+    assert getattr(provider, "name", "") == "perplexity"

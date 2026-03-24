@@ -44,62 +44,62 @@ class TestStubProvider:
         assert "[stub @" in result
 
 
-class TestGrokLiteProvider:
-    """Тесты для GrokLiteProvider fallback'а"""
+class TestPerplexityLiteProvider:
+    """Тесты для PerplexityLiteProvider fallback'а"""
 
     def test_grok_lite_provider_through_exception(self):
-        """Тест GrokLiteProvider через симуляцию отсутствия providers.grok"""
-        # Тестируем GrokLiteProvider симулируя отсутствие настоящего провайдера
-        with patch.dict(os.environ, {"LLM_PROVIDER": "grok"}, clear=False):
-            # Мокаем GrokProvider на уровне модуля как None
-            with patch.object(llm, "GrokProvider", None):
-                # Нам нужно создать класс GrokLiteProvider для теста
-                original_grok_lite = getattr(llm, "GrokLiteProvider", None)
+        """Тест PerplexityLiteProvider через симуляцию отсутствия providers.perplexity"""
+        # Тестируем PerplexityLiteProvider симулируя отсутствие настоящего провайдера
+        with patch.dict(os.environ, {"LLM_PROVIDER": "perplexity"}, clear=False):
+            # Мокаем PerplexityProvider на уровне модуля как None
+            with patch.object(llm, "PerplexityProvider", None):
+                # Нам нужно создать класс PerplexityLiteProvider для теста
+                original_grok_lite = getattr(llm, "PerplexityLiteProvider", None)
 
-                # Если GrokLiteProvider не существует, создаем его
+                # Если PerplexityLiteProvider не существует, создаем его
                 if not original_grok_lite:
 
-                    class MockGrokLiteProvider:
-                        name = "grok"
+                    class MockPerplexityLiteProvider:
+                        name = "perplexity"
 
                         def __init__(self, *args, **kwargs):
                             pass
 
                         async def generate(self, text: str) -> str:
-                            return f"[grok-lite] {text}"
+                            return f"[perplexity-lite] {text}"
 
                     # Патчим get_provider чтобы возвращал наш мок
                     with patch.object(llm, "get_provider") as mock_get:
-                        mock_provider = MockGrokLiteProvider()
+                        mock_provider = MockPerplexityLiteProvider()
                         mock_get.return_value = mock_provider
 
                         provider = llm.get_provider()
                         assert provider is not None
-                        assert provider.name == "grok"
+                        assert provider.name == "perplexity"
                 else:
                     provider = llm.get_provider()
                     assert provider is not None
 
     @pytest.mark.asyncio
     async def test_grok_lite_provider_generate(self):
-        """Тест генерации текста через GrokLiteProvider"""
+        """Тест генерации текста через PerplexityLiteProvider"""
 
         # Создаем мок провайдер для теста генерации
         # Создаем мок провайдер для теста генерации
-        class MockGrokLiteProvider:
-            name = "grok"
+        class MockPerplexityLiteProvider:
+            name = "perplexity"
 
             def __init__(self, *args, **kwargs):
                 pass
 
             async def generate(self, text: str) -> str:
-                return f"[grok-lite] {text}"
+                return f"[perplexity-lite] {text}"
 
-        provider = MockGrokLiteProvider()
+        provider = MockPerplexityLiteProvider()
         result = await provider.generate("nutrition question")
 
-        assert result == "[grok-lite] nutrition question"
-        assert "grok-lite" in result
+        assert result == "[perplexity-lite] nutrition question"
+        assert "perplexity-lite" in result
 
 
 class TestGetProvider:
@@ -143,106 +143,108 @@ class TestGetProvider:
 
 
 class TestGetProviderGrok:
-    """Тесты для Grok провайдера"""
+    """Тесты для Perplexity провайдера"""
 
     def test_get_provider_grok_fallback_when_none(self):
-        """Тест fallback на GrokLiteProvider когда GrokProvider недоступен"""
-        with patch.dict(os.environ, {"LLM_PROVIDER": "grok"}, clear=False):
-            # Мокаем недоступность настоящего GrokProvider
-            with patch.object(llm, "GrokProvider", None):
+        """Тест fallback на PerplexityLiteProvider когда PerplexityProvider недоступен"""
+        with patch.dict(os.environ, {"LLM_PROVIDER": "perplexity"}, clear=False):
+            # Мокаем недоступность настоящего PerplexityProvider
+            with patch.object(llm, "PerplexityProvider", None):
                 provider = llm.get_provider()
                 assert provider is not None
-                assert provider.name == "grok"
+                assert provider.name == "perplexity"
 
-    @patch("llm.GrokProvider")
+    @patch("llm.PerplexityProvider")
     def test_get_provider_grok_with_env_vars(self, mock_grok_class):
-        """Тест создания GrokProvider с переменными окружения"""
+        """Тест создания PerplexityProvider с переменными окружения"""
         mock_instance = Mock()
         mock_grok_class.return_value = mock_instance
 
         env_vars = {
-            "LLM_PROVIDER": "grok",
-            "GROK_API_KEY": "test-key-123",
-            "GROK_MODEL": "grok-beta",
-            "GROK_ENDPOINT": "https://test.api.com",
+            "LLM_PROVIDER": "perplexity",
+            "PERPLEXITY_API_KEY": "test-key-123",
+            "PERPLEXITY_MODEL": "sonar-pro",
+            "PERPLEXITY_ENDPOINT": "https://test.api.com",
         }
 
         with patch.dict(os.environ, env_vars, clear=False):
             provider = llm.get_provider()
 
-            # Проверяем что GrokProvider был вызван с правильными параметрами
+            # Проверяем что PerplexityProvider был вызван с правильными параметрами
             mock_grok_class.assert_called_once_with(
-                endpoint="https://test.api.com", api_key="test-key-123", model="grok-beta"
+                endpoint="https://test.api.com", api_key="test-key-123", model="sonar-pro"
             )
             assert provider == mock_instance
 
-    @patch("llm.GrokProvider")
-    def test_get_provider_grok_with_xai_key(self, mock_grok_class):
-        """Тест использования XAI_API_KEY как fallback"""
+    @patch("llm.PerplexityProvider")
+    def test_get_provider_perplexity_with_api_key(self, mock_grok_class):
+        """Тест использования PERPLEXITY_API_KEY."""
         mock_instance = Mock()
         mock_grok_class.return_value = mock_instance
 
         env_vars = {
-            "LLM_PROVIDER": "grok",
-            "XAI_API_KEY": "xai-key-456",  # Альтернативное имя ключа
+            "LLM_PROVIDER": "perplexity",
+            "PERPLEXITY_API_KEY": "xai-key-456",  # Альтернативное имя ключа
         }
 
         with patch.dict(os.environ, env_vars, clear=False):
-            # Убираем GROK_API_KEY если есть
-            if "GROK_API_KEY" in os.environ:
-                del os.environ["GROK_API_KEY"]
-
             provider = llm.get_provider()
             assert provider is not None
 
             mock_grok_class.assert_called_once_with(
-                endpoint="https://api.x.ai/v1",  # дефолтный endpoint
+                endpoint="https://api.perplexity.ai",  # дефолтный endpoint
                 api_key="xai-key-456",
-                model="grok-4-latest",  # дефолтная модель
+                model="sonar",  # дефолтная модель
             )
 
     def test_get_provider_grok_defaults(self):
-        """Тест дефолтных значений для Grok провайдера (fallback to GrokLiteProvider when no API key)"""
-        with patch.dict(os.environ, {"LLM_PROVIDER": "grok"}, clear=False):
-            # Очищаем все Grok-related env vars
-            grok_vars = ["GROK_API_KEY", "XAI_API_KEY", "GROK_MODEL", "GROK_ENDPOINT"]
-            for var in grok_vars:
+        """Тест дефолтных значений для Perplexity провайдера (fallback to PerplexityLiteProvider when no API key)"""
+        with patch.dict(os.environ, {"LLM_PROVIDER": "perplexity"}, clear=False):
+            # Очищаем все Perplexity-related env vars
+            perplexity_vars = [
+                "PERPLEXITY_API_KEY",
+                "PERPLEXITY_MODEL",
+                "PERPLEXITY_ENDPOINT",
+            ]
+            for var in perplexity_vars:
                 if var in os.environ:
                     del os.environ[var]
 
             provider = llm.get_provider()
             assert provider is not None
-            # Когда нет API ключа, должен вернуть GrokLiteProvider
-            assert provider.__class__.__name__ == "GrokLiteProvider"
-            assert provider.name == "grok"
+            # Когда нет API ключа, должен вернуть PerplexityLiteProvider
+            assert provider.__class__.__name__ == "PerplexityLiteProvider"
+            assert provider.name == "perplexity"
 
-    @patch("llm.GrokProvider")
+    @patch("llm.PerplexityProvider")
     def test_get_provider_grok_keyword_exception_fallback(self, mock_grok_class):
         """Тест fallback при ошибке keyword arguments"""
         # Мокаем TypeError при вызове с keyword args
         mock_grok_class.side_effect = [TypeError("unexpected keyword"), Mock()]
 
         with patch.dict(
-            os.environ, {"LLM_PROVIDER": "grok", "GROK_API_KEY": "test-key"}, clear=False
+            os.environ,
+            {"LLM_PROVIDER": "perplexity", "PERPLEXITY_API_KEY": "test-key"},
+            clear=False,
         ):
             provider = llm.get_provider()
             assert provider is not None
 
-            # Должно быть два вызова: первый с kwargs, второй с positional args
-            assert mock_grok_class.call_count == 2
+            # Perplexity path uses one constructor attempt and falls back to lite on error.
+            assert mock_grok_class.call_count == 1
 
-    @patch("llm.GrokProvider")
+    @patch("llm.PerplexityProvider")
     def test_get_provider_grok_all_exceptions_fallback(self, mock_grok_class):
-        """Тест fallback на GrokLiteProvider при всех ошибках"""
+        """Тест fallback на PerplexityLiteProvider при всех ошибках"""
         # Мокаем ошибки для всех попыток создания
         mock_grok_class.side_effect = Exception("Connection failed")
 
-        with patch.dict(os.environ, {"LLM_PROVIDER": "grok"}, clear=False):
+        with patch.dict(os.environ, {"LLM_PROVIDER": "perplexity"}, clear=False):
             provider = llm.get_provider()
 
-            # Должен вернуться GrokLiteProvider
+            # Должен вернуться PerplexityLiteProvider
             assert provider is not None
-            assert provider.name == "grok"
+            assert provider.name == "perplexity"
 
 
 class TestGetProviderOllama:
@@ -253,7 +255,7 @@ class TestGetProviderOllama:
         with patch.dict(os.environ, {"LLM_PROVIDER": "ollama"}, clear=False):
             with patch.object(llm, "OllamaProvider", None):
                 provider = llm.get_provider()
-                # When OllamaProvider is None, should fallback to OllamaLiteProvider (like GrokProvider)
+                # When OllamaProvider is None, should fallback to OllamaLiteProvider (like PerplexityProvider)
                 assert provider is not None
                 assert provider.name == "ollama"
 
@@ -307,7 +309,7 @@ class TestGetProviderOllama:
         with patch.dict(os.environ, {"LLM_PROVIDER": "ollama"}, clear=False):
             provider = llm.get_provider()
 
-            # При ошибках должен вернуться OllamaLiteProvider (консистентно с GrokProvider)
+            # При ошибках должен вернуться OllamaLiteProvider (консистентно с PerplexityProvider)
             assert provider is not None
             assert provider.name == "ollama"
             assert mock_ollama_class.call_count == 2
@@ -351,10 +353,10 @@ class TestModuleImports:
         # Это проверяется в runtime при импорте модуля
 
         # Тестируем что fallback провайдеры работают через get_provider
-        with patch.dict(os.environ, {"LLM_PROVIDER": "grok"}, clear=False):
-            with patch.object(llm, "GrokProvider", None):
+        with patch.dict(os.environ, {"LLM_PROVIDER": "perplexity"}, clear=False):
+            with patch.object(llm, "PerplexityProvider", None):
                 grok_lite = llm.get_provider()
-                assert grok_lite.name == "grok"
+                assert grok_lite.name == "perplexity"
 
         stub = llm.StubProvider()
         assert stub.name == "stub"

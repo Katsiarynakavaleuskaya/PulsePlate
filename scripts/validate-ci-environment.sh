@@ -106,30 +106,30 @@ fi
 if [ "$LLM_ENABLED_NORMALIZED" = "true" ] || [ -n "${LLM_PROVIDER:-}" ]; then
     # Require secrets based on configured provider
     case "${LLM_PROVIDER:-}" in
-        openai)
-            validate_required_secret "PULSEPLATE_OPENAI" "production" "$ENVIRONMENT"
-            ;;
         ollama)
             validate_required_secret "OLLAMA_API_KEY" "production" "$ENVIRONMENT"
+            ;;
+        perplexity)
+            validate_required_secret "PERPLEXITY_API_KEY" "production" "$ENVIRONMENT"
             ;;
         "")
             # LLM enabled but provider not specified - fail with clear configuration error
             if [ "$LLM_ENABLED_NORMALIZED" = "true" ]; then
-                err_msg="LLM_ENABLED=true but LLM_PROVIDER is not set. Set LLM_PROVIDER to 'openai' or 'ollama' (or disable LLM_ENABLED)."
+                err_msg="LLM_ENABLED=true but LLM_PROVIDER is not set. Set LLM_PROVIDER to 'ollama' or 'perplexity' (or disable LLM_ENABLED)."
                 echo "::error::$err_msg"
                 ERRORS+=("$err_msg")
             fi
             ;;
         *)
             # LLM_PROVIDER set but not recognized
-            err_msg="Unsupported LLM_PROVIDER='${LLM_PROVIDER}'. Supported values: openai, ollama."
+            err_msg="Unsupported LLM_PROVIDER='${LLM_PROVIDER}'. Supported values: ollama, perplexity."
             echo "::error::$err_msg"
             ERRORS+=("$err_msg")
             ;;
     esac
 else
     echo "ℹ️  LLM secrets not required (LLM_ENABLED is not true and LLM_PROVIDER not set)."
-    echo "ℹ️  To enable LLM features, set LLM_ENABLED=true and LLM_PROVIDER=openai|ollama."
+    echo "ℹ️  To enable LLM features, set LLM_ENABLED=true and LLM_PROVIDER=ollama|perplexity."
 fi
 
 # Check SSH secrets (required for both staging and production when deploying)
