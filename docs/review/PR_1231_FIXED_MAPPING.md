@@ -29,7 +29,7 @@ Disposition: NOT-A-BUG
 Evidence: `tests/test_llm_comprehensive.py` (`TestPerplexityLiteProvider.test_grok_lite_provider_through_exception`) intentionally validates provider-unavailable fallback path by setting `PerplexityProvider=None`; this is distinct from API-key guard coverage, which is already covered in `tests/test_llm_extras.py`.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1231#discussion_r2981723500
 Disposition: FIXED
-Commit: PENDING_PUSH
+Commit: 06fcd766
 Evidence: `docker-compose.yaml` (`pulseplate` + `pulseplate-dev` now export `LLM_PROVIDER`, `PERPLEXITY_API_KEY`, `PERPLEXITY_ENDPOINT`, `PERPLEXITY_MODEL`)
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1231#discussion_r2981733280
 Disposition: NOT-A-BUG
