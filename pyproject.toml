@@ -69,6 +69,13 @@ exclude = '''
 module = ["app.security.rate_limit"]
 warn_unused_ignores = false
 
+[[tool.mypy.overrides]]
+# ``cast(RAGContext, vector_rag.retrieve_context_structured(...))`` is required for pre-push mypy
+# (--follow-imports=skip treats ``vector_rag`` as partially unknown). Full mypy resolves imports and
+# would flag redundant-cast without this override.
+module = ["core.rag.recursive_retrieval"]
+disable_error_code = ["redundant-cast"]
+
 [tool.black]
 line-length = 100
 target-version = ["py313"]
