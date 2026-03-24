@@ -12,6 +12,17 @@ import pytest
 import llm
 
 
+def _llm_live():
+    """Canonical ``llm`` module (matches ``sys.modules``).
+
+    Some tests delete and re-import ``llm``; a module-level ``import llm`` can
+    become stale so ``importlib.reload`` raises ImportError (wrong object vs
+    ``sys.modules['llm']``).
+    """
+
+    return importlib.import_module("llm")
+
+
 @pytest.fixture(autouse=True)
 def _llm_test_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("API_KEY", "test_key")
@@ -20,6 +31,7 @@ def _llm_test_env(monkeypatch: pytest.MonkeyPatch) -> None:
 
 class TestImportFallbacks:
     def test_perplexity_import_exception_coverage(self) -> None:
+        llm_mod = _llm_live()
         original_import_module = importlib.import_module
         with patch("importlib.import_module") as mock_import:
 
@@ -29,15 +41,15 @@ class TestImportFallbacks:
                 return original_import_module(name, package)
 
             mock_import.side_effect = import_side_effect
-            reload(llm)
-            assert llm.PerplexityProvider is None
-            assert hasattr(llm, "PerplexityLiteProvider")
+            reload(llm_mod)
+            assert llm_mod.PerplexityProvider is None
+            assert hasattr(llm_mod, "PerplexityLiteProvider")
 
-        reload(llm)
+        reload(_llm_live())
 
     @pytest.mark.asyncio
     async def test_perplexity_lite_provider_generate_coverage(self) -> None:
-        provider = llm.PerplexityLiteProvider()
+        provider = _llm_live().PerplexityLiteProvider()
         assert provider.name == "perplexity"
         result = await provider.generate("test input")
         assert result.startswith("[perplexity-lite] ")
