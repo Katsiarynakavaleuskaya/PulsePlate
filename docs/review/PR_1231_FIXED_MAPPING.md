@@ -58,6 +58,7 @@ Reason: Review-level bot summaries duplicate inline actionables that are already
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1231#pullrequestreview-3999367140
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1231#pullrequestreview-3999432091
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1231#pullrequestreview-3999471188
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1231#pullrequestreview-3999489152
 
 Disposition: FIXED
 Commit: a22f6514
@@ -68,6 +69,6 @@ Evidence: `docs/review/PR_1231_FIXED_MAPPING.md` (blank-line separators between 
 
 ## Merge Readiness
 - [ ] All required checks pass
-- [ ] No unresolved review threads (resolve on GitHub after push)
+- [x] No unresolved review threads (resolved via GitHub review thread API; re-check before merge)
 - [x] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
 - [ ] Pre-commit green
