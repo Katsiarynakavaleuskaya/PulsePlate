@@ -48,8 +48,10 @@ class TestImportFallbacks:
             assert llm_mod.PerplexityProvider is None
             assert hasattr(llm_mod, "PerplexityLiteProvider")
 
-        reload(_llm_live())
-        llm = importlib.import_module("llm")
+        # Use reload(importlib.import_module("llm")) so repo AST policy can resolve the
+        # target (forbid obfuscated reload(call()) patterns); _llm_live() is still the
+        # runtime-safe accessor when tests evict sys.modules["llm"].
+        llm = reload(importlib.import_module("llm"))
 
     @pytest.mark.asyncio
     async def test_perplexity_lite_provider_generate_coverage(self) -> None:
