@@ -17,6 +17,7 @@ import json
 import os
 import sys
 import time
+from enum import Enum
 from pathlib import Path
 from typing import Any
 
@@ -24,8 +25,15 @@ _REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
-# Tests set this before importing app; keep parity for imports that read env.
-os.environ.setdefault("TESTING", "true")
+# Deterministic harness: this script requires TESTING=true (fail fast if preset otherwise).
+_testing = os.environ.get("TESTING")
+if _testing is None:
+    os.environ["TESTING"] = "true"
+elif _testing.lower() != "true":
+    raise RuntimeError(
+        "benchmark_recursive_rag_hop_cache requires TESTING=true; "
+        f"got TESTING={_testing!r}. Unset TESTING or set it to 'true'."
+    )
 
 
 def _ctx(query: str, chunks: list[Any], confidence: float = 0.7) -> Any:
@@ -115,7 +123,11 @@ def _run_harness(*, optimization_enabled: bool) -> dict[str, Any]:
     if stats is not None:
         out["hop_vector_cache_hits"] = stats.get("hop_vector_cache_hits")
         out["hop_vector_retrieve_calls"] = stats.get("hop_vector_retrieve_calls")
-        out["stop_reason"] = str(stats.get("stop_reason"))
+        stop_reason = stats.get("stop_reason")
+        if isinstance(stop_reason, Enum):
+            out["stop_reason"] = stop_reason.value
+        else:
+            out["stop_reason"] = None if stop_reason is None else str(stop_reason)
     return out
 
 
