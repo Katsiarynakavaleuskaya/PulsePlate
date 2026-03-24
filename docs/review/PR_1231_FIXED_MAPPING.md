@@ -60,11 +60,11 @@ Reason: Review-level bot summaries duplicate inline actionables that are already
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1231#pullrequestreview-3999471188
 
 Disposition: FIXED
-Commit: PENDING_PUSH
+Commit: a22f6514
 Evidence: `docs/review/PR_1231_FIXED_MAPPING.md` (blank-line separators between disposition blocks, explicit `Reason:` fields for `NOT-A-BUG`, and `thread_url -> commit_sha` syntax for `FIXED` entries)
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1231#discussion_r2981841185 -> PENDING_PUSH
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1231#discussion_r2981841191 -> PENDING_PUSH
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1231#discussion_r2981841192 -> PENDING_PUSH
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1231#discussion_r2981841185 -> a22f6514
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1231#discussion_r2981841191 -> a22f6514
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1231#discussion_r2981841192 -> a22f6514
 
 ## Merge Readiness
 - [ ] All required checks pass
