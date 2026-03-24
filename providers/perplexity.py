@@ -4,20 +4,18 @@ from openai import AsyncOpenAI
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
 
-class GrokProvider:
+class PerplexityProvider:
     """
-    Минималистичный провайдер к x.ai (Grok) через совместимый OpenAI SDK.
-    Совместим с вызовом из llm.py:
-        GrokProvider(endpoint=..., model=..., api_key=...)
+    RU: Минималистичный провайдер к Perplexity через OpenAI-совместимый SDK.
+    EN: Minimal Perplexity provider via OpenAI-compatible SDK.
     """
 
-    name = "grok"
+    name = "perplexity"
 
     def __init__(self, endpoint: str, model: str, api_key: str, timeout: Optional[float] = 30.0):
         self.endpoint = endpoint.rstrip("/")
         self.model = model
         self.api_key = api_key
-        # создаём асинхронного клиента (OpenAI совместимый эндпоинт у x.ai)
         self.client = AsyncOpenAI(base_url=self.endpoint, api_key=self.api_key)
         self.timeout = timeout
 
@@ -37,5 +35,4 @@ class GrokProvider:
             content = resp.choices[0].message.content
             return content.strip() if content else ""
         except Exception as e:
-            # Пробрасываем понятную ошибку наверх
-            raise RuntimeError(f"Grok error: {type(e).__name__}: {e}")
+            raise RuntimeError(f"Perplexity error: {type(e).__name__}: {e}")

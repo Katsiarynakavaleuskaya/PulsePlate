@@ -4533,8 +4533,8 @@ async def debug_env() -> JSONResponse:
     data = {
         "FEATURE_INSIGHT": os.getenv("FEATURE_INSIGHT", ""),
         "LLM_PROVIDER": os.getenv("LLM_PROVIDER", ""),
-        "GROK_MODEL": os.getenv("GROK_MODEL", ""),
-        "GROK_ENDPOINT": os.getenv("GROK_ENDPOINT", ""),
+        "PERPLEXITY_MODEL": os.getenv("PERPLEXITY_MODEL", ""),
+        "PERPLEXITY_ENDPOINT": os.getenv("PERPLEXITY_ENDPOINT", ""),
     }
     flag = str(os.getenv("FEATURE_INSIGHT", "")).strip().lower()
     data["insight_enabled"] = str(flag in {"1", "true", "yes", "on"})

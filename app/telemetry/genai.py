@@ -153,7 +153,7 @@ def _estimate_token_count(text: str) -> int:
 def _resolve_model_name(provider_name: str) -> str:
     normalized = provider_name.strip().lower()
     env_mapping = {
-        "grok": ("GROK_MODEL", "grok-4-latest"),
+        "perplexity": ("PERPLEXITY_MODEL", "sonar"),
         "ollama": ("OLLAMA_MODEL", "llama3.1:8b"),
         "stub": ("LLM_STUB_MODEL", "stub"),
         "pico": ("PICO_MODEL", "pico"),

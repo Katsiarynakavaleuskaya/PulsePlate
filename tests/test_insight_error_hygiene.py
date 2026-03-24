@@ -13,7 +13,7 @@ def test_insight_legacy_does_not_leak_provider_exception(
         name = "test_provider"
 
         async def generate(self, text: str) -> str:
-            raise RuntimeError("SENSITIVE: model=grok-4-latest path=/tmp/internal secret=abc")
+            raise RuntimeError("SENSITIVE: model=sonar path=/tmp/internal secret=abc")
 
     monkeypatch.setenv("FEATURE_INSIGHT", "true")
     monkeypatch.setattr(llm, "get_provider", lambda: FailingProvider(), raising=True)
@@ -37,7 +37,7 @@ def test_insight_v1_does_not_leak_provider_exception(
         name = "test_provider"
 
         async def generate(self, text: str) -> str:
-            raise RuntimeError("SENSITIVE: model=grok-4-latest path=/tmp/internal secret=abc")
+            raise RuntimeError("SENSITIVE: model=sonar path=/tmp/internal secret=abc")
 
     monkeypatch.setenv("FEATURE_INSIGHT", "true")
     monkeypatch.setattr(llm, "get_provider", lambda: FailingProvider(), raising=True)

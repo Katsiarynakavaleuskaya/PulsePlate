@@ -4,7 +4,9 @@
 try:
     from llm import get_provider
 except ImportError:
-    get_provider = None
+
+    def get_provider():
+        return None
 
 
 def test_get_provider_stub():
@@ -24,23 +26,6 @@ def test_get_provider_stub():
             del os.environ["LLM_PROVIDER"]
 
 
-def test_get_provider_grok():
-    import os
-
-    original = os.environ.get("LLM_PROVIDER")
-    os.environ["LLM_PROVIDER"] = "grok"
-    try:
-        provider = get_provider()
-        assert provider is not None
-        assert hasattr(provider, "generate")
-        assert provider.name == "grok"
-    finally:
-        if original is not None:
-            os.environ["LLM_PROVIDER"] = original
-        else:
-            del os.environ["LLM_PROVIDER"]
-
-
 def test_get_provider_ollama():
     import os
 
@@ -51,6 +36,23 @@ def test_get_provider_ollama():
         assert provider is not None
         assert hasattr(provider, "generate")
         assert provider.name == "ollama"
+    finally:
+        if original is not None:
+            os.environ["LLM_PROVIDER"] = original
+        else:
+            del os.environ["LLM_PROVIDER"]
+
+
+def test_get_provider_perplexity():
+    import os
+
+    original = os.environ.get("LLM_PROVIDER")
+    os.environ["LLM_PROVIDER"] = "perplexity"
+    try:
+        provider = get_provider()
+        assert provider is not None
+        assert hasattr(provider, "generate")
+        assert provider.name == "perplexity"
     finally:
         if original is not None:
             os.environ["LLM_PROVIDER"] = original
@@ -96,17 +98,6 @@ try:
         result = provider.generate("test")
         assert isinstance(result, str)
         assert "stub" in result.lower()
-
-except ImportError:
-    pass
-
-try:
-    from llm.providers.grok import GrokProvider
-
-    def test_grok_provider_generate():
-        provider = GrokProvider()
-        result = provider.generate("test")
-        assert isinstance(result, str)
 
 except ImportError:
     pass

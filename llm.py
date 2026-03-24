@@ -26,24 +26,6 @@ def _load_optional_provider(module_name: str, class_name: str) -> type[ProviderB
         return None
 
 
-class GrokLiteProvider(ProviderBase):  # lightweight fallback that never uses network
-    name = "grok"
-
-    def __init__(
-        self,
-        endpoint: str = "",
-        model: str = "",
-        api_key: str = "",
-        timeout: Optional[float] = None,
-    ) -> None:
-        # RU: Параметры игнорируются, так как это легковесный fallback без сети
-        # EN: Parameters are ignored as this is a lightweight fallback without network
-        pass
-
-    async def generate(self, text: str) -> str:
-        return f"[grok-lite] {text}"
-
-
 class OllamaLiteProvider(ProviderBase):
     """Lightweight fallback implementation that never uses the network.
 
@@ -66,9 +48,18 @@ class OllamaLiteProvider(ProviderBase):
         return f"[ollama-lite] {text}"
 
 
+class PerplexityLiteProvider(ProviderBase):
+    """Lightweight fallback implementation that never uses the network."""
+
+    name = "perplexity"
+
+    async def generate(self, text: str) -> str:
+        return f"[perplexity-lite] {text}"
+
+
 # Опциональные импорты — модуль должен грузиться даже без внешних либ
-GrokProvider = _load_optional_provider("providers.grok", "GrokProvider")  # xAI
 OllamaProvider = _load_optional_provider("providers.ollama", "OllamaProvider")
+PerplexityProvider = _load_optional_provider("providers.perplexity", "PerplexityProvider")
 PicoProvider = _load_optional_provider("providers.pico", "PicoProvider")
 
 
@@ -95,28 +86,6 @@ def get_provider():
     if val == "stub":
         return StubProvider()
 
-    if val == "grok":
-        if GrokProvider is not None:
-            # пример: можно пробросить ключ и модель через env
-            api_key = os.getenv("GROK_API_KEY") or os.getenv("XAI_API_KEY") or ""
-            model = os.getenv("GROK_MODEL", "grok-4-latest")
-            endpoint = os.getenv("GROK_ENDPOINT", "https://api.x.ai/v1")
-            # If no API key is provided, prefer lightweight fallback to avoid network use
-            if not api_key.strip():
-                return GrokLiteProvider()
-            try:
-                return GrokProvider(endpoint=endpoint, api_key=api_key, model=model)
-            except Exception:
-                # Fallback to positional args if keyword args fail
-                try:
-                    return GrokProvider(endpoint, model, api_key)
-                except Exception:
-                    # If both fail, return lite provider
-                    return GrokLiteProvider()
-        else:
-            # Fallback when real provider unavailable
-            return GrokLiteProvider()
-
     if val == "ollama":
         if OllamaProvider is not None:
             endpoint = os.getenv("OLLAMA_ENDPOINT", "http://localhost:11434")
@@ -142,6 +111,22 @@ def get_provider():
         else:
             # Fallback when real provider unavailable
             return OllamaLiteProvider()
+
+    if val == "perplexity":
+        if PerplexityProvider is not None:
+            api_key = os.getenv("PERPLEXITY_API_KEY", "")
+            model = os.getenv("PERPLEXITY_MODEL", "sonar")
+            endpoint = os.getenv("PERPLEXITY_ENDPOINT", "https://api.perplexity.ai/v1")
+
+            if not api_key.strip():
+                return PerplexityLiteProvider()
+
+            try:
+                return PerplexityProvider(endpoint=endpoint, api_key=api_key, model=model)
+            except Exception:
+                return PerplexityLiteProvider()
+        else:
+            return PerplexityLiteProvider()
 
     # неизвестное значение — считаем, что провайдера нет
     return None

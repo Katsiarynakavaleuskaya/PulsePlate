@@ -602,8 +602,8 @@ class TestDebugEndpoint:
             {
                 "FEATURE_INSIGHT": "true",
                 "LLM_PROVIDER": "test",
-                "GROK_MODEL": "test_model",
-                "GROK_ENDPOINT": "http://test.com",
+                "PERPLEXITY_MODEL": "test_model",
+                "PERPLEXITY_ENDPOINT": "http://test.com",
             },
         ):
             response = self.client.get("/debug_env")
