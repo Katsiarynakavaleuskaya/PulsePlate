@@ -282,12 +282,15 @@ def _retrieve_vector_for_recursive_hop(
 ) -> RAGContext:
     """Vector retrieve with optional request-scoped hop memo (optimization path only)."""
     if hop_vector_cache is None:
-        return vector_rag.retrieve_context_structured(
-            current_query,
-            max_chunks=limit,
-            agent_id=agent_id,
-            user_tier=user_tier,
-            subject_id=subject_id,
+        return cast(
+            RAGContext,
+            vector_rag.retrieve_context_structured(
+                current_query,
+                max_chunks=limit,
+                agent_id=agent_id,
+                user_tier=user_tier,
+                subject_id=subject_id,
+            ),
         )
     key = _hop_vector_cache_key(current_query, limit, agent_id, user_tier, subject_id)
     cached = hop_vector_cache.get_copy(key)
@@ -295,12 +298,15 @@ def _retrieve_vector_for_recursive_hop(
         if optimization_stats is not None:
             _increment_stat(optimization_stats, "hop_vector_cache_hits")
         return cached
-    ctx = vector_rag.retrieve_context_structured(
-        current_query,
-        max_chunks=limit,
-        agent_id=agent_id,
-        user_tier=user_tier,
-        subject_id=subject_id,
+    ctx = cast(
+        RAGContext,
+        vector_rag.retrieve_context_structured(
+            current_query,
+            max_chunks=limit,
+            agent_id=agent_id,
+            user_tier=user_tier,
+            subject_id=subject_id,
+        ),
     )
     if optimization_stats is not None:
         _increment_stat(optimization_stats, "hop_vector_retrieve_calls")
