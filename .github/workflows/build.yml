@@ -218,6 +218,11 @@ jobs:
             --exit-code 0 \
             '${{ steps.image-ref.outputs.ref }}'
 
+      - name: Warn when Trivy image SARIF is missing
+        if: ${{ hashFiles('trivy-image.sarif') == '' }}
+        run: |
+          echo "::warning::Trivy image SARIF not produced; CodeQL upload will be skipped. Check scan logs (registry/auth/DB)."
+
       # upload-sarif fails closed if sarif is missing; Trivy may not write a file on hard errors.
       - name: Upload Trivy image scan results
         if: ${{ hashFiles('trivy-image.sarif') != '' }}
