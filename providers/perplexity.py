@@ -33,6 +33,11 @@ class PerplexityProvider:
                 timeout=self.timeout,
             )
             content = resp.choices[0].message.content
-            return content.strip() if content else ""
+            if isinstance(content, str):
+                return content.strip()
+            if content is None:
+                return ""
+            # Keep a stable string output for non-string SDK payload variants.
+            return str(content).strip()
         except Exception as e:
             raise RuntimeError(f"Perplexity error: {type(e).__name__}: {e}")
