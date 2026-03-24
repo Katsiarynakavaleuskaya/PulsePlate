@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import importlib
 import os
+import types
 from importlib import reload
 from unittest.mock import Mock, patch
 
@@ -12,7 +13,7 @@ import pytest
 import llm
 
 
-def _llm_live():
+def _llm_live() -> types.ModuleType:
     """Canonical ``llm`` module (matches ``sys.modules``).
 
     Some tests delete and re-import ``llm``; a module-level ``import llm`` can
@@ -31,6 +32,8 @@ def _llm_test_env(monkeypatch: pytest.MonkeyPatch) -> None:
 
 class TestImportFallbacks:
     def test_perplexity_import_exception_coverage(self) -> None:
+        global llm
+
         llm_mod = _llm_live()
         original_import_module = importlib.import_module
         with patch("importlib.import_module") as mock_import:
@@ -46,10 +49,12 @@ class TestImportFallbacks:
             assert hasattr(llm_mod, "PerplexityLiteProvider")
 
         reload(_llm_live())
+        llm = importlib.import_module("llm")
 
     @pytest.mark.asyncio
     async def test_perplexity_lite_provider_generate_coverage(self) -> None:
-        provider = _llm_live().PerplexityLiteProvider()
+        llm_mod = _llm_live()
+        provider = llm_mod.PerplexityLiteProvider()
         assert provider.name == "perplexity"
         result = await provider.generate("test input")
         assert result.startswith("[perplexity-lite] ")
