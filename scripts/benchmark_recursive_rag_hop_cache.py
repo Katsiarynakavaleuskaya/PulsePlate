@@ -83,8 +83,8 @@ def _run_harness(*, optimization_enabled: bool) -> dict[str, Any]:
             return "first"
         return current
 
-    vector_rag.retrieve_context_structured = _fake_retrieve  # type: ignore[assignment]
-    recursive._refine_query = _fake_refine  # type: ignore[assignment]
+    setattr(vector_rag, "retrieve_context_structured", _fake_retrieve)
+    setattr(recursive, "_refine_query", _fake_refine)
 
     t0 = time.perf_counter()
     try:
@@ -97,8 +97,8 @@ def _run_harness(*, optimization_enabled: bool) -> dict[str, Any]:
         setattr(recursive, "MAX_REFINEMENT_PASSES", prev_ref)
         setattr(recursive, "MAX_VERIFICATION_QUERIES", prev_ver)
         setattr(recursive, "MIN_CONFIDENCE_GAIN_PER_HOP", prev_gain)
-        vector_rag.retrieve_context_structured = prev_retrieve  # type: ignore[assignment]
-        recursive._refine_query = prev_refine  # type: ignore[assignment]
+        setattr(vector_rag, "retrieve_context_structured", prev_retrieve)
+        setattr(recursive, "_refine_query", prev_refine)
 
     elapsed_ms = int((time.perf_counter() - t0) * 1000)
 
@@ -130,7 +130,7 @@ def _run_fail_safe() -> dict[str, Any]:
         raise RuntimeError("benchmark boom")
 
     prev = vector_rag.retrieve_context_structured
-    vector_rag.retrieve_context_structured = _boom  # type: ignore[assignment]
+    setattr(vector_rag, "retrieve_context_structured", _boom)
     try:
         # Silence exc_info logging from the intentional failure path (stderr noise).
         with patch.object(recursive.logger, "warning"):
@@ -142,7 +142,7 @@ def _run_fail_safe() -> dict[str, Any]:
             "optimization_stats_present": result.optimization_stats is not None,
         }
     finally:
-        vector_rag.retrieve_context_structured = prev  # type: ignore[assignment]
+        setattr(vector_rag, "retrieve_context_structured", prev)
 
 
 def main() -> int:
