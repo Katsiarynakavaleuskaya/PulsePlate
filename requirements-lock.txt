@@ -245,7 +245,7 @@ regex==2026.2.28
     # via transformers
 reportlab==4.4.10
     # via -r requirements.in
-requests==2.32.5
+requests==2.33.0
     # via opentelemetry-exporter-otlp-proto-http
 rich==14.3.3
     # via typer

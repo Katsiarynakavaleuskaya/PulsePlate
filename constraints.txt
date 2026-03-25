@@ -36,6 +36,7 @@ uvicorn>=0.38.0
 pydantic>=2.12.5
 openai>=2.8.1
 httpx>=0.28.1
+requests>=2.33.0  # GHSA-gc5v-m9x4-r6x2 security floor
 python-dotenv>=1.2.1
 prometheus-client>=0.23.1
 python-multipart>=0.0.20

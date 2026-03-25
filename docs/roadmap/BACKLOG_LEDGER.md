@@ -7535,6 +7535,55 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Evaluate extracting the Node/frontend bootstrap into a shared workflow or
       composite action so `ci.yml` and `nightly-tests.yml` do not drift again.
 
-**Last updated:** 2026-03-22 (nightly full tests Node 22 parity lane opened)
+
+<a id="ledger-p1-remove-pygments-pip-audit-ignore"></a>
+- [ ] P1: Remove temporary Pygments pip-audit ignore when patched release exists
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (dependency security / pre-push unblock follow-up)
+  - Target PR: TBD after upstream patched release
+  - Status: Opened on 25 March 2026
+  - See ADR: `docs/architecture/ADR_PIP_AUDIT_PYGMENTS_SUPPRESSION_SEAM_2026-03-25.md`
+  - Reason: `pip-audit` blocks unrelated narrow PRs because `GHSA-5239-wwwm-4pmq`
+    currently has no patched `Pygments` release available to pin in the repo
+    lockfiles. The temporary unblock path is a documented `--ignore-vuln`
+    exception in `.pre-commit-config.yaml`, which must be removed as soon as a
+    safe upstream version exists.
+  - Links:
+    - `docs/architecture/ADR_PIP_AUDIT_PYGMENTS_SUPPRESSION_SEAM_2026-03-25.md`
+    - `.pre-commit-config.yaml`
+    - `docs/security/GHSA-5239-wwwm-4pmq-pygments.md`
+    - `requirements.txt`
+    - `requirements-dev.txt`
+    - `requirements-lock.txt`
+  - Blockers / Exit criteria:
+    - `GHSA-5239-wwwm-4pmq` still has no patched upstream `Pygments` release
+    - Seam removal must satisfy the ADR exit criteria before this item can close
+  - DoD:
+    - A patched `Pygments` release exists and is pinned across the tracked lock surfaces
+    - `.pre-commit-config.yaml` no longer carries `--ignore-vuln GHSA-5239-wwwm-4pmq`
+    - `pip-audit` passes without the temporary exception
+    - ADR exit criteria are satisfied and the seam is retired
+    - The security note is updated or closed with final remediation evidence
+
+<a id="ledger-p1-unyank-numpy-runtime-pin"></a>
+- [ ] P1: Replace yanked numpy runtime pin with a non-yanked release
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (dependency hygiene / install reliability)
+  - Target PR: separate narrow dependency follow-up after `#1236`
+  - Status: Opened on 25 March 2026
+  - Reason: `requirements.txt` still pins `numpy==2.4.0`, which is yanked and
+    causes installation warnings. This was flagged during PR `#1236` review but
+    stays out of scope for the security-unblock lane because that PR is limited
+    to `requests` remediation plus the documented temporary `Pygments`
+    exception.
+  - Links:
+    - `requirements.txt`
+    - `docs/review/PR_1236_FIXED_MAPPING.md`
+  - DoD:
+    - `numpy` is pinned to a non-yanked compatible release across affected lock surfaces
+    - dependency/install warnings for the yanked runtime pin are eliminated
+    - `pre-commit run --all-files` and `make verify` pass after the bump
+
+**Last updated:** 2026-03-25 (dependency-security unblock follow-up updates)
 **Maintainer:** @katsiaryna_kavaleuskaya
 <!-- markdownlint-enable MD013 -->
