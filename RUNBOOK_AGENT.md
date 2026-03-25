@@ -267,12 +267,13 @@ make verify
 
 `make verify` now starts with `verify-env`, a fail-fast preflight that does not
 repair the environment and fails when verify-critical modules such as
-`flake8`, `diff-cover`, `coverage`, `pytest`, or `mypy` are missing from
-`.venv`. Run `make verify` from repo root and do not rely on an externally
-activated interpreter: `verify-env` requires the repo `.venv` interpreter
-itself. The verify-critical gates themselves run in interpreter-module mode
-through the repo `.venv` (`$(VENV_PYTHON) -m ...`), so stale `.venv/bin/*`
-wrapper entrypoints are no longer the trust anchor for local merge evidence.
+`flake8`, `diff_cover.diff_cover_tool` (`diff-cover`), `coverage`, `pytest`, or
+`mypy` are missing from `.venv`. Run `make verify` from repo root and do not
+rely on an externally activated interpreter: `verify-env` requires the repo
+`.venv` interpreter itself. The verify-critical gates themselves run in
+interpreter-module mode through the repo `.venv` (`$(VENV_PYTHON) -m ...`), so
+stale `.venv/bin/*` wrapper entrypoints are no longer the trust anchor for
+local merge evidence.
 
 Run from repo root before any push/PR:
 

@@ -76,8 +76,9 @@ clean-clone environments fail before the longer lint/typecheck/test gates. Run
 interpreter: `verify-env` requires the repo `.venv` interpreter itself. The
 verify-critical gates now run in interpreter-module mode via the repo `.venv`
 (for example `$(VENV_PYTHON) -m flake8`, `-m mypy`, `-m pytest`, `-m
-coverage`). Stale `.venv/bin/*` wrapper entrypoints are no longer the trust
-anchor for local merge evidence.
+coverage`, and `-m diff_cover.diff_cover_tool` for `diff-cover`). Stale
+`.venv/bin/*` wrapper entrypoints are no longer the trust anchor for local
+merge evidence.
 
 ## Updating Dependencies
 

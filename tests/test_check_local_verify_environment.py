@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import re
 
 import pytest
 
@@ -168,17 +169,43 @@ def test_main_ignores_stale_console_wrapper_when_module_parity_is_healthy(
     assert "verify-env: local verify environment passed." in captured.out
 
 
+def _target_recipe(makefile_text: str, target_name: str) -> str:
+    """Return the recipe body for a Makefile target."""
+
+    target_pattern = re.compile(rf"(?ms)^{re.escape(target_name)}:.*?\n(?P<body>(?:\t.*\n)+)")
+    match = target_pattern.search(makefile_text)
+    assert match, f"missing Makefile target: {target_name}"
+    return match.group("body")
+
+
 def test_verify_critical_make_targets_use_repo_interpreter_module_mode() -> None:
     makefile_text = (REPO_ROOT / "Makefile").read_text(encoding="utf-8")
 
-    expected_commands = (
-        "$(VENV_PYTHON) -m flake8 .",
-        "$(VENV_PYTHON) -m mypy --no-incremental --cache-dir=/dev/null app core",
-        "$(VENV_PYTHON) -m pytest -q tests/edges tests/test_remaining_modules.py --maxfail=3",
-        "$(VENV_PYTHON) -m coverage erase",
-        "$(VENV_PYTHON) -m coverage run -m pytest",
-        "$(VENV_PYTHON) -m diff_cover.diff_cover_tool coverage.xml --compare-branch=origin/main --fail-under=97",
-    )
+    expected_recipe_parts = {
+        "lint": ("$(VENV_PYTHON) -m flake8",),
+        "typecheck": (
+            "$(VENV_PYTHON) -m mypy",
+            "--no-incremental",
+            "--cache-dir=/dev/null",
+        ),
+        "test-fast": ("$(VENV_PYTHON) -m pytest", "tests/edges", "--maxfail=3"),
+        "cov": (
+            "$(VENV_PYTHON) -m coverage erase",
+            "$(VENV_PYTHON) -m coverage run -m pytest -q",
+            "$(VENV_PYTHON) -m coverage report -m",
+            "$(VENV_PYTHON) -m coverage xml",
+        ),
+        "diff-cov": (
+            "$(VENV_PYTHON) -m coverage erase",
+            "$(VENV_PYTHON) -m coverage run -m pytest -q",
+            "$(VENV_PYTHON) -m diff_cover.diff_cover_tool",
+            "--compare-branch=origin/main",
+            "--fail-under=97",
+        ),
+    }
 
-    for command in expected_commands:
-        assert command in makefile_text
+    for target_name, required_parts in expected_recipe_parts.items():
+        recipe_body = _target_recipe(makefile_text, target_name)
+        assert "$(VENV_PYTHON) -m" in recipe_body
+        for required_part in required_parts:
+            assert required_part in recipe_body

@@ -115,10 +115,7 @@ test-fast: ## Run smoke tests (deterministic subset)
 ## Coverage in terminal + XML (uses .coveragerc)
 cov: ## Run coverage with pytest (term + XML)
 	@echo "$(YELLOW)📊 Анализ покрытия...$(NC)"
-	$(VENV_PYTHON) -m coverage erase && \
-	$(VENV_PYTHON) -m coverage run -m pytest -q && \
-	$(VENV_PYTHON) -m coverage report -m && \
-	$(VENV_PYTHON) -m coverage xml
+	$(VENV_PYTHON) -m coverage erase && $(VENV_PYTHON) -m coverage run -m pytest -q && $(VENV_PYTHON) -m coverage report -m && $(VENV_PYTHON) -m coverage xml
 	@echo "$(GREEN)✅ Покрытие завершено$(NC)"
 
 ## Coverage check >=97%
