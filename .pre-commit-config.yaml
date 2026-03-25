@@ -129,7 +129,9 @@ repos:
           - --strict
           - --timeout
           - '60'
-          # Temporary documented exception: no patched Pygments release exists yet.
+          # Temporary documented exception: remove via
+          # ledger-p1-remove-pygments-pip-audit-ignore once a patched
+          # Pygments release exists.
           - --ignore-vuln
           - GHSA-5239-wwwm-4pmq
 

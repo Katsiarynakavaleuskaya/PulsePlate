@@ -4,11 +4,14 @@
 
 - Advisory: `GHSA-gc5v-m9x4-r6x2`
 - Package: `requests`
-- Affected repo surfaces before remediation:
-  - `requirements.txt:248`
-  - `requirements-dev.txt:204`
-  - `requirements-lock.txt:248`
 - Fixed floor adopted by this repo: `requests>=2.33.0`
+- Tracked repo surfaces remediated by this PR:
+  - `requirements.in`
+  - `constraints.txt`
+  - `requirements.txt`
+  - `requirements-dev.txt`
+  - `requirements-lock.txt`
+  - `tests/fixtures/dependency_security_schema.json`
 
 ## Reason
 
@@ -27,6 +30,15 @@ The security-unblock PR applies the fix on all tracked dependency surfaces:
 - `requirements-dev.txt` pins the resolved safe version
 - `requirements-lock.txt` pins the resolved safe version
 - `tests/fixtures/dependency_security_schema.json` adds `requests: 2.33.0`
+
+## Evidence Anchors
+
+- `requirements.in:11`
+- `constraints.txt:39`
+- `requirements.txt:248`
+- `requirements-dev.txt:204`
+- `requirements-lock.txt:248`
+- `tests/fixtures/dependency_security_schema.json:4`
 
 ## Verification
 

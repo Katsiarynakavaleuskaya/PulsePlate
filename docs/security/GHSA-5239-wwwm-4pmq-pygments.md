@@ -5,10 +5,10 @@
 - Advisory: `GHSA-5239-wwwm-4pmq`
 - Package: `Pygments`
 - Pinned repo version at the time of triage: `2.19.2`
-- Affected repo surfaces:
-  - `requirements.txt:230`
-  - `requirements-dev.txt:163`
-  - `requirements-lock.txt:230`
+- Tracked repo surfaces carrying the pinned package:
+  - `requirements.txt`
+  - `requirements-dev.txt`
+  - `requirements-lock.txt`
 
 ## Current Triage Status
 
@@ -30,6 +30,14 @@ Scope of the exception:
 - limited to the `pip-audit` pre-push hook in `.pre-commit-config.yaml`
 - does not remove the pinned `Pygments` evidence from requirement surfaces
 - remains tracked in `docs/roadmap/BACKLOG_LEDGER.md` until a patched release is available
+
+## Evidence Anchors
+
+- `.pre-commit-config.yaml:126`
+- `docs/roadmap/BACKLOG_LEDGER.md:7540`
+- `requirements.txt:230`
+- `requirements-dev.txt:163`
+- `requirements-lock.txt:230`
 
 ## Exit Criteria
 
