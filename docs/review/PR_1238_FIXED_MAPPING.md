@@ -7,7 +7,7 @@
 ## Fixed in Commit Mapping
 Disposition: FIXED
 Commit: d4c105b4
-Evidence: `docs/review/PR_1238_FIXED_MAPPING.md` now uses the canonical Phase 2 checkbox labels and the exact `- No actionable review comments` sentinel required by `scripts/orchestration/review_mapping_artifact.py`.
+Evidence: `docs/review/PR_1238_FIXED_MAPPING.md` now uses the canonical Phase 2 checkbox labels and the required no-actionable sentinel string from `scripts/orchestration/review_mapping_artifact.py`.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1238#discussion_r2991199555 -> d4c105b4
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1238#discussion_r2991207916 -> d4c105b4
 
