@@ -123,7 +123,15 @@ repos:
       - id: pip-audit
         name: pip-audit (pip vulns)
         stages: [pre-push]
-        args: [--requirement, requirements.txt, --strict, --timeout, '60']
+        args:
+          - --requirement
+          - requirements.txt
+          - --strict
+          - --timeout
+          - '60'
+          # Temporary documented exception: no patched Pygments release exists yet.
+          - --ignore-vuln
+          - GHSA-5239-wwwm-4pmq
 
   # --- Docstrings: pydocstyle (re-enabled on pre-push)
   - repo: https://github.com/PyCQA/pydocstyle
