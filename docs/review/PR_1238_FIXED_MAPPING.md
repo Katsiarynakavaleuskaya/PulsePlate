@@ -1,16 +1,17 @@
 # PR 1238 — Fixed in Commit Mapping
 
 ## Discussion Thread Pass
-- [x] Discussion-thread pass initialized
-- [x] Fixed in commit mapping initialized
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
-- No review threads yet.
+- No actionable review comments
 
 ## Merge Readiness
-- Status: draft; scope is intentionally narrow and review intake has not started yet.
+- Status: ready for review / not ready to merge; current scope is narrow, local gates are green, and the branch is waiting for first review intake plus current-head CI convergence.
 - Current fix commits:
   - `b7ae523b` — `fix(tooling): switch local verify to interpreter-module mode`
+  - `de54184c` — `docs(review): add PR 1238 mapping artifact`
 - Current scope discipline:
   - switch local verify execution to interpreter-module mode where repo tool wrappers are safety-critical
   - detect stale or broken wrappers before `lint`
