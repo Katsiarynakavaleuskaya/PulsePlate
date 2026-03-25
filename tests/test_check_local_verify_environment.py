@@ -172,7 +172,7 @@ def test_main_ignores_stale_console_wrapper_when_module_parity_is_healthy(
 def _target_recipe(makefile_text: str, target_name: str) -> str:
     """Return the recipe body for a Makefile target."""
 
-    target_pattern = re.compile(rf"(?ms)^{re.escape(target_name)}:.*?\n(?P<body>(?:\t.*\n)+)")
+    target_pattern = re.compile(rf"(?m)^{re.escape(target_name)}:.*\n(?P<body>(?:\t[^\n]*\n)+)")
     match = target_pattern.search(makefile_text)
     assert match, f"missing Makefile target: {target_name}"
     return match.group("body")
