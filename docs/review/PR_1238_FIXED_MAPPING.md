@@ -17,6 +17,12 @@ Evidence: `Makefile` compacts the `cov` recipe into a single logical line for ch
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1238#pullrequestreview-4010037023 -> eab1b763
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1238#pullrequestreview-4010038117 -> eab1b763
 
+Disposition: FIXED
+Commit: 68bc72f8
+Evidence: `tests/test_check_local_verify_environment.py` narrows `_target_recipe()` to multiline mode without DOTALL so each Makefile target captures only its own tab-indented recipe lines; cubic identified the prior regex spillover risk in the current review cycle.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1238#discussion_r2991320700 -> 68bc72f8
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1238#pullrequestreview-4010160673 -> 68bc72f8
+
 ## Merge Readiness
 - Status: ready for review / not ready to merge; local gates are green, review mappings are recorded, and the branch is waiting for current-head CI convergence plus bot re-review on the new head.
 - Current fix commits:
@@ -24,6 +30,7 @@ Evidence: `Makefile` compacts the `cov` recipe into a single logical line for ch
   - `de54184c` — `docs(review): add PR 1238 mapping artifact`
   - `d4c105b4` — `docs(review): sync PR 1238 phase2 contract`
   - `eab1b763` — `fix(tooling): address PR 1238 bot feedback`
+  - `68bc72f8` — `fix(tests): tighten make target regex`
 - Current scope discipline:
   - switch local verify execution to interpreter-module mode where repo tool wrappers are safety-critical
   - detect stale or broken wrappers before `lint`
