@@ -7542,21 +7542,27 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Priority: P1 (dependency security / pre-push unblock follow-up)
   - Target PR: TBD after upstream patched release
   - Status: Opened on 25 March 2026
+  - See ADR: `docs/architecture/ADR_PIP_AUDIT_PYGMENTS_SUPPRESSION_SEAM_2026-03-25.md`
   - Reason: `pip-audit` blocks unrelated narrow PRs because `GHSA-5239-wwwm-4pmq`
     currently has no patched `Pygments` release available to pin in the repo
     lockfiles. The temporary unblock path is a documented `--ignore-vuln`
     exception in `.pre-commit-config.yaml`, which must be removed as soon as a
     safe upstream version exists.
   - Links:
+    - `docs/architecture/ADR_PIP_AUDIT_PYGMENTS_SUPPRESSION_SEAM_2026-03-25.md`
     - `.pre-commit-config.yaml`
     - `docs/security/GHSA-5239-wwwm-4pmq-pygments.md`
     - `requirements.txt`
     - `requirements-dev.txt`
     - `requirements-lock.txt`
+  - Blockers / Exit criteria:
+    - `GHSA-5239-wwwm-4pmq` still has no patched upstream `Pygments` release
+    - Seam removal must satisfy the ADR exit criteria before this item can close
   - DoD:
     - A patched `Pygments` release exists and is pinned across the tracked lock surfaces
     - `.pre-commit-config.yaml` no longer carries `--ignore-vuln GHSA-5239-wwwm-4pmq`
     - `pip-audit` passes without the temporary exception
+    - ADR exit criteria are satisfied and the seam is retired
     - The security note is updated or closed with final remediation evidence
 
 <a id="ledger-p1-unyank-numpy-runtime-pin"></a>
