@@ -1,15 +1,14 @@
 #!/usr/bin/env python3
 """Fail-fast local environment parity check for `make verify`.
 
-This script validates that the clean-clone `.venv` contains the small set of
-packages required by the canonical local verification gate. It is intentionally
-non-mutating and points developers to the documented recovery path.
+This script validates only the repo interpreter + module parity required for
+the canonical local verification gate. It does not repair or rewrite the
+environment and points developers to the documented recovery path.
 """
 
 from __future__ import annotations
 
 import importlib
-import shutil
 import sys
 from pathlib import Path
 
@@ -21,19 +20,8 @@ REQUIRED_MODULES: tuple[tuple[str, str], ...] = (
     ("flake8", "lint"),
     ("mypy", "typecheck"),
     ("pytest", "test-fast"),
-    ("coverage", "diff-cov"),
-    ("diff_cover", "diff-cov"),
-    (
-        "opentelemetry.sdk.trace.export.in_memory_span_exporter",
-        "tests/test_genai_tracing.py",
-    ),
-)
-REQUIRED_EXECUTABLES: tuple[tuple[str, str], ...] = (
-    ("flake8", "lint"),
-    ("mypy", "typecheck"),
-    ("pytest", "test-fast"),
-    ("coverage", "diff-cov"),
-    ("diff-cover", "diff-cov"),
+    ("coverage", "cov-check"),
+    ("diff_cover.diff_cover_tool", "diff-cov"),
 )
 
 
@@ -58,41 +46,19 @@ def collect_missing_modules(
     return missing
 
 
-def collect_missing_executables(
-    venv_bin_dir: Path,
-    required_executables: tuple[tuple[str, str], ...] = REQUIRED_EXECUTABLES,
-) -> list[tuple[str, str, str]]:
-    """Return missing executable records as (executable_name, verify_stage, error)."""
-    missing: list[tuple[str, str, str]] = []
-    for executable_name, verify_stage in required_executables:
-        resolved = shutil.which(executable_name, path=str(venv_bin_dir))
-        if resolved is None:
-            missing.append(
-                (
-                    executable_name,
-                    verify_stage,
-                    f"console entrypoint missing in {venv_bin_dir}",
-                )
-            )
-    return missing
-
-
 def build_failure_output(
     *,
     python_executable: Path,
     missing_modules: list[tuple[str, str, str]],
-    missing_executables: list[tuple[str, str, str]] | None = None,
 ) -> list[str]:
     """Build deterministic failure lines for terminal output."""
     lines = [
         "ERROR: local verify environment is incomplete.",
         f"Expected venv interpreter: {python_executable}",
-        "Missing verify-critical modules or entrypoints:",
+        "Missing verify-critical Python modules:",
     ]
     for module_name, verify_stage, error in missing_modules:
         lines.append(f"- {module_name} [{verify_stage}] :: {error}")
-    for executable_name, verify_stage, error in missing_executables or []:
-        lines.append(f"- {executable_name} [{verify_stage}] :: {error}")
     lines.extend(
         (
             "Recovery:",
@@ -122,12 +88,10 @@ def main() -> int:
         return 1
 
     missing_modules = collect_missing_modules()
-    missing_executables = collect_missing_executables(VENV_BIN_DIR)
-    if missing_modules or missing_executables:
+    if missing_modules:
         for line in build_failure_output(
             python_executable=Path(sys.executable).resolve(),
             missing_modules=missing_modules,
-            missing_executables=missing_executables,
         ):
             print(line)
         return 1
