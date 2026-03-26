@@ -50,6 +50,12 @@ Reason: The latest CodeRabbit cycle is addressed by keeping merge-readiness chec
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1253#discussion_r2997898068 -> be779052
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1253#pullrequestreview-4017591791 -> be779052
 
+Disposition: FIXED
+Commit: 7ba20d84
+Evidence: tests/test_ci_risk_profile.py:212
+Reason: The latest CodeRabbit review summary is addressed by pinning `risk_profile.GIT_BINARY` in the git-timeout test so the failure path no longer depends on module-import PATH state.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1253#pullrequestreview-4017803703 -> 7ba20d84
+
 ## Carryover Notes
 - Historical closed replacement-source PR `#1248` remains referenced only as supporting evidence in `docs/review/PR_1248_FIXED_MAPPING.md`.
 - The conflicted replacement-source artifact remains preserved in `docs/review/PR_1250_FIXED_MAPPING.md`.
