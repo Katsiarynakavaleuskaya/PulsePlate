@@ -87,7 +87,12 @@ def _api_request(url: str, token: str | None = None) -> Any:
 
 def _public_api_request(url: str, token: str | None = None) -> Any:
     """Perform a GitHub REST API request that can fall back to public access."""
-    return _api_request(url, token)
+    try:
+        return _api_request(url, token)
+    except urllib.error.HTTPError as exc:
+        if token and exc.code in {401, 403}:
+            return _api_request(url, None)
+        raise
 
 
 def _extract_relevant_alerts(alerts: list[dict[str, Any]]) -> list[dict[str, Any]]:

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import urllib.error
 from pathlib import Path
 
 from scripts.ci import check_pygments_exception_guard as guard
@@ -191,3 +192,20 @@ def test_fetch_dependabot_alerts_paginates(monkeypatch) -> None:
     alerts = guard._fetch_dependabot_alerts(repo="owner/repo", token="token")
 
     assert len(alerts) == guard.DEPENDABOT_ALERTS_PER_PAGE + 1
+
+
+def test_public_api_request_retries_without_token_on_auth_error(monkeypatch) -> None:
+    calls: list[str | None] = []
+
+    def fake_api_request(url: str, token: str | None = None) -> object:
+        calls.append(token)
+        if token == "token":
+            raise urllib.error.HTTPError(url, 403, "Forbidden", None, None)
+        return {"ok": True}
+
+    monkeypatch.setattr(guard, "_api_request", fake_api_request)
+
+    payload = guard._public_api_request("https://api.github.com/advisories/example", "token")
+
+    assert payload == {"ok": True}
+    assert calls == ["token", None]
