@@ -22,6 +22,7 @@
 - **Experimentation loops (bounded optimization / eval):** `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md`
 - **Reflection / KPP promotion:** `docs/orchestration/AGENT_REFLECTION_PROTOCOL.md`
 - **Skill routing policy:** `docs/orchestration/AGENT_SKILL_ROUTING_POLICY.md`
+- **Automation readiness / enforcement layers:** `docs/orchestration/AUTOMATION_READINESS_MATRIX.md`
 - **Merge readiness / zero-comments (coordinator and any agent):** `docs/orchestration/COORDINATOR_MERGE_READINESS_RULES.md` — canonical verification script and rules; never report "0 comments" or "ready to merge" without running the script.
 
 ---
@@ -45,6 +46,13 @@ Task
 **When:** At the start of any new task
 
 **Action:** Use `agent-coordinator` to analyze the task
+
+Automation note:
+
+- coordinator-first is a repo policy requirement;
+- guaranteed raw session auto-start requires a local launcher/runtime
+  enforcement layer and is not implied by docs alone;
+- see `docs/orchestration/AUTOMATION_READINESS_MATRIX.md`.
 
 **Template:** See `docs/orchestration/task_analysis.template.md`
 
@@ -113,6 +121,8 @@ Task
 
 For tasks that introduce or modify agent automation:
 
+- Read `docs/orchestration/AUTOMATION_READINESS_MATRIX.md` first and name the
+  target enforcement layer explicitly.
 - Policy gate requirements must be defined before execution-path changes.
 - Secrets handling must use short-lived/scoped credentials only.
 - Privileged actions require explicit mode classification:

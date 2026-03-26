@@ -43,6 +43,11 @@ description: Start any PulsePlate task with the required policy, scope, and qual
 
 4. Start coordinator-first routing for multi-agent work:
    - Use `.cursor/agents/agent-coordinator.md` as entrypoint.
+   - If a compatible local launcher already injected a task packet, reuse that
+     packet instead of rebuilding ad hoc.
+   - Do not assume this skill file alone can force start-of-session automation;
+     launcher/runtime enforcement is tracked separately in
+     `docs/orchestration/AUTOMATION_READINESS_MATRIX.md`.
 
 5. For PR/live merge work, use current-head truth only:
 

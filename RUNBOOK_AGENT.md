@@ -1,6 +1,6 @@
 # PulsePlate — Agent Runbook (CI + Merge Cycle)
 
-**Last updated:** 2026-03-13 (PR #1162)
+**Last updated:** 2026-03-26 (Automation readiness alignment)
 
 **What this is:** Quick reference for diagnosing CI failures, import hygiene regressions, and current-head merge-cycle state.
 **When to use:** CI fails, tests hang, import errors, SQLAlchemy mapper issues, or a PR needs a strict merge-readiness pass.
@@ -14,11 +14,14 @@
 
 ---
 
-## Agent Coordination (Automatic)
+## Agent Coordination (Coordinator-First Policy)
 
 > Note: This section describes **operational** steps only. Policy/definitions live in `AGENTS.md`.
+> Automation boundary: repo policy requires coordinator-first behavior, but raw
+> start-of-session auto-invocation depends on the local launcher/runtime
+> enforcement described in `docs/orchestration/AUTOMATION_READINESS_MATRIX.md`.
 
-**When creating any task, the agent-coordinator should be automatically invoked.**
+**When creating any task, coordinator-first routing is required.**
 
 **Canonical workflow:** See `docs/orchestration/workflow.md`
 
@@ -44,7 +47,10 @@ The coordinator will:
 Use the agent-coordinator subagent to [task description]
 ```
 
-The coordinator will automatically delegate to specialized agents and synthesize their work.
+When task bootstrap and the host runtime allow it, the coordinator may
+automatically delegate to specialized agents and synthesize their work.
+If that enforcement layer is absent, manual coordinator-first invocation is the
+required fallback.
 
 ### Skill-Router Sync Note
 
@@ -313,27 +319,36 @@ Use this as the canonical operating loop from branch creation to merge window:
 2. **Open / maintain draft**
    - Keep the PR in draft while scope, artifact strategy, or local gates are still unstable
    - Create or confirm the canonical artifact path `docs/review/PR_<N>_FIXED_MAPPING.md`
-3. **Before each push**
+3. **Post-open review entry**
+   - Once the PR exists, run the mandatory post-open reviewer path declared by the lane packet/runbook before calling the lane stable
+   - When the lane declares `qa-engineer-agent -> bug-hunter`, that pass happens after PR open, not as a substitute for pre-PR local gates
+4. **Before each push**
    - Run `pre-commit run --all-files`
    - Run the required local gates for the touched scope; for merge claims this still means `make verify`
    - Commit hook changes separately when hooks modify files
-4. **After each push**
+5. **After each push**
    - Watch the latest-head CI run, not stale `gh pr checks` history
    - Treat `scripts/orchestration/check_merge_ready.py` as the canonical current-head verdict
-5. **After each new review / bot activity**
+6. **After each new review / bot activity**
    - Fix code/docs first when needed
    - Update `docs/review/PR_<N>_FIXED_MAPPING.md` next
    - Update the optional PR-body mirror only after the canonical artifact is correct
    - Re-run merge-readiness checks; do not assume a previous pass still holds
-6. **Before merge**
+7. **Before merge**
    - Re-run the strict merge wrapper after the latest bot/review activity
    - Confirm no pending required jobs remain
    - Wait one review cycle after the final green state
+8. **Post-merge sync / sanity / cleanup**
+   - Sync the local clone back to `origin/main`
+   - Run the required post-merge sanity checks for the touched lane
+   - Remove temporary artifacts, stale worktrees, and merged local branches before declaring the lane closed
+   - For a PR series, do not start `PR<N+1>` until `PR<N>` completes this post-merge closure step
 
 If any part of this loop is skipped, the PR must not be described as ready.
 
 For the Tier 1 CI/CD consolidation wave, apply the same loop with the explicit
-packet + runbook pair:
+stacked-PR routing card, mandatory post-open lane, and packet/runbook pair
+documented in:
 - `docs/orchestration/TIER1_CI_CD_PR_SERIES_RUNBOOK.md`
 - `docs/orchestration/TIER1_CI_CD_TASK_PACKET_2026-03-26.md`
 
