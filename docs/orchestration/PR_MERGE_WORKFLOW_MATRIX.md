@@ -37,7 +37,7 @@ completed open-PR review, merge, local sync, sanity, and cleanup.
 - [ ] For packets/runbooks that require it, execute `qa-engineer-agent -> bug-hunter` after PR open
 - [ ] Fetch and address all review comments (Codex, Sourcery, Cubic, CodeRabbit)
 - [ ] Record disposition evidence in `docs/review/PR_<N>_FIXED_MAPPING.md` before resolving any actionable review thread
-- [ ] Use canonical disposition outcomes from `AGENTS.md` Review Governance: `FIXED`, `NOT-A-BUG`, or `DEFERRED`
+- [ ] Use canonical disposition outcomes from root `AGENTS.md` (`../../AGENTS.md`) Review Governance: `FIXED`, `NOT-A-BUG`, or `DEFERRED`
 - [ ] Fixed in Commit Mapping entries may be `- <review-url> -> <commit-sha>` or `- <review-url>` depending on disposition proof
 - [ ] Resolve review threads only after the artifact contains the required disposition proof
 - [ ] PR body: Discussion Thread Pass checked, mirror sections complete
