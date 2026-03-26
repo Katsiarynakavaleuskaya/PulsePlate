@@ -1,6 +1,6 @@
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-import { afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import '../../../i18n';
 import i18n from '../../../i18n';
 import WelcomeGateV1 from '../WelcomeGateV1';
@@ -36,6 +36,7 @@ beforeAll(async () => {
 
 afterEach(async () => {
   cleanup();
+  vi.restoreAllMocks();
   await i18n.changeLanguage('en');
 });
 
@@ -49,7 +50,19 @@ async function renderWelcomeGate(language: 'en' | 'ru' | 'es'): Promise<void> {
   );
 }
 
-function getWelcomeCopy(language: 'en' | 'ru' | 'es') {
+type WelcomeCopy = {
+  body: string;
+  cta: string;
+  heroAlt: string;
+  mainA11y: string;
+  panelFlowValue: string;
+  panelPolicyValue: string;
+  panelTitle: string;
+  step: string;
+  title: string;
+};
+
+function getWelcomeCopy(language: 'en' | 'ru' | 'es'): WelcomeCopy {
   const t = i18n.getFixedT(language);
 
   return {
@@ -85,6 +98,8 @@ describe('WelcomeGateV1', () => {
 
   it('renders preview-only metadata and skip link without persistence controls', async () => {
     const copy = getWelcomeCopy('en');
+    const persistenceKey = 'has_seen_welcome_v1';
+    const setItemSpy = vi.spyOn(Storage.prototype, 'setItem');
 
     await renderWelcomeGate('en');
 
@@ -92,5 +107,6 @@ describe('WelcomeGateV1', () => {
     expect(screen.getByRole('link', { name: 'Skip' })).toHaveAttribute('href', '/setup');
     expect(screen.getByText((content) => content.includes(copy.panelFlowValue))).toBeInTheDocument();
     expect(screen.getByText((content) => content.includes(copy.panelPolicyValue))).toBeInTheDocument();
+    expect(setItemSpy.mock.calls.some(([key]) => key === persistenceKey)).toBe(false);
   });
 });
