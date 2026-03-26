@@ -40,6 +40,14 @@ Commit: d5544c4a
 Evidence: docs/runbooks/PR_CANONICAL_MATRIX_CHECKLIST.md:44
 Evidence: docs/runbooks/PR_CANONICAL_MATRIX_CHECKLIST.md:47
 Evidence: docs/runbooks/PR_CANONICAL_MATRIX_CHECKLIST.md:49
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1252#pullrequestreview-4017428439 -> 8614b39f
+Disposition: FIXED
+Commit: 8614b39f
+Evidence: docs/orchestration/PR_MERGE_WORKFLOW_MATRIX.md:40
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1252#discussion_r2997745454 -> 8614b39f
+Disposition: FIXED
+Commit: 8614b39f
+Evidence: docs/orchestration/PR_MERGE_WORKFLOW_MATRIX.md:40
 
 ## Merge Readiness
 - [ ] All required checks pass
