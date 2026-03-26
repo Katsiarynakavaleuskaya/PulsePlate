@@ -54,6 +54,7 @@ def collect_unexpected_startup_hooks() -> list[StartupHookFinding]:
     result = subprocess.run(  # nosec B603: argv uses fixed repo-local Python and guard paths only (remove-by: 2026-07-31, ref: PR-1243)
         [
             str(VENV_PYTHON),
+            "-S",
             str(STARTUP_HOOK_GUARD),
             "--python-executable",
             str(VENV_PYTHON),

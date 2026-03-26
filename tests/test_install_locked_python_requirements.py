@@ -132,6 +132,7 @@ def test_collect_startup_hook_failure_lines_uses_guard_subprocess(
 
     assert observed_command == [
         "python",
+        "-S",
         "/tmp/check_python_startup_hooks.py",
         "--python-executable",
         "python",

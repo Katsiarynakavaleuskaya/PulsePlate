@@ -82,6 +82,7 @@ def test_collect_unexpected_startup_hooks_uses_guard_subprocess(
 
     assert observed_command == [
         str(venv_python),
+        "-S",
         str(guard_script),
         "--python-executable",
         str(venv_python),

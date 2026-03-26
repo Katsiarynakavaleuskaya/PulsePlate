@@ -184,6 +184,7 @@ def collect_startup_hook_failure_lines(
     result = subprocess.run(  # nosec B603: argv uses the selected Python interpreter plus a fixed repo guard script path (remove-by: 2026-07-31, ref: PR-litellm-hardening)
         [
             python_executable,
+            "-S",
             str(guard_script),
             "--python-executable",
             python_executable,
