@@ -250,14 +250,6 @@ def build_risk_profile(changed_files: list[str] | tuple[str, ...]) -> RiskProfil
     }
     group_hits["route_contract_safety"] = any(
         _is_route_contract_surface(path) for path in normalized_files
-    ) and not any(
-        group_hits[group_name]
-        for group_name in (
-            "billing_entitlement",
-            "insight_ai",
-            "openapi_contract",
-            "merge_governance",
-        )
     )
     if workflow_privileged:
         selected_groups = ALL_RISK_GROUPS
