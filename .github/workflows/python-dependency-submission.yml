@@ -18,6 +18,17 @@ on:
       - "constraints.txt"
       - "pyproject.toml"
       - ".github/workflows/python-dependency-submission.yml"
+  pull_request:
+    paths:
+      - "requirements.in"
+      - "requirements.txt"
+      - "requirements-dev.in"
+      - "requirements-dev.txt"
+      - "requirements-lock.txt"
+      - "requirements-all.txt"
+      - "constraints.txt"
+      - "pyproject.toml"
+      - ".github/workflows/python-dependency-submission.yml"
   workflow_dispatch:
 
 permissions:
