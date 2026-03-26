@@ -110,31 +110,34 @@ test: ## Run pytest
 ## Fast tests (deterministic smoke subset)
 test-fast: ## Run smoke tests (deterministic subset)
 	@echo "$(YELLOW)⚡ Smoke tests...$(NC)"
-	. .venv/bin/activate && pytest -q tests/edges tests/test_remaining_modules.py --maxfail=3
+	$(VENV_PYTHON) -m pytest -q tests/edges tests/test_remaining_modules.py --maxfail=3
 
 ## Coverage in terminal + XML (uses .coveragerc)
 cov: ## Run coverage with pytest (term + XML)
 	@echo "$(YELLOW)📊 Анализ покрытия...$(NC)"
-	. .venv/bin/activate && coverage erase && coverage run -m pytest -q && coverage report -m && coverage xml
+	$(VENV_PYTHON) -m coverage erase && $(VENV_PYTHON) -m coverage run -m pytest -q && $(VENV_PYTHON) -m coverage report -m && $(VENV_PYTHON) -m coverage xml
 	@echo "$(GREEN)✅ Покрытие завершено$(NC)"
 
 ## Coverage check >=97%
 cov-check: ## Check coverage >= 97%
 	@echo "$(YELLOW)🎯 Проверка покрытия >=97%...$(NC)"
-	. .venv/bin/activate && coverage run -m pytest && coverage report --fail-under=97
+	$(VENV_PYTHON) -m coverage run -m pytest && \
+	$(VENV_PYTHON) -m coverage report --fail-under=97
 	@echo "$(GREEN)✅ Покрытие соответствует требованиям$(NC)"
 
 ## Diff coverage check (PR gate, >=97% on changed lines)
 diff-cov: ## Check diff coverage >= 97% against origin/main
 	@echo "$(YELLOW)📊 Проверка diff-coverage >=97%...$(NC)"
-	. .venv/bin/activate && coverage erase && coverage run -m pytest -q && coverage xml
-	. .venv/bin/activate && diff-cover coverage.xml --compare-branch=origin/main --fail-under=97
+	$(VENV_PYTHON) -m coverage erase && \
+	$(VENV_PYTHON) -m coverage run -m pytest -q && \
+	$(VENV_PYTHON) -m coverage xml
+	$(VENV_PYTHON) -m diff_cover.diff_cover_tool coverage.xml --compare-branch=origin/main --fail-under=97
 	@echo "$(GREEN)✅ Diff-coverage соответствует требованиям$(NC)"
 
 ## Typecheck with mypy (no cache for clean runs)
 typecheck: ## Run mypy typecheck on app and core
 	@echo "$(YELLOW)🔬 Проверка типов (mypy)...$(NC)"
-	. .venv/bin/activate && mypy --no-incremental --cache-dir=/dev/null app core
+	$(VENV_PYTHON) -m mypy --no-incremental --cache-dir=/dev/null app core
 	@echo "$(GREEN)✅ Типы корректны$(NC)"
 
 ## Fail-fast local dependency parity check for make verify
@@ -277,7 +280,7 @@ cov-html: ## Generate HTML coverage and open in browser
 ## Lint (flake8)
 lint: ## Lint with flake8
 	@echo "$(YELLOW)🔍 Проверка качества кода...$(NC)"
-	. .venv/bin/activate && flake8 .
+	$(VENV_PYTHON) -m flake8 .
 
 ## Auto-fix (format + imports)
 fmt: ## Format with black and isort

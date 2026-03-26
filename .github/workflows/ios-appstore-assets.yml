@@ -32,7 +32,10 @@ jobs:
   validate-assets:
     if: github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && inputs.upload_to_asc)
     runs-on: macos-15
-    # Full PR validation captures 3 locales across iPhone + iPad canonical targets.
+    # RU: Для PR проверяем один канонический locale на iPhone + iPad.
+    # EN: PR validation captures one canonical locale across iPhone + iPad.
+    # RU: Полный multi-locale прогон остаётся для workflow_dispatch upload flow.
+    # EN: Full multi-locale capture remains available for workflow_dispatch upload flows.
     timeout-minutes: 75
     steps:
       - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
@@ -76,6 +79,7 @@ jobs:
         env:
           LC_ALL: en_US.UTF-8
           LANG: en_US.UTF-8
+          SNAPSHOT_LANGUAGES: ${{ github.event_name == 'pull_request' && 'en-US' || '' }}
         run: bundle exec fastlane ios snapshot_all
 
       - name: Validate assets

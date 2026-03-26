@@ -70,8 +70,15 @@ make venv-sync
 make verify
 ```
 
-`make verify` includes a non-mutating `verify-env` preflight so incomplete
-clean-clone environments fail fast before the longer lint/typecheck/test gates.
+`make verify` includes a fail-fast `verify-env` preflight so incomplete
+clean-clone environments fail before the longer lint/typecheck/test gates. Run
+`make verify` from repo root and do not rely on an externally activated
+interpreter: `verify-env` requires the repo `.venv` interpreter itself. The
+verify-critical gates now run in interpreter-module mode via the repo `.venv`
+(for example `$(VENV_PYTHON) -m flake8`, `-m mypy`, `-m pytest`, `-m
+coverage`, and `-m diff_cover.diff_cover_tool` for `diff-cover`). Stale
+`.venv/bin/*` wrapper entrypoints are no longer the trust anchor for local
+merge evidence.
 
 ## Updating Dependencies
 
