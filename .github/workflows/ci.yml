@@ -44,7 +44,13 @@ jobs:
       run_backend_blocking: ${{ steps.risk_profile.outputs.run_backend_blocking }}
       run_security: ${{ steps.risk_profile.outputs.run_security }}
       run_openapi_sync: ${{ steps.risk_profile.outputs.run_openapi_sync }}
+      billing_entitlement: ${{ steps.risk_profile.outputs.billing_entitlement }}
+      insight_ai: ${{ steps.risk_profile.outputs.insight_ai }}
+      openapi_contract: ${{ steps.risk_profile.outputs.openapi_contract }}
+      route_contract_safety: ${{ steps.risk_profile.outputs.route_contract_safety }}
+      merge_governance: ${{ steps.risk_profile.outputs.merge_governance }}
       contract_risk_groups: ${{ steps.risk_profile.outputs.contract_risk_groups }}
+      changed_file_count: ${{ steps.risk_profile.outputs.changed_file_count }}
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2

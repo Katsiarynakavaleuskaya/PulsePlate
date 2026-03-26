@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 import scripts.ci.ci_risk_profile as risk_profile
 
 
@@ -138,3 +140,20 @@ def test_cli_writes_github_outputs(tmp_path: Path, capsys) -> None:
     written = github_output.read_text(encoding="utf-8")
     assert "run_backend_blocking=true" in written
     assert "billing_entitlement=true" in written
+
+
+@pytest.mark.parametrize(
+    ("argv", "message"),
+    [
+        (["--base-sha"], "Missing value for --base-sha."),
+        (["--head-sha"], "Missing value for --head-sha."),
+        (["--file"], "Missing value for --file."),
+        (["--github-output"], "Missing value for --github-output."),
+    ],
+)
+def test_cli_fails_cleanly_when_flag_value_is_missing(
+    argv: list[str],
+    message: str,
+) -> None:
+    with pytest.raises(SystemExit, match=message):
+        risk_profile.main(argv)
