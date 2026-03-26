@@ -7684,6 +7684,44 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - dependency/install warnings for the yanked runtime pin are eliminated
     - `pre-commit run --all-files` and `make verify` pass after the bump
 
-**Last updated:** 2026-03-25 (dependency-security unblock follow-up updates)
+<a id="ledger-p1-python-supply-chain-mirror-quarantine"></a>
+- [ ] P1: Python package mirror and quarantine lane for hermetic CI/Docker installs
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (supply-chain hardening)
+  - Target PR: TBD after infra source selection
+  - Status: Opened on 26 March 2026
+  - Reason: Repo-local hardening now builds a temporary wheelhouse and installs with `--no-index`, but the fetch step still resolves from the public index. Full isolation requires an approved internal mirror or promoted artifact store with quarantine review.
+  - Links:
+    - `scripts/ci/install_locked_python_requirements.py`
+    - `scripts/ci/check_python_startup_hooks.py`
+    - `docs/security/LITELLM_SUPPLY_CHAIN_RESPONSE_RUNBOOK.md`
+    - `docs/DEPENDENCY_MANAGEMENT.md`
+    - `.github/actions/python-setup/action.yml`
+    - `.github/workflows/ci.yml`
+  - DoD:
+    - CI and Docker install from an approved internal mirror or promoted artifact source by default
+    - public-index resolution is removed from normal shared CI/bootstrap paths
+    - quarantine/promotion review exists for new Python artifacts before they reach shared runners
+    - `make verify` and canonical CI continue to pass after the mirror cutover
+
+<a id="ledger-p1-extract-litellm-hardening-followup-pr"></a>
+- [ ] P1: Extract LiteLLM supply-chain hardening into a standalone PR
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (recovery and scope hygiene)
+  - Target PR: this PR
+  - Status: Opened on 26 March 2026
+  - Reason: The existing LiteLLM hardening work was built on top of a mixed local tree that sat on a merged security branch and collided with unrelated governance drift. The hardening itself is still valid, but it must be preserved and reopened as an isolated PR with only the LiteLLM bucket.
+  - Links:
+    - `docs/security/LITELLM_SUPPLY_CHAIN_RESPONSE_RUNBOOK.md`
+    - `scripts/ci/install_locked_python_requirements.py`
+    - `scripts/ci/check_python_startup_hooks.py`
+  - DoD:
+    - a fresh branch from `origin/main` contains only the LiteLLM hardening bucket
+    - unrelated orchestration, Figma, and governance drift is excluded
+    - `pre-commit run --all-files` and `make verify` pass on the extracted branch
+    - the PR description states that the change is prevention hardening, not proof of compromise
+    - post-open review uses `qa-engineer-agent -> bug-hunter`
+
+**Last updated:** 2026-03-26 (LiteLLM supply-chain hardening follow-up)
 **Maintainer:** @katsiaryna_kavaleuskaya
 <!-- markdownlint-enable MD013 -->

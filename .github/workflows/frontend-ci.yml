@@ -119,10 +119,7 @@ jobs:
       - name: Install backend dependencies
         run: |
           cd ..
-          if [ -f requirements-dev.txt ]; then
-            python -m pip install -r requirements-dev.txt -c constraints.txt
-          fi
-          python -m pip install -r requirements.txt -c constraints.txt
+          python scripts/ci/install_locked_python_requirements.py --python-executable python --constraints-file constraints.txt --install-dev
 
       - name: Run design token pipeline checks
         run: |

@@ -9,13 +9,18 @@ environment and points developers to the documented recovery path.
 from __future__ import annotations
 
 import importlib
+import importlib.util
+import re
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 VENV_DIR = REPO_ROOT / ".venv"
 VENV_BIN_DIR = VENV_DIR / "bin"
 VENV_PYTHON = VENV_BIN_DIR / "python"
+STARTUP_HOOK_GUARD = REPO_ROOT / "scripts" / "ci" / "check_python_startup_hooks.py"
+STARTUP_HOOK_FAILURE_PATTERN = re.compile(r"^- (.+):(\d+) :: (.+)$")
 REQUIRED_MODULES: tuple[tuple[str, str], ...] = (
     ("flake8", "lint"),
     ("mypy", "typecheck"),
@@ -25,6 +30,15 @@ REQUIRED_MODULES: tuple[tuple[str, str], ...] = (
 )
 
 
+@dataclass(frozen=True)
+class StartupHookFinding:
+    """A parsed startup-hook finding from the external guard."""
+
+    path: Path
+    line_number: int
+    line: str
+
+
 def _import_module(module_name: str) -> str | None:
     """Return error text when a module import fails, else None."""
     try:
@@ -32,6 +46,34 @@ def _import_module(module_name: str) -> str | None:
         return None
     except Exception as exc:  # pragma: no cover - exercised through public helpers
         return str(exc)
+
+
+def collect_unexpected_startup_hooks() -> list[StartupHookFinding]:
+    """Return unexpected executable .pth hooks for the current repo interpreter."""
+    module_name = "scripts.ci.check_python_startup_hooks"
+    spec = importlib.util.spec_from_file_location(module_name, STARTUP_HOOK_GUARD)
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"Unable to load startup hook guard: {STARTUP_HOOK_GUARD}")
+
+    guard_module = importlib.util.module_from_spec(spec)
+    sys.modules[module_name] = guard_module
+    spec.loader.exec_module(guard_module)
+
+    site_packages = guard_module.external_interpreter_site_packages(str(VENV_PYTHON))
+    findings_from_guard = guard_module.collect_unexpected_executable_pth_files(site_packages)
+    if not findings_from_guard:
+        return []
+
+    findings: list[StartupHookFinding] = []
+    for finding in findings_from_guard:
+        findings.append(
+            StartupHookFinding(
+                path=Path(finding.path),
+                line_number=int(finding.line_number),
+                line=str(finding.line),
+            )
+        )
+    return findings
 
 
 def collect_missing_modules(
@@ -50,15 +92,23 @@ def build_failure_output(
     *,
     python_executable: Path,
     missing_modules: list[tuple[str, str, str]],
+    unexpected_startup_hooks: list[StartupHookFinding],
 ) -> list[str]:
     """Build deterministic failure lines for terminal output."""
     lines = [
         "ERROR: local verify environment is incomplete.",
         f"Expected venv interpreter: {python_executable}",
-        "Missing verify-critical Python modules:",
     ]
+    if missing_modules:
+        lines.append("Missing verify-critical Python modules:")
     for module_name, verify_stage, error in missing_modules:
         lines.append(f"- {module_name} [{verify_stage}] :: {error}")
+    if unexpected_startup_hooks:
+        lines.append("Unexpected executable startup hooks (.pth):")
+        lines.extend(
+            f"- {finding.path}:{finding.line_number} :: {finding.line}"
+            for finding in unexpected_startup_hooks
+        )
     lines.extend(
         (
             "Recovery:",
@@ -88,10 +138,12 @@ def main() -> int:
         return 1
 
     missing_modules = collect_missing_modules()
-    if missing_modules:
+    unexpected_startup_hooks = collect_unexpected_startup_hooks()
+    if missing_modules or unexpected_startup_hooks:
         for line in build_failure_output(
             python_executable=Path(sys.executable).resolve(),
             missing_modules=missing_modules,
+            unexpected_startup_hooks=unexpected_startup_hooks,
         ):
             print(line)
         return 1

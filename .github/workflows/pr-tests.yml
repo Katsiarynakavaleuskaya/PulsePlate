@@ -68,9 +68,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          python -m pip install --upgrade pip
-          python -m pip install -r requirements.txt -c constraints.txt
-          python -m pip install -r requirements-dev.txt -c constraints.txt
+          python scripts/ci/install_locked_python_requirements.py --python-executable python --constraints-file constraints.txt --install-dev
 
       - name: Ruff Lint
         run: ruff check . --output-format=github
@@ -155,9 +153,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          python -m pip install --upgrade pip
-          python -m pip install -r requirements.txt -c constraints.txt
-          python -m pip install -r requirements-dev.txt -c constraints.txt
+          python scripts/ci/install_locked_python_requirements.py --python-executable python --constraints-file constraints.txt --install-dev
 
       - name: Install root Node dependencies
         run: npm ci
