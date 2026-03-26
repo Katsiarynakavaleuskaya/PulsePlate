@@ -25,6 +25,11 @@ Disposition: FIXED
 Commit: 2441e1b2bf365421a601ba685a393549a45f9711
 Evidence: `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md:189`
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1240#pullrequestreview-4012469146 -> ee4be5f1a7849538a9d021065ce8b62afdd272ef
+Disposition: FIXED
+Commit: ee4be5f1a7849538a9d021065ce8b62afdd272ef
+Evidence: `docs/roadmap/BACKLOG_LEDGER.md:2074`, `docs/review/PR_1240_FIXED_MAPPING.md:36`
+
 ## Merge Readiness
 - [ ] All required checks pass
 - [ ] No unresolved review threads (re-check on current head before merge)
