@@ -80,7 +80,7 @@ Purpose: single Git folder for everything you pass to Figma AI.
 5. If Design URL/node IDs are missing, run
    `docs/figma/FIGMA_DESIGN_URL_NODEID_CAPTURE_HPP.md`.
 6. Update CTA map candidates in `docs/figma/FIGMA_CODE_CONNECT_MAPPING_CANDIDATES_HPP.md`.
-7. If Code Connect is blocked by seat/plan, pivot to
+7. For non-`PulsePlate_v3` lanes only: if Code Connect is blocked by seat/plan, pivot to
    `docs/design/PENPOT_STORYBOOK_BRIDGE.md` for low-cost design handoff.
 8. Add request via `docs/figma/FIGMA_AI_INBOX_TEMPLATE.md`.
 9. Align request with `docs/figma/PULSEPLATE_FIGMA_AI_GOVERNANCE_INDEX.md`.

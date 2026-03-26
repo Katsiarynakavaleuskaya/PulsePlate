@@ -14,5 +14,5 @@ Reason: Clarified that the PulsePlate_v3 reconciliation packet is only mandatory
 ## Merge Readiness
 - [ ] All required checks pass
 - [ ] No unresolved review threads (resolve on GitHub after push)
-- [x] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
+- [ ] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
 - [ ] Pre-commit green
