@@ -24,6 +24,13 @@ def test_has_split_justification_accepts_heading_and_label() -> None:
     assert size_gate.has_split_justification("Split justification: workflow rename parity.")
 
 
+def test_has_split_justification_rejects_empty_template_stub() -> None:
+    assert not size_gate.has_split_justification("## Split Justification\n")
+    assert not size_gate.has_split_justification(
+        "## Summary\nLarge PR.\n\n## Split Justification\n\n## Risks\nLow.\n",
+    )
+
+
 def test_evaluate_pr_size_policy_passes_for_normal_bucket() -> None:
     exit_code, lines = size_gate.evaluate_pr_size_policy(
         total_changed_lines=220,

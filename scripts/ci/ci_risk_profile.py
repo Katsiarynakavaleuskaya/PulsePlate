@@ -56,6 +56,7 @@ WORKFLOW_PRIVILEGED_EXACT: tuple[str, ...] = (
 )
 WORKFLOW_PRIVILEGED_PREFIXES: tuple[str, ...] = (
     ".github/actions/",
+    ".github/scripts/",
     ".github/workflows/",
     "docs/orchestration/",
     "scripts/ci/",
@@ -102,6 +103,7 @@ RISK_GROUP_PATTERNS: dict[str, tuple[str, ...]] = {
     ),
     "merge_governance": (
         ".github/actions/*",
+        ".github/scripts/*",
         ".github/workflows/*",
         "AGENTS.md",
         "RUNBOOK_AGENT.md",

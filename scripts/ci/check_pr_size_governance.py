@@ -18,8 +18,11 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 NORMAL_MAX_LOC = 299
 WARNING_MAX_LOC = 800
 GIT_BINARY = shutil.which("git")
-SPLIT_JUSTIFICATION_PATTERN = re.compile(
-    r"(?im)^(?:##+\s*|[*]{0,2})?(?:pr size justification|split justification)\b",
+SPLIT_JUSTIFICATION_INLINE_PATTERN = re.compile(
+    r"(?im)^(?:[*]{0,2})?split justification:\s*\S.+$",
+)
+SPLIT_JUSTIFICATION_HEADING_PATTERN = re.compile(
+    r"(?im)^(?:##+\s*|[*]{0,2})?(?:pr size justification|split justification)\s*$",
 )
 
 
@@ -53,7 +56,22 @@ def classify_pr_size(total_changed_lines: int) -> str:
 
 def has_split_justification(pr_body: str) -> bool:
     """Return True when the PR body contains an explicit split-justification block."""
-    return bool(SPLIT_JUSTIFICATION_PATTERN.search(pr_body or ""))
+    if SPLIT_JUSTIFICATION_INLINE_PATTERN.search(pr_body or ""):
+        return True
+
+    lines = (pr_body or "").splitlines()
+    for index, line in enumerate(lines):
+        if not SPLIT_JUSTIFICATION_HEADING_PATTERN.match(line.strip()):
+            continue
+        for candidate in lines[index + 1 :]:
+            candidate_text = candidate.strip()
+            if not candidate_text:
+                continue
+            if candidate_text.startswith("#"):
+                return False
+            return True
+        return False
+    return False
 
 
 def evaluate_pr_size_policy(
