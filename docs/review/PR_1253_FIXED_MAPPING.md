@@ -13,6 +13,14 @@
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1253#discussion_r2997774639 -> b86ef645 | Disposition: FIXED | Proof: commit b86ef645
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1253#discussion_r2997774646 -> b86ef645 | Disposition: FIXED | Proof: commit b86ef645
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1253#pullrequestreview-4017431658 -> b86ef645 | Disposition: FIXED | Proof: commit b86ef645
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1253#discussion_r2997781420 -> 0998259a | Disposition: FIXED | Proof: commit 0998259a
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1253#discussion_r2997781428 -> 0998259a | Disposition: FIXED | Proof: commit 0998259a
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1253#discussion_r2997781431 -> 0998259a | Disposition: FIXED | Proof: commit 0998259a
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1253#discussion_r2997781439 -> 0998259a | Disposition: FIXED | Proof: commit 0998259a
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1253#discussion_r2997781444 -> 0998259a | Disposition: FIXED | Proof: commit 0998259a
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1253#discussion_r2997781448 -> 0998259a | Disposition: FIXED | Proof: commit 0998259a
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1253#discussion_r2997781452 -> 0998259a | Disposition: FIXED | Proof: commit 0998259a
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1253#pullrequestreview-4017466061 -> 0998259a | Disposition: FIXED | Proof: commit 0998259a
 - Carryover evidence from closed replacement-source PR `#1248` lives in `docs/review/PR_1248_FIXED_MAPPING.md`.
 - Replacement-source artifact from clean-topology rebuild lives in `docs/review/PR_1250_FIXED_MAPPING.md`.
 
