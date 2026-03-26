@@ -16,11 +16,9 @@ import os
 import re
 import urllib.error
 import urllib.parse
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
-
-from packaging.version import InvalidVersion
-from packaging.version import Version
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
@@ -36,9 +34,11 @@ DEPENDABOT_ALERTS_PER_PAGE = 100
 
 _PIN_RE = re.compile(r"^\s*pygments==(?P<version>[^\s#]+)", re.IGNORECASE)
 _IGNORE_SEAM_RE = re.compile(
-    rf"--ignore-vuln\s+(?:-\s*)?{re.escape(ADVISORY_ID)}",
-    re.IGNORECASE,
+    rf'(?im)^\s*-\s*["\']?--ignore-vuln["\']?\s*$'
+    rf"(?:\n^\s*#.*$|\n^\s*$)*"
+    rf'\n^\s*-\s*["\']?{re.escape(ADVISORY_ID)}["\']?\s*$'
 )
+_RELEASE_VERSION_RE = re.compile(r"^\d+(?:\.\d+)*$")
 
 
 def _api_request_with_headers(
@@ -153,6 +153,14 @@ def _read_requirement_pins(repo_root: Path) -> dict[str, str | None]:
     return pins
 
 
+def _parse_release_version(identifier: str) -> tuple[int, ...] | None:
+    """Parse dotted numeric release versions without external packaging deps."""
+    normalized = identifier.strip()
+    if not _RELEASE_VERSION_RE.fullmatch(normalized):
+        return None
+    return tuple(int(part) for part in normalized.split("."))
+
+
 def _has_exception_seam(repo_root: Path) -> bool:
     """Return True when the temporary pip-audit ignore is still present."""
     pre_commit = repo_root / PRE_COMMIT_PATH
@@ -164,7 +172,7 @@ def evaluate_guard_state(
     *,
     alerts: list[dict[str, Any]] | None,
     advisory_patched_versions: set[str],
-    pins: dict[str, str | None],
+    pins: Mapping[str, str | None],
     exception_present: bool,
 ) -> list[str]:
     """Evaluate whether the temporary exception seam must now be removed."""
@@ -184,11 +192,19 @@ def evaluate_guard_state(
     if not patched_versions:
         return errors
 
-    try:
-        patched_floor = max(Version(identifier) for identifier in patched_versions)
-    except InvalidVersion as exc:
-        errors.append(f"Patched version metadata is invalid: {exc}")
+    parsed_patched_versions: dict[str, tuple[int, ...]] = {}
+    invalid_patched = sorted(
+        identifier for identifier in patched_versions if _parse_release_version(identifier) is None
+    )
+    if invalid_patched:
+        errors.append("Patched version metadata is invalid: " + ", ".join(invalid_patched))
         return errors
+    for identifier in patched_versions:
+        parsed = _parse_release_version(identifier)
+        if parsed is not None:
+            parsed_patched_versions[identifier] = parsed
+
+    patched_floor = max(parsed_patched_versions.values())
 
     patched_list = ", ".join(sorted(patched_versions))
     if exception_present:
@@ -202,13 +218,10 @@ def evaluate_guard_state(
         if version is None:
             stale_pins[path] = "missing"
             continue
-        try:
-            parsed_version = Version(version)
-        except InvalidVersion:
+        parsed_version = _parse_release_version(version)
+        if parsed_version is None:
             stale_pins[path] = f"invalid:{version}"
             continue
-        # EN: Treat the advisory as a minimum safe floor, not an exact pin.
-        # RU: Считаем advisory минимальным безопасным floor, а не точным pin.
         if parsed_version < patched_floor:
             stale_pins[path] = version
 

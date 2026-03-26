@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+from email.message import Message
 import urllib.error
 from pathlib import Path
+
+import pytest
 
 from scripts.ci import check_pygments_exception_guard as guard
 
@@ -165,7 +168,27 @@ def test_has_exception_seam_tolerates_yaml_whitespace_changes(tmp_path: Path) ->
     assert guard._has_exception_seam(tmp_path) is True
 
 
-def test_fetch_dependabot_alerts_paginates(monkeypatch) -> None:
+def test_has_exception_seam_accepts_quoted_yaml_items(tmp_path: Path) -> None:
+    pre_commit = tmp_path / guard.PRE_COMMIT_PATH
+    pre_commit.write_text(
+        'args:\n  - "--ignore-vuln"\n' f'  - "{guard.ADVISORY_ID}"\n',
+        encoding="utf-8",
+    )
+
+    assert guard._has_exception_seam(tmp_path) is True
+
+
+def test_has_exception_seam_accepts_comment_between_yaml_items(tmp_path: Path) -> None:
+    pre_commit = tmp_path / guard.PRE_COMMIT_PATH
+    pre_commit.write_text(
+        "args:\n  - --ignore-vuln\n  # temporary seam\n" f"  - {guard.ADVISORY_ID}\n",
+        encoding="utf-8",
+    )
+
+    assert guard._has_exception_seam(tmp_path) is True
+
+
+def test_fetch_dependabot_alerts_paginates(monkeypatch: pytest.MonkeyPatch) -> None:
     first_page = [
         _alert(first_patched_version=None) for _ in range(guard.DEPENDABOT_ALERTS_PER_PAGE)
     ]
@@ -194,13 +217,15 @@ def test_fetch_dependabot_alerts_paginates(monkeypatch) -> None:
     assert len(alerts) == guard.DEPENDABOT_ALERTS_PER_PAGE + 1
 
 
-def test_public_api_request_retries_without_token_on_auth_error(monkeypatch) -> None:
+def test_public_api_request_retries_without_token_on_auth_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     calls: list[str | None] = []
 
     def fake_api_request(url: str, token: str | None = None) -> object:
         calls.append(token)
         if token == "token":
-            raise urllib.error.HTTPError(url, 403, "Forbidden", None, None)
+            raise urllib.error.HTTPError(url, 403, "Forbidden", Message(), None)
         return {"ok": True}
 
     monkeypatch.setattr(guard, "_api_request", fake_api_request)

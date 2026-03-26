@@ -5,7 +5,7 @@ name: CI
 # Periodically update these SHAs to newer versions for security updates and bug fixes.
 
 env:
-  COVERAGE_PY: "3.13.6"
+  COVERAGE_PY: "3.13"
   FRONTEND_NODE_VERSION_FILE: ".nvmrc"
 
 permissions:
@@ -286,7 +286,7 @@ jobs:
       - name: Setup Python environment
         uses: ./.github/actions/python-setup
         with:
-          python-version: "3.13.6"
+          python-version: ${{ env.COVERAGE_PY }}
           install-dev-deps: "true"
 
       - name: Pre-commit (lint/format/security quick checks)
@@ -305,7 +305,7 @@ jobs:
       - name: Setup Python environment
         uses: ./.github/actions/python-setup
         with:
-          python-version: "3.13.6"
+          python-version: ${{ env.COVERAGE_PY }}
           install-dev-deps: "true"
 
       - name: Security scan with Bandit
@@ -343,7 +343,7 @@ jobs:
       - name: Setup Python environment
         uses: ./.github/actions/python-setup
         with:
-          python-version: "3.13.6"
+          python-version: ${{ env.COVERAGE_PY }}
           install-dev-deps: "true"
 
       - name: Install backend dependencies
@@ -383,7 +383,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ['3.13.6']
+        python-version: ['3.13']
 
     steps:
       - name: Checkout
@@ -472,7 +472,7 @@ jobs:
         if: always()
         uses: ./.github/actions/clean-python-cache
 
-      - name: Upload coverage artifact (3.13.6 only)
+      - name: Upload coverage artifact (single coverage runtime)
         if: always()
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
@@ -501,7 +501,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ['3.13.6']
+        python-version: ['3.13']
 
     steps:
       - name: Checkout
@@ -590,7 +590,7 @@ jobs:
         if: always()
         uses: ./.github/actions/clean-python-cache
 
-      - name: Upload coverage artifact (3.13.6 only)
+      - name: Upload coverage artifact (single coverage runtime)
         if: always()
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
@@ -746,7 +746,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - name: Download coverage artifact (Python 3.13.6)
+      - name: Download coverage artifact (Python ${{ env.COVERAGE_PY }})
         uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.6.2
         with:
           name: coverage-xml-${{ env.COVERAGE_PY }}
@@ -776,7 +776,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - name: Download coverage artifact (Python 3.13.6)
+      - name: Download coverage artifact (Python ${{ env.COVERAGE_PY }})
         uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.6.2
         with:
           name: coverage-xml-${{ env.COVERAGE_PY }}
