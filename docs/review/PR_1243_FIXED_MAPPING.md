@@ -30,6 +30,11 @@ Evidence: `scripts/ci/check_local_verify_environment.py:12`, `scripts/ci/check_l
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1243#discussion_r2994081130 -> afead8f6
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1243#discussion_r2994081134 -> afead8f6
 
+Disposition: FIXED
+Commit: 2350e21b
+Evidence: `scripts/ci/check_local_verify_environment.py:54`, `scripts/ci/check_local_verify_environment.py:57`, `scripts/ci/install_locked_python_requirements.py:183`, `scripts/ci/install_locked_python_requirements.py:187`, `tests/test_check_local_verify_environment.py:54`, `tests/test_install_locked_python_requirements.py:112`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1243#discussion_r2994153922 -> 2350e21b
+
 Disposition: NOT-A-BUG
 Reason: The cubic review summary is an aggregate wrapper for the three inline findings already mapped above; it does not introduce an extra unresolved obligation once those thread URLs are fixed and recorded individually.
 Evidence: `docs/review/PR_1243_FIXED_MAPPING.md:8`, `docs/review/PR_1243_FIXED_MAPPING.md:13`, `docs/review/PR_1243_FIXED_MAPPING.md:18`
@@ -65,6 +70,16 @@ Disposition: NOT-A-BUG
 Reason: The latest CodeRabbit review URL is only the aggregate wrapper for the three inline comments fixed in `afead8f6`; once those discussion URLs are mapped individually, the summary review has no separate unresolved action.
 Evidence: `scripts/ci/check_local_verify_environment.py:54`, `scripts/ci/install_locked_python_requirements.py:140`, `tests/test_check_python_startup_hooks.py:12`
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1243#pullrequestreview-4013190596
+
+Disposition: NOT-A-BUG
+Reason: This follow-up CodeRabbit review is an aggregate wrapper around one duplicate constraints-path finding already fixed in `afead8f6` plus advisory test-style nitpicks; the fail-closed contract and missing-constraints regression test are already present, so the review does not add a separate unresolved obligation.
+Evidence: `scripts/ci/install_locked_python_requirements.py:16`, `scripts/ci/install_locked_python_requirements.py:140`, `scripts/ci/install_locked_python_requirements.py:286`, `tests/test_install_locked_python_requirements.py:59`, `tests/test_install_locked_python_requirements.py:282`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1243#pullrequestreview-4013264599
+
+Disposition: NOT-A-BUG
+Reason: The Cubic review URL is only the aggregate wrapper for the inline startup-hook subprocess comment fixed in `2350e21b`; once the thread URL is mapped individually, the summary review itself has no additional action item.
+Evidence: `scripts/ci/install_locked_python_requirements.py:183`, `scripts/ci/install_locked_python_requirements.py:187`, `tests/test_install_locked_python_requirements.py:112`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1243#pullrequestreview-4013269627
 
 ## Merge Readiness
 - [ ] All required checks pass
