@@ -4,11 +4,13 @@
 from __future__ import annotations
 
 import argparse
+from contextlib import contextmanager
+import json
 import subprocess  # nosec B404: subprocess is required for bounded pip/python invocations during locked installation (remove-by: 2026-07-31, ref: PR-litellm-hardening)
 import sys
 import tempfile
 from pathlib import Path
-from typing import Sequence
+from typing import Iterator, Sequence
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_REQUIREMENTS_FILE = REPO_ROOT / "requirements.txt"
@@ -78,13 +80,14 @@ def resolve_requirement_files(
     install_dev: bool,
 ) -> list[Path]:
     """Return the pinned requirement surfaces to download/install."""
-    requirement_files: list[Path] = []
-    if requirements_file.exists():
-        requirement_files.append(requirements_file)
-    if install_dev and dev_requirements_file.exists():
+    if not requirements_file.exists():
+        raise FileNotFoundError(f"Requirements file not found: {requirements_file}")
+
+    requirement_files = [requirements_file]
+    if install_dev:
+        if not dev_requirements_file.exists():
+            raise FileNotFoundError(f"Dev requirements file not found: {dev_requirements_file}")
         requirement_files.append(dev_requirements_file)
-    if not requirement_files:
-        raise FileNotFoundError("No pinned requirements files found for installation.")
     return requirement_files
 
 
@@ -152,23 +155,30 @@ def is_virtualenv_python(python_executable: str) -> bool:
         "import json, sys\n"
         "print(json.dumps({'prefix': sys.prefix, 'base_prefix': getattr(sys, 'base_prefix', sys.prefix)}))\n"
     )
-    result = subprocess.run(  # nosec B603: argv uses an explicit Python executable and fixed venv probe code only (remove-by: 2026-07-31, ref: PR-litellm-hardening)
-        [python_executable, "-c", probe],
-        check=True,
-        capture_output=True,
-        text=True,
-    )
-    import json
-
-    payload = json.loads(result.stdout)
+    try:
+        result = subprocess.run(  # nosec B603: argv uses an explicit Python executable and fixed venv probe code only (remove-by: 2026-07-31, ref: PR-litellm-hardening)
+            [python_executable, "-c", probe],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        payload = json.loads(result.stdout)
+    except (FileNotFoundError, subprocess.CalledProcessError, json.JSONDecodeError) as exc:
+        raise RuntimeError(
+            f"Unable to probe virtualenv state for {python_executable}: {exc}"
+        ) from exc
     return bool(payload["prefix"] != payload["base_prefix"])
 
 
 def run_command(command: Sequence[str]) -> None:
-    subprocess.run(  # nosec B603: commands are built internally from pinned requirement/install helpers only (remove-by: 2026-07-31, ref: PR-litellm-hardening)
-        list(command),
-        check=True,
-    )
+    try:
+        subprocess.run(  # nosec B603: commands are built internally from pinned requirement/install helpers only (remove-by: 2026-07-31, ref: PR-litellm-hardening)
+            list(command),
+            check=True,
+        )
+    except (FileNotFoundError, subprocess.CalledProcessError) as exc:
+        command_text = " ".join(str(part) for part in command)
+        raise RuntimeError(f"Command failed: {command_text}: {exc}") from exc
 
 
 def upgrade_pip(python_executable: str) -> None:
@@ -210,6 +220,27 @@ def collect_startup_hook_failure_lines(
         stderr_lines or stdout_lines or ["startup-hook guard exited without diagnostics."]
     )
     raise RuntimeError("Startup-hook guard failed: " + " | ".join(diagnostic_lines))
+
+
+def _staging_python_path(staging_dir: Path) -> Path:
+    """Return the canonical Python executable inside a disposable staging venv."""
+    if os_name_is_windows():
+        return staging_dir / "Scripts" / "python.exe"
+    return staging_dir / "bin" / "python"
+
+
+def os_name_is_windows() -> bool:
+    """Return True when the current platform uses Windows-style venv paths."""
+    return sys.platform.startswith("win")
+
+
+@contextmanager
+def staged_python_environment(target_python: str) -> Iterator[str]:
+    """Create a disposable venv used to verify startup hooks before target install."""
+    with tempfile.TemporaryDirectory(prefix="pulseplate-staging-venv-") as temp_dir:
+        staging_dir = Path(temp_dir)
+        run_command([target_python, "-m", "venv", str(staging_dir)])
+        yield str(_staging_python_path(staging_dir))
 
 
 def install_from_wheelhouse(
@@ -263,21 +294,30 @@ def install_with_guard(
         constraints_file=constraints_file,
         wheelhouse_dir=wheelhouse_dir,
     )
+
+    with staged_python_environment(python_executable) as staging_python:
+        install_from_wheelhouse(
+            python_executable=staging_python,
+            requirement_files=requirement_files,
+            constraints_file=constraints_file,
+            wheelhouse_dir=wheelhouse_dir,
+        )
+
+        failure_lines = collect_startup_hook_failure_lines(
+            guard_script=guard_script,
+            python_executable=staging_python,
+        )
+        if failure_lines:
+            for line in failure_lines:
+                print(line)
+            return 1
+
     install_from_wheelhouse(
         python_executable=python_executable,
         requirement_files=requirement_files,
         constraints_file=constraints_file,
         wheelhouse_dir=wheelhouse_dir,
     )
-
-    failure_lines = collect_startup_hook_failure_lines(
-        guard_script=guard_script,
-        python_executable=python_executable,
-    )
-    if failure_lines:
-        for line in failure_lines:
-            print(line)
-        return 1
     return 0
 
 

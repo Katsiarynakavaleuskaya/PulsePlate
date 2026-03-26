@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+from contextlib import contextmanager
 import json
 from pathlib import Path
+import subprocess
 
 import pytest
 
@@ -23,6 +25,29 @@ def test_resolve_requirement_files_prefers_dev_only_when_requested(tmp_path: Pat
     )
 
     assert files == [requirements, requirements_dev]
+
+
+def test_resolve_requirement_files_fails_when_runtime_file_is_missing(tmp_path: Path) -> None:
+    with pytest.raises(FileNotFoundError, match="Requirements file not found"):
+        installer.resolve_requirement_files(
+            requirements_file=tmp_path / "requirements.txt",
+            dev_requirements_file=tmp_path / "requirements-dev.txt",
+            install_dev=False,
+        )
+
+
+def test_resolve_requirement_files_fails_when_dev_file_is_requested_but_missing(
+    tmp_path: Path,
+) -> None:
+    requirements = tmp_path / "requirements.txt"
+    requirements.write_text("openai==2.29.0\n", encoding="utf-8")
+
+    with pytest.raises(FileNotFoundError, match="Dev requirements file not found"):
+        installer.resolve_requirement_files(
+            requirements_file=requirements,
+            dev_requirements_file=tmp_path / "requirements-dev.txt",
+            install_dev=True,
+        )
 
 
 def test_build_pip_download_command_uses_constraint_when_present(tmp_path: Path) -> None:
@@ -79,6 +104,30 @@ def test_is_virtualenv_python_detects_virtualenv(
     monkeypatch.setattr(installer.subprocess, "run", lambda *a, **k: Result())
 
     assert installer.is_virtualenv_python("python") is True
+
+
+def test_is_virtualenv_python_wraps_probe_errors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def raise_called_process_error(*args: object, **kwargs: object) -> object:
+        raise subprocess.CalledProcessError(returncode=1, cmd=["python", "-c", "probe"])
+
+    monkeypatch.setattr(installer.subprocess, "run", raise_called_process_error)
+
+    with pytest.raises(RuntimeError, match="Unable to probe virtualenv state"):
+        installer.is_virtualenv_python("python")
+
+
+def test_run_command_wraps_subprocess_failures(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def raise_called_process_error(*args: object, **kwargs: object) -> object:
+        raise subprocess.CalledProcessError(returncode=1, cmd=["python", "-m", "pip"])
+
+    monkeypatch.setattr(installer.subprocess, "run", raise_called_process_error)
+
+    with pytest.raises(RuntimeError, match="Command failed: python -m pip"):
+        installer.run_command(["python", "-m", "pip"])
 
 
 def test_main_fails_when_virtualenv_is_required(
@@ -153,6 +202,12 @@ def test_main_runs_download_install_and_static_guard_without_pip_self_upgrade(
     guard_script = tmp_path / "check_python_startup_hooks.py"
     guard_script.write_text("# test guard\n", encoding="utf-8")
     observed_commands: list[list[str]] = []
+    observed_guard_python: list[str] = []
+
+    @contextmanager
+    def fake_staging_environment(target_python: str) -> str:
+        assert target_python == "python"
+        yield "staging-python"
 
     monkeypatch.setattr(
         installer, "run_command", lambda command: observed_commands.append(list(command))
@@ -160,8 +215,9 @@ def test_main_runs_download_install_and_static_guard_without_pip_self_upgrade(
     monkeypatch.setattr(
         installer,
         "collect_startup_hook_failure_lines",
-        lambda **kwargs: [],
+        lambda **kwargs: observed_guard_python.append(kwargs["python_executable"]) or [],
     )
+    monkeypatch.setattr(installer, "staged_python_environment", fake_staging_environment)
 
     result = installer.main(
         [
@@ -188,13 +244,22 @@ def test_main_runs_download_install_and_static_guard_without_pip_self_upgrade(
     assert "--constraint" in download_command
     assert str(installer.DEFAULT_CONSTRAINTS_FILE) in download_command
 
-    install_command = observed_commands[1]
+    staging_install_command = observed_commands[1]
+    assert staging_install_command[:4] == ["staging-python", "-m", "pip", "install"]
+    assert "--no-index" in staging_install_command
+    assert "--find-links" in staging_install_command
+    assert str(wheelhouse_dir) in staging_install_command
+    assert "--constraint" in staging_install_command
+    assert str(installer.DEFAULT_CONSTRAINTS_FILE) in staging_install_command
+
+    install_command = observed_commands[2]
     assert install_command[:4] == ["python", "-m", "pip", "install"]
     assert "--no-index" in install_command
     assert "--find-links" in install_command
     assert str(wheelhouse_dir) in install_command
     assert "--constraint" in install_command
     assert str(installer.DEFAULT_CONSTRAINTS_FILE) in install_command
+    assert observed_guard_python == ["staging-python"]
 
 
 def test_main_runs_optional_pip_upgrade_only_when_requested(
@@ -206,10 +271,15 @@ def test_main_runs_optional_pip_upgrade_only_when_requested(
     wheelhouse_dir = tmp_path / "wheelhouse"
     observed_commands: list[list[str]] = []
 
+    @contextmanager
+    def fake_staging_environment(target_python: str) -> str:
+        yield "staging-python"
+
     monkeypatch.setattr(
         installer, "run_command", lambda command: observed_commands.append(list(command))
     )
     monkeypatch.setattr(installer, "collect_startup_hook_failure_lines", lambda **kwargs: [])
+    monkeypatch.setattr(installer, "staged_python_environment", fake_staging_environment)
 
     result = installer.main(
         [
@@ -237,8 +307,15 @@ def test_main_fails_when_static_startup_hook_scan_finds_malicious_pth(
     wheelhouse_dir = tmp_path / "wheelhouse"
     guard_script = tmp_path / "check_python_startup_hooks.py"
     guard_script.write_text("# test guard\n", encoding="utf-8")
+    observed_commands: list[list[str]] = []
 
-    monkeypatch.setattr(installer, "run_command", lambda command: None)
+    @contextmanager
+    def fake_staging_environment(target_python: str) -> str:
+        yield "staging-python"
+
+    monkeypatch.setattr(
+        installer, "run_command", lambda command: observed_commands.append(list(command))
+    )
     monkeypatch.setattr(
         installer,
         "collect_startup_hook_failure_lines",
@@ -247,6 +324,7 @@ def test_main_fails_when_static_startup_hook_scan_finds_malicious_pth(
             "- /tmp/litellm_init.pth:1 :: import os",
         ],
     )
+    monkeypatch.setattr(installer, "staged_python_environment", fake_staging_environment)
 
     result = installer.main(
         [
@@ -263,6 +341,11 @@ def test_main_fails_when_static_startup_hook_scan_finds_malicious_pth(
 
     assert result == 1
     assert "litellm_init.pth:1 :: import os" in capsys.readouterr().out
+    assert observed_commands[0][:4] == ["python", "-m", "pip", "download"]
+    assert observed_commands[1][:4] == ["staging-python", "-m", "pip", "install"]
+    assert not any(
+        command[:4] == ["python", "-m", "pip", "install"] for command in observed_commands[2:]
+    )
 
 
 def test_main_reports_missing_requirements_file_cleanly(
@@ -275,7 +358,7 @@ def test_main_reports_missing_requirements_file_cleanly(
 
     assert result == 1
     assert (
-        "ERROR: locked install failed: No pinned requirements files found"
+        f"ERROR: locked install failed: Requirements file not found: {missing_requirements}"
         in capsys.readouterr().out
     )
 
