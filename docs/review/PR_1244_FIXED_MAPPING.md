@@ -17,6 +17,16 @@ Reason: The inline artifact warning is a false positive because the parser step 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1244#discussion_r2994105623
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1244#pullrequestreview-4013216084
 
+Disposition: FIXED
+Commit: 8586f7b91c7ba4bdd07cad0b51cb7f08749de49d
+Evidence: `.github/workflows/ci.yml:891` through `.github/workflows/ci.yml:903` remove repo-source carve-outs from the canonical `diff-cover` invocation, `docs/roadmap/BACKLOG_LEDGER.md:2045` through `docs/roadmap/BACKLOG_LEDGER.md:2055` keep the PR2 ledger item open until merge and replace deleted workflow links with a historical note, and `docs/review/PR_1244_FIXED_MAPPING.md:23` no longer marks bot-comment mapping complete before the final merge cycle.
+Reason: CodeRabbit's current-head follow-up was addressed by restoring coverage enforcement for real source files, reverting premature backlog closure, replacing stale links to deleted workflows, and unchecking the artifact gate until the remaining current-head dispositions are recorded.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1244#discussion_r2994177517 -> 8586f7b91c7ba4bdd07cad0b51cb7f08749de49d
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1244#discussion_r2994177544 -> 8586f7b91c7ba4bdd07cad0b51cb7f08749de49d
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1244#discussion_r2994177547 -> 8586f7b91c7ba4bdd07cad0b51cb7f08749de49d
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1244#discussion_r2994177563 -> 8586f7b91c7ba4bdd07cad0b51cb7f08749de49d
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1244#pullrequestreview-4013295600 -> 8586f7b91c7ba4bdd07cad0b51cb7f08749de49d
+
 ## Merge Readiness
 - [ ] All required checks pass
 - [ ] No unresolved review threads (re-check on current head before merge)
