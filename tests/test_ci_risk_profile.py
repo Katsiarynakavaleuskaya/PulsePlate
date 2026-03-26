@@ -215,6 +215,7 @@ def test_collect_changed_files_fails_fast_on_git_timeout(
     def _raise_timeout(*_args: object, **_kwargs: object) -> None:
         raise subprocess.TimeoutExpired(cmd=["git", "diff"], timeout=60)
 
+    monkeypatch.setattr(risk_profile, "GIT_BINARY", "/usr/bin/git")
     monkeypatch.setattr(risk_profile.subprocess, "run", _raise_timeout)
 
     with pytest.raises(
