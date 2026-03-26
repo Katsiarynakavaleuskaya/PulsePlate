@@ -53,6 +53,19 @@ Disposition: NOT-A-BUG
 Evidence: .markdownlint.json:2
 Evidence: docs/runbooks/PR_CANONICAL_MATRIX_CHECKLIST.md:44
 Reason: MD029 remains enabled under the repo markdownlint defaults, so reverting the checklist block to `11.` / `12.` / `13.` would reintroduce the ordered-list lint failure already removed by the current `1.`-style lines.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1252#pullrequestreview-4017461118
+Disposition: NOT-A-BUG
+Evidence: .markdownlint.json:2
+Evidence: docs/runbooks/PR_CANONICAL_MATRIX_CHECKLIST.md:44
+Reason: The repo still applies default markdownlint MD029 behavior, so reintroducing explicit `11.` / `12.` / `13.` numbering would recreate the ordered-list lint violation instead of improving the canonical checklist.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1252#pullrequestreview-4017480994 -> a562d741
+Disposition: FIXED
+Commit: a562d741
+Evidence: docs/orchestration/PR_MERGE_WORKFLOW_MATRIX.md:59
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1252#discussion_r2997796774 -> a562d741
+Disposition: FIXED
+Commit: a562d741
+Evidence: docs/orchestration/PR_MERGE_WORKFLOW_MATRIX.md:59
 
 ## Merge Readiness
 - [ ] All required checks pass
