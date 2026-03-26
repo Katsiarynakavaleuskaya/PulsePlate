@@ -319,9 +319,7 @@ jobs:
           fi
 
       - name: Install Safety
-        run: |
-          python -m pip install --upgrade pip setuptools wheel
-          python -m pip install safety==3.6.2
+        run: python -m pip install "safety>=3.7.0" -c constraints.txt
 
       - name: Dependency audit with Safety
         run: |
@@ -358,8 +356,8 @@ jobs:
             exit "$safety_exit_code"
           fi
 
-          python3 .github/scripts/parse-safety-report.py
-          analysis_status=$?
+          analysis_status=0
+          python3 .github/scripts/parse-safety-report.py || analysis_status=$?
 
           if [ "$analysis_status" -eq 10 ]; then
             echo "❌ Safety found high/critical vulnerabilities"

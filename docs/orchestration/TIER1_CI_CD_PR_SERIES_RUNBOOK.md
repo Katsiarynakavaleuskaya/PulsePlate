@@ -69,6 +69,7 @@ Deliver a Tier 1 CI/CD consolidation program in stacked PRs that:
 - `pr-tests.yml` and `pr-coverage.yml` are no longer active PR lanes.
 - `security.yml` is a scheduled/manual audit lane, and `trivy.yml` remains a `main`/schedule/manual image-security lane; neither is a canonical PR blocker.
 - Keep `build.yml`, frontend-only, and nightly-only surfaces separate.
+- Workflow/governance PRs may still trigger specialized repo-level lanes such as `Frontend CI`, CodeQL, or Docker/image workflows; PR2 only makes `ci.yml` the canonical backend/shared merge-truth surface.
 
 ### PR-3: Risk-Based PR Test Topology
 

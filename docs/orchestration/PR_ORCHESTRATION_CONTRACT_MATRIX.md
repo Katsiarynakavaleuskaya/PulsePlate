@@ -198,6 +198,7 @@ Bot governance distinction (Tier 1 baseline):
 - Third-party bot **status checks** remain `External` and advisory unless GitHub marks them required.
 - Third-party or first-party bot **review comments** remain merge-blocking when they contain actionable items, because review governance/disposition policy is separate from status-check classification.
 - Contributors must use `CI` as the canonical backend/shared PR lane for operator decisions; `pr-tests.yml` and `pr-coverage.yml` are no longer active PR lanes, `security.yml` is now scheduled/manual only, and `trivy.yml` remains a non-PR image-security lane on `main`/schedule/manual.
+- Canonical backend/shared PR merge truth does not imply that all other PR-triggered workflows disappear. Specialized repo-level workflows such as `Frontend CI`, `CodeQL Advanced`, and Docker/image lanes may still appear on workflow/governance PRs, but they remain non-canonical unless GitHub branch protection explicitly requires them.
 
 Evidence:
 - `scripts/ci/check_pr_merge_readiness.py:349`

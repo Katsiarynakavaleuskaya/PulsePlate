@@ -84,6 +84,7 @@ Blocking surfaces for Tier 1 PR-lane decisions:
 - `pr-tests.yml` and `pr-coverage.yml` retired as active PR lanes
 - `security.yml` demoted to scheduled/manual audit lane; `trivy.yml` kept as `main`/schedule/manual image-security lane
 - `build.yml` kept as a specialized release/image lane
+- specialized repo-level PR workflows may still attach on workflow/governance diffs, but they stay outside canonical backend/shared merge truth unless branch protection promotes them
 
 ### PR-3
 
