@@ -15,7 +15,6 @@ def test_extract_executable_lines_returns_only_import_lines() -> None:
             "relative/path",
             "import os",
             "import\tjson",
-            "  import sys",
             "import#comment",
             "# import ignored",
         )

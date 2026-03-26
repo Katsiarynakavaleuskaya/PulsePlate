@@ -95,6 +95,7 @@ def build_pip_download_command(
     wheelhouse_dir: Path,
     constraints_file: Path | None,
 ) -> list[str]:
+    constraints_file = validate_constraints_file(constraints_file)
     command = [
         python_executable,
         "-m",
@@ -107,7 +108,7 @@ def build_pip_download_command(
         "--requirement",
         str(requirement_file),
     ]
-    if constraints_file is not None and constraints_file.exists():
+    if constraints_file is not None:
         command.extend(["--constraint", str(constraints_file)])
     return command
 
@@ -119,6 +120,7 @@ def build_pip_install_command(
     wheelhouse_dir: Path,
     constraints_file: Path | None,
 ) -> list[str]:
+    constraints_file = validate_constraints_file(constraints_file)
     command = [
         python_executable,
         "-m",
@@ -130,9 +132,18 @@ def build_pip_install_command(
         "--requirement",
         str(requirement_file),
     ]
-    if constraints_file is not None and constraints_file.exists():
+    if constraints_file is not None:
         command.extend(["--constraint", str(constraints_file)])
     return command
+
+
+def validate_constraints_file(constraints_file: Path | None) -> Path | None:
+    """Return an existing constraints file or fail closed when a path is invalid."""
+    if constraints_file is None:
+        return None
+    if not constraints_file.exists():
+        raise FileNotFoundError(f"Constraints file not found: {constraints_file}")
+    return constraints_file
 
 
 def is_virtualenv_python(python_executable: str) -> bool:
@@ -272,6 +283,7 @@ def install_with_guard(
 def main(argv: Sequence[str] | None = None) -> int:
     try:
         args = parse_args(argv)
+        validated_constraints_file = validate_constraints_file(args.constraints_file)
         requirement_files = resolve_requirement_files(
             requirements_file=args.requirements_file,
             dev_requirements_file=args.dev_requirements_file,
@@ -290,7 +302,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             return install_with_guard(
                 python_executable=args.python_executable,
                 requirement_files=requirement_files,
-                constraints_file=args.constraints_file,
+                constraints_file=validated_constraints_file,
                 wheelhouse_dir=args.wheelhouse_dir,
                 guard_script=args.guard_script,
             )
@@ -300,7 +312,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             return install_with_guard(
                 python_executable=args.python_executable,
                 requirement_files=requirement_files,
-                constraints_file=args.constraints_file,
+                constraints_file=validated_constraints_file,
                 wheelhouse_dir=wheelhouse_dir,
                 guard_script=args.guard_script,
             )

@@ -51,6 +51,50 @@ def test_build_failure_output_includes_recovery_commands() -> None:
     assert "Missing verify-critical Python modules:" in lines
 
 
+def test_collect_unexpected_startup_hooks_uses_guard_subprocess(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    guard_script = tmp_path / "check_python_startup_hooks.py"
+    guard_script.write_text("# test guard\n", encoding="utf-8")
+    venv_python = tmp_path / ".venv" / "bin" / "python"
+    venv_python.parent.mkdir(parents=True)
+    venv_python.write_text("", encoding="utf-8")
+    observed_command: list[str] = []
+
+    class Result:
+        returncode = 1
+        stdout = (
+            "ERROR: unexpected executable Python startup hook (.pth) detected.\n"
+            "- /tmp/litellm_init.pth:1 :: import os\n"
+        )
+        stderr = ""
+
+    def fake_run(command: list[str], **kwargs: object) -> Result:
+        observed_command[:] = command
+        return Result()
+
+    monkeypatch.setattr(env_gate, "STARTUP_HOOK_GUARD", guard_script)
+    monkeypatch.setattr(env_gate, "VENV_PYTHON", venv_python)
+    monkeypatch.setattr(env_gate.subprocess, "run", fake_run)
+
+    findings = env_gate.collect_unexpected_startup_hooks()
+
+    assert observed_command == [
+        str(venv_python),
+        str(guard_script),
+        "--python-executable",
+        str(venv_python),
+    ]
+    assert findings == [
+        env_gate.StartupHookFinding(
+            path=Path("/tmp/litellm_init.pth"),
+            line_number=1,
+            line="import os",
+        )
+    ]
+
+
 def test_main_fails_when_venv_is_missing(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],

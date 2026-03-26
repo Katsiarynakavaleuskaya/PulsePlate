@@ -56,11 +56,16 @@ def test_local_bootstrap_surfaces_use_locked_installer_and_virtualenv_guard() ->
 def test_canonical_ci_and_docker_use_supply_chain_guardrails() -> None:
     docker_text = (REPO_ROOT / "Dockerfile").read_text(encoding="utf-8")
     dockerignore_text = (REPO_ROOT / ".dockerignore").read_text(encoding="utf-8")
+    verify_env_text = (
+        REPO_ROOT / "scripts" / "ci" / "check_local_verify_environment.py"
+    ).read_text(encoding="utf-8")
     installer_text = (
         REPO_ROOT / "scripts" / "ci" / "install_locked_python_requirements.py"
     ).read_text(encoding="utf-8")
 
     assert "check_python_startup_hooks.py" in installer_text
+    assert "spec_from_file_location" not in verify_env_text
+    assert "sys.modules[" not in verify_env_text
     assert "--only-binary" in installer_text
     assert "spec_from_file_location" not in installer_text
     assert "sys.modules[" not in installer_text

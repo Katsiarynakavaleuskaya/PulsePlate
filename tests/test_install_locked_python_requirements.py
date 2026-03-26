@@ -56,6 +56,20 @@ def test_build_pip_install_command_is_hermetic(tmp_path: Path) -> None:
     assert "--find-links" in command
 
 
+def test_build_pip_download_command_fails_when_constraints_file_is_missing(
+    tmp_path: Path,
+) -> None:
+    missing_constraints = tmp_path / "missing-constraints.txt"
+
+    with pytest.raises(FileNotFoundError, match="Constraints file not found"):
+        installer.build_pip_download_command(
+            python_executable="python",
+            requirement_file=tmp_path / "requirements.txt",
+            wheelhouse_dir=tmp_path / "wheelhouse",
+            constraints_file=missing_constraints,
+        )
+
+
 def test_is_virtualenv_python_detects_virtualenv(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -74,9 +88,11 @@ def test_main_fails_when_virtualenv_is_required(
 ) -> None:
     requirements = tmp_path / "requirements.txt"
     requirements.write_text("openai==2.29.0\n", encoding="utf-8")
+    constraints = tmp_path / "constraints.txt"
+    constraints.write_text("openai==2.29.0\n", encoding="utf-8")
     monkeypatch.setattr(installer, "DEFAULT_REQUIREMENTS_FILE", requirements)
     monkeypatch.setattr(installer, "DEFAULT_DEV_REQUIREMENTS_FILE", tmp_path / "missing-dev.txt")
-    monkeypatch.setattr(installer, "DEFAULT_CONSTRAINTS_FILE", tmp_path / "missing-constraints.txt")
+    monkeypatch.setattr(installer, "DEFAULT_CONSTRAINTS_FILE", constraints)
     monkeypatch.setattr(installer, "is_virtualenv_python", lambda python_executable: False)
 
     result = installer.main(
@@ -259,6 +275,30 @@ def test_main_reports_missing_requirements_file_cleanly(
     assert result == 1
     assert (
         "ERROR: locked install failed: No pinned requirements files found"
+        in capsys.readouterr().out
+    )
+
+
+def test_main_reports_missing_constraints_file_cleanly(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    requirements = tmp_path / "requirements.txt"
+    requirements.write_text("openai==2.29.0\n", encoding="utf-8")
+    missing_constraints = tmp_path / "missing-constraints.txt"
+
+    result = installer.main(
+        [
+            "--requirements-file",
+            str(requirements),
+            "--constraints-file",
+            str(missing_constraints),
+        ]
+    )
+
+    assert result == 1
+    assert (
+        f"ERROR: locked install failed: Constraints file not found: {missing_constraints}"
         in capsys.readouterr().out
     )
 

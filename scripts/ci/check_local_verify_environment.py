@@ -9,7 +9,7 @@ environment and points developers to the documented recovery path.
 from __future__ import annotations
 
 import importlib
-import importlib.util
+import subprocess  # nosec B404: subprocess is required for bounded local guard execution (remove-by: 2026-07-31, ref: PR-1243)
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -51,39 +51,41 @@ def collect_unexpected_startup_hooks() -> list[StartupHookFinding]:
     if not STARTUP_HOOK_GUARD.exists():
         raise RuntimeError(f"Unable to load startup hook guard: {STARTUP_HOOK_GUARD}")
 
-    spec = importlib.util.spec_from_file_location(
-        "pulseplate_verify_startup_hook_guard",
-        STARTUP_HOOK_GUARD,
+    result = subprocess.run(  # nosec B603: argv uses fixed repo-local Python and guard paths only (remove-by: 2026-07-31, ref: PR-1243)
+        [
+            str(VENV_PYTHON),
+            str(STARTUP_HOOK_GUARD),
+            "--python-executable",
+            str(VENV_PYTHON),
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
     )
-    if spec is None or spec.loader is None:
-        raise RuntimeError(f"Unable to load startup hook guard: {STARTUP_HOOK_GUARD}")
-
-    guard_module = importlib.util.module_from_spec(spec)
-    previous_module = sys.modules.get(spec.name)
-    sys.modules[spec.name] = guard_module
-    try:
-        spec.loader.exec_module(guard_module)
-    finally:
-        if previous_module is None:
-            sys.modules.pop(spec.name, None)
-        else:
-            sys.modules[spec.name] = previous_module
-
-    site_packages = guard_module.site_packages_for_interpreter(str(VENV_PYTHON))
-    findings_from_guard = guard_module.collect_unexpected_executable_pth_files(site_packages)
-    if not findings_from_guard:
+    if result.returncode == 0:
         return []
+    if result.returncode != 1:
+        diagnostic = result.stderr.strip() or result.stdout.strip() or "no diagnostic output"
+        raise RuntimeError(f"Unable to load startup hook guard: {diagnostic}")
 
     findings: list[StartupHookFinding] = []
-    for finding in findings_from_guard:
+    for raw_line in result.stdout.splitlines():
+        if not raw_line.startswith("- "):
+            continue
+        location, separator, line = raw_line[2:].partition(" :: ")
+        path_text, _, line_number_text = location.rpartition(":")
+        if not separator or not path_text or not line_number_text.isdigit():
+            continue
         findings.append(
             StartupHookFinding(
-                path=Path(finding.path),
-                line_number=int(finding.line_number),
-                line=str(finding.line),
+                path=Path(path_text),
+                line_number=int(line_number_text),
+                line=line,
             )
         )
-    return findings
+    if findings:
+        return findings
+    raise RuntimeError("Unable to parse startup hook guard output.")
 
 
 def collect_missing_modules(
