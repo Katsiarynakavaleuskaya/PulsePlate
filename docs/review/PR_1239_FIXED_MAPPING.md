@@ -26,3 +26,10 @@ Commit: 41bb6bc9
 Evidence: scripts/ci/check_pygments_exception_guard.py:19; scripts/ci/check_pygments_exception_guard.py:36; scripts/ci/check_pygments_exception_guard.py:156; scripts/ci/check_pygments_exception_guard.py:195; tests/test_check_pygments_exception_guard.py:171; tests/test_check_pygments_exception_guard.py:181; tests/test_check_pygments_exception_guard.py:220
 Reason: The guard no longer depends on `packaging` at runtime, the seam matcher now tolerates quoted/commented YAML list items, and the review-requested typing and regression coverage were added in the guard test module.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1239#pullrequestreview-4011831424 -> 41bb6bc9
+
+Disposition: FIXED
+Commit: 8ba1c03b
+Evidence: scripts/ci/check_pygments_exception_guard.py:156; tests/test_check_pygments_exception_guard.py:161
+Reason: Normalize trailing zero release tuple segments so equivalent versions like `2.19` and `2.19.0` compare equal; cubic identified this issue.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1239#pullrequestreview-4011970362 -> 8ba1c03b
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1239#discussion_r2992974893 -> 8ba1c03b
