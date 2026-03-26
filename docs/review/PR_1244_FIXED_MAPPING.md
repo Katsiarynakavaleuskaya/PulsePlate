@@ -27,6 +27,13 @@ Reason: CodeRabbit's current-head follow-up was addressed by restoring coverage 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1244#discussion_r2994177563 -> 8586f7b91c7ba4bdd07cad0b51cb7f08749de49d
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1244#pullrequestreview-4013295600 -> 8586f7b91c7ba4bdd07cad0b51cb7f08749de49d
 
+Disposition: FIXED
+Commit: 146722b8f86ecc503bed0971c7864a37448d2717
+Evidence: `docs/review/PR_1244_FIXED_MAPPING.md:34` now keeps `Pre-commit green` unchecked so the merge-readiness checklist stays in final-cycle-only mode until the actual merge pass.
+Reason: The final current-head CodeRabbit follow-up correctly noted that even a locally green pre-commit run should not flip a merge-readiness checkbox before the final merge cycle.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1244#discussion_r2994323898 -> 146722b8f86ecc503bed0971c7864a37448d2717
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1244#pullrequestreview-4013464994 -> 146722b8f86ecc503bed0971c7864a37448d2717
+
 ## Merge Readiness
 - [ ] All required checks pass
 - [ ] No unresolved review threads (re-check on current head before merge)
