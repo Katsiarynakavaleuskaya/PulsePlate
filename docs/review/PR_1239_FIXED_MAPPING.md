@@ -21,3 +21,9 @@ Evidence: scripts/ci/check_pygments_exception_guard.py:44; scripts/ci/check_pygm
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1239#discussion_r2992765404 -> 77dd3558
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1239#discussion_r2992765412 -> 77dd3558
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1239#discussion_r2992765418 -> 77dd3558
+
+Disposition: FIXED
+Commit: 41bb6bc9
+Evidence: scripts/ci/check_pygments_exception_guard.py:19; scripts/ci/check_pygments_exception_guard.py:36; scripts/ci/check_pygments_exception_guard.py:156; scripts/ci/check_pygments_exception_guard.py:195; tests/test_check_pygments_exception_guard.py:171; tests/test_check_pygments_exception_guard.py:181; tests/test_check_pygments_exception_guard.py:220
+Reason: The guard no longer depends on `packaging` at runtime, the seam matcher now tolerates quoted/commented YAML list items, and the review-requested typing and regression coverage were added in the guard test module.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1239#pullrequestreview-4011831424 -> 41bb6bc9
