@@ -15,6 +15,31 @@ Evidence: docs/runbooks/PR_CANONICAL_MATRIX_CHECKLIST.md:66
 Disposition: FIXED
 Commit: 1741c3e4
 Evidence: docs/runbooks/PR_CANONICAL_MATRIX_CHECKLIST.md:58
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1252#pullrequestreview-4017404342 -> d5544c4a
+Disposition: FIXED
+Commit: d5544c4a
+Evidence: docs/roadmap/BACKLOG_LEDGER.md:2033
+Evidence: docs/roadmap/BACKLOG_LEDGER.md:2035
+Evidence: docs/roadmap/BACKLOG_LEDGER.md:2055
+Evidence: docs/roadmap/BACKLOG_LEDGER.md:2057
+Evidence: docs/roadmap/BACKLOG_LEDGER.md:2076
+Evidence: docs/roadmap/BACKLOG_LEDGER.md:2078
+Evidence: docs/roadmap/BACKLOG_LEDGER.md:2098
+Evidence: docs/roadmap/BACKLOG_LEDGER.md:2100
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1252#discussion_r2997722240 -> d5544c4a
+Disposition: FIXED
+Commit: d5544c4a
+Evidence: docs/orchestration/AUTOMATION_READINESS_MATRIX.md:77
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1252#discussion_r2997722247 -> d5544c4a
+Disposition: FIXED
+Commit: d5544c4a
+Evidence: docs/roadmap/BACKLOG_LEDGER.md:2116
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1252#discussion_r2997722253 -> d5544c4a
+Disposition: FIXED
+Commit: d5544c4a
+Evidence: docs/runbooks/PR_CANONICAL_MATRIX_CHECKLIST.md:44
+Evidence: docs/runbooks/PR_CANONICAL_MATRIX_CHECKLIST.md:47
+Evidence: docs/runbooks/PR_CANONICAL_MATRIX_CHECKLIST.md:49
 
 ## Merge Readiness
 - [ ] All required checks pass
