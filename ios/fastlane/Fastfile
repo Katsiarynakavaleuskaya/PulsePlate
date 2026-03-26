@@ -38,6 +38,16 @@ def snapshot_bundle_identifier
   ENV.fetch("SNAPSHOT_BUNDLE_IDENTIFIER", "com.katsiaryna.pulseplate.dev")
 end
 
+def snapshot_languages
+  raw_languages = ENV["SNAPSHOT_LANGUAGES"].to_s.strip
+  return APP_STORE_LOCALES if raw_languages.empty?
+
+  parsed_languages = raw_languages.split(",").map(&:strip).reject(&:empty?).uniq
+  return parsed_languages unless parsed_languages.empty?
+
+  UI.user_error!("SNAPSHOT_LANGUAGES must contain at least one locale when provided")
+end
+
 def app_store_bundle_identifier
   bundle_id = ENV["APP_STORE_BUNDLE_IDENTIFIER"]&.strip
   return bundle_id unless bundle_id.to_s.empty?
@@ -80,7 +90,7 @@ platform :ios do
       test_without_building: false,
       only_testing: ["PulsePlateUITests/AppStoreScreenshotTests"],
       devices: resolved_snapshot_devices,
-      languages: APP_STORE_LOCALES,
+      languages: snapshot_languages,
       app_identifier: snapshot_bundle_identifier,
       output_directory: "./fastlane/screenshots",
       clear_previous_screenshots: true,
