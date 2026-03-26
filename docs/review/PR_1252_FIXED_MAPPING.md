@@ -48,6 +48,11 @@ Evidence: docs/orchestration/PR_MERGE_WORKFLOW_MATRIX.md:40
 Disposition: FIXED
 Commit: 8614b39f
 Evidence: docs/orchestration/PR_MERGE_WORKFLOW_MATRIX.md:40
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1252#discussion_r2997776485
+Disposition: NOT-A-BUG
+Evidence: .markdownlint.json:2
+Evidence: docs/runbooks/PR_CANONICAL_MATRIX_CHECKLIST.md:44
+Reason: MD029 remains enabled under the repo markdownlint defaults, so reverting the checklist block to `11.` / `12.` / `13.` would reintroduce the ordered-list lint failure already removed by the current `1.`-style lines.
 
 ## Merge Readiness
 - [ ] All required checks pass
