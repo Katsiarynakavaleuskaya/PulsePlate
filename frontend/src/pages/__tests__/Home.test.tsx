@@ -212,6 +212,32 @@ describe('Home', () => {
     expect(screen.getByText('foundation.md: Track the trigger before rewriting the pattern.')).toBeInTheDocument();
   });
 
+  it('clamps AI query input to the configured max length', async () => {
+    vi.mocked(useAuth).mockReturnValue({
+      apiKey: null,
+      isAuthenticated: true,
+      isLoading: false,
+      setApiKey: vi.fn(),
+      clearApiKey: vi.fn(),
+      showAuthPrompt: false,
+      setShowAuthPrompt: vi.fn(),
+    });
+    vi.mocked(usePremium).mockReturnValue(true);
+
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter>
+        <Home />
+      </MemoryRouter>
+    );
+
+    const longQuery = 'a'.repeat(550);
+    const queryInput = screen.getByLabelText('Ask one question');
+    await user.type(queryInput, longQuery);
+
+    expect(queryInput).toHaveValue('a'.repeat(500));
+  });
+
   it('renders friendly AI error state without breaking existing CTAs', async () => {
     vi.mocked(useAuth).mockReturnValue({
       apiKey: null,

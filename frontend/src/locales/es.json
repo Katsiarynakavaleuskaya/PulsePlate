@@ -324,7 +324,16 @@
   "bmiCalculate": {
     "title": "Calculadora de IMC",
     "description": "Calcula tu Índice de Masa Corporal",
+    "hero": {
+      "eyebrow": "Calculadora de IMC",
+      "metrics": {
+        "weight": "Peso",
+        "height": "Altura",
+        "context": "Edad y contexto"
+      }
+    },
     "form": {
+      "sectionTitle": "Datos",
       "weightLabel": "Peso (kg)",
       "heightLabel": "Altura (cm)",
       "sexLabel": "Sexo",
@@ -337,9 +346,14 @@
       "athleteLabel": "Atleta (opcional)",
       "pregnantLabel": "Embarazada (opcional)",
       "hipLabel": "Cadera (cm, opcional)",
+      "contextTitle": "Contexto",
       "submit": "Calcular IMC",
       "submitting": "Calculando",
       "reset": "Calcular de Nuevo"
+    },
+    "summary": {
+      "emptyDetail": "Ejecuta el cálculo para ver un resumen de tu composición corporal.",
+      "fallbackDetail": "Tu resultado está listo."
     },
     "result": {
       "title": "Resultado del IMC",

@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react';
 import { MemoryRouter } from 'react-router-dom';
+import '../../i18n';
 import WelcomeGateV1 from './WelcomeGateV1';
 
 const meta: Meta<typeof WelcomeGateV1> = {

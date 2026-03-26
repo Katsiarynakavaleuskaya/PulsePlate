@@ -20,6 +20,18 @@ const normalizeNumber = (value: string): string => {
   return value.replace(/,/g, '.').trim();
 };
 
+// RU: Возраст принимаем только как целое число без неявного округления.
+// EN: Accept age only as an integer and reject silent truncation.
+const parseIntegerInput = (value: string): number => {
+  const normalizedValue = normalizeNumber(value);
+  if (normalizedValue === '') {
+    return Number.NaN;
+  }
+
+  const parsedValue = Number(normalizedValue);
+  return Number.isInteger(parsedValue) ? parsedValue : Number.NaN;
+};
+
 function mapBmiCategoryIndex(bmi: number | null): number {
   if (bmi === null) return 1;
   if (bmi < 18.5) return 1;
@@ -111,15 +123,15 @@ export default function BMICalculatePage(): JSX.Element {
     if (!response) {
       return {
         value: '--',
-        detail: 'Run the calculation to see your body-composition snapshot.',
+        detail: t('bmiCalculate.summary.emptyDetail'),
       };
     }
 
     return {
       value: response.bmi.toFixed(1),
-      detail: response.interpretation ?? response.category ?? 'Your result is ready.',
+      detail: response.interpretation ?? response.category ?? t('bmiCalculate.summary.fallbackDetail'),
     };
-  }, [response]);
+  }, [response, t]);
 
   const getLang = (): 'ru' | 'en' | 'es' => {
     const lang = i18n.language.toLowerCase();
@@ -145,7 +157,7 @@ export default function BMICalculatePage(): JSX.Element {
     const parsedWeightKg = parseFloat(normalizeNumber(weightKg));
     const parsedHeightCm = parseFloat(normalizeNumber(heightCm));
     const parsedWaistCm = parseFloat(normalizeNumber(waistCm));
-    const parsedAge = parseInt(age.trim(), 10);
+    const parsedAge = parseIntegerInput(age);
 
     if (!Number.isFinite(parsedWeightKg) || parsedWeightKg <= 0) {
       setError(t('bmiCalculate.error.invalidWeight'));
@@ -216,18 +228,20 @@ export default function BMICalculatePage(): JSX.Element {
     <main className="min-h-screen bg-[var(--pp-navy)] px-4 py-6 text-white sm:px-6">
       <div className="mx-auto max-w-[24rem] space-y-6">
         <section className="rounded-[1.5rem] border border-white/12 bg-white/[0.08] p-5 shadow-[0_28px_56px_rgba(0,0,0,0.3)]">
-          <p className="text-xs font-medium uppercase tracking-[0.18em] text-white/52">BMI calculator</p>
+          <p className="text-xs font-medium uppercase tracking-[0.18em] text-white/52">
+            {t('bmiCalculate.hero.eyebrow')}
+          </p>
           <h1 className="mt-2 text-[2.1rem] font-bold leading-none text-white">{t('bmiCalculate.title')}</h1>
           <p className="mt-3 text-sm leading-6 text-white/62">{t('bmiCalculate.description')}</p>
           <div className="mt-5 flex flex-wrap gap-2">
-            <MetricChip label="Weight" />
-            <MetricChip label="Height" />
-            <MetricChip label="Age + context" />
+            <MetricChip label={t('bmiCalculate.hero.metrics.weight')} />
+            <MetricChip label={t('bmiCalculate.hero.metrics.height')} />
+            <MetricChip label={t('bmiCalculate.hero.metrics.context')} />
           </div>
         </section>
 
         <form className="space-y-4" onSubmit={handleSubmit}>
-          <h2 className="text-xl font-semibold text-white">Input</h2>
+          <h2 className="text-xl font-semibold text-white">{t('bmiCalculate.form.sectionTitle')}</h2>
 
           <SurfaceField label={t('bmiCalculate.form.weightLabel')}>
             <NumberInput
@@ -277,7 +291,7 @@ export default function BMICalculatePage(): JSX.Element {
           />
 
           <div className="rounded-2xl border border-white/12 bg-white/[0.08] p-4">
-            <p className="mb-3 text-sm font-medium text-white/72">Context</p>
+            <p className="mb-3 text-sm font-medium text-white/72">{t('bmiCalculate.form.contextTitle')}</p>
             <div className="grid grid-cols-2 gap-3">
               <button
                 type="button"
