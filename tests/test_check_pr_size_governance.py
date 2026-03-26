@@ -47,6 +47,15 @@ def test_has_split_justification_accepts_nested_heading_content() -> None:
     )
 
 
+def test_has_split_justification_ignores_html_comments() -> None:
+    assert not size_gate.has_split_justification(
+        "## Split Justification\n<!-- fill this in -->\n",
+    )
+    assert size_gate.has_split_justification(
+        "## Split Justification\n<!-- scaffold -->\nNeeded for parity.\n",
+    )
+
+
 def test_evaluate_pr_size_policy_passes_for_normal_bucket() -> None:
     exit_code, lines = size_gate.evaluate_pr_size_policy(
         total_changed_lines=220,
@@ -111,6 +120,7 @@ def test_extract_pr_body_reads_github_event_payload(tmp_path: Path) -> None:
     ("argv", "message"),
     [
         (["--base-sha"], "Missing value for --base-sha."),
+        (["--base-sha", "--head-sha"], "Missing value for --base-sha."),
         (["--head-sha"], "Missing value for --head-sha."),
         (["--body"], "Missing value for --body."),
         (["--event-path"], "Missing value for --event-path."),

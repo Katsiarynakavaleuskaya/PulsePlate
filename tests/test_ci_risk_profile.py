@@ -84,6 +84,27 @@ def test_hidden_github_scripts_path_is_workflow_privileged() -> None:
     assert profile.contract_risk_groups == risk_profile.ALL_RISK_GROUPS
 
 
+def test_pull_request_template_is_workflow_privileged() -> None:
+    profile = risk_profile.build_risk_profile(
+        [".github/pull_request_template.md"],
+    )
+
+    assert profile.workflow_privileged is True
+    assert profile.docs_only is False
+    assert profile.merge_governance is True
+    assert profile.contract_risk_groups == risk_profile.ALL_RISK_GROUPS
+
+
+def test_governance_tests_hit_merge_governance_group() -> None:
+    profile = risk_profile.build_risk_profile(
+        ["tests/test_ci_risk_profile.py"],
+    )
+
+    assert profile.backend_shared is True
+    assert profile.merge_governance is True
+    assert profile.contract_risk_groups == ("merge_governance",)
+
+
 def test_billing_router_change_hits_billing_and_openapi_groups() -> None:
     profile = risk_profile.build_risk_profile(
         ["app/routers/billing.py"],
@@ -191,6 +212,7 @@ def test_cli_writes_github_outputs(
     ("argv", "message"),
     [
         (["--base-sha"], "Missing value for --base-sha."),
+        (["--base-sha", "--head-sha"], "Missing value for --base-sha."),
         (["--head-sha"], "Missing value for --head-sha."),
         (["--file"], "Missing value for --file."),
         (["--github-output"], "Missing value for --github-output."),

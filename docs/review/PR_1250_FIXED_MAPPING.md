@@ -1,13 +1,13 @@
 # PR 1250 — Fixed in Commit Mapping
 
 ## Discussion Thread Pass
-- [ ] Discussion-thread pass completed
-- [ ] Fixed in commit mapping completed
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1250#discussion_r2997499001 -> 5b0bf7a9
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1250#discussion_r2997517780 -> 777c4465
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1250#discussion_r2997517784 -> 777c4465
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1250#discussion_r2997499001 -> 5b0bf7a9 | Disposition: FIXED | Proof: commit 5b0bf7a9
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1250#discussion_r2997517780 -> 777c4465 | Disposition: FIXED | Proof: commit 777c4465
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1250#discussion_r2997517784 -> 777c4465 | Disposition: FIXED | Proof: commit 777c4465
 - Carryover evidence from closed replacement-source PR `#1248` lives in `docs/review/PR_1248_FIXED_MAPPING.md`.
 
 ## Merge Readiness

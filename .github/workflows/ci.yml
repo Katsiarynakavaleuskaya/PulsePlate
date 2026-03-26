@@ -501,7 +501,7 @@ jobs:
   # Tier 1 PR testing: critical smoke + contract/risk suites
   test-pr:
     if: github.event_name == 'pull_request' && needs.changes.outputs.run_backend_blocking == 'true'
-    needs: [changes, pr_scope_guard, openapi-sync]
+    needs: [changes, pr_scope_guard]
     runs-on: ubuntu-latest
     timeout-minutes: 60
     permissions:

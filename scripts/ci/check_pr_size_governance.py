@@ -73,10 +73,11 @@ def extract_markdown_heading_level(line: str) -> int:
 
 def has_split_justification(pr_body: str) -> bool:
     """Return True when the PR body contains an explicit split-justification block."""
-    if SPLIT_JUSTIFICATION_INLINE_PATTERN.search(pr_body or ""):
+    normalized_body = re.sub(r"<!--.*?-->", "", pr_body or "", flags=re.DOTALL)
+    if SPLIT_JUSTIFICATION_INLINE_PATTERN.search(normalized_body):
         return True
 
-    lines = (pr_body or "").splitlines()
+    lines = normalized_body.splitlines()
     for index, line in enumerate(lines):
         if not SPLIT_JUSTIFICATION_HEADING_PATTERN.match(line.strip()):
             continue
@@ -178,7 +179,10 @@ def _read_flag_value(argv: list[str], index: int, flag: str) -> str:
     value_index = index + 1
     if value_index >= len(argv):
         raise SystemExit(f"Missing value for {flag}.")
-    return argv[value_index]
+    value = argv[value_index]
+    if value.startswith("--"):
+        raise SystemExit(f"Missing value for {flag}.")
+    return value
 
 
 def main(argv: list[str] | None = None) -> int:

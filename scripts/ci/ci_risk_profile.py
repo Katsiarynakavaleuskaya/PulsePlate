@@ -48,6 +48,7 @@ FRONTEND_EXACT: tuple[str, ...] = ("package.json", "package-lock.json", ".nvmrc"
 FRONTEND_PREFIXES: tuple[str, ...] = ("frontend/",)
 IOS_PREFIXES: tuple[str, ...] = ("ios/", "fastlane/")
 WORKFLOW_PRIVILEGED_EXACT: tuple[str, ...] = (
+    ".github/pull_request_template.md",
     "AGENTS.md",
     "RUNBOOK_AGENT.md",
     "scripts/orchestration/check_agent_consistency.py",
@@ -106,6 +107,7 @@ RISK_GROUP_PATTERNS: dict[str, tuple[str, ...]] = {
         ".github/actions/*",
         ".github/scripts/*",
         ".github/workflows/*",
+        ".github/pull_request_template.md",
         "AGENTS.md",
         "RUNBOOK_AGENT.md",
         "docs/orchestration/*",
@@ -113,6 +115,8 @@ RISK_GROUP_PATTERNS: dict[str, tuple[str, ...]] = {
         "scripts/orchestration/check_agent_consistency.py",
         "scripts/orchestration/check_merge_ready.py",
         "scripts/orchestration/check_review_threads_disposition.py",
+        "tests/test_check_pr_size_governance.py",
+        "tests/test_ci_risk_profile.py",
         "tests/test_orchestration_merge_ready.py",
         "tests/test_pr_body_phase2_gates.py",
         "tests/test_pr_merge_readiness_gate.py",
@@ -176,7 +180,10 @@ def _read_flag_value(argv: list[str], index: int, flag: str) -> str:
     value_index = index + 1
     if value_index >= len(argv):
         raise SystemExit(f"Missing value for {flag}.")
-    return argv[value_index]
+    value = argv[value_index]
+    if value.startswith("--"):
+        raise SystemExit(f"Missing value for {flag}.")
+    return value
 
 
 def _matches_any(path: str, patterns: tuple[str, ...]) -> bool:
