@@ -39,7 +39,7 @@ runs:
         set -euxo pipefail
         if [[ -f requirements-dev.txt || -f requirements.txt ]]; then
           install_args=()
-          if [[ -f requirements-dev.txt ]]; then
+          if [[ -f requirements-dev.txt && ( ! -f requirements.txt || "${{ inputs.install-dev-deps }}" == 'true' || "${{ inputs.install-test-deps }}" == 'true' ) ]]; then
             install_args+=(--install-dev)
           fi
           python "${{ github.workspace }}/scripts/ci/install_locked_python_requirements.py" \

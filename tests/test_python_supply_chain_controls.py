@@ -35,6 +35,8 @@ def test_python_setup_action_uses_locked_installer_not_floating_tools() -> None:
 
     assert "install_locked_python_requirements.py" in action_text
     assert "${{ github.workspace }}/scripts/ci/install_locked_python_requirements.py" in action_text
+    assert "${{ inputs.install-dev-deps }}" in action_text
+    assert "${{ inputs.install-test-deps }}" in action_text
     assert "pre-commit>=" not in action_text
     assert "bandit>=" not in action_text
     assert "pytest>=" not in action_text

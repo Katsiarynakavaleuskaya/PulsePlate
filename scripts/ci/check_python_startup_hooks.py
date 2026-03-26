@@ -94,7 +94,9 @@ def collect_site_packages_from_site_module(site_module: Any) -> list[Path]:
         getusersitepackages = getattr(site_module, "getusersitepackages", None)
         if getusersitepackages is not None:
             value = getusersitepackages()
-            if isinstance(value, str):
+            if value is None:
+                pass
+            elif isinstance(value, str):
                 site_packages.append(Path(value))
             else:
                 site_packages.extend(Path(path) for path in value)

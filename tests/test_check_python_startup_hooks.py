@@ -88,6 +88,25 @@ def test_collect_site_packages_from_site_module_skips_disabled_user_site() -> No
     assert site_packages == [expected_site_packages]
 
 
+def test_collect_site_packages_from_site_module_ignores_none_user_site() -> None:
+    expected_site_packages = Path("/tmp/repo-venv/lib/python3.13/site-packages").resolve()
+
+    class FakeSiteModule:
+        ENABLE_USER_SITE = True
+
+        @staticmethod
+        def getsitepackages() -> list[str]:
+            return ["/tmp/repo-venv/lib/python3.13/site-packages"]
+
+        @staticmethod
+        def getusersitepackages() -> None:
+            return None
+
+    site_packages = hook_guard.collect_site_packages_from_site_module(FakeSiteModule)
+
+    assert site_packages == [expected_site_packages]
+
+
 def test_external_interpreter_site_packages_infers_virtualenv_layout_without_execution(
     tmp_path: Path,
 ) -> None:
