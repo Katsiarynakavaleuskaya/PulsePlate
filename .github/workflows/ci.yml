@@ -431,7 +431,7 @@ jobs:
   openapi-sync:
     name: OpenAPI sync (backend -> frontend artifacts)
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     env:
       APP_ENV: test
       ENVIRONMENT: test
@@ -444,10 +444,6 @@ jobs:
         with:
           python-version: ${{ env.COVERAGE_PY }}
           install-dev-deps: "true"
-
-      - name: Install backend dependencies
-        run: |
-          python scripts/ci/install_locked_python_requirements.py --python-executable python --constraints-file constraints.txt
 
       - name: Setup Node.js
         uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
