@@ -42,11 +42,13 @@ Reason: Addressed the current PR #1247 review bundle by replacing locale-specifi
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1247#pullrequestreview-4014981725 -> f2882f59
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1247#pullrequestreview-4015157775 -> f2882f59
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1247#pullrequestreview-4015161126 -> f2882f59
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1247#discussion_r2995587277 -> f2882f59
 
 Disposition: FIXED
 Commit: f2882f59
 Evidence: frontend/src/pages/Onboarding/WelcomeGateV1.tsx:76; frontend/src/pages/Onboarding/__tests__/WelcomeGateV1.test.tsx:22
 Reason: The first-screen Skip control now performs an explicit router transition to /setup and is covered by the WelcomeGate preview test.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1247#discussion_r2995587286 -> f2882f59
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1247#discussion_r2995593913 -> f2882f59
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1247#discussion_r2995753852 -> f2882f59
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1247#discussion_r2995757044 -> f2882f59
@@ -74,6 +76,8 @@ Disposition: FIXED
 Commit: f2882f59
 Evidence: frontend/src/components/insight/AiInsightPanel.tsx:94; frontend/src/pages/Home.tsx:112; frontend/src/pages/Home.tsx:139; frontend/src/pages/__tests__/Home.test.tsx:318; frontend/src/pages/__tests__/Home.test.tsx:323
 Reason: Home now short-circuits duplicate in-flight submissions, the visible AI submit control is disabled while loading or empty, and the tags fallback is restored with regression coverage for both empty sources and duplicate-submit protection.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1247#discussion_r2995587202 -> f2882f59
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1247#discussion_r2995587228 -> f2882f59
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1247#discussion_r2995593905 -> f2882f59
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1247#discussion_r2995757037 -> f2882f59
 
@@ -81,6 +85,7 @@ Disposition: FIXED
 Commit: d096f114
 Evidence: frontend/src/pages/BMI/BMICalculatePage.tsx:70; frontend/src/pages/BMI/BMICalculatePage.tsx:85; frontend/src/pages/BMI/BMICalculatePage.tsx:286; frontend/src/pages/BMI/BMICalculatePage.tsx:319; frontend/src/pages/BMI/__tests__/BMICalculatePage.test.tsx:64; frontend/src/pages/BMI/__tests__/BMICalculatePage.test.tsx:80; frontend/src/pages/Home.tsx:117; frontend/src/pages/__tests__/Home.test.tsx:227
 Reason: Added fieldset-plus-pressed semantics to BMI segmented controls and context toggles, promoted validation errors to an assertive alert region, and removed non-functional Home result action labels with regression checks so the card no longer advertises unavailable actions.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1247#pullrequestreview-4015591372 -> d096f114
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1247#discussion_r2996145157 -> d096f114
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1247#discussion_r2996145163 -> d096f114
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1247#discussion_r2996145184 -> d096f114
