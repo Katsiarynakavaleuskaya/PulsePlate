@@ -97,8 +97,10 @@
       "preview": {
         "panelTitle": "WELCOME GATE / v1",
         "panelFlowLabel": "flow:",
+        "panelFlowValue": "screen 1 preview -> setup",
         "panelLocalesLabel": "locales:",
-        "panelPolicyLabel": "policy:"
+        "panelPolicyLabel": "policy:",
+        "panelPolicyValue": "preview only, no persistence"
       }
     },
     "enterKey": {

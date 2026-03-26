@@ -48,49 +48,47 @@ async function renderWelcomeGate(language: 'en' | 'ru' | 'es'): Promise<void> {
   );
 }
 
+function getWelcomeCopy(language: 'en' | 'ru' | 'es') {
+  const t = i18n.getFixedT(language);
+
+  return {
+    body: t('onboarding.welcome.screen1.body'),
+    cta: t('onboarding.welcome.cta.start'),
+    mainA11y: t('onboarding.welcome.mainA11y'),
+    panelFlowValue: t('onboarding.welcome.preview.panelFlowValue'),
+    panelPolicyValue: t('onboarding.welcome.preview.panelPolicyValue'),
+    panelTitle: t('onboarding.welcome.preview.panelTitle'),
+    step: t('onboarding.welcome.stepA11y', { current: 1, total: 1 }),
+    title: t('onboarding.welcome.screen1.title'),
+  };
+}
+
 describe('WelcomeGateV1', () => {
-  it.each([
-    {
-      language: 'en' as const,
-      title: 'PulsePlate — your nutrition on track',
-      body: 'Set your goals once. Your plan and progress stay aligned.',
-      cta: 'Get started',
-      step: 'Step 1 of 1',
-    },
-    {
-      language: 'ru' as const,
-      title: 'PulsePlate — питание под контролем',
-      body: 'Настрой цели один раз. План и прогресс будут согласованы.',
-      cta: 'Начать',
-      step: 'Шаг 1 из 1',
-    },
-    {
-      language: 'es' as const,
-      title: 'PulsePlate — tu nutrición bajo control',
-      body: 'Configura tus objetivos una vez. Plan y progreso en sintonía.',
-      cta: 'Empezar',
-      step: 'Paso 1 de 1',
-    },
-  ])('renders localized screen-1-only preview for $language', async ({ language, title, body, cta, step }) => {
+  it.each(['en', 'ru', 'es'] as const)('renders localized screen-1-only preview for %s', async (language) => {
+    const copy = getWelcomeCopy(language);
+
     await renderWelcomeGate(language);
 
     await waitFor(() => {
-      expect(screen.getByText(title)).toBeInTheDocument();
+      expect(screen.getByRole('heading', { level: 1, name: copy.title })).toBeInTheDocument();
     });
 
-    expect(screen.getByText(body)).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: cta })).toHaveAttribute('href', '/setup');
-    expect(screen.getByLabelText(step)).toBeInTheDocument();
-    expect(screen.getByText('WELCOME GATE / v1')).toBeInTheDocument();
+    expect(screen.getByRole('main', { name: copy.mainA11y })).toBeInTheDocument();
+    expect(screen.getByText(copy.body)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: copy.cta })).toHaveAttribute('href', '/setup');
+    expect(screen.getByText(copy.step)).toBeInTheDocument();
+    expect(screen.getByText(copy.panelTitle)).toBeInTheDocument();
     expect(screen.getByAltText('FitChef onboarding welcome scene')).toBeInTheDocument();
   });
 
   it('renders preview-only metadata and skip link without persistence controls', async () => {
+    const copy = getWelcomeCopy('en');
+
     await renderWelcomeGate('en');
 
-    expect(screen.getByRole('main', { name: 'Welcome gate preview' })).toBeInTheDocument();
+    expect(screen.getByRole('main', { name: copy.mainA11y })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Skip' })).toHaveAttribute('href', '/setup');
-    expect(screen.getByText(/screen 1 preview -> setup/i)).toBeInTheDocument();
-    expect(screen.getByText(/preview only, no persistence/i)).toBeInTheDocument();
+    expect(screen.getByText((content) => content.includes(copy.panelFlowValue))).toBeInTheDocument();
+    expect(screen.getByText((content) => content.includes(copy.panelPolicyValue))).toBeInTheDocument();
   });
 });

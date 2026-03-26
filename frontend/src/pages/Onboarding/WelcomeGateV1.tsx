@@ -3,16 +3,14 @@ import { useTranslation } from 'react-i18next';
 import fitchefOnboardingWelcome from '../../assets/brand/fitchef-onboarding-welcome-v1.png';
 import { PulsePlateLogo } from '../../components/brand';
 
-const PREVIEW_FLOW_SUMMARY = 'screen 1 preview -> setup';
 const PREVIEW_LOCALES = ['ru', 'en', 'es'] as const;
-const PREVIEW_POLICY = 'preview only, no persistence';
 const PREVIEW_STEP = 1;
 const PREVIEW_STEP_COUNT = 1;
 const FEATURE_POINT_IDS = [1, 2, 3] as const;
 
 function StepIndicator({ label }: { label: string }): JSX.Element {
   return (
-    <div aria-label={label} className="inline-flex items-center gap-3">
+    <div className="inline-flex items-center gap-3">
       <span aria-hidden="true" className="h-2.5 w-2.5 rounded-full bg-[var(--pp-green)]" />
       <span className="text-sm text-white/52">{label}</span>
     </div>
@@ -94,13 +92,13 @@ export default function WelcomeGateV1(): JSX.Element {
             </p>
             <div className="mt-3 space-y-2">
               <p>
-                {t('onboarding.welcome.preview.panelFlowLabel')} {PREVIEW_FLOW_SUMMARY}
+                {t('onboarding.welcome.preview.panelFlowLabel')} {t('onboarding.welcome.preview.panelFlowValue')}
               </p>
               <p>
                 {t('onboarding.welcome.preview.panelLocalesLabel')} {PREVIEW_LOCALES.join(' · ')}
               </p>
               <p>
-                {t('onboarding.welcome.preview.panelPolicyLabel')} {PREVIEW_POLICY}
+                {t('onboarding.welcome.preview.panelPolicyLabel')} {t('onboarding.welcome.preview.panelPolicyValue')}
               </p>
             </div>
           </section>

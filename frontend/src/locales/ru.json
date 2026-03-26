@@ -97,8 +97,10 @@
       "preview": {
         "panelTitle": "WELCOME GATE / v1",
         "panelFlowLabel": "поток:",
+        "panelFlowValue": "превью экрана 1 -> настройка",
         "panelLocalesLabel": "языки:",
-        "panelPolicyLabel": "политика:"
+        "panelPolicyLabel": "политика:",
+        "panelPolicyValue": "только превью, без сохранения"
       }
     },
     "enterKey": {

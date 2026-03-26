@@ -77,8 +77,10 @@
       "preview": {
         "panelTitle": "WELCOME GATE / v1",
         "panelFlowLabel": "flujo:",
+        "panelFlowValue": "vista previa de la pantalla 1 -> configuración",
         "panelLocalesLabel": "idiomas:",
-        "panelPolicyLabel": "política:"
+        "panelPolicyLabel": "política:",
+        "panelPolicyValue": "solo vista previa, sin persistencia"
       }
     },
     "enterKey": {
