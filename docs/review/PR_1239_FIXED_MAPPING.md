@@ -8,7 +8,6 @@
 Disposition: FIXED
 Commit: 77dd3558
 Evidence: scripts/ci/check_pygments_exception_guard.py:44; scripts/ci/check_pygments_exception_guard.py:151; scripts/ci/check_pygments_exception_guard.py:182; scripts/ci/check_pygments_exception_guard.py:231; tests/test_check_pygments_exception_guard.py:138; tests/test_check_pygments_exception_guard.py:167; docs/security/GHSA-5239-wwwm-4pmq-pygments.md:40
-
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1239#pullrequestreview-4011711126 -> 77dd3558
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1239#discussion_r2992728990 -> 77dd3558
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1239#discussion_r2992728992 -> 77dd3558
