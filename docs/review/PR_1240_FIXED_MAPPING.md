@@ -28,5 +28,5 @@ Evidence: `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md:189`
 ## Merge Readiness
 - [ ] All required checks pass
 - [ ] No unresolved review threads (re-check on current head before merge)
-- [x] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
+- [ ] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
 - [ ] Pre-commit green

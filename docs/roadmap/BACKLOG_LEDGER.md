@@ -2071,8 +2071,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Status: Planned
   - Reason: PR blockers should stay focused on business-critical runtime paths, while nightly depth absorbs broad non-critical coverage tails.
   - Links:
-    - `ledger-p1-test-hygiene-wave`
-    - `ledger-p1-fastapi-compatibility-gates`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-test-hygiene-wave`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-fastapi-compatibility-gates`
     - `docs/orchestration/TIER1_CI_CD_PR_SERIES_RUNBOOK.md`
   - DoD:
     - Deterministic smoke, contract/risk suites, and nightly-only depth are split
