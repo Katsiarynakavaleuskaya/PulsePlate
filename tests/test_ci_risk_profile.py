@@ -47,9 +47,11 @@ def test_billing_router_change_hits_billing_and_openapi_groups() -> None:
     assert profile.backend_shared is True
     assert profile.billing_entitlement is True
     assert profile.openapi_contract is True
+    assert profile.route_contract_safety is True
     assert profile.contract_risk_groups == (
         "billing_entitlement",
         "openapi_contract",
+        "route_contract_safety",
     )
 
 
@@ -72,8 +74,12 @@ def test_insight_runtime_change_hits_insight_group_only() -> None:
 
     assert profile.backend_shared is True
     assert profile.insight_ai is True
+    assert profile.route_contract_safety is True
     assert profile.run_openapi_sync is True
-    assert profile.contract_risk_groups == ("insight_ai",)
+    assert profile.contract_risk_groups == (
+        "insight_ai",
+        "route_contract_safety",
+    )
 
 
 def test_generic_backend_change_hits_route_contract_safety_group() -> None:
@@ -85,6 +91,19 @@ def test_generic_backend_change_hits_route_contract_safety_group() -> None:
     assert profile.route_contract_safety is True
     assert profile.run_backend_blocking is True
     assert profile.contract_risk_groups == ("route_contract_safety",)
+
+
+def test_mixed_backend_surface_keeps_openapi_and_route_contract_groups() -> None:
+    profile = risk_profile.build_risk_profile(
+        ["app/main.py", "app/dependencies.py"],
+    )
+
+    assert profile.openapi_contract is True
+    assert profile.route_contract_safety is True
+    assert profile.contract_risk_groups == (
+        "openapi_contract",
+        "route_contract_safety",
+    )
 
 
 def test_cli_writes_github_outputs(tmp_path: Path, capsys) -> None:
