@@ -1,4 +1,6 @@
-# PR 1246 — Fixed in Commit Mapping
+# PR 1247 — Fixed in Commit Mapping
+
+Carryover note: supersedes closed PR #1246 after its base branch (`feat/design-canon-preview-route`) merged via PR #1245 and was removed. Review-thread evidence below originates from PR #1246 and remains the canonical proof for the carried-over fixes on this branch.
 
 ## Discussion Thread Pass
 - [x] Discussion-thread pass completed
