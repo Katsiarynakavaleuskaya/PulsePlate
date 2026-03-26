@@ -31,4 +31,4 @@ Reason: CodeRabbit's current-head follow-up was addressed by restoring coverage 
 - [ ] All required checks pass
 - [ ] No unresolved review threads (re-check on current head before merge)
 - [ ] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
-- [x] Pre-commit green
+- [ ] Pre-commit green
