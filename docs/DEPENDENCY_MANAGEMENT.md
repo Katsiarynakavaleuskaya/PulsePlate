@@ -63,6 +63,7 @@ Canonical contract for shared CI/Docker/bootstrap paths:
 
 - `PULSEPLATE_PYTHON_INDEX_URL` is mandatory and must point to the approved private package proxy.
 - `PULSEPLATE_PYTHON_TRUSTED_HOST` is optional and should only be set when the approved proxy requires it.
+- GitHub Actions may source these values from repository `vars` first and fall back to `secrets`, so pull-request lanes (including Dependabot-owned updates) are not forced into a secrets-only contract.
 - Public package hosts such as `pypi.org`, `files.pythonhosted.org`, and `test.pypi.org` are rejected by the shared installer.
 - Ambient overrides such as `PIP_INDEX_URL` / `PIP_EXTRA_INDEX_URL` are rejected for canonical installs.
 
@@ -73,6 +74,7 @@ Canonical contract for shared CI/Docker/bootstrap paths:
 For this repo, the canonical local path is still the Makefile bootstrap:
 
 ```bash
+export PULSEPLATE_PYTHON_INDEX_URL="https://packages.example.internal/simple"
 make venv
 make verify
 ```
@@ -142,8 +144,8 @@ GitHub Actions workflows should use the shared installer instead of ad hoc
 ```yaml
 - name: Install dependencies
   env:
-    PULSEPLATE_PYTHON_INDEX_URL: ${{ secrets.PULSEPLATE_PYTHON_INDEX_URL }}
-    PULSEPLATE_PYTHON_TRUSTED_HOST: ${{ secrets.PULSEPLATE_PYTHON_TRUSTED_HOST }}
+    PULSEPLATE_PYTHON_INDEX_URL: ${{ vars.PULSEPLATE_PYTHON_INDEX_URL || secrets.PULSEPLATE_PYTHON_INDEX_URL }}
+    PULSEPLATE_PYTHON_TRUSTED_HOST: ${{ vars.PULSEPLATE_PYTHON_TRUSTED_HOST || secrets.PULSEPLATE_PYTHON_TRUSTED_HOST }}
   run: |
     python scripts/ci/install_locked_python_requirements.py \
       --python-executable python \

@@ -20,6 +20,11 @@ create_venv() {
     "$PYTHON_BIN" -m venv "$VENV_DIR"
   fi
 
+  if [[ -z "${PULSEPLATE_PYTHON_INDEX_URL:-}" ]]; then
+    echo "❌ Export PULSEPLATE_PYTHON_INDEX_URL to the approved private package proxy before bootstrapping."
+    return 1
+  fi
+
   echo "⬆️  Обновление зависимостей через locked installer"
   PIP_REQUIRE_VIRTUALENV=1 \
     "$VENV_DIR/bin/python" "$INSTALLER_SCRIPT" \

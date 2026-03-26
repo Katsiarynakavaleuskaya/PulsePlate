@@ -21,6 +21,7 @@ As of **26 March 2026**:
 - local bootstrap and CI install surfaces use `scripts/ci/install_locked_python_requirements.py`
 - canonical shared install paths now fail closed unless `PULSEPLATE_PYTHON_INDEX_URL` points to the approved private package proxy
 - `PULSEPLATE_PYTHON_TRUSTED_HOST` remains optional and must only be set when the approved proxy requires it
+- GitHub Actions pull-request lanes may source the proxy contract from repository `vars` first and fall back to `secrets`, reducing Dependabot/fork drift without reopening public PyPI resolution
 - repo-local wheelhouse staging is only an install-phase control; quarantine and promotion review remain external infra duties
 
 ## Read-only triage steps
@@ -60,6 +61,7 @@ rg -n "install_locked_python_requirements.py|check_python_startup_hooks.py|pytho
 ```bash
 env | rg '^PULSEPLATE_PYTHON_(INDEX_URL|TRUSTED_HOST)='
 python3 scripts/ci/install_locked_python_requirements.py --help
+docker compose config >/dev/null
 ```
 
 ## Escalation criteria
@@ -102,7 +104,7 @@ make venv
 
 - `scripts/ci/check_python_startup_hooks.py`
 - `scripts/ci/install_locked_python_requirements.py`
-- `make venv` and `make venv-sync` with `PIP_REQUIRE_VIRTUALENV=1`
+- `make venv`, `make venv-sync`, `make docker-build`, and `docker compose up` now fail early unless the approved proxy contract is present
 - CI composite action and canonical CI lanes using the locked installer
 - fail-closed private proxy contract via `PULSEPLATE_PYTHON_INDEX_URL`
 - rejection of public hosts (`pypi.org`, `files.pythonhosted.org`, `test.pypi.org`) and ambient index overrides for canonical installs
