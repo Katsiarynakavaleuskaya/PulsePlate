@@ -35,11 +35,11 @@ Reason: The final current-head CodeRabbit follow-up correctly noted that even a 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1244#pullrequestreview-4013464994 -> 146722b8f86ecc503bed0971c7864a37448d2717
 
 Disposition: FIXED
-Commit: 04cc5166fd68f9b79c0bc1df70fd72cae63fd7df
+Commit: 04cc51663e7089aaaf5818801b3941486c5d0afc
 Evidence: `docs/review/PR_1244_FIXED_MAPPING.md:15` now points the Sourcery evidence to the actual parser invocation and write path, `docs/review/PR_1244_FIXED_MAPPING.md:22` now cites the unchecked bot-mapping gate at `docs/review/PR_1244_FIXED_MAPPING.md:47`, and `docs/review/PR_1244_FIXED_MAPPING.md:32` now cites the unchecked pre-commit gate at `docs/review/PR_1244_FIXED_MAPPING.md:48`.
 Reason: The latest CodeRabbit note correctly flagged that the artifact still had stale `file:line` proof anchors, so the evidence pointers were updated to the actual unchecked merge-readiness gates while also tightening the Sourcery false-positive evidence to the live workflow path.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1244#discussion_r2995074782 -> 04cc5166fd68f9b79c0bc1df70fd72cae63fd7df
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1244#pullrequestreview-4014369145 -> 04cc5166fd68f9b79c0bc1df70fd72cae63fd7df
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1244#discussion_r2995074782 -> 04cc51663e7089aaaf5818801b3941486c5d0afc
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1244#pullrequestreview-4014369145 -> 04cc51663e7089aaaf5818801b3941486c5d0afc
 
 ## Merge Readiness
 - [ ] All required checks pass
