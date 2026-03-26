@@ -1,424 +1,424 @@
 {
-  "offlineIndicator": {
-    "backOnline": "Back online",
-    "offline": "You are offline"
-  },
-  "common": {
-    "ok": "OK",
-    "cancel": "Cancel",
-    "retrying": "Retrying…",
-    "tryAgain": "Try again"
-  },
-  "auth": {
-    "requiresSecureSession": "Secure session required",
-    "apiKey": {
-      "tooShort": "API key must be at least 20 characters",
-      "invalidFormat": "API key format is invalid. Only alphanumeric characters, dashes, and underscores are allowed."
-    }
-  },
-  "shoplist": {
-    "loading": "Loading shopping list…",
-    "error": "Error",
-    "empty": "Empty.",
-    "title": "Shopping List",
-    "downloadCsv": "Export CSV",
-    "downloadPdf": "Export PDF",
-    "downloadingCsv": "Downloading CSV…",
-    "downloadingPdf": "Downloading PDF…",
-    "share": "Share…",
-    "downloadError": "Failed to download file",
-    "shareError": "Failed to share",
-    "tryAgain": "Try again.",
-    "contentTitle": "Shopping List Content",
-    "category": "Category",
-    "noItems": "No items",
-    "store": "Store",
-    "estimated": "≈",
-    "downloadHint": "Export ready. Private link valid for 15 minutes."
-  },
-  "onboarding": {
-    "welcome": {
-      "routeMirrorBadge": "Route mirror",
-      "heroAlt": "PulsePlate onboarding welcome scene",
-    "screen1": {
-      "eyebrow": "Wellness companion",
-      "title": "PulsePlate — your nutrition on track",
-      "body": "Set your goals once. Your plan and progress stay aligned.",
-      "cardTitle": "What keeps the start calm",
-        "tabs": {
-          "bmi": "BMI",
-          "plate": "Plate",
-          "plans": "Plans"
-        },
-        "points": {
-          "1": "✓ Food logging without scales",
-          "2": "✓ Quick recipes from what you already have",
-          "3": "✓ Daily progress in clear numbers"
-        },
-        "footer": "FitChef — your AI nutrition companion"
+    "offlineIndicator": {
+        "backOnline": "Back online",
+        "offline": "You are offline"
     },
-      "screen2": {
-        "eyebrow": "How to use it",
-        "title": "How to move through PulsePlate calmly",
-        "body": "Start with BMI, then refine through Plate and profile. Small inputs lead to obvious next steps.",
-        "steps": {
-          "1": {
-            "title": "BMI Calculator",
-            "body": "A quick baseline with just a few inputs and a calm starting point."
-          },
-          "2": {
-            "title": "Plate + Profile",
-            "body": "Daily split and personal goals without overloading the setup."
-          },
-          "3": {
-            "title": "PRO planning",
-            "body": "Weekly plans and shopping lists appear only after the value is understandable."
-          }
+    "common": {
+        "ok": "OK",
+        "cancel": "Cancel",
+        "retrying": "Retrying…",
+        "tryAgain": "Try again"
+    },
+    "auth": {
+        "requiresSecureSession": "Secure session required",
+        "apiKey": {
+            "tooShort": "API key must be at least 20 characters",
+            "invalidFormat": "API key format is invalid. Only alphanumeric characters, dashes, and underscores are allowed."
         }
-      },
-      "screen3": {
-        "eyebrow": "Your goal",
-        "title": "What do you want to achieve?",
-        "body": "Pick one direction and PulsePlate will adapt the next layer around it.",
-        "goals": {
-          "1": "🔥 Lose weight",
-          "2": "💪 Build muscle",
-          "3": "🥗 Eat better",
-          "4": "⚖️ Maintain weight"
+    },
+    "shoplist": {
+        "loading": "Loading shopping list…",
+        "error": "Error",
+        "empty": "Empty.",
+        "title": "Shopping List",
+        "downloadCsv": "Export CSV",
+        "downloadPdf": "Export PDF",
+        "downloadingCsv": "Downloading CSV…",
+        "downloadingPdf": "Downloading PDF…",
+        "share": "Share…",
+        "downloadError": "Failed to download file",
+        "shareError": "Failed to share",
+        "tryAgain": "Try again.",
+        "contentTitle": "Shopping List Content",
+        "category": "Category",
+        "noItems": "No items",
+        "store": "Store",
+        "estimated": "≈",
+        "downloadHint": "Export ready. Private link valid for 15 minutes."
+    },
+    "onboarding": {
+        "welcome": {
+            "routeMirrorBadge": "Route mirror",
+            "heroAlt": "PulsePlate onboarding welcome scene",
+            "screen1": {
+                "eyebrow": "Wellness companion",
+                "title": "PulsePlate — your nutrition on track",
+                "body": "Set your goals once. Your plan and progress stay aligned.",
+                "cardTitle": "What keeps the start calm",
+                "tabs": {
+                    "bmi": "BMI",
+                    "plate": "Plate",
+                    "plans": "Plans"
+                },
+                "points": {
+                    "1": "✓ Food logging without scales",
+                    "2": "✓ Quick recipes from what you already have",
+                    "3": "✓ Daily progress in clear numbers"
+                },
+                "footer": "FitChef — your AI nutrition companion"
+            },
+            "screen2": {
+                "eyebrow": "How to use it",
+                "title": "How to move through PulsePlate calmly",
+                "body": "Start with BMI, then refine through Plate and profile. Small inputs lead to obvious next steps.",
+                "steps": {
+                    "1": {
+                        "title": "BMI Calculator",
+                        "body": "A quick baseline with just a few inputs and a calm starting point."
+                    },
+                    "2": {
+                        "title": "Plate + Profile",
+                        "body": "Daily split and personal goals without overloading the setup."
+                    },
+                    "3": {
+                        "title": "PRO planning",
+                        "body": "Weekly plans and shopping lists appear only after the value is understandable."
+                    }
+                }
+            },
+            "screen3": {
+                "eyebrow": "Your goal",
+                "title": "What do you want to achieve?",
+                "body": "Pick one direction and PulsePlate will adapt the next layer around it.",
+                "goals": {
+                    "1": "🔥 Lose weight",
+                    "2": "💪 Build muscle",
+                    "3": "🥗 Eat better",
+                    "4": "⚖️ Maintain weight"
+                }
+            },
+            "cta": {
+                "start": "Get started",
+                "continue": "Continue",
+                "finish": "Open setup"
+            },
+            "skip": "Skip",
+            "back": "Back",
+            "stepA11y": "Step {{current}} of {{total}}",
+            "mainA11y": "Welcome gate preview",
+            "preview": {
+                "panelTitle": "WELCOME GATE / v1",
+                "panelFlowLabel": "flow:",
+                "panelFlowValue": "screen 1 preview -> setup",
+                "panelLocalesLabel": "locales:",
+                "panelPolicyLabel": "policy:",
+                "panelPolicyValue": "preview only, no persistence"
+            }
+        },
+        "enterKey": {
+            "title": "API Key",
+            "description": "Key required for Premium and admin sections. Where to get: check README → API key section.",
+            "label": "API Key",
+            "placeholder": "Paste X-API-Key",
+            "save": "Save",
+            "clear": "Clear",
+            "errorEmpty": "Please enter a non-empty API key.",
+            "successSaved": "Key saved.",
+            "keyCleared": "Key cleared.",
+            "changesNote": "Changes apply instantly. No page reload required — we'll return you to the previous screen automatically."
         }
-      },
-  "cta": {
-    "start": "Get started",
-    "continue": "Continue",
-    "finish": "Open setup"
-  },
-      "skip": "Skip",
-      "back": "Back",
-      "stepA11y": "Step {{current}} of {{total}}",
-      "mainA11y": "Welcome gate preview",
-      "preview": {
-        "panelTitle": "WELCOME GATE / v1",
-        "panelFlowLabel": "flow:",
-        "panelFlowValue": "screen 1 preview -> setup",
-        "panelLocalesLabel": "locales:",
-        "panelPolicyLabel": "policy:",
-        "panelPolicyValue": "preview only, no persistence"
-      }
     },
-    "enterKey": {
-      "title": "API Key",
-      "description": "Key required for Premium and admin sections. Where to get: check README → API key section.",
-      "label": "API Key",
-      "placeholder": "Paste X-API-Key",
-      "save": "Save",
-      "clear": "Clear",
-      "errorEmpty": "Please enter a non-empty API key.",
-      "successSaved": "Key saved.",
-      "keyCleared": "Key cleared.",
-      "changesNote": "Changes apply instantly. No page reload required — we'll return you to the previous screen automatically."
-    }
-  },
-  "plan": {
-    "exportReady": "Export ready. Private link valid for 15 minutes.",
-    "shareReady": "Share ready. Private link valid for 15 minutes.",
-    "linkOpened": "Private link opened (15 minutes). Can be shared selectively.",
-    "linkCopied": "Private CSV link copied (valid for 15 minutes). In Google Sheets choose File → Import → Link.",
-    "copyFailed": "Failed to copy automatically. Copy manually",
-    "linkRequestFailed": "Failed to get private link",
-    "downloadFailed": "Failed to download file",
-    "shareFailed": "Failed to share",
-    "linkOpenFailed": "Failed to open private link",
-    "tryAgain": "Try again.",
-    "unknownError": "Unknown error",
-    "loadingWeek": "Loading week…",
-    "loadError": "Failed to load plan",
-    "sheetsHelp": "In new Google Sheets: File → Import → Insert link and paste the CSV link below.",
-    "weeklyPlanTitle": "My Weekly Plan",
-    "openSheetsTitle": "Opens empty Google Sheets",
-    "copyCsvLinkTitle": "Copy direct CSV link",
-    "privateLinkLabel": "Private link",
-    "weeklySummaryTitle": "Weekly Plan Summary",
-    "emptySummary": "Empty for now.",
-    "kcalPerDay": "kcal/day",
-    "kcal": "kcal",
-    "noItems": "No items"
-  },
-  "vip": {
-    "title": "Unlock VIP",
-    "subtitle": "Advanced analytics, premium features, priority support.",
-    "cta": "Upgrade to VIP",
-    "badge": "VIP",
-    "badgeAria": "VIP status",
-    "gatedAria": "VIP gated content"
-  },
-  "paywall": {
-    "title": "Unlock VIP",
-    "subtitle": "Personalized plate, micro-balance, weekly plan.",
-    "cta": "Continue",
-    "legal": "Auto-renewing subscription. Cancel anytime in Settings.",
-    "before": {
-      "label": "Before",
-      "randomPlate": "Random plate",
-      "macrosOnly": "Macros only",
-      "manualShopping": "Manual shopping"
+    "plan": {
+        "exportReady": "Export ready. Private link valid for 15 minutes.",
+        "shareReady": "Share ready. Private link valid for 15 minutes.",
+        "linkOpened": "Private link opened (15 minutes). Can be shared selectively.",
+        "linkCopied": "Private CSV link copied (valid for 15 minutes). In Google Sheets choose File → Import → Link.",
+        "copyFailed": "Failed to copy automatically. Copy manually",
+        "linkRequestFailed": "Failed to get private link",
+        "downloadFailed": "Failed to download file",
+        "shareFailed": "Failed to share",
+        "linkOpenFailed": "Failed to open private link",
+        "tryAgain": "Try again.",
+        "unknownError": "Unknown error",
+        "loadingWeek": "Loading week…",
+        "loadError": "Failed to load plan",
+        "sheetsHelp": "In new Google Sheets: File → Import → Insert link and paste the CSV link below.",
+        "weeklyPlanTitle": "My Weekly Plan",
+        "openSheetsTitle": "Opens empty Google Sheets",
+        "copyCsvLinkTitle": "Copy direct CSV link",
+        "privateLinkLabel": "Private link",
+        "weeklySummaryTitle": "Weekly Plan Summary",
+        "emptySummary": "Empty for now.",
+        "kcalPerDay": "kcal/day",
+        "kcal": "kcal",
+        "noItems": "No items"
     },
-    "after": {
-      "label": "After",
-      "personalPlate": "Personal plate",
-      "microBalance": "Micro-balance",
-      "autoShoppingList": "Auto shopping list"
+    "vip": {
+        "title": "Unlock VIP",
+        "subtitle": "Advanced analytics, premium features, priority support.",
+        "cta": "Upgrade to VIP",
+        "badge": "VIP",
+        "badgeAria": "VIP status",
+        "gatedAria": "VIP gated content"
     },
-    "items": {
-      "before": {
-        "random_plate": "Random plate",
-        "macros_only": "Macros only",
-        "manual_shopping": "Manual shopping"
-      },
-      "after": {
-        "personal_plate": "Personal plate",
-        "micro_balance": "Micro-balance",
-        "auto_shopping_list": "Auto shopping list"
-      }
-    }
-  },
-  "nutritionSetup": {
-    "title": "Nutrition Survey",
-    "description": "Fill in your parameters for personalized plate calculation",
-    "calculateButton": "Calculate Personalized Plate",
-    "saveNote": "Data is stored locally and used for your diet calculation"
-  },
-  "nutrition": {
-    "sex": {
-      "label": "Sex",
-      "female": "Female",
-      "male": "Male"
+    "paywall": {
+        "title": "Unlock VIP",
+        "subtitle": "Personalized plate, micro-balance, weekly plan.",
+        "cta": "Continue",
+        "legal": "Auto-renewing subscription. Cancel anytime in Settings.",
+        "before": {
+            "label": "Before",
+            "randomPlate": "Random plate",
+            "macrosOnly": "Macros only",
+            "manualShopping": "Manual shopping"
+        },
+        "after": {
+            "label": "After",
+            "personalPlate": "Personal plate",
+            "microBalance": "Micro-balance",
+            "autoShoppingList": "Auto shopping list"
+        },
+        "items": {
+            "before": {
+                "random_plate": "Random plate",
+                "macros_only": "Macros only",
+                "manual_shopping": "Manual shopping"
+            },
+            "after": {
+                "personal_plate": "Personal plate",
+                "micro_balance": "Micro-balance",
+                "auto_shopping_list": "Auto shopping list"
+            }
+        }
     },
-    "age": "Age",
-    "height_cm": "Height (cm)",
-    "weight_kg": "Weight (kg)",
-    "activity": {
-      "label": "Activity Level",
-      "options": {
-        "sedentary": "Sedentary",
-        "light": "Light",
-        "moderate": "Moderate",
-        "active": "Active",
-        "athlete": "Athlete"
-      }
+    "nutritionSetup": {
+        "title": "Nutrition Survey",
+        "description": "Fill in your parameters for personalized plate calculation",
+        "calculateButton": "Calculate Personalized Plate",
+        "saveNote": "Data is stored locally and used for your diet calculation"
     },
-    "goal": {
-      "label": "Goal",
-      "options": {
-        "lose": "Lose weight",
-        "maintain": "Maintain weight",
-        "gain": "Gain weight"
-      }
+    "nutrition": {
+        "sex": {
+            "label": "Sex",
+            "female": "Female",
+            "male": "Male"
+        },
+        "age": "Age",
+        "height_cm": "Height (cm)",
+        "weight_kg": "Weight (kg)",
+        "activity": {
+            "label": "Activity Level",
+            "options": {
+                "sedentary": "Sedentary",
+                "light": "Light",
+                "moderate": "Moderate",
+                "active": "Active",
+                "athlete": "Athlete"
+            }
+        },
+        "goal": {
+            "label": "Goal",
+            "options": {
+                "lose": "Lose weight",
+                "maintain": "Maintain weight",
+                "gain": "Gain weight"
+            }
+        },
+        "dietFlags": {
+            "label": "Dietary Preferences",
+            "description": "Select your dietary preferences or restrictions",
+            "optional": "Optional",
+            "VEG": "Vegetarian",
+            "VEGAN": "Vegan",
+            "GF": "Gluten-Free",
+            "DAIRY_FREE": "Dairy-Free",
+            "LOW_COST": "Budget-Friendly",
+            "HIGH_PROTEIN": "High-Protein",
+            "LOW_CARB": "Low-Carb",
+            "KETO": "Ketogenic",
+            "PALEO": "Paleo",
+            "MEDITERRANEAN": "Mediterranean"
+        },
+        "macros": {
+            "title": "Macronutrients and Calories",
+            "caloriesLabel": "Calories (goal)",
+            "carbsLabel": "Carbohydrates",
+            "proteinLabel": "Protein",
+            "fatLabel": "Fat",
+            "fiberLabel": "Fiber",
+            "bmrLabel": "BMR",
+            "tdeeLabel": "TDEE",
+            "bmrDescription": "basal metabolic rate (calories for basic life maintenance)",
+            "tdeeDescription": "total daily energy expenditure including activity"
+        },
+        "units": {
+            "kcalPerDay": "kcal/day",
+            "gPerDay": "g/day"
+        },
+        "loadingPlate": "Calculating your personalized plate…",
+        "header": {
+            "title": "Your Personal Plate",
+            "subtitle": "Calculation based on your parameters",
+            "editButton": "Edit Profile"
+        },
+        "summary": {
+            "bmr": "BMR (kcal)",
+            "tdee": "TDEE (kcal)",
+            "goal": "Goal (kcal)",
+            "method": "Method"
+        },
+        "micros": {
+            "unavailable": "Micronutrient targets are not available",
+            "title": "Micronutrient Targets",
+            "description": "Recommended daily allowances of vitamins and minerals for your age and gender"
+        },
+        "error": {
+            "title": "Calculation Error",
+            "description": "Failed to load data. Please check your internet connection.",
+            "editButton": "Edit Data"
+        },
+        "water": {
+            "title": "Water",
+            "subtitle": "Recommended daily water intake",
+            "unit": "L/day",
+            "tip": "💡 Tip: Drink water evenly throughout the day. Increase intake during physical activity or hot weather."
+        }
     },
-    "dietFlags": {
-      "label": "Dietary Preferences",
-      "description": "Select your dietary preferences or restrictions",
-      "optional": "Optional",
-      "VEG": "Vegetarian",
-      "VEGAN": "Vegan",
-      "GF": "Gluten-Free",
-      "DAIRY_FREE": "Dairy-Free",
-      "LOW_COST": "Budget-Friendly",
-      "HIGH_PROTEIN": "High-Protein",
-      "LOW_CARB": "Low-Carb",
-      "KETO": "Ketogenic",
-      "PALEO": "Paleo",
-      "MEDITERRANEAN": "Mediterranean"
+    "chart": {
+        "day": "Day",
+        "kcal": "kcal"
     },
-    "macros": {
-      "title": "Macronutrients and Calories",
-      "caloriesLabel": "Calories (goal)",
-      "carbsLabel": "Carbohydrates",
-      "proteinLabel": "Protein",
-      "fatLabel": "Fat",
-      "fiberLabel": "Fiber",
-      "bmrLabel": "BMR",
-      "tdeeLabel": "TDEE",
-      "bmrDescription": "basal metabolic rate (calories for basic life maintenance)",
-      "tdeeDescription": "total daily energy expenditure including activity"
+    "week": {
+        "noData": "No data for this week",
+        "title": "Weekly Progress",
+        "refresh": "Refresh week",
+        "chartAccessibility": "Weekly energy chart",
+        "progressAccessibilityLine": "{day}: {value} {unit}, {label1} {value1}{unit1}, {label2} {value2}{unit2}, {label3} {value3}{unit3}"
+    },
+    "health": {
+        "permissionMessage": "Allow access to Health to display nutrition and progress.",
+        "request": "Request HealthKit access",
+        "alertTitle": "HealthKit Access"
     },
     "units": {
-      "kcalPerDay": "kcal/day",
-      "gPerDay": "g/day"
+        "kg": "kg",
+        "kcal": "kcal",
+        "gram": "g"
     },
-    "loadingPlate": "Calculating your personalized plate…",
-    "header": {
-      "title": "Your Personal Plate",
-      "subtitle": "Calculation based on your parameters",
-      "editButton": "Edit Profile"
+    "abbreviations": {
+        "protein": "P",
+        "fat": "F",
+        "carbs": "C"
     },
-    "summary": {
-      "bmr": "BMR (kcal)",
-      "tdee": "TDEE (kcal)",
-      "goal": "Goal (kcal)",
-      "method": "Method"
+    "language": {
+        "settings": "Language",
+        "nameEn": "English",
+        "nameRu": "Russian",
+        "nameEs": "Spanish"
     },
-    "micros": {
-      "unavailable": "Micronutrient targets are not available",
-      "title": "Micronutrient Targets",
-      "description": "Recommended daily allowances of vitamins and minerals for your age and gender"
+    "profile": {
+        "languageSection": "Language",
+        "languageValue": "English / Russian / Spanish",
+        "legalSection": "Legal",
+        "privacyPolicy": "Privacy Policy",
+        "termsOfUse": "Terms of Use",
+        "screenAccessibilityLabel": "Profile screen"
     },
-    "error": {
-      "title": "Calculation Error",
-      "description": "Failed to load data. Please check your internet connection.",
-      "editButton": "Edit Data"
+    "mascot": {
+        "plateHint": "Tap to set nutrition goals!",
+        "homeWelcome": "Welcome to PulsePlate!",
+        "progressGreat": "Great progress today!"
     },
-    "water": {
-      "title": "Water",
-      "subtitle": "Recommended daily water intake",
-      "unit": "L/day",
-      "tip": "💡 Tip: Drink water evenly throughout the day. Increase intake during physical activity or hot weather."
+    "settings": {
+        "title": "Settings"
+    },
+    "accessibility": {
+        "homeScreen": "Home Screen"
+    },
+    "bmiCalculate": {
+        "title": "BMI Calculator",
+        "description": "Calculate your Body Mass Index",
+        "hero": {
+            "eyebrow": "BMI calculator",
+            "metrics": {
+                "weight": "Weight",
+                "height": "Height",
+                "context": "Age + context"
+            }
+        },
+        "form": {
+            "sectionTitle": "Input",
+            "weightLabel": "Weight (kg)",
+            "heightLabel": "Height (cm)",
+            "sexLabel": "Sex",
+            "sex": {
+                "female": "Female",
+                "male": "Male"
+            },
+            "ageLabel": "Age",
+            "waistLabel": "Waist (cm, optional)",
+            "athleteLabel": "Athlete (optional)",
+            "pregnantLabel": "Pregnant (optional)",
+            "hipLabel": "Hip (cm, optional)",
+            "contextTitle": "Context",
+            "submit": "Calculate BMI",
+            "submitting": "Please wait",
+            "reset": "Calculate Again"
+        },
+        "summary": {
+            "emptyDetail": "Run the calculation to see your body-composition snapshot.",
+            "fallbackDetail": "Your result is ready."
+        },
+        "result": {
+            "title": "BMI Result",
+            "bmi": "BMI:",
+            "category": "Category:"
+        },
+        "error": {
+            "generic": "An error occurred. Please try again.",
+            "invalidWeight": "Please enter a valid weight (kg).",
+            "invalidHeight": "Please enter a valid height (cm).",
+            "invalidAge": "Please enter a valid age (1-120 years)."
+        }
+    },
+    "whoTargets": {
+        "calories": {
+            "title": "Daily Calories",
+            "unit": "kcal",
+            "description": "Based on your BMR, activity level, and goals"
+        },
+        "macros": {
+            "title": "Macronutrients",
+            "protein": "Protein",
+            "carbs": "Carbs",
+            "fat": "Fat",
+            "fiber": "Fiber",
+            "unit": "g"
+        },
+        "hydration": {
+            "title": "Hydration",
+            "unit": "ml",
+            "description": "Daily water intake recommendation"
+        },
+        "micros": {
+            "title": "Priority Micronutrients",
+            "iron_mg": "Iron",
+            "calcium_mg": "Calcium"
+        },
+        "activity": {
+            "title": "Activity Goals",
+            "moderateAerobic": "Moderate Aerobic",
+            "strength": "Strength Training",
+            "steps": "Daily Steps",
+            "minutes": "minutes",
+            "sessions": "sessions",
+            "stepsUnit": "steps"
+        },
+        "warnings": {
+            "title": "Important Notes"
+        },
+        "empty": {
+            "iconLabel": "Nutrition targets chart",
+            "title": "No Targets Available",
+            "message": "Please complete your profile to see personalized nutrition targets."
+        },
+        "error": {
+            "title": "Unable to Calculate Targets",
+            "retry": "Try Again"
+        },
+        "cta": {
+            "saveAndContinue": "Save & Get Weekly Plan",
+            "description": "Save your nutrition targets and proceed to generate your personalized weekly meal plan"
+        }
     }
-  },
-  "chart": {
-    "day": "Day",
-    "kcal": "kcal"
-  },
-  "week": {
-    "noData": "No data for this week",
-    "title": "Weekly Progress",
-    "refresh": "Refresh week",
-    "chartAccessibility": "Weekly energy chart",
-    "progressAccessibilityLine": "{day}: {value} {unit}, {label1} {value1}{unit1}, {label2} {value2}{unit2}, {label3} {value3}{unit3}"
-  },
-  "health": {
-    "permissionMessage": "Allow access to Health to display nutrition and progress.",
-    "request": "Request HealthKit access",
-    "alertTitle": "HealthKit Access"
-  },
-  "units": {
-    "kg": "kg",
-    "kcal": "kcal",
-    "gram": "g"
-  },
-  "abbreviations": {
-    "protein": "P",
-    "fat": "F",
-    "carbs": "C"
-  },
-  "language": {
-    "settings": "Language",
-    "nameEn": "English",
-    "nameRu": "Russian",
-    "nameEs": "Spanish"
-  },
-  "profile": {
-    "languageSection": "Language",
-    "languageValue": "English / Russian / Spanish",
-    "legalSection": "Legal",
-    "privacyPolicy": "Privacy Policy",
-    "termsOfUse": "Terms of Use",
-    "screenAccessibilityLabel": "Profile screen"
-  },
-  "mascot": {
-    "plateHint": "Tap to set nutrition goals!",
-    "homeWelcome": "Welcome to PulsePlate!",
-    "progressGreat": "Great progress today!"
-  },
-  "settings": {
-    "title": "Settings"
-  },
-  "accessibility": {
-    "homeScreen": "Home Screen"
-  },
-  "bmiCalculate": {
-    "title": "BMI Calculator",
-    "description": "Calculate your Body Mass Index",
-    "hero": {
-      "eyebrow": "BMI calculator",
-      "metrics": {
-        "weight": "Weight",
-        "height": "Height",
-        "context": "Age + context"
-      }
-    },
-    "form": {
-      "sectionTitle": "Input",
-      "weightLabel": "Weight (kg)",
-      "heightLabel": "Height (cm)",
-      "sexLabel": "Sex",
-      "sex": {
-        "female": "Female",
-        "male": "Male"
-      },
-      "ageLabel": "Age",
-      "waistLabel": "Waist (cm, optional)",
-      "athleteLabel": "Athlete (optional)",
-      "pregnantLabel": "Pregnant (optional)",
-      "hipLabel": "Hip (cm, optional)",
-      "contextTitle": "Context",
-      "submit": "Calculate BMI",
-      "submitting": "Please wait",
-      "reset": "Calculate Again"
-    },
-    "summary": {
-      "emptyDetail": "Run the calculation to see your body-composition snapshot.",
-      "fallbackDetail": "Your result is ready."
-    },
-    "result": {
-      "title": "BMI Result",
-      "bmi": "BMI:",
-      "category": "Category:"
-    },
-    "error": {
-      "generic": "An error occurred. Please try again.",
-      "invalidWeight": "Please enter a valid weight (kg).",
-      "invalidHeight": "Please enter a valid height (cm).",
-      "invalidAge": "Please enter a valid age (1-120 years)."
-    }
-  },
-  "whoTargets": {
-    "calories": {
-      "title": "Daily Calories",
-      "unit": "kcal",
-      "description": "Based on your BMR, activity level, and goals"
-    },
-    "macros": {
-      "title": "Macronutrients",
-      "protein": "Protein",
-      "carbs": "Carbs",
-      "fat": "Fat",
-      "fiber": "Fiber",
-      "unit": "g"
-    },
-    "hydration": {
-      "title": "Hydration",
-      "unit": "ml",
-      "description": "Daily water intake recommendation"
-    },
-    "micros": {
-      "title": "Priority Micronutrients",
-      "iron_mg": "Iron",
-      "calcium_mg": "Calcium"
-    },
-    "activity": {
-      "title": "Activity Goals",
-      "moderateAerobic": "Moderate Aerobic",
-      "strength": "Strength Training",
-      "steps": "Daily Steps",
-      "minutes": "minutes",
-      "sessions": "sessions",
-      "stepsUnit": "steps"
-    },
-    "warnings": {
-      "title": "Important Notes"
-    },
-    "empty": {
-      "iconLabel": "Nutrition targets chart",
-      "title": "No Targets Available",
-      "message": "Please complete your profile to see personalized nutrition targets."
-    },
-    "error": {
-      "title": "Unable to Calculate Targets",
-      "retry": "Try Again"
-    },
-    "cta": {
-      "saveAndContinue": "Save & Get Weekly Plan",
-      "description": "Save your nutrition targets and proceed to generate your personalized weekly meal plan"
-    }
-  }
 }
