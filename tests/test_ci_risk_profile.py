@@ -53,6 +53,18 @@ def test_billing_router_change_hits_billing_and_openapi_groups() -> None:
     )
 
 
+def test_openapi_only_change_still_runs_blocking_and_sync() -> None:
+    profile = risk_profile.build_risk_profile(
+        ["scripts/generate_openapi.py"],
+    )
+
+    assert profile.backend_shared is False
+    assert profile.openapi_contract is True
+    assert profile.run_backend_blocking is True
+    assert profile.run_openapi_sync is True
+    assert profile.contract_risk_groups == ("openapi_contract",)
+
+
 def test_insight_runtime_change_hits_insight_group_only() -> None:
     profile = risk_profile.build_risk_profile(
         ["core/insight/fitchef_companion.py"],
@@ -62,6 +74,17 @@ def test_insight_runtime_change_hits_insight_group_only() -> None:
     assert profile.insight_ai is True
     assert profile.run_openapi_sync is True
     assert profile.contract_risk_groups == ("insight_ai",)
+
+
+def test_generic_backend_change_hits_route_contract_safety_group() -> None:
+    profile = risk_profile.build_risk_profile(
+        ["app/dependencies.py"],
+    )
+
+    assert profile.backend_shared is True
+    assert profile.route_contract_safety is True
+    assert profile.run_backend_blocking is True
+    assert profile.contract_risk_groups == ("route_contract_safety",)
 
 
 def test_cli_writes_github_outputs(tmp_path: Path, capsys) -> None:

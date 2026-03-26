@@ -624,6 +624,13 @@ jobs:
                   tests/test_openapi_import_safe_orm_guard.py \
                   tests/test_openapi_namespace_guards.py
                 ;;
+              route_contract_safety)
+                add_suite \
+                  tests/test_api.py \
+                  tests/test_app_error_handling_combined.py \
+                  tests/test_app_extended_coverage.py \
+                  tests/test_legacy_app_diff_coverage.py
+                ;;
               merge_governance)
                 add_suite \
                   tests/test_check_pr_size_governance.py \
