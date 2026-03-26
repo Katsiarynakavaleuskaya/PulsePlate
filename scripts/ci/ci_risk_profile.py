@@ -165,7 +165,7 @@ def _bool_text(value: bool) -> str:
 
 
 def _normalize_path(path: str) -> str:
-    return path.strip().lstrip("./").replace("\\", "/")
+    return path.strip().replace("\\", "/").removeprefix("./")
 
 
 def _matches_any(path: str, patterns: tuple[str, ...]) -> bool:
@@ -260,7 +260,7 @@ def build_risk_profile(changed_files: list[str] | tuple[str, ...]) -> RiskProfil
 
     run_backend_blocking = workflow_privileged or backend_shared or group_hits["openapi_contract"]
     run_security = run_backend_blocking
-    run_openapi_sync = run_backend_blocking or group_hits["openapi_contract"]
+    run_openapi_sync = run_backend_blocking
 
     return RiskProfile(
         changed_files=normalized_files,

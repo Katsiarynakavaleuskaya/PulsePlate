@@ -39,6 +39,18 @@ def test_workflow_privileged_docs_force_full_contract_suites() -> None:
     assert profile.contract_risk_groups == risk_profile.ALL_RISK_GROUPS
 
 
+def test_hidden_workflow_path_preserves_leading_dot_for_routing() -> None:
+    profile = risk_profile.build_risk_profile(
+        ["./.github/workflows/ci.yml"],
+    )
+
+    assert profile.workflow_privileged is True
+    assert profile.merge_governance is True
+    assert profile.run_backend_blocking is True
+    assert profile.run_openapi_sync is True
+    assert profile.contract_risk_groups == risk_profile.ALL_RISK_GROUPS
+
+
 def test_billing_router_change_hits_billing_and_openapi_groups() -> None:
     profile = risk_profile.build_risk_profile(
         ["app/routers/billing.py"],

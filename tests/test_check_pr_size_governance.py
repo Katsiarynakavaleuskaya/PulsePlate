@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 import scripts.ci.check_pr_size_governance as size_gate
 
 
@@ -74,3 +76,20 @@ def test_extract_pr_body_reads_github_event_payload(tmp_path: Path) -> None:
     )
 
     assert size_gate.extract_pr_body(event_path) == "## Split Justification\nRequired."
+
+
+@pytest.mark.parametrize(
+    ("argv", "message"),
+    [
+        (["--base-sha"], "Missing value for --base-sha."),
+        (["--head-sha"], "Missing value for --head-sha."),
+        (["--body"], "Missing value for --body."),
+        (["--event-path"], "Missing value for --event-path."),
+    ],
+)
+def test_main_fails_cleanly_when_flag_value_is_missing(
+    argv: list[str],
+    message: str,
+) -> None:
+    with pytest.raises(SystemExit, match=message):
+        size_gate.main(argv)
