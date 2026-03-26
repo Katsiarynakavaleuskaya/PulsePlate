@@ -39,6 +39,11 @@ Evidence: `frontend/src/locales/en.json:40`; `frontend/src/locales/ru.json:40`; 
 Reason: Ran Prettier on the touched locale JSON files to normalize indentation, closing the remaining CodeRabbit formatting nitpick while keeping the new localized Welcome Gate keys in canonical JSON form.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1249#pullrequestreview-4017264980 -> 0618ea21
 
+Disposition: NOT-A-BUG
+Evidence: `frontend/src/pages/Onboarding/WelcomeGateV1.tsx:98`
+Reason: The preview metadata card is an explicitly reviewer-oriented surface, so keeping canonical locale codes (`ru · en · es`) is intentional; the labels around that field are localized, while the raw codes remain the most useful debugging signal for route/content parity.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1249#pullrequestreview-4017292336
+
 ## Merge Readiness
 
 - [ ] All required checks pass
