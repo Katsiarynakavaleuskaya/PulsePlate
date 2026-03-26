@@ -168,6 +168,14 @@ def _normalize_path(path: str) -> str:
     return path.strip().replace("\\", "/").removeprefix("./")
 
 
+def _read_flag_value(argv: list[str], index: int, flag: str) -> str:
+    """Return the next argv token for a flag or exit with a deterministic error."""
+    value_index = index + 1
+    if value_index >= len(argv):
+        raise SystemExit(f"Missing value for {flag}.")
+    return argv[value_index]
+
+
 def _matches_any(path: str, patterns: tuple[str, ...]) -> bool:
     return any(fnmatch.fnmatch(path, pattern) for pattern in patterns)
 
@@ -320,16 +328,16 @@ def main(argv: list[str] | None = None) -> int:
         argument = argv[index]
         if argument == "--base-sha":
             index += 1
-            base_sha = argv[index]
+            base_sha = _read_flag_value(argv, index - 1, argument)
         elif argument == "--head-sha":
             index += 1
-            head_sha = argv[index]
+            head_sha = _read_flag_value(argv, index - 1, argument)
         elif argument == "--file":
             index += 1
-            explicit_files.append(argv[index])
+            explicit_files.append(_read_flag_value(argv, index - 1, argument))
         elif argument == "--github-output":
             index += 1
-            github_output_path = Path(argv[index])
+            github_output_path = Path(_read_flag_value(argv, index - 1, argument))
         elif argument == "--as-json":
             json_mode = True
         else:

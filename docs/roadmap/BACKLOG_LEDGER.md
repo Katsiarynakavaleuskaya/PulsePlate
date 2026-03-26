@@ -2044,7 +2044,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Tier 1 CI/CD consolidation via custom orchestration
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR #1240 -> PR #1244 -> PR-TBD-TIER1-CI-CD-PR3 -> PR-TBD-TIER1-CI-CD-PR4
+  - Target PR: PR #1240 -> PR #1244 -> PR #1248 -> PR-TBD-TIER1-CI-CD-PR4
   - Area: orchestration / CI / review governance
   - Finding Type: process hardening
   - Status: In progress
