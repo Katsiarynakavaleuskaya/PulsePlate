@@ -38,6 +38,21 @@ def test_collect_unexpected_executable_pth_files_ignores_allowlisted_names(
     assert findings == []
 
 
+def test_collect_unexpected_executable_pth_files_ignores_cuda_vendor_redirector(
+    tmp_path: Path,
+) -> None:
+    site_packages = tmp_path / "site-packages"
+    site_packages.mkdir()
+    (site_packages / "_cuda_bindings_redirector.pth").write_text(
+        "import _cuda_bindings_redirector\n",
+        encoding="utf-8",
+    )
+
+    findings = hook_guard.collect_unexpected_executable_pth_files([site_packages])
+
+    assert findings == []
+
+
 def test_collect_unexpected_executable_pth_files_flags_unknown_import_hook(
     tmp_path: Path,
 ) -> None:

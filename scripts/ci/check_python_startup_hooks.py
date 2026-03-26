@@ -12,6 +12,9 @@ from typing import Any, Iterable, Sequence
 
 ALLOWED_EXECUTABLE_PTH_FILENAMES: tuple[str, ...] = (
     "a1_coverage.pth",
+    # NVIDIA ships this namespace redirector in the pinned cuda-bindings wheel.
+    # NVIDIA поставляет этот redirector в составе зафиксированного wheel cuda-bindings.
+    "_cuda_bindings_redirector.pth",
     "distutils-precedence.pth",
 )
 EXECUTABLE_IMPORT_PREFIXES: tuple[str, ...] = ("import ", "import\t")
