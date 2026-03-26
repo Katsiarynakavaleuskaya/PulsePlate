@@ -324,7 +324,16 @@
   "bmiCalculate": {
     "title": "BMI Calculator",
     "description": "Calculate your Body Mass Index",
+    "hero": {
+      "eyebrow": "BMI calculator",
+      "metrics": {
+        "weight": "Weight",
+        "height": "Height",
+        "context": "Age + context"
+      }
+    },
     "form": {
+      "sectionTitle": "Input",
       "weightLabel": "Weight (kg)",
       "heightLabel": "Height (cm)",
       "sexLabel": "Sex",
@@ -337,9 +346,14 @@
       "athleteLabel": "Athlete (optional)",
       "pregnantLabel": "Pregnant (optional)",
       "hipLabel": "Hip (cm, optional)",
+      "contextTitle": "Context",
       "submit": "Calculate BMI",
       "submitting": "Please wait",
       "reset": "Calculate Again"
+    },
+    "summary": {
+      "emptyDetail": "Run the calculation to see your body-composition snapshot.",
+      "fallbackDetail": "Your result is ready."
     },
     "result": {
       "title": "BMI Result",

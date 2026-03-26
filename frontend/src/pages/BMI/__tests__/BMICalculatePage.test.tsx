@@ -17,6 +17,11 @@ vi.mock('react-i18next', () => ({
       ({
         'bmiCalculate.title': 'BMI Calculator',
         'bmiCalculate.description': 'Calculate your Body Mass Index',
+        'bmiCalculate.hero.eyebrow': 'BMI calculator',
+        'bmiCalculate.hero.metrics.weight': 'Weight',
+        'bmiCalculate.hero.metrics.height': 'Height',
+        'bmiCalculate.hero.metrics.context': 'Age + context',
+        'bmiCalculate.form.sectionTitle': 'Input',
         'bmiCalculate.form.weightLabel': 'Weight (kg)',
         'bmiCalculate.form.heightLabel': 'Height (cm)',
         'bmiCalculate.form.ageLabel': 'Age',
@@ -26,9 +31,12 @@ vi.mock('react-i18next', () => ({
         'bmiCalculate.form.sex.female': 'Female',
         'bmiCalculate.form.athleteLabel': 'Athlete (optional)',
         'bmiCalculate.form.pregnantLabel': 'Pregnant (optional)',
+        'bmiCalculate.form.contextTitle': 'Context',
         'bmiCalculate.form.submit': 'Calculate BMI',
         'bmiCalculate.form.submitting': 'Please wait',
         'bmiCalculate.form.reset': 'Calculate Again',
+        'bmiCalculate.summary.emptyDetail': 'Run the calculation to see your body-composition snapshot.',
+        'bmiCalculate.summary.fallbackDetail': 'Your result is ready.',
         'bmiCalculate.result.title': 'BMI Result',
         'bmiCalculate.error.invalidWeight': 'Please enter a valid weight (kg).',
         'bmiCalculate.error.invalidHeight': 'Please enter a valid height (cm).',
@@ -54,6 +62,19 @@ describe('BMICalculatePage', () => {
     expect(screen.getByText('Height')).toBeInTheDocument();
     expect(screen.getByText('Age + context')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Calculate BMI' })).toBeDisabled();
+  });
+
+  it('rejects decimal age input instead of truncating it', async () => {
+    const user = userEvent.setup();
+    render(<BMICalculatePage />);
+
+    await user.type(screen.getByLabelText('Weight (kg)'), '70');
+    await user.type(screen.getByLabelText('Height (cm)'), '177');
+    await user.type(screen.getByLabelText('Age'), '30.7');
+    await user.click(screen.getByRole('button', { name: 'Calculate BMI' }));
+
+    expect(vi.mocked(calculateBMI)).not.toHaveBeenCalled();
+    expect(screen.getByText('Please enter a valid age (1-120 years).')).toBeInTheDocument();
   });
 
   it('submits valid values and renders the result rail', async () => {

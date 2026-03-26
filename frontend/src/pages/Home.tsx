@@ -11,6 +11,10 @@ import { usePremium } from '../lib/usePremium';
 const MAX_AI_QUERY_LENGTH = 500;
 const insightSuggestions = ['More protein', 'Less sugar', 'Weekly plan'] as const;
 
+function clampAiQuery(value: string): string {
+  return value.slice(0, MAX_AI_QUERY_LENGTH);
+}
+
 function basenameFromPath(path: string): string {
   const segments = path.split(/[\\/]/).filter(Boolean);
   return segments.length > 0 ? segments[segments.length - 1] : path;
@@ -155,7 +159,7 @@ export default function Home(): JSX.Element {
   }
 
   function handleSuggestionClick(value: string): void {
-    setAiQuery(value);
+    setAiQuery(clampAiQuery(value));
     setAiError(null);
   }
 
@@ -262,7 +266,7 @@ export default function Home(): JSX.Element {
                       : 'Formulate one question or use a quick suggestion'
                 }
                 suggestions={[...insightSuggestions]}
-                onQueryChange={setAiQuery}
+                onQueryChange={(value) => setAiQuery(clampAiQuery(value))}
                 onSubmit={handleAiSubmit}
                 onSuggestionClick={handleSuggestionClick}
               />

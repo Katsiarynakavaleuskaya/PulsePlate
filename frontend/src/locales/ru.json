@@ -324,7 +324,16 @@
   "bmiCalculate": {
     "title": "Калькулятор BMI",
     "description": "Рассчитайте ваш индекс массы тела",
+    "hero": {
+      "eyebrow": "Калькулятор BMI",
+      "metrics": {
+        "weight": "Вес",
+        "height": "Рост",
+        "context": "Возраст и контекст"
+      }
+    },
     "form": {
+      "sectionTitle": "Ввод",
       "weightLabel": "Вес (кг)",
       "heightLabel": "Рост (см)",
       "sexLabel": "Пол",
@@ -337,9 +346,14 @@
       "athleteLabel": "Спортсмен (необязательно)",
       "pregnantLabel": "Беременность (необязательно)",
       "hipLabel": "Бёдра (см, необязательно)",
+      "contextTitle": "Контекст",
       "submit": "Рассчитать BMI",
       "submitting": "Рассчитываем",
       "reset": "Рассчитать снова"
+    },
+    "summary": {
+      "emptyDetail": "Запустите расчёт, чтобы увидеть краткий снимок состава тела.",
+      "fallbackDetail": "Ваш результат готов."
     },
     "result": {
       "title": "Результат BMI",
