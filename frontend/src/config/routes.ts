@@ -4,6 +4,7 @@ import Plate from '../pages/Plate';
 import Progress from '../pages/Progress';
 import Profile from '../pages/Profile';
 import EnterKey from '../pages/Onboarding/EnterKey';
+import WelcomeGateV1 from '../pages/Onboarding/WelcomeGateV1';
 import NutritionSetup from '../pages/NutritionSetup';
 import BMICalculatePage from '../pages/BMI/BMICalculatePage';
 import ProPaywallPage from '../pages/Pro/ProPaywallPage';
@@ -28,7 +29,8 @@ export type RoutePath =
   | '/progress'
   | '/bmi'
   | '/pro'
-  | '/design-system';
+  | '/design-system'
+  | '/welcome-gate-v1';
 
 export const routes: RouteConfig[] = [
   { path: '/', label: 'Home', requiresAuth: false, component: Home },
@@ -40,6 +42,13 @@ export const routes: RouteConfig[] = [
   { path: '/bmi', label: 'BMI', requiresAuth: false, component: BMICalculatePage, hideTabBar: true },
   { path: '/pro', label: 'Pro', requiresAuth: false, component: ProPaywallPage, hideTabBar: true },
   { path: '/design-system', label: 'DesignSystem', requiresAuth: false, component: DesignSystemPage, hideTabBar: true },
+  {
+    path: '/welcome-gate-v1',
+    label: 'WelcomeGateV1',
+    requiresAuth: false,
+    component: WelcomeGateV1,
+    hideTabBar: true,
+  },
 ];
 
 // Compile-time check: ensure all RoutePath values are present in routes

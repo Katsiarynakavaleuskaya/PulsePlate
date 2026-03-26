@@ -17,6 +17,70 @@
     }
   },
   "onboarding": {
+    "welcome": {
+      "screen1": {
+        "eyebrow": "Compañero de bienestar",
+        "title": "PulsePlate — nutrición sin ruido",
+        "body": "Una entrada tranquila al producto, con pasos claros y sin sobrecarga.",
+        "cardTitle": "Qué mantiene tranquila la entrada",
+        "tabs": {
+          "bmi": "IMC",
+          "plate": "Plato",
+          "plans": "Planes"
+        },
+        "points": {
+          "1": "✓ Registro de comidas sin balanza",
+          "2": "✓ Recetas rápidas con lo que ya tienes",
+          "3": "✓ Progreso diario en números claros"
+        },
+        "footer": "FitChef — tu compañero AI para nutrición"
+      },
+      "screen2": {
+        "eyebrow": "Cómo usarlo",
+        "title": "Cómo avanzar con calma y por pasos",
+        "body": "Empieza con BMI y luego afina con Plate y el perfil. Entradas pequeñas llevan a pasos obvios.",
+        "steps": {
+          "1": {
+            "title": "Calculadora de IMC",
+            "body": "Inicio rápido con métricas base y un punto de partida tranquilo."
+          },
+          "2": {
+            "title": "Plato + perfil",
+            "body": "División diaria y objetivos personales sin saturar la configuración."
+          },
+          "3": {
+            "title": "Planificación PRO",
+            "body": "Los planes semanales y listas de compras aparecen cuando su valor ya está claro."
+          }
+        }
+      },
+      "screen3": {
+        "eyebrow": "Tu objetivo",
+        "title": "¿Qué quieres lograr?",
+        "body": "Elige una dirección y PulsePlate ajustará la siguiente capa alrededor de ella.",
+        "goals": {
+          "1": "🔥 Perder peso",
+          "2": "💪 Ganar masa muscular",
+          "3": "🥗 Comer mejor",
+          "4": "⚖️ Mantener el peso"
+        }
+      },
+      "cta": {
+        "start": "Empezar gratis",
+        "continue": "Continuar",
+        "finish": "Abrir setup"
+      },
+      "skip": "Saltar",
+      "back": "Atrás",
+      "stepA11y": "Paso {{current}} de {{total}}",
+      "mainA11y": "Vista previa de la puerta de bienvenida",
+      "preview": {
+        "panelTitle": "WELCOME GATE / v1",
+        "panelFlowLabel": "flujo:",
+        "panelLocalesLabel": "idiomas:",
+        "panelPolicyLabel": "política:"
+      }
+    },
     "enterKey": {
       "title": "Clave API",
       "description": "Clave obligatoria para secciones Premium y de administración. Dónde obtener: consulta README → sección de clave API.",
@@ -260,7 +324,16 @@
   "bmiCalculate": {
     "title": "Calculadora de IMC",
     "description": "Calcula tu Índice de Masa Corporal",
+    "hero": {
+      "eyebrow": "Calculadora de IMC",
+      "metrics": {
+        "weight": "Peso",
+        "height": "Altura",
+        "context": "Edad y contexto"
+      }
+    },
     "form": {
+      "sectionTitle": "Datos",
       "weightLabel": "Peso (kg)",
       "heightLabel": "Altura (cm)",
       "sexLabel": "Sexo",
@@ -273,9 +346,14 @@
       "athleteLabel": "Atleta (opcional)",
       "pregnantLabel": "Embarazada (opcional)",
       "hipLabel": "Cadera (cm, opcional)",
+      "contextTitle": "Contexto",
       "submit": "Calcular IMC",
       "submitting": "Calculando",
       "reset": "Calcular de Nuevo"
+    },
+    "summary": {
+      "emptyDetail": "Ejecuta el cálculo para ver un resumen de tu composición corporal.",
+      "fallbackDetail": "Tu resultado está listo."
     },
     "result": {
       "title": "Resultado del IMC",

@@ -37,6 +37,70 @@
     "downloadHint": "Export ready. Private link valid for 15 minutes."
   },
   "onboarding": {
+    "welcome": {
+      "screen1": {
+        "eyebrow": "Wellness companion",
+        "title": "PulsePlate — nutrition without noise",
+        "body": "A calm first-run gate that introduces the core product lanes.",
+        "cardTitle": "What keeps the start calm",
+        "tabs": {
+          "bmi": "BMI",
+          "plate": "Plate",
+          "plans": "Plans"
+        },
+        "points": {
+          "1": "✓ Food logging without scales",
+          "2": "✓ Quick recipes from what you already have",
+          "3": "✓ Daily progress in clear numbers"
+        },
+        "footer": "FitChef — your AI nutrition companion"
+      },
+      "screen2": {
+        "eyebrow": "How to use it",
+        "title": "How to move through PulsePlate calmly",
+        "body": "Start with BMI, then refine through Plate and profile. Small inputs lead to obvious next steps.",
+        "steps": {
+          "1": {
+            "title": "BMI Calculator",
+            "body": "A quick baseline with just a few inputs and a calm starting point."
+          },
+          "2": {
+            "title": "Plate + Profile",
+            "body": "Daily split and personal goals without overloading the setup."
+          },
+          "3": {
+            "title": "PRO planning",
+            "body": "Weekly plans and shopping lists appear only after the value is understandable."
+          }
+        }
+      },
+      "screen3": {
+        "eyebrow": "Your goal",
+        "title": "What do you want to achieve?",
+        "body": "Pick one direction and PulsePlate will adapt the next layer around it.",
+        "goals": {
+          "1": "🔥 Lose weight",
+          "2": "💪 Build muscle",
+          "3": "🥗 Eat better",
+          "4": "⚖️ Maintain weight"
+        }
+      },
+      "cta": {
+        "start": "Start free",
+        "continue": "Continue",
+        "finish": "Open setup"
+      },
+      "skip": "Skip",
+      "back": "Back",
+      "stepA11y": "Step {{current}} of {{total}}",
+      "mainA11y": "Welcome gate preview",
+      "preview": {
+        "panelTitle": "WELCOME GATE / v1",
+        "panelFlowLabel": "flow:",
+        "panelLocalesLabel": "locales:",
+        "panelPolicyLabel": "policy:"
+      }
+    },
     "enterKey": {
       "title": "API Key",
       "description": "Key required for Premium and admin sections. Where to get: check README → API key section.",
@@ -260,7 +324,16 @@
   "bmiCalculate": {
     "title": "BMI Calculator",
     "description": "Calculate your Body Mass Index",
+    "hero": {
+      "eyebrow": "BMI calculator",
+      "metrics": {
+        "weight": "Weight",
+        "height": "Height",
+        "context": "Age + context"
+      }
+    },
     "form": {
+      "sectionTitle": "Input",
       "weightLabel": "Weight (kg)",
       "heightLabel": "Height (cm)",
       "sexLabel": "Sex",
@@ -273,9 +346,14 @@
       "athleteLabel": "Athlete (optional)",
       "pregnantLabel": "Pregnant (optional)",
       "hipLabel": "Hip (cm, optional)",
+      "contextTitle": "Context",
       "submit": "Calculate BMI",
       "submitting": "Please wait",
       "reset": "Calculate Again"
+    },
+    "summary": {
+      "emptyDetail": "Run the calculation to see your body-composition snapshot.",
+      "fallbackDetail": "Your result is ready."
     },
     "result": {
       "title": "BMI Result",
