@@ -54,7 +54,7 @@ python scripts/ci/install_locked_python_requirements.py \
 This installer now follows a two-step flow:
 
 1. Download pinned artifacts into a temporary wheelhouse.
-2. Install with `--no-index --find-links <wheelhouse>` and then run the executable `.pth` guard from `scripts/ci/check_python_startup_hooks.py`.
+2. Install with `--no-index --find-links <wheelhouse>` and then statically scan the target `site-packages` for executable `.pth` hooks via `scripts/ci/check_python_startup_hooks.py` without re-launching the target interpreter.
 
 **Note**: This is hermetic for the install phase, but it is not a substitute for an internal mirror/quarantine service. The repo still needs a promoted artifact source for full supply-chain isolation.
 
@@ -151,7 +151,7 @@ For stricter environment control matching local development:
 
 **Trade-offs**:
 
-- **`install_locked_python_requirements.py`**: downloads wheels first, installs hermetically with `--no-index`, and runs the startup-hook guard before tests/bootstrap
+- **`install_locked_python_requirements.py`**: downloads wheels first, installs hermetically with `--no-index`, and performs a static startup-hook scan before tests/bootstrap
 - **`pip-sync`**: Exact environment matching with local dev, slower (uninstalls extras), requires pip-tools dependency
 
 ## Supply-Chain Hardening Rules

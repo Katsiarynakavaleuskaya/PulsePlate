@@ -4,17 +4,18 @@
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import subprocess  # nosec B404: subprocess is required for bounded pip/python invocations during locked installation (remove-by: 2026-07-31, ref: PR-litellm-hardening)
 import sys
 import tempfile
 from pathlib import Path
-from typing import Sequence
+from typing import Any, Sequence
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_REQUIREMENTS_FILE = REPO_ROOT / "requirements.txt"
 DEFAULT_DEV_REQUIREMENTS_FILE = REPO_ROOT / "requirements-dev.txt"
 DEFAULT_CONSTRAINTS_FILE = REPO_ROOT / "constraints.txt"
-STARTUP_HOOK_GUARD_PATH = REPO_ROOT / "scripts" / "ci" / "check_python_startup_hooks.py"
+DEFAULT_STARTUP_HOOK_GUARD_PATH = REPO_ROOT / "scripts" / "ci" / "check_python_startup_hooks.py"
 
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
@@ -61,6 +62,12 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         "--skip-pip-upgrade",
         action="store_true",
         help="Skip `python -m pip install --upgrade pip` before wheel resolution.",
+    )
+    parser.add_argument(
+        "--guard-script",
+        type=Path,
+        default=DEFAULT_STARTUP_HOOK_GUARD_PATH,
+        help="Path to the startup-hook guard script used for static .pth scanning.",
     )
     return parser.parse_args(argv)
 
@@ -156,15 +163,40 @@ def upgrade_pip(python_executable: str) -> None:
     run_command([python_executable, "-m", "pip", "install", "--upgrade", "pip"])
 
 
-def run_startup_hook_guard(python_executable: str) -> None:
-    run_command(
-        [
-            python_executable,
-            str(STARTUP_HOOK_GUARD_PATH),
-            "--python-executable",
-            python_executable,
-        ]
+def load_module_from_path(*, module_name: str, module_path: Path) -> Any:
+    """Load a Python module from an explicit filesystem path."""
+    spec = importlib.util.spec_from_file_location(module_name, module_path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"Unable to load module from path: {module_path}")
+
+    module = importlib.util.module_from_spec(spec)
+    previous_module = sys.modules.get(module_name)
+    sys.modules[module_name] = module
+    try:
+        spec.loader.exec_module(module)
+    finally:
+        if previous_module is None:
+            sys.modules.pop(module_name, None)
+        else:
+            sys.modules[module_name] = previous_module
+    return module
+
+
+def collect_startup_hook_failure_lines(
+    *,
+    guard_script: Path,
+    python_executable: str,
+) -> list[str]:
+    """Run the startup-hook guard as an in-process static scan for target site-packages."""
+    guard_module = load_module_from_path(
+        module_name="pulseplate_startup_hook_guard",
+        module_path=guard_script,
     )
+    site_packages = guard_module.site_packages_for_interpreter(python_executable)
+    findings = guard_module.collect_unexpected_executable_pth_files(site_packages)
+    if not findings:
+        return []
+    return list(guard_module.format_failure_lines(findings))
 
 
 def install_from_wheelhouse(
@@ -204,6 +236,38 @@ def build_wheelhouse(
         )
 
 
+def install_with_guard(
+    *,
+    python_executable: str,
+    requirement_files: Sequence[Path],
+    constraints_file: Path | None,
+    wheelhouse_dir: Path,
+    guard_script: Path,
+) -> int:
+    build_wheelhouse(
+        python_executable=python_executable,
+        requirement_files=requirement_files,
+        constraints_file=constraints_file,
+        wheelhouse_dir=wheelhouse_dir,
+    )
+    install_from_wheelhouse(
+        python_executable=python_executable,
+        requirement_files=requirement_files,
+        constraints_file=constraints_file,
+        wheelhouse_dir=wheelhouse_dir,
+    )
+
+    failure_lines = collect_startup_hook_failure_lines(
+        guard_script=guard_script,
+        python_executable=python_executable,
+    )
+    if failure_lines:
+        for line in failure_lines:
+            print(line)
+        return 1
+    return 0
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     args = parse_args(argv)
     requirement_files = resolve_requirement_files(
@@ -221,37 +285,23 @@ def main(argv: Sequence[str] | None = None) -> int:
         upgrade_pip(args.python_executable)
 
     if args.wheelhouse_dir is not None:
-        build_wheelhouse(
+        return install_with_guard(
             python_executable=args.python_executable,
             requirement_files=requirement_files,
             constraints_file=args.constraints_file,
             wheelhouse_dir=args.wheelhouse_dir,
+            guard_script=args.guard_script,
         )
-        install_from_wheelhouse(
-            python_executable=args.python_executable,
-            requirement_files=requirement_files,
-            constraints_file=args.constraints_file,
-            wheelhouse_dir=args.wheelhouse_dir,
-        )
-        run_startup_hook_guard(args.python_executable)
-        return 0
 
     with tempfile.TemporaryDirectory(prefix="pulseplate-wheelhouse-") as temp_dir:
         wheelhouse_dir = Path(temp_dir)
-        build_wheelhouse(
+        return install_with_guard(
             python_executable=args.python_executable,
             requirement_files=requirement_files,
             constraints_file=args.constraints_file,
             wheelhouse_dir=wheelhouse_dir,
+            guard_script=args.guard_script,
         )
-        install_from_wheelhouse(
-            python_executable=args.python_executable,
-            requirement_files=requirement_files,
-            constraints_file=args.constraints_file,
-            wheelhouse_dir=wheelhouse_dir,
-        )
-        run_startup_hook_guard(args.python_executable)
-    return 0
 
 
 if __name__ == "__main__":

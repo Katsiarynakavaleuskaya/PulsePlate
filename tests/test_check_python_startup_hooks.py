@@ -69,6 +69,40 @@ def test_format_failure_lines_is_deterministic() -> None:
     assert "- /tmp/litellm_init.pth:1 :: import os" in lines
 
 
+def test_collect_site_packages_from_site_module_skips_disabled_user_site() -> None:
+    expected_site_packages = Path("/tmp/repo-venv/lib/python3.13/site-packages").resolve()
+
+    class FakeSiteModule:
+        ENABLE_USER_SITE = False
+
+        @staticmethod
+        def getsitepackages() -> list[str]:
+            return ["/tmp/repo-venv/lib/python3.13/site-packages"]
+
+        @staticmethod
+        def getusersitepackages() -> str:
+            return "/tmp/user-site/lib/python3.13/site-packages"
+
+    site_packages = hook_guard.collect_site_packages_from_site_module(FakeSiteModule)
+
+    assert site_packages == [expected_site_packages]
+
+
+def test_external_interpreter_site_packages_infers_virtualenv_layout_without_execution(
+    tmp_path: Path,
+) -> None:
+    venv_root = tmp_path / "venv"
+    python_executable = venv_root / "bin" / "python"
+    site_packages = venv_root / "lib" / "python3.13" / "site-packages"
+    python_executable.parent.mkdir(parents=True)
+    python_executable.write_text("", encoding="utf-8")
+    site_packages.mkdir(parents=True)
+
+    discovered_paths = hook_guard.external_interpreter_site_packages(str(python_executable))
+
+    assert discovered_paths == [site_packages.resolve()]
+
+
 def test_main_passes_when_no_findings(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],

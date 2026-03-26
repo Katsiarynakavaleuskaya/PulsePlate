@@ -50,16 +50,28 @@ def _import_module(module_name: str) -> str | None:
 
 def collect_unexpected_startup_hooks() -> list[StartupHookFinding]:
     """Return unexpected executable .pth hooks for the current repo interpreter."""
-    module_name = "scripts.ci.check_python_startup_hooks"
-    spec = importlib.util.spec_from_file_location(module_name, STARTUP_HOOK_GUARD)
+    if not STARTUP_HOOK_GUARD.exists():
+        raise RuntimeError(f"Unable to load startup hook guard: {STARTUP_HOOK_GUARD}")
+
+    spec = importlib.util.spec_from_file_location(
+        "pulseplate_verify_startup_hook_guard",
+        STARTUP_HOOK_GUARD,
+    )
     if spec is None or spec.loader is None:
         raise RuntimeError(f"Unable to load startup hook guard: {STARTUP_HOOK_GUARD}")
 
     guard_module = importlib.util.module_from_spec(spec)
-    sys.modules[module_name] = guard_module
-    spec.loader.exec_module(guard_module)
+    previous_module = sys.modules.get(spec.name)
+    sys.modules[spec.name] = guard_module
+    try:
+        spec.loader.exec_module(guard_module)
+    finally:
+        if previous_module is None:
+            sys.modules.pop(spec.name, None)
+        else:
+            sys.modules[spec.name] = previous_module
 
-    site_packages = guard_module.external_interpreter_site_packages(str(VENV_PYTHON))
+    site_packages = guard_module.site_packages_for_interpreter(str(VENV_PYTHON))
     findings_from_guard = guard_module.collect_unexpected_executable_pth_files(site_packages)
     if not findings_from_guard:
         return []

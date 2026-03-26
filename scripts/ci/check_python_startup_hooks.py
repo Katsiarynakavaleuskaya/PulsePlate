@@ -4,12 +4,11 @@
 from __future__ import annotations
 
 import argparse
-import json
 import re
-import subprocess  # nosec B404: subprocess is required to inspect an explicit Python interpreter path (remove-by: 2026-07-31, ref: PR-litellm-hardening)
+import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable, Sequence
+from typing import Any, Iterable, Sequence
 
 ALLOWED_EXECUTABLE_PTH_FILENAMES: tuple[str, ...] = (
     "a1_coverage.pth",
@@ -42,6 +41,18 @@ def _iter_existing_site_packages(site_packages: Iterable[Path]) -> Iterable[Path
             yield site_dir
 
 
+def _dedupe_paths(paths: Iterable[Path]) -> list[Path]:
+    unique_paths: list[Path] = []
+    seen: set[Path] = set()
+    for path in paths:
+        resolved_path = path.resolve()
+        if resolved_path in seen:
+            continue
+        seen.add(resolved_path)
+        unique_paths.append(resolved_path)
+    return unique_paths
+
+
 def collect_unexpected_executable_pth_files(
     site_packages: Iterable[Path],
     *,
@@ -66,46 +77,67 @@ def collect_unexpected_executable_pth_files(
     return findings
 
 
+def collect_site_packages_from_site_module(site_module: Any) -> list[Path]:
+    """Return enabled site-packages from a `site`-compatible module."""
+    site_packages: list[Path] = []
+
+    getsitepackages = getattr(site_module, "getsitepackages", None)
+    if getsitepackages is not None:
+        value = getsitepackages()
+        if isinstance(value, str):
+            site_packages.append(Path(value))
+        else:
+            site_packages.extend(Path(path) for path in value)
+
+    if getattr(site_module, "ENABLE_USER_SITE", False):
+        getusersitepackages = getattr(site_module, "getusersitepackages", None)
+        if getusersitepackages is not None:
+            value = getusersitepackages()
+            if isinstance(value, str):
+                site_packages.append(Path(value))
+            else:
+                site_packages.extend(Path(path) for path in value)
+
+    return _dedupe_paths(site_packages)
+
+
 def current_interpreter_site_packages() -> list[Path]:
     """Return site-packages for the currently running interpreter."""
     import site
 
-    site_packages: list[str] = []
-    for getter_name in ("getsitepackages", "getusersitepackages"):
-        getter = getattr(site, getter_name, None)
-        if getter is None:
-            continue
-        value = getter()
-        if isinstance(value, str):
-            site_packages.append(value)
-        else:
-            site_packages.extend(value)
-    return [Path(path) for path in dict.fromkeys(site_packages)]
+    return collect_site_packages_from_site_module(site)
+
+
+def infer_prefix_site_packages(python_executable: str | Path) -> list[Path]:
+    """Infer site-packages directories from a Python executable path without execution."""
+    python_path = Path(python_executable).expanduser().resolve()
+    prefix = python_path.parent.parent
+    candidate_paths: list[Path] = []
+
+    for pattern in (
+        "lib/python*/site-packages",
+        "lib/python*/dist-packages",
+        "lib64/python*/site-packages",
+        "lib64/python*/dist-packages",
+    ):
+        candidate_paths.extend(sorted(prefix.glob(pattern)))
+
+    candidate_paths.append(prefix / "Lib" / "site-packages")
+    return list(_iter_existing_site_packages(_dedupe_paths(candidate_paths)))
+
+
+def site_packages_for_interpreter(python_executable: str) -> list[Path]:
+    """Resolve executable site-packages for a target interpreter without re-launching it."""
+    target_python = Path(python_executable).expanduser().resolve()
+    current_python = Path(sys.executable).resolve()
+    if target_python == current_python:
+        return current_interpreter_site_packages()
+    return infer_prefix_site_packages(target_python)
 
 
 def external_interpreter_site_packages(python_executable: str) -> list[Path]:
-    """Query site-packages for an arbitrary Python executable."""
-    probe = (
-        "import json, site\n"
-        "paths = []\n"
-        "for getter_name in ('getsitepackages', 'getusersitepackages'):\n"
-        "    getter = getattr(site, getter_name, None)\n"
-        "    if getter is None:\n"
-        "        continue\n"
-        "    value = getter()\n"
-        "    if isinstance(value, str):\n"
-        "        paths.append(value)\n"
-        "    else:\n"
-        "        paths.extend(value)\n"
-        "print(json.dumps(list(dict.fromkeys(paths))))\n"
-    )
-    result = subprocess.run(  # nosec B603: argv uses an explicit Python executable and fixed probe code only (remove-by: 2026-07-31, ref: PR-litellm-hardening)
-        [python_executable, "-c", probe],
-        check=True,
-        capture_output=True,
-        text=True,
-    )
-    return [Path(path) for path in json.loads(result.stdout)]
+    """Backward-compatible wrapper for callers expecting the old helper name."""
+    return site_packages_for_interpreter(python_executable)
 
 
 def format_failure_lines(findings: Sequence[ExecutablePthFinding]) -> list[str]:
@@ -142,7 +174,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parse_args(argv)
     site_packages = [Path(path) for path in args.site_packages]
     if args.python_executable:
-        site_packages.extend(external_interpreter_site_packages(args.python_executable))
+        site_packages.extend(site_packages_for_interpreter(args.python_executable))
     elif not site_packages:
         site_packages.extend(current_interpreter_site_packages())
 

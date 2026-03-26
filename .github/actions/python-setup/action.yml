@@ -42,7 +42,7 @@ runs:
           if [[ -f requirements-dev.txt ]]; then
             install_args+=(--install-dev)
           fi
-          python "$GITHUB_ACTION_PATH/../../scripts/ci/install_locked_python_requirements.py" \
+          python "${{ github.workspace }}/scripts/ci/install_locked_python_requirements.py" \
             --python-executable python \
             --constraints-file "${{ inputs.constraints-file }}" \
             "${install_args[@]}"
