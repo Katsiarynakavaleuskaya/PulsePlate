@@ -37,7 +37,7 @@ Evidence: `scripts/ci/check_local_verify_environment.py:54`, `scripts/ci/check_l
 
 Disposition: NOT-A-BUG
 Reason: The cubic review summary is an aggregate wrapper for the three inline findings already mapped above; it does not introduce an extra unresolved obligation once those thread URLs are fixed and recorded individually.
-Evidence: `docs/review/PR_1243_FIXED_MAPPING.md:8`, `docs/review/PR_1243_FIXED_MAPPING.md:13`, `docs/review/PR_1243_FIXED_MAPPING.md:18`
+Evidence: `docs/review/PR_1243_FIXED_MAPPING.md:8`, `docs/review/PR_1243_FIXED_MAPPING.md:14`, `docs/review/PR_1243_FIXED_MAPPING.md:20`
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1243#pullrequestreview-4013102688
 
 Disposition: FIXED
@@ -80,6 +80,12 @@ Disposition: NOT-A-BUG
 Reason: The Cubic review URL is only the aggregate wrapper for the inline startup-hook subprocess comment fixed in `2350e21b`; once the thread URL is mapped individually, the summary review itself has no additional action item.
 Evidence: `scripts/ci/install_locked_python_requirements.py:183`, `scripts/ci/install_locked_python_requirements.py:187`, `tests/test_install_locked_python_requirements.py:112`
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1243#pullrequestreview-4013269627
+
+Disposition: FIXED
+Commit: 5f373a87
+Evidence: `scripts/ci/install_locked_python_requirements.py:83`, `scripts/ci/install_locked_python_requirements.py:89`, `scripts/ci/install_locked_python_requirements.py:152`, `scripts/ci/install_locked_python_requirements.py:166`, `scripts/ci/install_locked_python_requirements.py:173`, `scripts/ci/install_locked_python_requirements.py:179`, `scripts/ci/install_locked_python_requirements.py:225`, `scripts/ci/install_locked_python_requirements.py:237`, `scripts/ci/install_locked_python_requirements.py:283`, `scripts/ci/install_locked_python_requirements.py:298`, `scripts/ci/install_locked_python_requirements.py:306`, `scripts/ci/install_locked_python_requirements.py:315`, `tests/test_install_locked_python_requirements.py:30`, `tests/test_install_locked_python_requirements.py:45`, `tests/test_install_locked_python_requirements.py:109`, `tests/test_install_locked_python_requirements.py:121`, `tests/test_install_locked_python_requirements.py:195`, `tests/test_install_locked_python_requirements.py:247`, `tests/test_install_locked_python_requirements.py:300`, `tests/test_install_locked_python_requirements.py:351`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1243#discussion_r2994258529 -> 5f373a87
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1243#discussion_r2994258540 -> 5f373a87
 
 ## Merge Readiness
 - [ ] All required checks pass
