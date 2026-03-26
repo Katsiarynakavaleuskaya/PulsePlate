@@ -123,6 +123,23 @@ def test_external_interpreter_site_packages_infers_virtualenv_layout_without_exe
     assert discovered_paths == [site_packages.resolve()]
 
 
+def test_resolve_python_executable_path_preserves_virtualenv_symlink_prefix(
+    tmp_path: Path,
+) -> None:
+    venv_root = tmp_path / "venv"
+    python_executable = venv_root / "bin" / "python"
+    base_python = tmp_path / "python-base" / "bin" / "python3.13"
+    base_python.parent.mkdir(parents=True)
+    base_python.write_text("", encoding="utf-8")
+    python_executable.parent.mkdir(parents=True)
+    python_executable.symlink_to(base_python)
+    (venv_root / "pyvenv.cfg").write_text("home = /tmp/python-base\n", encoding="utf-8")
+
+    resolved_path = hook_guard.resolve_python_executable_path(python_executable)
+
+    assert resolved_path == python_executable
+
+
 def test_site_packages_for_interpreter_resolves_command_name_via_path(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -138,6 +155,28 @@ def test_site_packages_for_interpreter_resolves_command_name_via_path(
     monkeypatch.setattr(hook_guard.sys, "executable", str(tmp_path / "system-python"))
 
     discovered_paths = hook_guard.site_packages_for_interpreter("python")
+
+    assert discovered_paths == [site_packages.resolve()]
+
+
+def test_site_packages_for_interpreter_prefers_virtualenv_prefix_for_symlinked_python(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    venv_root = tmp_path / "venv"
+    python_executable = venv_root / "bin" / "python"
+    site_packages = venv_root / "lib" / "python3.13" / "site-packages"
+    base_python = tmp_path / "python-base" / "bin" / "python3.13"
+    base_python.parent.mkdir(parents=True)
+    base_python.write_text("", encoding="utf-8")
+    python_executable.parent.mkdir(parents=True)
+    python_executable.symlink_to(base_python)
+    (venv_root / "pyvenv.cfg").write_text("home = /tmp/python-base\n", encoding="utf-8")
+    site_packages.mkdir(parents=True)
+
+    monkeypatch.setattr(hook_guard.sys, "executable", str(base_python))
+
+    discovered_paths = hook_guard.site_packages_for_interpreter(str(python_executable))
 
     assert discovered_paths == [site_packages.resolve()]
 

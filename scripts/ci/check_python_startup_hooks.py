@@ -114,12 +114,25 @@ def resolve_python_executable_path(python_executable: str | Path) -> Path:
     """Resolve command names via PATH before inferring interpreter prefixes."""
     candidate = Path(python_executable).expanduser()
     if candidate.is_absolute() or candidate.parent != Path("."):
-        return candidate.resolve()
+        absolute_candidate = candidate
+    else:
+        resolved_executable = shutil.which(str(candidate))
+        if resolved_executable is not None:
+            absolute_candidate = Path(resolved_executable).expanduser()
+        else:
+            absolute_candidate = (Path.cwd() / candidate).expanduser()
 
-    resolved_executable = shutil.which(str(candidate))
-    if resolved_executable is not None:
-        return Path(resolved_executable).resolve()
-    return candidate.resolve()
+    absolute_candidate = (
+        absolute_candidate
+        if absolute_candidate.is_absolute()
+        else (Path.cwd() / absolute_candidate)
+    )
+
+    # Preserve venv launcher paths instead of following symlinks back to the
+    # base interpreter, otherwise prefix inference scans the wrong site-packages.
+    if (absolute_candidate.parent.parent / "pyvenv.cfg").exists():
+        return absolute_candidate
+    return absolute_candidate.resolve()
 
 
 def infer_prefix_site_packages(python_executable: str | Path) -> list[Path]:
