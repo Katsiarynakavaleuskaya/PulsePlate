@@ -87,6 +87,16 @@ Evidence: `scripts/ci/install_locked_python_requirements.py:83`, `scripts/ci/ins
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1243#discussion_r2994258529 -> 5f373a87
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1243#discussion_r2994258540 -> 5f373a87
 
+Disposition: FIXED
+Commit: e7261265
+Evidence: `docs/review/PR_1243_FIXED_MAPPING.md:38`, `docs/review/PR_1243_FIXED_MAPPING.md:40`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1243#discussion_r2994258522 -> e7261265
+
+Disposition: NOT-A-BUG
+Reason: The latest CodeRabbit review URL is an aggregate wrapper around the docs self-reference fix plus the two inline installer findings already recorded individually; once those URLs are mapped, the summary review has no separate unresolved action.
+Evidence: `docs/review/PR_1243_FIXED_MAPPING.md:38`, `docs/review/PR_1243_FIXED_MAPPING.md:40`, `docs/review/PR_1243_FIXED_MAPPING.md:84`, `docs/review/PR_1243_FIXED_MAPPING.md:86`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1243#pullrequestreview-4013390936
+
 ## Merge Readiness
 - [ ] All required checks pass
 - [ ] No unresolved review threads (re-check on current head before merge)
