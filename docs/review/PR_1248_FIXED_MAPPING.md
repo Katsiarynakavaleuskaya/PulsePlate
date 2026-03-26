@@ -14,6 +14,7 @@
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1248#discussion_r2997018143 -> 886b694e
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1248#discussion_r2997018155 -> 886b694e
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1248#discussion_r2997018163 -> 886b694e
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1248#pullrequestreview-4017050483 -> b794592c
 
 ## Merge Readiness
 - [ ] All required checks pass
@@ -21,4 +22,4 @@
 - [ ] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
 - [x] Pre-commit green
 - [x] `make verify` green
-- Current head `886b694e` requires canonical `pull_request` revalidation because the last successful PR CI run reported on `fcc1356d`.
+- Current branch head requires canonical `pull_request` revalidation because the last successful PR CI run reported on `fcc1356d`.
