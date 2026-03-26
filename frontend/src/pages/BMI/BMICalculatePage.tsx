@@ -67,8 +67,8 @@ function SegmentedChoice<T extends string>({
   onChange: (value: T) => void;
 }): JSX.Element {
   return (
-    <div className="rounded-2xl border border-white/12 bg-white/[0.08] p-4">
-      <p className="mb-3 text-sm font-medium text-white/72">{label}</p>
+    <fieldset className="rounded-2xl border border-white/12 bg-white/[0.08] p-4">
+      <legend className="mb-3 text-sm font-medium text-white/72">{label}</legend>
       <div className="grid grid-cols-2 gap-3">
         {options.map((option) => {
           const isActive = option.value === value;
@@ -82,6 +82,7 @@ function SegmentedChoice<T extends string>({
                   ? 'bg-white/[0.18] text-white'
                   : 'bg-white/[0.06] text-white/62 hover:bg-white/[0.1]',
               ].join(' ')}
+              aria-pressed={isActive}
               onClick={() => onChange(option.value)}
             >
               {option.label}
@@ -89,7 +90,7 @@ function SegmentedChoice<T extends string>({
           );
         })}
       </div>
-    </div>
+    </fieldset>
   );
 }
 
@@ -282,8 +283,8 @@ export default function BMICalculatePage(): JSX.Element {
             onChange={setSex}
           />
 
-          <div className="rounded-2xl border border-white/12 bg-white/[0.08] p-4">
-            <p className="mb-3 text-sm font-medium text-white/72">{t('bmiCalculate.form.contextTitle')}</p>
+          <fieldset className="rounded-2xl border border-white/12 bg-white/[0.08] p-4">
+            <legend className="mb-3 text-sm font-medium text-white/72">{t('bmiCalculate.form.contextTitle')}</legend>
             <div className="grid grid-cols-2 gap-3">
               <button
                 type="button"
@@ -291,6 +292,7 @@ export default function BMICalculatePage(): JSX.Element {
                   'rounded-full px-4 py-2 text-sm font-semibold transition',
                   athlete ? 'bg-white/[0.18] text-white' : 'bg-white/[0.06] text-white/62 hover:bg-white/[0.1]',
                 ].join(' ')}
+                aria-pressed={athlete}
                 onClick={() => setAthlete((prev) => !prev)}
               >
                 {t('bmiCalculate.form.athleteLabel')}
@@ -303,15 +305,21 @@ export default function BMICalculatePage(): JSX.Element {
                     ? 'bg-white/[0.18] text-white'
                     : 'bg-white/[0.06] text-white/62 hover:bg-white/[0.1]',
                 ].join(' ')}
+                aria-pressed={pregnant}
                 onClick={() => setPregnant((prev) => !prev)}
               >
                 {t('bmiCalculate.form.pregnantLabel')}
               </button>
             </div>
-          </div>
+          </fieldset>
 
           {error ? (
-            <div className="rounded-2xl border border-red-400/30 bg-red-500/10 p-4 text-sm text-red-100">
+            <div
+              className="rounded-2xl border border-red-400/30 bg-red-500/10 p-4 text-sm text-red-100"
+              role="alert"
+              aria-live="assertive"
+              aria-atomic="true"
+            >
               {error}
             </div>
           ) : null}

@@ -224,6 +224,8 @@ describe('Home', () => {
     expect(screen.getByText('Uncertainty: 0.07')).toBeInTheDocument();
     expect(screen.getByText('Monitor stress-linked snacking patterns.')).toBeInTheDocument();
     expect(screen.getByText('foundation.md: Track the trigger before rewriting the pattern.')).toBeInTheDocument();
+    expect(screen.queryByText('Apply')).not.toBeInTheDocument();
+    expect(screen.queryByText('Review')).not.toBeInTheDocument();
   });
 
   it('clamps AI query input to the configured max length', async () => {

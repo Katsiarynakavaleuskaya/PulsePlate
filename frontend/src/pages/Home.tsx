@@ -129,8 +129,6 @@ export default function Home(): JSX.Element {
       sources: aiResult.sources.map(
         (source) => `${basenameFromPath(source.file)}: ${source.preview}`
       ),
-      primaryActionLabel: 'Apply',
-      secondaryActionLabel: 'Review',
     };
   }, [aiResult]);
 

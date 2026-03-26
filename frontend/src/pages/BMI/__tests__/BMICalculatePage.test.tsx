@@ -61,6 +61,9 @@ describe('BMICalculatePage', () => {
     expect(screen.getByText('Weight')).toBeInTheDocument();
     expect(screen.getByText('Height')).toBeInTheDocument();
     expect(screen.getByText('Age + context')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Female' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: 'Male' })).toHaveAttribute('aria-pressed', 'false');
+    expect(screen.getByRole('button', { name: 'Athlete (optional)' })).toHaveAttribute('aria-pressed', 'false');
     expect(screen.getByRole('button', { name: 'Calculate BMI' })).toBeDisabled();
   });
 
@@ -74,7 +77,8 @@ describe('BMICalculatePage', () => {
     await user.click(screen.getByRole('button', { name: 'Calculate BMI' }));
 
     expect(vi.mocked(calculateBMI)).not.toHaveBeenCalled();
-    expect(screen.getByText('Please enter a valid age (1-120 years).')).toBeInTheDocument();
+    expect(screen.getByRole('alert')).toHaveAttribute('aria-live', 'assertive');
+    expect(screen.getByRole('alert')).toHaveTextContent('Please enter a valid age (1-120 years).');
   });
 
   it('submits valid values and renders the result rail', async () => {
