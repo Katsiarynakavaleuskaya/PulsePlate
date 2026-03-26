@@ -181,3 +181,56 @@ def test_main_fails_when_static_startup_hook_scan_finds_malicious_pth(
 
     assert result == 1
     assert "litellm_init.pth:1 :: import os" in capsys.readouterr().out
+
+
+def test_main_reports_missing_requirements_file_cleanly(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    missing_requirements = tmp_path / "missing-requirements.txt"
+
+    result = installer.main(["--requirements-file", str(missing_requirements)])
+
+    assert result == 1
+    assert (
+        "ERROR: locked install failed: No pinned requirements files found"
+        in capsys.readouterr().out
+    )
+
+
+def test_main_reports_guard_runtime_error_cleanly(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    requirements = tmp_path / "requirements.txt"
+    requirements.write_text("openai==2.29.0\n", encoding="utf-8")
+    wheelhouse_dir = tmp_path / "wheelhouse"
+    guard_script = tmp_path / "missing-guard.py"
+
+    monkeypatch.setattr(installer, "run_command", lambda command: None)
+    monkeypatch.setattr(
+        installer,
+        "collect_startup_hook_failure_lines",
+        lambda **kwargs: (_ for _ in ()).throw(
+            RuntimeError(f"Unable to load module from path: {guard_script}")
+        ),
+    )
+
+    result = installer.main(
+        [
+            "--python-executable",
+            "python",
+            "--requirements-file",
+            str(requirements),
+            "--wheelhouse-dir",
+            str(wheelhouse_dir),
+            "--guard-script",
+            str(guard_script),
+        ]
+    )
+
+    assert result == 1
+    assert (
+        "ERROR: locked install failed: Unable to load module from path:" in capsys.readouterr().out
+    )

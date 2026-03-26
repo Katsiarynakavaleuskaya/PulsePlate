@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import importlib
 import importlib.util
-import re
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -20,7 +19,6 @@ VENV_DIR = REPO_ROOT / ".venv"
 VENV_BIN_DIR = VENV_DIR / "bin"
 VENV_PYTHON = VENV_BIN_DIR / "python"
 STARTUP_HOOK_GUARD = REPO_ROOT / "scripts" / "ci" / "check_python_startup_hooks.py"
-STARTUP_HOOK_FAILURE_PATTERN = re.compile(r"^- (.+):(\d+) :: (.+)$")
 REQUIRED_MODULES: tuple[tuple[str, str], ...] = (
     ("flake8", "lint"),
     ("mypy", "typecheck"),

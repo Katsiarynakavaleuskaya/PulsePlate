@@ -269,39 +269,43 @@ def install_with_guard(
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    args = parse_args(argv)
-    requirement_files = resolve_requirement_files(
-        requirements_file=args.requirements_file,
-        dev_requirements_file=args.dev_requirements_file,
-        install_dev=args.install_dev,
-    )
+    try:
+        args = parse_args(argv)
+        requirement_files = resolve_requirement_files(
+            requirements_file=args.requirements_file,
+            dev_requirements_file=args.dev_requirements_file,
+            install_dev=args.install_dev,
+        )
 
-    if args.require_virtualenv and not is_virtualenv_python(args.python_executable):
-        print("ERROR: refusing to install packages with a non-virtualenv interpreter.")
-        print(f"Python executable: {args.python_executable}")
+        if args.require_virtualenv and not is_virtualenv_python(args.python_executable):
+            print("ERROR: refusing to install packages with a non-virtualenv interpreter.")
+            print(f"Python executable: {args.python_executable}")
+            return 1
+
+        if not args.skip_pip_upgrade:
+            upgrade_pip(args.python_executable)
+
+        if args.wheelhouse_dir is not None:
+            return install_with_guard(
+                python_executable=args.python_executable,
+                requirement_files=requirement_files,
+                constraints_file=args.constraints_file,
+                wheelhouse_dir=args.wheelhouse_dir,
+                guard_script=args.guard_script,
+            )
+
+        with tempfile.TemporaryDirectory(prefix="pulseplate-wheelhouse-") as temp_dir:
+            wheelhouse_dir = Path(temp_dir)
+            return install_with_guard(
+                python_executable=args.python_executable,
+                requirement_files=requirement_files,
+                constraints_file=args.constraints_file,
+                wheelhouse_dir=wheelhouse_dir,
+                guard_script=args.guard_script,
+            )
+    except (FileNotFoundError, RuntimeError) as exc:
+        print(f"ERROR: locked install failed: {exc}")
         return 1
-
-    if not args.skip_pip_upgrade:
-        upgrade_pip(args.python_executable)
-
-    if args.wheelhouse_dir is not None:
-        return install_with_guard(
-            python_executable=args.python_executable,
-            requirement_files=requirement_files,
-            constraints_file=args.constraints_file,
-            wheelhouse_dir=args.wheelhouse_dir,
-            guard_script=args.guard_script,
-        )
-
-    with tempfile.TemporaryDirectory(prefix="pulseplate-wheelhouse-") as temp_dir:
-        wheelhouse_dir = Path(temp_dir)
-        return install_with_guard(
-            python_executable=args.python_executable,
-            requirement_files=requirement_files,
-            constraints_file=args.constraints_file,
-            wheelhouse_dir=wheelhouse_dir,
-            guard_script=args.guard_script,
-        )
 
 
 if __name__ == "__main__":
