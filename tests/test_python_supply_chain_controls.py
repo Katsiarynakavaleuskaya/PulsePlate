@@ -53,6 +53,7 @@ def test_local_bootstrap_surfaces_use_locked_installer_and_virtualenv_guard() ->
 
 def test_canonical_ci_and_docker_use_supply_chain_guardrails() -> None:
     docker_text = (REPO_ROOT / "Dockerfile").read_text(encoding="utf-8")
+    dockerignore_text = (REPO_ROOT / ".dockerignore").read_text(encoding="utf-8")
     installer_text = (
         REPO_ROOT / "scripts" / "ci" / "install_locked_python_requirements.py"
     ).read_text(encoding="utf-8")
@@ -61,6 +62,10 @@ def test_canonical_ci_and_docker_use_supply_chain_guardrails() -> None:
     assert "install_locked_python_requirements.py" in docker_text
     assert "--guard-script /tmp/pulseplate-ci/check_python_startup_hooks.py" in docker_text
     assert "constraints.txt" in docker_text
+    assert docker_text.count("--skip-pip-upgrade") == 2
+    assert "!constraints.txt" in dockerignore_text
+    assert "!scripts/ci/check_python_startup_hooks.py" in dockerignore_text
+    assert "!scripts/ci/install_locked_python_requirements.py" in dockerignore_text
 
 
 @pytest.mark.parametrize("workflow_path", LOCKED_INSTALL_WORKFLOW_PATHS)

@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import re
+import shutil
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -108,9 +109,21 @@ def current_interpreter_site_packages() -> list[Path]:
     return collect_site_packages_from_site_module(site)
 
 
+def resolve_python_executable_path(python_executable: str | Path) -> Path:
+    """Resolve command names via PATH before inferring interpreter prefixes."""
+    candidate = Path(python_executable).expanduser()
+    if candidate.is_absolute() or candidate.parent != Path("."):
+        return candidate.resolve()
+
+    resolved_executable = shutil.which(str(candidate))
+    if resolved_executable is not None:
+        return Path(resolved_executable).resolve()
+    return candidate.resolve()
+
+
 def infer_prefix_site_packages(python_executable: str | Path) -> list[Path]:
     """Infer site-packages directories from a Python executable path without execution."""
-    python_path = Path(python_executable).expanduser().resolve()
+    python_path = resolve_python_executable_path(python_executable)
     prefix = python_path.parent.parent
     candidate_paths: list[Path] = []
 
@@ -128,7 +141,7 @@ def infer_prefix_site_packages(python_executable: str | Path) -> list[Path]:
 
 def site_packages_for_interpreter(python_executable: str) -> list[Path]:
     """Resolve executable site-packages for a target interpreter without re-launching it."""
-    target_python = Path(python_executable).expanduser().resolve()
+    target_python = resolve_python_executable_path(python_executable)
     current_python = Path(sys.executable).resolve()
     if target_python == current_python:
         return current_interpreter_site_packages()

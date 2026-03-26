@@ -103,6 +103,25 @@ def test_external_interpreter_site_packages_infers_virtualenv_layout_without_exe
     assert discovered_paths == [site_packages.resolve()]
 
 
+def test_site_packages_for_interpreter_resolves_command_name_via_path(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    venv_root = tmp_path / "venv"
+    python_executable = venv_root / "bin" / "python"
+    site_packages = venv_root / "lib" / "python3.13" / "site-packages"
+    python_executable.parent.mkdir(parents=True)
+    python_executable.write_text("", encoding="utf-8")
+    site_packages.mkdir(parents=True)
+
+    monkeypatch.setattr(hook_guard.shutil, "which", lambda command: str(python_executable))
+    monkeypatch.setattr(hook_guard.sys, "executable", str(tmp_path / "system-python"))
+
+    discovered_paths = hook_guard.site_packages_for_interpreter("python")
+
+    assert discovered_paths == [site_packages.resolve()]
+
+
 def test_main_passes_when_no_findings(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
