@@ -1,7 +1,7 @@
 # Tier 1 CI/CD Task Packet
 
 **Date:** 2026-03-26 (`America/New_York`)
-**Status:** Active PR-3 packet for the Tier 1 backend/shared CI consolidation wave after landed PR-1 / PR-2 baseline work.
+**Status:** Active PR-3 packet for the Tier 1 backend/shared CI consolidation wave following the landed PR-1 / PR-2 baseline work.
 **Wave:** stacked PRs, coordinator-first, governance-first.
 
 ## Goal

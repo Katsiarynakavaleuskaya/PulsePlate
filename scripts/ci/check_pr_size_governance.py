@@ -64,26 +64,33 @@ def evaluate_pr_size_policy(
 ) -> tuple[int, list[str]]:
     """Evaluate size policy and return exit code plus deterministic terminal lines."""
     bucket = classify_pr_size(total_changed_lines)
+    normal_range_text = f"<={NORMAL_MAX_LOC} LoC"
+    warning_range_text = f"{NORMAL_MAX_LOC + 1}-{WARNING_MAX_LOC} LoC"
+    split_required_text = f">{WARNING_MAX_LOC} LoC"
     lines = [
         f"PR size bucket: {bucket}",
         f"Changed lines: {total_changed_lines}",
         f"Counted files: {counted_files}",
     ]
     if bucket == "normal":
-        lines.append("PR size governance: OK (<300 LoC).")
+        lines.append(f"PR size governance: OK ({normal_range_text}).")
         return 0, lines
 
     if bucket == "warning":
-        lines.append("PR size governance: WARNING (300-800 LoC). Review split opportunities.")
+        lines.append(
+            f"PR size governance: WARNING ({warning_range_text}). Review split opportunities.",
+        )
         return 0, lines
 
     if has_split_justification(pr_body):
         lines.append(
-            "PR size governance: OK (>800 LoC) because explicit split justification is present.",
+            f"PR size governance: OK ({split_required_text}) because explicit split justification is present.",
         )
         return 0, lines
 
-    lines.append("PR size governance: FAIL (>800 LoC without explicit split justification).")
+    lines.append(
+        f"PR size governance: FAIL ({split_required_text} without explicit split justification).",
+    )
     lines.append("Add `## Split Justification` (or `Split justification:`) to the PR body.")
     return 1, lines
 

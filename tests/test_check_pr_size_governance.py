@@ -32,7 +32,7 @@ def test_evaluate_pr_size_policy_passes_for_normal_bucket() -> None:
     )
 
     assert exit_code == 0
-    assert any("OK (<300 LoC)" in line for line in lines)
+    assert any(f"OK (<={size_gate.NORMAL_MAX_LOC} LoC)" in line for line in lines)
 
 
 def test_evaluate_pr_size_policy_warns_for_medium_bucket() -> None:
@@ -43,7 +43,10 @@ def test_evaluate_pr_size_policy_warns_for_medium_bucket() -> None:
     )
 
     assert exit_code == 0
-    assert any("WARNING (300-800 LoC)" in line for line in lines)
+    assert any(
+        f"WARNING ({size_gate.NORMAL_MAX_LOC + 1}-{size_gate.WARNING_MAX_LOC} LoC)" in line
+        for line in lines
+    )
 
 
 def test_evaluate_pr_size_policy_fails_without_split_justification() -> None:
@@ -54,7 +57,10 @@ def test_evaluate_pr_size_policy_fails_without_split_justification() -> None:
     )
 
     assert exit_code == 1
-    assert any("FAIL (>800 LoC without explicit split justification)" in line for line in lines)
+    assert any(
+        f"FAIL (>{size_gate.WARNING_MAX_LOC} LoC without explicit split justification)" in line
+        for line in lines
+    )
 
 
 def test_evaluate_pr_size_policy_passes_with_split_justification() -> None:
