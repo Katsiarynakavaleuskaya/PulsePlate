@@ -3,6 +3,7 @@ from __future__ import annotations
 from email.message import Message
 import urllib.error
 from pathlib import Path
+from urllib.parse import parse_qs, urlparse
 
 import pytest
 
@@ -219,9 +220,14 @@ def test_fetch_dependabot_alerts_paginates(monkeypatch: pytest.MonkeyPatch) -> N
         token: str | None,
     ) -> tuple[object, dict[str, str]]:
         assert token == "token"
-        if "after=cursor-2" in url:
+        parsed = urlparse(url)
+        query = parse_qs(parsed.query)
+        assert parsed.path.endswith("/dependabot/alerts")
+        if query.get("after") == ["cursor-2"]:
             return second_page, {}
-        if "dependabot/alerts?state=open&per_page=100" in url:
+        if query.get("state") == ["open"] and query.get("per_page") == [
+            str(guard.DEPENDABOT_ALERTS_PER_PAGE)
+        ]:
             return first_page, {
                 "Link": (
                     "<https://api.github.com/repos/owner/repo/dependabot/alerts"
@@ -237,15 +243,17 @@ def test_fetch_dependabot_alerts_paginates(monkeypatch: pytest.MonkeyPatch) -> N
     assert len(alerts) == guard.DEPENDABOT_ALERTS_PER_PAGE + 1
 
 
+@pytest.mark.parametrize("status_code", [401, 403])
 def test_public_api_request_retries_without_token_on_auth_error(
     monkeypatch: pytest.MonkeyPatch,
+    status_code: int,
 ) -> None:
     calls: list[str | None] = []
 
     def fake_api_request(url: str, token: str | None = None) -> object:
         calls.append(token)
         if token == "token":
-            raise urllib.error.HTTPError(url, 403, "Forbidden", Message(), None)
+            raise urllib.error.HTTPError(url, status_code, "Forbidden", Message(), None)
         return {"ok": True}
 
     monkeypatch.setattr(guard, "_api_request", fake_api_request)
