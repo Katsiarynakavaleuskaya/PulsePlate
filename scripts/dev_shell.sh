@@ -7,6 +7,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 VENV_DIR="$ROOT_DIR/.venv"
 PYTHON_BIN="${PYTHON_BIN:-python3}"
+INSTALLER_SCRIPT="$ROOT_DIR/scripts/ci/install_locked_python_requirements.py"
 
 if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
   echo "❌ Запустите скрипт через 'source scripts/dev_shell.sh' (или '. scripts/dev_shell.sh')"
@@ -19,14 +20,13 @@ create_venv() {
     "$PYTHON_BIN" -m venv "$VENV_DIR"
   fi
 
-  echo "⬆️  Обновление pip и установка зависимостей"
-  "$VENV_DIR/bin/pip" install --upgrade pip setuptools wheel >/dev/null
-  if [[ -f "$ROOT_DIR/requirements.txt" ]]; then
-    "$VENV_DIR/bin/pip" install -r "$ROOT_DIR/requirements.txt" >/dev/null
-  fi
-  if [[ -f "$ROOT_DIR/requirements-dev.txt" ]]; then
-    "$VENV_DIR/bin/pip" install -r "$ROOT_DIR/requirements-dev.txt" >/dev/null
-  fi
+  echo "⬆️  Обновление зависимостей через locked installer"
+  PIP_REQUIRE_VIRTUALENV=1 \
+    "$VENV_DIR/bin/python" "$INSTALLER_SCRIPT" \
+    --python-executable "$VENV_DIR/bin/python" \
+    --constraints-file "$ROOT_DIR/constraints.txt" \
+    --install-dev \
+    --require-virtualenv >/dev/null
 }
 
 if [[ ! -d "$VENV_DIR" ]] || [[ ! -f "$VENV_DIR/bin/activate" ]]; then
@@ -42,6 +42,7 @@ fi
 export PYTHONPATH="$ROOT_DIR:$ROOT_DIR/core:$ROOT_DIR/app:$ROOT_DIR/tests"
 export VIP_MODULE_ENABLED="${VIP_MODULE_ENABLED:-true}"
 export APP_ENV="${APP_ENV:-local}"
+export PIP_REQUIRE_VIRTUALENV=1
 
 cat <<INFO
 📦 Текущие настройки окружения:

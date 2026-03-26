@@ -13,6 +13,13 @@
 # Dependency manifests used during build
 !requirements.txt
 !requirements-dev.txt
+!constraints.txt
+
+# CI installer surfaces copied by Dockerfile
+!scripts/
+!scripts/ci/
+!scripts/ci/check_python_startup_hooks.py
+!scripts/ci/install_locked_python_requirements.py
 
 # Runtime application directories copied by Dockerfile
 !app/

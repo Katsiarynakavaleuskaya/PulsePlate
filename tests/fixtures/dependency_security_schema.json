@@ -4,5 +4,10 @@
     "requests": "2.33.0"
   },
   "blocked_packages": [],
-  "blocked_versions": {}
+  "blocked_versions": {
+    "litellm": [
+      "==1.82.7",
+      "==1.82.8"
+    ]
+  }
 }

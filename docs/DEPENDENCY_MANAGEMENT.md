@@ -44,14 +44,19 @@ pip-sync requirements-dev.txt
 If `pip-tools` is not available or you need standard pip compatibility, use constraints files for deterministic builds:
 
 ```bash
-# Install production dependencies with version constraints
-pip install -r requirements.txt -c constraints.txt
-
-# Install development dependencies with version constraints
-pip install -r requirements-dev.txt -c constraints.txt
+# Install pinned dependencies through a local wheelhouse
+python scripts/ci/install_locked_python_requirements.py \
+  --python-executable python \
+  --constraints-file constraints.txt \
+  --install-dev
 ```
 
-**Note**: `pip install` adds packages but doesn't remove extras, which may lead to environment drift over time. For fully reproducible environments, prefer `pip-sync`.
+This installer now follows a two-step flow:
+
+1. Download pinned artifacts into a temporary wheelhouse.
+2. Install with `--no-index --find-links <wheelhouse>` and then statically scan the target `site-packages` for executable `.pth` hooks via `scripts/ci/check_python_startup_hooks.py` without re-launching the target interpreter.
+
+**Note**: This is hermetic for the install phase, but it is not a substitute for an internal mirror/quarantine service. The repo still needs a promoted artifact source for full supply-chain isolation.
 
 ## Canonical Clean-Clone Bootstrap For Local Verify
 
@@ -78,7 +83,10 @@ verify-critical gates now run in interpreter-module mode via the repo `.venv`
 (for example `$(VENV_PYTHON) -m flake8`, `-m mypy`, `-m pytest`, `-m
 coverage`, and `-m diff_cover.diff_cover_tool` for `diff-cover`). Stale
 `.venv/bin/*` wrapper entrypoints are no longer the trust anchor for local
-merge evidence.
+merge evidence. Local bootstrap also sets `PIP_REQUIRE_VIRTUALENV=1` and uses
+`scripts/ci/install_locked_python_requirements.py --require-virtualenv`, so the
+repo bootstrap path refuses to install packages through a non-virtualenv
+interpreter.
 
 ## Updating Dependencies
 
@@ -116,16 +124,18 @@ pip-sync requirements.txt
 
 ## CI/CD Integration
 
-### Option 1: Standard pip (Current Implementation)
+### Option 1: Locked wheelhouse installer (Current Implementation)
 
-GitHub Actions workflows use standard `pip install` for broad compatibility:
+GitHub Actions workflows should use the shared installer instead of ad hoc
+`pip install` blocks:
 
 ```yaml
 - name: Install dependencies
   run: |
-    python -m pip install --upgrade pip
-    pip install -r requirements.txt -c constraints.txt
-    pip install -r requirements-dev.txt -c constraints.txt
+    python scripts/ci/install_locked_python_requirements.py \
+      --python-executable python \
+      --constraints-file constraints.txt \
+      --install-dev
 ```
 
 ### Option 2: pip-sync (For Exact Matching)
@@ -141,8 +151,15 @@ For stricter environment control matching local development:
 
 **Trade-offs**:
 
-- **`pip install -r ... -c constraints.txt`**: Faster (no uninstall), compatible with any pip version, but may accumulate packages over time
+- **`install_locked_python_requirements.py`**: downloads wheels first, installs hermetically with `--no-index`, and performs a static startup-hook scan before tests/bootstrap
 - **`pip-sync`**: Exact environment matching with local dev, slower (uninstalls extras), requires pip-tools dependency
+
+## Supply-Chain Hardening Rules
+
+- Do not add floating tool installs to CI or composite actions when the repo already has a pinned lock surface.
+- Treat executable `.pth` files as startup hooks and fail closed on unknown filenames.
+- When a dependency bump or new package is required, review the wheel/sdist contents before promoting the change to shared CI/bootstrap paths.
+- Prefer a promoted internal wheelhouse or mirror for long-term CI/Docker isolation. Repo-local wheelhouse builds are a bridge, not the final control.
 
 ## Dependabot Configuration
 

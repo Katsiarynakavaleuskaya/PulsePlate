@@ -12,6 +12,10 @@ inputs:
     description: 'Install test dependencies (pytest, pytest-cov)'
     required: false
     default: 'false'
+  constraints-file:
+    description: 'Constraints file applied during wheelhouse build/install'
+    required: false
+    default: 'constraints.txt'
   working-directory:
     description: 'Working directory for the job'
     required: false
@@ -33,28 +37,35 @@ runs:
       working-directory: ${{ inputs.working-directory }}
       run: |
         set -euxo pipefail
-        python -m pip install --upgrade pip
-        if [[ -f requirements-dev.txt ]]; then
-          python -m pip install -r requirements-dev.txt
-        elif [[ -f requirements.txt ]]; then
-          python -m pip install -r requirements.txt
-        fi
-        if [[ ! -f requirements-dev.txt && ! -f requirements.txt ]]; then
+        if [[ -f requirements-dev.txt || -f requirements.txt ]]; then
+          install_args=()
+          if [[ -f requirements-dev.txt && ( ! -f requirements.txt || "${{ inputs.install-dev-deps }}" == 'true' || "${{ inputs.install-test-deps }}" == 'true' ) ]]; then
+            install_args+=(--install-dev)
+          fi
+          python "${{ github.workspace }}/scripts/ci/install_locked_python_requirements.py" \
+            --python-executable python \
+            --constraints-file "${{ inputs.constraints-file }}" \
+            "${install_args[@]}"
+        else
           echo "::notice::No requirements-dev.txt or requirements.txt found; skipping base dependency install"
         fi
 
+    # Backward-compatibility no-op: requirements-dev.txt is installed above via
+    # install_locked_python_requirements.py when workflows still pass install-dev-deps.
     - name: Install development dependencies
       if: ${{ inputs.install-dev-deps == 'true' }}
       shell: bash
       working-directory: ${{ inputs.working-directory }}
       run: |
         set -euxo pipefail
-        python -m pip install 'pre-commit>=3.0.0,<4.0.0' 'bandit>=1.7.0,<2.0.0'
+        echo "::notice::Pinned development tooling is provided by requirements-dev.txt via install_locked_python_requirements.py"
 
+    # Backward-compatibility no-op: pinned test tooling comes from
+    # requirements-dev.txt via install_locked_python_requirements.py.
     - name: Install test dependencies
       if: ${{ inputs.install-test-deps == 'true' }}
       shell: bash
       working-directory: ${{ inputs.working-directory }}
       run: |
         set -euxo pipefail
-        python -m pip install 'pytest>=8.0.0,<9.0.0' 'pytest-cov>=4.0.0,<5.0.0'
+        echo "::notice::Pinned test tooling is provided by requirements-dev.txt via install_locked_python_requirements.py"

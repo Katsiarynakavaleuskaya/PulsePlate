@@ -438,7 +438,7 @@ jobs:
 
       - name: Install backend dependencies
         run: |
-          python -m pip install -r requirements.txt -c constraints.txt
+          python scripts/ci/install_locked_python_requirements.py --python-executable python --constraints-file constraints.txt
 
       - name: Setup Node.js
         uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
@@ -504,9 +504,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          python -m pip install --upgrade pip
-          python -m pip install -r requirements.txt -c constraints.txt
-          python -m pip install -r requirements-dev.txt -c constraints.txt
+          python scripts/ci/install_locked_python_requirements.py --python-executable python --constraints-file constraints.txt --install-dev
 
       - name: Install root Node dependencies
         run: npm ci
@@ -622,9 +620,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          python -m pip install --upgrade pip
-          python -m pip install -r requirements.txt -c constraints.txt
-          python -m pip install -r requirements-dev.txt -c constraints.txt
+          python scripts/ci/install_locked_python_requirements.py --python-executable python --constraints-file constraints.txt --install-dev
 
       - name: Install root Node dependencies
         run: npm ci
@@ -741,9 +737,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          python -m pip install --upgrade pip
-          python -m pip install -r requirements.txt -c constraints.txt
-          python -m pip install -r requirements-dev.txt -c constraints.txt
+          python scripts/ci/install_locked_python_requirements.py --python-executable python --constraints-file constraints.txt --install-dev
 
       - name: Install root Node dependencies
         run: npm ci

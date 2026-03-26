@@ -70,9 +70,7 @@ help:
 ## Create & install venv deps + setup automation
 venv: ## Create venv, install requirements & setup git hooks
 	@test -x $(VENV_PYTHON) || python3 -m venv .venv
-	$(PIP) install -U pip
-	@if [ -f requirements-dev.txt ]; then $(PIP) install -r requirements-dev.txt; fi
-	@if [ -f requirements.txt ]; then $(PIP) install -r requirements.txt; fi
+	PIP_REQUIRE_VIRTUALENV=1 $(VENV_PYTHON) scripts/ci/install_locked_python_requirements.py --python-executable $(VENV_PYTHON) --constraints-file constraints.txt --install-dev --require-virtualenv
 	@echo "$(YELLOW)🔧 Настройка автоматизации...$(NC)"
 	pre-commit install
 	pre-commit install --hook-type pre-push
@@ -83,9 +81,7 @@ venv: ## Create venv, install requirements & setup git hooks
 ## Refresh locked dependencies inside the existing .venv
 venv-sync: ## Refresh .venv from locked requirements without recreating it
 	@test -x $(VENV_PYTHON) || (echo "$(RED)❌ .venv missing. Run 'make venv' first.$(NC)" && exit 1)
-	$(PIP) install -U pip
-	@if [ -f requirements-dev.txt ]; then $(PIP) install -r requirements-dev.txt; fi
-	@if [ -f requirements.txt ]; then $(PIP) install -r requirements.txt; fi
+	PIP_REQUIRE_VIRTUALENV=1 $(VENV_PYTHON) scripts/ci/install_locked_python_requirements.py --python-executable $(VENV_PYTHON) --constraints-file constraints.txt --install-dev --require-virtualenv
 	@echo "$(GREEN)✅ .venv refreshed from locked requirements$(NC)"
 
 ## Setup automation only (git hooks & aliases)
