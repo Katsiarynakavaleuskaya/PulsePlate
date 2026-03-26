@@ -128,7 +128,7 @@ export default function AiInsightPanel({
         <article className="mt-4 rounded-[1.125rem] border border-white/10 bg-white/[0.06] p-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <p className="text-sm font-semibold text-white/95">{result.title}</p>
-            <span className="rounded-full bg-[#20c997]/[0.18] px-3 py-1 text-[0.65rem] font-semibold text-[#20c997]">
+            <span className="rounded-full bg-[color:rgba(32,201,151,0.18)] px-3 py-1 text-[0.65rem] font-semibold text-[var(--pp-green)]">
               {result.confidenceLabel}
             </span>
           </div>

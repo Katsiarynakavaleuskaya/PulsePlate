@@ -92,7 +92,8 @@
       },
       "skip": "Skip",
       "back": "Back",
-      "stepA11y": "Step %d of %d",
+      "stepA11y": "Step {{current}} of {{total}}",
+      "mainA11y": "Welcome gate preview",
       "preview": {
         "panelTitle": "WELCOME GATE / v1",
         "panelFlowLabel": "flow:",

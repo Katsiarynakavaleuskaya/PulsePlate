@@ -72,7 +72,8 @@
       },
       "skip": "Saltar",
       "back": "Atrás",
-      "stepA11y": "Paso %d de %d",
+      "stepA11y": "Paso {{current}} de {{total}}",
+      "mainA11y": "Vista previa de welcome gate",
       "preview": {
         "panelTitle": "WELCOME GATE / v1",
         "panelFlowLabel": "flujo:",

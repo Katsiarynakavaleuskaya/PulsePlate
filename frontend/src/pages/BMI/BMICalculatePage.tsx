@@ -213,7 +213,7 @@ export default function BMICalculatePage(): JSX.Element {
   };
 
   return (
-    <main className="min-h-screen bg-[#0d0d1a] px-4 py-6 text-white sm:px-6">
+    <main className="min-h-screen bg-[var(--pp-navy)] px-4 py-6 text-white sm:px-6">
       <div className="mx-auto max-w-[24rem] space-y-6">
         <section className="rounded-[1.5rem] border border-white/12 bg-white/[0.08] p-5 shadow-[0_28px_56px_rgba(0,0,0,0.3)]">
           <p className="text-xs font-medium uppercase tracking-[0.18em] text-white/52">BMI calculator</p>

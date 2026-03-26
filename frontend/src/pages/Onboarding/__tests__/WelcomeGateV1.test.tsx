@@ -17,7 +17,7 @@ describe('WelcomeGateV1', () => {
       </MemoryRouter>
     );
 
-    expect(screen.getByRole('main', { name: 'Welcome Gate v1 preview' })).toBeInTheDocument();
+    expect(screen.getByRole('main', { name: 'onboarding.welcome.mainA11y' })).toBeInTheDocument();
     expect(screen.getByText('onboarding.welcome.skip')).toBeInTheDocument();
     expect(screen.getByText('onboarding.welcome.screen1.title')).toBeInTheDocument();
     expect(screen.getByText('onboarding.welcome.screen1.cardTitle')).toBeInTheDocument();

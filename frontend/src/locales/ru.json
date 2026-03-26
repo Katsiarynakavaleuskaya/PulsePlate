@@ -92,7 +92,8 @@
       },
       "skip": "Пропустить",
       "back": "Назад",
-      "stepA11y": "Шаг %d из %d",
+      "stepA11y": "Шаг {{current}} из {{total}}",
+      "mainA11y": "Превью welcome gate",
       "preview": {
         "panelTitle": "WELCOME GATE / v1",
         "panelFlowLabel": "поток:",
