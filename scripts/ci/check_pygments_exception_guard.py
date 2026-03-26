@@ -1,9 +1,10 @@
 """Guard the temporary Pygments exception seam against upstream drift.
 
 This CI-oriented check keeps the documented `pip-audit --ignore-vuln` seam for
-`GHSA-5239-wwwm-4pmq` honest. As soon as GitHub Dependabot reports that a fixed
-version exists, or the tracked open alerts disappear, the guard fails until the
-repo removes the temporary exception and refreshes the pinned dependency state.
+`GHSA-5239-wwwm-4pmq` honest. As soon as the public GHSA advisory reports that
+a fixed version exists, or the tracked open alerts disappear when repository
+alerts are readable, the guard fails until the repo removes the temporary
+exception and refreshes the pinned dependency state.
 """
 
 from __future__ import annotations
@@ -18,6 +19,9 @@ import urllib.parse
 from pathlib import Path
 from typing import Any
 
+from packaging.version import InvalidVersion
+from packaging.version import Version
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 ADVISORY_ID = "GHSA-5239-wwwm-4pmq"
@@ -28,13 +32,20 @@ TRACKED_REQUIREMENTS = (
     "requirements-lock.txt",
 )
 PRE_COMMIT_PATH = ".pre-commit-config.yaml"
-TARGET_VERSION = "2.19.2"
+DEPENDABOT_ALERTS_PER_PAGE = 100
 
 _PIN_RE = re.compile(r"^\s*pygments==(?P<version>[^\s#]+)", re.IGNORECASE)
+_IGNORE_SEAM_RE = re.compile(
+    rf"--ignore-vuln\s+(?:-\s*)?{re.escape(ADVISORY_ID)}",
+    re.IGNORECASE,
+)
 
 
-def _api_request(url: str, token: str) -> Any:
-    """Perform a GitHub REST API request and return parsed JSON."""
+def _api_request_with_headers(
+    url: str,
+    token: str | None = None,
+) -> tuple[Any, http.client.HTTPMessage]:
+    """Perform a GitHub REST API request and return parsed JSON plus headers."""
     parsed = urllib.parse.urlparse(url)
     if parsed.scheme != "https" or parsed.netloc != "api.github.com":
         raise ValueError(f"Unsupported API URL: {url}")
@@ -44,16 +55,15 @@ def _api_request(url: str, token: str) -> Any:
         path = f"{path}?{parsed.query}"
 
     conn = http.client.HTTPSConnection(parsed.netloc, timeout=30)
-    conn.request(
-        "GET",
-        path,
-        headers={
-            "Authorization": f"Bearer {token}",
-            "Accept": "application/vnd.github+json",
-            "X-GitHub-Api-Version": "2022-11-28",
-            "User-Agent": "pulseplate-pygments-exception-guard",
-        },
-    )
+    headers = {
+        "Accept": "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+        "User-Agent": "pulseplate-pygments-exception-guard",
+    }
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+
+    conn.request("GET", path, headers=headers)
     response = conn.getresponse()
     body = response.read().decode("utf-8")
     conn.close()
@@ -66,7 +76,18 @@ def _api_request(url: str, token: str) -> Any:
             hdrs=response.headers,
             fp=None,
         )
-    return json.loads(body)
+    return json.loads(body), response.headers
+
+
+def _api_request(url: str, token: str | None = None) -> Any:
+    """Perform a GitHub REST API request and return parsed JSON."""
+    payload, _headers = _api_request_with_headers(url, token)
+    return payload
+
+
+def _public_api_request(url: str, token: str | None = None) -> Any:
+    """Perform a GitHub REST API request that can fall back to public access."""
+    return _api_request(url, token)
 
 
 def _extract_relevant_alerts(alerts: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -97,6 +118,21 @@ def _first_patched_versions(alerts: list[dict[str, Any]]) -> set[str]:
     return patched_versions
 
 
+def _advisory_first_patched_versions(advisory_payload: dict[str, Any]) -> set[str]:
+    """Collect first patched versions from the public GHSA advisory payload."""
+    patched_versions: set[str] = set()
+    for vulnerability in advisory_payload.get("vulnerabilities", []):
+        if not isinstance(vulnerability, dict):
+            continue
+        package = vulnerability.get("package", {})
+        if str(package.get("name", "")).lower() != PACKAGE_NAME:
+            continue
+        identifier = vulnerability.get("first_patched_version")
+        if identifier:
+            patched_versions.add(str(identifier))
+    return patched_versions
+
+
 def _read_requirement_pins(repo_root: Path) -> dict[str, str | None]:
     """Read the currently pinned Pygments versions from tracked requirement files."""
     pins: dict[str, str | None] = {}
@@ -116,29 +152,37 @@ def _has_exception_seam(repo_root: Path) -> bool:
     """Return True when the temporary pip-audit ignore is still present."""
     pre_commit = repo_root / PRE_COMMIT_PATH
     content = pre_commit.read_text(encoding="utf-8")
-    return f"--ignore-vuln\n          - {ADVISORY_ID}" in content
+    return _IGNORE_SEAM_RE.search(content) is not None
 
 
 def evaluate_guard_state(
     *,
-    alerts: list[dict[str, Any]],
+    alerts: list[dict[str, Any]] | None,
+    advisory_patched_versions: set[str],
     pins: dict[str, str | None],
     exception_present: bool,
 ) -> list[str]:
     """Evaluate whether the temporary exception seam must now be removed."""
     errors: list[str] = []
-    relevant_alerts = _extract_relevant_alerts(alerts)
-    patched_versions = _first_patched_versions(relevant_alerts)
+    relevant_alerts = _extract_relevant_alerts(alerts or [])
+    patched_versions = _first_patched_versions(relevant_alerts) | advisory_patched_versions
 
-    if not relevant_alerts:
+    if alerts is not None and not relevant_alerts:
         if exception_present:
             errors.append(
                 "No open Dependabot alerts remain for GHSA-5239-wwwm-4pmq, but the "
                 "temporary pip-audit exception seam is still present."
             )
-        return errors
+        if not patched_versions:
+            return errors
 
     if not patched_versions:
+        return errors
+
+    try:
+        patched_floor = max(Version(identifier) for identifier in patched_versions)
+    except InvalidVersion as exc:
+        errors.append(f"Patched version metadata is invalid: {exc}")
         return errors
 
     patched_list = ", ".join(sorted(patched_versions))
@@ -148,14 +192,24 @@ def evaluate_guard_state(
             f"({patched_list}), but .pre-commit-config.yaml still ignores the advisory."
         )
 
-    stale_pins = {
-        path: version
-        for path, version in pins.items()
-        if version is None or version == TARGET_VERSION
-    }
+    stale_pins: dict[str, str] = {}
+    for path, version in pins.items():
+        if version is None:
+            stale_pins[path] = "missing"
+            continue
+        try:
+            parsed_version = Version(version)
+        except InvalidVersion:
+            stale_pins[path] = f"invalid:{version}"
+            continue
+        # EN: Treat the advisory as a minimum safe floor, not an exact pin.
+        # RU: Считаем advisory минимальным безопасным floor, а не точным pin.
+        if parsed_version < patched_floor:
+            stale_pins[path] = version
+
     if stale_pins:
         stale_render = ", ".join(
-            f"{path}={version or 'missing'}" for path, version in sorted(stale_pins.items())
+            f"{path}={version}" for path, version in sorted(stale_pins.items())
         )
         errors.append(
             "Dependabot reports a patched release for GHSA-5239-wwwm-4pmq "
@@ -176,10 +230,37 @@ def _resolve_token() -> str | None:
 
 def _fetch_dependabot_alerts(*, repo: str, token: str) -> list[dict[str, Any]]:
     """Fetch open Dependabot alerts for the repository."""
+    alerts: list[dict[str, Any]] = []
     url = f"https://api.github.com/repos/{repo}/dependabot/alerts?state=open&per_page=100"
-    payload = _api_request(url, token)
-    if not isinstance(payload, list):
-        raise ValueError("Dependabot alerts API returned a non-list payload")
+    while url:
+        payload, headers = _api_request_with_headers(url, token)
+        if not isinstance(payload, list):
+            raise ValueError("Dependabot alerts API returned a non-list payload")
+        alerts.extend(payload)
+        url = _extract_next_link(headers.get("Link"))
+    return alerts
+
+
+def _extract_next_link(link_header: str | None) -> str | None:
+    """Extract the next-page URL from a GitHub Link header."""
+    if not link_header:
+        return None
+    for part in link_header.split(","):
+        section = part.strip()
+        if 'rel="next"' not in section:
+            continue
+        match = re.match(r"<(?P<url>[^>]+)>", section)
+        if match:
+            return match.group("url")
+    return None
+
+
+def _fetch_public_global_advisory(*, token: str | None) -> dict[str, Any]:
+    """Fetch the public GHSA advisory payload for the tracked advisory."""
+    url = f"https://api.github.com/advisories/{ADVISORY_ID}"
+    payload = _public_api_request(url, token=token)
+    if not isinstance(payload, dict):
+        raise ValueError("Global advisory API returned a non-dict payload")
     return payload
 
 
@@ -201,16 +282,33 @@ def main() -> int:
         print("SKIP: missing GitHub auth or repository context outside CI.")
         return 0
 
+    alerts: list[dict[str, Any]] | None = None
     try:
         alerts = _fetch_dependabot_alerts(repo=repo, token=token)
-    except (urllib.error.HTTPError, OSError, ValueError) as exc:
+    except urllib.error.HTTPError as exc:
+        if exc.code == 403:
+            print(
+                "WARN: Dependabot alerts endpoint is not accessible with the current token; "
+                "falling back to the public GHSA advisory."
+            )
+        else:
+            print(f"ERROR: failed to query Dependabot alerts: {exc}")
+            return 1 if in_ci else 0
+    except (OSError, ValueError) as exc:
         print(f"ERROR: failed to query Dependabot alerts: {exc}")
+        return 1 if in_ci else 0
+
+    try:
+        advisory_payload = _fetch_public_global_advisory(token=token)
+    except (urllib.error.HTTPError, OSError, ValueError) as exc:
+        print(f"ERROR: failed to query public GHSA advisory: {exc}")
         return 1 if in_ci else 0
 
     pins = _read_requirement_pins(REPO_ROOT)
     exception_present = _has_exception_seam(REPO_ROOT)
     errors = evaluate_guard_state(
         alerts=alerts,
+        advisory_patched_versions=_advisory_first_patched_versions(advisory_payload),
         pins=pins,
         exception_present=exception_present,
     )

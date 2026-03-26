@@ -33,12 +33,20 @@ Scope of the exception:
 - does not remove the pinned `Pygments` evidence from requirement surfaces
 - remains tracked in `docs/roadmap/BACKLOG_LEDGER.md` until a patched release is available
 - is now watched by `scripts/ci/check_pygments_exception_guard.py`, which fails
-  CI as soon as Dependabot reports a patched version or the tracked alerts no
-  longer remain open
+  CI as soon as the public GHSA advisory reports a patched version; when repo
+  tokens can read Dependabot alerts, the same guard also checks that tracked
+  alerts no longer silently remain open
 
 ## Evidence Anchors
 
-- `.pre-commit-config.yaml:126`
+- `.pre-commit-config.yaml:132`
+- `.pre-commit-config.yaml:135`
+- `scripts/ci/check_pygments_exception_guard.py:44`
+- `scripts/ci/check_pygments_exception_guard.py:151`
+- `scripts/ci/check_pygments_exception_guard.py:158`
+- `scripts/ci/check_pygments_exception_guard.py:231`
+- `.github/workflows/ci.yml:117`
+- `.github/workflows/ci.yml:134`
 - `docs/roadmap/BACKLOG_LEDGER.md:7540`
 - `requirements.txt:230`
 - `requirements-dev.txt:163`
