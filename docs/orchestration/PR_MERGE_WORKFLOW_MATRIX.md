@@ -29,8 +29,10 @@ completed open-PR review, merge, local sync, sanity, and cleanup.
 - [ ] If the lane declares a mandatory post-open reviewer path, run it now
 - [ ] For packets/runbooks that require it, execute `qa-engineer-agent -> bug-hunter` after PR open
 - [ ] Fetch and address all review comments (Codex, Sourcery, Cubic, CodeRabbit)
-- [ ] Resolve all review threads (`gh api graphql` resolveReviewThread)
-- [ ] Add Fixed in Commit Mapping: `- <review-url> -> <commit-sha>` for each actionable bot in `docs/review/PR_<N>_FIXED_MAPPING.md`
+- [ ] Record disposition evidence in `docs/review/PR_<N>_FIXED_MAPPING.md` before resolving any actionable review thread
+- [ ] Use canonical disposition outcomes: `FIXED`, `NOT-A-BUG`, or `DEFERRED`
+- [ ] Fixed in Commit Mapping entries may be `- <review-url> -> <commit-sha>` or `- <review-url>` depending on disposition proof
+- [ ] Resolve review threads only after the artifact contains the required disposition proof
 - [ ] PR body: Discussion Thread Pass checked, mirror sections complete
 
 ---
@@ -47,7 +49,8 @@ completed open-PR review, merge, local sync, sanity, and cleanup.
 
 - [ ] PR body has: Scope, Files, DoD, Discussion Thread Pass, Fixed in Commit Mapping, Merge Readiness
 - [ ] Deferred / Follow-ups section with ledger links if any
-- [ ] `python scripts/ci/check_pr_body_phase2_gates.py --body "..."` passes
+- [ ] Artifact-first Phase2 validation passes: `python3 scripts/ci/check_pr_body_phase2_gates.py --pr-number <PR_NUMBER>`
+- [ ] Use `--body "..."` only as a local/body-only fallback when `pr_number` is unavailable
 
 ---
 
@@ -59,14 +62,22 @@ completed open-PR review, merge, local sync, sanity, and cleanup.
 
 ---
 
-## 7. Merge
+## 7. Final Merge Gate
+
+- [ ] Run `python3 scripts/orchestration/check_merge_ready.py --pr-number <PR_NUMBER> --repo <owner/repo> --require-auth` after the latest bot/review activity
+- [ ] Confirm no pending required jobs remain on the current head
+- [ ] Wait one review cycle after the final green state before merge
+
+---
+
+## 8. Merge
 
 - [ ] `gh api repos/.../pulls/<N>/merge -X PUT -f merge_method=squash -f delete_branch_on_merge=true`
 - [ ] Or: `gh pr merge <N> --squash --delete-branch`
 
 ---
 
-## 8. Post-Merge Sync & Cleanup
+## 9. Post-Merge Sync & Cleanup
 
 - [ ] `git fetch --prune origin`
 - [ ] `git checkout main && git pull origin main`
@@ -77,21 +88,21 @@ completed open-PR review, merge, local sync, sanity, and cleanup.
 
 ---
 
-## 9. Sanity
+## 10. Sanity
 
 - [ ] `make test-fast`
 - [ ] `make verify` (when preparing release)
 
 ---
 
-## 10. Ledger
+## 11. Ledger
 
 - [ ] Update BACKLOG_LEDGER: mark completed items with Status, Target PR
 - [ ] If merged PR closes ledger item: open docs-only follow-up PR same day
 
 ---
 
-## 11. Next PR Gate
+## 12. Next PR Gate
 
 - [ ] Confirm sections 8-10 are complete before starting the next PR in the series
 - [ ] Agree plan with user (scope, backlog, worktree)
@@ -100,4 +111,4 @@ completed open-PR review, merge, local sync, sanity, and cleanup.
 
 ---
 
-**Last updated:** 2026-03-05 (Agent Run Summary Artifact)
+**Last updated:** 2026-03-26 (Automation readiness alignment)

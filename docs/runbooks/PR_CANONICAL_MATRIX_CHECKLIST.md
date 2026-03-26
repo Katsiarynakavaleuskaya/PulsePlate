@@ -30,12 +30,14 @@ Single operational checklist so context is never lost during PR execution.
    - Rerun only when transient failures are confirmed.
 8. Bot and review loop
    - Answer all actionable bot comments (CodeRabbit/Sourcery/etc.).
-   - Resolve all review threads.
+   - Record disposition evidence in the canonical artifact before resolving any actionable review thread.
+   - Resolve review threads only after FIXED / NOT-A-BUG / DEFERRED proof is present.
 9. Merge gate
    - Merge only when:
      - required CI is green,
      - no unresolved review threads,
-     - no actionable bot comments remain.
+     - no actionable bot comments remain,
+     - the final strict merge-wrapper pass and wait-window are complete.
 10. Post-merge closure
    - Sync the local repo back to `origin/main`.
    - Remove merged branches, worktrees, and temporary artifacts for this lane.

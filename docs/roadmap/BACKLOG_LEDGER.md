@@ -2107,7 +2107,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Reason: Repo docs and deterministic engines alone cannot force raw session auto-start. A machine-local launcher or wrapper must wire preflight, bootstrap, and compatible runtime settings without pretending that `~/.codex/config.toml` is repo source of truth.
   - Links:
     - `docs/orchestration/AUTOMATION_READINESS_MATRIX.md`
-    - `/Users/katsiaryna_kavaleuskaya/.codex/config.toml`
+    - `~/.codex/config.toml`
   - DoD:
     - Local launcher/wrapper classifies new tasks and invokes preflight + bootstrap before normal execution
     - Compatible local runtime settings are documented with explicit caveats about host/runtime limits
