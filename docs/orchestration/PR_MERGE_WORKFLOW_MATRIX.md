@@ -56,7 +56,7 @@ completed open-PR review, merge, local sync, sanity, and cleanup.
 
 - [ ] PR body has: Scope, Files, DoD, Discussion Thread Pass, Fixed in Commit Mapping, Merge Readiness
 - [ ] Deferred / Follow-ups section with ledger links if any
-- [ ] Artifact-first Phase2 validation passes: `python3 scripts/ci/check_pr_body_phase2_gates.py --pr-number <PR_NUMBER>`
+- [ ] Artifact-first Phase 2 validation passes: `python3 scripts/ci/check_pr_body_phase2_gates.py --pr-number <PR_NUMBER>`
 - [ ] Use `--body "..."` only as a local/body-only fallback when `pr_number` is unavailable
 
 ---
