@@ -42,6 +42,20 @@ Or individually:
 - Merge checklist is mandatory: canonical artifact `docs/review/PR_<N>_FIXED_MAPPING.md` (Fixed in Commit Mapping SoT) plus PR body mirror (`## Discussion Thread Pass`, `### Fixed in Commit Mapping`, `## Merge Readiness`).
 - This gate applies to every non-draft PR before merge.
 
+**Current PR lane baseline (Tier 1 governance):**
+
+- Canonical backend/shared PR lane is `.github/workflows/ci.yml` (`CI`).
+- Overlapping backend/shared workflows such as `PR Tests (Fast)`,
+  `PR Coverage Guard`, `Security Scan`, and `trivy` are transitional until the
+  Tier 1 consolidation series removes or reclassifies them; do not treat them as
+  equal canonical merge truth by default.
+- Frontend, accessibility, iOS, Docker/image, Fastlane, and App Store lanes are
+  specialized add-on lanes. They become merge- or release-blocking only when the
+  touched surface or branch protection explicitly attaches them.
+- External bot status checks remain advisory unless GitHub marks them required.
+  Actionable bot review comments still block merge through disposition
+  governance, even when the bot status itself is not required.
+
 ## Review Governance
 
 Review threads **must not be resolved without an explicit disposition**.

@@ -176,6 +176,29 @@ Canonical lane matrix:
 | Release ops | App Store / Fastlane validation lanes | Hard gate for release, not PR merge by default | Must pass before upload/publish claims; may be out-of-scope for code-only PR merge |
 | External    | CodeRabbit / Sourcery / Cubic / similar bots | External | Advisory unless GitHub explicitly marks them required |
 
+Current repo workflow inventory (Tier 1 baseline before PR2 consolidation):
+
+| Workflow / Surface | Lane | Class | Default Merge Effect | Tier 1 status |
+| ------------------ | ---- | ----- | -------------------- | ------------- |
+| `.github/workflows/ci.yml` (`CI`) | Backend / shared PR lane | Hard gate | Canonical backend/shared PR workflow for merge claims; current-head required jobs from this lane block merge when branch protection requires them | Canonical lane for PR1 governance |
+| `.github/workflows/ci.yml` (`pre-commit`, `security`) | Backend / shared PR lane | Soft gate in live workflow | Visible CI signal only while the job steps remain `continue-on-error`; local `pre-commit run --all-files` is still hard policy before push | Transitional drift to normalize in PR2 |
+| `.github/workflows/ci.yml` (`OpenAPI sync`, docs gates, merge-readiness, review governance) | Backend / shared PR lane | Hard gate | Blocks merge when the corresponding job is required on current HEAD | Canonical governance surface |
+| `.github/workflows/pr-tests.yml` (`PR Tests (Fast)`) | Backend / shared PR lane | Soft gate | Advisory duplicate of backend/shared test coverage until removed or branch-protection promoted | Transitional duplicate targeted by PR2 |
+| `.github/workflows/pr-coverage.yml` (`PR Coverage Guard`) | Backend / shared PR lane | Soft gate | Advisory duplicate of diff/coverage enforcement until removed or branch-protection promoted | Transitional duplicate targeted by PR2 |
+| `.github/workflows/security.yml` (`Security Scan`) | Backend / shared PR lane | Soft gate by default | Advisory security lane unless branch protection explicitly requires it; HIGH findings still require fix-first engineering response when the surface is in scope | Transitional duplicate targeted by PR2 |
+| `.github/workflows/trivy.yml` (`trivy`) | Backend / shared PR lane | Soft gate | Internal SARIF/reporting lane; does not block ordinary PR merge by default unless branch protection promotes it | Transitional duplicate targeted by PR2 |
+| `.github/workflows/frontend-ci.yml` (`Frontend CI`) | Frontend specialized lane | Hard gate when attached | Blocks merge only for frontend/design-token/OpenAPI-sync surfaces when attached by path or required checks | Specialized add-on lane |
+| `.github/workflows/accessibility.yml` (`Accessibility Tests`) | Frontend specialized lane | Soft gate by default | Advisory frontend quality signal unless branch protection requires it | Specialized add-on lane |
+| `.github/workflows/ci.yml` (`iOS unit tests`, `iOS UI smoke`) | iOS specialized lane | Hard gate when attached | Blocks merge for iOS / workflow-change surfaces when attached; note current path router also attaches on `.github/workflows/**` and `.github/actions/**` changes | Specialized add-on lane with current workflow-change coupling |
+| `.github/workflows/greenlight-ios.yml` (`Greenlight iOS Preflight`) | iOS specialized lane | Soft gate | Report-only preflight (`GREENLIGHT_BLOCKING=false`) | Advisory iOS lane |
+| `.github/workflows/build.yml` (`Docker Build and Push`) | Release / image lifecycle lane | Hard gate for release / image claims, not ordinary PR merge by default | Required before publish/image assertions; ordinary code-only PRs treat it as release-ops | Specialized release lane retained in PR2+ |
+
+Bot governance distinction (Tier 1 baseline):
+
+- Third-party bot **status checks** remain `External` and advisory unless GitHub marks them required.
+- Third-party or first-party bot **review comments** remain merge-blocking when they contain actionable items, because review governance/disposition policy is separate from status-check classification.
+- Until PR2 removes duplicate PR-time workflow lanes, contributors must treat overlapping backend/shared workflows as transitional signals and use `CI` as the canonical backend/shared PR lane for operator decisions.
+
 Evidence:
 - `scripts/ci/check_pr_merge_readiness.py:349`
 - `scripts/ci/check_pr_merge_readiness.py:400`
@@ -183,6 +206,28 @@ Evidence:
 - `scripts/orchestration/check_merge_ready.py:1`
 - `scripts/ci/check_pr_body_phase2_gates.py:162`
 - `scripts/ci/check_pr_body_phase2_gates.py:182`
+- `.github/workflows/ci.yml:1`
+- `.github/workflows/ci.yml:31`
+- `.github/workflows/ci.yml:292`
+- `.github/workflows/ci.yml:311`
+- `.github/workflows/ci.yml:333`
+- `.github/workflows/ci.yml:841`
+- `.github/workflows/pr-tests.yml:1`
+- `.github/workflows/pr-tests.yml:237`
+- `.github/workflows/pr-tests.yml:276`
+- `.github/workflows/pr-coverage.yml:1`
+- `.github/workflows/pr-coverage.yml:73`
+- `.github/workflows/pr-coverage.yml:130`
+- `.github/workflows/security.yml:2`
+- `.github/workflows/security.yml:47`
+- `.github/workflows/trivy.yml:6`
+- `.github/workflows/trivy.yml:56`
+- `.github/workflows/frontend-ci.yml:1`
+- `.github/workflows/accessibility.yml:1`
+- `.github/workflows/build.yml:1`
+- `.github/workflows/build.yml:221`
+- `.github/workflows/greenlight-ios.yml:2`
+- `.github/workflows/greenlight-ios.yml:24`
 
 ## 10. Review Thread Lifecycle
 

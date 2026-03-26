@@ -1984,20 +1984,117 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Deterministic tests cover workflow/Fastlane/orchestration-path review routing
     - Merge-readiness docs explain that this is a default requirement, not optional reviewer theater
 
-- [ ] P1: Classify CI checks as hard / soft / external in AGENTS or CI governance
+- [x] P1: Classify CI checks as hard / soft / external in AGENTS or CI governance
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-TBD
+  - Target PR: #996
   - Area: orchestration / CI / review governance
   - Finding Type: process hardening
+  - Status: Completed via `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md`; Tier 1 PR-series operationalization is tracked separately below.
   - Reason: Explicit classification (hard gate / soft gate / external flaky) prevents ambiguous merge decisions; external tools do not block unless marked required. The current local/CI/release matrix still leaves some truly blocking lanes in advisory mode, which makes merge-readiness claims inconsistent.
   - Links:
     - `AGENTS.md:31` (merge readiness), `:39` (checklist)
     - `.github/workflows/` (CI job definitions)
+    - `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md`
   - DoD:
     - AGENTS.md or dedicated CI governance doc defines hard gate (blocks merge), soft gate (warn only), external (never blocks unless manually promoted)
     - Examples listed per type
     - One canonical merge-ready check bundle is documented across local, PR CI, and release-ops lanes
+
+- [ ] P1: Tier 1 CI/CD consolidation via custom orchestration
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-TIER1-CI-CD-PR1 -> PR-TBD-TIER1-CI-CD-PR4
+  - Area: orchestration / CI / review governance
+  - Finding Type: process hardening
+  - Status: In progress
+  - Reason: Tier 1 requires a coordinator-led stacked PR program that first locks governance, then consolidates workflow topology, then narrows PR blockers, then adds advisory CI metrics without widening release risk.
+  - Links:
+    - `docs/orchestration/TIER1_CI_CD_PR_SERIES_RUNBOOK.md`
+    - `docs/orchestration/TIER1_CI_CD_TASK_PACKET_2026-03-26.md`
+    - `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md`
+    - `RUNBOOK_AGENT.md`
+  - DoD:
+    - Governance owner, routing card, and mandatory post-open bug-hunter lane are documented and used for every Tier 1 slice
+    - Canonical backend/shared PR workflow topology is consolidated and validated against current-head required checks
+    - PR blocker vs advisory CI classification is documented, reduced, and enforced through the merge-readiness wrapper
+    - Advisory CI metrics artifacts exist without adding new merge blockers or widening release risk
+  - Child slices:
+    - `ledger-p1-tier1-ci-cd-pr1-governance`
+    - `ledger-p1-tier1-ci-cd-pr2-workflow`
+    - `ledger-p1-tier1-ci-cd-pr3-risk-topology`
+    - `ledger-p1-tier1-ci-cd-pr4-metrics`
+
+- [ ] P1: PR1 governance and canonical matrix sync {#ledger-p1-tier1-ci-cd-pr1-governance}
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-TIER1-CI-CD-PR1
+  - Area: orchestration / CI / review governance
+  - Finding Type: process hardening
+  - Status: Planned
+  - Reason: The repo already has merge-governance primitives, but Tier 1 cannot start safely until the canonical backend/shared lane, duplicate PR-time workflows, and specialized add-on lanes are named explicitly in docs.
+  - Links:
+    - `docs/orchestration/TIER1_CI_CD_PR_SERIES_RUNBOOK.md`
+    - `docs/orchestration/TIER1_CI_CD_TASK_PACKET_2026-03-26.md`
+  - DoD:
+    - `AGENTS.md`, `RUNBOOK_AGENT.md`, and orchestration docs all point to one canonical backend/shared PR lane
+    - Duplicate PR-time lanes are labeled transitional rather than canonical
+    - Mandatory post-open `qa-engineer-agent -> bug-hunter` lane is recorded
+    - Local validation passes: `check_preflight`, `check_agent_consistency`, `pre-commit run --all-files`, `make verify`
+
+- [ ] P1: PR2 workflow consolidation into canonical ci.yml {#ledger-p1-tier1-ci-cd-pr2-workflow}
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-TIER1-CI-CD-PR2
+  - Area: orchestration / CI / review governance
+  - Finding Type: process hardening
+  - Status: Planned
+  - Reason: Backend/shared PR execution is currently duplicated across `ci.yml`, `pr-tests.yml`, `pr-coverage.yml`, `security.yml`, and `trivy.yml`.
+  - Links:
+    - `.github/workflows/ci.yml`
+    - `.github/workflows/pr-tests.yml`
+    - `.github/workflows/pr-coverage.yml`
+    - `.github/workflows/security.yml`
+    - `.github/workflows/trivy.yml`
+  - DoD:
+    - Canonical backend/shared PR execution converges into `.github/workflows/ci.yml`
+    - Duplicate PR-time responsibilities are removed or explicitly demoted
+    - `build.yml`, frontend-only lanes, and nightly/release lanes stay isolated
+    - Required-check parity is preserved on current-head PR checks
+
+- [ ] P1: PR3 risk-based PR test topology {#ledger-p1-tier1-ci-cd-pr3-risk-topology}
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-TIER1-CI-CD-PR3
+  - Area: orchestration / CI / review governance
+  - Finding Type: process hardening
+  - Status: Planned
+  - Reason: PR blockers should stay focused on business-critical runtime paths, while nightly depth absorbs broad non-critical coverage tails.
+  - Links:
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-test-hygiene-wave`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-fastapi-compatibility-gates`
+    - `docs/orchestration/TIER1_CI_CD_PR_SERIES_RUNBOOK.md`
+  - DoD:
+    - Deterministic smoke, contract/risk suites, and nightly-only depth are split
+    - Blocking surfaces explicitly cover billing, entitlement, VIP insight, and OpenAPI determinism
+    - PR-size governance exists for `<300`, `300-800`, and `>800` LoC cases
+    - No new flaky test class is introduced
+
+- [ ] P1: PR4 lightweight CI metrics and weekly feedback loop {#ledger-p1-tier1-ci-cd-pr4-metrics}
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-TIER1-CI-CD-PR4
+  - Area: orchestration / CI / review governance
+  - Finding Type: process hardening
+  - Status: Planned
+  - Reason: Tier 1 needs advisory metrics for critical-path duration, reruns, and flaky-signal tracking without turning observability into another merge blocker.
+  - Links:
+    - `docs/orchestration/TIER1_CI_CD_PR_SERIES_RUNBOOK.md`
+  - DoD:
+    - `scripts/ci/` emits `ci-metrics-summary.json` and `ci-metrics-summary.md`
+    - Metrics remain informational only
+    - Weekly reporting path is documented
+    - Artifact absence degrades gracefully
 
 
 - [ ] P1: Disposition guard — ban mapping to trigger-only commits

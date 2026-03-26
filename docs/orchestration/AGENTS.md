@@ -12,6 +12,15 @@ Scope: `docs/orchestration/**`
   - advisory: `architecture-specialist`
   - optional consult: `creative-designer`, `frontend-engineer`
   - mandatory post-open lane: `qa-engineer-agent -> bug-hunter`
+- For the Tier 1 CI/CD consolidation wave:
+  - primary: `agent-coordinator`
+  - secondary: `backend-engineer`
+  - reviewer: `security-auditor`
+  - execution helper: `dev-operator`
+  - mandatory post-open lane: `qa-engineer-agent -> bug-hunter`
+  - canonical packet/runbook:
+    - [`docs/orchestration/TIER1_CI_CD_TASK_PACKET_2026-03-26.md`](./TIER1_CI_CD_TASK_PACKET_2026-03-26.md)
+    - [`docs/orchestration/TIER1_CI_CD_PR_SERIES_RUNBOOK.md`](./TIER1_CI_CD_PR_SERIES_RUNBOOK.md)
 - Any PR that updates `docs/review/PR_<N>_FIXED_MAPPING.md` in this scope must refresh the PR body mirror after the canonical artifact changes.
 - Detailed governance procedure lives in:
   - [`docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md`](./PR_ORCHESTRATION_CONTRACT_MATRIX.md)

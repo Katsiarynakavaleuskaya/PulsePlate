@@ -139,6 +139,25 @@ Canonical SoT for the lane matrix:
 - `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md` (`CI Check Classification`)
 - `scripts/orchestration/check_merge_ready.py`
 
+For the Tier 1 backend/shared CI consolidation wave, the PR-series operating
+contract lives in:
+- `docs/orchestration/TIER1_CI_CD_PR_SERIES_RUNBOOK.md`
+- `docs/orchestration/TIER1_CI_CD_TASK_PACKET_2026-03-26.md`
+
+Operator routing baseline before PR2 workflow consolidation:
+
+- Backend/shared PR: inspect `CI` first; treat it as the canonical lane.
+- Frontend/design-token/OpenAPI frontend sync PR: inspect `Frontend CI` first,
+  then `Accessibility Tests` when its path filter attaches.
+- iOS PR: inspect `CI` iOS jobs first, then `Greenlight iOS Preflight`; treat
+  Fastlane/App Store lanes as release-ops, not ordinary PR merge blockers,
+  unless the PR explicitly changes release surfaces.
+- Workflow-change PR: inspect `CI` first. Current path routing in `CI` also
+  attaches iOS jobs for `.github/workflows/**` and `.github/actions/**`, so a
+  workflow-only PR can inherit iOS cost until PR2 removes that coupling.
+- Release/image PR: inspect `Docker Build and Push` plus any publish lane that
+  the PR explicitly changes.
+
 ## Guard Coverage Step (EVMbench-inspired)
 
 **Purpose:** Ensure comprehensive coverage — address *all* related violations, not just one.
@@ -312,6 +331,11 @@ Use this as the canonical operating loop from branch creation to merge window:
    - Wait one review cycle after the final green state
 
 If any part of this loop is skipped, the PR must not be described as ready.
+
+For the Tier 1 CI/CD consolidation wave, apply the same loop with the explicit
+packet + runbook pair:
+- `docs/orchestration/TIER1_CI_CD_PR_SERIES_RUNBOOK.md`
+- `docs/orchestration/TIER1_CI_CD_TASK_PACKET_2026-03-26.md`
 
 ## Pre-merge readiness pass (mandatory for non-draft PRs)
 
