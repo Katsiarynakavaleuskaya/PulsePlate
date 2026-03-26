@@ -37,6 +37,27 @@
     "downloadHint": "Export ready. Private link valid for 15 minutes."
   },
   "onboarding": {
+    "welcome": {
+      "screen1": {
+        "title": "PulsePlate — your nutrition on track",
+        "body": "Set your goals once. Your plan and progress stay aligned."
+      },
+      "cta": {
+        "start": "Get started"
+      },
+      "stepA11y": "Step %d of %d",
+      "preview": {
+        "systemTitle": "PULSE MEMBRANE",
+        "systemSubtitle": "Selective clarity. One gate. One truth.",
+        "systemBody": "A visual system for first-run onboarding — engineered with painstaking care.",
+        "gateEyebrow": "Welcome Gate / Screen 1 Preview",
+        "panelTitle": "WELCOME GATE / v1",
+        "panelKeyLabel": "key:",
+        "panelFlowLabel": "flow:",
+        "panelLocalesLabel": "locales:",
+        "panelPolicyLabel": "policy:"
+      }
+    },
     "enterKey": {
       "title": "API Key",
       "description": "Key required for Premium and admin sections. Where to get: check README → API key section.",

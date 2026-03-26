@@ -82,6 +82,12 @@ vi.mock('../config/routes', () => ({
       component: () => <div data-testid="design-system-page">Design System Page</div>,
       hideTabBar: true,
       requiresAuth: false
+    },
+    {
+      path: '/welcome-gate-v1',
+      component: () => <div data-testid="welcome-gate-page">Welcome Gate V1 Page</div>,
+      hideTabBar: true,
+      requiresAuth: false
     }
   ]
 }));
@@ -123,6 +129,16 @@ describe('App', () => {
     render(<App />);
 
     expect(screen.getByTestId('design-system-page')).toBeInTheDocument();
+    expect(screen.queryByTestId('tab-bar')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('require-key')).not.toBeInTheDocument();
+  });
+
+  it('hides tab bar for the welcome gate preview route', () => {
+    navigateTo('/welcome-gate-v1');
+
+    render(<App />);
+
+    expect(screen.getByTestId('welcome-gate-page')).toBeInTheDocument();
     expect(screen.queryByTestId('tab-bar')).not.toBeInTheDocument();
     expect(screen.queryByTestId('require-key')).not.toBeInTheDocument();
   });

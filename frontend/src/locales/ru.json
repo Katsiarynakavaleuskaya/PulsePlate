@@ -37,6 +37,27 @@
     "downloadHint": "Экспорт готов. Приватная ссылка действительна 15 минут."
   },
   "onboarding": {
+    "welcome": {
+      "screen1": {
+        "title": "PulsePlate — питание под контролем",
+        "body": "Настрой цели один раз. План и прогресс будут согласованы."
+      },
+      "cta": {
+        "start": "Начать"
+      },
+      "stepA11y": "Шаг %d из %d",
+      "preview": {
+        "systemTitle": "ПУЛЬС МЕМБРАНЫ",
+        "systemSubtitle": "Избирательная ясность. Один вход. Одна истина.",
+        "systemBody": "Визуальная система для первого запуска — собрана с предельной аккуратностью.",
+        "gateEyebrow": "Welcome Gate / Экран 1 Preview",
+        "panelTitle": "WELCOME GATE / v1",
+        "panelKeyLabel": "ключ:",
+        "panelFlowLabel": "поток:",
+        "panelLocalesLabel": "языки:",
+        "panelPolicyLabel": "политика:"
+      }
+    },
     "enterKey": {
       "title": "API-ключ",
       "description": "Ключ обязателен для Premium и админ-разделов. Где взять: проверьте README → раздел API key.",
