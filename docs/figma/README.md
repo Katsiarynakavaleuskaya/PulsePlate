@@ -68,8 +68,12 @@ Purpose: single Git folder for everything you pass to Figma AI.
 ## Recommended workflow
 
 1. Refresh Git context using `docs/figma/FIGMA_IMPLEMENTATION_RUNBOOK.md`.
-2. Lock current file scope and source precedence with
+2. If the task is specifically about `PulsePlate_v3` or the clean canonical
+   `Foundations + Components + Welcome Gate` execution lane, lock current file
+   scope and source precedence with
    `docs/figma/PULSEPLATE_V3_DESIGN_SYSTEM_RECONCILIATION.md`.
+   For other Figma tasks, stay on the standard runbook/governance path unless a
+   file-specific reconciliation packet explicitly applies.
 3. Reconcile Make/current-file updates with
    `docs/figma/FIGMA_MAKE_SYNC_AUDIT_HPP.md`.
 4. Review bridge rules in `docs/figma/FIGMA_CODE_CONNECT_BRIDGE_HPP.md`.

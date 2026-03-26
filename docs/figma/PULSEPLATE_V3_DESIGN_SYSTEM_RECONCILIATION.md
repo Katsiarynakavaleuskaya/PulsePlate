@@ -58,6 +58,23 @@ For this phase:
 - Storybook/component inventory remain the canonical web review lane
 - any future Code Connect work must be handled in a separate follow-up packet
 
+### 2.3 Canonical file rollover / re-key rule
+
+If the clean canonical Figma file is duplicated, migrated, or receives a new
+file key, the repo policy does not automatically follow the old ID forever.
+
+Required action:
+
+1. treat the old clean-file ID as stale for new execution work
+2. record the replacement file key and URL in this packet
+3. update any README/runbook references that point to the old key
+4. keep the previous key noted in `90_Audit_Archive` or the PR discussion if it
+   matters for provenance
+
+Until that update lands in Git, the previously recorded repo packet remains the
+canonical instruction set and the replacement file must not be treated as
+governed production scope by implication alone.
+
 ## 3. Canonical Source Precedence
 
 Use this precedence order whenever repo, Figma, prompts, or external tools
