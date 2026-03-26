@@ -33,3 +33,9 @@ Evidence: scripts/ci/check_pygments_exception_guard.py:156; tests/test_check_pyg
 Reason: Normalize trailing zero release tuple segments so equivalent versions like `2.19` and `2.19.0` compare equal; cubic identified this issue.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1239#pullrequestreview-4011970362 -> 8ba1c03b
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1239#discussion_r2992974893 -> 8ba1c03b
+
+Disposition: FIXED
+Commit: 1f4cd41c
+Evidence: tests/test_check_pygments_exception_guard.py:212; tests/test_check_pygments_exception_guard.py:246
+Reason: Harden pagination-test URL matching by parsing query params and cover both 401/403 retry branches requested by CodeRabbit.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1239#pullrequestreview-4012030662 -> 1f4cd41c
