@@ -10,6 +10,26 @@ import pytest
 import scripts.ci.ci_risk_profile as risk_profile
 
 
+def test_empty_changed_files_uses_default_risk_profile() -> None:
+    profile = risk_profile.build_risk_profile([])
+
+    assert profile.changed_files == ()
+    assert profile.docs_only is False
+    assert profile.frontend_only is False
+    assert profile.ios_only is False
+    assert profile.workflow_privileged is False
+    assert profile.backend_shared is False
+    assert profile.run_backend_blocking is False
+    assert profile.run_security is False
+    assert profile.run_openapi_sync is False
+    assert profile.billing_entitlement is False
+    assert profile.insight_ai is False
+    assert profile.openapi_contract is False
+    assert profile.route_contract_safety is False
+    assert profile.merge_governance is False
+    assert profile.contract_risk_groups == ()
+
+
 def test_docs_only_changes_skip_backend_blocking() -> None:
     profile = risk_profile.build_risk_profile(
         ["docs/release/notes.md", "README.md"],
