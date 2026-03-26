@@ -17,6 +17,27 @@
     }
   },
   "onboarding": {
+    "welcome": {
+      "screen1": {
+        "title": "PulsePlate — tu nutrición bajo control",
+        "body": "Configura tus objetivos una vez. Plan y progreso en sintonía."
+      },
+      "cta": {
+        "start": "Empezar"
+      },
+      "stepA11y": "Paso %d de %d",
+      "preview": {
+        "systemTitle": "PULSE MEMBRANE",
+        "systemSubtitle": "Claridad selectiva. Una puerta. Una verdad.",
+        "systemBody": "Un sistema visual para el primer recorrido — construido con cuidado extremo.",
+        "gateEyebrow": "Welcome Gate / Vista previa pantalla 1",
+        "panelTitle": "WELCOME GATE / v1",
+        "panelKeyLabel": "clave:",
+        "panelFlowLabel": "flujo:",
+        "panelLocalesLabel": "idiomas:",
+        "panelPolicyLabel": "política:"
+      }
+    },
     "enterKey": {
       "title": "Clave API",
       "description": "Clave obligatoria para secciones Premium y de administración. Dónde obtener: consulta README → sección de clave API.",
