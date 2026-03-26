@@ -101,9 +101,7 @@ def test_canonical_ci_and_docker_use_supply_chain_guardrails() -> None:
     assert "--only-binary" in installer_text
     assert "PULSEPLATE_PYTHON_INDEX_URL" in installer_text
     assert any(host == ".".join(("pypi", "org")) for host in blocked_hosts)
-    assert any(
-        host.endswith("pythonhosted.org") and host.startswith("files.") for host in blocked_hosts
-    )
+    assert any(host == ".".join(("files", "pythonhosted", "org")) for host in blocked_hosts)
     assert any(host == ".".join(("test", "pypi", "org")) for host in blocked_hosts)
     assert "install_locked_python_requirements.py" in docker_text
     assert "ARG PULSEPLATE_PYTHON_INDEX_URL" in docker_text
