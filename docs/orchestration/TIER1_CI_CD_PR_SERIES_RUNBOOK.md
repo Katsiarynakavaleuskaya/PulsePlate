@@ -23,6 +23,19 @@ It exists to keep:
 - [`docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md`](./PR_ORCHESTRATION_CONTRACT_MATRIX.md)
   remains the source of truth for merge governance semantics and CI check classes.
 
+## Packet Reuse and Versioning Policy
+
+- This runbook is the stable process-level SoT for the Tier 1 wave.
+- The dated task packet is a branch-scoped execution snapshot for the active wave.
+- While the same wave remains active, update the dated packet **in place** instead
+  of minting a new filename for minor routing, acceptance, or wording changes.
+- Create a new dated packet only when the wave is materially re-baselined
+  (for example: ownership reset, different stacked PR decomposition, or a new
+  consolidation phase that would make old links misleading).
+- Shared sections such as validation, deferred scope, and routing intent should
+  live here first; the task packet should reference this runbook instead of
+  becoming a second long-form process document.
+
 ## Source of Truth
 
 - Coordinator workflow: `docs/orchestration/workflow.md`

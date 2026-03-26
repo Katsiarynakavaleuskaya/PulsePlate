@@ -9,6 +9,16 @@
 Consolidate PulsePlate backend/shared PR CI into a canonical Tier 1 execution model
 without weakening current merge blockers or broadening runtime behavior.
 
+## Relationship to the Runbook
+
+- [`docs/orchestration/TIER1_CI_CD_PR_SERIES_RUNBOOK.md`](./TIER1_CI_CD_PR_SERIES_RUNBOOK.md)
+  is the canonical process/runbook SoT for this wave.
+- This packet keeps only branch-scoped execution details: scope, critical
+  surfaces, routing, PR-by-PR deliverables, and acceptance criteria.
+- Shared process sections such as hard rules, validation baseline, deferred
+  scope, and packet versioning are inherited from the runbook and are only
+  summarized here when a branch-local reminder is useful.
+
 ## Scope
 
 ### In scope
@@ -96,6 +106,9 @@ Blocking surfaces for Tier 1 PR-lane decisions:
 
 ## Validation Commands
 
+Canonical validation baseline is inherited from the Tier 1 runbook. Use the
+commands below as the branch-local execution reminder for this packet:
+
 - `python3 scripts/orchestration/check_preflight.py`
 - `python3 scripts/orchestration/check_agent_consistency.py`
 - `pre-commit run --all-files`
@@ -113,6 +126,9 @@ For non-draft PRs:
 - CI/governance docs can drift again unless the backlog epic and runbook stay authoritative.
 
 ## Deferred / Follow-ups
+
+Deferred scope is governed by the Tier 1 runbook. For this packet, the active
+carry-forward list is:
 
 - preview environments
 - mutation testing
