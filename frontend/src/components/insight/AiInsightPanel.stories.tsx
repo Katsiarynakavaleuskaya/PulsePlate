@@ -61,7 +61,7 @@ export const Result: Story = {
     subtitle: 'Персональная рекомендация на сегодня',
     result: {
       title: 'Совет на ужин',
-      body: 'Сегодня вы почти достигли цели по белку. Добавьте 20–30 г белка в ужин: творог или рыбу.',
+      body: 'Сегодня вы почти достигли цели по белку. Добавьте порцию белка в ужин: творог или рыбу.',
       confidenceLabel: 'Confidence 0.82',
       tags: ['Last 7 days', 'Meals', 'Goals'],
       primaryActionLabel: 'Применить',
