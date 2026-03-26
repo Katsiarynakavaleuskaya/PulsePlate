@@ -1,7 +1,13 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+
 type WelcomeScreen = 1 | 2 | 3;
+const PREVIEW_SCREEN_ORDER: readonly WelcomeScreen[] = [1, 2, 3] as const;
+const PREVIEW_SCREEN_COUNT = PREVIEW_SCREEN_ORDER.length;
+const PREVIEW_FLOW_SUMMARY = `Gate → screens 1-${PREVIEW_SCREEN_COUNT} preview → setup`;
+const PREVIEW_LOCALES = ['ru', 'en', 'es'] as const;
+const PREVIEW_POLICY = 'preview only, no persistence';
 
 interface ScreenConfig {
   eyebrow: string;
@@ -9,14 +15,10 @@ interface ScreenConfig {
   body: string;
 }
 
-function formatStepLabel(template: string, current: number, total: number): string {
-  return template.replace('%d', String(current)).replace('%d', String(total));
-}
-
 function StepDots({ current }: { current: WelcomeScreen }): JSX.Element {
   return (
     <div aria-hidden="true" className="flex items-center gap-2">
-      {[1, 2, 3].map((step) => (
+      {PREVIEW_SCREEN_ORDER.map((step) => (
         <span
           key={step}
           className={[
@@ -55,15 +57,18 @@ export default function WelcomeGateV1({ initialScreen = 1 }: WelcomeGateV1Props)
     },
   };
 
-  const stepLabel = formatStepLabel(t('onboarding.welcome.stepA11y'), screen, 3);
+  const stepLabel = t('onboarding.welcome.stepA11y', {
+    current: screen,
+    total: PREVIEW_SCREEN_COUNT,
+  });
   const currentScreen = screenConfigs[screen];
 
   return (
     <main
-      aria-label="Welcome Gate v1 preview"
-      className="min-h-dvh bg-[#0d0d1a] px-4 py-6 text-white sm:px-6"
+      aria-label={t('onboarding.welcome.mainA11y')}
+      className="min-h-dvh bg-[var(--pp-navy)] px-4 py-6 text-white sm:px-6"
     >
-      <section className="mx-auto flex min-h-[calc(100dvh-3rem)] max-w-[24rem] flex-col rounded-[2rem] bg-[#0f172a] p-6 shadow-[0_30px_70px_rgba(0,0,0,0.35)]">
+      <section className="mx-auto flex min-h-[calc(100dvh-3rem)] max-w-[24rem] flex-col rounded-[2rem] bg-[var(--pp-navy)] p-6 shadow-[0_30px_70px_rgba(0,0,0,0.35)]">
         {screen === 1 ? (
           <>
             <div className="flex justify-end">
@@ -92,7 +97,7 @@ export default function WelcomeGateV1({ initialScreen = 1 }: WelcomeGateV1Props)
             <div className="mt-8 rounded-[1.25rem] border border-white/12 bg-white/[0.06] p-5">
               <p className="text-base text-white">{t('onboarding.welcome.screen1.cardTitle')}</p>
               <ul className="mt-4 space-y-3 text-[1rem] text-white/75">
-                {[1, 2, 3].map((item) => (
+                {PREVIEW_SCREEN_ORDER.map((item) => (
                   <li key={item}>{t(`onboarding.welcome.screen1.points.${item}`)}</li>
                 ))}
               </ul>
@@ -174,7 +179,7 @@ export default function WelcomeGateV1({ initialScreen = 1 }: WelcomeGateV1Props)
               {screen === 2 ? (
                 <button
                   type="button"
-                  className="w-full rounded-2xl bg-[#43c6cf] px-6 py-4 text-lg font-semibold text-[#08111f]"
+                  className="w-full rounded-2xl bg-[var(--pp-green)] px-6 py-4 text-lg font-semibold text-[var(--pp-navy)]"
                   onClick={() => setScreen(3)}
                 >
                   {t('onboarding.welcome.cta.continue')}
@@ -182,7 +187,7 @@ export default function WelcomeGateV1({ initialScreen = 1 }: WelcomeGateV1Props)
               ) : (
                 <Link
                   to="/setup"
-                  className="flex w-full items-center justify-center rounded-2xl bg-[#43c6cf] px-6 py-4 text-lg font-semibold text-[#08111f]"
+                  className="flex w-full items-center justify-center rounded-2xl bg-[var(--pp-green)] px-6 py-4 text-lg font-semibold text-[var(--pp-navy)]"
                 >
                   {t('onboarding.welcome.cta.finish')}
                 </Link>
@@ -196,13 +201,13 @@ export default function WelcomeGateV1({ initialScreen = 1 }: WelcomeGateV1Props)
         <p className="font-semibold uppercase tracking-[0.18em] text-white/38">{t('onboarding.welcome.preview.panelTitle')}</p>
         <div className="mt-3 space-y-2">
           <p>
-            {t('onboarding.welcome.preview.panelFlowLabel')} Gate → screens 1-3 preview → setup
+            {t('onboarding.welcome.preview.panelFlowLabel')} {PREVIEW_FLOW_SUMMARY}
           </p>
           <p>
-            {t('onboarding.welcome.preview.panelLocalesLabel')} ru · en · es
+            {t('onboarding.welcome.preview.panelLocalesLabel')} {PREVIEW_LOCALES.join(' · ')}
           </p>
           <p>
-            {t('onboarding.welcome.preview.panelPolicyLabel')} preview only, no persistence
+            {t('onboarding.welcome.preview.panelPolicyLabel')} {PREVIEW_POLICY}
           </p>
         </div>
       </section>
