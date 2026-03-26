@@ -13,3 +13,4 @@
 - [ ] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
 - [x] Pre-commit green
 - [x] `make verify` green
+- Current head `a07ce7d3` requires canonical `pull_request` revalidation because the last successful PR CI run reported on `fcc1356d`.
