@@ -16,13 +16,19 @@ Commit: c7309c29
 Evidence: `scripts/ci/check_python_startup_hooks.py:112`, `scripts/ci/check_python_startup_hooks.py:142`, `.dockerignore:13`, `.dockerignore:18`, `Dockerfile:37`, `Dockerfile:39`, `Dockerfile:204`, `tests/test_check_python_startup_hooks.py:106`, `tests/test_python_supply_chain_controls.py:54`
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1243#discussion_r2993944489 -> c7309c29
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1243#discussion_r2993944494 -> c7309c29
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1243#discussion_r2993998258 -> c7309c29
 
 Disposition: FIXED
 Commit: 2f88037d
 Evidence: `.github/actions/python-setup/action.yml:35`, `.github/actions/python-setup/action.yml:42`, `scripts/ci/check_python_startup_hooks.py:93`, `scripts/ci/check_python_startup_hooks.py:97`, `tests/test_check_python_startup_hooks.py:91`, `tests/test_python_supply_chain_controls.py:31`
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1243#discussion_r2993998261 -> 2f88037d
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1243#discussion_r2993998276 -> 2f88037d
+
+Disposition: FIXED
+Commit: afead8f6
+Evidence: `scripts/ci/check_local_verify_environment.py:12`, `scripts/ci/check_local_verify_environment.py:54`, `scripts/ci/check_local_verify_environment.py:71`, `scripts/ci/install_locked_python_requirements.py:98`, `scripts/ci/install_locked_python_requirements.py:140`, `scripts/ci/install_locked_python_requirements.py:286`, `tests/test_check_local_verify_environment.py:54`, `tests/test_check_python_startup_hooks.py:12`, `tests/test_install_locked_python_requirements.py:59`, `tests/test_install_locked_python_requirements.py:282`, `tests/test_python_supply_chain_controls.py:56`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1243#discussion_r2994081123 -> afead8f6
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1243#discussion_r2994081130 -> afead8f6
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1243#discussion_r2994081134 -> afead8f6
 
 Disposition: NOT-A-BUG
 Reason: The cubic review summary is an aggregate wrapper for the three inline findings already mapped above; it does not introduce an extra unresolved obligation once those thread URLs are fixed and recorded individually.
@@ -42,6 +48,7 @@ Evidence: `docs/roadmap/BACKLOG_LEDGER.md:7711`, `docs/security/LITELLM_SUPPLY_C
 Disposition: NOT-A-BUG
 Reason: This CodeRabbit note duplicated the already-fixed Docker build-context issue; the current `.dockerignore` allowlist and Docker `COPY` surface are aligned, so no additional code path remains to change.
 Evidence: `.dockerignore:16`, `.dockerignore:19`, `.dockerignore:21`, `.dockerignore:22`, `Dockerfile:37`, `Dockerfile:38`, `tests/test_python_supply_chain_controls.py:71`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1243#discussion_r2993998258
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1243#discussion_r2994012677
 
 Disposition: NOT-A-BUG
@@ -53,6 +60,11 @@ Disposition: NOT-A-BUG
 Reason: The CodeRabbit review URL is an aggregate wrapper around the inline comments above plus advisory nitpicks; once each actionable thread is recorded individually, the summary review itself does not add another merge blocker.
 Evidence: `docs/review/PR_1243_FIXED_MAPPING.md:28`, `docs/review/PR_1243_FIXED_MAPPING.md:38`, `.github/actions/python-setup/action.yml:53`
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1243#pullrequestreview-4013117902
+
+Disposition: NOT-A-BUG
+Reason: The latest CodeRabbit review URL is only the aggregate wrapper for the three inline comments fixed in `afead8f6`; once those discussion URLs are mapped individually, the summary review has no separate unresolved action.
+Evidence: `scripts/ci/check_local_verify_environment.py:54`, `scripts/ci/install_locked_python_requirements.py:140`, `tests/test_check_python_startup_hooks.py:12`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1243#pullrequestreview-4013190596
 
 ## Merge Readiness
 - [ ] All required checks pass
