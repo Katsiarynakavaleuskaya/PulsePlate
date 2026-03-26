@@ -22,12 +22,22 @@ def test_parse_numstat_output_sums_text_rows_and_ignores_binary() -> None:
 def test_has_split_justification_accepts_heading_and_label() -> None:
     assert size_gate.has_split_justification("## Split Justification\nNeeded for parity.")
     assert size_gate.has_split_justification("Split justification: workflow rename parity.")
+    assert size_gate.has_split_justification("## pr size justification\nNeeded for parity.")
+    assert size_gate.has_split_justification("**Split justification:** workflow rename parity.")
 
 
 def test_has_split_justification_rejects_empty_template_stub() -> None:
     assert not size_gate.has_split_justification("## Split Justification\n")
     assert not size_gate.has_split_justification(
         "## Summary\nLarge PR.\n\n## Split Justification\n\n## Risks\nLow.\n",
+    )
+    assert not size_gate.has_split_justification(
+        (
+            "## Split Justification\n\n"
+            "- Why this PR cannot be split safely:\n"
+            "- What invariant, contract, or rollout constraint requires one PR:\n"
+            "- What follow-up PRs remain after this large change:\n"
+        ),
     )
 
 

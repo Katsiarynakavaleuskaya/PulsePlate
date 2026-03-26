@@ -24,6 +24,11 @@ SPLIT_JUSTIFICATION_INLINE_PATTERN = re.compile(
 SPLIT_JUSTIFICATION_HEADING_PATTERN = re.compile(
     r"(?im)^(?:##+\s*|[*]{0,2})?(?:pr size justification|split justification)\s*$",
 )
+SPLIT_JUSTIFICATION_TEMPLATE_PLACEHOLDERS = {
+    "why this pr cannot be split safely:",
+    "what invariant, contract, or rollout constraint requires one pr:",
+    "what follow-up prs remain after this large change:",
+}
 
 
 def parse_numstat_output(numstat_output: str) -> tuple[int, int]:
@@ -54,6 +59,12 @@ def classify_pr_size(total_changed_lines: int) -> str:
     return "requires_split_justification"
 
 
+def normalize_split_justification_candidate(candidate_text: str) -> str:
+    """Return a normalized split-justification line for placeholder comparison."""
+    normalized = re.sub(r"\s+", " ", candidate_text.strip()).casefold()
+    return re.sub(r"^(?:[-*]\s*)", "", normalized)
+
+
 def has_split_justification(pr_body: str) -> bool:
     """Return True when the PR body contains an explicit split-justification block."""
     if SPLIT_JUSTIFICATION_INLINE_PATTERN.search(pr_body or ""):
@@ -69,6 +80,11 @@ def has_split_justification(pr_body: str) -> bool:
                 continue
             if candidate_text.startswith("#"):
                 return False
+            if (
+                normalize_split_justification_candidate(candidate_text)
+                in SPLIT_JUSTIFICATION_TEMPLATE_PLACEHOLDERS
+            ):
+                continue
             return True
         return False
     return False
