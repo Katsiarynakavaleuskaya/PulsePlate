@@ -49,7 +49,7 @@ Commit: e5a395a9
 Evidence: `frontend/src/pages/Onboarding/__tests__/WelcomeGateV1.test.tsx:53`; `frontend/src/pages/Onboarding/__tests__/WelcomeGateV1.test.tsx:65`; `frontend/src/pages/Onboarding/__tests__/WelcomeGateV1.test.tsx:99`; `frontend/src/locales/en.json:58`; `frontend/src/locales/es.json:38`; `frontend/src/locales/ru.json:58`
 Reason: Made the locale helper contract explicit with a named return type, added a negative assertion that the preview render does not persist `has_seen_welcome_v1`, and aligned the screen-1 footer branding with PulsePlate across all shipped locales so the latest CodeRabbit actionable review is fully addressed on the current head.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1249#discussion_r2997692278 -> e5a395a9
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1249#pullrequestreview-4017387710 -> e5a395a9
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1249#pullrequestreview-4017372495 -> e5a395a9
 
 ## Merge Readiness
 
