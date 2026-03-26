@@ -81,8 +81,10 @@ Blocking surfaces for Tier 1 PR-lane decisions:
 ### PR-2
 
 - canonical backend/shared PR lane in `ci.yml`
-- duplicate PR-time lane deprecation plan implemented
-- shared setup reuse preserved
+- `pr-tests.yml` and `pr-coverage.yml` retired as active PR lanes
+- `security.yml` demoted to scheduled/manual audit lane; `trivy.yml` kept as `main`/schedule/manual image-security lane
+- `build.yml` kept as a specialized release/image lane
+- specialized repo-level PR workflows may still attach on workflow/governance diffs, but they stay outside canonical backend/shared merge truth unless branch protection promotes them
 
 ### PR-3
 
@@ -98,8 +100,10 @@ Blocking surfaces for Tier 1 PR-lane decisions:
 
 ## Acceptance Criteria
 
-- One canonical backend/shared PR workflow exists after the PR series
-- Duplicate PR-time coverage/security responsibilities are removed or explicitly demoted
+- One canonical backend/shared PR workflow exists in `ci.yml`
+- `pr-tests.yml` and `pr-coverage.yml` are no longer active PR lanes
+- `security.yml` and `trivy.yml` are no longer PR-time canonical blockers and stay outside canonical merge truth
+- `build.yml` remains a specialized release/image lane
 - Current-head merge-readiness remains deterministic and wrapper-backed
 - Local merge evidence remains `pre-commit run --all-files` + `make verify`
 - Mandatory post-open `qa-engineer-agent -> bug-hunter` lane is recorded and used

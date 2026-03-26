@@ -13,8 +13,6 @@ LOCKED_INSTALL_WORKFLOW_PATHS: tuple[str, ...] = (
     ".github/workflows/frontend-ci.yml",
     ".github/workflows/nightly-tests.yml",
     ".github/workflows/nightly.yml",
-    ".github/workflows/pr-coverage.yml",
-    ".github/workflows/pr-tests.yml",
 )
 
 

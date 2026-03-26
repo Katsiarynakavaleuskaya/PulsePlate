@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { FitChefMascot, PulsePlateLogo } from '../brand';
 import { BrandIdentityPanel, LogoVariantsPanel } from './BrandPanels';
+import { CanonBoardsSection } from './CanonBoards';
 import { ComponentShowcasePanel, GovernancePanel, PlatformInventoryPanel } from './ExperiencePanels';
 import { PalettePanel, SpacingRadiusPanel, TypographyPanel } from './TokenPanels';
 import { DesignSystemCanvas, OverviewHeader } from './shared';
@@ -94,6 +95,8 @@ export function DesignSystemOverview() {
           <GovernancePanel />
         </div>
       </section>
+
+      <CanonBoardsSection />
     </DesignSystemCanvas>
   );
 }
