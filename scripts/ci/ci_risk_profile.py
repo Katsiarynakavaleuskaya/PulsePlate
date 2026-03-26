@@ -21,6 +21,7 @@ ALL_RISK_GROUPS: tuple[str, ...] = (
     "billing_entitlement",
     "insight_ai",
     "openapi_contract",
+    "route_contract_safety",
     "merge_governance",
 )
 
@@ -133,6 +134,7 @@ class RiskProfile:
     billing_entitlement: bool
     insight_ai: bool
     openapi_contract: bool
+    route_contract_safety: bool
     merge_governance: bool
     contract_risk_groups: tuple[str, ...]
 
@@ -150,6 +152,7 @@ class RiskProfile:
             "billing_entitlement": _bool_text(self.billing_entitlement),
             "insight_ai": _bool_text(self.insight_ai),
             "openapi_contract": _bool_text(self.openapi_contract),
+            "route_contract_safety": _bool_text(self.route_contract_safety),
             "merge_governance": _bool_text(self.merge_governance),
             "contract_risk_groups": ",".join(self.contract_risk_groups),
             "changed_file_count": str(len(self.changed_files)),
@@ -203,6 +206,11 @@ def _risk_group_hit(group_name: str, changed_files: tuple[str, ...]) -> bool:
     return any(_matches_any(path, patterns) for path in changed_files)
 
 
+def _is_route_contract_surface(path: str) -> bool:
+    normalized = _normalize_path(path)
+    return normalized == "legacy_app.py" or normalized.startswith(("app/", "core/"))
+
+
 def build_risk_profile(changed_files: list[str] | tuple[str, ...]) -> RiskProfile:
     """Build a deterministic risk profile from normalized changed paths."""
     normalized_files = tuple(
@@ -222,6 +230,7 @@ def build_risk_profile(changed_files: list[str] | tuple[str, ...]) -> RiskProfil
             billing_entitlement=False,
             insight_ai=False,
             openapi_contract=False,
+            route_contract_safety=False,
             merge_governance=False,
             contract_risk_groups=(),
         )
@@ -235,8 +244,21 @@ def build_risk_profile(changed_files: list[str] | tuple[str, ...]) -> RiskProfil
     ios_only = all(_is_ios_path(path) for path in normalized_files) and not workflow_privileged
 
     group_hits = {
-        group_name: _risk_group_hit(group_name, normalized_files) for group_name in ALL_RISK_GROUPS
+        group_name: _risk_group_hit(group_name, normalized_files)
+        for group_name in ALL_RISK_GROUPS
+        if group_name != "route_contract_safety"
     }
+    group_hits["route_contract_safety"] = any(
+        _is_route_contract_surface(path) for path in normalized_files
+    ) and not any(
+        group_hits[group_name]
+        for group_name in (
+            "billing_entitlement",
+            "insight_ai",
+            "openapi_contract",
+            "merge_governance",
+        )
+    )
     if workflow_privileged:
         selected_groups = ALL_RISK_GROUPS
     else:
@@ -244,9 +266,9 @@ def build_risk_profile(changed_files: list[str] | tuple[str, ...]) -> RiskProfil
             group_name for group_name in ALL_RISK_GROUPS if group_hits[group_name]
         )
 
-    run_backend_blocking = workflow_privileged or backend_shared
+    run_backend_blocking = workflow_privileged or backend_shared or group_hits["openapi_contract"]
     run_security = run_backend_blocking
-    run_openapi_sync = run_backend_blocking
+    run_openapi_sync = run_backend_blocking or group_hits["openapi_contract"]
 
     return RiskProfile(
         changed_files=normalized_files,
@@ -261,6 +283,7 @@ def build_risk_profile(changed_files: list[str] | tuple[str, ...]) -> RiskProfil
         billing_entitlement=group_hits["billing_entitlement"],
         insight_ai=group_hits["insight_ai"],
         openapi_contract=group_hits["openapi_contract"],
+        route_contract_safety=group_hits["route_contract_safety"],
         merge_governance=group_hits["merge_governance"],
         contract_risk_groups=selected_groups,
     )
