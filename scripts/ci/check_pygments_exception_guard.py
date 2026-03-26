@@ -158,7 +158,10 @@ def _parse_release_version(identifier: str) -> tuple[int, ...] | None:
     normalized = identifier.strip()
     if not _RELEASE_VERSION_RE.fullmatch(normalized):
         return None
-    return tuple(int(part) for part in normalized.split("."))
+    parts = [int(part) for part in normalized.split(".")]
+    while len(parts) > 1 and parts[-1] == 0:
+        parts.pop()
+    return tuple(parts)
 
 
 def _has_exception_seam(repo_root: Path) -> bool:

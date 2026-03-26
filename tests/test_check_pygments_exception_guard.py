@@ -158,6 +158,26 @@ def test_evaluate_guard_state_flags_versions_below_patched_floor() -> None:
     assert "requirements-dev.txt" not in errors[1]
 
 
+def test_evaluate_guard_state_treats_equivalent_release_tuples_as_equal() -> None:
+    pins = {
+        "requirements.txt": "2.19",
+        "requirements-dev.txt": "2.19.0",
+        "requirements-lock.txt": "2.19.1",
+    }
+
+    errors = guard.evaluate_guard_state(
+        alerts=None,
+        advisory_patched_versions={"2.19.0"},
+        pins=pins,
+        exception_present=True,
+    )
+
+    assert errors == [
+        "Dependabot reports a patched release for GHSA-5239-wwwm-4pmq (2.19.0), "
+        "but .pre-commit-config.yaml still ignores the advisory."
+    ]
+
+
 def test_has_exception_seam_tolerates_yaml_whitespace_changes(tmp_path: Path) -> None:
     pre_commit = tmp_path / guard.PRE_COMMIT_PATH
     pre_commit.write_text(
