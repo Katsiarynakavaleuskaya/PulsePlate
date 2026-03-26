@@ -121,15 +121,15 @@ Deliver a Tier 1 CI/CD consolidation program in stacked PRs that:
 - Always start with:
   - `python3 scripts/orchestration/check_preflight.py`
   - `python3 scripts/orchestration/check_agent_consistency.py`
-- Do not bypass coordinator-first routing.
-- Do not skip the mandatory post-open `qa-engineer-agent -> bug-hunter` pass.
-- Do not claim merge readiness without:
+- Follow coordinator-first routing.
+- Run the mandatory post-open `qa-engineer-agent -> bug-hunter` pass.
+- Claim merge readiness only after:
   - `pre-commit run --all-files`
   - `make verify`
-  - `python scripts/orchestration/check_merge_ready.py --pr-number <N> --repo <owner/repo> --require-auth`
-- Do not fold runtime/API behavior changes into PR-1 or PR-2 unless the workflow change cannot be isolated from the contract.
-- Do not delete duplicate workflows until the canonical replacement lane proves parity on current-head checks.
-- Do not treat advisory metrics as merge blockers in Tier 1.
+  - `python3 scripts/orchestration/check_merge_ready.py --pr-number <N> --repo <owner/repo> --require-auth`
+- Isolate runtime/API behavior changes from PR-1 and PR-2 unless the workflow change cannot be isolated from the contract.
+- Keep duplicate workflows until the canonical replacement lane proves parity on current-head checks.
+- Treat Tier 1 metrics as advisory rather than merge blockers.
 
 ## Validation
 

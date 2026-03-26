@@ -2014,6 +2014,11 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `docs/orchestration/TIER1_CI_CD_TASK_PACKET_2026-03-26.md`
     - `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md`
     - `RUNBOOK_AGENT.md`
+  - DoD:
+    - Governance owner, routing card, and mandatory post-open bug-hunter lane are documented and used for every Tier 1 slice
+    - Canonical backend/shared PR workflow topology is consolidated and validated against current-head required checks
+    - PR blocker vs advisory CI classification is documented, reduced, and enforced through the merge-readiness wrapper
+    - Advisory CI metrics artifacts exist without adding new merge blockers or widening release risk
   - Child slices:
     - `ledger-p1-tier1-ci-cd-pr1-governance`
     - `ledger-p1-tier1-ci-cd-pr2-workflow`

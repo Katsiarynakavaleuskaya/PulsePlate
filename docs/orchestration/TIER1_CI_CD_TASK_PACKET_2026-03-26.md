@@ -117,7 +117,7 @@ commands below as the branch-local execution reminder for this packet:
 
 For non-draft PRs:
 
-- `python scripts/orchestration/check_merge_ready.py --pr-number <N> --repo <owner/repo> --require-auth`
+- `python3 scripts/orchestration/check_merge_ready.py --pr-number <N> --repo <owner/repo> --require-auth`
 
 ## Risks
 
