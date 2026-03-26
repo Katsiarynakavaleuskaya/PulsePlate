@@ -142,7 +142,7 @@ def is_virtualenv_python(python_executable: str) -> bool:
     import json
 
     payload = json.loads(result.stdout)
-    return payload["prefix"] != payload["base_prefix"]
+    return bool(payload["prefix"] != payload["base_prefix"])
 
 
 def run_command(command: Sequence[str]) -> None:
