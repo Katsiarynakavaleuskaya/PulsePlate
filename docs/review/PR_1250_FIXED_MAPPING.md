@@ -5,7 +5,7 @@
 - [ ] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
-- No actionable review threads on PR `#1250` yet.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1250#discussion_r2997499001 -> 5b0bf7a9
 - Carryover evidence from closed replacement-source PR `#1248` lives in `docs/review/PR_1248_FIXED_MAPPING.md`.
 
 ## Merge Readiness
