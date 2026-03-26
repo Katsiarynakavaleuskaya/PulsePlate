@@ -32,14 +32,6 @@ const parseIntegerInput = (value: string): number => {
   return Number.isInteger(parsedValue) ? parsedValue : Number.NaN;
 };
 
-function mapBmiCategoryIndex(bmi: number | null): number {
-  if (bmi === null) return 1;
-  if (bmi < 18.5) return 1;
-  if (bmi < 25) return 2;
-  if (bmi < 30) return 3;
-  return 4;
-}
-
 function MetricChip({ label }: { label: string }): JSX.Element {
   return (
     <span className="rounded-full bg-white/[0.08] px-4 py-1.5 text-xs font-medium text-white/88">
@@ -117,7 +109,7 @@ export default function BMICalculatePage(): JSX.Element {
   const [pregnant, setPregnant] = useState<boolean>(false);
 
   const numberLocale = i18n.language.toLowerCase().startsWith('ru') ? 'ru' : 'en';
-  const activeCategoryIndex = mapBmiCategoryIndex(response?.bmi ?? null);
+  const hasResult = response !== null;
 
   const resultSummary = useMemo(() => {
     if (!response) {
@@ -347,7 +339,7 @@ export default function BMICalculatePage(): JSX.Element {
                 key={index}
                 className={[
                   'h-2 rounded-full transition',
-                  activeCategoryIndex === index ? 'bg-[var(--color-primary)]' : 'bg-white/22',
+                  hasResult ? 'bg-[var(--color-primary)]/55' : 'bg-white/22',
                 ].join(' ')}
               />
             ))}
