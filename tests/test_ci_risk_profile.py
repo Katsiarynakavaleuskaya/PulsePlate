@@ -100,6 +100,17 @@ def test_billing_router_change_hits_billing_and_openapi_groups() -> None:
     )
 
 
+def test_payment_reconciliation_contract_test_hits_billing_group() -> None:
+    profile = risk_profile.build_risk_profile(
+        ["tests/test_payment_reconciliation_api.py"],
+    )
+
+    assert profile.billing_entitlement is True
+    assert profile.backend_shared is True
+    assert profile.route_contract_safety is False
+    assert profile.contract_risk_groups == ("billing_entitlement",)
+
+
 def test_openapi_only_change_still_runs_blocking_and_sync() -> None:
     profile = risk_profile.build_risk_profile(
         ["scripts/generate_openapi.py"],

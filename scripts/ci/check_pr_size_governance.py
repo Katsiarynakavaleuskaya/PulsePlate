@@ -65,6 +65,12 @@ def normalize_split_justification_candidate(candidate_text: str) -> str:
     return re.sub(r"^(?:[-*]\s*)", "", normalized)
 
 
+def extract_markdown_heading_level(line: str) -> int:
+    """Return markdown heading depth for a line, or zero when it is not a heading."""
+    stripped = line.lstrip()
+    return len(stripped) - len(stripped.lstrip("#")) if stripped.startswith("#") else 0
+
+
 def has_split_justification(pr_body: str) -> bool:
     """Return True when the PR body contains an explicit split-justification block."""
     if SPLIT_JUSTIFICATION_INLINE_PATTERN.search(pr_body or ""):
@@ -74,11 +80,15 @@ def has_split_justification(pr_body: str) -> bool:
     for index, line in enumerate(lines):
         if not SPLIT_JUSTIFICATION_HEADING_PATTERN.match(line.strip()):
             continue
+        heading_level = extract_markdown_heading_level(line)
         for candidate in lines[index + 1 :]:
             candidate_text = candidate.strip()
             if not candidate_text:
                 continue
             if candidate_text.startswith("#"):
+                candidate_heading_level = extract_markdown_heading_level(candidate_text)
+                if heading_level and candidate_heading_level > heading_level:
+                    continue
                 return False
             if (
                 normalize_split_justification_candidate(candidate_text)

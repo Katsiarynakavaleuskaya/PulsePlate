@@ -72,6 +72,7 @@ RISK_GROUP_PATTERNS: dict[str, tuple[str, ...]] = {
         "tests/test_billing_openapi_contract.py",
         "tests/test_ios_receipt_verification_api.py",
         "tests/test_paid_route_guards.py",
+        "tests/test_payment_reconciliation_api.py",
         "tests/test_payment_source_contract_api.py",
         "tests/test_payment_webhook_signature_api.py",
         "tests/test_pro_payments_openapi_contract.py",
