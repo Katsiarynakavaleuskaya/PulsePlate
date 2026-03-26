@@ -51,7 +51,7 @@ It exists to keep:
 Deliver a Tier 1 CI/CD consolidation program in stacked PRs that:
 - defines a canonical backend/shared PR lane,
 - keeps merge readiness deterministic and current-head based,
-- removes duplicate PR-time CI responsibilities only after parity proof,
+- removes duplicate PR-time CI responsibilities in PR2,
 - introduces lightweight operational metrics without turning them into merge blockers.
 
 ## PR Series
@@ -65,9 +65,10 @@ Deliver a Tier 1 CI/CD consolidation program in stacked PRs that:
 
 ### PR-2: Workflow Consolidation
 
-- Converge backend/shared PR execution into canonical `ci.yml`.
-- Deprecate duplicate PR-time lanes only after parity proof.
-- Keep image/build, frontend-only, and nightly-only surfaces separate.
+- Backend/shared PR execution is now canonicalized in `ci.yml`.
+- `pr-tests.yml` and `pr-coverage.yml` are no longer active PR lanes.
+- `security.yml` is a scheduled/manual audit lane, and `trivy.yml` remains a `main`/schedule/manual image-security lane; neither is a canonical PR blocker.
+- Keep `build.yml`, frontend-only, and nightly-only surfaces separate.
 
 ### PR-3: Risk-Based PR Test Topology
 
@@ -103,10 +104,10 @@ Deliver a Tier 1 CI/CD consolidation program in stacked PRs that:
    - runbook exists
    - backlog epic and child slices recorded
    - local governance docs are internally consistent
-2. **PR-2 workflow parity**
-   - canonical PR lane identified
-   - duplicate lane responsibilities mapped before deprecation
-   - required-check coverage preserved
+2. **PR-2 workflow consolidation**
+   - canonical PR lane is `ci.yml`
+   - duplicate PR-time lanes are retired as active PR lanes
+   - required-check coverage is preserved
 3. **PR-3 risk topology**
    - blocking smoke/contract lanes documented and enforced
    - nightly-only depth explicitly separated
@@ -128,7 +129,7 @@ Deliver a Tier 1 CI/CD consolidation program in stacked PRs that:
   - `make verify`
   - `python3 scripts/orchestration/check_merge_ready.py --pr-number <N> --repo <owner/repo> --require-auth`
 - Isolate runtime/API behavior changes from PR-1 and PR-2 unless the workflow change cannot be isolated from the contract.
-- Keep duplicate workflows until the canonical replacement lane proves parity on current-head checks.
+- Keep `build.yml` isolated as a specialized lane; do not reintroduce duplicate PR-time blockers.
 - Treat Tier 1 metrics as advisory rather than merge blockers.
 
 ## Validation
