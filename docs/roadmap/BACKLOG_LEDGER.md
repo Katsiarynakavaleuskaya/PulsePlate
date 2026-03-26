@@ -1448,6 +1448,45 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
       web review workflow
 
 
+<a id="ledger-p1-pulseplate-v3-clean-figma-execution"></a>
+- [ ] P1: PulsePlate_v3 clean Figma foundations/components/welcome-gate execution
+  - Owner: @katsiaryna_kavaleuskaya (Design + FE + iOS)
+  - Target PR: PR-TBD-PULSEPLATE-V3-CLEAN-FIGMA
+  - Priority: P1
+  - Status: In progress
+  - Area: design / Figma / design-system reconciliation
+  - Finding Type: file-specific canonical execution follow-up
+  - Reason: The repo now has a file-specific reconciliation packet for
+    `PulsePlate_v3`, and the clean canonical Figma file plus initial governed
+    page scaffold/specimen lane are now in place, but full Phase 1 parity still
+    needs to land for `Foundations + Components + Welcome Gate` without turning
+    Figma into a hidden source of truth and without making direct Code Connect
+    activation a blocker.
+  - Links:
+    - `docs/figma/PULSEPLATE_V3_DESIGN_SYSTEM_RECONCILIATION.md`
+    - `docs/figma/FIGMA_IMPLEMENTATION_RUNBOOK.md`
+    - `docs/figma/README.md`
+    - `docs/design/UI_COMPONENT_VOCABULARY.md`
+    - `docs/design/TOKENS_SOT.md`
+    - `docs/design/WELCOME_GATE_VISUAL_PHILOSOPHY.md`
+  - DoD:
+    - Clean canonical Figma file contains pages `00_Foundation_Tokens`,
+      `01_Components`, `02_Brand_Assets`, `10_Welcome_Gate`,
+      `11_Welcome_Gate_States`, and `90_Audit_Archive`
+    - Foundation variables/styles in the clean file map to repo token SoT with
+      no unmanaged local styles
+    - Shared components are rebuilt from repo primitives before any page-level
+      welcome-gate composition work
+    - Welcome Gate follows `Pulse Membrane` composition rules and passes
+      anti-drift / mascot provenance checks
+    - Storybook/component inventory remains the canonical web review lane
+    - Any optional FIGR AI exploration remains read-only and is normalized
+      through repo vocabulary/tokens before use
+  - Blockers:
+    - Depends on repo-side drift cleanup where current runtime styling still
+      conflicts with governance (`PremiumGate`, `VipBadge`)
+
+
 <a id="ledger-p1-ios-prototype-v2-canonical-promotion"></a>
 - [ ] P1: Promote `ios prototype v2` as the canonical implementation mapping source
   - Owner: @katsiaryna_kavaleuskaya (Design + iOS)

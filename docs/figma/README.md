@@ -7,27 +7,33 @@ Purpose: single Git folder for everything you pass to Figma AI.
 
 1. `docs/figma/README.md`
 2. `docs/figma/FIGMA_IMPLEMENTATION_RUNBOOK.md`
-3. `docs/figma/FIGMA_GIT_PACKS_INDEX.md`
-4. `docs/figma/PULSEPLATE_FIGMA_AI_GOVERNANCE_INDEX.md`
-5. `docs/figma/FIGMA_MAKE_SYNC_AUDIT_HPP.md`
-6. `docs/figma/FIGMA_CODE_CONNECT_BRIDGE_HPP.md`
-7. `docs/figma/FIGMA_DESIGN_URL_NODEID_CAPTURE_HPP.md`
-8. `docs/figma/FIGMA_CODE_CONNECT_MAPPING_CANDIDATES_HPP.md`
-9. `docs/design/PULSEPLATE_BUTTON_VISUAL_SYSTEM_TRENDS_AND_FORECAST.md`
-10. `docs/figma/FIGMA_AI_HANDOFF_CHECKLIST.md`
-11. `docs/figma/FIGMA_AI_INBOX_TEMPLATE.md`
-12. `docs/figma/FIGMA_CLAWBOT_OPERATING_MODEL.md`
-13. `docs/figma/SANDBOX_DESIGN_AGENT_SPEC.md`
-14. `docs/sora/prompts/hpp/MASTER_NANO_PROMPT_PACK.md`
-15. `docs/sora/SORA_STYLE_QA_CHECKLIST.md`
-16. `docs/sora/BRAND_THROUGHPUT_METRICS_GTM_MATRIX.md`
-17. `docs/figma/orchestration/README.md`
+3. `docs/figma/PULSEPLATE_V3_DESIGN_SYSTEM_RECONCILIATION.md`
+4. `docs/figma/FIGMA_GIT_PACKS_INDEX.md`
+5. `docs/figma/PULSEPLATE_FIGMA_AI_GOVERNANCE_INDEX.md`
+6. `docs/figma/FIGMA_MAKE_SYNC_AUDIT_HPP.md`
+7. `docs/figma/FIGMA_CODE_CONNECT_BRIDGE_HPP.md`
+8. `docs/figma/FIGMA_DESIGN_URL_NODEID_CAPTURE_HPP.md`
+9. `docs/figma/FIGMA_CODE_CONNECT_MAPPING_CANDIDATES_HPP.md`
+10. `docs/design/PULSEPLATE_BUTTON_VISUAL_SYSTEM_TRENDS_AND_FORECAST.md`
+11. `docs/figma/FIGMA_AI_HANDOFF_CHECKLIST.md`
+12. `docs/figma/FIGMA_AI_INBOX_TEMPLATE.md`
+13. `docs/figma/FIGMA_CLAWBOT_OPERATING_MODEL.md`
+14. `docs/figma/SANDBOX_DESIGN_AGENT_SPEC.md`
+15. `docs/sora/prompts/hpp/MASTER_NANO_PROMPT_PACK.md`
+16. `docs/sora/SORA_STYLE_QA_CHECKLIST.md`
+17. `docs/sora/BRAND_THROUGHPUT_METRICS_GTM_MATRIX.md`
+18. `docs/figma/orchestration/README.md`
 
 ## Files
 
 - `docs/figma/FIGMA_IMPLEMENTATION_RUNBOOK.md`
   - Full runbook for where to read Git context, refresh protocol,
     conflict resolution, and output contract.
+- `docs/figma/PULSEPLATE_V3_DESIGN_SYSTEM_RECONCILIATION.md`
+  - Canonical file-specific reconciliation packet for `PulsePlate_v3` and the
+    clean canonical Figma file used for `Foundations + Components + Welcome Gate`.
+  - Defines source precedence, transfer contract, alignment matrix, blocker
+    classes, clean-file page structure, and the optional FIGR AI reference lane.
 - `docs/figma/FIGMA_GIT_PACKS_INDEX.md`
   - Compact map: which project packs to read, when, and drift risk if skipped.
 - `docs/figma/PULSEPLATE_FIGMA_AI_GOVERNANCE_INDEX.md`
@@ -62,19 +68,22 @@ Purpose: single Git folder for everything you pass to Figma AI.
 ## Recommended workflow
 
 1. Refresh Git context using `docs/figma/FIGMA_IMPLEMENTATION_RUNBOOK.md`.
-2. Reconcile Make updates with `docs/figma/FIGMA_MAKE_SYNC_AUDIT_HPP.md`.
-3. Review bridge rules in `docs/figma/FIGMA_CODE_CONNECT_BRIDGE_HPP.md`.
-4. If Design URL/node IDs are missing, run
+2. Lock current file scope and source precedence with
+   `docs/figma/PULSEPLATE_V3_DESIGN_SYSTEM_RECONCILIATION.md`.
+3. Reconcile Make/current-file updates with
+   `docs/figma/FIGMA_MAKE_SYNC_AUDIT_HPP.md`.
+4. Review bridge rules in `docs/figma/FIGMA_CODE_CONNECT_BRIDGE_HPP.md`.
+5. If Design URL/node IDs are missing, run
    `docs/figma/FIGMA_DESIGN_URL_NODEID_CAPTURE_HPP.md`.
-5. Update CTA map candidates in `docs/figma/FIGMA_CODE_CONNECT_MAPPING_CANDIDATES_HPP.md`.
-6. If Code Connect is blocked by seat/plan, pivot to
+6. Update CTA map candidates in `docs/figma/FIGMA_CODE_CONNECT_MAPPING_CANDIDATES_HPP.md`.
+7. If Code Connect is blocked by seat/plan, pivot to
    `docs/design/PENPOT_STORYBOOK_BRIDGE.md` for low-cost design handoff.
-7. Add request via `docs/figma/FIGMA_AI_INBOX_TEMPLATE.md`.
-8. Align request with `docs/figma/PULSEPLATE_FIGMA_AI_GOVERNANCE_INDEX.md`.
-9. Validate ops evidence via `docs/figma/FIGMA_CLAWBOT_OPERATING_MODEL.md`.
-10. Validate output via `docs/figma/FIGMA_AI_HANDOFF_CHECKLIST.md`.
-11. Run QA pass/fail checks in `docs/sora/SORA_STYLE_QA_CHECKLIST.md`.
-12. If session is complex, record decisions in `docs/figma/orchestration/sessions/`.
+8. Add request via `docs/figma/FIGMA_AI_INBOX_TEMPLATE.md`.
+9. Align request with `docs/figma/PULSEPLATE_FIGMA_AI_GOVERNANCE_INDEX.md`.
+10. Validate ops evidence via `docs/figma/FIGMA_CLAWBOT_OPERATING_MODEL.md`.
+11. Validate output via `docs/figma/FIGMA_AI_HANDOFF_CHECKLIST.md`.
+12. Run QA pass/fail checks in `docs/sora/SORA_STYLE_QA_CHECKLIST.md`.
+13. If session is complex, record decisions in `docs/figma/orchestration/sessions/`.
 
 ## Canonical project links
 

@@ -18,23 +18,24 @@ Read in this order for every new Figma task:
 
 1. `docs/figma/README.md`
 2. `docs/figma/FIGMA_IMPLEMENTATION_RUNBOOK.md`
-3. `docs/figma/FIGMA_GIT_PACKS_INDEX.md`
-4. `docs/figma/PULSEPLATE_FIGMA_AI_GOVERNANCE_INDEX.md`
-5. `docs/sora/SORA_STYLE_QA_CHECKLIST.md`
-6. `docs/design/TOKENS_SOT.md`
-7. `docs/design/TOKEN_PIPELINE_GOVERNANCE.md`
-8. `docs/figma/FIGMA_MAKE_SYNC_AUDIT_HPP.md`
-9. `docs/figma/FIGMA_CODE_CONNECT_BRIDGE_HPP.md`
-10. `docs/figma/FIGMA_DESIGN_URL_NODEID_CAPTURE_HPP.md`
-11. `docs/figma/FIGMA_CODE_CONNECT_MAPPING_CANDIDATES_HPP.md`
-12. `docs/design/PULSEPLATE_BUTTON_ACTION_PROMPT_MATRIX.md`
-13. `docs/design/PULSEPLATE_LUXURY_WEB_IOS_VISUAL_GUIDELINES.md`
-14. `docs/design/LUXURY_UI_REVIEW_CHECKLIST.md`
-15. `docs/sora/PULSEPLATE_SORA_PROMPT_ENGINEERING_PLAYBOOK.md`
-16. `docs/figma/FIGMA_CLAWBOT_OPERATING_MODEL.md`
-17. `docs/figma/SANDBOX_DESIGN_AGENT_SPEC.md`
-18. `docs/sora/prompts/hpp/MASTER_NANO_PROMPT_PACK.md`
-19. `docs/sora/BRAND_THROUGHPUT_METRICS_GTM_MATRIX.md`
+3. `docs/figma/PULSEPLATE_V3_DESIGN_SYSTEM_RECONCILIATION.md`
+4. `docs/figma/FIGMA_GIT_PACKS_INDEX.md`
+5. `docs/figma/PULSEPLATE_FIGMA_AI_GOVERNANCE_INDEX.md`
+6. `docs/sora/SORA_STYLE_QA_CHECKLIST.md`
+7. `docs/design/TOKENS_SOT.md`
+8. `docs/design/TOKEN_PIPELINE_GOVERNANCE.md`
+9. `docs/figma/FIGMA_MAKE_SYNC_AUDIT_HPP.md`
+10. `docs/figma/FIGMA_CODE_CONNECT_BRIDGE_HPP.md`
+11. `docs/figma/FIGMA_DESIGN_URL_NODEID_CAPTURE_HPP.md`
+12. `docs/figma/FIGMA_CODE_CONNECT_MAPPING_CANDIDATES_HPP.md`
+13. `docs/design/PULSEPLATE_BUTTON_ACTION_PROMPT_MATRIX.md`
+14. `docs/design/PULSEPLATE_LUXURY_WEB_IOS_VISUAL_GUIDELINES.md`
+15. `docs/design/LUXURY_UI_REVIEW_CHECKLIST.md`
+16. `docs/sora/PULSEPLATE_SORA_PROMPT_ENGINEERING_PLAYBOOK.md`
+17. `docs/figma/FIGMA_CLAWBOT_OPERATING_MODEL.md`
+18. `docs/figma/SANDBOX_DESIGN_AGENT_SPEC.md`
+19. `docs/sora/prompts/hpp/MASTER_NANO_PROMPT_PACK.md`
+20. `docs/sora/BRAND_THROUGHPUT_METRICS_GTM_MATRIX.md`
 
 ## 3) Git Packs to Read by Intent
 
@@ -55,6 +56,22 @@ Use when generating prompt stubs, negative constraints, and style-lock clauses.
 - `docs/figma/`
 
 Use for runbooks, inbox contract, delivery checklist, and orchestration session artifacts.
+
+### 3.3a File-specific reconciliation packet
+
+- `docs/figma/PULSEPLATE_V3_DESIGN_SYSTEM_RECONCILIATION.md`
+
+Use when the task targets `PulsePlate_v3` or the clean canonical file for
+`Foundations + Components + Welcome Gate`.
+
+This packet locks:
+
+- file identity and execution lane
+- source precedence
+- alignment matrix
+- blocker classes
+- clean-file page structure
+- the optional FIGR AI read-only ideation lane
 
 ### 3.4 Web token source of truth
 
@@ -104,6 +121,7 @@ Use when running terminal automation, evidence capture, and human-gated design-a
 
 | Need | Read this first | Then validate against |
 | --- | --- | --- |
+| File-specific scope, clean-file lane, and transfer contract | `docs/figma/PULSEPLATE_V3_DESIGN_SYSTEM_RECONCILIATION.md` | `docs/figma/FIGMA_MAKE_SYNC_AUDIT_HPP.md` |
 | CTA behavior and states | `docs/design/PULSEPLATE_BUTTON_ACTION_PROMPT_MATRIX.md` | `docs/figma/FIGMA_AI_HANDOFF_CHECKLIST.md` |
 | Style and quality constraints | `docs/design/PULSEPLATE_LUXURY_WEB_IOS_VISUAL_GUIDELINES.md` | `docs/design/LUXURY_UI_REVIEW_CHECKLIST.md` |
 | Prompt constraints and guardrails | `docs/sora/PULSEPLATE_SORA_PROMPT_ENGINEERING_PLAYBOOK.md` | `docs/figma/PULSEPLATE_FIGMA_AI_GOVERNANCE_INDEX.md` |
@@ -117,19 +135,22 @@ Use when running terminal automation, evidence capture, and human-gated design-a
 
 If information conflicts:
 
-1. CTA behavior: `docs/design/PULSEPLATE_BUTTON_ACTION_PROMPT_MATRIX.md` is primary.
-2. Visual quality: `docs/design/LUXURY_UI_REVIEW_CHECKLIST.md` + `docs/design/PULSEPLATE_LUXURY_WEB_IOS_VISUAL_GUIDELINES.md` are primary.
-3. Prompt safety: `docs/sora/PULSEPLATE_SORA_PROMPT_ENGINEERING_PLAYBOOK.md` is primary.
-4. Token values: `docs/sora/SORA_STYLE_QA_CHECKLIST.md` is authoritative for
+1. File-specific reconciliation packet:
+   `docs/figma/PULSEPLATE_V3_DESIGN_SYSTEM_RECONCILIATION.md` is primary for
+   `PulsePlate_v3` and the clean canonical file scope.
+2. CTA behavior: `docs/design/PULSEPLATE_BUTTON_ACTION_PROMPT_MATRIX.md` is primary.
+3. Visual quality: `docs/design/LUXURY_UI_REVIEW_CHECKLIST.md` + `docs/design/PULSEPLATE_LUXURY_WEB_IOS_VISUAL_GUIDELINES.md` are primary.
+4. Prompt safety: `docs/sora/PULSEPLATE_SORA_PROMPT_ENGINEERING_PLAYBOOK.md` is primary.
+5. Token values: `docs/sora/SORA_STYLE_QA_CHECKLIST.md` is authoritative for
    web token governance (web token SoT, staged migration, raw-hex allowlists);
    use `docs/design/TOKENS_SOT.md` and
    `docs/design/TOKEN_PIPELINE_GOVERNANCE.md` as implementation/governance
    references for the current repo pipeline, where `tokens.css` remains the web
    runtime contract, `tokens.ts` remains a typed mirror, and iOS runtime
    mirrors remain primary for app delivery.
-5. Tool precedence: `docs/runbooks/DESIGN_TOOLING_OPERATING_MODEL.md` controls
+6. Tool precedence: `docs/runbooks/DESIGN_TOOLING_OPERATING_MODEL.md` controls
    how Figma, Notion, Airweave, and Penpot interact.
-6. Remaining conflict: follow `AGENTS.md` and record decision in `docs/figma/orchestration/sessions/...`.
+7. Remaining conflict: follow `AGENTS.md` and record decision in `docs/figma/orchestration/sessions/...`.
 
 ## 6) Context Refresh Protocol
 
