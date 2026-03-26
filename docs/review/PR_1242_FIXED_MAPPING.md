@@ -16,6 +16,7 @@ Commit: 0aa17257
 Evidence: `docs/figma/README.md:83`; `docs/review/PR_1242_FIXED_MAPPING.md:17`
 Reason: Tightened the Penpot fallback wording so it is explicitly excluded from the PulsePlate_v3 Phase 1 lane, and restored the merge-readiness checklist to all-unchecked state until the final merge cycle.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1242#pullrequestreview-4012866923 -> 0aa17257
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1242#discussion_r2993778916 -> 0aa17257
 
 ## Merge Readiness
 - [ ] All required checks pass
