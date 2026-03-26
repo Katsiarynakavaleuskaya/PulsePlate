@@ -122,6 +122,14 @@ def extract_pr_body(event_path: Path) -> str:
     return body if isinstance(body, str) else ""
 
 
+def _read_flag_value(argv: list[str], index: int, flag: str) -> str:
+    """Return the next argv token for a flag or exit with a deterministic error."""
+    value_index = index + 1
+    if value_index >= len(argv):
+        raise SystemExit(f"Missing value for {flag}.")
+    return argv[value_index]
+
+
 def main(argv: list[str] | None = None) -> int:
     """CLI entrypoint."""
     argv = list(sys.argv[1:] if argv is None else argv)
@@ -135,16 +143,16 @@ def main(argv: list[str] | None = None) -> int:
         argument = argv[index]
         if argument == "--base-sha":
             index += 1
-            base_sha = argv[index]
+            base_sha = _read_flag_value(argv, index - 1, argument)
         elif argument == "--head-sha":
             index += 1
-            head_sha = argv[index]
+            head_sha = _read_flag_value(argv, index - 1, argument)
         elif argument == "--body":
             index += 1
-            pr_body = argv[index]
+            pr_body = _read_flag_value(argv, index - 1, argument)
         elif argument == "--event-path":
             index += 1
-            event_path = Path(argv[index])
+            event_path = Path(_read_flag_value(argv, index - 1, argument))
         else:
             raise SystemExit(f"Unknown argument: {argument}")
         index += 1

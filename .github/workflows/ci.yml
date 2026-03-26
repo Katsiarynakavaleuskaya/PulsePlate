@@ -574,6 +574,7 @@ jobs:
 
       - name: Contract and risk suites
         if: ${{ needs.changes.outputs.contract_risk_groups != '' }}
+        shell: bash
         env:
           PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/tests"
           CONTRACT_RISK_GROUPS: "${{ needs.changes.outputs.contract_risk_groups }}"
