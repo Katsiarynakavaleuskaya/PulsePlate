@@ -38,11 +38,11 @@
   },
   "onboarding": {
     "welcome": {
-      "screen1": {
-        "eyebrow": "Wellness companion",
-        "title": "PulsePlate — nutrition without noise",
-        "body": "A calm first-run gate that introduces the core product lanes.",
-        "cardTitle": "What keeps the start calm",
+    "screen1": {
+      "eyebrow": "Wellness companion",
+      "title": "PulsePlate — your nutrition on track",
+      "body": "Set your goals once. Your plan and progress stay aligned.",
+      "cardTitle": "What keeps the start calm",
         "tabs": {
           "bmi": "BMI",
           "plate": "Plate",
@@ -53,8 +53,8 @@
           "2": "✓ Quick recipes from what you already have",
           "3": "✓ Daily progress in clear numbers"
         },
-        "footer": "FitChef — your AI nutrition companion"
-      },
+      "footer": "FitChef — your AI nutrition companion"
+    },
       "screen2": {
         "eyebrow": "How to use it",
         "title": "How to move through PulsePlate calmly",
@@ -85,11 +85,11 @@
           "4": "⚖️ Maintain weight"
         }
       },
-      "cta": {
-        "start": "Start free",
-        "continue": "Continue",
-        "finish": "Open setup"
-      },
+  "cta": {
+    "start": "Get started",
+    "continue": "Continue",
+    "finish": "Open setup"
+  },
       "skip": "Skip",
       "back": "Back",
       "stepA11y": "Step {{current}} of {{total}}",

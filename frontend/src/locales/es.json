@@ -18,11 +18,11 @@
   },
   "onboarding": {
     "welcome": {
-      "screen1": {
-        "eyebrow": "Compañero de bienestar",
-        "title": "PulsePlate — nutrición sin ruido",
-        "body": "Una entrada tranquila al producto, con pasos claros y sin sobrecarga.",
-        "cardTitle": "Qué mantiene tranquila la entrada",
+    "screen1": {
+      "eyebrow": "Compañero de bienestar",
+      "title": "PulsePlate — tu nutrición bajo control",
+      "body": "Configura tus objetivos una vez. Plan y progreso en sintonía.",
+      "cardTitle": "Qué mantiene tranquila la entrada",
         "tabs": {
           "bmi": "IMC",
           "plate": "Plato",
@@ -65,11 +65,11 @@
           "4": "⚖️ Mantener el peso"
         }
       },
-      "cta": {
-        "start": "Empezar gratis",
-        "continue": "Continuar",
-        "finish": "Abrir setup"
-      },
+  "cta": {
+    "start": "Empezar",
+    "continue": "Continuar",
+    "finish": "Abrir setup"
+  },
       "skip": "Saltar",
       "back": "Atrás",
       "stepA11y": "Paso {{current}} de {{total}}",

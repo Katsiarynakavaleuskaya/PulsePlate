@@ -1487,6 +1487,41 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
       conflicts with governance (`PremiumGate`, `VipBadge`)
 
 
+<a id="ledger-p1-welcome-gate-full-flow-after-node-capture"></a>
+- [ ] P1: Welcome Gate full 4-screen runtime flow after exact Figma node capture
+  - Owner: @katsiaryna_kavaleuskaya (Design + FE + iOS)
+  - Target PR: PR-TBD-WELCOME-GATE-FULL-FLOW
+  - Priority: P1
+  - Status: Deferred after `feat/welcome-gate-v1-pr-b`
+  - Area: frontend / onboarding / design-governance
+  - Finding Type: intentional scope deferral
+  - Reason: The repo now ships Welcome Gate v1 as a screen-1-only preview route
+    and Storybook review surface, but the full runtime gate must not be wired
+    until screens 2-4 have exact Figma Design URLs and `nodeId` coverage. This
+    prevents guessing later screens, avoids premature persistence contracts, and
+    keeps Storybook as the canonical review source while product routes remain
+    mirror surfaces only.
+  - Links:
+    - `docs/design/WELCOME_GATE_VISUAL_DIRECTION.md`
+    - `docs/design/WELCOME_GATE_VISUAL_PHILOSOPHY.md`
+    - `docs/design/UI_SCREEN_BRIEF_TEMPLATES.md`
+    - `docs/design/CODE_FIRST_UI_PROMPT_COOKBOOK.md`
+    - `frontend/src/pages/Onboarding/WelcomeGateV1.tsx`
+    - `frontend/src/config/routes.ts`
+    - `docs/figma/FIGMA_DESIGN_URL_NODEID_CAPTURE_HPP.md`
+  - DoD:
+    - Exact Figma Design URL plus stable `fileKey` and `nodeId` are recorded for
+      Welcome Gate screens 2, 3, and 4
+    - Runtime onboarding flow is promoted from preview-only route to canonical
+      app-entry gate with deterministic startup interception
+    - `has_seen_welcome_v1` persistence contract is introduced with regression
+      coverage for first-run and returning-user behavior
+    - Full sequence `Gate -> 4 screens -> RootTabs` is implemented without
+      bypassing route/config governance
+    - Locale, state, and telemetry contracts are documented and tested before
+      merge-readiness is claimed
+
+
 <a id="ledger-p1-ios-prototype-v2-canonical-promotion"></a>
 - [ ] P1: Promote `ios prototype v2` as the canonical implementation mapping source
   - Owner: @katsiaryna_kavaleuskaya (Design + iOS)
