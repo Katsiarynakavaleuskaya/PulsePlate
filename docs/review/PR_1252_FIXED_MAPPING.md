@@ -15,6 +15,10 @@ Evidence: docs/runbooks/PR_CANONICAL_MATRIX_CHECKLIST.md:66
 Disposition: FIXED
 Commit: 1741c3e4
 Evidence: docs/runbooks/PR_CANONICAL_MATRIX_CHECKLIST.md:58
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1252#discussion_r2997717234 -> 1741c3e4
+Disposition: FIXED
+Commit: 1741c3e4
+Evidence: docs/runbooks/PR_CANONICAL_MATRIX_CHECKLIST.md:40
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1252#pullrequestreview-4017404342 -> d5544c4a
 Disposition: FIXED
 Commit: d5544c4a
@@ -40,6 +44,12 @@ Commit: d5544c4a
 Evidence: docs/runbooks/PR_CANONICAL_MATRIX_CHECKLIST.md:44
 Evidence: docs/runbooks/PR_CANONICAL_MATRIX_CHECKLIST.md:47
 Evidence: docs/runbooks/PR_CANONICAL_MATRIX_CHECKLIST.md:49
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1252#pullrequestreview-4017435367
+Disposition: NOT-A-BUG
+Evidence: docs/orchestration/AUTOMATION_READINESS_MATRIX.md:77
+Evidence: docs/runbooks/PR_CANONICAL_MATRIX_CHECKLIST.md:44
+Evidence: docs/runbooks/PR_CANONICAL_MATRIX_CHECKLIST.md:58
+Reason: This aggregate CodeRabbit review contains duplicate items already fixed in mapped inline comments plus an advisory nitpick; current document state already reflects the actionable changes, so no additional fix beyond the existing mappings is required.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1252#pullrequestreview-4017428439 -> 8614b39f
 Disposition: FIXED
 Commit: 8614b39f
