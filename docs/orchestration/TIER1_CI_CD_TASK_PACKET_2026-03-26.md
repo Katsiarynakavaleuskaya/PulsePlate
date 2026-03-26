@@ -1,7 +1,7 @@
 # Tier 1 CI/CD Task Packet
 
 **Date:** 2026-03-26 (`America/New_York`)
-**Status:** Active packet for the Tier 1 backend/shared CI consolidation wave.
+**Status:** Active PR-3 packet for the Tier 1 backend/shared CI consolidation wave after landed PR-1 / PR-2 baseline work.
 **Wave:** stacked PRs, coordinator-first, governance-first.
 
 ## Goal
@@ -20,6 +20,13 @@ without weakening current merge blockers or broadening runtime behavior.
   summarized here when a branch-local reminder is useful.
 
 ## Scope
+
+### Active execution state
+
+- PR-1 governance/bootstrap is already landed in PR `#1240` (`24c51f85`).
+- PR-2 workflow consolidation is already landed on `origin/main` in PR `#1244` (`b7e029b4`).
+- This packet therefore points to PR-3 as the live execution branch and keeps PR-4 as the next follow-up.
+- Reconciliation of Tier 1 bookkeeping is part of the opening commit set for PR-3, not a separate restart PR.
 
 ### In scope
 
@@ -77,6 +84,7 @@ Blocking surfaces for Tier 1 PR-lane decisions:
 - Tier 1 task packet
 - backlog epic + child slices
 - governance/runbook cross-links
+- Status: landed baseline (`#1240`)
 
 ### PR-2
 
@@ -85,28 +93,31 @@ Blocking surfaces for Tier 1 PR-lane decisions:
 - `security.yml` demoted to scheduled/manual audit lane; `trivy.yml` kept as `main`/schedule/manual image-security lane
 - `build.yml` kept as a specialized release/image lane
 - specialized repo-level PR workflows may still attach on workflow/governance diffs, but they stay outside canonical backend/shared merge truth unless branch protection promotes them
+- Status: landed baseline (`#1244`)
 
 ### PR-3
 
+- Tier 1 reconciliation pre-step for landed PR-1 / PR-2 evidence
 - risk-based PR topology
-- PR-size governance
+- PR-size governance with explicit `## Split Justification` PR-body proof for `>800` LoC cases
 - blocker/non-blocker split documented and enforced
+- Status: active next slice
 
 ### PR-4
 
 - `scripts/ci/` metrics collector
 - `ci-metrics-summary.json`
 - `ci-metrics-summary.md`
+- Status: deferred/next
 
 ## Acceptance Criteria
 
-- One canonical backend/shared PR workflow exists in `ci.yml`
-- `pr-tests.yml` and `pr-coverage.yml` are no longer active PR lanes
-- `security.yml` and `trivy.yml` are no longer PR-time canonical blockers and stay outside canonical merge truth
-- `build.yml` remains a specialized release/image lane
+- PR2's canonical backend/shared PR lane in `ci.yml` remains the only backend/shared merge-truth surface
+- PR3 makes the PR path explicit as critical smoke plus contract/risk suites, while keeping nightly/regression depth outside normal PR blocking flow
+- PR3 adds documented and enforced PR-size governance for `<300`, `300-800`, and `>800` LoC cases
 - Current-head merge-readiness remains deterministic and wrapper-backed
 - Local merge evidence remains `pre-commit run --all-files` + `make verify`
-- Mandatory post-open `qa-engineer-agent -> bug-hunter` lane is recorded and used
+- Mandatory post-open `qa-engineer-agent -> bug-hunter` lane remains recorded and used for this slice
 
 ## Validation Commands
 
