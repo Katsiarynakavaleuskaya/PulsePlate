@@ -4,7 +4,6 @@ import fitchefPortraitSleepy from '../../assets/brand/fitchef-portrait-sleepy-v1
 import fitchefPortraitSurprised from '../../assets/brand/fitchef-portrait-surprised-v1.png';
 import fitchefPortraitThinking from '../../assets/brand/fitchef-portrait-thinking-v1.png';
 import fitchefPortraitWink from '../../assets/brand/fitchef-portrait-wink-v1.png';
-import fitchefWink from '../../assets/brand/fitchef-wink.png';
 
 type MascotVariant = 'static' | 'wink' | 'neutral' | 'thinking' | 'sleepy' | 'surprised';
 type MascotSize = 'sm' | 'md' | 'lg';
@@ -27,8 +26,8 @@ const variantMap: Record<MascotVariant, { src: string; alt: string }> = {
     alt: 'FitChef mascot static variant',
   },
   wink: {
-    src: fitchefWink,
-    alt: 'FitChef mascot wink variant',
+    src: fitchefPortraitWink,
+    alt: 'FitChef mascot wink portrait',
   },
   neutral: {
     src: fitchefPortraitNeutral,
@@ -52,7 +51,7 @@ export function FitChefMascot({
   variant = 'static',
   size = 'md',
   className = '',
-}: FitChefMascotProps) {
+}: FitChefMascotProps): JSX.Element {
   const asset = variantMap[variant];
 
   return (

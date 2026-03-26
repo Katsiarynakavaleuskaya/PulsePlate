@@ -8,7 +8,10 @@ const meta: Meta<typeof BrandAssetPlaceholder> = {
   render: (args) => (
     <DesignSystemCanvas>
       <div className="flex min-h-[280px] items-center justify-center rounded-[28px] border border-white/10 bg-white/[0.04] p-8">
-        <BrandAssetPlaceholder {...args} className="h-[180px] w-[180px]" />
+        <BrandAssetPlaceholder
+          {...args}
+          className={['h-[180px] w-[180px]', args.className].filter(Boolean).join(' ')}
+        />
       </div>
     </DesignSystemCanvas>
   ),

@@ -129,7 +129,7 @@ function PaletteSwatch({
   label: string;
   value: string;
   note?: string;
-}) {
+}): JSX.Element {
   return (
     <div className="rounded-[18px] border border-white/12 bg-white/[0.03] p-3">
       <div
@@ -151,7 +151,7 @@ function PanelList({
   title: string;
   items: readonly string[];
   footer?: string;
-}) {
+}): JSX.Element {
   return (
     <div className="rounded-[20px] border border-white/8 bg-white/[0.03] p-4">
       <p className="text-sm font-semibold text-white">{title}</p>
@@ -173,7 +173,7 @@ interface BrandAssetPlaceholderProps {
 
 export function BrandAssetPlaceholder({
   className = '',
-}: BrandAssetPlaceholderProps) {
+}: BrandAssetPlaceholderProps): JSX.Element {
   return (
     <div
       aria-hidden="true"
@@ -190,7 +190,7 @@ function CanonSection({
 }: {
   title: string;
   children: ReactNode;
-}) {
+}): JSX.Element {
   return (
     <section className="space-y-5">
       <p className="text-xs font-semibold uppercase tracking-[0.28em] text-white/80">{title}</p>
@@ -205,7 +205,7 @@ function PortraitTile({
 }: {
   label: string;
   variant: 'neutral' | 'wink' | 'thinking' | 'sleepy' | 'surprised';
-}) {
+}): JSX.Element {
   return (
     <div className="space-y-3">
       <div className="rounded-[18px] border border-dashed border-white/20 bg-[rgba(255,255,255,0.02)] p-3">
@@ -216,7 +216,7 @@ function PortraitTile({
   );
 }
 
-function HoldCandidateTile({ label }: { label: string }) {
+function HoldCandidateTile({ label }: { label: string }): JSX.Element {
   return (
     <div className="space-y-3">
       <div className="rounded-[18px] border border-dashed border-white/20 bg-[rgba(255,255,255,0.02)] p-4">
@@ -227,7 +227,7 @@ function HoldCandidateTile({ label }: { label: string }) {
   );
 }
 
-export function IOSFoundationTokensBoard() {
+export function IOSFoundationTokensBoard(): JSX.Element {
   return (
     <PanelShell
       className="border-white/10 bg-[rgba(255,255,255,0.04)] shadow-[0_30px_80px_rgba(0,0,0,0.28)]"
@@ -342,7 +342,7 @@ export function IOSFoundationTokensBoard() {
   );
 }
 
-export function BrandCanonBoard() {
+export function BrandCanonBoard(): JSX.Element {
   return (
     <PanelShell
       className="border-white/10 bg-[rgba(255,255,255,0.04)] shadow-[0_30px_80px_rgba(0,0,0,0.28)]"
@@ -406,12 +406,12 @@ export function BrandCanonBoard() {
 
           <CanonSection title="05 — Usage Rules">
             <ol className="space-y-3 text-sm leading-6 text-white/62">
-              <li>1. Use the mark on white or the core navy canvas only.</li>
-              <li>2. Keep at least one emblem-height of clear space around the mark.</li>
-              <li>3. Do not rotate, stretch, bevel, or shadow the emblem.</li>
-              <li>4. Avoid busy photography behind the mark.</li>
-              <li>5. Reserve green for CTA emphasis only, never for the emblem itself.</li>
-              <li>6. Portrait expressions stay illustrative context, not navigation icons.</li>
+              <li>Use the mark on white or the core navy canvas only.</li>
+              <li>Keep at least one emblem-height of clear space around the mark.</li>
+              <li>Do not rotate, stretch, bevel, or shadow the emblem.</li>
+              <li>Avoid busy photography behind the mark.</li>
+              <li>Reserve green for CTA emphasis only, never for the emblem itself.</li>
+              <li>Portrait expressions stay illustrative context, not navigation icons.</li>
             </ol>
           </CanonSection>
         </div>
@@ -420,7 +420,7 @@ export function BrandCanonBoard() {
   );
 }
 
-export function CanonBoardsSection() {
+export function CanonBoardsSection(): JSX.Element {
   return (
     <section className="mt-10">
       <OverviewHeader

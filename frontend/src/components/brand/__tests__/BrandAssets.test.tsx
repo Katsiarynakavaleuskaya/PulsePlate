@@ -30,7 +30,7 @@ describe('brand assets', () => {
     );
 
     expect(screen.getByAltText('FitChef mascot static variant')).toBeInTheDocument();
-    expect(screen.getByAltText('FitChef mascot wink variant')).toBeInTheDocument();
+    expect(screen.getByAltText('FitChef mascot wink portrait')).toBeInTheDocument();
     expect(screen.getByAltText('FitChef mascot neutral portrait')).toBeInTheDocument();
     expect(screen.getByAltText('FitChef mascot thinking portrait')).toBeInTheDocument();
     expect(screen.getByAltText('FitChef mascot sleepy portrait')).toBeInTheDocument();
