@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import subprocess
 
 import pytest
 
@@ -100,3 +101,57 @@ def test_main_passes_when_no_findings(
         "startup-hook-guard: no unexpected executable .pth files detected."
         in capsys.readouterr().out
     )
+
+
+def test_external_interpreter_site_packages_uses_startup_safe_probe(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    completed = subprocess.CompletedProcess(
+        args=[],
+        returncode=0,
+        stdout='["/tmp/site-packages"]',
+        stderr="",
+    )
+    observed_command: list[str] = []
+
+    def fake_run(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        observed_command[:] = command
+        return completed
+
+    monkeypatch.setattr(hook_guard.subprocess, "run", fake_run)
+
+    result = hook_guard.external_interpreter_site_packages("/usr/bin/python3")
+
+    assert observed_command[:3] == ["/usr/bin/python3", "-S", "-c"]
+    assert "import json, site" in observed_command[3]
+    assert result == [Path("/tmp/site-packages")]
+
+
+def test_external_interpreter_site_packages_returns_empty_list(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    completed = subprocess.CompletedProcess(
+        args=[],
+        returncode=0,
+        stdout="[]",
+        stderr="",
+    )
+    monkeypatch.setattr(hook_guard.subprocess, "run", lambda *args, **kwargs: completed)
+
+    assert hook_guard.external_interpreter_site_packages("/usr/bin/python3") == []
+
+
+def test_external_interpreter_site_packages_wraps_subprocess_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def raise_called_process_error(*args: object, **kwargs: object) -> object:
+        raise subprocess.CalledProcessError(
+            returncode=1,
+            cmd=["python3", "-S", "-c", "probe"],
+            stderr="boom",
+        )
+
+    monkeypatch.setattr(hook_guard.subprocess, "run", raise_called_process_error)
+
+    with pytest.raises(RuntimeError, match="Unable to probe site-packages"):
+        hook_guard.external_interpreter_site_packages("/usr/bin/python3")

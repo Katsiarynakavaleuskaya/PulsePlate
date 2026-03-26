@@ -93,6 +93,17 @@ def test_validate_private_proxy_url_rejects_public_hosts() -> None:
         installer.validate_private_proxy_url("https://pypi.org/simple")
 
 
+def test_validate_private_proxy_url_strips_whitespace_and_trailing_dot() -> None:
+    normalized = installer.validate_private_proxy_url(
+        "  https://packages.example.internal/simple  "
+    )
+
+    assert normalized == "https://packages.example.internal/simple"
+
+    with pytest.raises(RuntimeError, match="must not point to public host"):
+        installer.validate_private_proxy_url("https://pypi.org./simple")
+
+
 def test_resolve_private_proxy_settings_requires_explicit_contract(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

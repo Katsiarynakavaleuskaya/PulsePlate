@@ -187,15 +187,19 @@ def normalize_trusted_host(trusted_host: str | None) -> str | None:
 
 def validate_private_proxy_url(index_url: str) -> str:
     """Validate that the approved package source is a non-public proxy."""
-    parsed = urlparse(index_url)
+    normalized = index_url.strip()
+    if not normalized:
+        raise RuntimeError("Approved Python package proxy URL must not be empty.")
+    parsed = urlparse(normalized)
     hostname = parsed.hostname
     if parsed.scheme not in {"http", "https"} or not hostname:
         raise RuntimeError("Approved Python package proxy must be an http(s) URL with a hostname.")
-    if hostname.lower() in BLOCKED_INDEX_HOSTS:
+    canonical_hostname = hostname.rstrip(".").lower()
+    if canonical_hostname in BLOCKED_INDEX_HOSTS:
         raise RuntimeError(
-            f"Approved Python package proxy must not point to public host: {hostname}"
+            f"Approved Python package proxy must not point to public host: {canonical_hostname}"
         )
-    return index_url
+    return normalized
 
 
 def reject_ambient_index_overrides() -> None:

@@ -7,7 +7,7 @@ This runbook captures the repo-local response flow for malicious PyPI release sc
 Repo evidence anchors:
 
 - `.github/actions/python-setup/action.yml:45`
-- `Makefile:73`
+- `Makefile:80`
 - `scripts/ci/check_python_startup_hooks.py:14`
 - `scripts/ci/install_locked_python_requirements.py:17`
 

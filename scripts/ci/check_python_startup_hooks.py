@@ -75,10 +75,14 @@ def current_interpreter_site_packages() -> list[Path]:
 
     site_packages: list[str] = []
     for getter_name in ("getsitepackages", "getusersitepackages"):
+        if getter_name == "getusersitepackages" and not getattr(site, "ENABLE_USER_SITE", False):
+            continue
         getter = getattr(site, getter_name, None)
         if getter is None:
             continue
         value = getter()
+        if value is None:
+            continue
         if isinstance(value, str):
             site_packages.append(value)
         else:
@@ -92,23 +96,45 @@ def external_interpreter_site_packages(python_executable: str) -> list[Path]:
         "import json, site\n"
         "paths = []\n"
         "for getter_name in ('getsitepackages', 'getusersitepackages'):\n"
+        "    if getter_name == 'getusersitepackages' and not getattr(site, 'ENABLE_USER_SITE', False):\n"
+        "        continue\n"
         "    getter = getattr(site, getter_name, None)\n"
         "    if getter is None:\n"
         "        continue\n"
         "    value = getter()\n"
+        "    if value is None:\n"
+        "        continue\n"
         "    if isinstance(value, str):\n"
         "        paths.append(value)\n"
         "    else:\n"
         "        paths.extend(value)\n"
         "print(json.dumps(list(dict.fromkeys(paths))))\n"
     )
-    result = subprocess.run(  # nosec B603: argv uses the provided Python executable plus a fixed inline site-packages probe with shell=False (remove-by: 2026-07-31, ref: PR-litellm-private-proxy)
-        [python_executable, "-c", probe],
-        check=True,
-        capture_output=True,
-        text=True,
-    )
-    return [Path(path) for path in json.loads(result.stdout)]
+    try:
+        result = subprocess.run(  # nosec B603: argv uses the provided Python executable plus a fixed inline site-packages probe with shell=False (remove-by: 2026-07-31, ref: PR-litellm-private-proxy)
+            [python_executable, "-S", "-c", probe],
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise RuntimeError(
+            f"Timed out probing site-packages for {python_executable}: {exc}"
+        ) from exc
+    except subprocess.CalledProcessError as exc:
+        stderr = (exc.stderr or "").strip()
+        stdout = (exc.stdout or "").strip()
+        details = stderr or stdout or str(exc)
+        raise RuntimeError(
+            f"Unable to probe site-packages for {python_executable}: {details}"
+        ) from exc
+
+    try:
+        payload = json.loads(result.stdout)
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(f"Unable to parse site-packages for {python_executable}: {exc}") from exc
+    return [Path(path) for path in payload]
 
 
 def format_failure_lines(findings: Sequence[ExecutablePthFinding]) -> list[str]:

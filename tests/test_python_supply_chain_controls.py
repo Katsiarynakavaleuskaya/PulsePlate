@@ -141,7 +141,9 @@ def test_proxy_backed_workflows_support_vars_or_secrets(workflow_path: str) -> N
 def test_no_canonical_workflow_uses_unscoped_public_pip_install() -> None:
     for workflow_path in LOCKED_INSTALL_WORKFLOW_PATHS:
         workflow_text = (REPO_ROOT / workflow_path).read_text(encoding="utf-8")
-        for line in workflow_text.splitlines():
+        lines = workflow_text.splitlines()
+        for index, line in enumerate(lines):
             if "python -m pip install" not in line:
                 continue
-            assert "PULSEPLATE_PYTHON_INDEX_URL" in workflow_text
+            context = "\n".join(lines[max(0, index - 6) : index + 1])
+            assert "PULSEPLATE_PYTHON_INDEX_URL" in context or "--index-url" in context
