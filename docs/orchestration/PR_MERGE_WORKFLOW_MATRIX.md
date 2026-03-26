@@ -5,6 +5,13 @@
 **Series rule:** Do not start the next PR in a series until the current PR has
 completed open-PR review, merge, local sync, sanity, and cleanup.
 
+**Canonical references:**
+
+- Series-rule wording lives in `docs/orchestration/AUTOMATION_READINESS_MATRIX.md`
+  under `Approved PR Series For This Wave`.
+- Disposition semantics (`FIXED`, `NOT-A-BUG`, `DEFERRED`) live in `AGENTS.md`
+  under `Review Governance`.
+
 ---
 
 ## 1. Local Prep
@@ -30,7 +37,7 @@ completed open-PR review, merge, local sync, sanity, and cleanup.
 - [ ] For packets/runbooks that require it, execute `qa-engineer-agent -> bug-hunter` after PR open
 - [ ] Fetch and address all review comments (Codex, Sourcery, Cubic, CodeRabbit)
 - [ ] Record disposition evidence in `docs/review/PR_<N>_FIXED_MAPPING.md` before resolving any actionable review thread
-- [ ] Use canonical disposition outcomes: `FIXED`, `NOT-A-BUG`, or `DEFERRED`
+- [ ] Use canonical disposition outcomes from `AGENTS.md` Review Governance: `FIXED`, `NOT-A-BUG`, or `DEFERRED`
 - [ ] Fixed in Commit Mapping entries may be `- <review-url> -> <commit-sha>` or `- <review-url>` depending on disposition proof
 - [ ] Resolve review threads only after the artifact contains the required disposition proof
 - [ ] PR body: Discussion Thread Pass checked, mirror sections complete

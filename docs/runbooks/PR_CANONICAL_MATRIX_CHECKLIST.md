@@ -55,11 +55,15 @@ Single operational checklist so context is never lost during PR execution.
 - No unresolved review threads.
 - Required checks are PASS.
 - No unaddressed actionable bot comments.
+- Final strict merge-wrapper pass completed.
+- Wait-window after the final green state is complete.
 - PR scope stays within declared matrix.
 
 ## Operator Notes
 
 - Never skip matrix/audit/plan stages.
 - Never mark "ready" before full gate closure.
+- Canonical series-rule wording lives in `docs/orchestration/AUTOMATION_READINESS_MATRIX.md`.
+- Canonical disposition semantics live in `AGENTS.md` under `Review Governance`.
 - Never begin PR2 while PR1 is still in review, merge, sync, sanity, or cleanup.
 - If context drifts, return to this checklist and restart at step 1.

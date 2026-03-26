@@ -121,6 +121,10 @@ Series invariant:
   - passed post-merge sanity,
   - had temporary artifacts, branches, and worktrees cleaned up.
 
+This wording is canonical for the PR-series gate. Other runbooks may summarize
+the rule for operators, but they should reference this section instead of
+creating competing definitions.
+
 ### PR1: Governance and SoT alignment
 
 In:
