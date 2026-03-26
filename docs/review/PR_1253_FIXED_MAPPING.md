@@ -43,6 +43,13 @@ Reason: The PR-size governance parser now handles the CodeRabbit follow-up cases
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1253#discussion_r2997781452 -> 0998259a
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1253#pullrequestreview-4017466061 -> 0998259a
 
+Disposition: FIXED
+Commit: be779052
+Evidence: docs/review/PR_1253_FIXED_MAPPING.md:50, scripts/ci/ci_risk_profile.py:303, tests/test_ci_risk_profile.py:212
+Reason: The latest CodeRabbit cycle is addressed by keeping merge-readiness checklist boxes unchecked until the final merge pass and by hardening `collect_changed_files()` with a fail-fast git timeout plus deterministic test coverage.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1253#discussion_r2997898068 -> be779052
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1253#pullrequestreview-4017591791 -> be779052
+
 ## Carryover Notes
 - Historical closed replacement-source PR `#1248` remains referenced only as supporting evidence in `docs/review/PR_1248_FIXED_MAPPING.md`.
 - The conflicted replacement-source artifact remains preserved in `docs/review/PR_1250_FIXED_MAPPING.md`.
