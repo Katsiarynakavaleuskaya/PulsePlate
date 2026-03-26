@@ -1,6 +1,10 @@
 # yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
 name: Nightly Tests
 
+env:
+  PULSEPLATE_PYTHON_INDEX_URL: ${{ secrets.PULSEPLATE_PYTHON_INDEX_URL }}
+  PULSEPLATE_PYTHON_TRUSTED_HOST: ${{ secrets.PULSEPLATE_PYTHON_TRUSTED_HOST }}
+
 on:
   schedule:
     - cron: '0 2 * * *'
@@ -315,8 +319,14 @@ jobs:
 
       - name: Install dependencies
         run: |
+          set -euo pipefail
+          : "${PULSEPLATE_PYTHON_INDEX_URL:?Set PULSEPLATE_PYTHON_INDEX_URL to the approved private package proxy URL.}"
+          pip_index_args=(--index-url "$PULSEPLATE_PYTHON_INDEX_URL")
+          if [[ -n "${PULSEPLATE_PYTHON_TRUSTED_HOST:-}" ]]; then
+            pip_index_args+=(--trusted-host "$PULSEPLATE_PYTHON_TRUSTED_HOST")
+          fi
           python scripts/ci/install_locked_python_requirements.py --python-executable python --constraints-file constraints.txt --install-dev
-          python -m pip install psycopg2-binary -c constraints.txt
+          python -m pip install "${pip_index_args[@]}" psycopg2-binary -c constraints.txt
 
       - name: Run integration tests
         env:
@@ -414,8 +424,14 @@ jobs:
 
       - name: Install coverage
         run: |
-          python -m pip install --upgrade pip
-          python -m pip install coverage -c constraints.txt
+          set -euo pipefail
+          : "${PULSEPLATE_PYTHON_INDEX_URL:?Set PULSEPLATE_PYTHON_INDEX_URL to the approved private package proxy URL.}"
+          pip_index_args=(--index-url "$PULSEPLATE_PYTHON_INDEX_URL")
+          if [[ -n "${PULSEPLATE_PYTHON_TRUSTED_HOST:-}" ]]; then
+            pip_index_args+=(--trusted-host "$PULSEPLATE_PYTHON_TRUSTED_HOST")
+          fi
+          python -m pip install "${pip_index_args[@]}" --upgrade pip
+          python -m pip install "${pip_index_args[@]}" coverage -c constraints.txt
 
       - name: Combine coverage and generate report
         run: |

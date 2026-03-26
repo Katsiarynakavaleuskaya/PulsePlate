@@ -19,6 +19,9 @@ As of **26 March 2026**:
 - local repo `.venv` may still contain historical tooling drift and must be audited separately from the repo lockfiles
 - executable `.pth` files are now guarded by `scripts/ci/check_python_startup_hooks.py`
 - local bootstrap and CI install surfaces use `scripts/ci/install_locked_python_requirements.py`
+- canonical shared install paths now fail closed unless `PULSEPLATE_PYTHON_INDEX_URL` points to the approved private package proxy
+- `PULSEPLATE_PYTHON_TRUSTED_HOST` remains optional and must only be set when the approved proxy requires it
+- repo-local wheelhouse staging is only an install-phase control; quarantine and promotion review remain external infra duties
 
 ## Read-only triage steps
 
@@ -50,6 +53,13 @@ ls -lt ~/.cache/pip ~/.cache/uv 2>/dev/null
 ```bash
 rg -n "install_locked_python_requirements.py|check_python_startup_hooks.py|python -m pip install" \
   Makefile Dockerfile .github/workflows .github/actions scripts
+```
+
+1. Verify the approved proxy contract is present before trusting a shared install path:
+
+```bash
+env | rg '^PULSEPLATE_PYTHON_(INDEX_URL|TRUSTED_HOST)='
+python3 scripts/ci/install_locked_python_requirements.py --help
 ```
 
 ## Escalation criteria
@@ -94,7 +104,9 @@ make venv
 - `scripts/ci/install_locked_python_requirements.py`
 - `make venv` and `make venv-sync` with `PIP_REQUIRE_VIRTUALENV=1`
 - CI composite action and canonical CI lanes using the locked installer
+- fail-closed private proxy contract via `PULSEPLATE_PYTHON_INDEX_URL`
+- rejection of public hosts (`pypi.org`, `files.pythonhosted.org`, `test.pypi.org`) and ambient index overrides for canonical installs
 
 ## Deferred control outside repo scope
 
-The repo still needs an **internal mirror / artifact quarantine** path for full supply-chain isolation. That infra dependency is tracked in `docs/roadmap/BACKLOG_LEDGER.md`.
+The repo now assumes an **approved private mirror / artifact quarantine** path exists outside the repository. Provisioning, quarantine review, and artifact promotion remain infra responsibilities and are tracked in `docs/roadmap/BACKLOG_LEDGER.md`.

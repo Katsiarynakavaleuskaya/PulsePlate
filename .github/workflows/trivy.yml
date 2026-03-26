@@ -5,6 +5,10 @@
 
 name: trivy
 
+env:
+  PULSEPLATE_PYTHON_INDEX_URL: ${{ secrets.PULSEPLATE_PYTHON_INDEX_URL }}
+  PULSEPLATE_PYTHON_TRUSTED_HOST: ${{ secrets.PULSEPLATE_PYTHON_TRUSTED_HOST }}
+
 on:
   push:
     branches: [ "main" ]
@@ -34,6 +38,9 @@ jobs:
         uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25 # v5
         with:
           context: .
+          build-args: |
+            PULSEPLATE_PYTHON_INDEX_URL=${{ env.PULSEPLATE_PYTHON_INDEX_URL }}
+            PULSEPLATE_PYTHON_TRUSTED_HOST=${{ env.PULSEPLATE_PYTHON_TRUSTED_HOST }}
           platforms: linux/amd64
           push: false
           load: true

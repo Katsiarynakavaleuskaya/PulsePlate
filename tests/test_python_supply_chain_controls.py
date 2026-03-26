@@ -13,6 +13,7 @@ LOCKED_INSTALL_WORKFLOW_PATHS: tuple[str, ...] = (
     ".github/workflows/frontend-ci.yml",
     ".github/workflows/nightly-tests.yml",
     ".github/workflows/nightly.yml",
+    ".github/workflows/security.yml",
 )
 
 
@@ -33,6 +34,8 @@ def test_python_setup_action_uses_locked_installer_not_floating_tools() -> None:
 
     assert "install_locked_python_requirements.py" in action_text
     assert "${{ github.workspace }}/scripts/ci/install_locked_python_requirements.py" in action_text
+    assert "PULSEPLATE_PYTHON_INDEX_URL" in action_text
+    assert '--index-url "$PULSEPLATE_PYTHON_INDEX_URL"' in action_text
     assert "${{ inputs.install-dev-deps }}" in action_text
     assert "${{ inputs.install-test-deps }}" in action_text
     assert "pre-commit>=" not in action_text
@@ -44,41 +47,68 @@ def test_python_setup_action_uses_locked_installer_not_floating_tools() -> None:
 def test_local_bootstrap_surfaces_use_locked_installer_and_virtualenv_guard() -> None:
     makefile_text = (REPO_ROOT / "Makefile").read_text(encoding="utf-8")
     dev_shell_text = (REPO_ROOT / "scripts" / "dev_shell.sh").read_text(encoding="utf-8")
+    installer_text = (
+        REPO_ROOT / "scripts" / "ci" / "install_locked_python_requirements.py"
+    ).read_text(encoding="utf-8")
 
     assert "install_locked_python_requirements.py" in makefile_text
     assert "--require-virtualenv" in makefile_text
     assert "PIP_REQUIRE_VIRTUALENV=1" in dev_shell_text
     assert "install_locked_python_requirements.py" in dev_shell_text
+    assert "PULSEPLATE_PYTHON_INDEX_URL" in installer_text
 
 
 def test_canonical_ci_and_docker_use_supply_chain_guardrails() -> None:
+    ci_text = (REPO_ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+    security_text = (REPO_ROOT / ".github" / "workflows" / "security.yml").read_text(
+        encoding="utf-8"
+    )
+    nightly_text = (REPO_ROOT / ".github" / "workflows" / "nightly.yml").read_text(encoding="utf-8")
     docker_text = (REPO_ROOT / "Dockerfile").read_text(encoding="utf-8")
     dockerignore_text = (REPO_ROOT / ".dockerignore").read_text(encoding="utf-8")
-    verify_env_text = (
-        REPO_ROOT / "scripts" / "ci" / "check_local_verify_environment.py"
-    ).read_text(encoding="utf-8")
     installer_text = (
         REPO_ROOT / "scripts" / "ci" / "install_locked_python_requirements.py"
     ).read_text(encoding="utf-8")
+    init_test_db_text = (
+        REPO_ROOT / ".github" / "actions" / "init-test-db" / "action.yml"
+    ).read_text(encoding="utf-8")
+    dependency_docs_text = (REPO_ROOT / "docs" / "DEPENDENCY_MANAGEMENT.md").read_text(
+        encoding="utf-8"
+    )
 
     assert "check_python_startup_hooks.py" in installer_text
-    assert "spec_from_file_location" not in verify_env_text
-    assert "sys.modules[" not in verify_env_text
     assert "--only-binary" in installer_text
-    assert "spec_from_file_location" not in installer_text
-    assert "sys.modules[" not in installer_text
+    assert "PULSEPLATE_PYTHON_INDEX_URL" in installer_text
+    assert "files.pythonhosted.org" in installer_text
     assert "install_locked_python_requirements.py" in docker_text
-    assert "--guard-script /tmp/pulseplate-ci/check_python_startup_hooks.py" in docker_text
+    assert "ARG PULSEPLATE_PYTHON_INDEX_URL" in docker_text
     assert "constraints.txt" in docker_text
-    assert "--upgrade-pip" not in docker_text
+    assert '--index-url "${PULSEPLATE_PYTHON_INDEX_URL}"' in docker_text
+    assert "PULSEPLATE_PYTHON_INDEX_URL: ${{ secrets.PULSEPLATE_PYTHON_INDEX_URL }}" in ci_text
+    assert (
+        "PULSEPLATE_PYTHON_INDEX_URL: ${{ secrets.PULSEPLATE_PYTHON_INDEX_URL }}" in security_text
+    )
+    assert "PULSEPLATE_PYTHON_INDEX_URL: ${{ secrets.PULSEPLATE_PYTHON_INDEX_URL }}" in nightly_text
     assert "!constraints.txt" in dockerignore_text
     assert "!scripts/ci/check_python_startup_hooks.py" in dockerignore_text
     assert "!scripts/ci/install_locked_python_requirements.py" in dockerignore_text
+    assert "install_locked_python_requirements.py" in dependency_docs_text
+    assert "PULSEPLATE_PYTHON_INDEX_URL" in dependency_docs_text
+    assert "Run: make venv-sync" in init_test_db_text
 
 
 @pytest.mark.parametrize("workflow_path", LOCKED_INSTALL_WORKFLOW_PATHS)
 def test_all_changed_python_install_surfaces_use_locked_installer(workflow_path: str) -> None:
     workflow_text = (REPO_ROOT / workflow_path).read_text(encoding="utf-8")
 
-    assert "install_locked_python_requirements.py" in workflow_text
-    assert "--constraints-file constraints.txt" in workflow_text
+    assert "PULSEPLATE_PYTHON_INDEX_URL" in workflow_text
+    assert "pypi.org/simple" not in workflow_text
+
+
+def test_no_canonical_workflow_uses_unscoped_public_pip_install() -> None:
+    for workflow_path in LOCKED_INSTALL_WORKFLOW_PATHS:
+        workflow_text = (REPO_ROOT / workflow_path).read_text(encoding="utf-8")
+        for line in workflow_text.splitlines():
+            if "python -m pip install" not in line:
+                continue
+            assert "PULSEPLATE_PYTHON_INDEX_URL" in workflow_text

@@ -32,6 +32,10 @@ on:
 permissions:
   contents: read
 
+env:
+  PULSEPLATE_PYTHON_INDEX_URL: ${{ secrets.PULSEPLATE_PYTHON_INDEX_URL }}
+  PULSEPLATE_PYTHON_TRUSTED_HOST: ${{ secrets.PULSEPLATE_PYTHON_TRUSTED_HOST }}
+
 defaults:
   run:
     shell: bash
@@ -47,7 +51,10 @@ jobs:
 
       - name: Build Docker image
         run: |
-          docker build -t pulseplate-smoke:${{ github.sha }} .
+          docker build \
+            --build-arg PULSEPLATE_PYTHON_INDEX_URL="${PULSEPLATE_PYTHON_INDEX_URL}" \
+            --build-arg PULSEPLATE_PYTHON_TRUSTED_HOST="${PULSEPLATE_PYTHON_TRUSTED_HOST}" \
+            -t pulseplate-smoke:${{ github.sha }} .
 
       - name: Run container
         run: |

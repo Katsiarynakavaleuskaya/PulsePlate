@@ -16,6 +16,8 @@ concurrency:
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
+  PULSEPLATE_PYTHON_INDEX_URL: ${{ secrets.PULSEPLATE_PYTHON_INDEX_URL }}
+  PULSEPLATE_PYTHON_TRUSTED_HOST: ${{ secrets.PULSEPLATE_PYTHON_TRUSTED_HOST }}
 
 jobs:
   # Build and test Docker image
@@ -35,6 +37,9 @@ jobs:
         uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7.0.0
         with:
           context: .
+          build-args: |
+            PULSEPLATE_PYTHON_INDEX_URL=${{ env.PULSEPLATE_PYTHON_INDEX_URL }}
+            PULSEPLATE_PYTHON_TRUSTED_HOST=${{ env.PULSEPLATE_PYTHON_TRUSTED_HOST }}
           platforms: linux/amd64
           push: false
           load: true
@@ -185,6 +190,9 @@ jobs:
         uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7.0.0
         with:
           context: .
+          build-args: |
+            PULSEPLATE_PYTHON_INDEX_URL=${{ env.PULSEPLATE_PYTHON_INDEX_URL }}
+            PULSEPLATE_PYTHON_TRUSTED_HOST=${{ env.PULSEPLATE_PYTHON_TRUSTED_HOST }}
           # Single-arch for cache/push stability (CodeRabbit discussion_r2869743452). Restore linux/arm64 when GHA cache/provenance is stable.
           platforms: linux/amd64
           push: true

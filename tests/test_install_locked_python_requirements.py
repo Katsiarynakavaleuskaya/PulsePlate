@@ -11,6 +11,8 @@ import pytest
 
 import scripts.ci.install_locked_python_requirements as installer
 
+APPROVED_PROXY_URL = "https://packages.example.internal/simple"
+
 
 def test_resolve_requirement_files_prefers_dev_only_when_requested(tmp_path: Path) -> None:
     requirements = tmp_path / "requirements.txt"
@@ -59,12 +61,17 @@ def test_build_pip_download_command_uses_constraint_when_present(tmp_path: Path)
         requirement_file=tmp_path / "requirements.txt",
         wheelhouse_dir=tmp_path / "wheelhouse",
         constraints_file=constraints,
+        index_url=APPROVED_PROXY_URL,
+        trusted_host="packages.example.internal",
     )
 
     assert command[:4] == ["python", "-m", "pip", "download"]
     assert "--only-binary" in command
     assert ":all:" in command
     assert "--dest" in command
+    assert "--index-url" in command
+    assert APPROVED_PROXY_URL in command
+    assert "--trusted-host" in command
     assert "--constraint" in command
 
 
@@ -81,6 +88,32 @@ def test_build_pip_install_command_is_hermetic(tmp_path: Path) -> None:
     assert "--find-links" in command
 
 
+def test_validate_private_proxy_url_rejects_public_hosts() -> None:
+    with pytest.raises(RuntimeError, match="must not point to public host"):
+        installer.validate_private_proxy_url("https://pypi.org/simple")
+
+
+def test_resolve_private_proxy_settings_requires_explicit_contract(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv(installer.APPROVED_INDEX_ENV_VAR, raising=False)
+
+    with pytest.raises(RuntimeError, match="Approved Python package proxy is required"):
+        installer.resolve_private_proxy_settings(index_url=None, trusted_host=None)
+
+
+def test_resolve_private_proxy_settings_rejects_ambient_overrides(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("PIP_EXTRA_INDEX_URL", "https://malicious.example/simple")
+
+    with pytest.raises(RuntimeError, match="Ambient Python package index overrides are forbidden"):
+        installer.resolve_private_proxy_settings(
+            index_url=APPROVED_PROXY_URL,
+            trusted_host=None,
+        )
+
+
 def test_build_pip_download_command_fails_when_constraints_file_is_missing(
     tmp_path: Path,
 ) -> None:
@@ -92,6 +125,8 @@ def test_build_pip_download_command_fails_when_constraints_file_is_missing(
             requirement_file=tmp_path / "requirements.txt",
             wheelhouse_dir=tmp_path / "wheelhouse",
             constraints_file=missing_constraints,
+            index_url=APPROVED_PROXY_URL,
+            trusted_host=None,
         )
 
 
@@ -218,6 +253,7 @@ def test_main_runs_download_install_and_static_guard_without_pip_self_upgrade(
         lambda **kwargs: observed_guard_python.append(kwargs["python_executable"]) or [],
     )
     monkeypatch.setattr(installer, "staged_python_environment", fake_staging_environment)
+    monkeypatch.setenv(installer.APPROVED_INDEX_ENV_VAR, APPROVED_PROXY_URL)
 
     result = installer.main(
         [
@@ -241,6 +277,8 @@ def test_main_runs_download_install_and_static_guard_without_pip_self_upgrade(
     assert str(wheelhouse_dir) in download_command
     assert "--requirement" in download_command
     assert str(requirements) in download_command
+    assert "--index-url" in download_command
+    assert APPROVED_PROXY_URL in download_command
     assert "--constraint" in download_command
     assert str(installer.DEFAULT_CONSTRAINTS_FILE) in download_command
 
@@ -280,6 +318,7 @@ def test_main_runs_optional_pip_upgrade_only_when_requested(
     )
     monkeypatch.setattr(installer, "collect_startup_hook_failure_lines", lambda **kwargs: [])
     monkeypatch.setattr(installer, "staged_python_environment", fake_staging_environment)
+    monkeypatch.setenv(installer.APPROVED_INDEX_ENV_VAR, APPROVED_PROXY_URL)
 
     result = installer.main(
         [
@@ -294,7 +333,16 @@ def test_main_runs_optional_pip_upgrade_only_when_requested(
     )
 
     assert result == 0
-    assert observed_commands[0] == ["python", "-m", "pip", "install", "--upgrade", "pip"]
+    assert observed_commands[0] == [
+        "python",
+        "-m",
+        "pip",
+        "install",
+        "--upgrade",
+        "pip",
+        "--index-url",
+        APPROVED_PROXY_URL,
+    ]
 
 
 def test_main_fails_when_static_startup_hook_scan_finds_malicious_pth(
@@ -325,6 +373,7 @@ def test_main_fails_when_static_startup_hook_scan_finds_malicious_pth(
         ],
     )
     monkeypatch.setattr(installer, "staged_python_environment", fake_staging_environment)
+    monkeypatch.setenv(installer.APPROVED_INDEX_ENV_VAR, APPROVED_PROXY_URL)
 
     result = installer.main(
         [
@@ -354,7 +403,14 @@ def test_main_reports_missing_requirements_file_cleanly(
 ) -> None:
     missing_requirements = tmp_path / "missing-requirements.txt"
 
-    result = installer.main(["--requirements-file", str(missing_requirements)])
+    result = installer.main(
+        [
+            "--requirements-file",
+            str(missing_requirements),
+            "--index-url",
+            APPROVED_PROXY_URL,
+        ]
+    )
 
     assert result == 1
     assert (
@@ -377,6 +433,8 @@ def test_main_reports_missing_constraints_file_cleanly(
             str(requirements),
             "--constraints-file",
             str(missing_constraints),
+            "--index-url",
+            APPROVED_PROXY_URL,
         ]
     )
 
@@ -403,6 +461,7 @@ def test_main_reports_guard_runtime_error_cleanly(
         "collect_startup_hook_failure_lines",
         lambda **kwargs: (_ for _ in ()).throw(RuntimeError("guard subprocess failed")),
     )
+    monkeypatch.setenv(installer.APPROVED_INDEX_ENV_VAR, APPROVED_PROXY_URL)
 
     result = installer.main(
         [
@@ -419,3 +478,19 @@ def test_main_reports_guard_runtime_error_cleanly(
 
     assert result == 1
     assert "ERROR: locked install failed: guard subprocess failed" in capsys.readouterr().out
+
+
+def test_main_reports_missing_private_proxy_cleanly(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("PULSEPLATE_PYTHON_INDEX_URL", raising=False)
+    monkeypatch.delenv("PULSEPLATE_PYTHON_TRUSTED_HOST", raising=False)
+    requirements = tmp_path / "requirements.txt"
+    requirements.write_text("openai==2.29.0\n", encoding="utf-8")
+
+    result = installer.main(["--requirements-file", str(requirements)])
+
+    assert result == 1
+    assert "Approved Python package proxy is required" in capsys.readouterr().out

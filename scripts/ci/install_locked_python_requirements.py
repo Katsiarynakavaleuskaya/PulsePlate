@@ -6,17 +6,32 @@ from __future__ import annotations
 import argparse
 from contextlib import contextmanager
 import json
+import os
 import subprocess  # nosec B404: subprocess is required for bounded pip/python invocations during locked installation (remove-by: 2026-07-31, ref: PR-litellm-hardening)
 import sys
 import tempfile
 from pathlib import Path
 from typing import Iterator, Sequence
+from urllib.parse import urlparse
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_REQUIREMENTS_FILE = REPO_ROOT / "requirements.txt"
 DEFAULT_DEV_REQUIREMENTS_FILE = REPO_ROOT / "requirements-dev.txt"
 DEFAULT_CONSTRAINTS_FILE = REPO_ROOT / "constraints.txt"
 DEFAULT_STARTUP_HOOK_GUARD_PATH = REPO_ROOT / "scripts" / "ci" / "check_python_startup_hooks.py"
+APPROVED_INDEX_ENV_VAR = "PULSEPLATE_PYTHON_INDEX_URL"
+TRUSTED_HOST_ENV_VAR = "PULSEPLATE_PYTHON_TRUSTED_HOST"
+AMBIENT_INDEX_OVERRIDE_ENV_VARS: tuple[str, ...] = (
+    "PIP_INDEX_URL",
+    "PIP_EXTRA_INDEX_URL",
+    "UV_INDEX_URL",
+    "UV_EXTRA_INDEX_URL",
+)
+BLOCKED_INDEX_HOSTS: tuple[str, ...] = (
+    "pypi.org",
+    "files.pythonhosted.org",
+    "test.pypi.org",
+)
 
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
@@ -70,6 +85,14 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         default=DEFAULT_STARTUP_HOOK_GUARD_PATH,
         help="Path to the startup-hook guard script used for static .pth scanning.",
     )
+    parser.add_argument(
+        "--index-url",
+        help=f"Approved private package proxy URL. Defaults to ${APPROVED_INDEX_ENV_VAR}.",
+    )
+    parser.add_argument(
+        "--trusted-host",
+        help=f"Optional trusted host for the approved proxy. Defaults to ${TRUSTED_HOST_ENV_VAR}.",
+    )
     return parser.parse_args(argv)
 
 
@@ -97,6 +120,8 @@ def build_pip_download_command(
     requirement_file: Path,
     wheelhouse_dir: Path,
     constraints_file: Path | None,
+    index_url: str,
+    trusted_host: str | None,
 ) -> list[str]:
     constraints_file = validate_constraints_file(constraints_file)
     command = [
@@ -111,6 +136,9 @@ def build_pip_download_command(
         "--requirement",
         str(requirement_file),
     ]
+    command.extend(["--index-url", index_url])
+    if trusted_host:
+        command.extend(["--trusted-host", trusted_host])
     if constraints_file is not None:
         command.extend(["--constraint", str(constraints_file)])
     return command
@@ -149,6 +177,61 @@ def validate_constraints_file(constraints_file: Path | None) -> Path | None:
     return constraints_file
 
 
+def normalize_trusted_host(trusted_host: str | None) -> str | None:
+    """Return a normalized trusted-host value or None when unset."""
+    if trusted_host is None:
+        return None
+    stripped = trusted_host.strip()
+    return stripped or None
+
+
+def validate_private_proxy_url(index_url: str) -> str:
+    """Validate that the approved package source is a non-public proxy."""
+    parsed = urlparse(index_url)
+    hostname = parsed.hostname
+    if parsed.scheme not in {"http", "https"} or not hostname:
+        raise RuntimeError("Approved Python package proxy must be an http(s) URL with a hostname.")
+    if hostname.lower() in BLOCKED_INDEX_HOSTS:
+        raise RuntimeError(
+            f"Approved Python package proxy must not point to public host: {hostname}"
+        )
+    return index_url
+
+
+def reject_ambient_index_overrides() -> None:
+    """Fail closed when ambient pip/uv index overrides are present."""
+    overrides = [
+        env_var
+        for env_var in AMBIENT_INDEX_OVERRIDE_ENV_VARS
+        if os.environ.get(env_var, "").strip()
+    ]
+    if overrides:
+        joined = ", ".join(overrides)
+        raise RuntimeError(
+            "Ambient Python package index overrides are forbidden for canonical installs: "
+            f"{joined}. Use {APPROVED_INDEX_ENV_VAR} / {TRUSTED_HOST_ENV_VAR} instead."
+        )
+
+
+def resolve_private_proxy_settings(
+    *,
+    index_url: str | None,
+    trusted_host: str | None,
+) -> tuple[str, str | None]:
+    """Resolve and validate the approved private package proxy contract."""
+    resolved_index_url = index_url or os.environ.get(APPROVED_INDEX_ENV_VAR)
+    if not resolved_index_url:
+        raise RuntimeError(
+            "Approved Python package proxy is required for canonical installs. "
+            f"Set {APPROVED_INDEX_ENV_VAR} or pass --index-url."
+        )
+    reject_ambient_index_overrides()
+    return (
+        validate_private_proxy_url(resolved_index_url),
+        normalize_trusted_host(trusted_host or os.environ.get(TRUSTED_HOST_ENV_VAR)),
+    )
+
+
 def is_virtualenv_python(python_executable: str) -> bool:
     """Return True when the target interpreter runs inside a virtualenv."""
     probe = (
@@ -181,8 +264,25 @@ def run_command(command: Sequence[str]) -> None:
         raise RuntimeError(f"Command failed: {command_text}: {exc}") from exc
 
 
-def upgrade_pip(python_executable: str) -> None:
-    run_command([python_executable, "-m", "pip", "install", "--upgrade", "pip"])
+def upgrade_pip(
+    python_executable: str,
+    *,
+    index_url: str,
+    trusted_host: str | None,
+) -> None:
+    command = [
+        python_executable,
+        "-m",
+        "pip",
+        "install",
+        "--upgrade",
+        "pip",
+        "--index-url",
+        index_url,
+    ]
+    if trusted_host:
+        command.extend(["--trusted-host", trusted_host])
+    run_command(command)
 
 
 def collect_startup_hook_failure_lines(
@@ -267,6 +367,8 @@ def build_wheelhouse(
     requirement_files: Sequence[Path],
     constraints_file: Path | None,
     wheelhouse_dir: Path,
+    index_url: str,
+    trusted_host: str | None,
 ) -> None:
     wheelhouse_dir.mkdir(parents=True, exist_ok=True)
     for requirement_file in requirement_files:
@@ -276,6 +378,8 @@ def build_wheelhouse(
                 requirement_file=requirement_file,
                 wheelhouse_dir=wheelhouse_dir,
                 constraints_file=constraints_file,
+                index_url=index_url,
+                trusted_host=trusted_host,
             )
         )
 
@@ -287,12 +391,16 @@ def install_with_guard(
     constraints_file: Path | None,
     wheelhouse_dir: Path,
     guard_script: Path,
+    index_url: str,
+    trusted_host: str | None,
 ) -> int:
     build_wheelhouse(
         python_executable=python_executable,
         requirement_files=requirement_files,
         constraints_file=constraints_file,
         wheelhouse_dir=wheelhouse_dir,
+        index_url=index_url,
+        trusted_host=trusted_host,
     )
 
     with staged_python_environment(python_executable) as staging_python:
@@ -336,8 +444,17 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(f"Python executable: {args.python_executable}")
             return 1
 
+        index_url, trusted_host = resolve_private_proxy_settings(
+            index_url=args.index_url,
+            trusted_host=args.trusted_host,
+        )
+
         if args.upgrade_pip:
-            upgrade_pip(args.python_executable)
+            upgrade_pip(
+                args.python_executable,
+                index_url=index_url,
+                trusted_host=trusted_host,
+            )
 
         if args.wheelhouse_dir is not None:
             return install_with_guard(
@@ -346,6 +463,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                 constraints_file=validated_constraints_file,
                 wheelhouse_dir=args.wheelhouse_dir,
                 guard_script=args.guard_script,
+                index_url=index_url,
+                trusted_host=trusted_host,
             )
 
         with tempfile.TemporaryDirectory(prefix="pulseplate-wheelhouse-") as temp_dir:
@@ -356,6 +475,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                 constraints_file=validated_constraints_file,
                 wheelhouse_dir=wheelhouse_dir,
                 guard_script=args.guard_script,
+                index_url=index_url,
+                trusted_host=trusted_host,
             )
     except (FileNotFoundError, RuntimeError) as exc:
         print(f"ERROR: locked install failed: {exc}")

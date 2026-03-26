@@ -1,4 +1,9 @@
 name: Docker Image CI
+
+env:
+  PULSEPLATE_PYTHON_INDEX_URL: ${{ secrets.PULSEPLATE_PYTHON_INDEX_URL }}
+  PULSEPLATE_PYTHON_TRUSTED_HOST: ${{ secrets.PULSEPLATE_PYTHON_TRUSTED_HOST }}
+
 permissions:
   contents: read
 
@@ -17,4 +22,9 @@ jobs:
     steps:
     - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
     - name: Build the Docker image
-      run: docker build . --file Dockerfile --tag "my-image-name:$(date +%s)"
+      run: |
+        docker build . \
+          --file Dockerfile \
+          --build-arg PULSEPLATE_PYTHON_INDEX_URL="${PULSEPLATE_PYTHON_INDEX_URL}" \
+          --build-arg PULSEPLATE_PYTHON_TRUSTED_HOST="${PULSEPLATE_PYTHON_TRUSTED_HOST}" \
+          --tag "my-image-name:$(date +%s)"
