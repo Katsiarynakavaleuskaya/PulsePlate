@@ -231,7 +231,9 @@ def _resolve_token() -> str | None:
 def _fetch_dependabot_alerts(*, repo: str, token: str) -> list[dict[str, Any]]:
     """Fetch open Dependabot alerts for the repository."""
     alerts: list[dict[str, Any]] = []
-    url = f"https://api.github.com/repos/{repo}/dependabot/alerts?state=open&per_page=100"
+    url: str | None = (
+        f"https://api.github.com/repos/{repo}/dependabot/alerts?state=open&per_page=100"
+    )
     while url:
         payload, headers = _api_request_with_headers(url, token)
         if not isinstance(payload, list):
