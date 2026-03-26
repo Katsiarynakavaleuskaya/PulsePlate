@@ -47,6 +47,7 @@ Disposition: FIXED
 Commit: f2882f59
 Evidence: frontend/src/pages/Onboarding/WelcomeGateV1.tsx:76; frontend/src/pages/Onboarding/__tests__/WelcomeGateV1.test.tsx:22
 Reason: The first-screen Skip control now performs an explicit router transition to /setup and is covered by the WelcomeGate preview test.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1247#discussion_r2995593913 -> f2882f59
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1247#discussion_r2995753852 -> f2882f59
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1247#discussion_r2995757044 -> f2882f59
 
@@ -71,6 +72,7 @@ Reason: AiInsightPanel now models optional action handlers and only renders inte
 
 Disposition: FIXED
 Commit: f2882f59
-Evidence: frontend/src/pages/Home.tsx:112; frontend/src/pages/__tests__/Home.test.tsx:318
-Reason: Home computes mapped source tags first and falls back to Meals/Goals only when the mapped list is empty, with a regression test covering the empty-sources path.
+Evidence: frontend/src/components/insight/AiInsightPanel.tsx:94; frontend/src/pages/Home.tsx:112; frontend/src/pages/Home.tsx:139; frontend/src/pages/__tests__/Home.test.tsx:318; frontend/src/pages/__tests__/Home.test.tsx:323
+Reason: Home now short-circuits duplicate in-flight submissions, the visible AI submit control is disabled while loading or empty, and the tags fallback is restored with regression coverage for both empty sources and duplicate-submit protection.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1247#discussion_r2995593905 -> f2882f59
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1247#discussion_r2995757037 -> f2882f59
