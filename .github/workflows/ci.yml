@@ -114,6 +114,33 @@ jobs:
         env:
           TRIVY_IGNORE_POLICY_PATH: trivy/ignore-policy.rego
 
+  pygments_exception_guard:
+    name: Pygments exception seam guard
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      security-events: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Setup Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: ${{ env.COVERAGE_PY }}
+
+      - name: Guard temporary Pygments exception seam
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          CI: "true"
+        run: |
+          set -euo pipefail
+          python3 scripts/ci/check_pygments_exception_guard.py
+
   docs_phase1_gates:
     name: Docs Phase1 gates
     if: github.event_name == 'pull_request'

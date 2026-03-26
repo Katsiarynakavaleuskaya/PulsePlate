@@ -12,8 +12,10 @@
 
 ## Current Triage Status
 
-As of `25 March 2026`, the repo has no patched Pygments release available to
-adopt for this advisory. Because of that, a strict `pip-audit` pre-push gate on
+As of `26 March 2026`, the repo still has no patched Pygments release available
+to adopt for this advisory. GitHub Dependabot alerts `#58`, `#59`, and `#60`
+remain open across `requirements-dev.txt`, `requirements-lock.txt`, and
+`requirements.txt`. Because of that, a strict `pip-audit` pre-push gate on
 `requirements.txt` blocks unrelated narrow PRs even when no dependency
 regression was introduced in the branch.
 
@@ -30,6 +32,9 @@ Scope of the exception:
 - limited to the `pip-audit` pre-push hook in `.pre-commit-config.yaml`
 - does not remove the pinned `Pygments` evidence from requirement surfaces
 - remains tracked in `docs/roadmap/BACKLOG_LEDGER.md` until a patched release is available
+- is now watched by `scripts/ci/check_pygments_exception_guard.py`, which fails
+  CI as soon as Dependabot reports a patched version or the tracked alerts no
+  longer remain open
 
 ## Evidence Anchors
 
