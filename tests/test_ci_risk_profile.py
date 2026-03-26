@@ -1,0 +1,86 @@
+"""Deterministic tests for Tier 1 PR risk-profile routing."""
+
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+import scripts.ci.ci_risk_profile as risk_profile
+
+
+def test_docs_only_changes_skip_backend_blocking() -> None:
+    profile = risk_profile.build_risk_profile(
+        ["docs/release/notes.md", "README.md"],
+    )
+
+    assert profile.docs_only is True
+    assert profile.run_backend_blocking is False
+    assert profile.contract_risk_groups == ()
+
+
+def test_frontend_only_changes_skip_backend_blocking() -> None:
+    profile = risk_profile.build_risk_profile(
+        ["frontend/src/components/Card.tsx", "frontend/package.json"],
+    )
+
+    assert profile.frontend_only is True
+    assert profile.run_backend_blocking is False
+    assert profile.run_openapi_sync is False
+
+
+def test_workflow_privileged_docs_force_full_contract_suites() -> None:
+    profile = risk_profile.build_risk_profile(
+        ["docs/orchestration/TIER1_CI_CD_PR_SERIES_RUNBOOK.md"],
+    )
+
+    assert profile.workflow_privileged is True
+    assert profile.run_backend_blocking is True
+    assert profile.run_security is True
+    assert profile.contract_risk_groups == risk_profile.ALL_RISK_GROUPS
+
+
+def test_billing_router_change_hits_billing_and_openapi_groups() -> None:
+    profile = risk_profile.build_risk_profile(
+        ["app/routers/billing.py"],
+    )
+
+    assert profile.backend_shared is True
+    assert profile.billing_entitlement is True
+    assert profile.openapi_contract is True
+    assert profile.contract_risk_groups == (
+        "billing_entitlement",
+        "openapi_contract",
+    )
+
+
+def test_insight_runtime_change_hits_insight_group_only() -> None:
+    profile = risk_profile.build_risk_profile(
+        ["core/insight/fitchef_companion.py"],
+    )
+
+    assert profile.backend_shared is True
+    assert profile.insight_ai is True
+    assert profile.run_openapi_sync is True
+    assert profile.contract_risk_groups == ("insight_ai",)
+
+
+def test_cli_writes_github_outputs(tmp_path: Path, capsys) -> None:
+    github_output = tmp_path / "github_output.txt"
+
+    result = risk_profile.main(
+        [
+            "--file",
+            "app/middleware/api_tiers.py",
+            "--github-output",
+            str(github_output),
+            "--as-json",
+        ],
+    )
+
+    assert result == 0
+    captured = capsys.readouterr()
+    payload = json.loads(captured.out)
+    assert payload["billing_entitlement"] is True
+    written = github_output.read_text(encoding="utf-8")
+    assert "run_backend_blocking=true" in written
+    assert "billing_entitlement=true" in written
