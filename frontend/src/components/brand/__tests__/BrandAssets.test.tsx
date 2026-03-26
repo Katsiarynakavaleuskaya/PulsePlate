@@ -22,10 +22,18 @@ describe('brand assets', () => {
       <div>
         <FitChefMascot variant="static" />
         <FitChefMascot variant="wink" />
+        <FitChefMascot variant="neutral" />
+        <FitChefMascot variant="thinking" />
+        <FitChefMascot variant="sleepy" />
+        <FitChefMascot variant="surprised" />
       </div>
     );
 
     expect(screen.getByAltText('FitChef mascot static variant')).toBeInTheDocument();
     expect(screen.getByAltText('FitChef mascot wink variant')).toBeInTheDocument();
+    expect(screen.getByAltText('FitChef mascot neutral portrait')).toBeInTheDocument();
+    expect(screen.getByAltText('FitChef mascot thinking portrait')).toBeInTheDocument();
+    expect(screen.getByAltText('FitChef mascot sleepy portrait')).toBeInTheDocument();
+    expect(screen.getByAltText('FitChef mascot surprised portrait')).toBeInTheDocument();
   });
 });

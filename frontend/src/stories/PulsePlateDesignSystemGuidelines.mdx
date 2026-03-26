@@ -9,6 +9,8 @@ import { Meta } from '@storybook/blocks';
 - Storybook is the primary review surface for the web design system.
 - Product routes are not the source of truth for design-system preview or governance docs.
 - Penpot and Figma may annotate or explore the system, but Storybook remains the repo-native review anchor.
+- Hidden routes such as `/design-system` are convenience preview mirrors only.
+- Review, canon decisions, and visual sign-off still resolve back to Storybook entries and repo paths.
 
 ## Asset canon
 
@@ -28,6 +30,7 @@ import { Meta } from '@storybook/blocks';
 
 - `PulsePlate/Brand/*` covers canonical brand assets and lockups.
 - `PulsePlate/Tokens/*` covers palette, typography, spacing, and radius.
+- `PulsePlate/Patterns/Figma Canon/*` covers imported Figma documentation boards and canon mirrors.
 - `PulsePlate/Patterns/*` covers brand identity, governance, platform inventory, and overview composition.
 - `PulsePlate/Components/*` covers token-aware component showcase surfaces built from current primitives.
 - Design handoff can use Penpot page/frame references, but implementation review still resolves back to Storybook and repo paths.
