@@ -44,6 +44,13 @@ Evidence: `frontend/src/pages/Onboarding/WelcomeGateV1.tsx:98`
 Reason: The preview metadata card is an explicitly reviewer-oriented surface, so keeping canonical locale codes (`ru · en · es`) is intentional; the labels around that field are localized, while the raw codes remain the most useful debugging signal for route/content parity.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1249#pullrequestreview-4017292336
 
+Disposition: FIXED
+Commit: e5a395a9
+Evidence: `frontend/src/pages/Onboarding/__tests__/WelcomeGateV1.test.tsx:53`; `frontend/src/pages/Onboarding/__tests__/WelcomeGateV1.test.tsx:65`; `frontend/src/pages/Onboarding/__tests__/WelcomeGateV1.test.tsx:99`; `frontend/src/locales/en.json:58`; `frontend/src/locales/es.json:38`; `frontend/src/locales/ru.json:58`
+Reason: Made the locale helper contract explicit with a named return type, added a negative assertion that the preview render does not persist `has_seen_welcome_v1`, and aligned the screen-1 footer branding with PulsePlate across all shipped locales so the latest CodeRabbit actionable review is fully addressed on the current head.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1249#discussion_r2997692278 -> e5a395a9
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1249#pullrequestreview-4017387710 -> e5a395a9
+
 ## Merge Readiness
 
 - [ ] All required checks pass
