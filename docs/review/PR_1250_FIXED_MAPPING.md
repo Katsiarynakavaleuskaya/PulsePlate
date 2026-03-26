@@ -6,6 +6,8 @@
 
 ## Fixed in Commit Mapping
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1250#discussion_r2997499001 -> 5b0bf7a9
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1250#discussion_r2997517780 -> 777c4465
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1250#discussion_r2997517784 -> 777c4465
 - Carryover evidence from closed replacement-source PR `#1248` lives in `docs/review/PR_1248_FIXED_MAPPING.md`.
 
 ## Merge Readiness
