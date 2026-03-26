@@ -120,7 +120,10 @@ def test_mixed_backend_surface_keeps_openapi_and_route_contract_groups() -> None
     )
 
 
-def test_cli_writes_github_outputs(tmp_path: Path, capsys) -> None:
+def test_cli_writes_github_outputs(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
     github_output = tmp_path / "github_output.txt"
 
     result = risk_profile.main(
