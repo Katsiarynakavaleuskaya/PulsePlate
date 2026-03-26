@@ -2,15 +2,14 @@
 
 from __future__ import annotations
 
-import importlib.util
 import json
 from pathlib import Path
-from types import ModuleType
 
 import pytest
 
+import scripts.ci.install_locked_python_requirements as locked_installer
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
-LOCKED_INSTALLER_PATH = REPO_ROOT / "scripts" / "ci" / "install_locked_python_requirements.py"
 LOCKED_INSTALL_WORKFLOW_PATHS: tuple[str, ...] = (
     ".github/workflows/ci.yml",
     ".github/workflows/frontend-ci.yml",
@@ -31,19 +30,6 @@ APPROVED_PROXY_ENV_EXPRESSION = (
 APPROVED_TRUSTED_HOST_EXPRESSION = (
     "${{ vars.PULSEPLATE_PYTHON_TRUSTED_HOST || secrets.PULSEPLATE_PYTHON_TRUSTED_HOST }}"
 )
-
-
-def load_locked_installer_module() -> ModuleType:
-    """Load the locked installer module without relying on package imports."""
-    spec = importlib.util.spec_from_file_location(
-        "install_locked_python_requirements",
-        LOCKED_INSTALLER_PATH,
-    )
-    assert spec is not None
-    assert spec.loader is not None
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
 
 
 def test_dependency_security_schema_blocks_known_bad_litellm_versions() -> None:
@@ -109,8 +95,7 @@ def test_canonical_ci_and_docker_use_supply_chain_guardrails() -> None:
     dependency_docs_text = (REPO_ROOT / "docs" / "DEPENDENCY_MANAGEMENT.md").read_text(
         encoding="utf-8"
     )
-    locked_installer_module = load_locked_installer_module()
-    blocked_hosts = set(locked_installer_module.BLOCKED_INDEX_HOSTS)
+    blocked_hosts = set(locked_installer.BLOCKED_INDEX_HOSTS)
 
     assert "check_python_startup_hooks.py" in installer_text
     assert "--only-binary" in installer_text
