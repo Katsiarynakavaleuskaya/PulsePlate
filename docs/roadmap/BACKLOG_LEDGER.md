@@ -2087,17 +2087,17 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Target PR: PR-TBD-TIER1-CI-CD-PR2
   - Area: orchestration / CI / review governance
   - Finding Type: process hardening
-  - Status: Planned
-  - Reason: Backend/shared PR execution is currently duplicated across `ci.yml`, `pr-tests.yml`, `pr-coverage.yml`, `security.yml`, and `trivy.yml`.
+  - Status: In progress in PR `#1244`; closure pending merge evidence.
+  - Reason: Backend/shared PR execution is now canonicalized in `ci.yml`; `pr-tests.yml` and `pr-coverage.yml` are no longer active PR lanes, `security.yml` moved to a scheduled/manual audit lane, `trivy.yml` remains a non-PR image-security lane on `main`/schedule/manual, and `build.yml` remains specialized.
   - Links:
     - `.github/workflows/ci.yml`
-    - `.github/workflows/pr-tests.yml`
-    - `.github/workflows/pr-coverage.yml`
+    - Historical PR-lane duplicates removed in PR `#1244`: `pr-tests.yml`, `pr-coverage.yml`
     - `.github/workflows/security.yml`
     - `.github/workflows/trivy.yml`
   - DoD:
-    - Canonical backend/shared PR execution converges into `.github/workflows/ci.yml`
-    - Duplicate PR-time responsibilities are removed or explicitly demoted
+    - Canonical backend/shared PR execution lives in `.github/workflows/ci.yml`
+    - `pr-tests.yml` and `pr-coverage.yml` are no longer active PR lanes
+    - `security.yml` and `trivy.yml` are removed from PR-time execution; `security.yml` is scheduled/manual-only and `trivy.yml` remains `main`/schedule/manual outside canonical merge truth
     - `build.yml`, frontend-only lanes, and nightly/release lanes stay isolated
     - Required-check parity is preserved on current-head PR checks
 
@@ -2313,8 +2313,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Links:
     - [`.github/workflows/build.yml`](../../.github/workflows/build.yml)
     - [`.github/workflows/ci.yml`](../../.github/workflows/ci.yml)
-    - [`.github/workflows/pr-tests.yml`](../../.github/workflows/pr-tests.yml)
-    - [`.github/workflows/pr-coverage.yml`](../../.github/workflows/pr-coverage.yml)
+    - Historical PR-lane duplicates removed in PR2: `pr-tests.yml`, `pr-coverage.yml`
     - [`.github/workflows/cd.yml`](../../.github/workflows/cd.yml)
     - [`docs/review/PR_1204_FIXED_MAPPING.md`](../review/PR_1204_FIXED_MAPPING.md)
     - [`docs/review/PR_1209_FIXED_MAPPING.md`](../review/PR_1209_FIXED_MAPPING.md)

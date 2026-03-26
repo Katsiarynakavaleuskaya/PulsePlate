@@ -176,17 +176,17 @@ Canonical lane matrix:
 | Release ops | App Store / Fastlane validation lanes | Hard gate for release, not PR merge by default | Must pass before upload/publish claims; may be out-of-scope for code-only PR merge |
 | External    | CodeRabbit / Sourcery / Cubic / similar bots | External | Advisory unless GitHub explicitly marks them required |
 
-Current repo workflow inventory (Tier 1 baseline before PR2 consolidation):
+Current repo workflow inventory (Tier 1 post-PR2 state):
 
 | Workflow / Surface | Lane | Class | Default Merge Effect | Tier 1 status |
 | ------------------ | ---- | ----- | -------------------- | ------------- |
-| `.github/workflows/ci.yml` (`CI`) | Backend / shared PR lane | Hard gate | Canonical backend/shared PR workflow for merge claims; current-head required jobs from this lane block merge when branch protection requires them | Canonical lane for PR1 governance |
-| `.github/workflows/ci.yml` (`pre-commit`, `security`) | Backend / shared PR lane | Soft gate in live workflow | Visible CI signal only while the job steps remain `continue-on-error`; local `pre-commit run --all-files` is still hard policy before push | Transitional drift to normalize in PR2 |
+| `.github/workflows/ci.yml` (`CI`) | Backend / shared PR lane | Hard gate | Sole canonical backend/shared PR workflow for merge claims; current-head required jobs from this lane block merge when branch protection requires them | Canonical backend/shared PR lane |
+| `.github/workflows/ci.yml` (`lint`, `security`, `diff-coverage`) | Backend / shared PR lane | Hard gate | Canonical lint, PR-time security, and diff coverage live inside `CI`; failures block merge when attached to current HEAD | Canonical enforcement surface |
 | `.github/workflows/ci.yml` (`OpenAPI sync`, docs gates, merge-readiness, review governance) | Backend / shared PR lane | Hard gate | Blocks merge when the corresponding job is required on current HEAD | Canonical governance surface |
-| `.github/workflows/pr-tests.yml` (`PR Tests (Fast)`) | Backend / shared PR lane | Soft gate | Advisory duplicate of backend/shared test coverage until removed or branch-protection promoted | Transitional duplicate targeted by PR2 |
-| `.github/workflows/pr-coverage.yml` (`PR Coverage Guard`) | Backend / shared PR lane | Soft gate | Advisory duplicate of diff/coverage enforcement until removed or branch-protection promoted | Transitional duplicate targeted by PR2 |
-| `.github/workflows/security.yml` (`Security Scan`) | Backend / shared PR lane | Soft gate by default | Advisory security lane unless branch protection explicitly requires it; HIGH findings still require fix-first engineering response when the surface is in scope | Transitional duplicate targeted by PR2 |
-| `.github/workflows/trivy.yml` (`trivy`) | Backend / shared PR lane | Soft gate | Internal SARIF/reporting lane; does not block ordinary PR merge by default unless branch protection promotes it | Transitional duplicate targeted by PR2 |
+| `.github/workflows/pr-tests.yml` (`PR Tests (Fast)`) | Archived / non-canonical | No current PR lane | Retired as an active PR lane after PR2; keep only as historical reference if the file still exists in branch history | Removed as active PR lane |
+| `.github/workflows/pr-coverage.yml` (`PR Coverage Guard`) | Archived / non-canonical | No current PR lane | Retired as an active PR lane after PR2; keep only as historical reference if the file still exists in branch history | Removed as active PR lane |
+| `.github/workflows/security.yml` (`Security Scan`) | Scheduled / manual security audit lane | Soft gate | Advisory deep-audit lane outside ordinary PR merge truth; findings still require fix-first engineering response when the surface is in scope | Demoted out of PR-time blocking path |
+| `.github/workflows/trivy.yml` (`trivy`) | Main / scheduled / manual image-security lane | Soft gate | Internal image-security reporting lane that still runs on `main`, but stays outside ordinary PR merge truth unless branch protection explicitly promotes it elsewhere | Demoted out of PR-time blocking path |
 | `.github/workflows/frontend-ci.yml` (`Frontend CI`) | Frontend specialized lane | Hard gate when attached | Blocks merge only for frontend/design-token/OpenAPI-sync surfaces when attached by path or required checks | Specialized add-on lane |
 | `.github/workflows/accessibility.yml` (`Accessibility Tests`) | Frontend specialized lane | Soft gate by default | Advisory frontend quality signal unless branch protection requires it | Specialized add-on lane |
 | `.github/workflows/ci.yml` (`iOS unit tests`, `iOS UI smoke`) | iOS specialized lane | Hard gate when attached | Blocks merge for iOS / workflow-change surfaces when attached; note current path router also attaches on `.github/workflows/**` and `.github/actions/**` changes | Specialized add-on lane with current workflow-change coupling |
@@ -197,7 +197,8 @@ Bot governance distinction (Tier 1 baseline):
 
 - Third-party bot **status checks** remain `External` and advisory unless GitHub marks them required.
 - Third-party or first-party bot **review comments** remain merge-blocking when they contain actionable items, because review governance/disposition policy is separate from status-check classification.
-- Until PR2 removes duplicate PR-time workflow lanes, contributors must treat overlapping backend/shared workflows as transitional signals and use `CI` as the canonical backend/shared PR lane for operator decisions.
+- Contributors must use `CI` as the canonical backend/shared PR lane for operator decisions; `pr-tests.yml` and `pr-coverage.yml` are no longer active PR lanes, `security.yml` is now scheduled/manual only, and `trivy.yml` remains a non-PR image-security lane on `main`/schedule/manual.
+- Canonical backend/shared PR merge truth does not imply that all other PR-triggered workflows disappear. Specialized repo-level workflows such as `Frontend CI`, `CodeQL Advanced`, and Docker/image lanes may still appear on workflow/governance PRs, but they remain non-canonical unless GitHub branch protection explicitly requires them.
 
 Evidence:
 - `scripts/ci/check_pr_merge_readiness.py:349`
@@ -212,12 +213,6 @@ Evidence:
 - `.github/workflows/ci.yml:311`
 - `.github/workflows/ci.yml:333`
 - `.github/workflows/ci.yml:841`
-- `.github/workflows/pr-tests.yml:1`
-- `.github/workflows/pr-tests.yml:237`
-- `.github/workflows/pr-tests.yml:276`
-- `.github/workflows/pr-coverage.yml:1`
-- `.github/workflows/pr-coverage.yml:73`
-- `.github/workflows/pr-coverage.yml:130`
 - `.github/workflows/security.yml:2`
 - `.github/workflows/security.yml:47`
 - `.github/workflows/trivy.yml:6`
