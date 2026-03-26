@@ -34,3 +34,43 @@ Reason: BMI age parsing now rejects non-integer values instead of truncating the
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1246#pullrequestreview-4014587807 -> fc1651db
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1246#discussion_r2995253202 -> fc1651db
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1246#discussion_r2995253208 -> fc1651db
+
+Disposition: FIXED
+Commit: f2882f59
+Evidence: frontend/src/components/insight/AiInsightPanel.tsx:67; frontend/src/components/insight/AiInsightPanel.tsx:94; frontend/src/components/insight/AiInsightPanel.tsx:186; frontend/src/pages/Home.tsx:112; frontend/src/pages/Home.tsx:139; frontend/src/pages/Home.tsx:266; frontend/src/pages/BMI/BMICalculatePage.tsx:58; frontend/src/pages/BMI/BMICalculatePage.tsx:112; frontend/src/pages/BMI/BMICalculatePage.tsx:143; frontend/src/pages/Onboarding/WelcomeGateV1.tsx:41; frontend/src/pages/Onboarding/WelcomeGateV1.tsx:76; frontend/src/pages/Onboarding/WelcomeGateV1.tsx:163; frontend/src/locales/es.json:22
+Reason: Addressed the current PR #1247 review bundle by replacing locale-specific AI panel defaults with neutral English defaults, disabling/loading-guarding the submit control, rendering action labels as non-interactive unless handlers exist, restoring Home fallback tags and duplicate-submit protection, clearing stale BMI results during re-submit while making SegmentedChoice generic, wiring WelcomeGate skip to /setup, adding local goal-selection state with aria-pressed, and translating the remaining Spanish onboarding strings.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1247#pullrequestreview-4014981725 -> f2882f59
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1247#pullrequestreview-4015157775 -> f2882f59
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1247#pullrequestreview-4015161126 -> f2882f59
+
+Disposition: FIXED
+Commit: f2882f59
+Evidence: frontend/src/pages/Onboarding/WelcomeGateV1.tsx:76; frontend/src/pages/Onboarding/__tests__/WelcomeGateV1.test.tsx:22
+Reason: The first-screen Skip control now performs an explicit router transition to /setup and is covered by the WelcomeGate preview test.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1247#discussion_r2995753852 -> f2882f59
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1247#discussion_r2995757044 -> f2882f59
+
+Disposition: FIXED
+Commit: f2882f59
+Evidence: frontend/src/locales/es.json:22; frontend/src/locales/es.json:39; frontend/src/locales/es.json:58; frontend/src/locales/es.json:76
+Reason: Remaining onboarding welcome strings that were still English in the Spanish locale bundle were translated to keep the es surface language-consistent.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1247#discussion_r2995753859 -> f2882f59
+
+Disposition: FIXED
+Commit: f2882f59
+Evidence: frontend/src/components/insight/AiInsightPanel.tsx:67; frontend/src/pages/Home.tsx:266
+Reason: Home now passes an explicit English placeholder and the shared AI panel no longer defaults to Russian copy when a caller does not override the text.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1247#discussion_r2995753864 -> f2882f59
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1247#discussion_r2995757030 -> f2882f59
+
+Disposition: FIXED
+Commit: f2882f59
+Evidence: frontend/src/components/insight/AiInsightPanel.tsx:12; frontend/src/components/insight/AiInsightPanel.tsx:186
+Reason: AiInsightPanel now models optional action handlers and only renders interactive buttons when a handler is present, falling back to non-clickable badges otherwise.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1247#discussion_r2995757024 -> f2882f59
+
+Disposition: FIXED
+Commit: f2882f59
+Evidence: frontend/src/pages/Home.tsx:112; frontend/src/pages/__tests__/Home.test.tsx:318
+Reason: Home computes mapped source tags first and falls back to Meals/Goals only when the mapped list is empty, with a regression test covering the empty-sources path.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1247#discussion_r2995757037 -> f2882f59
