@@ -98,14 +98,12 @@ describe('Home', () => {
     );
 
     expect(screen.getByRole('main')).toBeInTheDocument();
-    expect(screen.getByRole('heading', { level: 1, name: 'Home' })).toBeInTheDocument();
-    expect(screen.getByLabelText('Live progress indicator')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'View detailed progress' })).toHaveAttribute('href', '/progress');
-    expect(screen.getByText('Quick Navigation')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Configure Setup' })).toHaveAttribute('href', '/setup');
-    expect(screen.getByRole('link', { name: 'Nutrition Plate' })).toHaveAttribute('href', '/plate');
-    expect(screen.getByRole('link', { name: 'Progress View' })).toHaveAttribute('href', '/progress');
-    expect(screen.getByRole('link', { name: 'Premium Features' })).toHaveAttribute('href', '/pro');
+    expect(screen.getByRole('heading', { level: 1, name: 'PulsePlate Home' })).toBeInTheDocument();
+    expect(screen.getByText('Quick actions')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Setup Tune your nutrition inputs' })).toHaveAttribute('href', '/setup');
+    expect(screen.getByRole('link', { name: 'Meal Log Log today’s meals' })).toHaveAttribute('href', '/plate');
+    expect(screen.getByRole('link', { name: 'Progress Review weekly charts' })).toHaveAttribute('href', '/progress');
+    expect(screen.getByRole('link', { name: 'AI Coach Premium guidance and summaries' })).toHaveAttribute('href', '/pro');
   });
 
   it('shows connected API status from authenticated session', () => {
@@ -126,9 +124,7 @@ describe('Home', () => {
     );
 
     expect(screen.getByText('Connected')).toBeInTheDocument();
-    expect(
-      screen.getByText('Your secure session is active. Personalized guidance is enabled.')
-    ).toBeInTheDocument();
+    expect(screen.getByText('Session Connected')).toBeInTheDocument();
   });
 
   it('shows AI session CTA when user is not authenticated', () => {
@@ -244,7 +240,7 @@ describe('Home', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent(
       'AI insight is temporarily unavailable. Please try again later.'
     );
-    expect(screen.getByRole('link', { name: 'Nutrition Plate' })).toHaveAttribute('href', '/plate');
+    expect(screen.getByRole('link', { name: 'Meal Log Log today’s meals' })).toHaveAttribute('href', '/plate');
   });
 
   it('renders duplicate warnings without collapsing repeated entries', async () => {
@@ -406,9 +402,8 @@ describe('Home', () => {
     );
 
     const main = screen.getByRole('main');
-    expect(main).toHaveClass('flex');
     expect(main).toHaveClass('min-h-screen');
-    expect(main).toHaveClass('flex-col');
+    expect(main).toHaveClass('bg-[var(--pp-navy)]');
   });
 
   it('navigates to setup flow from the primary CTA', async () => {
@@ -416,7 +411,7 @@ describe('Home', () => {
 
     renderHomeRoutes();
 
-    await user.click(screen.getByRole('link', { name: 'Configure Setup' }));
+    await user.click(screen.getByRole('link', { name: 'Setup Tune your nutrition inputs' }));
 
     expect(screen.getByTestId('setup-route')).toBeInTheDocument();
     expect(screen.queryByTestId('enter-key-probe')).not.toBeInTheDocument();
@@ -426,12 +421,12 @@ describe('Home', () => {
     const user = userEvent.setup();
 
     const firstRender = renderHomeRoutes();
-    await user.click(screen.getByRole('link', { name: 'Nutrition Plate' }));
+    await user.click(screen.getByRole('link', { name: 'Meal Log Log today’s meals' }));
     expect(screen.getByTestId('enter-key-probe')).toHaveTextContent('/plate');
     firstRender.unmount();
 
     renderHomeRoutes();
-    await user.click(screen.getByRole('link', { name: 'Progress View' }));
+    await user.click(screen.getByRole('link', { name: 'Progress Review weekly charts' }));
     expect(screen.getByTestId('enter-key-probe')).toHaveTextContent('/progress');
   });
 
@@ -448,12 +443,12 @@ describe('Home', () => {
     const user = userEvent.setup();
 
     const firstRender = renderHomeRoutes();
-    await user.click(screen.getByRole('link', { name: 'Nutrition Plate' }));
+    await user.click(screen.getByRole('link', { name: 'Meal Log Log today’s meals' }));
     expect(screen.getByTestId('plate-route')).toBeInTheDocument();
     firstRender.unmount();
 
     renderHomeRoutes();
-    await user.click(screen.getByRole('link', { name: 'Progress View' }));
+    await user.click(screen.getByRole('link', { name: 'Progress Review weekly charts' }));
     expect(screen.getByTestId('progress-route')).toBeInTheDocument();
   });
 });

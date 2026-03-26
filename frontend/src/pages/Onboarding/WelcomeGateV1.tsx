@@ -1,190 +1,209 @@
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { buttonClasses } from '../../components/ui';
-import { canonicalBrand, colors } from '../../styles/tokens';
+type WelcomeScreen = 1 | 2 | 3;
 
-const membraneBars = [
-  colors.gray['50'],
-  colors.gray['50'],
-  canonicalBrand.blue,
-  colors.gray['50'],
-  canonicalBrand.green,
-  colors.gray['50'],
-  colors.gray['50'],
-  colors.gray['50'],
-  canonicalBrand.blue,
-  colors.gray['50'],
-  canonicalBrand.green,
-  colors.gray['50'],
-  colors.gray['50'],
-] as const;
-
-const waveformPath =
-  'M 0 32 C 18 70, 40 72, 68 40 S 118 18, 142 42 S 194 76, 226 42 S 286 12, 316 46 S 370 88, 406 44 S 470 14, 504 46 S 564 76, 596 44 S 654 18, 686 40 S 742 80, 780 46';
+interface ScreenConfig {
+  eyebrow: string;
+  title: string;
+  body: string;
+}
 
 function formatStepLabel(template: string, current: number, total: number): string {
   return template.replace('%d', String(current)).replace('%d', String(total));
 }
 
-export default function WelcomeGateV1() {
+function StepDots({ current }: { current: WelcomeScreen }): JSX.Element {
+  return (
+    <div aria-hidden="true" className="flex items-center gap-2">
+      {[1, 2, 3].map((step) => (
+        <span
+          key={step}
+          className={[
+            'h-2.5 w-2.5 rounded-full transition',
+            step === current ? 'bg-[var(--color-primary)]' : 'bg-white/20',
+          ].join(' ')}
+        />
+      ))}
+    </div>
+  );
+}
+
+interface WelcomeGateV1Props {
+  initialScreen?: WelcomeScreen;
+}
+
+export default function WelcomeGateV1({ initialScreen = 1 }: WelcomeGateV1Props): JSX.Element {
   const { t } = useTranslation();
-  const stepLabel = formatStepLabel(t('onboarding.welcome.stepA11y'), 1, 4);
+  const [screen, setScreen] = useState<WelcomeScreen>(initialScreen);
+
+  const screenConfigs: Record<WelcomeScreen, ScreenConfig> = {
+    1: {
+      eyebrow: t('onboarding.welcome.screen1.eyebrow'),
+      title: t('onboarding.welcome.screen1.title'),
+      body: t('onboarding.welcome.screen1.body'),
+    },
+    2: {
+      eyebrow: t('onboarding.welcome.screen2.eyebrow'),
+      title: t('onboarding.welcome.screen2.title'),
+      body: t('onboarding.welcome.screen2.body'),
+    },
+    3: {
+      eyebrow: t('onboarding.welcome.screen3.eyebrow'),
+      title: t('onboarding.welcome.screen3.title'),
+      body: t('onboarding.welcome.screen3.body'),
+    },
+  };
+
+  const stepLabel = formatStepLabel(t('onboarding.welcome.stepA11y'), screen, 3);
+  const currentScreen = screenConfigs[screen];
 
   return (
     <main
       aria-label="Welcome Gate v1 preview"
-      className="min-h-dvh bg-[var(--color-bg)] px-4 py-4 text-[var(--color-text)] sm:px-6 sm:py-6"
+      className="min-h-dvh bg-[#0d0d1a] px-4 py-6 text-white sm:px-6"
     >
-      <section
-        className="relative mx-auto min-h-[calc(100dvh-2rem)] max-w-[92rem] overflow-hidden border-[3px] border-[var(--pp-navy)] bg-[var(--color-gray-50)] shadow-[0_24px_80px_rgba(15,23,42,0.12)]"
-        style={{
-          backgroundImage: [
-            `linear-gradient(to right, ${colors.gray['200']} 1px, transparent 1px)`,
-            `linear-gradient(to bottom, ${colors.gray['200']} 1px, transparent 1px)`,
-          ].join(','),
-          backgroundSize: '2.75rem 2.75rem',
-        }}
-      >
-        <div className="pointer-events-none absolute inset-5 border border-black/20 sm:inset-6" />
-        <div className="pointer-events-none absolute inset-8 border border-black/16 sm:inset-9" />
-
-        <div className="pointer-events-none absolute left-3 top-2 text-[0.65rem] tracking-[0.18em] text-black/26 sm:left-5 sm:top-3">
-          [01]
-        </div>
-        <div className="pointer-events-none absolute right-3 top-2 text-[0.65rem] tracking-[0.18em] text-black/26 sm:right-5 sm:top-3">
-          [02]
-        </div>
-        <div className="pointer-events-none absolute bottom-2 left-3 text-[0.65rem] tracking-[0.18em] text-black/26 sm:bottom-3 sm:left-5">
-          [03]
-        </div>
-        <div className="pointer-events-none absolute bottom-2 right-3 text-[0.65rem] tracking-[0.18em] text-black/26 sm:bottom-3 sm:right-5">
-          [04]
-        </div>
-
-        <div className="relative flex min-h-[calc(100dvh-2rem)] flex-col px-7 py-7 sm:px-14 sm:py-12">
-          <header className="max-w-2xl space-y-4">
-            <div className="space-y-2">
-              <p className="text-4xl font-bold tracking-[-0.06em] text-[var(--pp-navy)] sm:text-6xl">
-                {t('onboarding.welcome.preview.systemTitle')}
-              </p>
-              <p className="font-serif text-lg text-black/42 sm:text-[2rem]">
-                {t('onboarding.welcome.preview.systemSubtitle')}
-              </p>
-            </div>
-            <p className="max-w-xl font-serif text-sm leading-7 text-black/40 sm:text-lg">
-              {t('onboarding.welcome.preview.systemBody')}
-            </p>
-          </header>
-
-          <div className="mt-10 flex flex-1 flex-col gap-10 sm:mt-14 sm:gap-16">
+      <section className="mx-auto flex min-h-[calc(100dvh-3rem)] max-w-[24rem] flex-col rounded-[2rem] bg-[#0f172a] p-6 shadow-[0_30px_70px_rgba(0,0,0,0.35)]">
+        {screen === 1 ? (
+          <>
             <div className="flex justify-end">
-              <div className="w-full max-w-[24rem] border-[3px] border-[var(--pp-navy)] bg-[rgba(240,244,248,0.85)] p-7 shadow-[0_18px_40px_rgba(15,23,42,0.08)]">
-                <div className="flex h-[21rem] items-stretch gap-3 sm:h-[28rem]">
-                  {membraneBars.map((color, index) => (
-                    <div
-                      key={`${color}-${index}`}
-                      className="h-full flex-1 border border-black/20"
-                      style={{ backgroundColor: color }}
-                    />
+              <button type="button" className="text-sm text-white/55">
+                {t('onboarding.welcome.skip')}
+              </button>
+            </div>
+
+            <div className="mt-6 flex flex-col items-center text-center">
+              <div className="relative flex h-[4.5rem] w-[4.5rem] items-center justify-center rounded-full bg-[var(--color-primary)]">
+                <div className="absolute inset-[-0.6rem] rounded-full bg-[var(--color-primary)]/20 blur-xl" />
+                <div className="relative h-[4.5rem] w-[4.5rem] rounded-full bg-[var(--color-primary)]" />
+              </div>
+              <p className="mt-6 text-lg text-white/90">{currentScreen.eyebrow}</p>
+              <h1 className="mt-3 text-[2.25rem] font-medium leading-[1.08] tracking-[-0.05em] text-white">
+                {currentScreen.title}
+              </h1>
+            </div>
+
+            <div className="mt-14 grid grid-cols-3 text-center text-sm text-white/84">
+              <span>{t('onboarding.welcome.screen1.tabs.bmi')}</span>
+              <span>{t('onboarding.welcome.screen1.tabs.plate')}</span>
+              <span>{t('onboarding.welcome.screen1.tabs.plans')}</span>
+            </div>
+
+            <div className="mt-8 rounded-[1.25rem] border border-white/12 bg-white/[0.06] p-5">
+              <p className="text-base text-white">{t('onboarding.welcome.screen1.cardTitle')}</p>
+              <ul className="mt-4 space-y-3 text-[1rem] text-white/75">
+                {[1, 2, 3].map((item) => (
+                  <li key={item}>{t(`onboarding.welcome.screen1.points.${item}`)}</li>
+                ))}
+              </ul>
+            </div>
+
+            <p className="mt-6 text-center text-sm text-white/36">{t('onboarding.welcome.screen1.footer')}</p>
+
+            <div className="mt-auto space-y-6 pt-8">
+              <div aria-label={stepLabel} className="flex justify-center">
+                <StepDots current={screen} />
+              </div>
+              <button
+                type="button"
+                className="w-full rounded-full bg-[var(--color-primary)] px-6 py-4 text-lg font-semibold text-white"
+                onClick={() => setScreen(2)}
+              >
+                {t('onboarding.welcome.cta.start')}
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="flex items-center justify-between">
+              <button
+                type="button"
+                className="text-sm text-white/55"
+                onClick={() => setScreen((prev) => (prev === 3 ? 2 : 1))}
+              >
+                {t('onboarding.welcome.back')}
+              </button>
+              <div aria-label={stepLabel}>
+                <StepDots current={screen} />
+              </div>
+            </div>
+
+            <div className="mt-16">
+              <p className="text-sm text-white/42">{currentScreen.eyebrow}</p>
+              <h1 className="mt-4 text-[2.1rem] font-semibold leading-[1.08] tracking-[-0.05em] text-white">
+                {currentScreen.title}
+              </h1>
+              <p className="mt-4 text-base leading-7 text-white/68">{currentScreen.body}</p>
+            </div>
+
+            {screen === 2 ? (
+              <div className="mt-14 space-y-6">
+                {[1, 2, 3].map((item) => (
+                  <div key={item} className="rounded-[1.25rem] border border-white/10 bg-white/[0.04] p-4">
+                    <p className="text-base font-semibold text-white">
+                      {t(`onboarding.welcome.screen2.steps.${item}.title`)}
+                    </p>
+                    <p className="mt-2 text-sm leading-6 text-white/62">
+                      {t(`onboarding.welcome.screen2.steps.${item}.body`)}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="mt-10 rounded-[1.25rem] border border-white/10 bg-white/[0.06] p-4">
+                <div className="space-y-4">
+                  {[1, 2, 3, 4].map((goal) => (
+                    <button
+                      key={goal}
+                      type="button"
+                      className={[
+                        'flex w-full items-center rounded-2xl border px-4 py-4 text-left text-base transition',
+                        goal === 1
+                          ? 'border-white/25 bg-white/[0.08] text-white'
+                          : 'border-transparent bg-transparent text-white/82 hover:bg-white/[0.04]',
+                      ].join(' ')}
+                    >
+                      {t(`onboarding.welcome.screen3.goals.${goal}`)}
+                    </button>
                   ))}
                 </div>
               </div>
-            </div>
+            )}
 
-            <div className="px-2 sm:px-6">
-              <div className="relative h-28 sm:h-36">
-                <div className="absolute inset-x-0 top-1/2 h-px bg-black/18" />
-                <svg
-                  aria-hidden="true"
-                  className="absolute inset-0 h-full w-full"
-                  preserveAspectRatio="none"
-                  viewBox="0 0 780 96"
+            <div className="mt-auto pt-10">
+              {screen === 2 ? (
+                <button
+                  type="button"
+                  className="w-full rounded-2xl bg-[#43c6cf] px-6 py-4 text-lg font-semibold text-[#08111f]"
+                  onClick={() => setScreen(3)}
                 >
-                  <path
-                    d={waveformPath}
-                    fill="none"
-                    stroke={canonicalBrand.gold}
-                    strokeLinecap="round"
-                    strokeWidth="3.5"
-                  />
-                  <path
-                    d={waveformPath}
-                    fill="none"
-                    stroke={canonicalBrand.navy}
-                    strokeLinecap="round"
-                    strokeWidth="1.7"
-                  />
-                </svg>
-              </div>
+                  {t('onboarding.welcome.cta.continue')}
+                </button>
+              ) : (
+                <Link
+                  to="/setup"
+                  className="flex w-full items-center justify-center rounded-2xl bg-[#43c6cf] px-6 py-4 text-lg font-semibold text-[#08111f]"
+                >
+                  {t('onboarding.welcome.cta.finish')}
+                </Link>
+              )}
             </div>
+          </>
+        )}
+      </section>
 
-            <div className="mt-auto flex flex-col gap-8 pb-4 sm:flex-row sm:items-end sm:justify-between sm:pb-0">
-              <div className="space-y-5">
-                <div aria-label={stepLabel} className="flex items-center gap-4">
-                  {[1, 2, 3, 4].map((step) => {
-                    const isActive = step === 1;
-                    return (
-                      <span
-                        key={step}
-                        aria-hidden="true"
-                        className={[
-                          'flex h-10 w-10 items-center justify-center rounded-full border-2 text-sm font-semibold',
-                          isActive
-                            ? 'border-[var(--pp-navy)] bg-[var(--pp-navy)] text-white'
-                            : 'border-[var(--pp-navy)] bg-transparent text-[var(--pp-navy)]',
-                        ].join(' ')}
-                      >
-                        {step}
-                      </span>
-                    );
-                  })}
-                </div>
-
-                <div className="max-w-md space-y-3">
-                  <p className="text-xs font-semibold uppercase tracking-[0.26em] text-black/42">
-                    {t('onboarding.welcome.preview.gateEyebrow')}
-                  </p>
-                  <h1 className="text-3xl font-semibold tracking-[-0.05em] text-[var(--pp-navy)] sm:text-4xl">
-                    {t('onboarding.welcome.screen1.title')}
-                  </h1>
-                  <p className="text-base leading-8 text-black/52 sm:text-lg">
-                    {t('onboarding.welcome.screen1.body')}
-                  </p>
-                  <div className="pt-2">
-                    <Link to="/setup" className={buttonClasses({ className: 'inline-flex shadow-sm' })}>
-                      {t('onboarding.welcome.cta.start')}
-                    </Link>
-                  </div>
-                </div>
-              </div>
-
-              <aside className="w-full max-w-md border-[3px] border-[var(--pp-navy)] bg-[rgba(249,250,251,0.82)] p-5 shadow-[0_18px_40px_rgba(15,23,42,0.08)] sm:p-6">
-                <div className="space-y-4">
-                  <p className="text-2xl font-bold tracking-[-0.05em] text-[var(--pp-navy)]">
-                    {t('onboarding.welcome.preview.panelTitle')}
-                  </p>
-                  <dl className="space-y-3 text-sm text-black/64 sm:text-base">
-                    <div className="grid grid-cols-[4.5rem_1fr] gap-3">
-                      <dt className="font-medium text-black/54">{t('onboarding.welcome.preview.panelKeyLabel')}</dt>
-                      <dd className="font-mono">has_seen_welcome_v1</dd>
-                    </div>
-                    <div className="grid grid-cols-[4.5rem_1fr] gap-3">
-                      <dt className="font-medium text-black/54">{t('onboarding.welcome.preview.panelFlowLabel')}</dt>
-                      <dd className="font-mono">Gate → 4 screens → RootTabs()</dd>
-                    </div>
-                    <div className="grid grid-cols-[4.5rem_1fr] gap-3">
-                      <dt className="font-medium text-black/54">{t('onboarding.welcome.preview.panelLocalesLabel')}</dt>
-                      <dd className="font-mono">ru · en · es</dd>
-                    </div>
-                    <div className="grid grid-cols-[4.5rem_1fr] gap-3">
-                      <dt className="font-medium text-black/54">{t('onboarding.welcome.preview.panelPolicyLabel')}</dt>
-                      <dd className="font-mono">thin client (no BMI math)</dd>
-                    </div>
-                  </dl>
-                </div>
-              </aside>
-            </div>
-          </div>
+      <section className="mx-auto mt-6 max-w-[24rem] rounded-[1.5rem] border border-white/8 bg-white/[0.04] p-4 text-sm text-white/52">
+        <p className="font-semibold uppercase tracking-[0.18em] text-white/38">{t('onboarding.welcome.preview.panelTitle')}</p>
+        <div className="mt-3 space-y-2">
+          <p>
+            {t('onboarding.welcome.preview.panelFlowLabel')} Gate → screens 1-3 preview → setup
+          </p>
+          <p>
+            {t('onboarding.welcome.preview.panelLocalesLabel')} ru · en · es
+          </p>
+          <p>
+            {t('onboarding.welcome.preview.panelPolicyLabel')} preview only, no persistence
+          </p>
         </div>
       </section>
     </main>
