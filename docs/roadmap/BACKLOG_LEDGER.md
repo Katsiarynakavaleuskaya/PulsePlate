@@ -2030,6 +2030,9 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Area: orchestration / task bootstrap / packet schema
   - Finding Type: automation rollout slice
   - Reason: PR1 locks the governance boundary, but coordinator-first still remains policy-required rather than reliably packet-driven for every non-trivial task. The next slice must harden `task_bootstrap` and related bridge contracts without mixing in PR lifecycle or design-lane behavior.
+  - Dependencies:
+    - `PR-1252`
+  - Lifecycle: Start → Open → Push → Review → Merge
   - Links:
     - `docs/orchestration/AUTOMATION_READINESS_MATRIX.md`
     - `scripts/orchestration/task_bootstrap.py`
@@ -2049,6 +2052,9 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Area: orchestration / skills / intent classification
   - Finding Type: automation rollout slice
   - Reason: After bootstrap hardening, the next failure mode is still over- or under-selecting skills and treating unlike tasks as the same class. The routing layer needs a deterministic classifier and explicit required/recommended/conditional/blocked outputs before any lifecycle or design automation is added.
+  - Dependencies:
+    - `PR-TBD-AUTOMATION-PR2-BOOTSTRAP-HARDENING`
+  - Lifecycle: Start → Open → Push → Review → Merge
   - Links:
     - `docs/orchestration/AUTOMATION_READINESS_MATRIX.md`
     - `docs/orchestration/AGENT_SKILL_ROUTING_POLICY.md`
@@ -2067,6 +2073,9 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Area: orchestration / PR governance / review lifecycle
   - Finding Type: automation rollout slice
   - Reason: The canonical docs already require a post-open `qa-engineer-agent -> bug-hunter` loop, but the behavior is still policy-only and easy to forget. The PR lifecycle slice must turn that requirement into deterministic PR-phase automation without widening into design or brainstorming lanes.
+  - Dependencies:
+    - `PR-TBD-AUTOMATION-PR3-SKILL-INTENT`
+  - Lifecycle: Start → Open → Push → Review → Merge
   - Links:
     - `docs/orchestration/AUTOMATION_READINESS_MATRIX.md`
     - `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md`
@@ -2086,6 +2095,9 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Area: orchestration / research / design tooling
   - Finding Type: automation rollout slice
   - Reason: Creative research and design lanes are the broadest automation surface and must come after bootstrap and skill routing stabilize. This slice should add explicit trigger rules and safe activation boundaries instead of letting design/Figma behavior emerge implicitly.
+  - Dependencies:
+    - `PR-TBD-AUTOMATION-PR4-PR-LIFECYCLE`
+  - Lifecycle: Start → Open → Push → Review → Merge
   - Links:
     - `docs/orchestration/AUTOMATION_READINESS_MATRIX.md`
     - `docs/orchestration/RESEARCH_BRAINSTORMING_PROTOCOL.md`
@@ -2101,7 +2113,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P2: Local launcher rollout for coordinator-first automation
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2
-  - Target PR: local-only rollout after PR2 minimum, preferably after PR5
+  - Target PR: PR-TBD-LOCAL-LAUNCHER-ROLLOUT (after PR2 minimum; preferred after PR5)
   - Area: local tooling / launcher / Codex runtime
   - Finding Type: non-repo rollout follow-up
   - Reason: Repo docs and deterministic engines alone cannot force raw session auto-start. A machine-local launcher or wrapper must wire preflight, bootstrap, and compatible runtime settings without pretending that `~/.codex/config.toml` is repo source of truth.

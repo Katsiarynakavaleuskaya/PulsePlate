@@ -41,12 +41,12 @@ Single operational checklist so context is never lost during PR execution.
 10. Post-merge closure
    - Sync the local repo back to `origin/main`.
    - Remove merged branches, worktrees, and temporary artifacts for this lane.
-11. Post-merge sanity
+1. Post-merge sanity
    - Run the required sanity checks after sync/cleanup.
    - Only after sanity passes is the lane considered closed.
-12. Next PR start gate
-   - Start the next PR in a series only after steps 10-11 are complete.
-13. Ledger and follow-up closure
+1. Next PR start gate
+   - Start the next PR in a series only after post-merge closure and post-merge sanity are complete.
+1. Ledger and follow-up closure
    - Update backlog ledger for deferred/completed items.
    - Add follow-up docs-only ledger closure PR when policy requires.
 

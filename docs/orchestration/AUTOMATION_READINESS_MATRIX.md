@@ -74,7 +74,7 @@ This layer may:
 - require explicit user action for some execution modes.
 
 Repo docs must not describe host-runtime-dependent behavior as if it were
-unconditionally guaranteed by markdown alone.
+unconditionally guaranteed by Markdown alone.
 
 ## Capability Matrix
 
