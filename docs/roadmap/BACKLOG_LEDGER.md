@@ -2044,7 +2044,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Tier 1 CI/CD consolidation via custom orchestration
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR #1240 -> PR #1244 -> PR #1248 -> PR-TBD-TIER1-CI-CD-PR4
+  - Target PR: PR #1240 -> PR #1244 -> PR #1250 -> PR-TBD-TIER1-CI-CD-PR4
   - Area: orchestration / CI / review governance
   - Finding Type: process hardening
   - Status: In progress
@@ -2105,10 +2105,10 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: PR3 risk-based PR test topology {#ledger-p1-tier1-ci-cd-pr3-risk-topology}
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: #1248
+  - Target PR: #1250
   - Area: orchestration / CI / review governance
   - Finding Type: process hardening
-  - Status: 🚧 In progress in PR `#1248` (PR3 risk-topology lane), following landed PR1/PR2 reconciliation (`#1240`, `#1244`).
+  - Status: 🚧 In progress in PR `#1250` (PR3 risk-topology lane), following landed PR1/PR2 reconciliation (`#1240`, `#1244`) after replacement of closed PR `#1248`.
   - Reason: PR blockers should stay focused on business-critical runtime paths, while nightly depth absorbs broad non-critical coverage tails.
   - Links:
     - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-test-hygiene-wave`
