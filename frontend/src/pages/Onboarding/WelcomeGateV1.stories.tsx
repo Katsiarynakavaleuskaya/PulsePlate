@@ -20,4 +20,20 @@ const meta: Meta<typeof WelcomeGateV1> = {
 export default meta;
 type Story = StoryObj<typeof WelcomeGateV1>;
 
-export const Default: Story = {};
+export const Step1: Story = {
+  args: {
+    initialScreen: 1,
+  },
+};
+
+export const Step2: Story = {
+  args: {
+    initialScreen: 2,
+  },
+};
+
+export const Step3: Story = {
+  args: {
+    initialScreen: 3,
+  },
+};

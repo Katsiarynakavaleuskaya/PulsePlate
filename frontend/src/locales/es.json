@@ -19,20 +19,62 @@
   "onboarding": {
     "welcome": {
       "screen1": {
-        "title": "PulsePlate — tu nutrición bajo control",
-        "body": "Configura tus objetivos una vez. Plan y progreso en sintonía."
+        "eyebrow": "Wellness companion",
+        "title": "PulsePlate — nutrición sin ruido",
+        "body": "Una entrada tranquila al producto, con pasos claros y sin sobrecarga.",
+        "cardTitle": "Qué mantiene tranquila la entrada",
+        "tabs": {
+          "bmi": "BMI",
+          "plate": "Plate",
+          "plans": "Plans"
+        },
+        "points": {
+          "1": "✓ Registro de comidas sin balanza",
+          "2": "✓ Recetas rápidas con lo que ya tienes",
+          "3": "✓ Progreso diario en números claros"
+        },
+        "footer": "FitChef — tu compañero AI para nutrición"
+      },
+      "screen2": {
+        "eyebrow": "How to use it",
+        "title": "Cómo avanzar con calma y por pasos",
+        "body": "Empieza con BMI y luego afina con Plate y el perfil. Entradas pequeñas llevan a pasos obvios.",
+        "steps": {
+          "1": {
+            "title": "BMI Calculator",
+            "body": "Inicio rápido con métricas base y un punto de partida tranquilo."
+          },
+          "2": {
+            "title": "Plate + Profile",
+            "body": "División diaria y objetivos personales sin saturar la configuración."
+          },
+          "3": {
+            "title": "PRO planning",
+            "body": "Los planes semanales y listas de compras aparecen cuando su valor ya está claro."
+          }
+        }
+      },
+      "screen3": {
+        "eyebrow": "Your goal",
+        "title": "¿Qué quieres lograr?",
+        "body": "Elige una dirección y PulsePlate ajustará la siguiente capa alrededor de ella.",
+        "goals": {
+          "1": "🔥 Perder peso",
+          "2": "💪 Ganar masa muscular",
+          "3": "🥗 Comer mejor",
+          "4": "⚖️ Mantener el peso"
+        }
       },
       "cta": {
-        "start": "Empezar"
+        "start": "Empezar gratis",
+        "continue": "Continuar",
+        "finish": "Abrir setup"
       },
+      "skip": "Saltar",
+      "back": "Atrás",
       "stepA11y": "Paso %d de %d",
       "preview": {
-        "systemTitle": "PULSE MEMBRANE",
-        "systemSubtitle": "Claridad selectiva. Una puerta. Una verdad.",
-        "systemBody": "Un sistema visual para el primer recorrido — construido con cuidado extremo.",
-        "gateEyebrow": "Welcome Gate / Vista previa pantalla 1",
         "panelTitle": "WELCOME GATE / v1",
-        "panelKeyLabel": "clave:",
         "panelFlowLabel": "flujo:",
         "panelLocalesLabel": "idiomas:",
         "panelPolicyLabel": "política:"
