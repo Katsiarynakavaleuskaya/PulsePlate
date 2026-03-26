@@ -65,6 +65,11 @@ Disposition: FIXED
 Commit: 4fa6745d
 Evidence: .env.example:34
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1251#discussion_r2997757533 -> 1399f572
+Disposition: FIXED
+Commit: 1399f572
+Evidence: docs/review/PR_1251_FIXED_MAPPING.md:65
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1251#discussion_r2997757538 -> 4fa6745d
 Disposition: FIXED
 Commit: 4fa6745d
