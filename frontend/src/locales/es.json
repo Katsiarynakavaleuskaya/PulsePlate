@@ -18,6 +18,8 @@
   },
   "onboarding": {
     "welcome": {
+      "routeMirrorBadge": "Espejo de ruta",
+      "heroAlt": "Escena de bienvenida de PulsePlate",
     "screen1": {
       "eyebrow": "Compañero de bienestar",
       "title": "PulsePlate — tu nutrición bajo control",

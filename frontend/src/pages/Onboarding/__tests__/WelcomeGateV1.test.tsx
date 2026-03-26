@@ -11,15 +11,16 @@ async function waitForI18n(): Promise<void> {
   }
 
   await new Promise<void>((resolve, reject) => {
-    const timeout = setTimeout(() => {
-      reject(new Error('i18n initialization timeout'));
-    }, 5000);
-
+    let timeout: ReturnType<typeof setTimeout>;
     const handler = (): void => {
       i18n.off('initialized', handler);
       clearTimeout(timeout);
       resolve();
     };
+    timeout = setTimeout(() => {
+      i18n.off('initialized', handler);
+      reject(new Error('i18n initialization timeout'));
+    }, 5000);
 
     i18n.on('initialized', handler);
 
@@ -54,6 +55,7 @@ function getWelcomeCopy(language: 'en' | 'ru' | 'es') {
   return {
     body: t('onboarding.welcome.screen1.body'),
     cta: t('onboarding.welcome.cta.start'),
+    heroAlt: t('onboarding.welcome.heroAlt'),
     mainA11y: t('onboarding.welcome.mainA11y'),
     panelFlowValue: t('onboarding.welcome.preview.panelFlowValue'),
     panelPolicyValue: t('onboarding.welcome.preview.panelPolicyValue'),
@@ -78,7 +80,7 @@ describe('WelcomeGateV1', () => {
     expect(screen.getByRole('link', { name: copy.cta })).toHaveAttribute('href', '/setup');
     expect(screen.getByText(copy.step)).toBeInTheDocument();
     expect(screen.getByText(copy.panelTitle)).toBeInTheDocument();
-    expect(screen.getByAltText('FitChef onboarding welcome scene')).toBeInTheDocument();
+    expect(screen.getByAltText(copy.heroAlt)).toBeInTheDocument();
   });
 
   it('renders preview-only metadata and skip link without persistence controls', async () => {

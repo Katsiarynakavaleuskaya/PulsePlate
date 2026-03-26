@@ -34,7 +34,7 @@ export default function WelcomeGateV1(): JSX.Element {
           <div className="flex items-center justify-between gap-4">
             <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.2em] text-white/50">
               <span className="h-2 w-2 rounded-full bg-[var(--pp-green)]" />
-              route mirror
+              {t('onboarding.welcome.routeMirrorBadge')}
             </div>
             <Link to="/setup" className="text-sm text-white/55 transition hover:text-white/78">
               {t('onboarding.welcome.skip')}
@@ -80,7 +80,7 @@ export default function WelcomeGateV1(): JSX.Element {
           <div className="relative overflow-hidden rounded-[1.8rem] border border-white/10 bg-[linear-gradient(180deg,rgba(51,159,255,0.14),rgba(255,255,255,0.03))] p-4 sm:p-5">
             <div className="absolute inset-x-0 top-0 h-px bg-white/12" />
             <img
-              alt="FitChef onboarding welcome scene"
+              alt={t('onboarding.welcome.heroAlt')}
               className="h-full w-full rounded-[1.35rem] object-cover"
               src={fitchefOnboardingWelcome}
             />

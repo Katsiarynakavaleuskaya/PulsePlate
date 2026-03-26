@@ -38,6 +38,8 @@
   },
   "onboarding": {
     "welcome": {
+      "routeMirrorBadge": "Route mirror",
+      "heroAlt": "PulsePlate onboarding welcome scene",
     "screen1": {
       "eyebrow": "Wellness companion",
       "title": "PulsePlate — your nutrition on track",
@@ -53,7 +55,7 @@
           "2": "✓ Quick recipes from what you already have",
           "3": "✓ Daily progress in clear numbers"
         },
-      "footer": "FitChef — your AI nutrition companion"
+        "footer": "FitChef — your AI nutrition companion"
     },
       "screen2": {
         "eyebrow": "How to use it",
