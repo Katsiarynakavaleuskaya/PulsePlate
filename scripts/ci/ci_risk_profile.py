@@ -62,6 +62,7 @@ WORKFLOW_PRIVILEGED_PREFIXES: tuple[str, ...] = (
     "docs/orchestration/",
     "scripts/ci/",
 )
+GIT_DIFF_TIMEOUT_SECONDS = 60
 RISK_GROUP_PATTERNS: dict[str, tuple[str, ...]] = {
     "billing_entitlement": (
         "app/middleware/api_tiers.py",
@@ -303,18 +304,24 @@ def collect_changed_files(*, base_sha: str, head_sha: str) -> tuple[str, ...]:
     """Return changed files between two git revisions."""
     if GIT_BINARY is None:
         raise RuntimeError("git executable not found in PATH")
-    result = subprocess.run(  # nosec B603: fixed git argv without shell for local CI routing only (remove-by: 2026-09-30, ref: PR3-risk-topology)
-        [
-            GIT_BINARY,
-            "diff",
-            "--name-only",
-            f"{base_sha}...{head_sha}",
-        ],
-        cwd=REPO_ROOT,
-        check=True,
-        capture_output=True,
-        text=True,
-    )
+    try:
+        result = subprocess.run(  # nosec B603: fixed git argv without shell for local CI routing only (remove-by: 2026-09-30, ref: PR3-risk-topology)
+            [
+                GIT_BINARY,
+                "diff",
+                "--name-only",
+                f"{base_sha}...{head_sha}",
+            ],
+            cwd=REPO_ROOT,
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=GIT_DIFF_TIMEOUT_SECONDS,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise RuntimeError(
+            f"git diff --name-only timed out after {GIT_DIFF_TIMEOUT_SECONDS} seconds"
+        ) from exc
     return tuple(path for path in result.stdout.splitlines() if path.strip())
 
 

@@ -51,6 +51,7 @@ Reason: The PR-size governance parser now handles the CodeRabbit follow-up cases
 - [ ] All required checks pass
 - [ ] No unresolved review threads (re-check on current head before merge)
 - [ ] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
-- [x] Pre-commit green
-- [x] `make verify` green
-- [x] Canonical `pull_request` validation restored on replacement PR `#1253`.
+- [ ] Pre-commit green
+- [ ] `make verify` green
+- [ ] Canonical `pull_request` validation restored on replacement PR `#1253`.
+Notes: pre-commit passed, `make verify` passed, and canonical `pull_request` validation is restored on PR `#1253`; the checklist stays unchecked until the final merge cycle.

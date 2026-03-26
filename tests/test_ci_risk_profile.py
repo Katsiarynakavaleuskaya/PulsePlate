@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+import subprocess
 
 import pytest
 
@@ -206,6 +207,21 @@ def test_cli_writes_github_outputs(
     written = github_output.read_text(encoding="utf-8")
     assert "run_backend_blocking=true" in written
     assert "billing_entitlement=true" in written
+
+
+def test_collect_changed_files_fails_fast_on_git_timeout(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def _raise_timeout(*_args: object, **_kwargs: object) -> None:
+        raise subprocess.TimeoutExpired(cmd=["git", "diff"], timeout=60)
+
+    monkeypatch.setattr(risk_profile.subprocess, "run", _raise_timeout)
+
+    with pytest.raises(
+        RuntimeError,
+        match="git diff --name-only timed out after 60 seconds",
+    ):
+        risk_profile.collect_changed_files(base_sha="base", head_sha="head")
 
 
 @pytest.mark.parametrize(
