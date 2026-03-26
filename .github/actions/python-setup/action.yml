@@ -50,6 +50,8 @@ runs:
           echo "::notice::No requirements-dev.txt or requirements.txt found; skipping base dependency install"
         fi
 
+    # Backward-compatibility no-op: requirements-dev.txt is installed above via
+    # install_locked_python_requirements.py when workflows still pass install-dev-deps.
     - name: Install development dependencies
       if: ${{ inputs.install-dev-deps == 'true' }}
       shell: bash
@@ -58,6 +60,8 @@ runs:
         set -euxo pipefail
         echo "::notice::Pinned development tooling is provided by requirements-dev.txt via install_locked_python_requirements.py"
 
+    # Backward-compatibility no-op: pinned test tooling comes from
+    # requirements-dev.txt via install_locked_python_requirements.py.
     - name: Install test dependencies
       if: ${{ inputs.install-test-deps == 'true' }}
       shell: bash

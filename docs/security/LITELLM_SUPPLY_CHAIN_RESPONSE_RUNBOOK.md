@@ -30,7 +30,7 @@ python3 -m pip show litellm || true
 python3 scripts/ci/check_python_startup_hooks.py --python-executable .venv/bin/python
 ```
 
-2. Search obvious IoCs:
+1. Search obvious IoCs:
 
 ```bash
 find "$HOME/.cache/pip" "$HOME/.cache/uv" "$HOME/.config" /tmp \
@@ -38,14 +38,14 @@ find "$HOME/.cache/pip" "$HOME/.cache/uv" "$HOME/.config" /tmp \
   2>/dev/null
 ```
 
-3. Review shell/package history for the suspected window:
+1. Review shell/package history for the suspected window:
 
 ```bash
 rg -n "litellm|pip install|uv pip|python -m pip" ~/.zsh_history ~/.bash_history 2>/dev/null
 ls -lt ~/.cache/pip ~/.cache/uv 2>/dev/null
 ```
 
-4. Review repo install surfaces:
+1. Review repo install surfaces:
 
 ```bash
 rg -n "install_locked_python_requirements.py|check_python_startup_hooks.py|python -m pip install" \
@@ -70,19 +70,19 @@ Escalate to incident mode immediately if **any** of the following is true:
 - API keys
 - signing tokens
 
-2. Rebuild local Python environments from scratch:
+1. Rebuild local Python environments from scratch:
 
 ```bash
 rm -rf .venv .venv-ci
 make venv
 ```
 
-3. Review container and Kubernetes access:
+1. Review container and Kubernetes access:
 - local kubeconfig contexts
 - service-account tokens
 - mounted secrets in developer clusters
 
-4. Preserve evidence before destructive cleanup:
+1. Preserve evidence before destructive cleanup:
 - shell history
 - pip/uv cache timestamps
 - workflow run IDs

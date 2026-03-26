@@ -4,12 +4,11 @@
 from __future__ import annotations
 
 import argparse
-import importlib.util
 import subprocess  # nosec B404: subprocess is required for bounded pip/python invocations during locked installation (remove-by: 2026-07-31, ref: PR-litellm-hardening)
 import sys
 import tempfile
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Sequence
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_REQUIREMENTS_FILE = REPO_ROOT / "requirements.txt"
@@ -59,9 +58,9 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         help="Fail if the target Python interpreter is not inside a virtual environment.",
     )
     parser.add_argument(
-        "--skip-pip-upgrade",
+        "--upgrade-pip",
         action="store_true",
-        help="Skip `python -m pip install --upgrade pip` before wheel resolution.",
+        help="Explicitly upgrade pip before wheel resolution.",
     )
     parser.add_argument(
         "--guard-script",
@@ -101,6 +100,8 @@ def build_pip_download_command(
         "-m",
         "pip",
         "download",
+        "--only-binary",
+        ":all:",
         "--dest",
         str(wheelhouse_dir),
         "--requirement",
@@ -163,40 +164,40 @@ def upgrade_pip(python_executable: str) -> None:
     run_command([python_executable, "-m", "pip", "install", "--upgrade", "pip"])
 
 
-def load_module_from_path(*, module_name: str, module_path: Path) -> Any:
-    """Load a Python module from an explicit filesystem path."""
-    spec = importlib.util.spec_from_file_location(module_name, module_path)
-    if spec is None or spec.loader is None:
-        raise RuntimeError(f"Unable to load module from path: {module_path}")
-
-    module = importlib.util.module_from_spec(spec)
-    previous_module = sys.modules.get(module_name)
-    sys.modules[module_name] = module
-    try:
-        spec.loader.exec_module(module)
-    finally:
-        if previous_module is None:
-            sys.modules.pop(module_name, None)
-        else:
-            sys.modules[module_name] = previous_module
-    return module
-
-
 def collect_startup_hook_failure_lines(
     *,
     guard_script: Path,
     python_executable: str,
 ) -> list[str]:
-    """Run the startup-hook guard as an in-process static scan for target site-packages."""
-    guard_module = load_module_from_path(
-        module_name="pulseplate_startup_hook_guard",
-        module_path=guard_script,
+    """Run the startup-hook guard as a subprocess for target site-packages."""
+    result = subprocess.run(  # nosec B603: argv uses the selected Python interpreter plus a fixed repo guard script path (remove-by: 2026-07-31, ref: PR-litellm-hardening)
+        [
+            python_executable,
+            str(guard_script),
+            "--python-executable",
+            python_executable,
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
     )
-    site_packages = guard_module.site_packages_for_interpreter(python_executable)
-    findings = guard_module.collect_unexpected_executable_pth_files(site_packages)
-    if not findings:
+
+    stdout_lines = [line for line in result.stdout.splitlines() if line.strip()]
+    stderr_lines = [line for line in result.stderr.splitlines() if line.strip()]
+
+    if result.returncode == 0:
         return []
-    return list(guard_module.format_failure_lines(findings))
+    if result.returncode == 1:
+        if stdout_lines:
+            return stdout_lines
+        if stderr_lines:
+            return stderr_lines
+        return ["ERROR: startup-hook guard reported unexpected executable .pth files."]
+
+    diagnostic_lines = (
+        stderr_lines or stdout_lines or ["startup-hook guard exited without diagnostics."]
+    )
+    raise RuntimeError("Startup-hook guard failed: " + " | ".join(diagnostic_lines))
 
 
 def install_from_wheelhouse(
@@ -282,7 +283,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(f"Python executable: {args.python_executable}")
             return 1
 
-        if not args.skip_pip_upgrade:
+        if args.upgrade_pip:
             upgrade_pip(args.python_executable)
 
         if args.wheelhouse_dir is not None:

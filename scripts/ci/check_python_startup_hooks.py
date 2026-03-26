@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import argparse
-import re
 import shutil
 import sys
 from dataclasses import dataclass
@@ -15,7 +14,7 @@ ALLOWED_EXECUTABLE_PTH_FILENAMES: tuple[str, ...] = (
     "a1_coverage.pth",
     "distutils-precedence.pth",
 )
-EXECUTABLE_IMPORT_PATTERN = re.compile(r"^\s*import\b")
+EXECUTABLE_IMPORT_PREFIXES: tuple[str, ...] = ("import ", "import\t")
 
 
 @dataclass(frozen=True)
@@ -31,7 +30,7 @@ def extract_executable_lines(contents: str) -> list[tuple[int, str]]:
     """Return import-bearing lines that Python would execute from a .pth file."""
     executable_lines: list[tuple[int, str]] = []
     for line_number, raw_line in enumerate(contents.splitlines(), start=1):
-        if EXECUTABLE_IMPORT_PATTERN.match(raw_line):
+        if raw_line.startswith(EXECUTABLE_IMPORT_PREFIXES):
             executable_lines.append((line_number, raw_line.rstrip()))
     return executable_lines
 

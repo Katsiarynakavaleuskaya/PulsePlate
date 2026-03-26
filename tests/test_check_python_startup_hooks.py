@@ -14,14 +14,16 @@ def test_extract_executable_lines_returns_only_import_lines() -> None:
         (
             "relative/path",
             "import os",
+            "import\tjson",
             "  import sys",
+            "import#comment",
             "# import ignored",
         )
     )
 
     assert hook_guard.extract_executable_lines(contents) == [
         (2, "import os"),
-        (3, "  import sys"),
+        (3, "import\tjson"),
     ]
 
 

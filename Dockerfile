@@ -40,8 +40,7 @@ RUN /opt/venv/bin/python /tmp/pulseplate-ci/install_locked_python_requirements.p
       --python-executable /opt/venv/bin/python \
       --requirements-file requirements.txt \
       --guard-script /tmp/pulseplate-ci/check_python_startup_hooks.py \
-      --constraints-file constraints.txt \
-      --skip-pip-upgrade && \
+      --constraints-file constraints.txt && \
     # Remove setuptools from runtime image to fix GHSA-58pv-8j8x-9vj2 (jaraco.context vulnerability)
     # setuptools is only needed for build-time (pip install), not runtime
     /opt/venv/bin/pip uninstall -y setuptools wheel && \
@@ -207,7 +206,6 @@ RUN python /tmp/pulseplate-ci/install_locked_python_requirements.py \
       --dev-requirements-file requirements-dev.txt \
       --guard-script /tmp/pulseplate-ci/check_python_startup_hooks.py \
       --constraints-file constraints.txt \
-      --skip-pip-upgrade \
       --install-dev
 
 # Install additional development tools

@@ -7708,7 +7708,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Extract LiteLLM supply-chain hardening into a standalone PR
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (recovery and scope hygiene)
-  - Target PR: this PR
+  - Target PR: PR #1243
   - Status: Opened on 26 March 2026
   - Reason: The existing LiteLLM hardening work was built on top of a mixed local tree that sat on a merged security branch and collided with unrelated governance drift. The hardening itself is still valid, but it must be preserved and reopened as an isolated PR with only the LiteLLM bucket.
   - Links:

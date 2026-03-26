@@ -37,6 +37,8 @@ def test_build_pip_download_command_uses_constraint_when_present(tmp_path: Path)
     )
 
     assert command[:4] == ["python", "-m", "pip", "download"]
+    assert "--only-binary" in command
+    assert ":all:" in command
     assert "--dest" in command
     assert "--constraint" in command
 
@@ -91,7 +93,40 @@ def test_main_fails_when_virtualenv_is_required(
     )
 
 
-def test_main_runs_upgrade_download_install_and_static_guard(
+def test_collect_startup_hook_failure_lines_uses_guard_subprocess(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    observed_command: list[str] = []
+
+    class Result:
+        returncode = 1
+        stdout = "ERROR: unexpected executable Python startup hook (.pth) detected.\n- /tmp/hook.pth:1 :: import os\n"
+        stderr = ""
+
+    def fake_run(command: list[str], **kwargs: object) -> Result:
+        observed_command[:] = command
+        return Result()
+
+    monkeypatch.setattr(installer.subprocess, "run", fake_run)
+
+    failure_lines = installer.collect_startup_hook_failure_lines(
+        guard_script=Path("/tmp/check_python_startup_hooks.py"),
+        python_executable="python",
+    )
+
+    assert observed_command == [
+        "python",
+        "/tmp/check_python_startup_hooks.py",
+        "--python-executable",
+        "python",
+    ]
+    assert failure_lines == [
+        "ERROR: unexpected executable Python startup hook (.pth) detected.",
+        "- /tmp/hook.pth:1 :: import os",
+    ]
+
+
+def test_main_runs_download_install_and_static_guard_without_pip_self_upgrade(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
@@ -125,10 +160,10 @@ def test_main_runs_upgrade_download_install_and_static_guard(
     )
 
     assert result == 0
-    assert observed_commands[0] == ["python", "-m", "pip", "install", "--upgrade", "pip"]
-
-    download_command = observed_commands[1]
+    download_command = observed_commands[0]
     assert download_command[:4] == ["python", "-m", "pip", "download"]
+    assert "--only-binary" in download_command
+    assert ":all:" in download_command
     assert "--dest" in download_command
     assert str(wheelhouse_dir) in download_command
     assert "--requirement" in download_command
@@ -136,13 +171,43 @@ def test_main_runs_upgrade_download_install_and_static_guard(
     assert "--constraint" in download_command
     assert str(installer.DEFAULT_CONSTRAINTS_FILE) in download_command
 
-    install_command = observed_commands[2]
+    install_command = observed_commands[1]
     assert install_command[:4] == ["python", "-m", "pip", "install"]
     assert "--no-index" in install_command
     assert "--find-links" in install_command
     assert str(wheelhouse_dir) in install_command
     assert "--constraint" in install_command
     assert str(installer.DEFAULT_CONSTRAINTS_FILE) in install_command
+
+
+def test_main_runs_optional_pip_upgrade_only_when_requested(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    requirements = tmp_path / "requirements.txt"
+    requirements.write_text("openai==2.29.0\n", encoding="utf-8")
+    wheelhouse_dir = tmp_path / "wheelhouse"
+    observed_commands: list[list[str]] = []
+
+    monkeypatch.setattr(
+        installer, "run_command", lambda command: observed_commands.append(list(command))
+    )
+    monkeypatch.setattr(installer, "collect_startup_hook_failure_lines", lambda **kwargs: [])
+
+    result = installer.main(
+        [
+            "--python-executable",
+            "python",
+            "--requirements-file",
+            str(requirements),
+            "--wheelhouse-dir",
+            str(wheelhouse_dir),
+            "--upgrade-pip",
+        ]
+    )
+
+    assert result == 0
+    assert observed_commands[0] == ["python", "-m", "pip", "install", "--upgrade", "pip"]
 
 
 def test_main_fails_when_static_startup_hook_scan_finds_malicious_pth(
@@ -212,9 +277,7 @@ def test_main_reports_guard_runtime_error_cleanly(
     monkeypatch.setattr(
         installer,
         "collect_startup_hook_failure_lines",
-        lambda **kwargs: (_ for _ in ()).throw(
-            RuntimeError(f"Unable to load module from path: {guard_script}")
-        ),
+        lambda **kwargs: (_ for _ in ()).throw(RuntimeError("guard subprocess failed")),
     )
 
     result = installer.main(
@@ -231,6 +294,4 @@ def test_main_reports_guard_runtime_error_cleanly(
     )
 
     assert result == 1
-    assert (
-        "ERROR: locked install failed: Unable to load module from path:" in capsys.readouterr().out
-    )
+    assert "ERROR: locked install failed: guard subprocess failed" in capsys.readouterr().out

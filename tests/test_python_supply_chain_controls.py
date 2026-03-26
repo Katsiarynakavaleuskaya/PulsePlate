@@ -61,10 +61,13 @@ def test_canonical_ci_and_docker_use_supply_chain_guardrails() -> None:
     ).read_text(encoding="utf-8")
 
     assert "check_python_startup_hooks.py" in installer_text
+    assert "--only-binary" in installer_text
+    assert "spec_from_file_location" not in installer_text
+    assert "sys.modules[" not in installer_text
     assert "install_locked_python_requirements.py" in docker_text
     assert "--guard-script /tmp/pulseplate-ci/check_python_startup_hooks.py" in docker_text
     assert "constraints.txt" in docker_text
-    assert docker_text.count("--skip-pip-upgrade") == 2
+    assert "--upgrade-pip" not in docker_text
     assert "!constraints.txt" in dockerignore_text
     assert "!scripts/ci/check_python_startup_hooks.py" in dockerignore_text
     assert "!scripts/ci/install_locked_python_requirements.py" in dockerignore_text
