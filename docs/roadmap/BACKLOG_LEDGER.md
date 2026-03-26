@@ -2042,18 +2042,17 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Mandatory post-open `qa-engineer-agent -> bug-hunter` lane is recorded
     - Local validation passes: `check_preflight`, `check_agent_consistency`, `pre-commit run --all-files`, `make verify`
 
-- [x] P1: PR2 workflow consolidation into canonical ci.yml {#ledger-p1-tier1-ci-cd-pr2-workflow}
+- [ ] P1: PR2 workflow consolidation into canonical ci.yml {#ledger-p1-tier1-ci-cd-pr2-workflow}
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
   - Target PR: PR-TBD-TIER1-CI-CD-PR2
   - Area: orchestration / CI / review governance
   - Finding Type: process hardening
-  - Status: Completed via `.github/workflows/ci.yml`, `.github/workflows/security.yml`, `.github/workflows/trivy.yml`, `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md`, `docs/orchestration/TIER1_CI_CD_PR_SERIES_RUNBOOK.md`, and `docs/orchestration/TIER1_CI_CD_TASK_PACKET_2026-03-26.md`.
+  - Status: In progress in PR `#1244`; closure pending merge evidence.
   - Reason: Backend/shared PR execution is now canonicalized in `ci.yml`; `pr-tests.yml` and `pr-coverage.yml` are no longer active PR lanes, `security.yml` moved to a scheduled/manual audit lane, `trivy.yml` remains a non-PR image-security lane on `main`/schedule/manual, and `build.yml` remains specialized.
   - Links:
     - `.github/workflows/ci.yml`
-    - `.github/workflows/pr-tests.yml`
-    - `.github/workflows/pr-coverage.yml`
+    - Historical PR-lane duplicates removed in PR `#1244`: `pr-tests.yml`, `pr-coverage.yml`
     - `.github/workflows/security.yml`
     - `.github/workflows/trivy.yml`
   - DoD:

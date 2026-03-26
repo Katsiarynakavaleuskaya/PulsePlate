@@ -899,8 +899,6 @@ jobs:
             --exclude 'external/**' \
             --exclude 'htmlcov/**' \
             --exclude 'coverage/**' \
-            --exclude 'providers/pico.py' \
-            --exclude 'app/routers/vip.py' \
             --exclude 'conftest.py' \
             --exclude 'tests/**' \
             --exclude '*.json' \
