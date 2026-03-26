@@ -1,6 +1,33 @@
-import { describe, it, expect, vi, afterEach } from 'vitest';
+import type { ReactNode } from 'react';
+import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
 import { render, screen, cleanup } from '@testing-library/react';
 import App from '../App';
+
+let mockPathname = '/';
+
+const navigateTo = (pathname: string) => {
+  mockPathname = pathname;
+};
+
+vi.mock('react-router-dom', async () => {
+  const React = await import('react');
+
+  return {
+    BrowserRouter: ({ children }: { children: ReactNode }) => (
+      <>{children}</>
+    ),
+    useLocation: () => ({ pathname: mockPathname }),
+    Routes: ({ children }: { children: ReactNode }) => {
+      const routeElements = React.Children.toArray(children) as Array<
+        React.ReactElement<{ path?: string; element?: ReactNode }>
+      >;
+      const matchedRoute = routeElements.find((child) => child.props.path === mockPathname);
+
+      return <>{matchedRoute?.props.element ?? null}</>;
+    },
+    Route: () => null,
+  };
+});
 
 // Mock the components that are used in App
 vi.mock('../components/TabBar', () => ({
@@ -49,11 +76,21 @@ vi.mock('../config/routes', () => ({
       component: () => <div data-testid="setup-page">Setup Page</div>,
       hideTabBar: true,
       requiresAuth: false
+    },
+    {
+      path: '/design-system',
+      component: () => <div data-testid="design-system-page">Design System Page</div>,
+      hideTabBar: true,
+      requiresAuth: false
     }
   ]
 }));
 
 describe('App', () => {
+  beforeEach(() => {
+    navigateTo('/');
+  });
+
   afterEach(() => {
     cleanup();
   });
@@ -80,10 +117,13 @@ describe('App', () => {
     expect(screen.getByTestId('tab-bar')).toBeInTheDocument();
   });
 
-  // Note: Tab bar hiding logic is complex and requires proper router setup
-  // This test is skipped for now as it requires more complex mocking
-  it.skip('hides tab bar when route specifies hideTabBar', () => {
-    // This test would require proper router mocking to work correctly
-    // For now, we focus on the basic functionality
+  it('hides tab bar for the design system preview route', () => {
+    navigateTo('/design-system');
+
+    render(<App />);
+
+    expect(screen.getByTestId('design-system-page')).toBeInTheDocument();
+    expect(screen.queryByTestId('tab-bar')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('require-key')).not.toBeInTheDocument();
   });
 });
