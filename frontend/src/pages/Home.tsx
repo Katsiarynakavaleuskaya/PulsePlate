@@ -109,13 +109,15 @@ export default function Home(): JSX.Element {
       return null;
     }
 
+    const mappedTags = aiResult.sources
+      .slice(0, 3)
+      .map((source) => basenameFromPath(source.file));
+
     return {
       title: 'Tonight’s guidance',
       body: aiResult.insight,
       confidenceLabel: `Confidence ${aiResult.confidence.toFixed(2)}`,
-      tags:
-        aiResult.sources.slice(0, 3).map((source) => basenameFromPath(source.file)) ||
-        ['Meals', 'Goals'],
+      tags: mappedTags.length > 0 ? mappedTags : ['Meals', 'Goals'],
       metadata: [
         `Mode: ${aiResult.mode}`,
         `Quota: ${aiResult.quota_state}`,
@@ -134,6 +136,9 @@ export default function Home(): JSX.Element {
 
   async function handleAiSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (aiLoading) {
+      return;
+    }
     const nextQuery = aiQuery.trim();
     if (!nextQuery) {
       setAiError('Enter a short question to generate an AI insight.');
@@ -258,6 +263,7 @@ export default function Home(): JSX.Element {
                 isLoading={aiLoading}
                 query={aiQuery}
                 result={insightResultCard}
+                placeholder="For example: what should I focus on this week?"
                 subtitle={
                   aiLoading
                     ? 'Generating a recommendation…'

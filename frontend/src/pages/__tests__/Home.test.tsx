@@ -32,6 +32,20 @@ interface EnterKeyLocationState {
   from?: { pathname?: string };
 }
 
+function deferredPromise<T>(): {
+  promise: Promise<T>;
+  resolve: (value: T) => void;
+  reject: (reason?: unknown) => void;
+} {
+  let resolve!: (value: T) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
+}
+
 function EnterKeyProbe(): JSX.Element {
   const location = useLocation();
   const fromPath = (location.state as EnterKeyLocationState | null)?.from?.pathname ?? 'none';
@@ -302,6 +316,57 @@ describe('Home', () => {
     await user.click(screen.getByRole('button', { name: 'Generate insight' }));
 
     expect(screen.getAllByText('Repeated warning')).toHaveLength(2);
+    expect(screen.getByText('Meals')).toBeInTheDocument();
+    expect(screen.getByText('Goals')).toBeInTheDocument();
+  });
+
+  it('disables the submit control and prevents duplicate AI requests while loading', async () => {
+    vi.mocked(useAuth).mockReturnValue({
+      apiKey: null,
+      isAuthenticated: true,
+      isLoading: false,
+      setApiKey: vi.fn(),
+      clearApiKey: vi.fn(),
+      showAuthPrompt: false,
+      setShowAuthPrompt: vi.fn(),
+    });
+    vi.mocked(usePremium).mockReturnValue(true);
+    const pendingInsight = deferredPromise<Awaited<ReturnType<typeof getCbtInsight>>>();
+    vi.mocked(getCbtInsight).mockReturnValue(pendingInsight.promise);
+    const user = userEvent.setup();
+
+    render(
+      <MemoryRouter>
+        <Home />
+      </MemoryRouter>
+    );
+
+    const queryInput = screen.getByLabelText('Ask one question');
+    await user.type(queryInput, 'Prevent duplicate requests');
+    const submitButton = screen.getByRole('button', { name: 'Generate insight' });
+    expect(submitButton).not.toBeDisabled();
+
+    await user.click(submitButton);
+
+    expect(vi.mocked(getCbtInsight)).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole('button', { name: 'Generate insight' })).toBeDisabled();
+
+    await user.click(screen.getByRole('button', { name: 'Generate insight' }));
+
+    expect(vi.mocked(getCbtInsight)).toHaveBeenCalledTimes(1);
+
+    pendingInsight.resolve({
+      insight: 'One request at a time.',
+      confidence: 0.88,
+      uncertainty: 0.12,
+      rag_used: false,
+      sources: [],
+      warnings: [],
+      mode: 'auto-safe',
+      quota_state: 'consumed',
+    });
+
+    expect(await screen.findByText('One request at a time.')).toBeInTheDocument();
   });
 
   it('maps rate limit failures to a user-facing message', async () => {

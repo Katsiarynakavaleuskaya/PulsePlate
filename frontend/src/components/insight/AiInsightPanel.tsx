@@ -9,6 +9,8 @@ export interface AiInsightResultCard {
   tags: string[];
   primaryActionLabel?: string;
   secondaryActionLabel?: string;
+  onPrimaryAction?: () => void;
+  onSecondaryAction?: () => void;
   metadata?: string[];
   warnings?: string[];
   sources?: string[];
@@ -62,8 +64,8 @@ export default function AiInsightPanel({
   suggestions,
   onSuggestionClick,
   isLoading = false,
-  placeholder = 'Например: как улучшить ужин сегодня?',
-  subtitle = 'Сформулируйте вопрос или выберите подсказку',
+  placeholder = 'Ask one focused question',
+  subtitle = 'Use a quick suggestion or write a short prompt',
   error,
   result,
 }: AiInsightPanelProps): JSX.Element {
@@ -89,10 +91,11 @@ export default function AiInsightPanel({
           <Button
             aria-label="Generate insight"
             className="min-h-[44px] min-w-[44px] rounded-2xl px-4 text-base text-[var(--pp-navy)]"
+            disabled={isLoading || !query.trim()}
             style={{ backgroundColor: canonicalBrand.blue }}
             type="submit"
           >
-            ➜
+            {isLoading ? '…' : '➜'}
           </Button>
         </div>
 
@@ -181,26 +184,44 @@ export default function AiInsightPanel({
           </div>
           <div className="mt-4 flex flex-wrap gap-3">
             {result.primaryActionLabel ? (
-              <button
-                type="button"
-                className={buttonClasses({
-                  className: 'rounded-2xl px-5 text-[var(--pp-navy)]',
-                })}
-                style={{ backgroundColor: canonicalBrand.blue }}
-              >
-                {result.primaryActionLabel}
-              </button>
+              result.onPrimaryAction ? (
+                <button
+                  type="button"
+                  className={buttonClasses({
+                    className: 'rounded-2xl px-5 text-[var(--pp-navy)]',
+                  })}
+                  style={{ backgroundColor: canonicalBrand.blue }}
+                  onClick={result.onPrimaryAction}
+                >
+                  {result.primaryActionLabel}
+                </button>
+              ) : (
+                <span
+                  className="rounded-2xl border border-white/10 bg-white/[0.05] px-5 py-2 text-sm font-medium text-white/72"
+                >
+                  {result.primaryActionLabel}
+                </span>
+              )
             ) : null}
             {result.secondaryActionLabel ? (
-              <button
-                type="button"
-                className={buttonClasses({
-                  variant: 'secondary',
-                  className: 'rounded-2xl border-white/10 bg-white/[0.03] px-5 text-white hover:bg-white/[0.08]',
-                })}
-              >
-                {result.secondaryActionLabel}
-              </button>
+              result.onSecondaryAction ? (
+                <button
+                  type="button"
+                  className={buttonClasses({
+                    variant: 'secondary',
+                    className: 'rounded-2xl border-white/10 bg-white/[0.03] px-5 text-white hover:bg-white/[0.08]',
+                  })}
+                  onClick={result.onSecondaryAction}
+                >
+                  {result.secondaryActionLabel}
+                </button>
+              ) : (
+                <span
+                  className="rounded-2xl border border-white/10 bg-white/[0.03] px-5 py-2 text-sm font-medium text-white/72"
+                >
+                  {result.secondaryActionLabel}
+                </span>
+              )
             ) : null}
           </div>
         </article>

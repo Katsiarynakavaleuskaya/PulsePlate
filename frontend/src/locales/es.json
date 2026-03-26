@@ -19,14 +19,14 @@
   "onboarding": {
     "welcome": {
       "screen1": {
-        "eyebrow": "Wellness companion",
+        "eyebrow": "Compañero de bienestar",
         "title": "PulsePlate — nutrición sin ruido",
         "body": "Una entrada tranquila al producto, con pasos claros y sin sobrecarga.",
         "cardTitle": "Qué mantiene tranquila la entrada",
         "tabs": {
-          "bmi": "BMI",
-          "plate": "Plate",
-          "plans": "Plans"
+          "bmi": "IMC",
+          "plate": "Plato",
+          "plans": "Planes"
         },
         "points": {
           "1": "✓ Registro de comidas sin balanza",
@@ -36,26 +36,26 @@
         "footer": "FitChef — tu compañero AI para nutrición"
       },
       "screen2": {
-        "eyebrow": "How to use it",
+        "eyebrow": "Cómo usarlo",
         "title": "Cómo avanzar con calma y por pasos",
         "body": "Empieza con BMI y luego afina con Plate y el perfil. Entradas pequeñas llevan a pasos obvios.",
         "steps": {
           "1": {
-            "title": "BMI Calculator",
+            "title": "Calculadora de IMC",
             "body": "Inicio rápido con métricas base y un punto de partida tranquilo."
           },
           "2": {
-            "title": "Plate + Profile",
+            "title": "Plato + perfil",
             "body": "División diaria y objetivos personales sin saturar la configuración."
           },
           "3": {
-            "title": "PRO planning",
+            "title": "Planificación PRO",
             "body": "Los planes semanales y listas de compras aparecen cuando su valor ya está claro."
           }
         }
       },
       "screen3": {
-        "eyebrow": "Your goal",
+        "eyebrow": "Tu objetivo",
         "title": "¿Qué quieres lograr?",
         "body": "Elige una dirección y PulsePlate ajustará la siguiente capa alrededor de ella.",
         "goals": {
@@ -73,7 +73,7 @@
       "skip": "Saltar",
       "back": "Atrás",
       "stepA11y": "Paso {{current}} de {{total}}",
-      "mainA11y": "Vista previa de welcome gate",
+      "mainA11y": "Vista previa de la puerta de bienvenida",
       "preview": {
         "panelTitle": "WELCOME GATE / v1",
         "panelFlowLabel": "flujo:",

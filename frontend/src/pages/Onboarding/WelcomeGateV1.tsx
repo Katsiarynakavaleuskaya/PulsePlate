@@ -38,6 +38,7 @@ interface WelcomeGateV1Props {
 export default function WelcomeGateV1({ initialScreen = 1 }: WelcomeGateV1Props): JSX.Element {
   const { t } = useTranslation();
   const [screen, setScreen] = useState<WelcomeScreen>(initialScreen);
+  const [selectedGoal, setSelectedGoal] = useState<number>(1);
 
   const screenConfigs: Record<WelcomeScreen, ScreenConfig> = {
     1: {
@@ -72,9 +73,9 @@ export default function WelcomeGateV1({ initialScreen = 1 }: WelcomeGateV1Props)
         {screen === 1 ? (
           <>
             <div className="flex justify-end">
-              <button type="button" className="text-sm text-white/55">
+              <Link to="/setup" className="text-sm text-white/55">
                 {t('onboarding.welcome.skip')}
-              </button>
+              </Link>
             </div>
 
             <div className="mt-6 flex flex-col items-center text-center">
@@ -159,14 +160,16 @@ export default function WelcomeGateV1({ initialScreen = 1 }: WelcomeGateV1Props)
                 <div className="space-y-4">
                   {[1, 2, 3, 4].map((goal) => (
                     <button
+                      aria-pressed={selectedGoal === goal}
                       key={goal}
                       type="button"
                       className={[
                         'flex w-full items-center rounded-2xl border px-4 py-4 text-left text-base transition',
-                        goal === 1
+                        selectedGoal === goal
                           ? 'border-white/25 bg-white/[0.08] text-white'
                           : 'border-transparent bg-transparent text-white/82 hover:bg-white/[0.04]',
                       ].join(' ')}
+                      onClick={() => setSelectedGoal(goal)}
                     >
                       {t(`onboarding.welcome.screen3.goals.${goal}`)}
                     </button>

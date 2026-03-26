@@ -55,16 +55,16 @@ function SurfaceField({
   );
 }
 
-function SegmentedChoice({
+function SegmentedChoice<T extends string>({
   label,
   options,
   value,
   onChange,
 }: {
   label: string;
-  options: readonly { label: string; value: string }[];
-  value: string;
-  onChange: (value: string) => void;
+  options: readonly { label: string; value: T }[];
+  value: T;
+  onChange: (value: T) => void;
 }): JSX.Element {
   return (
     <div className="rounded-2xl border border-white/12 bg-white/[0.08] p-4">
@@ -109,7 +109,7 @@ export default function BMICalculatePage(): JSX.Element {
   const [pregnant, setPregnant] = useState<boolean>(false);
 
   const numberLocale = i18n.language.toLowerCase().startsWith('ru') ? 'ru' : 'en';
-  const hasResult = response !== null;
+  const hasResult = !loading && response !== null;
 
   const resultSummary = useMemo(() => {
     if (!response) {
@@ -141,10 +141,10 @@ export default function BMICalculatePage(): JSX.Element {
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>): Promise<void> => {
     event.preventDefault();
     setError(null);
+    setResponse(null);
 
     abortControllerRef.current?.abort();
     abortControllerRef.current = null;
-    setLoading(false);
 
     const parsedWeightKg = parseFloat(normalizeNumber(weightKg));
     const parsedHeightCm = parseFloat(normalizeNumber(heightCm));
@@ -272,14 +272,14 @@ export default function BMICalculatePage(): JSX.Element {
             />
           </SurfaceField>
 
-          <SegmentedChoice
+          <SegmentedChoice<'male' | 'female'>
             label={t('bmiCalculate.form.sexLabel')}
             options={[
               { label: t('bmiCalculate.form.sex.male'), value: 'male' },
               { label: t('bmiCalculate.form.sex.female'), value: 'female' },
             ]}
             value={sex}
-            onChange={(value) => setSex(value as 'male' | 'female')}
+            onChange={setSex}
           />
 
           <div className="rounded-2xl border border-white/12 bg-white/[0.08] p-4">
