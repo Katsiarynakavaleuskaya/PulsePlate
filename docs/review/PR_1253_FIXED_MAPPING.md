@@ -8,6 +8,11 @@
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1250#discussion_r2997499001 -> 5b0bf7a9
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1250#discussion_r2997517780 -> 777c4465
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1250#discussion_r2997517784 -> 777c4465
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1253#discussion_r2997748282 -> b86ef645
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1253#discussion_r2997758754 -> b86ef645
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1253#discussion_r2997774639 -> b86ef645
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1253#discussion_r2997774646 -> b86ef645
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1253#pullrequestreview-4017431658 -> b86ef645
 - Carryover evidence from closed replacement-source PR `#1248` lives in `docs/review/PR_1248_FIXED_MAPPING.md`.
 - Replacement-source artifact from clean-topology rebuild lives in `docs/review/PR_1250_FIXED_MAPPING.md`.
 
