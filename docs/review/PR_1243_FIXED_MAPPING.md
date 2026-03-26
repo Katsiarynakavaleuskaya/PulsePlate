@@ -10,6 +10,12 @@ Commit: d03e1fa6
 Evidence: `scripts/ci/check_local_verify_environment.py:13`, `scripts/ci/check_local_verify_environment.py:21`, `scripts/ci/install_locked_python_requirements.py:271`, `scripts/ci/install_locked_python_requirements.py:306`, `tests/test_install_locked_python_requirements.py:186`, `tests/test_install_locked_python_requirements.py:201`
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1243#pullrequestreview-4013037424 -> d03e1fa6
 
+Disposition: FIXED
+Commit: c7309c29
+Evidence: `scripts/ci/check_python_startup_hooks.py:112`, `scripts/ci/check_python_startup_hooks.py:142`, `.dockerignore:13`, `.dockerignore:18`, `Dockerfile:37`, `Dockerfile:39`, `Dockerfile:204`, `tests/test_check_python_startup_hooks.py:106`, `tests/test_python_supply_chain_controls.py:54`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1243#discussion_r2993944489 -> c7309c29
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1243#discussion_r2993944494 -> c7309c29
+
 ## Merge Readiness
 - [ ] All required checks pass
 - [ ] No unresolved review threads (re-check on current head before merge)
