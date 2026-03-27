@@ -177,3 +177,18 @@ def test_external_interpreter_site_packages_wraps_timeout_failure(
 
     with pytest.raises(RuntimeError, match="Timed out probing site-packages"):
         hook_guard.external_interpreter_site_packages("/usr/bin/python3")
+
+
+def test_external_interpreter_site_packages_wraps_json_decode_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    completed = subprocess.CompletedProcess(
+        args=[],
+        returncode=0,
+        stdout="not valid json",
+        stderr="",
+    )
+    monkeypatch.setattr(hook_guard.subprocess, "run", lambda *args, **kwargs: completed)
+
+    with pytest.raises(RuntimeError, match="Unable to parse site-packages"):
+        hook_guard.external_interpreter_site_packages("/usr/bin/python3")
