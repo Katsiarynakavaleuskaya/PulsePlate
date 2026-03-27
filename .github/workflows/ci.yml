@@ -21,7 +21,7 @@ on:
     branches: [ main, feat/**, fix/** ]
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name == 'pull_request' && github.event.action == 'edited' && 'metadata' || 'code' }}
   cancel-in-progress: true
 
 defaults:
@@ -82,7 +82,7 @@ jobs:
             --github-output "$GITHUB_OUTPUT"
 
   pr_scope_guard:
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'pull_request' && github.event.action != 'edited'
     runs-on: ubuntu-latest
     timeout-minutes: 2
     steps:
@@ -138,6 +138,7 @@ jobs:
 
   trivy_ignore_policy_expiry:
     name: Trivy ignore-policy expiry
+    if: github.event_name != 'pull_request' || github.event.action != 'edited'
     runs-on: ubuntu-latest
     timeout-minutes: 2
     steps:
@@ -151,7 +152,7 @@ jobs:
 
   pygments_exception_guard:
     name: Pygments exception seam guard
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'pull_request' && github.event.action != 'edited'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
@@ -178,7 +179,7 @@ jobs:
 
   docs_phase1_gates:
     name: Docs Phase1 gates
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'pull_request' && github.event.action != 'edited'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -312,6 +313,7 @@ jobs:
           python scripts/ci/check_pr_merge_readiness.py --event-path "$GITHUB_EVENT_PATH"
 
   lint:
+    if: github.event_name != 'pull_request' || github.event.action != 'edited'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -331,7 +333,7 @@ jobs:
 
   security:
     needs: [changes]
-    if: github.event_name != 'pull_request' || needs.changes.outputs.run_security == 'true'
+    if: github.event_name != 'pull_request' || (github.event.action != 'edited' && needs.changes.outputs.run_security == 'true')
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -466,7 +468,7 @@ jobs:
   openapi-sync:
     name: OpenAPI sync (backend -> frontend artifacts)
     needs: [changes]
-    if: github.event_name != 'pull_request' || needs.changes.outputs.run_openapi_sync == 'true'
+    if: github.event_name != 'pull_request' || (github.event.action != 'edited' && needs.changes.outputs.run_openapi_sync == 'true')
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
@@ -505,7 +507,7 @@ jobs:
 
   # Tier 1 PR testing: critical smoke + contract/risk suites
   test-pr:
-    if: github.event_name == 'pull_request' && needs.changes.outputs.run_backend_blocking == 'true'
+    if: github.event_name == 'pull_request' && github.event.action != 'edited' && needs.changes.outputs.run_backend_blocking == 'true'
     needs: [changes, pr_scope_guard]
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -945,7 +947,7 @@ jobs:
 
   # Coverage reporting for PRs
   coverage-pr:
-    if: github.event_name == 'pull_request' && needs.changes.outputs.run_backend_blocking == 'true'
+    if: github.event_name == 'pull_request' && github.event.action != 'edited' && needs.changes.outputs.run_backend_blocking == 'true'
     needs: [changes, test-pr]
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -975,7 +977,7 @@ jobs:
 
   diff-coverage:
     name: diff-coverage
-    if: github.event_name == 'pull_request' && needs.changes.outputs.run_backend_blocking == 'true'
+    if: github.event_name == 'pull_request' && github.event.action != 'edited' && needs.changes.outputs.run_backend_blocking == 'true'
     needs: [changes, pr_scope_guard, test-pr]
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -1110,6 +1112,7 @@ jobs:
     runs-on: macos-15
     timeout-minutes: 25
     if: |
+      github.event.action != 'edited' &&
       needs.changes.outputs.ios == 'true' && (
         github.event_name == 'pull_request' ||
         (github.event_name == 'push' && (startsWith(github.ref, 'refs/heads/feat/') || startsWith(github.ref, 'refs/heads/fix/') || github.ref == 'refs/heads/main'))
@@ -1478,6 +1481,7 @@ jobs:
     runs-on: macos-15
     timeout-minutes: 25
     if: |
+      github.event.action != 'edited' &&
       needs.changes.outputs.ios == 'true' && (
         github.event_name == 'pull_request' ||
         (github.event_name == 'push' && (startsWith(github.ref, 'refs/heads/feat/') || startsWith(github.ref, 'refs/heads/fix/') || github.ref == 'refs/heads/main'))

@@ -15,7 +15,7 @@ concurrency:
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened, edited]
+    types: [opened, synchronize, reopened]
     branches: [main, feat/**, fix/**]
     paths:
       - 'frontend/**'
