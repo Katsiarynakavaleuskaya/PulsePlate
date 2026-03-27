@@ -2058,6 +2058,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Deterministic tests cover workflow/Fastlane/orchestration-path review routing
     - Merge-readiness docs explain that this is a default requirement, not optional reviewer theater
 
+<a id="ledger-p1-classify-ci-checks-as-hard-soft-external"></a>
 - [ ] P1: Coordinator automation PR2 — bootstrap engine hardening
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
@@ -2160,7 +2161,6 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Compatible local runtime settings are documented with explicit caveats about host/runtime limits
     - Local rollout steps do not mutate repo governance docs as a substitute for launcher support
     - Repo PR chain remains independently valid without the local rollout
-
 - [x] P1: Classify CI checks as hard / soft / external in AGENTS or CI governance
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
@@ -2181,7 +2181,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Tier 1 CI/CD consolidation via custom orchestration
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-TBD-TIER1-CI-CD-PR1 -> PR-TBD-TIER1-CI-CD-PR4
+  - Target PR: PR #1240 -> PR #1244 -> PR #1253 -> PR-TBD-TIER1-CI-CD-PR4
   - Area: orchestration / CI / review governance
   - Finding Type: process hardening
   - Status: In progress
@@ -2202,13 +2202,13 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `ledger-p1-tier1-ci-cd-pr3-risk-topology`
     - `ledger-p1-tier1-ci-cd-pr4-metrics`
 
-- [ ] P1: PR1 governance and canonical matrix sync {#ledger-p1-tier1-ci-cd-pr1-governance}
+- [x] P1: PR1 governance and canonical matrix sync {#ledger-p1-tier1-ci-cd-pr1-governance}
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-TBD-TIER1-CI-CD-PR1
+  - Target PR: PR #1240
   - Area: orchestration / CI / review governance
   - Finding Type: process hardening
-  - Status: Planned
+  - Status: Materially completed in merged PR `#1240` (`24c51f85`); this slice now stays closed unless follow-up governance drift is reopened explicitly.
   - Reason: The repo already has merge-governance primitives, but Tier 1 cannot start safely until the canonical backend/shared lane, duplicate PR-time workflows, and specialized add-on lanes are named explicitly in docs.
   - Links:
     - `docs/orchestration/TIER1_CI_CD_PR_SERIES_RUNBOOK.md`
@@ -2219,13 +2219,13 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Mandatory post-open `qa-engineer-agent -> bug-hunter` lane is recorded
     - Local validation passes: `check_preflight`, `check_agent_consistency`, `pre-commit run --all-files`, `make verify`
 
-- [ ] P1: PR2 workflow consolidation into canonical ci.yml {#ledger-p1-tier1-ci-cd-pr2-workflow}
+- [x] P1: PR2 workflow consolidation into canonical ci.yml {#ledger-p1-tier1-ci-cd-pr2-workflow}
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-TBD-TIER1-CI-CD-PR2
+  - Target PR: PR #1244
   - Area: orchestration / CI / review governance
   - Finding Type: process hardening
-  - Status: In progress in PR `#1244`; closure pending merge evidence.
+  - Status: Materially completed on `origin/main` in PR `#1244` (`b7e029b4`); this slice now serves as landed baseline input for PR3.
   - Reason: Backend/shared PR execution is now canonicalized in `ci.yml`; `pr-tests.yml` and `pr-coverage.yml` are no longer active PR lanes, `security.yml` moved to a scheduled/manual audit lane, `trivy.yml` remains a non-PR image-security lane on `main`/schedule/manual, and `build.yml` remains specialized.
   - Links:
     - `.github/workflows/ci.yml`
@@ -2242,19 +2242,21 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: PR3 risk-based PR test topology {#ledger-p1-tier1-ci-cd-pr3-risk-topology}
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-TBD-TIER1-CI-CD-PR3
+  - Target PR: #1253
   - Area: orchestration / CI / review governance
   - Finding Type: process hardening
-  - Status: Planned
+  - Status: 🚧 In progress in PR `#1253` (PR3 risk-topology lane), following landed PR1/PR2 reconciliation (`#1240`, `#1244`) after clean-topology replacement of PR `#1250` and earlier closed PR `#1248`.
   - Reason: PR blockers should stay focused on business-critical runtime paths, while nightly depth absorbs broad non-critical coverage tails.
   - Links:
     - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-test-hygiene-wave`
     - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-fastapi-compatibility-gates`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-llm-reliability-security-gates`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-classify-ci-checks-as-hard-soft-external`
     - `docs/orchestration/TIER1_CI_CD_PR_SERIES_RUNBOOK.md`
   - DoD:
     - Deterministic smoke, contract/risk suites, and nightly-only depth are split
     - Blocking surfaces explicitly cover billing, entitlement, VIP insight, and OpenAPI determinism
-    - PR-size governance exists for `<300`, `300-800`, and `>800` LoC cases
+    - PR-size governance exists for `<300`, `300-800`, and `>800` LoC cases, and `>800` requires explicit `## Split Justification` proof in the PR body
     - No new flaky test class is introduced
 
 - [ ] P1: PR4 lightweight CI metrics and weekly feedback loop {#ledger-p1-tier1-ci-cd-pr4-metrics}
@@ -2263,7 +2265,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Target PR: PR-TBD-TIER1-CI-CD-PR4
   - Area: orchestration / CI / review governance
   - Finding Type: process hardening
-  - Status: Planned
+  - Status: Deferred/next after PR3 risk-topology rollout.
   - Reason: Tier 1 needs advisory metrics for critical-path duration, reruns, and flaky-signal tracking without turning observability into another merge blocker.
   - Links:
     - `docs/orchestration/TIER1_CI_CD_PR_SERIES_RUNBOOK.md`

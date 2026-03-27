@@ -36,6 +36,21 @@ jobs:
       pull-requests: read
     outputs:
       ios: ${{ steps.filter.outputs.ios }}
+      docs_only: ${{ steps.risk_profile.outputs.docs_only }}
+      frontend_only: ${{ steps.risk_profile.outputs.frontend_only }}
+      ios_only: ${{ steps.risk_profile.outputs.ios_only }}
+      workflow_privileged: ${{ steps.risk_profile.outputs.workflow_privileged }}
+      backend_shared: ${{ steps.risk_profile.outputs.backend_shared }}
+      run_backend_blocking: ${{ steps.risk_profile.outputs.run_backend_blocking }}
+      run_security: ${{ steps.risk_profile.outputs.run_security }}
+      run_openapi_sync: ${{ steps.risk_profile.outputs.run_openapi_sync }}
+      billing_entitlement: ${{ steps.risk_profile.outputs.billing_entitlement }}
+      insight_ai: ${{ steps.risk_profile.outputs.insight_ai }}
+      openapi_contract: ${{ steps.risk_profile.outputs.openapi_contract }}
+      route_contract_safety: ${{ steps.risk_profile.outputs.route_contract_safety }}
+      merge_governance: ${{ steps.risk_profile.outputs.merge_governance }}
+      contract_risk_groups: ${{ steps.risk_profile.outputs.contract_risk_groups }}
+      changed_file_count: ${{ steps.risk_profile.outputs.changed_file_count }}
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -54,6 +69,16 @@ jobs:
               - '.github/workflows/**'
               - '.github/actions/**'
 
+      - name: Build PR risk profile
+        id: risk_profile
+        if: github.event_name == 'pull_request'
+        run: |
+          set -euo pipefail
+          python3 scripts/ci/ci_risk_profile.py \
+            --base-sha "${{ github.event.pull_request.base.sha }}" \
+            --head-sha "${{ github.sha }}" \
+            --github-output "$GITHUB_OUTPUT"
+
   pr_scope_guard:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
@@ -70,6 +95,14 @@ jobs:
 
           echo "Running PR Scope Guard script..."
           bash scripts/ci/pr_scope_guard.sh
+
+      - name: PR size governance
+        run: |
+          set -euo pipefail
+          python3 scripts/ci/check_pr_size_governance.py \
+            --base-sha "${{ github.event.pull_request.base.sha }}" \
+            --head-sha "${{ github.sha }}" \
+            --event-path "$GITHUB_EVENT_PATH"
 
       - name: Design invariant guard
         run: |
@@ -295,6 +328,8 @@ jobs:
           SKIP: no-commit-to-branch
 
   security:
+    needs: [changes]
+    if: github.event_name != 'pull_request' || needs.changes.outputs.run_security == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -421,6 +456,8 @@ jobs:
 
   openapi-sync:
     name: OpenAPI sync (backend -> frontend artifacts)
+    needs: [changes]
+    if: github.event_name != 'pull_request' || needs.changes.outputs.run_openapi_sync == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
@@ -461,10 +498,10 @@ jobs:
       - name: Fail if generated artifacts differ
         run: git diff --exit-code frontend/src/api/openapi.json frontend/src/api/schema.ts
 
-  # Fast testing for PRs (single Python version)
+  # Tier 1 PR testing: critical smoke + contract/risk suites
   test-pr:
-    if: github.event_name == 'pull_request'
-    needs: [pr_scope_guard, openapi-sync]
+    if: github.event_name == 'pull_request' && needs.changes.outputs.run_backend_blocking == 'true'
+    needs: [changes, pr_scope_guard]
     runs-on: ubuntu-latest
     timeout-minutes: 60
     permissions:
@@ -519,10 +556,9 @@ jobs:
           ENVIRONMENT: test
           PYTHONPATH: "${{ github.workspace }}"
 
-      - name: Run tests with coverage
+      - name: Critical smoke (deterministic merge blocker)
         env:
           PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/tests"
-          MATRIX_PYTHON_VERSION: "${{ matrix.python-version }}"
           VIP_MODULE_ENABLED: "true"
           APP_ENV: test
           ENVIRONMENT: test
@@ -532,29 +568,113 @@ jobs:
           PYTHONFAULTHANDLER: "1"
           PYTHONMALLOC: "malloc"
         run: |
-          # Use pytest-xdist for parallel execution with proper coverage collection
-          # Project standard: maintain 97% coverage for PR branches before merge
-          # See .cursorrules and AGENTS.md for coverage requirements
-          #
-          # CI stability: Python 3.13 has seen intermittent segfaults under xdist+coverage.
-          # Run sequentially on 3.13; keep parallelism for older versions.
-          # Intentionally removed `--cov-context=test` due to flaky coverage DB corruption under xdist
-          # on Python 3.13 ("no such table: context"). Revisit after pytest/hypothesis upgrades.
-          PYVER="${MATRIX_PYTHON_VERSION}"
-          if [[ "$PYVER" == 3.13* ]]; then
-            # Fully disable xdist plugin on 3.13 (more stable than `-n 0`)
-            PYTEST_XDIST_ARGS=(-p no:xdist)
-          else
-            PYTEST_XDIST_ARGS=(-n 4 --dist=loadscope)
+          set -euo pipefail
+          python -m coverage erase
+          python -m coverage run -m pytest -q \
+            tests/edges tests/test_remaining_modules.py \
+            --maxfail=3 \
+            --junitxml=tests/smoke-results.xml \
+            -o junit_family=legacy
+
+      - name: Contract and risk suites
+        if: ${{ needs.changes.outputs.contract_risk_groups != '' }}
+        shell: bash
+        env:
+          PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/tests"
+          CONTRACT_RISK_GROUPS: "${{ needs.changes.outputs.contract_risk_groups }}"
+          VIP_MODULE_ENABLED: "true"
+          APP_ENV: test
+          ENVIRONMENT: test
+          FEATURE_PREMIUM_NUTRITION: "true"
+          API_KEY: "test_key"
+          PYTHONUNBUFFERED: "1"
+          PYTHONFAULTHANDLER: "1"
+          PYTHONMALLOC: "malloc"
+        run: |
+          set -euo pipefail
+
+          declare -A suite_targets=()
+
+          add_suite() {
+            for target in "$@"; do
+              suite_targets["$target"]=1
+            done
+          }
+
+          for group in ${CONTRACT_RISK_GROUPS//,/ }; do
+            case "$group" in
+              billing_entitlement)
+                add_suite \
+                  tests/test_api_tiers_db_lookup.py \
+                  tests/test_billing_openapi_contract.py \
+                  tests/test_ios_receipt_verification_api.py \
+                  tests/test_paid_route_guards.py \
+                  tests/test_payment_reconciliation_api.py \
+                  tests/test_payment_source_contract_api.py \
+                  tests/test_payment_webhook_signature_api.py \
+                  tests/test_pro_payments_openapi_contract.py \
+                  tests/test_subscription_activation_api.py
+                ;;
+              insight_ai)
+                add_suite \
+                  tests/test_core_ai_insight_runtime.py \
+                  tests/test_fitchef_insight_api.py \
+                  tests/test_insight_error_hygiene.py \
+                  tests/test_insight_vip_guard_api.py \
+                  tests/test_insight_vip_monthly_quota_api.py \
+                  tests/test_philosophy_validation_integration.py \
+                  tests/test_rate_limit_llm_and_exports_api.py
+                ;;
+              openapi_contract)
+                add_suite \
+                  tests/test_openapi_determinism.py \
+                  tests/test_openapi_import_safe_orm_guard.py \
+                  tests/test_openapi_namespace_guards.py
+                ;;
+              route_contract_safety)
+                add_suite \
+                  tests/test_api.py \
+                  tests/test_app_error_handling_combined.py \
+                  tests/test_app_extended_coverage.py \
+                  tests/test_legacy_app_diff_coverage.py
+                ;;
+              merge_governance)
+                add_suite \
+                  tests/test_check_pr_size_governance.py \
+                  tests/test_ci_risk_profile.py \
+                  tests/test_orchestration_merge_ready.py \
+                  tests/test_pr_body_phase2_gates.py \
+                  tests/test_pr_merge_readiness_gate.py \
+                  tests/test_review_threads_disposition_strict.py
+                ;;
+              *)
+                echo "::error::Unknown contract/risk group: $group"
+                exit 1
+                ;;
+            esac
+          done
+
+          if [ "${#suite_targets[@]}" -eq 0 ]; then
+            echo "No contract/risk suites selected."
+            exit 0
           fi
-          python -c "import sys; print('PY', sys.version)"
-          echo "PYTEST_XDIST_ARGS=${PYTEST_XDIST_ARGS[*]}"
-          python -X faulthandler -m pytest \
-            "${PYTEST_XDIST_ARGS[@]}" \
-            -m "not slow" \
-            --cov=. --cov-report=xml --cov-report=term-missing --cov-fail-under=97 \
-            --junitxml=tests/results.xml -o junit_family=legacy \
-            tests
+
+          mapfile -t SELECTED_TARGETS < <(printf '%s\n' "${!suite_targets[@]}" | sort)
+          printf 'Selected contract/risk suites:\n'
+          printf '  - %s\n' "${SELECTED_TARGETS[@]}"
+
+          python -m coverage run --append -m pytest -q \
+            "${SELECTED_TARGETS[@]}" \
+            --junitxml=tests/contract-results.xml \
+            -o junit_family=legacy
+
+      - name: Finalize coverage artifacts
+        env:
+          PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/tests"
+        run: |
+          set -euo pipefail
+          python -m coverage report -m
+          python -m coverage xml
 
       - name: Clean Python cache (post-test)
         if: always()
@@ -574,7 +694,9 @@ jobs:
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: junit-${{ env.COVERAGE_PY }}
-          path: tests/results.xml
+          path: |
+            tests/smoke-results.xml
+            tests/contract-results.xml
           if-no-files-found: ignore
           retention-days: 7
 
@@ -818,8 +940,8 @@ jobs:
 
   # Coverage reporting for PRs
   coverage-pr:
-    if: github.event_name == 'pull_request'
-    needs: [pr_scope_guard, test-pr]
+    if: github.event_name == 'pull_request' && needs.changes.outputs.run_backend_blocking == 'true'
+    needs: [changes, test-pr]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -848,8 +970,8 @@ jobs:
 
   diff-coverage:
     name: diff-coverage
-    if: github.event_name == 'pull_request'
-    needs: [pr_scope_guard, test-pr]
+    if: github.event_name == 'pull_request' && needs.changes.outputs.run_backend_blocking == 'true'
+    needs: [changes, pr_scope_guard, test-pr]
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:

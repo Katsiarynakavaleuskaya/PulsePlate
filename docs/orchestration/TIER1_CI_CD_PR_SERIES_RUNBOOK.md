@@ -54,6 +54,13 @@ Deliver a Tier 1 CI/CD consolidation program in stacked PRs that:
 - removes duplicate PR-time CI responsibilities in PR2,
 - introduces lightweight operational metrics without turning them into merge blockers.
 
+## Current State
+
+- PR-1 governance/bootstrap already landed in merged PR `#1240` (`24c51f85`).
+- PR-2 workflow consolidation already landed on `origin/main` via PR `#1244` (`b7e029b4`).
+- This runbook now treats PR-3 as the active execution slice and PR-4 as the next follow-up wave.
+- Do not restart the series from PR-1; reconcile Tier 1 bookkeeping inside PR-3 and continue forward.
+
 ## PR Series
 
 ### PR-1: Governance and Canonical Matrix Sync
@@ -62,6 +69,7 @@ Deliver a Tier 1 CI/CD consolidation program in stacked PRs that:
 - Align the CI/governance operating model with the existing contract matrix.
 - Record the Tier 1 epic and child PR slices in `docs/roadmap/BACKLOG_LEDGER.md`.
 - Resolve ledger drift where CI-classification work is already complete at the contract level.
+- Status: landed in PR `#1240`; retained here as completed baseline context.
 
 ### PR-2: Workflow Consolidation
 
@@ -70,18 +78,22 @@ Deliver a Tier 1 CI/CD consolidation program in stacked PRs that:
 - `security.yml` is a scheduled/manual audit lane, and `trivy.yml` remains a `main`/schedule/manual image-security lane; neither is a canonical PR blocker.
 - Keep `build.yml`, frontend-only, and nightly-only surfaces separate.
 - Workflow/governance PRs may still trigger specialized repo-level lanes such as `Frontend CI`, CodeQL, or Docker/image workflows; PR2 only makes `ci.yml` the canonical backend/shared merge-truth surface.
+- Status: landed in PR `#1244`; retained here as completed baseline context.
 
 ### PR-3: Risk-Based PR Test Topology
 
+- Open with the required reconciliation step so Tier 1 docs/backlog reflect landed PR-1 / PR-2 state before new topology work starts.
 - Split PR execution into deterministic smoke, contract/risk suites, and nightly-only depth.
 - Keep PR blockers focused on business-critical surfaces.
-- Add PR-size governance and explicit split/justify rules.
+- Add PR-size governance and explicit `## Split Justification` PR-body proof for `>800` LoC cases.
+- Status: active next execution slice.
 
 ### PR-4: CI Metrics and Feedback Loop
 
 - Add lightweight non-blocking CI metrics collection under `scripts/ci/`.
 - Emit summary artifacts for critical-path duration, reruns, red-build rate, and xdist fallback frequency.
 - Wire a weekly reporting path without changing merge blockers.
+- Status: next/deferred until PR-3 lands.
 
 ## Routing Card
 
@@ -110,6 +122,7 @@ Deliver a Tier 1 CI/CD consolidation program in stacked PRs that:
    - duplicate PR-time lanes are retired as active PR lanes
    - required-check coverage is preserved
 3. **PR-3 risk topology**
+   - reconciliation step captures landed PR-1 / PR-2 evidence first
    - blocking smoke/contract lanes documented and enforced
    - nightly-only depth explicitly separated
    - PR-size governance documented and validated
