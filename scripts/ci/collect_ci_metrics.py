@@ -1,0 +1,583 @@
+#!/usr/bin/env python3
+"""Collect lightweight CI metrics for the canonical Tier 1 backend/shared lane."""
+
+from __future__ import annotations
+
+import argparse
+import http.client
+import json
+import os
+import urllib.error
+import urllib.parse
+from datetime import UTC, datetime, timedelta
+from pathlib import Path
+from typing import Any
+
+GITHUB_API_HOST = "api.github.com"
+USER_AGENT = "pulseplate-ci-metrics"
+CI_XDIST_FALLBACK_MARKER = "PYTEST_XDIST_ARGS=-p no:xdist"
+DEFAULT_LOOKBACK_DAYS = 7
+DEFAULT_MAX_RUNS = 20
+DEFAULT_WORKFLOW_FILE = "ci.yml"
+DEFAULT_WORKFLOW_NAME = "CI"
+DEFAULT_BRANCH = "main"
+
+
+def _github_token() -> str:
+    """Return the preferred GitHub auth token from environment."""
+
+    return os.getenv("GH_TOKEN", "").strip() or os.getenv("GITHUB_TOKEN", "").strip()
+
+
+def _parse_iso8601(value: str) -> datetime | None:
+    """Parse an ISO-8601 timestamp into UTC-aware datetime."""
+
+    if not value:
+        return None
+    normalized = value.replace("Z", "+00:00")
+    parsed = datetime.fromisoformat(normalized)
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=UTC)
+    return parsed.astimezone(UTC)
+
+
+def _duration_seconds(started_at: str, completed_at: str) -> int | None:
+    """Return whole-second duration when both timestamps are available."""
+
+    started = _parse_iso8601(started_at)
+    completed = _parse_iso8601(completed_at)
+    if started is None or completed is None:
+        return None
+    return max(0, int((completed - started).total_seconds()))
+
+
+def _api_json(url: str, *, token: str) -> Any:
+    """Perform one GitHub API request and decode JSON response."""
+
+    parsed = urllib.parse.urlparse(url)
+    if parsed.scheme != "https" or parsed.netloc != GITHUB_API_HOST:
+        raise ValueError(f"Unsupported API URL: {url}")
+
+    path = parsed.path
+    if parsed.query:
+        path = f"{path}?{parsed.query}"
+
+    conn = http.client.HTTPSConnection(parsed.netloc, timeout=30)
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Accept": "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+        "User-Agent": USER_AGENT,
+    }
+    try:
+        conn.request("GET", path, headers=headers)
+        response = conn.getresponse()
+        body = response.read()
+    finally:
+        conn.close()
+
+    if response.status >= 400:
+        raise urllib.error.HTTPError(
+            url=url,
+            code=response.status,
+            msg=response.reason,
+            hdrs=response.headers,
+            fp=None,
+        )
+    return json.loads(body.decode("utf-8"))
+
+
+def _read_text_url(url: str, *, headers: dict[str, str] | None = None) -> str:
+    """Fetch plain-text content and follow one redirect when GitHub returns signed URLs.
+
+    RU: Для job logs GitHub API отдаёт 302 на временный URL, поэтому follow делаем явно.
+    EN: Job logs come back as 302 redirects to signed URLs, so follow them explicitly.
+    """
+
+    parsed = urllib.parse.urlparse(url)
+    if parsed.scheme != "https":
+        raise ValueError(f"Unsupported URL scheme: {url}")
+
+    path = parsed.path
+    if parsed.query:
+        path = f"{path}?{parsed.query}"
+
+    conn = http.client.HTTPSConnection(parsed.netloc, timeout=30)
+    try:
+        conn.request("GET", path, headers=headers or {})
+        response = conn.getresponse()
+        body = response.read()
+        location = response.headers.get("Location", "")
+    finally:
+        conn.close()
+
+    if response.status in {301, 302, 303, 307, 308}:
+        if not location:
+            raise RuntimeError(f"Redirect without location for {url}")
+        return _read_text_url(location)
+
+    if response.status >= 400:
+        raise urllib.error.HTTPError(
+            url=url,
+            code=response.status,
+            msg=response.reason,
+            hdrs=response.headers,
+            fp=None,
+        )
+    return body.decode("utf-8", errors="replace")
+
+
+def _fetch_workflow_runs(
+    *, repo: str, workflow_file: str, branch: str, max_runs: int, token: str
+) -> list[dict[str, Any]]:
+    """Fetch recent completed runs for one workflow file on one branch."""
+
+    owner, name = repo.split("/", maxsplit=1)
+    url = (
+        f"https://{GITHUB_API_HOST}/repos/{owner}/{name}/actions/workflows/"
+        f"{urllib.parse.quote(workflow_file, safe='')}/runs"
+        f"?branch={urllib.parse.quote(branch, safe='')}&status=completed&per_page={max_runs}"
+    )
+    payload = _api_json(url, token=token)
+    return list(payload.get("workflow_runs") or [])
+
+
+def _fetch_run_jobs(*, jobs_url: str, token: str) -> list[dict[str, Any]]:
+    """Fetch jobs for one workflow run."""
+
+    payload = _api_json(jobs_url, token=token)
+    return list(payload.get("jobs") or [])
+
+
+def _fetch_job_log_text(*, repo: str, job_id: int, token: str) -> str:
+    """Fetch raw log text for one job by following the API redirect."""
+
+    owner, name = repo.split("/", maxsplit=1)
+    url = f"https://{GITHUB_API_HOST}/repos/{owner}/{name}/actions/jobs/{job_id}/logs"
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Accept": "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+        "User-Agent": USER_AGENT,
+    }
+    return _read_text_url(url, headers=headers)
+
+
+def _filter_recent_runs(runs: list[dict[str, Any]], *, lookback_days: int) -> list[dict[str, Any]]:
+    """Keep only runs whose creation timestamp falls within the lookback window."""
+
+    cutoff = datetime.now(UTC) - timedelta(days=lookback_days)
+    filtered: list[dict[str, Any]] = []
+    for run in runs:
+        created_at = _parse_iso8601(str(run.get("created_at") or ""))
+        if created_at is not None and created_at >= cutoff:
+            filtered.append(run)
+    return filtered
+
+
+def _rerun_summary(runs: list[dict[str, Any]]) -> dict[str, Any]:
+    """Compute rerun count/rate from repeated workflow runs on the same SHA."""
+
+    counts_by_sha: dict[str, int] = {}
+    for run in runs:
+        head_sha = str(run.get("head_sha") or "").strip()
+        if not head_sha:
+            continue
+        counts_by_sha[head_sha] = counts_by_sha.get(head_sha, 0) + 1
+
+    rerun_count = sum(max(0, count - 1) for count in counts_by_sha.values())
+    scanned_runs = len(runs)
+    rerun_rate = None if scanned_runs == 0 else round(rerun_count / scanned_runs, 4)
+    return {
+        "state": "available",
+        "rerun_count": rerun_count,
+        "rerun_rate": rerun_rate,
+        "unique_head_shas": len(counts_by_sha),
+    }
+
+
+def _red_build_rate_summary(runs: list[dict[str, Any]]) -> dict[str, Any]:
+    """Compute failed/cancelled rate across the scanned CI runs."""
+
+    scanned_runs = len(runs)
+    if scanned_runs == 0:
+        return {
+            "state": "unavailable",
+            "reason": "No completed CI runs found inside the lookback window.",
+        }
+
+    red_conclusions = {"failure", "cancelled", "timed_out", "startup_failure", "stale"}
+    red_runs = 0
+    success_runs = 0
+    neutral_runs = 0
+    for run in runs:
+        conclusion = str(run.get("conclusion") or "").strip().lower()
+        if conclusion == "success":
+            success_runs += 1
+        elif conclusion in red_conclusions:
+            red_runs += 1
+        else:
+            neutral_runs += 1
+
+    return {
+        "state": "available",
+        "red_runs": red_runs,
+        "successful_runs": success_runs,
+        "neutral_runs": neutral_runs,
+        "red_build_rate": round(red_runs / scanned_runs, 4),
+    }
+
+
+def _critical_path_summary(
+    latest_run: dict[str, Any] | None, latest_jobs: list[dict[str, Any]]
+) -> dict[str, Any]:
+    """Summarize duration of the latest completed canonical CI run and its jobs."""
+
+    if latest_run is None:
+        return {
+            "state": "unavailable",
+            "reason": "No completed CI runs found inside the lookback window.",
+        }
+
+    latest_run_duration_seconds = _duration_seconds(
+        str(latest_run.get("run_started_at") or ""),
+        str(latest_run.get("updated_at") or ""),
+    )
+    jobs: list[dict[str, Any]] = []
+    for job in latest_jobs:
+        if str(job.get("conclusion") or "").strip().lower() == "skipped":
+            continue
+        duration_seconds = _duration_seconds(
+            str(job.get("started_at") or ""),
+            str(job.get("completed_at") or ""),
+        )
+        jobs.append(
+            {
+                "name": str(job.get("name") or ""),
+                "conclusion": str(job.get("conclusion") or ""),
+                "duration_seconds": duration_seconds,
+            }
+        )
+
+    return {
+        "state": "available",
+        "latest_run_id": latest_run.get("id"),
+        "latest_run_number": latest_run.get("run_number"),
+        "latest_run_conclusion": latest_run.get("conclusion"),
+        "latest_run_duration_seconds": latest_run_duration_seconds,
+        "jobs": jobs,
+    }
+
+
+def _find_python313_job(jobs: list[dict[str, Any]]) -> dict[str, Any] | None:
+    """Find the canonical main-branch Python 3.13 job when present."""
+
+    for job in jobs:
+        name = str(job.get("name") or "")
+        if "test-main" in name and "3.13" in name:
+            return job
+    return None
+
+
+def _xdist_fallback_summary(
+    *,
+    repo: str,
+    latest_run: dict[str, Any] | None,
+    latest_jobs: list[dict[str, Any]],
+    runs: list[dict[str, Any]],
+    token: str,
+) -> tuple[dict[str, Any], list[str]]:
+    """Estimate xdist fallback frequency from the Python 3.13 canonical main job logs."""
+
+    warnings: list[str] = []
+    if latest_run is None:
+        return (
+            {
+                "state": "unavailable",
+                "reason": "No completed CI runs found inside the lookback window.",
+            },
+            warnings,
+        )
+
+    observed_runs = 0
+    fallback_hits = 0
+    for run in runs:
+        jobs_url = str(run.get("jobs_url") or "")
+        if not jobs_url:
+            continue
+        jobs = (
+            latest_jobs
+            if run.get("id") == latest_run.get("id")
+            else _fetch_run_jobs(jobs_url=jobs_url, token=token)
+        )
+        python313_job = _find_python313_job(jobs)
+        if python313_job is None:
+            continue
+        observed_runs += 1
+        job_id = int(python313_job.get("id"))
+        try:
+            log_text = _fetch_job_log_text(repo=repo, job_id=job_id, token=token)
+        except (RuntimeError, urllib.error.HTTPError, ValueError) as exc:
+            warnings.append(
+                "xdist fallback frequency is unknown because Python 3.13 job logs "
+                f"could not be read for run {run.get('id')}: {exc}"
+            )
+            return (
+                {
+                    "state": "unknown",
+                    "reason": "Python 3.13 job logs were unavailable.",
+                },
+                warnings,
+            )
+        if CI_XDIST_FALLBACK_MARKER in log_text:
+            fallback_hits += 1
+
+    if observed_runs == 0:
+        warnings.append(
+            "xdist fallback frequency is unknown because no canonical 'test-main (3.13)' jobs "
+            "were found in the scanned CI runs."
+        )
+        return (
+            {
+                "state": "unknown",
+                "reason": "No canonical Python 3.13 main-branch test jobs were found.",
+            },
+            warnings,
+        )
+
+    return (
+        {
+            "state": "available",
+            "observed_runs": observed_runs,
+            "fallback_hits": fallback_hits,
+            "fallback_rate": round(fallback_hits / observed_runs, 4),
+            "marker": CI_XDIST_FALLBACK_MARKER,
+        },
+        warnings,
+    )
+
+
+def _latest_completed_run(runs: list[dict[str, Any]]) -> dict[str, Any] | None:
+    """Return the newest completed run from the filtered set."""
+
+    if not runs:
+        return None
+    return max(runs, key=lambda run: str(run.get("created_at") or ""))
+
+
+def _render_markdown_summary(payload: dict[str, Any]) -> str:
+    """Render a compact Markdown report suitable for artifacts and step summary."""
+
+    critical_path = payload["critical_path_duration"]
+    reruns = payload["reruns"]
+    red_build_rate = payload["red_build_rate"]
+    xdist_fallback = payload["xdist_fallback_frequency"]
+    warnings = list(payload.get("warnings") or [])
+    notes = list(payload.get("notes") or [])
+
+    lines = [
+        "# Tier 1 CI Metrics Summary",
+        "",
+        f"- Generated at: `{payload['generated_at']}`",
+        f"- Repo: `{payload['repo']}`",
+        f"- Workflow: `{payload['ci_workflow']}` on branch `{payload['branch']}`",
+        f"- Lookback window: `{payload['lookback_days']}` days",
+        f"- Scanned runs: `{payload['scanned_runs']}`",
+        "",
+        "## Highlights",
+    ]
+
+    if critical_path["state"] == "available":
+        lines.append(
+            f"- Latest CI run `{critical_path['latest_run_id']}` took "
+            f"`{critical_path['latest_run_duration_seconds']}` seconds "
+            f"with conclusion `{critical_path['latest_run_conclusion']}`."
+        )
+    else:
+        lines.append(f"- Critical-path duration: {critical_path['reason']}")
+
+    if reruns["state"] == "available":
+        lines.append(
+            f"- Reruns: `{reruns['rerun_count']}` across `{payload['scanned_runs']}` scanned runs "
+            f"(rate `{reruns['rerun_rate']}`)."
+        )
+
+    if red_build_rate["state"] == "available":
+        lines.append(
+            f"- Red-build rate: `{red_build_rate['red_build_rate']}` "
+            f"(`{red_build_rate['red_runs']}` red, `{red_build_rate['successful_runs']}` successful)."
+        )
+    else:
+        lines.append(f"- Red-build rate: {red_build_rate['reason']}")
+
+    if xdist_fallback["state"] == "available":
+        lines.append(
+            f"- Python 3.13 xdist fallback frequency: `{xdist_fallback['fallback_rate']}` "
+            f"(`{xdist_fallback['fallback_hits']}` / `{xdist_fallback['observed_runs']}`)."
+        )
+    else:
+        lines.append(f"- Python 3.13 xdist fallback frequency: {xdist_fallback['reason']}")
+
+    if critical_path["state"] == "available":
+        lines.extend(["", "## Latest Run Job Durations"])
+        for job in critical_path["jobs"]:
+            lines.append(
+                f"- `{job['name']}`: `{job['duration_seconds']}` seconds "
+                f"({job['conclusion'] or 'unknown'})"
+            )
+
+    if warnings:
+        lines.extend(["", "## Warnings"])
+        lines.extend(f"- {warning}" for warning in warnings)
+
+    if notes:
+        lines.extend(["", "## Notes"])
+        lines.extend(f"- {note}" for note in notes)
+
+    return "\n".join(lines) + "\n"
+
+
+def _build_summary(
+    *,
+    repo: str,
+    branch: str,
+    workflow_name: str,
+    workflow_file: str,
+    lookback_days: int,
+    max_runs: int,
+    token: str,
+) -> dict[str, Any]:
+    """Collect workflow metrics and return the canonical summary payload."""
+
+    runs = _fetch_workflow_runs(
+        repo=repo,
+        workflow_file=workflow_file,
+        branch=branch,
+        max_runs=max_runs,
+        token=token,
+    )
+    recent_runs = _filter_recent_runs(runs, lookback_days=lookback_days)
+    latest_run = _latest_completed_run(recent_runs)
+    latest_jobs = (
+        _fetch_run_jobs(jobs_url=str(latest_run.get("jobs_url") or ""), token=token)
+        if latest_run is not None
+        else []
+    )
+
+    xdist_fallback_summary, warnings = _xdist_fallback_summary(
+        repo=repo,
+        latest_run=latest_run,
+        latest_jobs=latest_jobs,
+        runs=recent_runs,
+        token=token,
+    )
+    notes = [
+        "Headline metrics are calculated from the canonical backend/shared 'CI' workflow on 'main'.",
+        "Specialized add-on lanes remain contextual and do not influence the headline Tier 1 rates.",
+    ]
+
+    return {
+        "repo": repo,
+        "generated_at": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
+        "lookback_days": lookback_days,
+        "max_runs": max_runs,
+        "scanned_runs": len(recent_runs),
+        "branch": branch,
+        "ci_workflow": workflow_name,
+        "critical_path_duration": _critical_path_summary(latest_run, latest_jobs),
+        "reruns": _rerun_summary(recent_runs),
+        "red_build_rate": _red_build_rate_summary(recent_runs),
+        "xdist_fallback_frequency": xdist_fallback_summary,
+        "notes": notes,
+        "warnings": warnings,
+    }
+
+
+def _build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--repo",
+        default=os.getenv("GITHUB_REPOSITORY", "").strip(),
+        help="Repository in owner/name format (default: GITHUB_REPOSITORY).",
+    )
+    parser.add_argument(
+        "--workflow-file",
+        default=DEFAULT_WORKFLOW_FILE,
+        help=f"Workflow file to query (default: {DEFAULT_WORKFLOW_FILE}).",
+    )
+    parser.add_argument(
+        "--workflow-name",
+        default=DEFAULT_WORKFLOW_NAME,
+        help=f"Display name for the workflow summary (default: {DEFAULT_WORKFLOW_NAME}).",
+    )
+    parser.add_argument(
+        "--branch",
+        default=DEFAULT_BRANCH,
+        help=f"Branch to scan for workflow runs (default: {DEFAULT_BRANCH}).",
+    )
+    parser.add_argument(
+        "--lookback-days",
+        type=int,
+        default=DEFAULT_LOOKBACK_DAYS,
+        help=f"Lookback window in days (default: {DEFAULT_LOOKBACK_DAYS}).",
+    )
+    parser.add_argument(
+        "--max-runs",
+        type=int,
+        default=DEFAULT_MAX_RUNS,
+        help=f"Maximum number of workflow runs to inspect (default: {DEFAULT_MAX_RUNS}).",
+    )
+    parser.add_argument(
+        "--json-out",
+        type=Path,
+        required=True,
+        help="Path to the JSON summary artifact.",
+    )
+    parser.add_argument(
+        "--markdown-out",
+        type=Path,
+        required=True,
+        help="Path to the Markdown summary artifact.",
+    )
+    return parser
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = _build_parser()
+    args = parser.parse_args(argv)
+
+    if "/" not in args.repo:
+        parser.error("--repo must be provided in owner/name format.")
+    if args.lookback_days <= 0:
+        parser.error("--lookback-days must be positive.")
+    if args.max_runs <= 0:
+        parser.error("--max-runs must be positive.")
+
+    token = _github_token()
+    if not token:
+        print("ERROR: GH_TOKEN or GITHUB_TOKEN is required for CI metrics collection.")
+        return 1
+
+    payload = _build_summary(
+        repo=args.repo,
+        branch=args.branch,
+        workflow_name=args.workflow_name,
+        workflow_file=args.workflow_file,
+        lookback_days=args.lookback_days,
+        max_runs=args.max_runs,
+        token=token,
+    )
+    markdown = _render_markdown_summary(payload)
+
+    args.json_out.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    args.markdown_out.write_text(markdown, encoding="utf-8")
+
+    print(
+        f"ci-metrics: wrote {args.json_out} and {args.markdown_out} "
+        f"for workflow '{args.workflow_name}' on '{args.branch}'."
+    )
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
