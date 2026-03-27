@@ -27,7 +27,8 @@ Use the repo mascot canon first:
 ## Current Canonical Figma Boards
 
 The current governed Figma reference boards for the FitChef mascot lane live in
-file `2JDwOByQIbcPgp93FDzHii`.
+file `2JDwOByQIbcPgp93FDzHii`
+(`https://www.figma.com/design/2JDwOByQIbcPgp93FDzHii/PulsePlate_v3_Canonical_Foundations_Welcome_Gate`).
 
 - Page `02_Brand_Assets`:
   - `72:2` `FitChef Mascot Asset Register / Canonical`
