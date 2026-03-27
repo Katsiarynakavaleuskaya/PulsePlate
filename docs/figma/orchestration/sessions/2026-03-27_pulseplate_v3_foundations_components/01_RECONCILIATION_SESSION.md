@@ -1,5 +1,7 @@
 # Figma Reconciliation Session - PulsePlate v3 Foundations and Components (2026-03-27)
 
+> Workspace access policy: internal-only. Canonical Figma file keys, node IDs, and MCP capture IDs are redacted in this artifact; repo-authoritative surface names remain visible for auditability.
+
 ## Session Metadata
 
 - Date: March 27, 2026
@@ -12,14 +14,14 @@
   - `http://127.0.0.1:4173/design-system`
   - `http://127.0.0.1:4173/welcome-gate-v1`
 - Source URL: repo-authoritative frontend surfaces only
-- Target file/workspace URL: `https://www.figma.com/design/2JDwOByQIbcPgp93FDzHii`
+- Target file/workspace URL: `https://www.figma.com/design/<redacted-make-file-key>`
 - Target node/frame/page URL:
-  - `00_Foundation_Tokens` page `6:2`
-  - `Token Governance Board` frame `6:8`
-  - `01_Components` page `6:3`
-  - `02_Brand_Assets` page `6:4`
-  - `10_Welcome_Gate` page `6:5`
-  - `11_Welcome_Gate_States` page `6:6`
+  - `00_Foundation_Tokens` page `<redacted-node-id>`
+  - `Token Governance Board` frame `<redacted-node-id>`
+  - `01_Components` page `<redacted-node-id>`
+  - `02_Brand_Assets` page `<redacted-node-id>`
+  - `10_Welcome_Gate` page `<redacted-node-id>`
+  - `11_Welcome_Gate_States` page `<redacted-node-id>`
 
 ## Preconditions Check
 
@@ -76,17 +78,17 @@
 ### Figma MCP baseline
 
 - `whoami` status: authenticated `Full` seat on `pro`
-- Clean canonical file key: `2JDwOByQIbcPgp93FDzHii`
+- Clean canonical file key: `<redacted-make-file-key>`
 - Current clean-file page structure verified before edits:
-  - `6:2` `00_Foundation_Tokens`
-  - `6:3` `01_Components`
-  - `6:4` `02_Brand_Assets`
-  - `6:5` `10_Welcome_Gate`
-  - `6:6` `11_Welcome_Gate_States`
-  - `6:7` `90_Audit_Archive`
-  - `0:1` `99_Runtime_Reserved`
+  - `<redacted-node-id>` `00_Foundation_Tokens`
+  - `<redacted-node-id>` `01_Components`
+  - `<redacted-node-id>` `02_Brand_Assets`
+  - `<redacted-node-id>` `10_Welcome_Gate`
+  - `<redacted-node-id>` `11_Welcome_Gate_States`
+  - `<redacted-node-id>` `90_Audit_Archive`
+  - `<redacted-node-id>` `99_Runtime_Reserved`
 - Existing non-empty governed node confirmed:
-  - `6:8` `Token Governance Board`
+  - `<redacted-node-id>` `Token Governance Board`
 
 ## Repo-Authoritative Mapping Decisions
 
@@ -100,58 +102,64 @@
 
 ## Selected Nodes and Context Records
 
-- `6:8` `Token Governance Board`
+- `<redacted-node-id>` `Token Governance Board`
   - `get_design_context`: success
   - `get_screenshot`: success
   - Status before packet: already populated and broadly aligned to repo token governance
-- `6:3` `01_Components`
+- `<redacted-node-id>` `01_Components`
   - Status before packet: empty page
-  - Figma write result: `20:2` `Components Governance Board`
+  - Figma write result: `<redacted-node-id>` `Components Governance Board`
   - Governed component nodes created:
-    - `20:17` `PP/Shared/Button`
-    - `20:35` `PP/Shared/Input`
-    - `20:47` `PP/Shared/FormField`
-    - `20:61` `PP/Shared/Card`
-    - `20:74` `PP/Web/Dialog`
-    - `20:88` `PP/Shared/Toggle`
-    - `20:99` `PP/Shared/SegmentedControl`
-    - `20:113` `PP/Web/EmptyState`
-    - `20:127` `PP/Shared/Skeleton`
-- `6:4` `02_Brand_Assets`
+    - `<redacted-node-id>` `PP/Shared/Button`
+    - `<redacted-node-id>` `PP/Shared/Input`
+    - `<redacted-node-id>` `PP/Shared/FormField`
+    - `<redacted-node-id>` `PP/Shared/Card`
+    - `<redacted-node-id>` `PP/Web/Dialog`
+    - `<redacted-node-id>` `PP/Shared/Toggle`
+    - `<redacted-node-id>` `PP/Shared/SegmentedControl`
+    - `<redacted-node-id>` `PP/Web/EmptyState`
+    - `<redacted-node-id>` `PP/Shared/Skeleton`
+- `<redacted-node-id>` `02_Brand_Assets`
   - Status before packet: empty page
-  - Browser-backed Figma capture result: `24:2` `PulsePlate Brand Assets Inventory`
-  - Capture id: `1b8d4ce2-efe4-46e1-a664-004d6d96c0b6`
+  - Browser-backed Figma capture result: `<redacted-node-id>` `PulsePlate Brand Assets Inventory`
+  - Capture id: `<redacted-capture-id>`
   - `get_metadata`: success
   - `get_design_context`: success
   - `get_screenshot`: success
   - Manual cleanup result:
-    - legacy board `6:20` removed
+    - legacy board `<redacted-node-id>` removed
     - inventory board repositioned to canonical page origin
-- `6:5` `10_Welcome_Gate`
+- `<redacted-node-id>` `10_Welcome_Gate`
   - Status before packet: empty page
-  - Browser-backed Figma capture result: `23:2` `Section (PulsePlate Frontend)`
-  - Capture id: `95fc7bbd-c105-464a-9e44-a80b924a326a`
+  - Browser-backed Figma capture result: `<redacted-node-id>` `Section (PulsePlate Frontend)`
+  - Capture id: `<redacted-capture-id>`
   - `get_metadata`: success
   - `get_design_context`: success
   - `get_screenshot`: success
   - Manual cleanup result:
-    - legacy pilot board `6:26` removed
+    - legacy pilot board `<redacted-node-id>` removed
     - runtime capture renamed to `PP/WelcomeGate/Screen1ParityCapture` and moved to page origin
-    - scope overlay `29:2` added to restate packet limits and defer screens `2-4`
-- `6:6` `11_Welcome_Gate_States`
+    - scope overlay `<redacted-node-id>` added to restate packet limits and defer screens `2-4`
+- `<redacted-node-id>` `11_Welcome_Gate_States`
   - Status before packet: empty page
-  - Figma write result: `20:172` `Welcome Gate States Board`
-  - Governed state cards created:
-    - `Default / EN`
-    - `Locale / RU`
-    - `Locale / ES`
-    - `Blocked / Future Screens`
+  - Figma write result: `<redacted-node-id>` `Welcome Gate States Board`
+  - Governed cards created for state-and-scope review:
+    - interaction state:
+      - `Default / EN`
+    - locale variants captured for copy/layout comparison only:
+      - `Locale / RU`
+      - `Locale / ES`
+    - scope placeholder captured as non-implementation state:
+      - `Blocked / Future Screens`
 
 ## Resolved Drift Items
 
 - Local-only `artifacts/` path was excluded from git status via local `.git/info/exclude` handling before repo edits continued.
 - `01_Components` was rebuilt as repo-governed primitives only; no ad-hoc clean-file-only shared components were invented.
-- `11_Welcome_Gate_States` was constrained to screen-1-adjacent governed states only; future-screen runtime promotion was not modeled as implementation-ready.
+- `11_Welcome_Gate_States` was constrained to screen-1 governance only:
+  - `Default / EN` is the only interaction-ready state captured in this packet
+  - locale cards are documentation variants for copy/layout review, not separate interaction states
+  - `Blocked / Future Screens` is a scope placeholder, not an implementation-ready UI state
 - `02_Brand_Assets` now includes a repo-backed inventory board sourced from runtime-served brand assets only:
   - `pulseplate-brand-mark.png`
   - `fitchef-onboarding-welcome-v1.png`
@@ -159,8 +167,8 @@
   - `fitchef-portrait-wink-v1.png`
 - `10_Welcome_Gate` now contains a current runtime-backed capture of `/welcome-gate-v1`, preserving preview-only scope and existing locale/policy copy.
 - Legacy left-side placeholder boards were manually cleaned from the clean canonical file where needed:
-  - `6:20` removed from `02_Brand_Assets`
-  - `6:26` removed from `10_Welcome_Gate`
+  - `<redacted-node-id>` removed from `02_Brand_Assets`
+  - `<redacted-node-id>` removed from `10_Welcome_Gate`
 
 ## Known Constraints and Remaining Blockers
 
@@ -179,6 +187,7 @@
   - browser-backed `generate_figma_design` captures are visible in `get_metadata` / `get_design_context` / `get_screenshot`
   - follow-up `use_figma` page-child introspection did not reflect those capture nodes consistently
   - explicit node-id cleanup succeeded, but page-level screenshot framing is still somewhat inconsistent for large canvases
+- This evidence packet confirms page structure, governed node names, and browser-backed capture presence, but does not prove node-level token bindings property-by-property.
 - Screens `2-4` are intentionally untouched in both runtime and Figma design scope until exact design URLs and node captures exist.
 
 ## Execution Status
@@ -191,16 +200,17 @@
 
 ## Validation
 
-- Visual parity status: packet scope completed
-- Naming convention status: baseline pass
+- Visual parity status: browser-backed screen-1 capture and governed page structure documented; independent token-binding audit still pending
+- Naming convention status: baseline pass for page and namespace naming; state taxonomy normalized as partial-governed evidence only
 - Layer hygiene status: partial pass
-- Canonical source precedence status: pass
+- Canonical source precedence status: documented pass; node-level token-binding proof still pending
 - Browser evidence re-check:
   - `/design-system`: baseline retained for repo SoT comparison
   - `/welcome-gate-v1`: current runtime preview captured and reconciled into Figma
 - Figma page screenshots captured after write:
-  - page `6:4` metadata confirms single authoritative board `24:2`
-  - page `6:5` metadata confirms runtime capture `23:2` plus scope overlay `29:2`
+  - page `<redacted-node-id>` metadata confirms a single authoritative brand board
+  - page `<redacted-node-id>` metadata confirms runtime capture plus scope overlay
+  - current packet evidence is sufficient for naming/scope validation, but not for a property-level token audit
 
 ## Security Check
 
@@ -211,7 +221,12 @@
 ## Raw Evidence
 
 - Command 1: `python3 scripts/orchestration/check_preflight.py`
-- Output lines: `Preflight PASSED`
+- Output lines:
+  - `PASS: All required SoT files present`
+  - `PASS: worktrees/ not tracked`
+  - `PASS: agent consistency check`
+  - `WARNING: analyze mode without --path skips scoped AGENTS resolution`
+  - `INFO: analyze mode allows dirty working tree`
 - Exit code: `0`
 
 - Command 2: Figma MCP `whoami`
@@ -225,39 +240,39 @@
   - console warnings limited to unset `VITE_API_BASE`
 - Exit code: success
 
-- Command 4: Figma MCP `use_figma` on page `6:3`
+- Command 4: Figma MCP `use_figma` on page `<redacted-node-id>`
 - Output lines:
-  - `componentsPage: 6:3`
-  - `componentsResult.boardId: 20:2`
+  - `componentsPage: <redacted-node-id>`
+  - `componentsResult.boardId: <redacted-node-id>`
   - nine governed shared/web primitives created
 - Exit code: success
 
-- Command 5: Figma MCP `use_figma` on page `6:6`
+- Command 5: Figma MCP `use_figma` on page `<redacted-node-id>`
 - Output lines:
-  - `statesPage: 6:6`
-  - `statesResult.boardId: 20:172`
-  - four controlled state cards created
+  - `statesPage: <redacted-node-id>`
+  - `statesResult.boardId: <redacted-node-id>`
+  - four governed review cards created: one interaction state, two locale variants, one scope placeholder
 - Exit code: success
 
 - Command 6: Figma MCP `generate_figma_design` for Welcome Gate parity
 - Output lines:
-  - capture id `95fc7bbd-c105-464a-9e44-a80b924a326a`
-  - design added to existing file at node `23:2`
+  - capture id `<redacted-capture-id>`
+  - design added to existing file at node `<redacted-node-id>`
 - Exit code: success
 
 - Command 7: Figma MCP `generate_figma_design` for Brand Assets inventory
 - Output lines:
-  - capture id `1b8d4ce2-efe4-46e1-a664-004d6d96c0b6`
-  - design added to existing file at node `24:2`
+  - capture id `<redacted-capture-id>`
+  - design added to existing file at node `<redacted-node-id>`
 - Exit code: success
 
 - Command 8: Figma MCP `use_figma` explicit cleanup by node ids
 - Output lines:
-  - removed `6:20` `Brand Asset Governance Board`
-  - removed `6:26` `Welcome Gate Pilot`
-  - moved `24:2` -> `PP/Brand/InventoryBoard`
-  - moved `23:2` -> `PP/WelcomeGate/Screen1ParityCapture`
-  - added scope overlay `29:2`
+  - removed `<redacted-node-id>` `Brand Asset Governance Board`
+  - removed `<redacted-node-id>` `Welcome Gate Pilot`
+  - moved `<redacted-node-id>` -> `PP/Brand/InventoryBoard`
+  - moved `<redacted-node-id>` -> `PP/WelcomeGate/Screen1ParityCapture`
+  - added scope overlay `<redacted-node-id>`
 - Exit code: success
 
 ## Follow-ups
