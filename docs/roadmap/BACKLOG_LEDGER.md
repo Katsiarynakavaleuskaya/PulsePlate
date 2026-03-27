@@ -2061,7 +2061,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Coordinator automation PR2 — bootstrap engine hardening
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-TBD-AUTOMATION-PR2-BOOTSTRAP-HARDENING
+  - Target PR: PR-1254
   - Area: orchestration / task bootstrap / packet schema
   - Finding Type: automation rollout slice
   - Reason: PR1 locks the governance boundary, but coordinator-first still remains policy-required rather than reliably packet-driven for every non-trivial task. The next slice must harden `task_bootstrap` and related bridge contracts without mixing in PR lifecycle or design-lane behavior.
