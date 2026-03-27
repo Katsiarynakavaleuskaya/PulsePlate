@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 import pytest
+import scripts.orchestration.skill_router as skill_router_module
 
 from scripts.orchestration.skill_router import (
     CLASSIFICATION_PRECEDENCE,
@@ -11,6 +12,7 @@ from scripts.orchestration.skill_router import (
     REQUESTED_AGENT_COMPANION_SKILL_BUNDLES,
     REQUESTED_AGENT_SKILL_BUNDLES,
     ROUTING_POLICY_VERSION,
+    TASK_CLASSIFICATION_RULES,
     flatten_recommended_skills,
     route_skills,
     select_recommended_skills,
@@ -204,6 +206,36 @@ def test_task_classifier_uses_documented_precedence_order() -> None:
         "bugfix",
         "implementation",
     )
+
+
+def test_task_classifier_rule_labels_match_precedence_contract() -> None:
+    """Rule labels should stay in lockstep with the precedence contract."""
+
+    rule_labels = tuple(rule.label for rule in TASK_CLASSIFICATION_RULES)
+
+    assert len(rule_labels) == len(set(rule_labels))
+    assert set(rule_labels) == set(CLASSIFICATION_PRECEDENCE)
+
+
+def test_task_classifier_skips_unknown_precedence_labels_without_key_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Unknown precedence labels should not crash the classifier during routing."""
+
+    monkeypatch.setattr(
+        skill_router_module,
+        "CLASSIFICATION_PRECEDENCE",
+        ("unknown_lane", *CLASSIFICATION_PRECEDENCE),
+    )
+
+    decision = route_skills(
+        goal="Implement backend endpoint contract for nutrition insights",
+        task_class="Backend API",
+        candidate_paths=["app/routers/insight.py"],
+        domain="backend",
+    )
+
+    assert decision["task_classification"]["label"] == "implementation"
 
 
 def test_task_classifier_prioritizes_pr_governance_over_review() -> None:

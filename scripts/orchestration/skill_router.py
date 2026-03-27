@@ -245,6 +245,29 @@ TASK_CLASSIFICATION_RULES: tuple[TaskClassificationRule, ...] = (
 )
 
 
+def _validate_task_classification_contract() -> None:
+    """Fail fast when classifier precedence and rule labels diverge."""
+
+    precedence_labels = tuple(dict.fromkeys(CLASSIFICATION_PRECEDENCE))
+    if precedence_labels != CLASSIFICATION_PRECEDENCE:
+        raise ValueError("CLASSIFICATION_PRECEDENCE must not contain duplicate labels")
+
+    rule_labels = tuple(rule.label for rule in TASK_CLASSIFICATION_RULES)
+    if len(set(rule_labels)) != len(rule_labels):
+        raise ValueError("TASK_CLASSIFICATION_RULES must not contain duplicate labels")
+
+    missing_labels = tuple(label for label in CLASSIFICATION_PRECEDENCE if label not in rule_labels)
+    extra_labels = tuple(label for label in rule_labels if label not in CLASSIFICATION_PRECEDENCE)
+    if missing_labels or extra_labels:
+        raise ValueError(
+            "Task classification labels are out of sync: "
+            f"missing={missing_labels}, extra={extra_labels}"
+        )
+
+
+_validate_task_classification_contract()
+
+
 @dataclass(frozen=True)
 class SkillRule:
     """Weighted routing rule for one skill."""
@@ -753,13 +776,15 @@ def _classify_task(
     winning_score = -1
 
     for label in CLASSIFICATION_PRECEDENCE:
-        candidate = scored_by_label[label]
+        candidate = scored_by_label.get(label)
+        if candidate is None:
+            continue
         candidate_score = int(candidate["score"])
         if candidate_score > winning_score:
             winning_label = label
             winning_score = candidate_score
 
-    winner = scored_by_label[winning_label]
+    winner = scored_by_label.get(winning_label)
     if winning_score <= 0:
         return {
             "label": "implementation",
@@ -770,9 +795,12 @@ def _classify_task(
     tied_labels = [
         label
         for label in CLASSIFICATION_PRECEDENCE
-        if int(scored_by_label[label]["score"]) == winning_score
+        if (
+            scored_by_label.get(label) is not None
+            and int(scored_by_label[label]["score"]) == winning_score
+        )
     ]
-    reasons = list(winner["reasons"])
+    reasons = list(winner["reasons"]) if winner is not None else []
     if len(tied_labels) > 1:
         reasons.append(
             f"tie-break:{winning_label}>{', '.join(label for label in tied_labels if label != winning_label)}"
