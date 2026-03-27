@@ -65,6 +65,7 @@ BACKLOG_SIGNAL_TERMS: tuple[str, ...] = (
     "defer",
     "deferred",
     "follow-up",
+    "follow up",
 )
 IMPLEMENTATION_PATH_PREFIXES: tuple[str, ...] = (
     "app/",
@@ -141,7 +142,7 @@ def _needs_backlog_update(
     task_class: str,
     candidate_paths: list[str] | tuple[str, ...],
 ) -> bool:
-    """Return True when the task explicitly targets backlog or follow-up bookkeeping."""
+    """Return True when PR2 backlog/roadmap bookkeeping markers are present."""
 
     haystack = " ".join(
         [
@@ -170,7 +171,7 @@ def _needs_docs_sync(candidate_paths: list[str] | tuple[str, ...]) -> bool:
 
 
 def _needs_agents_sync(candidate_paths: list[str] | tuple[str, ...]) -> bool:
-    """Return True when agent or skill contracts are part of the task surface."""
+    """Return True when AGENTS or SKILL contract files are part of the task surface."""
 
     return any(
         path == "AGENTS.md"

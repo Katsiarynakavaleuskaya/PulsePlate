@@ -530,6 +530,30 @@ def test_task_bootstrap_marks_backlog_sync_triggers() -> None:
     assert packet["needs_backlog_update"] is True
 
 
+def test_task_bootstrap_marks_backlog_sync_for_roadmap_marker() -> None:
+    """Roadmap markers are part of the explicit PR2 backlog-sync contract."""
+
+    packet = build_task_packet(
+        goal="Refresh roadmap sequencing for orchestration follow-ups",
+        task_class="Documentation",
+        candidate_paths=["docs/orchestration/workflow.md"],
+    )
+
+    assert packet["needs_backlog_update"] is True
+
+
+def test_task_bootstrap_marks_backlog_sync_for_follow_up_variant() -> None:
+    """Non-hyphenated follow-up wording should still trigger backlog sync."""
+
+    packet = build_task_packet(
+        goal="Track follow up items for orchestration hardening",
+        task_class="Documentation",
+        candidate_paths=["docs/orchestration/workflow.md"],
+    )
+
+    assert packet["needs_backlog_update"] is True
+
+
 def test_task_bootstrap_marks_docs_sync_for_code_only_paths() -> None:
     """Implementation-only tasks should request docs sync when docs paths are absent."""
 
