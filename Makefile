@@ -4,26 +4,35 @@ all: lint test cov-check
 validate-data: ensure-database-versions
 	python3 scripts/validate_data.py
 
-.PHONY: all ensure-database-versions
+.PHONY: all ensure-database-versions ensure-python-proxy
 ensure-database-versions:
 	python3 scripts/ensure_database_versions.py
+
+ensure-python-proxy:
+	@test -n "$$PULSEPLATE_PYTHON_INDEX_URL" || (echo "❌ Export PULSEPLATE_PYTHON_INDEX_URL to the approved private package proxy before continuing." && exit 1)
 
 # Docker targets
 # 🐳 Docker Best Practices:
 # - Always test builds locally: make docker-build && docker run -p 8000:8000 pulseplate:latest
 # - Clean old images regularly: make docker-clean-images
 # - Use versioned tags for production: docker tag pulseplate:latest pulseplate:v1.0.0
-docker-build: ## Build production Docker image
-	docker build -t pulseplate:latest --target production .
+docker-build: ensure-python-proxy ## Build production Docker image
+	docker build -t pulseplate:latest --target production \
+		--build-arg PULSEPLATE_PYTHON_INDEX_URL="$$PULSEPLATE_PYTHON_INDEX_URL" \
+		--build-arg PULSEPLATE_PYTHON_TRUSTED_HOST="$${PULSEPLATE_PYTHON_TRUSTED_HOST:-}" \
+		.
 	docker tag pulseplate:latest pulseplate:$(shell git rev-parse --short HEAD)
 
-docker-build-dev: ## Build development Docker image
-	docker build -t pulseplate:dev --target development .
+docker-build-dev: ensure-python-proxy ## Build development Docker image
+	docker build -t pulseplate:dev --target development \
+		--build-arg PULSEPLATE_PYTHON_INDEX_URL="$$PULSEPLATE_PYTHON_INDEX_URL" \
+		--build-arg PULSEPLATE_PYTHON_TRUSTED_HOST="$${PULSEPLATE_PYTHON_TRUSTED_HOST:-}" \
+		.
 
-docker-run: ## Run Docker containers in background
+docker-run: ensure-python-proxy ## Run Docker containers in background
 	docker-compose up -d
 
-docker-run-dev: ## Run development Docker containers
+docker-run-dev: ensure-python-proxy ## Run development Docker containers
 	docker-compose --profile dev up -d
 
 docker-stop: ## Stop and remove Docker containers
@@ -68,7 +77,7 @@ help:
 	@awk 'BEGIN{FS=":.*##"} /^[a-zA-Z0-9_.-]+:.*##/{printf "$(GREEN)%-22s$(NC) %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
 ## Create & install venv deps + setup automation
-venv: ## Create venv, install requirements & setup git hooks
+venv: ensure-python-proxy ## Create venv, install requirements & setup git hooks
 	@test -x $(VENV_PYTHON) || python3 -m venv .venv
 	PIP_REQUIRE_VIRTUALENV=1 $(VENV_PYTHON) scripts/ci/install_locked_python_requirements.py --python-executable $(VENV_PYTHON) --constraints-file constraints.txt --install-dev --require-virtualenv
 	@echo "$(YELLOW)🔧 Настройка автоматизации...$(NC)"
@@ -79,7 +88,7 @@ venv: ## Create venv, install requirements & setup git hooks
 	@echo "$(GREEN)✅ Окружение готово!$(NC)"
 
 ## Refresh locked dependencies inside the existing .venv
-venv-sync: ## Refresh .venv from locked requirements without recreating it
+venv-sync: ensure-python-proxy ## Refresh .venv from locked requirements without recreating it
 	@test -x $(VENV_PYTHON) || (echo "$(RED)❌ .venv missing. Run 'make venv' first.$(NC)" && exit 1)
 	PIP_REQUIRE_VIRTUALENV=1 $(VENV_PYTHON) scripts/ci/install_locked_python_requirements.py --python-executable $(VENV_PYTHON) --constraints-file constraints.txt --install-dev --require-virtualenv
 	@echo "$(GREEN)✅ .venv refreshed from locked requirements$(NC)"

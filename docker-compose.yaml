@@ -9,6 +9,8 @@ services:
       args:
         BUILDPLATFORM: linux/amd64
         TARGETPLATFORM: linux/amd64
+        PULSEPLATE_PYTHON_INDEX_URL: ${PULSEPLATE_PYTHON_INDEX_URL:?PULSEPLATE_PYTHON_INDEX_URL is required for Docker builds}
+        PULSEPLATE_PYTHON_TRUSTED_HOST: ${PULSEPLATE_PYTHON_TRUSTED_HOST:-}
     ports:
       - "8000:8000"
     environment:
@@ -61,6 +63,8 @@ services:
       args:
         BUILDPLATFORM: linux/amd64
         TARGETPLATFORM: linux/amd64
+        PULSEPLATE_PYTHON_INDEX_URL: ${PULSEPLATE_PYTHON_INDEX_URL:?PULSEPLATE_PYTHON_INDEX_URL is required for Docker builds}
+        PULSEPLATE_PYTHON_TRUSTED_HOST: ${PULSEPLATE_PYTHON_TRUSTED_HOST:-}
     ports:
       - "8001:8000"
     environment:

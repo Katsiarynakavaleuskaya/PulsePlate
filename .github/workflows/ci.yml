@@ -7,6 +7,8 @@ name: CI
 env:
   COVERAGE_PY: "3.13"
   FRONTEND_NODE_VERSION_FILE: ".nvmrc"
+  PULSEPLATE_PYTHON_INDEX_URL: ${{ vars.PULSEPLATE_PYTHON_INDEX_URL || secrets.PULSEPLATE_PYTHON_INDEX_URL }}
+  PULSEPLATE_PYTHON_TRUSTED_HOST: ${{ vars.PULSEPLATE_PYTHON_TRUSTED_HOST || secrets.PULSEPLATE_PYTHON_TRUSTED_HOST }}
 
 permissions:
   contents: read
@@ -390,7 +392,14 @@ jobs:
           fi
 
       - name: Install Safety
-        run: python -m pip install "safety>=3.7.0" -c constraints.txt
+        run: |
+          set -euo pipefail
+          : "${PULSEPLATE_PYTHON_INDEX_URL:?Set PULSEPLATE_PYTHON_INDEX_URL to the approved private package proxy URL.}"
+          pip_index_args=(--index-url "$PULSEPLATE_PYTHON_INDEX_URL")
+          if [[ -n "${PULSEPLATE_PYTHON_TRUSTED_HOST:-}" ]]; then
+            pip_index_args+=(--trusted-host "$PULSEPLATE_PYTHON_TRUSTED_HOST")
+          fi
+          python -m pip install "${pip_index_args[@]}" "safety>=3.7.0" -c constraints.txt
 
       - name: Dependency audit with Safety
         run: |
@@ -459,7 +468,7 @@ jobs:
     needs: [changes]
     if: github.event_name != 'pull_request' || needs.changes.outputs.run_openapi_sync == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     env:
       APP_ENV: test
       ENVIRONMENT: test
@@ -537,7 +546,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          python scripts/ci/install_locked_python_requirements.py --python-executable python --constraints-file constraints.txt --install-dev
+          python scripts/ci/install_locked_python_requirements.py --python-executable python --constraints-file constraints.txt --install-dev --install-mode direct-proxy
 
       - name: Install root Node dependencies
         run: npm ci
@@ -738,7 +747,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          python scripts/ci/install_locked_python_requirements.py --python-executable python --constraints-file constraints.txt --install-dev
+          python scripts/ci/install_locked_python_requirements.py --python-executable python --constraints-file constraints.txt --install-dev --install-mode direct-proxy
 
       - name: Install root Node dependencies
         run: npm ci
@@ -855,7 +864,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          python scripts/ci/install_locked_python_requirements.py --python-executable python --constraints-file constraints.txt --install-dev
+          python scripts/ci/install_locked_python_requirements.py --python-executable python --constraints-file constraints.txt --install-dev --install-mode direct-proxy
 
       - name: Install root Node dependencies
         run: npm ci
