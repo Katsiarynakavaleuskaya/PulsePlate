@@ -32,6 +32,12 @@ Reason: These aggregate bot summaries only restate actionable findings already d
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1261#pullrequestreview-4020555158
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1261#pullrequestreview-4020559328
 
+Disposition: NOT-A-BUG
+Evidence: `requirements-ci-lite.txt:1`, `scripts/ci/check_pygments_exception_guard.py:26-32`
+Reason: The reported missing-file path is not reachable on this branch because `requirements-ci-lite.txt` is added in the same PR, so tracking it in the Pygments guard does not introduce a crash path.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1261#discussion_r3001884612
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1261#pullrequestreview-4022193858
+
 ## Merge Readiness
 - [ ] All required checks pass
 - [ ] No unresolved review threads
