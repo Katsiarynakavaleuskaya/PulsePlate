@@ -5,6 +5,17 @@
 - [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1255#pullrequestreview-4019517221
+Disposition: NOT-A-BUG
+Evidence: `package.json:28`, `tests/test_root_npm_dependency_guards.py:56`, `tests/test_root_npm_dependency_guards.py:91`, `docs/security/GHSA-f886-m6hf-6m8v-brace-expansion.md:43`
+Reason: the high-level Sourcery summary is advisory rather than a separate defect. Repo-root overrides are intentional because this PR remediates the root npm graph, not only one nested subtree, and the strict lockfile guards are deliberate policy tests for the canonical AgentGuard dependency path and npm registry source.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1255#pullrequestreview-4019524382 -> 65bdf110
+Disposition: FIXED
+Commit: 65bdf110
+Evidence: `docs/security/GHSA-f886-m6hf-6m8v-brace-expansion.md:45`
+Reason: the review asked for explicit `file:line` evidence anchors in the security remediation note, and commit `65bdf110` updated the Evidence Anchors block accordingly.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1255#pullrequestreview-4020582709
 Disposition: DEFERRED
 Backlog: `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-runner-disk-reclaim-centralization`, `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-runner-disk-reclaim-safety-guards`
@@ -46,6 +57,12 @@ Disposition: FIXED
 Commit: 65bdf110
 Evidence: `tests/test_python_supply_chain_controls.py:215`
 Reason: the only actionable CodeRabbit review on the current head asked for a before-build ordering assertion, which is now present in the Docker workflow reclaim test.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1255#pullrequestreview-4020778214
+Disposition: FIXED
+Commit: PENDING
+Evidence: `docs/roadmap/BACKLOG_LEDGER.md:7926`, `docs/roadmap/BACKLOG_LEDGER.md:7945`
+Reason: the follow-up ledger entries now use canonical deterministic `PR-TBD-*` target identifiers instead of prose-only target text.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1255#discussion_r3000506224 -> 65bdf110
 Disposition: FIXED

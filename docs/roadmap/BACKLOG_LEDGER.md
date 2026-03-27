@@ -7923,7 +7923,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Centralize runner disk reclaim logic across CI workflows
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (CI maintainability / workflow drift)
-  - Target PR: follow-up after `#1255`
+  - Target PR: PR-TBD-RUNNER-DISK-RECLAIM-CENTRALIZATION
   - Status: Opened on 27 March 2026
   - Reason: PR `#1255` intentionally duplicated the runner disk reclaim shell snippet in `.github/workflows/ci.yml`, `.github/workflows/build.yml`, and `.github/workflows/docker-image.yml` to unblock the current dependency-security lane. Sourcery review flagged that future path changes will drift unless the cleanup step is extracted into one shared implementation.
   - Links:
@@ -7942,7 +7942,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Add safety guards around runner disk reclaim shell paths
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (CI security hardening)
-  - Target PR: follow-up after `#1255`
+  - Target PR: PR-TBD-RUNNER-DISK-RECLAIM-SAFETY
   - Status: Opened on 27 March 2026
   - Reason: the current reclaim command uses `sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc` on GitHub-hosted runners. The command is acceptable as a narrow unblocker for PR `#1255`, but the safety posture should be tightened with per-path directory/symlink guards or a dedicated cleanup primitive before this pattern is reused further.
   - Links:
