@@ -58,7 +58,10 @@ def _parse_iso8601(value: str) -> datetime | None:
     if not value:
         return None
     normalized = value.replace("Z", "+00:00")
-    parsed = datetime.fromisoformat(normalized)
+    try:
+        parsed = datetime.fromisoformat(normalized)
+    except ValueError:
+        return None
     if parsed.tzinfo is None:
         return parsed.replace(tzinfo=UTC)
     return parsed.astimezone(UTC)

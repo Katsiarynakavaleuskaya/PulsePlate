@@ -510,6 +510,10 @@ def test_fetch_workflow_runs_paginates_until_the_lookback_boundary(
     ]
 
 
+def test_parse_iso8601_returns_none_for_malformed_values() -> None:
+    assert collect_ci_metrics._parse_iso8601("not-a-timestamp") is None
+
+
 def test_read_text_url_raises_when_redirect_limit_is_exceeded(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

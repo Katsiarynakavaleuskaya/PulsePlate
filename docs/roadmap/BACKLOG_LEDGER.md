@@ -2281,7 +2281,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: PR4 lightweight CI metrics and weekly feedback loop {#ledger-p1-tier1-ci-cd-pr4-metrics}
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-TBD-TIER1-CI-CD-PR4
+  - Target PR: #1257
   - Area: orchestration / CI / review governance
   - Finding Type: process hardening
   - Status: Active next execution slice after merged PR `#1253`; implementation starts from a clean worktree off `origin/main`.
