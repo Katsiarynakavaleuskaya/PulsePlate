@@ -113,15 +113,13 @@ jobs:
             echo "VITE_API_BASE=http://localhost:8000/api/v1" >> .env
           fi
 
-      - name: Set up Python
-        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+      - name: Set up Python and backend test dependencies
+        uses: ./.github/actions/python-setup
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-
-      - name: Install backend dependencies
-        run: |
-          cd ..
-          python scripts/ci/install_locked_python_requirements.py --python-executable python --constraints-file constraints.txt --install-dev --install-mode direct-proxy
+          install-test-deps: "true"
+          install-mode: direct-proxy
+          working-directory: .
 
       - name: Run design token pipeline checks
         run: |

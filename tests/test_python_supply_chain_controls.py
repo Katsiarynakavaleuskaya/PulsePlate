@@ -167,9 +167,12 @@ def test_ci_workflow_uses_single_direct_proxy_python_install_path_per_job() -> N
     assert "\n      - name: Install dependencies\n" not in ci_text
 
 
-def test_frontend_ci_uses_direct_proxy_backend_dependency_bootstrap() -> None:
+def test_frontend_ci_uses_canonical_direct_proxy_python_setup() -> None:
     frontend_ci_text = (REPO_ROOT / ".github" / "workflows" / "frontend-ci.yml").read_text(
         encoding="utf-8"
     )
 
-    assert "--install-mode direct-proxy" in frontend_ci_text
+    assert "uses: ./.github/actions/python-setup" in frontend_ci_text
+    assert 'install-test-deps: "true"' in frontend_ci_text
+    assert "install-mode: direct-proxy" in frontend_ci_text
+    assert "install_locked_python_requirements.py" not in frontend_ci_text
