@@ -2107,7 +2107,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Finding Type: automation rollout slice
   - Reason: After bootstrap hardening, the next failure mode is still over- or under-selecting skills and treating unlike tasks as the same class. The routing layer needs a deterministic classifier and explicit required/recommended/conditional/blocked outputs before any lifecycle or design automation is added.
   - Dependencies:
-    - `PR-TBD-AUTOMATION-PR2-BOOTSTRAP-HARDENING`
+    - `PR-1254`
   - Lifecycle: Start → Open → Push → Review → Merge
   - Links:
     - `docs/orchestration/AUTOMATION_READINESS_MATRIX.md`

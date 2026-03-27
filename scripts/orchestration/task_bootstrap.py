@@ -127,13 +127,13 @@ def _select_independent_reviewer(
 def _requires_security_review(candidate_paths: list[str] | tuple[str, ...]) -> bool:
     """Return True when the task touches privileged surfaces that require security review."""
 
-    return any(
-        any(
-            path == prefix.rstrip("/") or path.startswith(prefix)
-            for prefix in PRIVILEGED_REVIEW_PREFIXES
-        )
-        for path in candidate_paths
-    )
+    return any(_matches_any_prefix(path, PRIVILEGED_REVIEW_PREFIXES) for path in candidate_paths)
+
+
+def _matches_any_prefix(path: str, prefixes: tuple[str, ...]) -> bool:
+    """Return True when a path matches a canonical prefix exactly or by subtree."""
+
+    return any(path == prefix.rstrip("/") or path.startswith(prefix) for prefix in prefixes)
 
 
 def _needs_backlog_update(
@@ -160,11 +160,7 @@ def _needs_docs_sync(candidate_paths: list[str] | tuple[str, ...]) -> bool:
     """Return True when implementation paths changed without an accompanying docs path."""
 
     has_implementation_path = any(
-        any(
-            path == prefix.rstrip("/") or path.startswith(prefix)
-            for prefix in IMPLEMENTATION_PATH_PREFIXES
-        )
-        for path in candidate_paths
+        _matches_any_prefix(path, IMPLEMENTATION_PATH_PREFIXES) for path in candidate_paths
     )
     has_docs_path = any(path == "docs" or path.startswith("docs/") for path in candidate_paths)
     return has_implementation_path and not has_docs_path

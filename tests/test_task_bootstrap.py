@@ -22,6 +22,7 @@ from scripts.orchestration.routing_graph_loader import (
     REQUIRED_BOOTSTRAP_LANE,
 )
 from scripts.orchestration.task_bootstrap import (
+    _matches_any_prefix,
     _resolve_output_path,
     build_task_packet,
     main,
@@ -612,6 +613,22 @@ def test_task_bootstrap_keeps_packet_id_stable_for_identical_inputs() -> None:
 
     assert first_packet["task_packet_id"] == second_packet["task_packet_id"]
     assert first_packet["automation_flags"] == second_packet["automation_flags"]
+    assert first_packet["pr_phase"] == second_packet["pr_phase"]
+    assert first_packet["design_lane_mode"] == second_packet["design_lane_mode"]
+    assert first_packet["needs_backlog_update"] == second_packet["needs_backlog_update"]
+    assert first_packet["needs_docs_sync"] == second_packet["needs_docs_sync"]
+    assert first_packet["needs_agents_sync"] == second_packet["needs_agents_sync"]
+
+
+def test_matches_any_prefix_covers_exact_and_nested_paths() -> None:
+    """Prefix matcher must honor exact directory roots and nested repo paths."""
+
+    prefixes = ("scripts/", "docs/orchestration/")
+
+    assert _matches_any_prefix("scripts", prefixes) is True
+    assert _matches_any_prefix("scripts/orchestration/task_bootstrap.py", prefixes) is True
+    assert _matches_any_prefix("docs/orchestration/workflow.md", prefixes) is True
+    assert _matches_any_prefix("tests/test_task_bootstrap.py", prefixes) is False
 
 
 def test_normalize_repo_path_preserves_dot_cursor_prefix() -> None:
