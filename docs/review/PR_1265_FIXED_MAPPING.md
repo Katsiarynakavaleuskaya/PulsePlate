@@ -5,7 +5,8 @@
 - [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
-- No actionable review comments
+- FIXED: `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1265#discussion_r3003475440` -> `08ed7c2b`
+  Evidence: `scripts/orchestration/skill_router.py:248`, `scripts/orchestration/skill_router.py:779`, `tests/test_skill_router.py:211`, `tests/test_skill_router.py:220`
 
 ## Merge Readiness
 - [ ] All required checks pass
