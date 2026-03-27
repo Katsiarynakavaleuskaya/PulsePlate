@@ -99,10 +99,14 @@
             "preview": {
                 "panelTitle": "WELCOME GATE / v1",
                 "panelFlowLabel": "flow:",
-                "panelFlowValue": "screen 1 preview -> setup",
+                "panelFlowValue": "screen-1-only preview route",
+                "panelTargetLabel": "target:",
+                "panelTargetValue": "/setup route mirror",
                 "panelLocalesLabel": "locales:",
                 "panelPolicyLabel": "policy:",
-                "panelPolicyValue": "preview only, no persistence"
+                "panelPolicyValue": "no persistence side-effects",
+                "panelBlockedLabel": "blocked:",
+                "panelBlockedValue": "screens 2-4 blocked by nodes"
             }
         },
         "enterKey": {

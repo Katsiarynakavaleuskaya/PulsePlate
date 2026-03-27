@@ -99,10 +99,14 @@
             "preview": {
                 "panelTitle": "WELCOME GATE / v1",
                 "panelFlowLabel": "поток:",
-                "panelFlowValue": "превью экрана 1 -> настройка",
+                "panelFlowValue": "preview route только для экрана 1",
+                "panelTargetLabel": "цель:",
+                "panelTargetValue": "зеркало маршрута /setup",
                 "panelLocalesLabel": "языки:",
                 "panelPolicyLabel": "политика:",
-                "panelPolicyValue": "только превью, без сохранения"
+                "panelPolicyValue": "без side-effects сохранения",
+                "panelBlockedLabel": "блокировка:",
+                "panelBlockedValue": "экраны 2-4 ждут exact node capture"
             }
         },
         "enterKey": {

@@ -79,10 +79,14 @@
             "preview": {
                 "panelTitle": "WELCOME GATE / v1",
                 "panelFlowLabel": "flujo:",
-                "panelFlowValue": "vista previa de la pantalla 1 -> configuración",
+                "panelFlowValue": "ruta de vista previa solo para la pantalla 1",
+                "panelTargetLabel": "destino:",
+                "panelTargetValue": "espejo de la ruta /setup",
                 "panelLocalesLabel": "idiomas:",
                 "panelPolicyLabel": "política:",
-                "panelPolicyValue": "solo vista previa, sin persistencia"
+                "panelPolicyValue": "sin efectos laterales de persistencia",
+                "panelBlockedLabel": "bloqueado:",
+                "panelBlockedValue": "las pantallas 2-4 esperan captura exacta de nodos"
             }
         },
         "enterKey": {

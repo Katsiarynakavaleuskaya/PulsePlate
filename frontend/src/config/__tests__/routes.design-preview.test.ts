@@ -8,6 +8,7 @@ describe('design preview routes', (): void => {
         path: '/design-system',
         requiresAuth: false,
         hideTabBar: true,
+        previewOnly: true,
       })
     );
   });
@@ -18,6 +19,7 @@ describe('design preview routes', (): void => {
         path: '/welcome-gate-v1',
         requiresAuth: false,
         hideTabBar: true,
+        previewOnly: true,
       })
     );
   });

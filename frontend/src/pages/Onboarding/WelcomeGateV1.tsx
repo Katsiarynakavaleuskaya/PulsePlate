@@ -2,11 +2,13 @@ import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import fitchefOnboardingWelcome from '../../assets/brand/fitchef-onboarding-welcome-v1.png';
 import { PulsePlateLogo } from '../../components/brand';
-
-const PREVIEW_LOCALES = ['ru', 'en', 'es'] as const;
-const PREVIEW_STEP = 1;
-const PREVIEW_STEP_COUNT = 1;
-const FEATURE_POINT_IDS = [1, 2, 3] as const;
+import {
+  WELCOME_GATE_V1_FEATURE_POINT_IDS,
+  WELCOME_GATE_V1_PREVIEW_LOCALES,
+  WELCOME_GATE_V1_PREVIEW_STEP,
+  WELCOME_GATE_V1_PREVIEW_STEP_COUNT,
+  WELCOME_GATE_V1_SETUP_TARGET,
+} from './welcomeGateV1Policy';
 
 function StepIndicator({ label }: { label: string }): JSX.Element {
   return (
@@ -20,8 +22,8 @@ function StepIndicator({ label }: { label: string }): JSX.Element {
 export default function WelcomeGateV1(): JSX.Element {
   const { t } = useTranslation();
   const stepLabel = t('onboarding.welcome.stepA11y', {
-    current: PREVIEW_STEP,
-    total: PREVIEW_STEP_COUNT,
+    current: WELCOME_GATE_V1_PREVIEW_STEP,
+    total: WELCOME_GATE_V1_PREVIEW_STEP_COUNT,
   });
 
   return (
@@ -36,7 +38,7 @@ export default function WelcomeGateV1(): JSX.Element {
               <span className="h-2 w-2 rounded-full bg-[var(--pp-green)]" />
               {t('onboarding.welcome.routeMirrorBadge')}
             </div>
-            <Link to="/setup" className="text-sm text-white/55 transition hover:text-white/78">
+            <Link to={WELCOME_GATE_V1_SETUP_TARGET} className="text-sm text-white/55 transition hover:text-white/78">
               {t('onboarding.welcome.skip')}
             </Link>
           </div>
@@ -57,7 +59,7 @@ export default function WelcomeGateV1(): JSX.Element {
               {t('onboarding.welcome.screen1.cardTitle')}
             </p>
             <ul className="mt-4 space-y-3 text-base leading-7 text-white/78">
-              {FEATURE_POINT_IDS.map((item) => (
+              {WELCOME_GATE_V1_FEATURE_POINT_IDS.map((item) => (
                 <li key={item}>{t(`onboarding.welcome.screen1.points.${item}`)}</li>
               ))}
             </ul>
@@ -68,7 +70,7 @@ export default function WelcomeGateV1(): JSX.Element {
           <div className="mt-auto flex flex-col gap-4 pt-8 sm:flex-row sm:items-center sm:justify-between">
             <StepIndicator label={stepLabel} />
             <Link
-              to="/setup"
+              to={WELCOME_GATE_V1_SETUP_TARGET}
               className="inline-flex items-center justify-center rounded-full bg-[var(--pp-green)] px-7 py-4 text-lg font-semibold text-[var(--pp-navy)] transition hover:brightness-105"
             >
               {t('onboarding.welcome.cta.start')}
@@ -95,10 +97,16 @@ export default function WelcomeGateV1(): JSX.Element {
                 {t('onboarding.welcome.preview.panelFlowLabel')} {t('onboarding.welcome.preview.panelFlowValue')}
               </p>
               <p>
-                {t('onboarding.welcome.preview.panelLocalesLabel')} {PREVIEW_LOCALES.join(' · ')}
+                {t('onboarding.welcome.preview.panelTargetLabel')} {t('onboarding.welcome.preview.panelTargetValue')}
+              </p>
+              <p>
+                {t('onboarding.welcome.preview.panelLocalesLabel')} {WELCOME_GATE_V1_PREVIEW_LOCALES.join(' / ')}
               </p>
               <p>
                 {t('onboarding.welcome.preview.panelPolicyLabel')} {t('onboarding.welcome.preview.panelPolicyValue')}
+              </p>
+              <p>
+                {t('onboarding.welcome.preview.panelBlockedLabel')} {t('onboarding.welcome.preview.panelBlockedValue')}
               </p>
             </div>
           </section>

@@ -16,6 +16,7 @@ export interface RouteConfig {
   requiresAuth: boolean;
   component: ComponentType;
   hideTabBar?: boolean;
+  previewOnly?: boolean;
   requiresVip?: boolean;
 }
 
@@ -41,13 +42,21 @@ export const routes: RouteConfig[] = [
   { path: '/progress', label: 'Progress', requiresAuth: true, component: Progress },
   { path: '/bmi', label: 'BMI', requiresAuth: false, component: BMICalculatePage, hideTabBar: true },
   { path: '/pro', label: 'Pro', requiresAuth: false, component: ProPaywallPage, hideTabBar: true },
-  { path: '/design-system', label: 'DesignSystem', requiresAuth: false, component: DesignSystemPage, hideTabBar: true },
+  {
+    path: '/design-system',
+    label: 'DesignSystem',
+    requiresAuth: false,
+    component: DesignSystemPage,
+    hideTabBar: true,
+    previewOnly: true,
+  },
   {
     path: '/welcome-gate-v1',
     label: 'WelcomeGateV1',
     requiresAuth: false,
     component: WelcomeGateV1,
     hideTabBar: true,
+    previewOnly: true,
   },
 ];
 
