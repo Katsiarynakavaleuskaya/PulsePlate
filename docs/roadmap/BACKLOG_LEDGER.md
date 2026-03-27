@@ -7919,6 +7919,44 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - the PR description states that the change is prevention hardening, not proof of compromise
     - post-open review uses `qa-engineer-agent -> bug-hunter`
 
+<a id="ledger-p1-runner-disk-reclaim-centralization"></a>
+- [ ] P1: Centralize runner disk reclaim logic across CI workflows
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (CI maintainability / workflow drift)
+  - Target PR: follow-up after `#1255`
+  - Status: Opened on 27 March 2026
+  - Reason: PR `#1255` intentionally duplicated the runner disk reclaim shell snippet in `.github/workflows/ci.yml`, `.github/workflows/build.yml`, and `.github/workflows/docker-image.yml` to unblock the current dependency-security lane. Sourcery review flagged that future path changes will drift unless the cleanup step is extracted into one shared implementation.
+  - Links:
+    - `.github/workflows/ci.yml`
+    - `.github/workflows/build.yml`
+    - `.github/workflows/docker-image.yml`
+    - `tests/test_python_supply_chain_controls.py`
+    - `docs/review/PR_1255_FIXED_MAPPING.md`
+  - DoD:
+    - one shared implementation owns the runner disk reclaim behavior for all affected workflows
+    - workflow tests validate the shared reclaim step without copying the shell snippet in multiple places
+    - path changes for reclaim targets require edits in one canonical location only
+    - `pre-commit run --all-files` and `make verify` pass on the follow-up branch
+
+<a id="ledger-p1-runner-disk-reclaim-safety-guards"></a>
+- [ ] P1: Add safety guards around runner disk reclaim shell paths
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (CI security hardening)
+  - Target PR: follow-up after `#1255`
+  - Status: Opened on 27 March 2026
+  - Reason: the current reclaim command uses `sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc` on GitHub-hosted runners. The command is acceptable as a narrow unblocker for PR `#1255`, but the safety posture should be tightened with per-path directory/symlink guards or a dedicated cleanup primitive before this pattern is reused further.
+  - Links:
+    - `.github/workflows/ci.yml`
+    - `.github/workflows/build.yml`
+    - `.github/workflows/docker-image.yml`
+    - `tests/test_python_supply_chain_controls.py`
+    - `docs/review/PR_1255_FIXED_MAPPING.md`
+  - DoD:
+    - reclaim logic validates every destructive path before deletion, or migrates to a safer dedicated cleanup action
+    - symlink / unexpected-path failure modes are covered by deterministic workflow or unit tests
+    - the hardened reclaim implementation is used consistently across all affected workflows
+    - `pre-commit run --all-files` and `make verify` pass on the follow-up branch
+
 **Last updated:** 2026-03-26 (LiteLLM supply-chain hardening follow-up)
 **Maintainer:** @katsiaryna_kavaleuskaya
 <!-- markdownlint-enable MD013 -->
