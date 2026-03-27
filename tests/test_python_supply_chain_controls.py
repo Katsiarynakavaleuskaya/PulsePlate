@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -14,6 +15,24 @@ LOCKED_INSTALL_WORKFLOW_PATHS: tuple[str, ...] = (
     ".github/workflows/nightly-tests.yml",
     ".github/workflows/nightly.yml",
 )
+CI_RECLAIM_JOB_NAMES: tuple[str, ...] = (
+    "openapi-sync",
+    "test-pr",
+    "test-feature",
+    "test-main",
+)
+RECLAIM_STEP_NAME = "Reclaim runner disk before Python install"
+RECLAIM_COMMAND = "sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc"
+
+
+def _extract_workflow_job_block(*, workflow_text: str, job_name: str) -> str:
+    job_marker = f"\n  {job_name}:\n"
+    start_index = workflow_text.index(job_marker) + len(job_marker)
+    next_job_match = re.search(r"^  [a-z0-9_-]+:\n", workflow_text[start_index:], re.MULTILINE)
+    if next_job_match is None:
+        return workflow_text[start_index:]
+    next_job_index = start_index + next_job_match.start()
+    return workflow_text[start_index:next_job_index]
 
 
 def test_dependency_security_schema_blocks_known_bad_litellm_versions() -> None:
@@ -84,9 +103,15 @@ def test_all_changed_python_install_surfaces_use_locked_installer(workflow_path:
     assert "--constraints-file constraints.txt" in workflow_text
 
 
-def test_tier1_pr_lane_reclaims_runner_disk_before_locked_python_install() -> None:
+def test_ci_locked_python_install_jobs_reclaim_runner_disk_before_install() -> None:
     workflow_text = (REPO_ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
 
-    assert "Reclaim runner disk before Python install" in workflow_text
-    assert "sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc" in workflow_text
+    assert workflow_text.count(RECLAIM_STEP_NAME) >= len(CI_RECLAIM_JOB_NAMES)
+    assert RECLAIM_COMMAND in workflow_text
     assert "df -h" in workflow_text
+
+    for job_name in CI_RECLAIM_JOB_NAMES:
+        job_block = _extract_workflow_job_block(workflow_text=workflow_text, job_name=job_name)
+
+        assert RECLAIM_STEP_NAME in job_block
+        assert RECLAIM_COMMAND in job_block
