@@ -105,6 +105,41 @@ Disposition: FIXED
 Commit: 4fa6745d
 Evidence: scripts/ci/check_python_startup_hooks.py:103
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1251#pullrequestreview-4017570416 -> 07482614
+Disposition: FIXED
+Commit: 07482614
+Evidence: scripts/ci/check_python_startup_hooks.py:78; tests/test_python_supply_chain_controls.py:131
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1251#discussion_r2997878427 -> 07482614
+Disposition: FIXED
+Commit: 07482614
+Evidence: scripts/ci/check_python_startup_hooks.py:78
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1251#discussion_r2997878439 -> 07482614
+Disposition: FIXED
+Commit: 07482614
+Evidence: tests/test_python_supply_chain_controls.py:149
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1251#pullrequestreview-4017572935 -> 07482614
+Disposition: FIXED
+Commit: 07482614
+Evidence: docs/review/PR_1251_FIXED_MAPPING.md:144; tests/test_check_python_startup_hooks.py:130; tests/test_install_locked_python_requirements.py:17; tests/test_python_supply_chain_controls.py:131
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1251#discussion_r2997881045 -> 07482614
+Disposition: FIXED
+Commit: 07482614
+Evidence: docs/review/PR_1251_FIXED_MAPPING.md:144
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1251#discussion_r2997881049 -> 07482614
+Disposition: FIXED
+Commit: 07482614
+Evidence: tests/test_check_python_startup_hooks.py:130
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1251#discussion_r2997881052 -> 07482614
+Disposition: FIXED
+Commit: 07482614
+Evidence: tests/test_python_supply_chain_controls.py:131
+
 ## Merge Readiness
 - [ ] Local `python -m pre_commit run --all-files` passed on current head
 - [ ] Local `make verify` passed on current head
