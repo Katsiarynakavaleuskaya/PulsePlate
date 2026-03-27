@@ -18,7 +18,7 @@ runs:
                 __import__(module_name)
             except ImportError:
                 print(f"❌ Critical dependency missing: {module_name}")
-                print("Run: pip install -r requirements.txt && pip install -r requirements-dev.txt")
+                print("Run: make venv-sync")
                 sys.exit(1)
         print("✅ All critical dependencies available")
         PYEOF

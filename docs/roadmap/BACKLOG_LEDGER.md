@@ -7890,9 +7890,9 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Python package mirror and quarantine lane for hermetic CI/Docker installs
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (supply-chain hardening)
-  - Target PR: TBD after infra source selection
-  - Status: Opened on 26 March 2026
-  - Reason: Repo-local hardening now builds a temporary wheelhouse and installs with `--no-index`, but the fetch step still resolves from the public index. Full isolation requires an approved internal mirror or promoted artifact store with quarantine review.
+  - Target PR: `PR #1251`
+  - Status: In progress on 26 March 2026
+  - Reason: Repo-local hardening now fails closed on `PULSEPLATE_PYTHON_INDEX_URL` for shared install paths, but closure still depends on an approved internal mirror or promoted artifact store with quarantine review being provisioned in CI. Required provisioning blocker: `PULSEPLATE_PYTHON_INDEX_URL`; optional compatibility blocker only if the proxy needs it: `PULSEPLATE_PYTHON_TRUSTED_HOST`.
   - Links:
     - `scripts/ci/install_locked_python_requirements.py`
     - `scripts/ci/check_python_startup_hooks.py`

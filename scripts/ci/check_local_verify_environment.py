@@ -125,6 +125,7 @@ def build_failure_output(
     lines.extend(
         (
             "Recovery:",
+            "- Export PULSEPLATE_PYTHON_INDEX_URL to the approved private package proxy before bootstrap",
             "- First bootstrap: make venv",
             "- Refresh an existing clean-clone venv: make venv-sync",
         )
@@ -145,6 +146,7 @@ def main() -> int:
         print(f"Current interpreter: {Path(sys.executable).resolve()}")
         print(f"Current prefix: {current_prefix}")
         print("Recovery:")
+        print("- Export PULSEPLATE_PYTHON_INDEX_URL to the approved private package proxy")
         print("- Run `make verify` or `make verify-env` from repo root")
         print("- If the venv is missing, run `make venv`")
         print("- If the venv drifted, run `make venv-sync`")
