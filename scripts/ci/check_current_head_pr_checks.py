@@ -406,6 +406,7 @@ def main(argv: list[str] | None = None) -> int:
     current_required = (
         _required_snapshot(latest, required_names) if required_metadata_available else []
     )
+    advisory_entries = list(latest.values()) if not required_metadata_available else []
     _print_entries("Current-head required checks:", current_required)
 
     if not required_metadata_available:
@@ -413,7 +414,7 @@ def main(argv: list[str] | None = None) -> int:
             "Required check metadata unavailable; merge gating falls back to GitHub "
             "mergeStateStatus and reports current-head checks as advisory only."
         )
-        _print_entries("Current-head advisory checks:", list(latest.values()))
+        _print_entries("Current-head advisory checks:", advisory_entries)
 
     noisy_superseded = [entry for entry in superseded if entry.state != "passed"]
     if noisy_superseded:
@@ -422,14 +423,27 @@ def main(argv: list[str] | None = None) -> int:
             print(_format_entry(entry))
 
     blocking_entries = [entry for entry in current_required if entry.state in {"pending", "failed"}]
-    fallback_merge_blocked = not required_metadata_available and merge_state != "CLEAN"
-    if fallback_merge_blocked or blocking_entries:
+    advisory_blocking_entries = [
+        entry for entry in advisory_entries if entry.state in {"pending", "failed"}
+    ]
+    merge_state_note_needed = not required_metadata_available and merge_state != "CLEAN"
+    if blocking_entries or advisory_blocking_entries:
         print("ERROR: current-head check filter failed.")
-        if fallback_merge_blocked:
+        if merge_state_note_needed:
             print(f"- GitHub mergeStateStatus={merge_state or 'UNKNOWN'}")
         if blocking_entries:
             print("- Blocking current-head checks remain pending or failed.")
+        if advisory_blocking_entries:
+            # RU: Без branch protection опираемся на актуальные advisory checks.
+            # EN: Without branch protection metadata, the latest advisory checks are the fallback truth.
+            print("- Blocking advisory current-head checks remain pending or failed.")
         return 1
+
+    if merge_state_note_needed:
+        print(
+            f"NOTE: GitHub mergeStateStatus={merge_state or 'UNKNOWN'} is stale/non-blocking "
+            "because required check metadata is unavailable and the latest advisory checks passed."
+        )
 
     # RU/EN: superseded failures stay visible but non-blocking once latest head is clean.
     print("current-head-checks: passed.")

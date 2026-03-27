@@ -247,7 +247,7 @@ def test_main_passes_when_merge_state_is_not_clean_but_required_snapshot_is_clea
     assert "current-head-checks: passed." in captured.out
 
 
-def test_main_fails_when_merge_state_is_not_clean_and_required_metadata_is_unavailable(
+def test_main_passes_when_merge_state_is_not_clean_but_advisory_snapshot_is_clean(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     monkeypatch.setattr(current_head_checks, "_github_token", lambda: "token")
@@ -281,8 +281,47 @@ def test_main_fails_when_merge_state_is_not_clean_and_required_metadata_is_unava
     )
 
     captured = capsys.readouterr()
+    assert exit_code == 0
+    assert "NOTE: GitHub mergeStateStatus=UNSTABLE is stale/non-blocking" in captured.out
+
+
+def test_main_fails_when_merge_state_is_not_clean_and_advisory_snapshot_has_pending_check(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setattr(current_head_checks, "_github_token", lambda: "token")
+    monkeypatch.setattr(
+        current_head_checks,
+        "_fetch_pr_metadata",
+        lambda *args: (
+            False,
+            "UNSTABLE",
+            "main",
+            [
+                {
+                    "__typename": "CheckRun",
+                    "name": "security-scan",
+                    "status": "IN_PROGRESS",
+                    "conclusion": None,
+                    "startedAt": "2026-03-12T05:05:00Z",
+                    "completedAt": None,
+                    "detailsUrl": "https://example.invalid/pending-security-scan",
+                    "checkSuite": {"workflowRun": {"workflow": {"name": "Docker Build and Push"}}},
+                }
+            ],
+        ),
+    )
+    monkeypatch.setattr(
+        current_head_checks, "_fetch_required_check_names", lambda *args: (set(), False)
+    )
+
+    exit_code = current_head_checks.main(
+        ["--pr-number", "1127", "--repo", "Katsiarynakavaleuskaya/PulsePlate"]
+    )
+
+    captured = capsys.readouterr()
     assert exit_code == 1
     assert "GitHub mergeStateStatus=UNSTABLE" in captured.out
+    assert "Blocking advisory current-head checks remain pending or failed." in captured.out
 
 
 def test_main_passes_when_required_check_set_is_empty_but_available(
@@ -396,7 +435,7 @@ def test_main_fails_when_github_metadata_query_errors(
     assert "ERROR: failed to query GitHub check state: HTTP 503" in captured.out
 
 
-def test_main_uses_merge_state_only_when_required_check_metadata_is_unavailable(
+def test_main_fails_when_required_check_metadata_is_unavailable_and_advisory_check_fails(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     monkeypatch.setattr(current_head_checks, "_github_token", lambda: "token")
@@ -430,7 +469,8 @@ def test_main_uses_merge_state_only_when_required_check_metadata_is_unavailable(
     )
 
     captured = capsys.readouterr()
-    assert exit_code == 0
+    assert exit_code == 1
     assert "Required check metadata unavailable" in captured.out
     assert "Current-head advisory checks:" in captured.out
     assert "- optional-e2e: failed [Optional CI]" in captured.out
+    assert "Blocking advisory current-head checks remain pending or failed." in captured.out
