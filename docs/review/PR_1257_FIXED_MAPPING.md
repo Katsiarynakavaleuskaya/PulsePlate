@@ -29,6 +29,10 @@
   Thread: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1257#discussion_r3000010603
   Commit: b993195d
   Evidence: [collect_ci_metrics.py](/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/worktrees/tier1-pr4-ci-metrics/scripts/ci/collect_ci_metrics.py#L324), [collect_ci_metrics.py](/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/worktrees/tier1-pr4-ci-metrics/scripts/ci/collect_ci_metrics.py#L383), [test_collect_ci_metrics.py](/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/worktrees/tier1-pr4-ci-metrics/tests/test_collect_ci_metrics.py#L547)
+- Disposition: FIXED
+  Thread: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1257#discussion_r2999993452
+  Commit: 10a995ec
+  Evidence: [PR_1257_FIXED_MAPPING.md](/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/worktrees/tier1-pr4-ci-metrics/docs/review/PR_1257_FIXED_MAPPING.md#L44)
 
 ## Merge Readiness
 - [ ] All required checks pass
