@@ -81,9 +81,9 @@ def test_task_bootstrap_adds_automation_metadata_defaults() -> None:
     """Generic task packets should include additive automation metadata with safe defaults."""
 
     packet = build_task_packet(
-        goal="Refresh orchestration workflow docs",
+        goal="Refresh engineering lessons docs",
         task_class="Documentation",
-        candidate_paths=["docs/orchestration/workflow.md"],
+        candidate_paths=["docs/ENGINEERING_LESSONS.md"],
     )
 
     assert packet["automation_flags"] == {
@@ -348,9 +348,9 @@ def test_task_bootstrap_keeps_non_routable_requested_agent_as_advisory() -> None
     assert packet["domain"] == "ml"
     assert packet["primary_agent"] == "ai-innovation-specialist"
     assert "ml-engineer-agent" in packet["secondary_agents"]
-    assert [
+    assert {
         binding["repo_agent_slug"] for binding in packet["native_subagent_bridge"]["secondary"]
-    ] == ["rag-systems-agent"]
+    } == {"rag-systems-agent", "security-auditor"}
     assert [
         binding["repo_agent_slug"] for binding in packet["native_subagent_bridge"]["advisory"]
     ] == ["ml-engineer-agent"]
@@ -404,6 +404,40 @@ def test_task_bootstrap_keeps_security_auditor_in_privileged_review_path() -> No
     }
     assert "security-auditor" not in {
         binding["repo_agent_slug"] for binding in packet["native_subagent_bridge"]["advisory"]
+    }
+
+
+@pytest.mark.parametrize(
+    "candidate_path",
+    (
+        "scripts/ci/check_pr_merge_readiness.py",
+        "docs/orchestration/workflow.md",
+        "docs/review/PR_1254_FIXED_MAPPING.md",
+    ),
+)
+def test_task_bootstrap_marks_merge_governance_paths_as_privileged(
+    candidate_path: str,
+) -> None:
+    """Merge-governance docs/scripts must force the security review path."""
+
+    packet = build_task_packet(
+        goal="Refresh merge-governance automation contract",
+        task_class="Documentation",
+        candidate_paths=[candidate_path],
+        requested_agents=["agent-coordinator"],
+    )
+
+    review_path = {
+        packet["primary_agent"],
+        packet["reviewer"],
+        *packet["secondary_agents"],
+    }
+
+    assert packet["automation_flags"]["security_review_required"] is True
+    assert "security-auditor" in review_path
+    assert "security-auditor" in {
+        packet["native_subagent_bridge"]["reviewer"]["repo_agent_slug"],
+        *[binding["repo_agent_slug"] for binding in packet["native_subagent_bridge"]["secondary"]],
     }
 
 

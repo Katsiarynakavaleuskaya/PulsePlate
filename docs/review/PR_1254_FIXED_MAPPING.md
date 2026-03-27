@@ -19,7 +19,7 @@ Reason: The approved PR2 `needs_agents_sync` rule is intentionally limited to `A
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1254#discussion_r2999531893 -> e3a4be58d5a56a991ef1442288b2c2a9f1aa562f
 Disposition: FIXED
 Commit: e3a4be58d5a56a991ef1442288b2c2a9f1aa562f
-Evidence: `scripts/orchestration/task_bootstrap.py:176`; `scripts/orchestration/task_bootstrap.py:181`; `tests/test_task_bootstrap.py:569`; `tests/test_task_bootstrap.py:596`
+Evidence: `scripts/orchestration/task_bootstrap.py:176`; `scripts/orchestration/task_bootstrap.py:180`; `tests/test_task_bootstrap.py:619`; `tests/test_task_bootstrap.py:631`
 Reason: Root-level `SKILL.md` is now treated consistently with `AGENTS.md`, and coverage now exercises root/nested contract paths plus a non-triggering docs case.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1254#pullrequestreview-4019477054
@@ -30,29 +30,29 @@ Reason: The broad review suggestion to centralize bootstrap sync-policy constant
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1254#pullrequestreview-4019488003 -> e3a4be58d5a56a991ef1442288b2c2a9f1aa562f
 Disposition: FIXED
 Commit: e3a4be58d5a56a991ef1442288b2c2a9f1aa562f
-Evidence: `scripts/orchestration/task_bootstrap.py:180`; `tests/test_task_bootstrap.py:575`; `tests/test_task_bootstrap.py:579`
+Evidence: `scripts/orchestration/task_bootstrap.py:179`; `tests/test_task_bootstrap.py:619`
 Reason: The root-level `SKILL.md` gap raised by the review shell is closed in the follow-up fix commit and covered by deterministic tests.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1254#discussion_r2999566123
 Disposition: NOT-A-BUG
-Evidence: `scripts/orchestration/task_bootstrap.py:176`; `scripts/orchestration/task_bootstrap.py:181`; `tests/test_task_bootstrap.py:569`; `tests/test_task_bootstrap.py:596`
+Evidence: `scripts/orchestration/task_bootstrap.py:176`; `scripts/orchestration/task_bootstrap.py:180`; `tests/test_task_bootstrap.py:619`; `tests/test_task_bootstrap.py:631`
 Reason: This later CodeRabbit inline note repeats a gap that is already closed on the current head; the review itself acknowledges the issue was addressed in commits `e3a4be5` through `b9172ea`, so no additional post-comment code change is required.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1254#pullrequestreview-4019521610
 Disposition: NOT-A-BUG
-Evidence: `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1254#discussion_r2999566123`; `scripts/orchestration/task_bootstrap.py:176`; `scripts/orchestration/task_bootstrap.py:181`
+Evidence: `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1254#discussion_r2999566123`; `scripts/orchestration/task_bootstrap.py:176`; `scripts/orchestration/task_bootstrap.py:180`
 Reason: This review shell only summarizes the single inline CodeRabbit note above; because the current head already contains the root-level `SKILL.md` fix, the shell carries no additional unresolved action.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1254#discussion_r2999587498 -> f69629ebfa4100398ee9b3a26b55acfc3277907b
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1254#discussion_r2999587498 -> f69629ebe5cec0c1d7597d64af284248d103a710
 Disposition: FIXED
-Commit: f69629ebfa4100398ee9b3a26b55acfc3277907b
+Commit: f69629ebe5cec0c1d7597d64af284248d103a710
 Evidence: `docs/roadmap/BACKLOG_LEDGER.md:2110`
 Reason: The downstream PR3 dependency now points at the concrete PR2 identifier `PR-1254`, eliminating the stale placeholder that triggered the inline review comment.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1254#pullrequestreview-4019546133 -> f69629ebfa4100398ee9b3a26b55acfc3277907b
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1254#pullrequestreview-4019546133 -> f69629ebe5cec0c1d7597d64af284248d103a710
 Disposition: FIXED
-Commit: f69629ebfa4100398ee9b3a26b55acfc3277907b
-Evidence: `scripts/orchestration/task_bootstrap.py:130`; `scripts/orchestration/task_bootstrap.py:133`; `scripts/orchestration/task_bootstrap.py:162`; `tests/test_task_bootstrap.py:616`; `tests/test_task_bootstrap.py:623`; `docs/roadmap/BACKLOG_LEDGER.md:2110`
+Commit: f69629ebe5cec0c1d7597d64af284248d103a710
+Evidence: `scripts/orchestration/task_bootstrap.py:130`; `scripts/orchestration/task_bootstrap.py:133`; `scripts/orchestration/task_bootstrap.py:165`; `tests/test_task_bootstrap.py:650`; `tests/test_task_bootstrap.py:657`; `docs/roadmap/BACKLOG_LEDGER.md:2110`
 Reason: The new review shell is fully addressed by the latest fix commit: the stale backlog dependency was corrected, prefix matching now uses a shared helper, and deterministic packet-stability coverage now locks the additive top-level metadata fields.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1254#pullrequestreview-4019616383

@@ -78,6 +78,9 @@ PRIVILEGED_REVIEW_PREFIXES: tuple[str, ...] = (
     ".github/workflows/",
     "ios/fastlane/",
     "scripts/orchestration/",
+    "scripts/ci/",
+    "docs/orchestration/",
+    "docs/review/",
 )
 JUDGMENT_REQUIRED_CONTEXT_FILES: tuple[str, ...] = (
     *ORCHESTRATION_CONTEXT_FILES,

@@ -176,7 +176,7 @@ Task packet:
       "coordinator_first_required": true,
       "skill_routing_applied": true,
       "native_subagent_bridge_available": true,
-      "security_review_required": false,
+      "security_review_required": true,
       "judgment_lane_enabled": false,
       "pr_lifecycle_enabled": false,
       "design_lane_enabled": false
