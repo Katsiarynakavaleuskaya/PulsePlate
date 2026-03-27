@@ -140,6 +140,16 @@ Disposition: FIXED
 Commit: 07482614
 Evidence: tests/test_python_supply_chain_controls.py:131
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1251#pullrequestreview-4019377653 -> f1fa8c15
+Disposition: FIXED
+Commit: f1fa8c15
+Evidence: tests/test_check_python_startup_hooks.py:182
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1251#discussion_r2999437846 -> f1fa8c15
+Disposition: FIXED
+Commit: f1fa8c15
+Evidence: tests/test_check_python_startup_hooks.py:182
+
 ## Merge Readiness
 - [ ] Local `python -m pre_commit run --all-files` passed on current head
 - [ ] Local `make verify` passed on current head
