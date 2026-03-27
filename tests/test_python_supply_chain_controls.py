@@ -57,6 +57,11 @@ def test_python_setup_action_uses_locked_installer_not_floating_tools() -> None:
     assert "${{ inputs.install-test-deps }}" in action_text
     assert "${{ inputs.install-mode }}" in action_text
     assert "${{ inputs.skip-base-install != 'true' }}" in action_text
+    assert (
+        "::error::Expected requirements-dev.txt or requirements.txt for locked dependency install"
+        in action_text
+    )
+    assert "skipping base dependency install" not in action_text
     assert "pre-commit>=" not in action_text
     assert "bandit>=" not in action_text
     assert "pytest>=" not in action_text

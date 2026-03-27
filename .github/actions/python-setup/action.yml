@@ -62,7 +62,8 @@ runs:
             --install-mode "${{ inputs.install-mode }}" \
             "${install_args[@]}"
         else
-          echo "::notice::No requirements-dev.txt or requirements.txt found; skipping base dependency install"
+          echo "::error::Expected requirements-dev.txt or requirements.txt for locked dependency install"
+          exit 1
         fi
 
     # Backward-compatibility no-op: requirements-dev.txt is installed above via
