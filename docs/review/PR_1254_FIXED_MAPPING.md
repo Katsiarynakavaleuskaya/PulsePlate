@@ -33,6 +33,16 @@ Commit: e3a4be58d5a56a991ef1442288b2c2a9f1aa562f
 Evidence: `scripts/orchestration/task_bootstrap.py:180`; `tests/test_task_bootstrap.py:575`; `tests/test_task_bootstrap.py:579`
 Reason: The root-level `SKILL.md` gap raised by the review shell is closed in the follow-up fix commit and covered by deterministic tests.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1254#discussion_r2999566123
+Disposition: NOT-A-BUG
+Evidence: `scripts/orchestration/task_bootstrap.py:176`; `scripts/orchestration/task_bootstrap.py:181`; `tests/test_task_bootstrap.py:569`; `tests/test_task_bootstrap.py:596`
+Reason: This later CodeRabbit inline note repeats a gap that is already closed on the current head; the review itself acknowledges the issue was addressed in commits `e3a4be5` through `b9172ea`, so no additional post-comment code change is required.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1254#pullrequestreview-4019521610
+Disposition: NOT-A-BUG
+Evidence: `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1254#discussion_r2999566123`; `scripts/orchestration/task_bootstrap.py:176`; `scripts/orchestration/task_bootstrap.py:181`
+Reason: This review shell only summarizes the single inline CodeRabbit note above; because the current head already contains the root-level `SKILL.md` fix, the shell carries no additional unresolved action.
+
 ## Merge Readiness
 - [ ] All required checks pass
 - [ ] No unresolved review threads (re-check on current head before merge)
