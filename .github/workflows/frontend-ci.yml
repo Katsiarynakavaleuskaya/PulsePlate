@@ -121,7 +121,7 @@ jobs:
       - name: Install backend dependencies
         run: |
           cd ..
-          python scripts/ci/install_locked_python_requirements.py --python-executable python --constraints-file constraints.txt --install-dev
+          python scripts/ci/install_locked_python_requirements.py --python-executable python --constraints-file constraints.txt --install-dev --install-mode direct-proxy
 
       - name: Run design token pipeline checks
         run: |
