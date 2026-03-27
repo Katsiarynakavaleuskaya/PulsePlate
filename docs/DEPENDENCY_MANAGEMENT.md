@@ -45,6 +45,9 @@ If `pip-tools` is not available or you need standard pip compatibility, use cons
 
 ```bash
 # Install pinned dependencies through a local wheelhouse
+export PULSEPLATE_PYTHON_INDEX_URL="https://packages.example.internal/simple"
+# Optional: only when the approved proxy requires an explicit trusted host
+export PULSEPLATE_PYTHON_TRUSTED_HOST="packages.example.internal"
 python scripts/ci/install_locked_python_requirements.py \
   --python-executable python \
   --constraints-file constraints.txt \
@@ -56,13 +59,22 @@ This installer now follows a two-step flow:
 1. Download pinned artifacts into a temporary wheelhouse.
 2. Install with `--no-index --find-links <wheelhouse>` and then statically scan the target `site-packages` for executable `.pth` hooks via `scripts/ci/check_python_startup_hooks.py` without re-launching the target interpreter.
 
-**Note**: This is hermetic for the install phase, but it is not a substitute for an internal mirror/quarantine service. The repo still needs a promoted artifact source for full supply-chain isolation.
+Canonical contract for shared CI/Docker/bootstrap paths:
+
+- `PULSEPLATE_PYTHON_INDEX_URL` is mandatory and must point to the approved private package proxy.
+- `PULSEPLATE_PYTHON_TRUSTED_HOST` is optional and should only be set when the approved proxy requires it.
+- GitHub Actions may source these values from repository `vars` first and fall back to `secrets`, so pull-request lanes (including Dependabot-owned updates) are not forced into a secrets-only contract.
+- Public package hosts such as `pypi.org`, `files.pythonhosted.org`, and `test.pypi.org` are rejected by the shared installer.
+- Ambient overrides such as `PIP_INDEX_URL` / `PIP_EXTRA_INDEX_URL` are rejected for canonical installs.
+
+**Note**: The temporary wheelhouse is no longer the final control. The repo now fails closed unless dependency resolution goes through the approved private proxy. Artifact quarantine and promotion review still live outside the repo as infrastructure controls.
 
 ## Canonical Clean-Clone Bootstrap For Local Verify
 
 For this repo, the canonical local path is still the Makefile bootstrap:
 
 ```bash
+export PULSEPLATE_PYTHON_INDEX_URL="https://packages.example.internal/simple"
 make venv
 make verify
 ```
@@ -131,6 +143,9 @@ GitHub Actions workflows should use the shared installer instead of ad hoc
 
 ```yaml
 - name: Install dependencies
+  env:
+    PULSEPLATE_PYTHON_INDEX_URL: ${{ vars.PULSEPLATE_PYTHON_INDEX_URL || secrets.PULSEPLATE_PYTHON_INDEX_URL }}
+    PULSEPLATE_PYTHON_TRUSTED_HOST: ${{ vars.PULSEPLATE_PYTHON_TRUSTED_HOST || secrets.PULSEPLATE_PYTHON_TRUSTED_HOST }}
   run: |
     python scripts/ci/install_locked_python_requirements.py \
       --python-executable python \
@@ -158,8 +173,9 @@ For stricter environment control matching local development:
 
 - Do not add floating tool installs to CI or composite actions when the repo already has a pinned lock surface.
 - Treat executable `.pth` files as startup hooks and fail closed on unknown filenames.
+- Route every shared CI/Docker/bootstrap resolution through `PULSEPLATE_PYTHON_INDEX_URL`; do not bypass it with raw public `pip install` commands.
 - When a dependency bump or new package is required, review the wheel/sdist contents before promoting the change to shared CI/bootstrap paths.
-- Prefer a promoted internal wheelhouse or mirror for long-term CI/Docker isolation. Repo-local wheelhouse builds are a bridge, not the final control.
+- Prefer a promoted internal mirror or artifact quarantine lane for long-term CI/Docker isolation. Repo-local wheelhouse builds are a bridge, not the final control.
 
 ## Dependabot Configuration
 

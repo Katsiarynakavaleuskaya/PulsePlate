@@ -96,6 +96,18 @@ Minimum required keys:
 - `output_requirements.must_return` (array of strings)
 - `budgets` (object; recommended when cost/latency matters)
 
+Optional packet-level automation metadata (PR2 bootstrap hardening):
+
+- `inputs.automation_flags` (object; additive execution metadata such as
+  `coordinator_first_required`, `skill_routing_applied`,
+  `native_subagent_bridge_available`, `security_review_required`,
+  `judgment_lane_enabled`, `pr_lifecycle_enabled`, `design_lane_enabled`)
+- `inputs.pr_phase` (string; current bootstrap baseline uses `"none"`)
+- `inputs.design_lane_mode` (string; current bootstrap baseline uses `"disabled"`)
+- `inputs.needs_backlog_update` (boolean; deterministic sync signal)
+- `inputs.needs_docs_sync` (boolean; deterministic sync signal)
+- `inputs.needs_agents_sync` (boolean; deterministic sync signal)
+
 ### 2) `<AGENT_RESULT_V1>` (Agent → coordinator)
 
 Minimum required keys:
@@ -159,7 +171,21 @@ Task packet:
     "skill_routing": {
       "selection_mode": "deterministic-weighted",
       "policy_version": "2026-03-08"
-    }
+    },
+    "automation_flags": {
+      "coordinator_first_required": true,
+      "skill_routing_applied": true,
+      "native_subagent_bridge_available": true,
+      "security_review_required": true,
+      "judgment_lane_enabled": false,
+      "pr_lifecycle_enabled": false,
+      "design_lane_enabled": false
+    },
+    "pr_phase": "none",
+    "design_lane_mode": "disabled",
+    "needs_backlog_update": false,
+    "needs_docs_sync": false,
+    "needs_agents_sync": false
   },
   "output_requirements": {
     "must_return": [

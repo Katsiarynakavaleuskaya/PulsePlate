@@ -161,8 +161,8 @@ The following touched paths must automatically boost security-oriented skills:
 Expected behavior:
 
 - add `security-best-practices` and/or `pulseplate-guards` when the task packet touches these paths;
-- keep `security-auditor` in the executable review path for the canonical bootstrap privileged-review prefixes in `scripts/orchestration/task_bootstrap.py` (`.github/workflows/**`, `ios/fastlane/**`, `scripts/orchestration/**`);
-- merge-governance docs/scripts under `scripts/ci/**`, `docs/orchestration/**`, and `docs/review/**` remain privileged for skill routing in this PR, but do not widen reviewer selection or native subagent transport;
+- keep `security-auditor` in the executable review path for the canonical bootstrap privileged-review prefixes in `scripts/orchestration/task_bootstrap.py` (`.github/workflows/**`, `ios/fastlane/**`, `scripts/orchestration/**`, `scripts/ci/**`, `docs/orchestration/**`, `docs/review/**`);
+- merge-governance docs/scripts under `scripts/ci/**`, `docs/orchestration/**`, and `docs/review/**` must set `automation_flags.security_review_required = true` and keep the security reviewer executable in the native subagent bridge;
 - security-auditor may reference `cybersecurity-skills` bundle (repo path: `tools/cybersecurity_skills/`; index: `tools/cybersecurity_skills/index.json`) for subdomain-specific procedures (API Security, DevSecOps, Web App Sec, Container Security).
 
 ---
