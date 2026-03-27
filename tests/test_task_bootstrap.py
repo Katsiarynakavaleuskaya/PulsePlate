@@ -76,6 +76,31 @@ def test_task_bootstrap_resolves_orchestration_domain() -> None:
     )
 
 
+def test_task_bootstrap_adds_automation_metadata_defaults() -> None:
+    """Generic task packets should include additive automation metadata with safe defaults."""
+
+    packet = build_task_packet(
+        goal="Refresh orchestration workflow docs",
+        task_class="Documentation",
+        candidate_paths=["docs/orchestration/workflow.md"],
+    )
+
+    assert packet["automation_flags"] == {
+        "coordinator_first_required": True,
+        "skill_routing_applied": True,
+        "native_subagent_bridge_available": True,
+        "security_review_required": False,
+        "judgment_lane_enabled": False,
+        "pr_lifecycle_enabled": False,
+        "design_lane_enabled": False,
+    }
+    assert packet["pr_phase"] == "none"
+    assert packet["design_lane_mode"] == "disabled"
+    assert packet["needs_backlog_update"] is False
+    assert packet["needs_docs_sync"] is False
+    assert packet["needs_agents_sync"] is False
+
+
 def test_task_bootstrap_enables_judgment_lane_for_relevant_work() -> None:
     """Judgment metadata should activate only for adjudication-oriented tasks."""
 
@@ -98,6 +123,7 @@ def test_task_bootstrap_enables_judgment_lane_for_relevant_work() -> None:
         "max_provider_calls": 0,
         "uncertainty_split_required": True,
     }
+    assert packet["automation_flags"]["judgment_lane_enabled"] is True
     assert packet["result_adjudication"]["claim_evidence_fields"] == list(CLAIM_EVIDENCE_FIELDS)
     assert packet["result_adjudication"]["support_statuses"] == list(SUPPORT_STATUSES)
     assert packet["result_adjudication"]["evidence_modes"] == list(EVIDENCE_MODES)
@@ -370,6 +396,7 @@ def test_task_bootstrap_keeps_security_auditor_in_privileged_review_path() -> No
         *packet["secondary_agents"],
     }
     assert "security-auditor" in review_path
+    assert packet["automation_flags"]["security_review_required"] is True
     assert "security-auditor" in {
         packet["native_subagent_bridge"]["reviewer"]["repo_agent_slug"],
         *[binding["repo_agent_slug"] for binding in packet["native_subagent_bridge"]["secondary"]],
@@ -489,6 +516,60 @@ def test_task_bootstrap_preserves_docs_task_class_over_cv_path_hint() -> None:
 
     assert packet["domain"] == "docs"
     assert packet["cluster"] == "ops"
+
+
+def test_task_bootstrap_marks_backlog_sync_triggers() -> None:
+    """Backlog-oriented inputs should set the deterministic backlog sync flag."""
+
+    packet = build_task_packet(
+        goal="Prepare roadmap follow-up for deferred orchestration hardening",
+        task_class="Documentation",
+        candidate_paths=["docs/roadmap/BACKLOG_LEDGER.md"],
+    )
+
+    assert packet["needs_backlog_update"] is True
+
+
+def test_task_bootstrap_marks_docs_sync_for_code_only_paths() -> None:
+    """Implementation-only tasks should request docs sync when docs paths are absent."""
+
+    packet = build_task_packet(
+        goal="Tighten auth middleware behavior",
+        task_class="Backend API",
+        candidate_paths=["app/security/auth.py"],
+    )
+
+    assert packet["needs_docs_sync"] is True
+
+
+def test_task_bootstrap_marks_agents_sync_for_agent_contract_paths() -> None:
+    """Agent and skill contract paths should request agent-doc synchronization."""
+
+    packet = build_task_packet(
+        goal="Refresh coordinator contract guidance",
+        task_class="Documentation",
+        candidate_paths=["frontend/AGENTS.md", ".cursor/agents/agent-coordinator.md"],
+    )
+
+    assert packet["needs_agents_sync"] is True
+
+
+def test_task_bootstrap_keeps_packet_id_stable_for_identical_inputs() -> None:
+    """Additive metadata must remain derivable without perturbing packet identity."""
+
+    first_packet = build_task_packet(
+        goal="Refresh docs sync guidance",
+        task_class="Documentation",
+        candidate_paths=["docs/orchestration/AGENT_MESSAGE_PROTOCOL.md"],
+    )
+    second_packet = build_task_packet(
+        goal="Refresh docs sync guidance",
+        task_class="Documentation",
+        candidate_paths=["docs/orchestration/AGENT_MESSAGE_PROTOCOL.md"],
+    )
+
+    assert first_packet["task_packet_id"] == second_packet["task_packet_id"]
+    assert first_packet["automation_flags"] == second_packet["automation_flags"]
 
 
 def test_normalize_repo_path_preserves_dot_cursor_prefix() -> None:

@@ -99,6 +99,9 @@ Automation note:
 - [ ] Назначены secondary agents (если multi-domain)
 - [ ] Проставлены зависимости / handoff / sync points (если multi-agent)
 - [ ] Определён `recommended_skills` packet по `docs/orchestration/AGENT_SKILL_ROUTING_POLICY.md`
+- [ ] Task packet содержит additive automation metadata:
+  `automation_flags`, `pr_phase`, `design_lane_mode`,
+  `needs_backlog_update`, `needs_docs_sync`, `needs_agents_sync`
 - [ ] Если runtime использует native subagents, task packet содержит `native_subagent_bridge`,
   а repo-agent slug остаётся канонической идентичностью роли
 - [ ] Явно запрошенные пользователем agent slugs сохранены в task packet и либо honor/advisory,
@@ -107,6 +110,28 @@ Automation note:
   `scripts/orchestration/**`, merge-governance docs/scripts) включён security review path
 
 **Stop condition:** если есть хоть один незакрытый пункт — execution запрещён.
+
+### Task Packet Expectations (PR2 bootstrap baseline)
+
+Bootstrap packets now carry additive synchronization metadata that remains fully
+derivable from existing inputs:
+
+- `automation_flags.coordinator_first_required = true`
+- `automation_flags.skill_routing_applied = true`
+- `automation_flags.native_subagent_bridge_available = true`
+- `automation_flags.security_review_required` mirrors the privileged-surface rule
+- `automation_flags.judgment_lane_enabled` mirrors `decision_contract.judgment_enabled`
+- `automation_flags.pr_lifecycle_enabled = false`
+- `automation_flags.design_lane_enabled = false`
+- `pr_phase = "none"`
+- `design_lane_mode = "disabled"`
+- `needs_backlog_update`, `needs_docs_sync`, and `needs_agents_sync` are deterministic
+  sync signals derived from task text and candidate paths
+
+PR2 scope note:
+
+- This baseline does not enable PR lifecycle automation, design/Figma routing, or
+  local launcher/runtime rollout. Those belong to later PR slices.
 
 ---
 

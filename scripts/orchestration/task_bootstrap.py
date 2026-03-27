@@ -58,6 +58,21 @@ REQUESTED_AGENT_STATUS_HONORED_SECONDARY = "honored_secondary"
 REQUESTED_AGENT_STATUS_ADVISORY_NON_ROUTABLE = "advisory_non_routable"
 REQUESTED_AGENT_STATUS_PROMOTED = "promoted_requested_agent"
 REQUESTED_AGENT_STATUS_ADVISORY_DOMAIN_MISMATCH = "advisory_domain_mismatch"
+BACKLOG_SIGNAL_TERMS: tuple[str, ...] = (
+    "backlog",
+    "ledger",
+    "roadmap",
+    "defer",
+    "deferred",
+    "follow-up",
+)
+IMPLEMENTATION_PATH_PREFIXES: tuple[str, ...] = (
+    "app/",
+    "core/",
+    "scripts/",
+    "frontend/",
+    "ios/",
+)
 PRIVILEGED_REVIEW_PREFIXES: tuple[str, ...] = (
     ".github/workflows/",
     "ios/fastlane/",
@@ -116,6 +131,52 @@ def _requires_security_review(candidate_paths: list[str] | tuple[str, ...]) -> b
             path == prefix.rstrip("/") or path.startswith(prefix)
             for prefix in PRIVILEGED_REVIEW_PREFIXES
         )
+        for path in candidate_paths
+    )
+
+
+def _needs_backlog_update(
+    *,
+    goal: str,
+    task_class: str,
+    candidate_paths: list[str] | tuple[str, ...],
+) -> bool:
+    """Return True when the task explicitly targets backlog or follow-up bookkeeping."""
+
+    haystack = " ".join(
+        [
+            goal.strip().lower(),
+            task_class.strip().lower(),
+            *(path.lower() for path in candidate_paths),
+        ]
+    )
+    if any(term in haystack for term in BACKLOG_SIGNAL_TERMS):
+        return True
+    return any("docs/roadmap/backlog_ledger.md" in path.lower() for path in candidate_paths)
+
+
+def _needs_docs_sync(candidate_paths: list[str] | tuple[str, ...]) -> bool:
+    """Return True when implementation paths changed without an accompanying docs path."""
+
+    has_implementation_path = any(
+        any(
+            path == prefix.rstrip("/") or path.startswith(prefix)
+            for prefix in IMPLEMENTATION_PATH_PREFIXES
+        )
+        for path in candidate_paths
+    )
+    has_docs_path = any(path == "docs" or path.startswith("docs/") for path in candidate_paths)
+    return has_implementation_path and not has_docs_path
+
+
+def _needs_agents_sync(candidate_paths: list[str] | tuple[str, ...]) -> bool:
+    """Return True when agent or skill contracts are part of the task surface."""
+
+    return any(
+        path == "AGENTS.md"
+        or path.endswith("/AGENTS.md")
+        or path.startswith(".cursor/agents/")
+        or path.endswith("/SKILL.md")
         for path in candidate_paths
     )
 
@@ -432,6 +493,13 @@ def build_task_packet(
         candidate_paths=normalized_paths,
         activation=judgment_activation,
     )
+    needs_backlog_update = _needs_backlog_update(
+        goal=goal,
+        task_class=task_class,
+        candidate_paths=normalized_paths,
+    )
+    needs_docs_sync = _needs_docs_sync(normalized_paths)
+    needs_agents_sync = _needs_agents_sync(normalized_paths)
     if judgment_enabled:
         context_pack = sorted(set(context_pack).union(JUDGMENT_REQUIRED_CONTEXT_FILES))
         decision_contract = {
@@ -490,6 +558,20 @@ def build_task_packet(
         "required_context": context_pack,
         "recommended_skills": [item["skill"] for item in skill_routing["recommended"]],
         "skill_routing": skill_routing,
+        "automation_flags": {
+            "coordinator_first_required": True,
+            "skill_routing_applied": True,
+            "native_subagent_bridge_available": True,
+            "security_review_required": security_review_required,
+            "judgment_lane_enabled": judgment_enabled,
+            "pr_lifecycle_enabled": False,
+            "design_lane_enabled": False,
+        },
+        "pr_phase": "none",
+        "design_lane_mode": "disabled",
+        "needs_backlog_update": needs_backlog_update,
+        "needs_docs_sync": needs_docs_sync,
+        "needs_agents_sync": needs_agents_sync,
         "decision_contract": decision_contract,
         "judgment_budget": judgment_budget,
         "result_adjudication": result_adjudication,
