@@ -21,6 +21,7 @@ DEFAULT_MAX_RUNS = 20
 DEFAULT_WORKFLOW_FILE = "ci.yml"
 DEFAULT_WORKFLOW_NAME = "CI"
 DEFAULT_BRANCH = "main"
+MAX_REDIRECT_HOPS = 5
 
 
 def _github_token() -> str:
@@ -87,59 +88,97 @@ def _api_json(url: str, *, token: str) -> Any:
     return json.loads(body.decode("utf-8"))
 
 
-def _read_text_url(url: str, *, headers: dict[str, str] | None = None) -> str:
+def _read_text_url(
+    url: str,
+    *,
+    headers: dict[str, str] | None = None,
+    max_redirect_hops: int = MAX_REDIRECT_HOPS,
+) -> str:
     """Fetch plain-text content and follow one redirect when GitHub returns signed URLs.
 
     RU: Для job logs GitHub API отдаёт 302 на временный URL, поэтому follow делаем явно.
     EN: Job logs come back as 302 redirects to signed URLs, so follow them explicitly.
     """
 
-    parsed = urllib.parse.urlparse(url)
-    if parsed.scheme != "https":
-        raise ValueError(f"Unsupported URL scheme: {url}")
+    current_url = url
+    for redirect_hop in range(max_redirect_hops + 1):
+        parsed = urllib.parse.urlparse(current_url)
+        if parsed.scheme != "https":
+            raise ValueError(f"Unsupported URL scheme: {current_url}")
 
-    path = parsed.path
-    if parsed.query:
-        path = f"{path}?{parsed.query}"
+        path = parsed.path
+        if parsed.query:
+            path = f"{path}?{parsed.query}"
 
-    conn = http.client.HTTPSConnection(parsed.netloc, timeout=30)
-    try:
-        conn.request("GET", path, headers=headers or {})
-        response = conn.getresponse()
-        body = response.read()
-        location = response.headers.get("Location", "")
-    finally:
-        conn.close()
+        conn = http.client.HTTPSConnection(parsed.netloc, timeout=30)
+        try:
+            conn.request("GET", path, headers=headers or {})
+            response = conn.getresponse()
+            body = response.read()
+            location = response.headers.get("Location", "")
+        finally:
+            conn.close()
 
-    if response.status in {301, 302, 303, 307, 308}:
-        if not location:
-            raise RuntimeError(f"Redirect without location for {url}")
-        return _read_text_url(location)
+        if response.status in {301, 302, 303, 307, 308}:
+            if not location:
+                raise RuntimeError(f"Redirect without location for {current_url}")
+            if redirect_hop >= max_redirect_hops:
+                raise RuntimeError(
+                    "Redirect limit exceeded while fetching " f"{url}; last location was {location}"
+                )
+            current_url = urllib.parse.urljoin(current_url, location)
+            continue
 
-    if response.status >= 400:
-        raise urllib.error.HTTPError(
-            url=url,
-            code=response.status,
-            msg=response.reason,
-            hdrs=response.headers,
-            fp=None,
-        )
-    return body.decode("utf-8", errors="replace")
+        if response.status >= 400:
+            raise urllib.error.HTTPError(
+                url=current_url,
+                code=response.status,
+                msg=response.reason,
+                hdrs=response.headers,
+                fp=None,
+            )
+        return body.decode("utf-8", errors="replace")
+
+    raise RuntimeError(f"Redirect limit exceeded while fetching {url}")
 
 
 def _fetch_workflow_runs(
-    *, repo: str, workflow_file: str, branch: str, max_runs: int, token: str
+    *,
+    repo: str,
+    workflow_file: str,
+    branch: str,
+    lookback_days: int,
+    max_runs: int,
+    token: str,
 ) -> list[dict[str, Any]]:
-    """Fetch recent completed runs for one workflow file on one branch."""
+    """Fetch completed runs until the lookback boundary is reached."""
 
     owner, name = repo.split("/", maxsplit=1)
-    url = (
-        f"https://{GITHUB_API_HOST}/repos/{owner}/{name}/actions/workflows/"
-        f"{urllib.parse.quote(workflow_file, safe='')}/runs"
-        f"?branch={urllib.parse.quote(branch, safe='')}&status=completed&per_page={max_runs}"
-    )
-    payload = _api_json(url, token=token)
-    return list(payload.get("workflow_runs") or [])
+    recent_runs: list[dict[str, Any]] = []
+    cutoff = datetime.now(UTC) - timedelta(days=lookback_days)
+    page = 1
+
+    while True:
+        url = (
+            f"https://{GITHUB_API_HOST}/repos/{owner}/{name}/actions/workflows/"
+            f"{urllib.parse.quote(workflow_file, safe='')}/runs"
+            f"?branch={urllib.parse.quote(branch, safe='')}"
+            f"&status=completed&per_page={max_runs}&page={page}"
+        )
+        payload = _api_json(url, token=token)
+        page_runs = list(payload.get("workflow_runs") or [])
+        if not page_runs:
+            break
+
+        recent_runs.extend(page_runs)
+        oldest_created_at = _parse_iso8601(str(page_runs[-1].get("created_at") or ""))
+        if len(page_runs) < max_runs or (
+            oldest_created_at is not None and oldest_created_at < cutoff
+        ):
+            break
+        page += 1
+
+    return recent_runs
 
 
 def _fetch_run_jobs(*, jobs_url: str, token: str) -> list[dict[str, Any]]:
@@ -178,6 +217,12 @@ def _filter_recent_runs(runs: list[dict[str, Any]], *, lookback_days: int) -> li
 def _rerun_summary(runs: list[dict[str, Any]]) -> dict[str, Any]:
     """Compute rerun count/rate from repeated workflow runs on the same SHA."""
 
+    if not runs:
+        return {
+            "state": "unavailable",
+            "reason": "No completed CI runs found inside the lookback window.",
+        }
+
     counts_by_sha: dict[str, int] = {}
     for run in runs:
         head_sha = str(run.get("head_sha") or "").strip()
@@ -187,7 +232,7 @@ def _rerun_summary(runs: list[dict[str, Any]]) -> dict[str, Any]:
 
     rerun_count = sum(max(0, count - 1) for count in counts_by_sha.values())
     scanned_runs = len(runs)
-    rerun_rate = None if scanned_runs == 0 else round(rerun_count / scanned_runs, 4)
+    rerun_rate = round(rerun_count / scanned_runs, 4)
     return {
         "state": "available",
         "rerun_count": rerun_count,
@@ -305,11 +350,24 @@ def _xdist_fallback_summary(
         jobs_url = str(run.get("jobs_url") or "")
         if not jobs_url:
             continue
-        jobs = (
-            latest_jobs
-            if run.get("id") == latest_run.get("id")
-            else _fetch_run_jobs(jobs_url=jobs_url, token=token)
-        )
+        try:
+            jobs = (
+                latest_jobs
+                if run.get("id") == latest_run.get("id")
+                else _fetch_run_jobs(jobs_url=jobs_url, token=token)
+            )
+        except (RuntimeError, urllib.error.HTTPError, ValueError) as exc:
+            warnings.append(
+                "xdist fallback frequency is unknown because jobs for run "
+                f"{run.get('id')} could not be loaded: {exc}"
+            )
+            return (
+                {
+                    "state": "unknown",
+                    "reason": "Python 3.13 job metadata could not be loaded.",
+                },
+                warnings,
+            )
         python313_job = _find_python313_job(jobs)
         if python313_job is None:
             continue
@@ -327,8 +385,8 @@ def _xdist_fallback_summary(
                 },
                 warnings,
             )
-        job_id = int(str(raw_job_id))
         try:
+            job_id = int(str(raw_job_id))
             log_text = _fetch_job_log_text(repo=repo, job_id=job_id, token=token)
         except (RuntimeError, urllib.error.HTTPError, ValueError) as exc:
             warnings.append(
@@ -414,6 +472,8 @@ def _render_markdown_summary(payload: dict[str, Any]) -> str:
             f"- Reruns: `{reruns['rerun_count']}` across `{payload['scanned_runs']}` scanned runs "
             f"(rate `{reruns['rerun_rate']}`)."
         )
+    else:
+        lines.append(f"- Reruns: {reruns['reason']}")
 
     if red_build_rate["state"] == "available":
         lines.append(
@@ -462,32 +522,76 @@ def _build_summary(
 ) -> dict[str, Any]:
     """Collect workflow metrics and return the canonical summary payload."""
 
-    runs = _fetch_workflow_runs(
-        repo=repo,
-        workflow_file=workflow_file,
-        branch=branch,
-        max_runs=max_runs,
-        token=token,
-    )
+    warnings: list[str] = []
+    notes = [
+        "Headline metrics are calculated from the canonical backend/shared 'CI' workflow on 'main'.",
+        "Specialized add-on lanes remain contextual and do not influence the headline Tier 1 rates.",
+    ]
+
+    try:
+        runs = _fetch_workflow_runs(
+            repo=repo,
+            workflow_file=workflow_file,
+            branch=branch,
+            lookback_days=lookback_days,
+            max_runs=max_runs,
+            token=token,
+        )
+    except (RuntimeError, urllib.error.HTTPError, ValueError) as exc:
+        unavailable_reason = "Workflow run metadata was unavailable."
+        warnings.append(
+            "CI metrics collection degraded because workflow runs could not be loaded: " f"{exc}"
+        )
+        return {
+            "repo": repo,
+            "generated_at": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
+            "lookback_days": lookback_days,
+            "max_runs": max_runs,
+            "scanned_runs": 0,
+            "branch": branch,
+            "ci_workflow": workflow_name,
+            "critical_path_duration": {
+                "state": "unavailable",
+                "reason": unavailable_reason,
+            },
+            "reruns": {
+                "state": "unavailable",
+                "reason": unavailable_reason,
+            },
+            "red_build_rate": {
+                "state": "unavailable",
+                "reason": unavailable_reason,
+            },
+            "xdist_fallback_frequency": {
+                "state": "unavailable",
+                "reason": unavailable_reason,
+            },
+            "notes": notes,
+            "warnings": warnings,
+        }
+
     recent_runs = _filter_recent_runs(runs, lookback_days=lookback_days)
     latest_run = _latest_completed_run(recent_runs)
-    latest_jobs = (
-        _fetch_run_jobs(jobs_url=str(latest_run.get("jobs_url") or ""), token=token)
-        if latest_run is not None
-        else []
-    )
+    latest_jobs: list[dict[str, Any]] = []
+    if latest_run is not None:
+        latest_jobs_url = str(latest_run.get("jobs_url") or "")
+        if latest_jobs_url:
+            try:
+                latest_jobs = _fetch_run_jobs(jobs_url=latest_jobs_url, token=token)
+            except (RuntimeError, urllib.error.HTTPError, ValueError) as exc:
+                warnings.append(
+                    "Latest CI run jobs could not be loaded; critical-path job details are incomplete: "
+                    f"{exc}"
+                )
 
-    xdist_fallback_summary, warnings = _xdist_fallback_summary(
+    xdist_fallback_summary, xdist_warnings = _xdist_fallback_summary(
         repo=repo,
         latest_run=latest_run,
         latest_jobs=latest_jobs,
         runs=recent_runs,
         token=token,
     )
-    notes = [
-        "Headline metrics are calculated from the canonical backend/shared 'CI' workflow on 'main'.",
-        "Specialized add-on lanes remain contextual and do not influence the headline Tier 1 rates.",
-    ]
+    warnings.extend(xdist_warnings)
 
     return {
         "repo": repo,
@@ -538,7 +642,10 @@ def _build_parser() -> argparse.ArgumentParser:
         "--max-runs",
         type=int,
         default=DEFAULT_MAX_RUNS,
-        help=f"Maximum number of workflow runs to inspect (default: {DEFAULT_MAX_RUNS}).",
+        help=(
+            "Page size when scanning completed workflow runs before filtering by lookback "
+            f"(default: {DEFAULT_MAX_RUNS})."
+        ),
     )
     parser.add_argument(
         "--json-out",

@@ -1,11 +1,25 @@
 from __future__ import annotations
 
 import json
+import urllib.parse
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
 
 from scripts.ci import collect_ci_metrics
+
+
+def _anchor_now() -> datetime:
+    """Return a stable UTC anchor for relative timestamp generation."""
+
+    return datetime.now(UTC).replace(microsecond=0)
+
+
+def _iso_utc(value: datetime) -> str:
+    """Render a UTC datetime using the GitHub API timestamp shape."""
+
+    return value.astimezone(UTC).isoformat().replace("+00:00", "Z")
 
 
 def _run(
@@ -64,15 +78,16 @@ def _run(
 def test_main_writes_metrics_for_successful_runs(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    anchor = _anchor_now()
     runs = [
         {
             "id": 301,
             "run_number": 9,
             "head_sha": "sha-1",
             "conclusion": "success",
-            "created_at": "2026-03-27T08:00:00Z",
-            "run_started_at": "2026-03-27T08:01:00Z",
-            "updated_at": "2026-03-27T08:06:00Z",
+            "created_at": _iso_utc(anchor - timedelta(hours=1)),
+            "run_started_at": _iso_utc(anchor - timedelta(minutes=59)),
+            "updated_at": _iso_utc(anchor - timedelta(minutes=54)),
             "jobs_url": "https://example.invalid/jobs/301",
         },
         {
@@ -80,9 +95,9 @@ def test_main_writes_metrics_for_successful_runs(
             "run_number": 8,
             "head_sha": "sha-0",
             "conclusion": "success",
-            "created_at": "2026-03-26T08:00:00Z",
-            "run_started_at": "2026-03-26T08:01:00Z",
-            "updated_at": "2026-03-26T08:04:00Z",
+            "created_at": _iso_utc(anchor - timedelta(days=1, hours=1)),
+            "run_started_at": _iso_utc(anchor - timedelta(days=1, minutes=59)),
+            "updated_at": _iso_utc(anchor - timedelta(days=1, minutes=56)),
             "jobs_url": "https://example.invalid/jobs/300",
         },
     ]
@@ -92,15 +107,15 @@ def test_main_writes_metrics_for_successful_runs(
                 "id": 901,
                 "name": "test-main (3.13)",
                 "conclusion": "success",
-                "started_at": "2026-03-27T08:01:00Z",
-                "completed_at": "2026-03-27T08:05:00Z",
+                "started_at": _iso_utc(anchor - timedelta(minutes=59)),
+                "completed_at": _iso_utc(anchor - timedelta(minutes=55)),
             },
             {
                 "id": 902,
                 "name": "diff-coverage",
                 "conclusion": "success",
-                "started_at": "2026-03-27T08:05:00Z",
-                "completed_at": "2026-03-27T08:06:00Z",
+                "started_at": _iso_utc(anchor - timedelta(minutes=55)),
+                "completed_at": _iso_utc(anchor - timedelta(minutes=54)),
             },
         ],
         300: [
@@ -108,8 +123,8 @@ def test_main_writes_metrics_for_successful_runs(
                 "id": 903,
                 "name": "test-main (3.13)",
                 "conclusion": "success",
-                "started_at": "2026-03-26T08:01:00Z",
-                "completed_at": "2026-03-26T08:05:00Z",
+                "started_at": _iso_utc(anchor - timedelta(days=1, minutes=59)),
+                "completed_at": _iso_utc(anchor - timedelta(days=1, minutes=55)),
             }
         ],
     }
@@ -139,15 +154,16 @@ def test_main_writes_metrics_for_successful_runs(
 
 
 def test_main_counts_reruns_and_red_builds(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    anchor = _anchor_now()
     runs = [
         {
             "id": 401,
             "run_number": 12,
             "head_sha": "sha-rerun",
             "conclusion": "success",
-            "created_at": "2026-03-27T09:00:00Z",
-            "run_started_at": "2026-03-27T09:01:00Z",
-            "updated_at": "2026-03-27T09:06:00Z",
+            "created_at": _iso_utc(anchor - timedelta(hours=1)),
+            "run_started_at": _iso_utc(anchor - timedelta(minutes=59)),
+            "updated_at": _iso_utc(anchor - timedelta(minutes=54)),
             "jobs_url": "https://example.invalid/jobs/401",
         },
         {
@@ -155,9 +171,9 @@ def test_main_counts_reruns_and_red_builds(tmp_path: Path, monkeypatch: pytest.M
             "run_number": 11,
             "head_sha": "sha-rerun",
             "conclusion": "failure",
-            "created_at": "2026-03-27T08:00:00Z",
-            "run_started_at": "2026-03-27T08:01:00Z",
-            "updated_at": "2026-03-27T08:04:00Z",
+            "created_at": _iso_utc(anchor - timedelta(hours=2)),
+            "run_started_at": _iso_utc(anchor - timedelta(hours=2) + timedelta(minutes=1)),
+            "updated_at": _iso_utc(anchor - timedelta(hours=2) + timedelta(minutes=4)),
             "jobs_url": "https://example.invalid/jobs/400",
         },
         {
@@ -165,9 +181,9 @@ def test_main_counts_reruns_and_red_builds(tmp_path: Path, monkeypatch: pytest.M
             "run_number": 10,
             "head_sha": "sha-cancelled",
             "conclusion": "cancelled",
-            "created_at": "2026-03-26T08:00:00Z",
-            "run_started_at": "2026-03-26T08:01:00Z",
-            "updated_at": "2026-03-26T08:02:00Z",
+            "created_at": _iso_utc(anchor - timedelta(days=1, hours=1)),
+            "run_started_at": _iso_utc(anchor - timedelta(days=1, hours=1) + timedelta(minutes=1)),
+            "updated_at": _iso_utc(anchor - timedelta(days=1, hours=1) + timedelta(minutes=2)),
             "jobs_url": "https://example.invalid/jobs/399",
         },
     ]
@@ -177,8 +193,8 @@ def test_main_counts_reruns_and_red_builds(tmp_path: Path, monkeypatch: pytest.M
                 "id": 911,
                 "name": "test-main (3.13)",
                 "conclusion": "success",
-                "started_at": "2026-03-27T09:01:00Z",
-                "completed_at": "2026-03-27T09:05:00Z",
+                "started_at": _iso_utc(anchor - timedelta(minutes=59)),
+                "completed_at": _iso_utc(anchor - timedelta(minutes=55)),
             }
         ],
         400: [
@@ -186,8 +202,8 @@ def test_main_counts_reruns_and_red_builds(tmp_path: Path, monkeypatch: pytest.M
                 "id": 912,
                 "name": "test-main (3.13)",
                 "conclusion": "failure",
-                "started_at": "2026-03-27T08:01:00Z",
-                "completed_at": "2026-03-27T08:03:00Z",
+                "started_at": _iso_utc(anchor - timedelta(hours=2) + timedelta(minutes=1)),
+                "completed_at": _iso_utc(anchor - timedelta(hours=2) + timedelta(minutes=3)),
             }
         ],
         399: [
@@ -195,8 +211,10 @@ def test_main_counts_reruns_and_red_builds(tmp_path: Path, monkeypatch: pytest.M
                 "id": 913,
                 "name": "test-main (3.13)",
                 "conclusion": "cancelled",
-                "started_at": "2026-03-26T08:01:00Z",
-                "completed_at": "2026-03-26T08:02:00Z",
+                "started_at": _iso_utc(anchor - timedelta(days=1, hours=1) + timedelta(minutes=1)),
+                "completed_at": _iso_utc(
+                    anchor - timedelta(days=1, hours=1) + timedelta(minutes=2)
+                ),
             }
         ],
     }
@@ -225,15 +243,16 @@ def test_main_counts_reruns_and_red_builds(tmp_path: Path, monkeypatch: pytest.M
 def test_main_marks_xdist_metric_unknown_when_log_lookup_fails(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    anchor = _anchor_now()
     runs = [
         {
             "id": 501,
             "run_number": 4,
             "head_sha": "sha-1",
             "conclusion": "success",
-            "created_at": "2026-03-27T08:00:00Z",
-            "run_started_at": "2026-03-27T08:01:00Z",
-            "updated_at": "2026-03-27T08:06:00Z",
+            "created_at": _iso_utc(anchor - timedelta(hours=1)),
+            "run_started_at": _iso_utc(anchor - timedelta(minutes=59)),
+            "updated_at": _iso_utc(anchor - timedelta(minutes=54)),
             "jobs_url": "https://example.invalid/jobs/501",
         }
     ]
@@ -243,8 +262,8 @@ def test_main_marks_xdist_metric_unknown_when_log_lookup_fails(
                 "id": 921,
                 "name": "test-main (3.13)",
                 "conclusion": "success",
-                "started_at": "2026-03-27T08:01:00Z",
-                "completed_at": "2026-03-27T08:05:00Z",
+                "started_at": _iso_utc(anchor - timedelta(minutes=59)),
+                "completed_at": _iso_utc(anchor - timedelta(minutes=55)),
             }
         ]
     }
@@ -265,6 +284,131 @@ def test_main_marks_xdist_metric_unknown_when_log_lookup_fails(
     )
 
 
+def test_main_marks_xdist_metric_unknown_when_no_canonical_python313_job(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    anchor = _anchor_now()
+    runs = [
+        {
+            "id": 601,
+            "run_number": 5,
+            "head_sha": "sha-2",
+            "conclusion": "success",
+            "created_at": _iso_utc(anchor - timedelta(hours=1)),
+            "run_started_at": _iso_utc(anchor - timedelta(minutes=59)),
+            "updated_at": _iso_utc(anchor - timedelta(minutes=55)),
+            "jobs_url": "https://example.invalid/jobs/601",
+        }
+    ]
+    jobs_by_run_id = {
+        601: [
+            {
+                "id": 931,
+                "name": "test-main (3.12)",
+                "conclusion": "success",
+                "started_at": _iso_utc(anchor - timedelta(minutes=59)),
+                "completed_at": _iso_utc(anchor - timedelta(minutes=55)),
+            }
+        ]
+    }
+
+    exit_code, payload, markdown = _run(
+        tmp_path,
+        monkeypatch,
+        runs=runs,
+        jobs_by_run_id=jobs_by_run_id,
+        logs_by_job_id={},
+    )
+
+    assert exit_code == 0
+    assert payload["xdist_fallback_frequency"]["state"] == "unknown"
+    assert "No canonical Python 3.13 main-branch test jobs were found." in markdown
+    assert any("no canonical 'test-main (3.13)' jobs" in warning for warning in payload["warnings"])
+
+
+def test_main_marks_xdist_metric_unknown_when_python313_job_id_is_missing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    anchor = _anchor_now()
+    runs = [
+        {
+            "id": 701,
+            "run_number": 6,
+            "head_sha": "sha-3",
+            "conclusion": "success",
+            "created_at": _iso_utc(anchor - timedelta(hours=1)),
+            "run_started_at": _iso_utc(anchor - timedelta(minutes=59)),
+            "updated_at": _iso_utc(anchor - timedelta(minutes=55)),
+            "jobs_url": "https://example.invalid/jobs/701",
+        }
+    ]
+    jobs_by_run_id = {
+        701: [
+            {
+                "name": "test-main (3.13)",
+                "conclusion": "success",
+                "started_at": _iso_utc(anchor - timedelta(minutes=59)),
+                "completed_at": _iso_utc(anchor - timedelta(minutes=55)),
+            }
+        ]
+    }
+
+    exit_code, payload, markdown = _run(
+        tmp_path,
+        monkeypatch,
+        runs=runs,
+        jobs_by_run_id=jobs_by_run_id,
+        logs_by_job_id={},
+    )
+
+    assert exit_code == 0
+    assert payload["xdist_fallback_frequency"]["state"] == "unknown"
+    assert "Python 3.13 job metadata was incomplete." in markdown
+    assert any("did not include a job id" in warning for warning in payload["warnings"])
+
+
+def test_main_marks_xdist_metric_unknown_when_python313_job_id_is_malformed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    anchor = _anchor_now()
+    runs = [
+        {
+            "id": 702,
+            "run_number": 7,
+            "head_sha": "sha-4",
+            "conclusion": "success",
+            "created_at": _iso_utc(anchor - timedelta(hours=1)),
+            "run_started_at": _iso_utc(anchor - timedelta(minutes=59)),
+            "updated_at": _iso_utc(anchor - timedelta(minutes=55)),
+            "jobs_url": "https://example.invalid/jobs/702",
+        }
+    ]
+    jobs_by_run_id = {
+        702: [
+            {
+                "id": "not-an-int",
+                "name": "test-main (3.13)",
+                "conclusion": "success",
+                "started_at": _iso_utc(anchor - timedelta(minutes=59)),
+                "completed_at": _iso_utc(anchor - timedelta(minutes=55)),
+            }
+        ]
+    }
+
+    exit_code, payload, markdown = _run(
+        tmp_path,
+        monkeypatch,
+        runs=runs,
+        jobs_by_run_id=jobs_by_run_id,
+        logs_by_job_id={},
+    )
+
+    assert exit_code == 0
+    assert payload["xdist_fallback_frequency"]["state"] == "unknown"
+    assert "Python 3.13 job logs were unavailable." in markdown
+    assert any("invalid literal for int()" in warning for warning in payload["warnings"])
+
+
 def test_main_writes_valid_outputs_when_no_runs_found(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -279,9 +423,125 @@ def test_main_writes_valid_outputs_when_no_runs_found(
     assert exit_code == 0
     assert payload["scanned_runs"] == 0
     assert payload["critical_path_duration"]["state"] == "unavailable"
+    assert payload["reruns"]["state"] == "unavailable"
     assert payload["red_build_rate"]["state"] == "unavailable"
     assert payload["xdist_fallback_frequency"]["state"] == "unavailable"
     assert "No completed CI runs found inside the lookback window." in markdown
+    assert "Reruns: No completed CI runs found inside the lookback window." in markdown
+
+
+def test_main_degrades_to_unavailable_when_workflow_runs_cannot_be_loaded(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    json_out = tmp_path / "ci-metrics-summary.json"
+    markdown_out = tmp_path / "ci-metrics-summary.md"
+
+    monkeypatch.setenv("GH_TOKEN", "token")
+    monkeypatch.setattr(
+        collect_ci_metrics,
+        "_fetch_workflow_runs",
+        lambda **kwargs: (_ for _ in ()).throw(RuntimeError("github api unavailable")),
+    )
+
+    exit_code = collect_ci_metrics.main(
+        [
+            "--repo",
+            "Katsiarynakavaleuskaya/PulsePlate",
+            "--json-out",
+            str(json_out),
+            "--markdown-out",
+            str(markdown_out),
+        ]
+    )
+
+    payload = json.loads(json_out.read_text(encoding="utf-8"))
+    markdown = markdown_out.read_text(encoding="utf-8")
+
+    assert exit_code == 0
+    assert payload["critical_path_duration"]["state"] == "unavailable"
+    assert payload["reruns"]["state"] == "unavailable"
+    assert payload["red_build_rate"]["state"] == "unavailable"
+    assert payload["xdist_fallback_frequency"]["state"] == "unavailable"
+    assert any("workflow runs could not be loaded" in warning for warning in payload["warnings"])
+    assert "Workflow run metadata was unavailable." in markdown
+
+
+def test_fetch_workflow_runs_paginates_until_the_lookback_boundary(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    anchor = _anchor_now()
+    requested_urls: list[str] = []
+    page_payloads = {
+        1: {
+            "workflow_runs": [
+                {"id": 801, "created_at": _iso_utc(anchor - timedelta(days=1))},
+                {"id": 800, "created_at": _iso_utc(anchor - timedelta(days=2))},
+            ]
+        },
+        2: {
+            "workflow_runs": [
+                {"id": 799, "created_at": _iso_utc(anchor - timedelta(days=3))},
+                {"id": 798, "created_at": _iso_utc(anchor - timedelta(days=10))},
+            ]
+        },
+    }
+
+    def fake_api_json(url: str, *, token: str) -> object:
+        requested_urls.append(url)
+        page = int(urllib.parse.parse_qs(urllib.parse.urlparse(url).query)["page"][0])
+        return page_payloads[page]
+
+    monkeypatch.setattr(collect_ci_metrics, "_api_json", fake_api_json)
+
+    runs = collect_ci_metrics._fetch_workflow_runs(
+        repo="Katsiarynakavaleuskaya/PulsePlate",
+        workflow_file="ci.yml",
+        branch="main",
+        lookback_days=7,
+        max_runs=2,
+        token="token",
+    )
+
+    assert [run["id"] for run in runs] == [801, 800, 799, 798]
+    assert requested_urls == [
+        "https://api.github.com/repos/Katsiarynakavaleuskaya/PulsePlate/actions/workflows/ci.yml/runs?branch=main&status=completed&per_page=2&page=1",
+        "https://api.github.com/repos/Katsiarynakavaleuskaya/PulsePlate/actions/workflows/ci.yml/runs?branch=main&status=completed&per_page=2&page=2",
+    ]
+
+
+def test_read_text_url_raises_when_redirect_limit_is_exceeded(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class FakeResponse:
+        def __init__(self, *, status: int, location: str = "", body: bytes = b"") -> None:
+            self.status = status
+            self.reason = "Found" if status < 400 else "Error"
+            self.headers = {"Location": location} if location else {}
+            self._body = body
+
+        def read(self) -> bytes:
+            return self._body
+
+    class FakeConnection:
+        def __init__(self, netloc: str, timeout: int) -> None:
+            self.netloc = netloc
+            self.timeout = timeout
+
+        def request(self, method: str, path: str, headers: dict[str, str]) -> None:
+            self.method = method
+            self.path = path
+            self.headers = headers
+
+        def getresponse(self) -> FakeResponse:
+            return FakeResponse(status=302, location="https://example.invalid/loop")
+
+        def close(self) -> None:
+            return None
+
+    monkeypatch.setattr(collect_ci_metrics.http.client, "HTTPSConnection", FakeConnection)
+
+    with pytest.raises(RuntimeError, match="Redirect limit exceeded"):
+        collect_ci_metrics._read_text_url("https://example.invalid/start", max_redirect_hops=2)
 
 
 def test_main_requires_repo_token_and_paths(
