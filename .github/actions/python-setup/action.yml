@@ -16,6 +16,14 @@ inputs:
     description: 'Constraints file applied during wheelhouse build/install'
     required: false
     default: 'constraints.txt'
+  install-mode:
+    description: 'Locked installer mode (wheelhouse or direct-proxy)'
+    required: false
+    default: 'wheelhouse'
+  skip-base-install:
+    description: 'Skip the locked base dependency install step'
+    required: false
+    default: 'false'
   working-directory:
     description: 'Working directory for the job'
     required: false
@@ -33,6 +41,7 @@ runs:
           ${{ inputs.working-directory }}/requirements*.txt
 
     - name: Install base dependencies
+      if: ${{ inputs.skip-base-install != 'true' }}
       shell: bash
       working-directory: ${{ inputs.working-directory }}
       run: |
@@ -50,6 +59,7 @@ runs:
           python "${{ github.workspace }}/scripts/ci/install_locked_python_requirements.py" \
             --python-executable python \
             --constraints-file "${{ inputs.constraints-file }}" \
+            --install-mode "${{ inputs.install-mode }}" \
             "${install_args[@]}"
         else
           echo "::notice::No requirements-dev.txt or requirements.txt found; skipping base dependency install"

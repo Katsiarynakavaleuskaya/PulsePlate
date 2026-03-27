@@ -290,6 +290,26 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 
 ### P1
 
+<a id="ledger-p1-ci-install-profile-split-after-disk-unblock"></a>
+- [ ] P1: CI install profile split after disk-regression unblock
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-CI-INSTALL-PROFILE-SPLIT
+  - Area: CI / Python dependencies / supply-chain
+  - Reason: The emergency unblock PR stabilizes `main` by removing duplicate Python installs and forcing `direct-proxy` in canonical CI lanes, but it intentionally leaves the heavy ML/GPU dependency surface in the base runtime lock. A follow-up PR must split tooling/runtime install profiles and move `torch` / `sentence-transformers` / `nvidia-*` out of the default CI surface where possible.
+  - Links:
+    - `.github/actions/python-setup/action.yml`
+    - `.github/workflows/ci.yml`
+    - `requirements.txt`
+    - `requirements-dev.txt`
+    - `scripts/ci/install_locked_python_requirements.py`
+    - `docs/roadmap/BACKLOG_LEDGER.md`
+  - DoD:
+    - Canonical CI install profiles distinguish runtime, test/dev tooling, and OpenAPI-only tooling
+    - Heavy ML/GPU dependencies are optionalized away from generic CI lanes unless a job explicitly needs them
+    - Supply-chain guardrails remain fail-closed with the approved private proxy contract intact
+    - Deterministic tests cover the promoted install-profile contract
+
 <a id="ledger-p1-business-wave-runtime-follow-through"></a>
 - [ ] P1: Business wave runtime follow-through after governance/docs foundation
   - Owner: @katsiaryna_kavaleuskaya

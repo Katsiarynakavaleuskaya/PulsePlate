@@ -55,6 +55,8 @@ def test_python_setup_action_uses_locked_installer_not_floating_tools() -> None:
     assert '--index-url "$PULSEPLATE_PYTHON_INDEX_URL"' in action_text
     assert "${{ inputs.install-dev-deps }}" in action_text
     assert "${{ inputs.install-test-deps }}" in action_text
+    assert "${{ inputs.install-mode }}" in action_text
+    assert "${{ inputs.skip-base-install != 'true' }}" in action_text
     assert "pre-commit>=" not in action_text
     assert "bandit>=" not in action_text
     assert "pytest>=" not in action_text
@@ -155,3 +157,11 @@ def test_no_canonical_workflow_uses_unscoped_public_pip_install() -> None:
                 continue
             context = "\n".join(lines[max(0, index - 6) : index + 1])
             assert "PULSEPLATE_PYTHON_INDEX_URL" in context
+
+
+def test_ci_workflow_uses_single_direct_proxy_python_install_path_per_job() -> None:
+    ci_text = (REPO_ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+
+    assert ci_text.count("install-mode: direct-proxy") >= 7
+    assert ci_text.count('install-test-deps: "true"') >= 3
+    assert "\n      - name: Install dependencies\n" not in ci_text
