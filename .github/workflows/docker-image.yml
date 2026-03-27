@@ -16,5 +16,10 @@ jobs:
 
     steps:
     - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+    - name: Reclaim runner disk before Docker build
+      run: |
+        set -euo pipefail
+        sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc
+        df -h
     - name: Build the Docker image
       run: docker build . --file Dockerfile --tag "my-image-name:$(date +%s)"

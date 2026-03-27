@@ -21,8 +21,13 @@ CI_RECLAIM_JOB_NAMES: tuple[str, ...] = (
     "test-feature",
     "test-main",
 )
+DOCKER_RECLAIM_WORKFLOW_PATHS: tuple[str, ...] = (
+    ".github/workflows/docker-image.yml",
+    ".github/workflows/build.yml",
+)
 RECLAIM_STEP_NAME = "Reclaim runner disk before Python install"
 RECLAIM_COMMAND = "sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc"
+DOCKER_RECLAIM_STEP_NAME = "Reclaim runner disk before Docker build"
 
 
 def _extract_workflow_job_block(*, workflow_text: str, job_name: str) -> str:
@@ -115,3 +120,12 @@ def test_ci_locked_python_install_jobs_reclaim_runner_disk_before_install() -> N
 
         assert RECLAIM_STEP_NAME in job_block
         assert RECLAIM_COMMAND in job_block
+
+
+@pytest.mark.parametrize("workflow_path", DOCKER_RECLAIM_WORKFLOW_PATHS)
+def test_docker_build_workflows_reclaim_runner_disk_before_build(workflow_path: str) -> None:
+    workflow_text = (REPO_ROOT / workflow_path).read_text(encoding="utf-8")
+
+    assert DOCKER_RECLAIM_STEP_NAME in workflow_text
+    assert RECLAIM_COMMAND in workflow_text
+    assert "df -h" in workflow_text
