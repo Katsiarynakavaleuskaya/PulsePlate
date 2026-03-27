@@ -19,8 +19,14 @@ Commit: 14347b44
 Evidence: `.github/actions/python-setup/action.yml:43-67`, `tests/test_python_supply_chain_controls.py:47-68`
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1261#discussion_r3000466719 -> 14347b44
 
+Disposition: DEFERRED
+Backlog: `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-ci-install-profile-split-after-disk-unblock`
+Reason: PR 1261 intentionally unblocks the disk regression with the minimal direct-proxy consolidation and defers the heavier CI install-profile / dependency-surface split to the tracked follow-up ledger item.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1261#discussion_r3000585619
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1261#pullrequestreview-4020685400
+
 Disposition: NOT-A-BUG
-Evidence: `docs/review/PR_1261_FIXED_MAPPING.md:8-21`
+Evidence: `docs/review/PR_1261_FIXED_MAPPING.md:8-31`
 Reason: These aggregate bot summaries only restate actionable findings already dispositioned by the mapped inline thread URLs above, so they do not require separate code changes or backlog items.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1261#issuecomment-4141912212
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1261#pullrequestreview-4020555158
