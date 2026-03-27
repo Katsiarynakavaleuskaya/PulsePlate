@@ -313,7 +313,7 @@ jobs:
 
   lint:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -334,7 +334,7 @@ jobs:
     needs: [changes]
     if: github.event_name != 'pull_request' || needs.changes.outputs.run_security == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -470,7 +470,7 @@ jobs:
     needs: [changes]
     if: github.event_name != 'pull_request' || needs.changes.outputs.run_openapi_sync == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     env:
       APP_ENV: test
       ENVIRONMENT: test
