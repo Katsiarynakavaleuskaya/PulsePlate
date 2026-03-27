@@ -2063,7 +2063,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
   - Target PR: PR-1254
-  - Status: Landed on `origin/main` in PR `#1254` (`b2ed971c`); this slice is now closed and serves as baseline input for PR3.
+  - Status: Landed on `origin/main` in PR `#1254` (`b2ed971c`); this slice closes the PR1/PR2 baseline for PR3.
   - Area: orchestration / task bootstrap / packet schema
   - Finding Type: automation rollout slice
   - Reason: PR1 locks the governance boundary, but coordinator-first still remains policy-required rather than reliably packet-driven for every non-trivial task. The next slice must harden `task_bootstrap` and related bridge contracts without mixing in PR lifecycle or design-lane behavior.
@@ -2105,12 +2105,13 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
   - Target PR: PR-TBD-AUTOMATION-PR3-SKILL-INTENT
-  - Status: Active next execution slice after landed PR1/PR2 baseline (`PR #1252`, `PR #1254`).
+  - Status: Active next execution slice after the closed PR1/PR2 baseline on `origin/main` (`PR #1252`, `PR #1254`).
   - Area: orchestration / skills / intent classification
   - Finding Type: automation rollout slice
   - Reason: After bootstrap hardening, the next failure mode is still over- or under-selecting skills and treating unlike tasks as the same class. The routing layer needs a deterministic classifier and explicit required/recommended/conditional/blocked outputs before any lifecycle or design automation is added.
   - Dependencies:
     - `PR-1254`
+    - `docs/orchestration/AUTOMATION_READINESS_MATRIX.md` (canonical baseline wording)
   - Lifecycle: Start → Open → Push → Review → Merge
   - Links:
     - `docs/orchestration/AUTOMATION_READINESS_MATRIX.md`

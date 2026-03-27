@@ -113,8 +113,8 @@ Current approved wording:
 Current series state on `origin/main`:
 
 - PR1 governance and SoT alignment landed in PR `#1252`.
-- PR2 bootstrap engine hardening landed in PR `#1254`.
-- PR3 skill routing and intent classifier is now the active next execution slice.
+- PR2 bootstrap engine hardening landed in PR `#1254` and closed the PR1/PR2 baseline for PR3.
+- PR3 skill routing and intent classifier is now the active next execution slice after the closed PR1/PR2 baseline.
 
 Series invariant:
 
@@ -160,7 +160,7 @@ Out:
 
 Status:
 
-- Landed in PR `#1254` on `origin/main`; treated as closed baseline for PR3.
+- Landed in PR `#1254` on `origin/main`; this slice closes the PR1/PR2 baseline for PR3.
 
 ### PR3: Skill routing and intent classifier
 
@@ -178,7 +178,7 @@ Out:
 
 Status:
 
-- Active next execution slice after landed PR1/PR2 baseline.
+- Active next execution slice after the closed PR1/PR2 baseline on `origin/main`.
 
 ### PR4: PR lifecycle automation
 
