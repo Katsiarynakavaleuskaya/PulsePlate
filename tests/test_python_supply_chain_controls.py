@@ -55,10 +55,13 @@ def test_python_setup_action_uses_locked_installer_not_floating_tools() -> None:
     assert '--index-url "$PULSEPLATE_PYTHON_INDEX_URL"' in action_text
     assert "${{ inputs.install-dev-deps }}" in action_text
     assert "${{ inputs.install-test-deps }}" in action_text
+    assert "${{ inputs.test-requirements-file }}" in action_text
     assert "${{ inputs.install-mode }}" in action_text
     assert "${{ inputs.skip-base-install != 'true' }}" in action_text
+    assert "::error::Expected requirements.txt for locked dependency install" in action_text
+    assert "::error::Expected requirements-dev.txt when install-dev-deps is true" in action_text
     assert (
-        "::error::Expected requirements-dev.txt or requirements.txt for locked dependency install"
+        "::error::Expected ${{ inputs.test-requirements-file }} when install-test-deps is true"
         in action_text
     )
     assert "skipping base dependency install" not in action_text
@@ -66,6 +69,11 @@ def test_python_setup_action_uses_locked_installer_not_floating_tools() -> None:
     assert "bandit>=" not in action_text
     assert "pytest>=" not in action_text
     assert "pytest-cov>=" not in action_text
+    assert "requirements-dev.txt via install_locked_python_requirements.py" in action_text
+    assert (
+        "${{ inputs.test-requirements-file }} via install_locked_python_requirements.py"
+        in action_text
+    )
 
 
 def test_local_bootstrap_surfaces_use_locked_installer_and_virtualenv_guard() -> None:
@@ -196,3 +204,17 @@ def test_ci_workflow_uses_single_direct_proxy_python_install_path_per_job() -> N
         setup_step = _python_setup_step(job_name)
         assert setup_step["with"]["install-test-deps"] == "true"
         assert all(step.get("name") != "Install dependencies" for step in jobs[job_name]["steps"])
+
+
+def test_test_dependency_profile_is_split_from_dev_tooling() -> None:
+    requirements_test = (REPO_ROOT / "requirements-test.txt").read_text(encoding="utf-8")
+
+    assert "pytest==8.4.2" in requirements_test
+    assert "pytest-cov==7.1.0" in requirements_test
+    assert "pytest-xdist==3.8.0" in requirements_test
+    assert "coverage[toml]==7.13.5" in requirements_test
+    assert "bandit==" not in requirements_test
+    assert "pre-commit==" not in requirements_test
+    assert "pip-audit==" not in requirements_test
+    assert "mypy==" not in requirements_test
+    assert "ruff==" not in requirements_test

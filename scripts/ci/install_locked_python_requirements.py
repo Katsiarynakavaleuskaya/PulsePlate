@@ -17,6 +17,7 @@ from urllib.parse import urlparse
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_REQUIREMENTS_FILE = REPO_ROOT / "requirements.txt"
 DEFAULT_DEV_REQUIREMENTS_FILE = REPO_ROOT / "requirements-dev.txt"
+DEFAULT_TEST_REQUIREMENTS_FILE = REPO_ROOT / "requirements-test.txt"
 DEFAULT_CONSTRAINTS_FILE = REPO_ROOT / "constraints.txt"
 DEFAULT_STARTUP_HOOK_GUARD_PATH = REPO_ROOT / "scripts" / "ci" / "check_python_startup_hooks.py"
 APPROVED_INDEX_ENV_VAR = "PULSEPLATE_PYTHON_INDEX_URL"
@@ -55,6 +56,12 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         help="Pinned development requirements file.",
     )
     parser.add_argument(
+        "--test-requirements-file",
+        type=Path,
+        default=DEFAULT_TEST_REQUIREMENTS_FILE,
+        help="Pinned test requirements file.",
+    )
+    parser.add_argument(
         "--constraints-file",
         type=Path,
         default=DEFAULT_CONSTRAINTS_FILE,
@@ -69,6 +76,11 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         "--install-dev",
         action="store_true",
         help="Install development requirements after runtime requirements.",
+    )
+    parser.add_argument(
+        "--install-test",
+        action="store_true",
+        help="Install test requirements after runtime requirements.",
     )
     parser.add_argument(
         "--require-virtualenv",
@@ -110,13 +122,19 @@ def resolve_requirement_files(
     *,
     requirements_file: Path,
     dev_requirements_file: Path,
+    test_requirements_file: Path,
     install_dev: bool,
+    install_test: bool,
 ) -> list[Path]:
     """Return the pinned requirement surfaces to download/install."""
     if not requirements_file.exists():
         raise FileNotFoundError(f"Requirements file not found: {requirements_file}")
 
     requirement_files = [requirements_file]
+    if install_test:
+        if not test_requirements_file.exists():
+            raise FileNotFoundError(f"Test requirements file not found: {test_requirements_file}")
+        requirement_files.append(test_requirements_file)
     if install_dev:
         if not dev_requirements_file.exists():
             raise FileNotFoundError(f"Dev requirements file not found: {dev_requirements_file}")
@@ -536,7 +554,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         requirement_files = resolve_requirement_files(
             requirements_file=args.requirements_file,
             dev_requirements_file=args.dev_requirements_file,
+            test_requirements_file=args.test_requirements_file,
             install_dev=args.install_dev,
+            install_test=args.install_test,
         )
 
         if args.require_virtualenv and not is_virtualenv_python(args.python_executable):

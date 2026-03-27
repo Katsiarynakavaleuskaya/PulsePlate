@@ -12,6 +12,10 @@ inputs:
     description: 'Install test dependencies (pytest, pytest-cov)'
     required: false
     default: 'false'
+  test-requirements-file:
+    description: 'Pinned test requirements file used when install-test-deps is true'
+    required: false
+    default: 'requirements-test.txt'
   constraints-file:
     description: 'Constraints file applied during wheelhouse build/install'
     required: false
@@ -46,15 +50,27 @@ runs:
       working-directory: ${{ inputs.working-directory }}
       run: |
         set -euxo pipefail
-        if [[ -f requirements-dev.txt || -f requirements.txt ]]; then
+        if [[ -f requirements.txt ]]; then
           : "${PULSEPLATE_PYTHON_INDEX_URL:?Set PULSEPLATE_PYTHON_INDEX_URL to the approved private package proxy URL.}"
           install_args=()
           install_args+=(--index-url "$PULSEPLATE_PYTHON_INDEX_URL")
           if [[ -n "${PULSEPLATE_PYTHON_TRUSTED_HOST:-}" ]]; then
             install_args+=(--trusted-host "$PULSEPLATE_PYTHON_TRUSTED_HOST")
           fi
-          if [[ -f requirements-dev.txt && ( ! -f requirements.txt || "${{ inputs.install-dev-deps }}" == 'true' || "${{ inputs.install-test-deps }}" == 'true' ) ]]; then
+          if [[ "${{ inputs.install-dev-deps }}" == 'true' ]]; then
+            if [[ ! -f requirements-dev.txt ]]; then
+              echo "::error::Expected requirements-dev.txt when install-dev-deps is true"
+              exit 1
+            fi
             install_args+=(--install-dev)
+          fi
+          if [[ "${{ inputs.install-test-deps }}" == 'true' ]]; then
+            if [[ ! -f "${{ inputs.test-requirements-file }}" ]]; then
+              echo "::error::Expected ${{ inputs.test-requirements-file }} when install-test-deps is true"
+              exit 1
+            fi
+            install_args+=(--install-test)
+            install_args+=(--test-requirements-file "${{ inputs.test-requirements-file }}")
           fi
           python "${{ github.workspace }}/scripts/ci/install_locked_python_requirements.py" \
             --python-executable python \
@@ -62,7 +78,7 @@ runs:
             --install-mode "${{ inputs.install-mode }}" \
             "${install_args[@]}"
         else
-          echo "::error::Expected requirements-dev.txt or requirements.txt for locked dependency install"
+          echo "::error::Expected requirements.txt for locked dependency install"
           exit 1
         fi
 
@@ -84,4 +100,4 @@ runs:
       working-directory: ${{ inputs.working-directory }}
       run: |
         set -euxo pipefail
-        echo "::notice::Pinned test tooling is provided by requirements-dev.txt via install_locked_python_requirements.py"
+        echo "::notice::Pinned test tooling is provided by ${{ inputs.test-requirements-file }} via install_locked_python_requirements.py"

@@ -27,14 +27,37 @@ def test_resolve_requirement_files_prefers_dev_only_when_requested(tmp_path: Pat
     requirements.write_text("openai==2.29.0\n", encoding="utf-8")
     requirements_dev = tmp_path / "requirements-dev.txt"
     requirements_dev.write_text("pytest==8.4.2\n", encoding="utf-8")
+    requirements_test = tmp_path / "requirements-test.txt"
+    requirements_test.write_text("pytest==8.4.2\n", encoding="utf-8")
 
     files = installer.resolve_requirement_files(
         requirements_file=requirements,
         dev_requirements_file=requirements_dev,
+        test_requirements_file=requirements_test,
         install_dev=True,
+        install_test=False,
     )
 
     assert files == [requirements, requirements_dev]
+
+
+def test_resolve_requirement_files_includes_test_surface_when_requested(tmp_path: Path) -> None:
+    requirements = tmp_path / "requirements.txt"
+    requirements.write_text("openai==2.29.0\n", encoding="utf-8")
+    requirements_dev = tmp_path / "requirements-dev.txt"
+    requirements_dev.write_text("bandit==1.9.4\n", encoding="utf-8")
+    requirements_test = tmp_path / "requirements-test.txt"
+    requirements_test.write_text("pytest==8.4.2\n", encoding="utf-8")
+
+    files = installer.resolve_requirement_files(
+        requirements_file=requirements,
+        dev_requirements_file=requirements_dev,
+        test_requirements_file=requirements_test,
+        install_dev=False,
+        install_test=True,
+    )
+
+    assert files == [requirements, requirements_test]
 
 
 def test_resolve_requirement_files_fails_when_runtime_file_is_missing(tmp_path: Path) -> None:
@@ -42,7 +65,9 @@ def test_resolve_requirement_files_fails_when_runtime_file_is_missing(tmp_path: 
         installer.resolve_requirement_files(
             requirements_file=tmp_path / "requirements.txt",
             dev_requirements_file=tmp_path / "requirements-dev.txt",
+            test_requirements_file=tmp_path / "requirements-test.txt",
             install_dev=False,
+            install_test=False,
         )
 
 
@@ -56,7 +81,27 @@ def test_resolve_requirement_files_fails_when_dev_file_is_requested_but_missing(
         installer.resolve_requirement_files(
             requirements_file=requirements,
             dev_requirements_file=tmp_path / "requirements-dev.txt",
+            test_requirements_file=tmp_path / "requirements-test.txt",
             install_dev=True,
+            install_test=False,
+        )
+
+
+def test_resolve_requirement_files_fails_when_test_file_is_requested_but_missing(
+    tmp_path: Path,
+) -> None:
+    requirements = tmp_path / "requirements.txt"
+    requirements.write_text("openai==2.29.0\n", encoding="utf-8")
+    requirements_dev = tmp_path / "requirements-dev.txt"
+    requirements_dev.write_text("bandit==1.9.4\n", encoding="utf-8")
+
+    with pytest.raises(FileNotFoundError, match="Test requirements file not found"):
+        installer.resolve_requirement_files(
+            requirements_file=requirements,
+            dev_requirements_file=requirements_dev,
+            test_requirements_file=tmp_path / "requirements-test.txt",
+            install_dev=False,
+            install_test=True,
         )
 
 
@@ -217,6 +262,7 @@ def test_main_fails_when_virtualenv_is_required(
     constraints.write_text("openai==2.29.0\n", encoding="utf-8")
     monkeypatch.setattr(installer, "DEFAULT_REQUIREMENTS_FILE", requirements)
     monkeypatch.setattr(installer, "DEFAULT_DEV_REQUIREMENTS_FILE", tmp_path / "missing-dev.txt")
+    monkeypatch.setattr(installer, "DEFAULT_TEST_REQUIREMENTS_FILE", tmp_path / "missing-test.txt")
     monkeypatch.setattr(installer, "DEFAULT_CONSTRAINTS_FILE", constraints)
     monkeypatch.setattr(installer, "is_virtualenv_python", lambda python_executable: False)
 
