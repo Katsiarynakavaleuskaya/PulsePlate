@@ -55,6 +55,11 @@ Commit: f69629ebfa4100398ee9b3a26b55acfc3277907b
 Evidence: `scripts/orchestration/task_bootstrap.py:130`; `scripts/orchestration/task_bootstrap.py:133`; `scripts/orchestration/task_bootstrap.py:162`; `tests/test_task_bootstrap.py:616`; `tests/test_task_bootstrap.py:623`; `docs/roadmap/BACKLOG_LEDGER.md:2110`
 Reason: The new review shell is fully addressed by the latest fix commit: the stale backlog dependency was corrected, prefix matching now uses a shared helper, and deterministic packet-stability coverage now locks the additive top-level metadata fields.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1254#pullrequestreview-4019616383
+Disposition: NOT-A-BUG
+Evidence: `scripts/orchestration/task_bootstrap.py:147`; `scripts/orchestration/task_bootstrap.py:154`; `tests/test_task_bootstrap.py:522`; `tests/test_task_bootstrap.py:534`; `tests/test_task_bootstrap.py:546`
+Reason: PR2 intentionally keeps backlog-sync detection broad and deterministic so both explicit roadmap markers and the accepted `follow-up`/`follow up` variants trigger `needs_backlog_update`; tightening the matcher to token-only semantics would change the approved trigger contract late in the slice rather than fix a demonstrated regression.
+
 ## Merge Readiness
 - [ ] All required checks pass
 - [ ] No unresolved review threads (re-check on current head before merge)
