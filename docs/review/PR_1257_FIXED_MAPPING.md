@@ -5,7 +5,30 @@
 - [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
-- No actionable review comments
+- Disposition: FIXED
+  Thread: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1257#discussion_r2999993432
+  Commit: b993195d
+  Evidence: [collect_ci_metrics.py](/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/worktrees/tier1-pr4-ci-metrics/scripts/ci/collect_ci_metrics.py#L98), [collect_ci_metrics.py](/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/worktrees/tier1-pr4-ci-metrics/scripts/ci/collect_ci_metrics.py#L129), [test_collect_ci_metrics.py](/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/worktrees/tier1-pr4-ci-metrics/tests/test_collect_ci_metrics.py#L512)
+- Disposition: FIXED
+  Thread: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1257#discussion_r2999993436
+  Commit: b993195d
+  Evidence: [test_collect_ci_metrics.py](/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/worktrees/tier1-pr4-ci-metrics/tests/test_collect_ci_metrics.py#L13), [test_collect_ci_metrics.py](/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/worktrees/tier1-pr4-ci-metrics/tests/test_collect_ci_metrics.py#L78), [test_collect_ci_metrics.py](/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/worktrees/tier1-pr4-ci-metrics/tests/test_collect_ci_metrics.py#L156)
+- Disposition: FIXED
+  Thread: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1257#discussion_r2999993441
+  Commit: b993195d
+  Evidence: [collect_ci_metrics.py](/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/worktrees/tier1-pr4-ci-metrics/scripts/ci/collect_ci_metrics.py#L361), [collect_ci_metrics.py](/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/worktrees/tier1-pr4-ci-metrics/scripts/ci/collect_ci_metrics.py#L383), [test_collect_ci_metrics.py](/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/worktrees/tier1-pr4-ci-metrics/tests/test_collect_ci_metrics.py#L287)
+- Disposition: FIXED
+  Thread: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1257#discussion_r2999998439
+  Commit: b993195d
+  Evidence: [collect_ci_metrics.py](/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/worktrees/tier1-pr4-ci-metrics/scripts/ci/collect_ci_metrics.py#L152), [collect_ci_metrics.py](/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/worktrees/tier1-pr4-ci-metrics/scripts/ci/collect_ci_metrics.py#L163), [test_collect_ci_metrics.py](/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/worktrees/tier1-pr4-ci-metrics/tests/test_collect_ci_metrics.py#L469)
+- Disposition: FIXED
+  Thread: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1257#discussion_r2999998443
+  Commit: b993195d
+  Evidence: [collect_ci_metrics.py](/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/worktrees/tier1-pr4-ci-metrics/scripts/ci/collect_ci_metrics.py#L224), [collect_ci_metrics.py](/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/worktrees/tier1-pr4-ci-metrics/scripts/ci/collect_ci_metrics.py#L227), [test_collect_ci_metrics.py](/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/worktrees/tier1-pr4-ci-metrics/tests/test_collect_ci_metrics.py#L412)
+- Disposition: FIXED
+  Thread: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1257#discussion_r3000010603
+  Commit: b993195d
+  Evidence: [collect_ci_metrics.py](/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/worktrees/tier1-pr4-ci-metrics/scripts/ci/collect_ci_metrics.py#L324), [collect_ci_metrics.py](/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/worktrees/tier1-pr4-ci-metrics/scripts/ci/collect_ci_metrics.py#L383), [test_collect_ci_metrics.py](/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/worktrees/tier1-pr4-ci-metrics/tests/test_collect_ci_metrics.py#L547)
 
 ## Merge Readiness
 - [ ] All required checks pass
@@ -14,4 +37,4 @@
 - [ ] Pre-commit green
 - [ ] `make verify` green
 
-Notes: PR opened as draft on March 27, 2026. No actionable review comments exist yet; switch this artifact from no-actionable mode once review threads appear.
+Notes: PR was switched from draft to review-ready on March 27, 2026. This artifact tracks actionable review threads on the current head and will be updated again if new bot or human feedback lands.
