@@ -2062,7 +2062,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Coordinator automation PR2 — bootstrap engine hardening
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-TBD-AUTOMATION-PR2-BOOTSTRAP-HARDENING
+  - Target PR: PR-1254
   - Area: orchestration / task bootstrap / packet schema
   - Finding Type: automation rollout slice
   - Reason: PR1 locks the governance boundary, but coordinator-first still remains policy-required rather than reliably packet-driven for every non-trivial task. The next slice must harden `task_bootstrap` and related bridge contracts without mixing in PR lifecycle or design-lane behavior.
@@ -2081,6 +2081,25 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Deterministic tests cover coordinator-first packet stability and new schema invariants
     - No PR-open automation, Figma trigger logic, or local launcher changes are included
 
+- [ ] P2: Centralize bootstrap sync-policy constants for task packet derivation
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR-TBD-AUTOMATION-BOOTSTRAP-SYNC-POLICY
+  - Area: orchestration / task bootstrap / policy constants
+  - Finding Type: follow-up hardening
+  - Reason: PR2 intentionally keeps sync heuristics local to `task_bootstrap.py`, but review feedback highlighted that implementation roots and sync-signal markers should eventually move into a shared policy surface so future automation slices can evolve them without editing bootstrap logic directly.
+  - Dependencies:
+    - `PR-1254`
+  - Lifecycle: Review → Backlog → Execute
+  - Links:
+    - `scripts/orchestration/task_bootstrap.py`
+    - `tests/test_task_bootstrap.py`
+    - `docs/orchestration/AGENT_MESSAGE_PROTOCOL.md`
+  - DoD:
+    - Sync-signal terms and path roots move into a shared policy module or equivalent canonical config
+    - `task_bootstrap.py` consumes the shared policy source instead of duplicating constants inline
+    - Deterministic tests cover the shared policy contract and bootstrap integration
+
 - [ ] P1: Coordinator automation PR3 — skill routing and intent classifier
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
@@ -2089,7 +2108,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Finding Type: automation rollout slice
   - Reason: After bootstrap hardening, the next failure mode is still over- or under-selecting skills and treating unlike tasks as the same class. The routing layer needs a deterministic classifier and explicit required/recommended/conditional/blocked outputs before any lifecycle or design automation is added.
   - Dependencies:
-    - `PR-TBD-AUTOMATION-PR2-BOOTSTRAP-HARDENING`
+    - `PR-1254`
   - Lifecycle: Start → Open → Push → Review → Merge
   - Links:
     - `docs/orchestration/AUTOMATION_READINESS_MATRIX.md`
