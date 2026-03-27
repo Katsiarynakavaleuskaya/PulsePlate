@@ -1487,6 +1487,41 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
       conflicts with governance (`PremiumGate`, `VipBadge`)
 
 
+<a id="ledger-p1-welcome-gate-full-flow-after-node-capture"></a>
+- [ ] P1: Welcome Gate full 4-screen runtime flow after exact Figma node capture
+  - Owner: @katsiaryna_kavaleuskaya (Design + FE + iOS)
+  - Target PR: PR-TBD-WELCOME-GATE-FULL-FLOW
+  - Priority: P1
+  - Status: Deferred after `feat/welcome-gate-v1-pr-b`
+  - Area: frontend / onboarding / design-governance
+  - Finding Type: intentional scope deferral
+  - Reason: The repo now ships Welcome Gate v1 as a screen-1-only preview route
+    and Storybook review surface, but the full runtime gate must not be wired
+    until screens 2-4 have exact Figma Design URLs and `nodeId` coverage. This
+    prevents guessing later screens, avoids premature persistence contracts, and
+    keeps Storybook as the canonical review source while product routes remain
+    mirror surfaces only.
+  - Links:
+    - `docs/design/WELCOME_GATE_VISUAL_DIRECTION.md`
+    - `docs/design/WELCOME_GATE_VISUAL_PHILOSOPHY.md`
+    - `docs/design/UI_SCREEN_BRIEF_TEMPLATES.md`
+    - `docs/design/CODE_FIRST_UI_PROMPT_COOKBOOK.md`
+    - `frontend/src/pages/Onboarding/WelcomeGateV1.tsx`
+    - `frontend/src/config/routes.ts`
+    - `docs/figma/FIGMA_DESIGN_URL_NODEID_CAPTURE_HPP.md`
+  - DoD:
+    - Exact Figma Design URL plus stable `fileKey` and `nodeId` are recorded for
+      Welcome Gate screens 2, 3, and 4
+    - Runtime onboarding flow is promoted from preview-only route to canonical
+      app-entry gate with deterministic startup interception
+    - `has_seen_welcome_v1` persistence contract is introduced with regression
+      coverage for first-run and returning-user behavior
+    - Full sequence `Gate -> 4 screens -> RootTabs` is implemented without
+      bypassing route/config governance
+    - Locale, state, and telemetry contracts are documented and tested before
+      merge-readiness is claimed
+
+
 <a id="ledger-p1-ios-prototype-v2-canonical-promotion"></a>
 - [ ] P1: Promote `ios prototype v2` as the canonical implementation mapping source
   - Owner: @katsiaryna_kavaleuskaya (Design + iOS)
@@ -2024,10 +2059,112 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Merge-readiness docs explain that this is a default requirement, not optional reviewer theater
 
 <a id="ledger-p1-classify-ci-checks-as-hard-soft-external"></a>
+- [ ] P1: Coordinator automation PR2 — bootstrap engine hardening
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-AUTOMATION-PR2-BOOTSTRAP-HARDENING
+  - Area: orchestration / task bootstrap / packet schema
+  - Finding Type: automation rollout slice
+  - Reason: PR1 locks the governance boundary, but coordinator-first still remains policy-required rather than reliably packet-driven for every non-trivial task. The next slice must harden `task_bootstrap` and related bridge contracts without mixing in PR lifecycle or design-lane behavior.
+  - Dependencies:
+    - `PR-1252`
+  - Lifecycle: Start → Open → Push → Review → Merge
+  - Links:
+    - `docs/orchestration/AUTOMATION_READINESS_MATRIX.md`
+    - `scripts/orchestration/task_bootstrap.py`
+    - `scripts/orchestration/native_subagent_bridge.py`
+    - `tests/test_task_bootstrap.py`
+  - DoD:
+    - Task packet schema adds `automation_flags`
+    - Task packet schema adds `pr_phase` and `design_lane_mode`
+    - Task packet schema adds `needs_backlog_update`, `needs_docs_sync`, and `needs_agents_sync`
+    - Deterministic tests cover coordinator-first packet stability and new schema invariants
+    - No PR-open automation, Figma trigger logic, or local launcher changes are included
+
+- [ ] P1: Coordinator automation PR3 — skill routing and intent classifier
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-AUTOMATION-PR3-SKILL-INTENT
+  - Area: orchestration / skills / intent classification
+  - Finding Type: automation rollout slice
+  - Reason: After bootstrap hardening, the next failure mode is still over- or under-selecting skills and treating unlike tasks as the same class. The routing layer needs a deterministic classifier and explicit required/recommended/conditional/blocked outputs before any lifecycle or design automation is added.
+  - Dependencies:
+    - `PR-TBD-AUTOMATION-PR2-BOOTSTRAP-HARDENING`
+  - Lifecycle: Start → Open → Push → Review → Merge
+  - Links:
+    - `docs/orchestration/AUTOMATION_READINESS_MATRIX.md`
+    - `docs/orchestration/AGENT_SKILL_ROUTING_POLICY.md`
+    - `scripts/orchestration/skill_router.py`
+    - `tests/test_skill_router.py`
+  - DoD:
+    - Deterministic task classes cover at least `implementation`, `bugfix`, `review`, `design`, `creative_research`, `experiment`, and `pr_governance`
+    - Skill decisions expose `required`, `recommended`, `conditional`, and `blocked` semantics
+    - Routing stays minimal-optimal and explainable
+    - No PR event hooks, Figma mutation flow, or launcher wiring are included
+
+- [ ] P1: Coordinator automation PR4 — PR lifecycle automation
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-AUTOMATION-PR4-PR-LIFECYCLE
+  - Area: orchestration / PR governance / review lifecycle
+  - Finding Type: automation rollout slice
+  - Reason: The canonical docs already require a post-open `qa-engineer-agent -> bug-hunter` loop, but the behavior is still policy-only and easy to forget. The PR lifecycle slice must turn that requirement into deterministic PR-phase automation without widening into design or brainstorming lanes.
+  - Dependencies:
+    - `PR-TBD-AUTOMATION-PR3-SKILL-INTENT`
+  - Lifecycle: Start → Open → Push → Review → Merge
+  - Links:
+    - `docs/orchestration/AUTOMATION_READINESS_MATRIX.md`
+    - `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md`
+    - `RUNBOOK_AGENT.md`
+    - `docs/orchestration/TIER1_CI_CD_PR_SERIES_RUNBOOK.md`
+  - DoD:
+    - PR packet or equivalent phase contract distinguishes post-open review from generic task execution
+    - Mandatory review-path synthesis includes `qa-engineer-agent -> bug-hunter`
+    - Current-head review-preparation outputs are explicit and deterministic
+    - Docs/runbooks/ledger references stay in sync with the lifecycle contract
+    - No creative research or design execution behavior is added
+
+- [ ] P1: Coordinator automation PR5 — creative research and design/Figma activation
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-AUTOMATION-PR5-DESIGN-CREATIVE
+  - Area: orchestration / research / design tooling
+  - Finding Type: automation rollout slice
+  - Reason: Creative research and design lanes are the broadest automation surface and must come after bootstrap and skill routing stabilize. This slice should add explicit trigger rules and safe activation boundaries instead of letting design/Figma behavior emerge implicitly.
+  - Dependencies:
+    - `PR-TBD-AUTOMATION-PR4-PR-LIFECYCLE`
+  - Lifecycle: Start → Open → Push → Review → Merge
+  - Links:
+    - `docs/orchestration/AUTOMATION_READINESS_MATRIX.md`
+    - `docs/orchestration/RESEARCH_BRAINSTORMING_PROTOCOL.md`
+    - `docs/runbooks/DESIGN_TOOLING_OPERATING_MODEL.md`
+    - `docs/figma/`
+  - DoD:
+    - `creative_research` has explicit trigger rules
+    - Code-native design brief path is defined before any Figma mutation path
+    - Figma lane activates only with a valid design trigger and a valid packet/URL/node-id or explicit creation mode
+    - Safe source-precedence and blocker rules are documented
+    - No broad PR-governance refactor or merge-readiness semantic change is included
+
+- [ ] P2: Local launcher rollout for coordinator-first automation
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR-TBD-LOCAL-LAUNCHER-ROLLOUT (after PR2 minimum; preferred after PR5)
+  - Area: local tooling / launcher / Codex runtime
+  - Finding Type: non-repo rollout follow-up
+  - Reason: Repo docs and deterministic engines alone cannot force raw session auto-start. A machine-local launcher or wrapper must wire preflight, bootstrap, and compatible runtime settings without pretending that `~/.codex/config.toml` is repo source of truth.
+  - Links:
+    - `docs/orchestration/AUTOMATION_READINESS_MATRIX.md`
+    - `~/.codex/config.toml`
+  - DoD:
+    - Local launcher/wrapper classifies new tasks and invokes preflight + bootstrap before normal execution
+    - Compatible local runtime settings are documented with explicit caveats about host/runtime limits
+    - Local rollout steps do not mutate repo governance docs as a substitute for launcher support
+    - Repo PR chain remains independently valid without the local rollout
 - [x] P1: Classify CI checks as hard / soft / external in AGENTS or CI governance
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: #996
+  - Target PR: PR #996 (`docs(orchestration): add canonical PR orchestration contract matrix`)
   - Area: orchestration / CI / review governance
   - Finding Type: process hardening
   - Status: Completed via `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md`; Tier 1 PR-series operationalization is tracked separately below.

@@ -1,6 +1,6 @@
 # Agent Skill Routing Policy
 
-**Purpose:** Define how the coordinator and domain agents select installed skills automatically, without requiring the user to name them manually.
+**Purpose:** Define how the coordinator and domain agents select installed skills automatically, without requiring the user to name them manually, once bootstrap or launcher enforcement has invoked the router.
 
 **Status:** Canonical for skill selection in orchestration.
 
@@ -38,6 +38,10 @@
 Boundary note:
 - `docs/orchestration/AGENT_ROUTING_GRAPH.md` remains the canonical source of truth for agent/domain routing.
 - `docs/orchestration/AGENT_SKILL_ROUTING_POLICY.md` and `scripts/orchestration/skill_router.py` are the canonical skill-selection layer that runs after domain routing resolves.
+- This policy does not by itself guarantee raw chat/session auto-start. See
+  `docs/orchestration/AUTOMATION_READINESS_MATRIX.md` for enforcement-layer
+  boundaries between repo policy, local launcher behavior, and host runtime
+  constraints.
 
 `scripts/orchestration/task_bootstrap.py:45` is the deterministic bootstrap entrypoint for generic coordinator task packets.
 `scripts/orchestration/experiment_bootstrap.py` is the deterministic bootstrap entrypoint for governed experimentation packets.
