@@ -49,10 +49,59 @@ Deterministic coverage lives in `tests/test_task_bootstrap.py` and `tests/test_e
 
 The bootstrap packet should expose:
 
-- `recommended_skills` for execution order
-- `skill_routing` for compact evidence and blocked-pattern metadata
+- `recommended_skills` for backward-compatible execution order
+- `skill_routing` for compact evidence, routing buckets, and blocked-pattern metadata
 
 This keeps routing explainable without relying on hidden reasoning.
+
+Packet contract note:
+
+- `recommended_skills` is a deterministic flatten of:
+  1. `skill_routing.required[*].skill`
+  2. `skill_routing.recommended[*].skill`
+- `skill_routing.conditional` does not leak into `recommended_skills`.
+- `skill_routing` must expose:
+  - `task_classification`
+  - `required`
+  - `recommended`
+  - `conditional`
+  - `blocked`
+
+### 2a. Deterministic Task Classification
+
+The router must emit a finite-state classifier under
+`skill_routing.task_classification` with these canonical labels:
+
+- `implementation`
+- `bugfix`
+- `review`
+- `design`
+- `creative_research`
+- `experiment`
+- `pr_governance`
+
+Tie-break precedence is canonical and must stay explicit:
+
+1. `pr_governance`
+2. `design`
+3. `creative_research`
+4. `experiment`
+5. `review`
+6. `bugfix`
+7. `implementation`
+
+### 2b. Routing Bucket Semantics
+
+- `required`: non-optional skills for the classified lane. `pulseplate-workflow`
+  is always required. `pr_governance` additionally requires the minimal
+  governance baseline: `docs-sync` and `pulseplate-gates`.
+- `recommended`: deterministic ranked helpers that are safe to auto-promote into
+  execution order for the current task.
+- `conditional`: task-fit helpers that need a stronger trigger before promotion.
+  This bucket is used for partial design signals, weak research/report intent,
+  or PR/CI helpers on non-PR/non-failing tasks.
+- `blocked`: deterministic low-fit or disallowed patterns. Pattern-based blocks
+  must carry `kind: "pattern"` for forward compatibility.
 
 For experimentation tasks, the bootstrap packet should also reference:
 

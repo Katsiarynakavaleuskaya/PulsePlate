@@ -462,9 +462,23 @@ def test_main_writes_relative_output_inside_repo(
         "recommended_agents": ["agent-coordinator", "data-scientist-agent"],
         "recommended_skills": ["pulseplate-workflow", "pulseplate-gates"],
         "skill_routing": {
-            "policy_version": "2026-03-08",
+            "policy_version": "2026-03-27",
             "selection_mode": "deterministic-weighted",
-            "recommended": [{"skill": "pulseplate-workflow", "score": 100}],
+            "requested_agents": [],
+            "task_classification": {
+                "label": "experiment",
+                "score": 6,
+                "reasons": ["lexeme:experiment(+2)", "lexeme:benchmark(+2)"],
+            },
+            "required": [
+                {
+                    "skill": "pulseplate-workflow",
+                    "rationale": "Mandatory entry skill for all PulsePlate tasks.",
+                    "reasons": ["always-on"],
+                }
+            ],
+            "recommended": [{"skill": "pulseplate-gates", "score": 4}],
+            "conditional": [],
             "blocked": [],
         },
         "routing_context": {

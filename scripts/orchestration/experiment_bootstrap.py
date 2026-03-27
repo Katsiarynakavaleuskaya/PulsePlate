@@ -45,7 +45,7 @@ from scripts.orchestration.experiment_contract import (
 )
 from scripts.orchestration.route_with_telemetry import TELEMETRY_PATH, route
 from scripts.orchestration.routing_graph_loader import load_routing_graph
-from scripts.orchestration.skill_router import route_skills
+from scripts.orchestration.skill_router import flatten_recommended_skills, route_skills
 
 EXPERIMENT_PACKET_DIR: Path = REPO_ROOT / "artifacts" / "orchestration" / "experiments"
 
@@ -310,7 +310,7 @@ def build_experiment_packet(
         "primary_agent": PRIMARY_AGENT,
         "reviewer": REVIEWER,
         "recommended_agents": deduped_agents,
-        "recommended_skills": [item["skill"] for item in skill_routing["recommended"]],
+        "recommended_skills": flatten_recommended_skills(skill_routing),
         "skill_routing": skill_routing,
         "routing_context": {
             "cluster": routing_decision.cluster,

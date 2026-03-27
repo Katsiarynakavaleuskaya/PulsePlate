@@ -14,10 +14,49 @@ from typing import Any
 from scripts.orchestration.context_pack import normalize_text, repo_relative_paths
 from scripts.orchestration.requested_agents import normalize_requested_agents
 
-ROUTING_POLICY_VERSION = "2026-03-21"
+ROUTING_POLICY_VERSION = "2026-03-27"
 SELECTION_MODE = "deterministic-weighted"
 
 ALWAYS_ON_SKILLS: tuple[str, ...] = ("pulseplate-workflow",)
+PR_GOVERNANCE_REQUIRED_SKILLS: tuple[str, ...] = (
+    "pulseplate-workflow",
+    "docs-sync",
+    "pulseplate-gates",
+)
+CLASSIFICATION_PRECEDENCE: tuple[str, ...] = (
+    "pr_governance",
+    "design",
+    "creative_research",
+    "experiment",
+    "review",
+    "bugfix",
+    "implementation",
+)
+PR_GOVERNANCE_CONDITIONAL_SKILLS: frozenset[str] = frozenset(
+    {
+        "create-pr",
+        "commit-work",
+        "release-notes",
+        "gh-address-comments",
+        "gh-fix-ci",
+        "ci-fix",
+    }
+)
+DESIGN_CONDITIONAL_SKILLS: frozenset[str] = frozenset(
+    {
+        "figma",
+        "figma-implement-design",
+    }
+)
+RESEARCH_CONDITIONAL_SKILLS: frozenset[str] = frozenset(
+    {
+        "pulseplate-ai-reports",
+        "notion-research-documentation",
+        "notion-knowledge-capture",
+        "linear",
+    }
+)
+CI_CONDITIONAL_SKILLS: frozenset[str] = frozenset({"ci-fix", "gh-fix-ci"})
 
 REQUESTED_AGENT_SKILL_BUNDLES: dict[str, tuple[str, ...]] = {
     "agent-coordinator": ("docs-sync", "agents-md", "pulseplate-gates"),
@@ -66,6 +105,143 @@ SCRAPING_BLOCK_PATTERNS: tuple[tuple[str, str], ...] = (
     ("google maps", "Google Maps scraping is not approved for the current repo."),
     ("scrape any site", "Universal scraping is out of scope for PulsePlate."),
     ("entire internet", "Broad internet scraping is outside project-fit boundaries."),
+)
+
+
+@dataclass(frozen=True)
+class TaskClassificationRule:
+    """Deterministic scoring rule for the task-intent classifier."""
+
+    label: str
+    domain_weights: dict[str, int]
+    path_prefixes: tuple[str, ...] = ()
+    keywords: tuple[str, ...] = ()
+
+
+TASK_CLASSIFICATION_RULES: tuple[TaskClassificationRule, ...] = (
+    TaskClassificationRule(
+        label="pr_governance",
+        domain_weights={"orchestration": 2, "qa": 1, "release": 1},
+        path_prefixes=(
+            ".github/workflows/",
+            "scripts/ci/",
+            "docs/review/",
+        ),
+        keywords=(
+            "pull request",
+            "open pr",
+            "create pr",
+            "review thread",
+            "review comment",
+            "merge",
+            "merge readiness",
+            "fixed mapping",
+            "disposition",
+            "code rabbit",
+            "sourcery",
+            "cubic",
+            "gh pr checks",
+            "governance",
+        ),
+    ),
+    TaskClassificationRule(
+        label="design",
+        domain_weights={"design": 3, "frontend": 1},
+        path_prefixes=("docs/design/",),
+        keywords=(
+            "figma",
+            "node-id",
+            "node id",
+            "design system",
+            "design fidelity",
+            "ui fidelity",
+            "prototype",
+            "screen",
+            "frame",
+        ),
+    ),
+    TaskClassificationRule(
+        label="creative_research",
+        domain_weights={"research": 3, "business": 2, "wellness": 2, "docs": 1},
+        path_prefixes=("docs/reports/", "docs/insights/", "docs/audience_pack/"),
+        keywords=(
+            "report",
+            "weekly",
+            "monthly",
+            "quarterly",
+            "trend",
+            "research brief",
+            "gtm",
+            "aso",
+            "seo",
+            "wellness",
+            "market",
+            "industry",
+        ),
+    ),
+    TaskClassificationRule(
+        label="experiment",
+        domain_weights={"ml": 3, "cv": 3},
+        path_prefixes=("core/rag/", "core/insight/", "docs/orchestration/CV_"),
+        keywords=(
+            "experiment",
+            "benchmark",
+            "eval",
+            "evaluation",
+            "reliability",
+            "optimization",
+            "ablation",
+            "offline eval",
+            "confidence drift",
+        ),
+    ),
+    TaskClassificationRule(
+        label="review",
+        domain_weights={"qa": 2, "orchestration": 1},
+        path_prefixes=("docs/review/",),
+        keywords=(
+            "review",
+            "code review",
+            "audit",
+            "comments",
+            "thread",
+        ),
+    ),
+    TaskClassificationRule(
+        label="bugfix",
+        domain_weights={"qa": 1, "backend": 1, "frontend": 1},
+        path_prefixes=("tests/",),
+        keywords=(
+            "bug",
+            "fix",
+            "failure",
+            "failing",
+            "regression",
+            "flaky",
+            "broken",
+            "error",
+        ),
+    ),
+    TaskClassificationRule(
+        label="implementation",
+        domain_weights={
+            "backend": 1,
+            "frontend": 1,
+            "orchestration": 1,
+            "docs": 1,
+            "design": 1,
+            "research": 1,
+            "business": 1,
+            "wellness": 1,
+            "release": 1,
+            "security": 1,
+            "ml": 1,
+            "cv": 1,
+            "qa": 1,
+        },
+        path_prefixes=("app/", "core/", "frontend/", "scripts/", "docs/", "ios/"),
+        keywords=("implement", "add", "build", "wire", "update", "refactor"),
+    ),
 )
 
 
@@ -523,6 +699,171 @@ def _apply_bundle_reason(
         existing["reasons"].append(reason)
 
 
+def _score_task_classification(
+    *,
+    rule: TaskClassificationRule,
+    normalized_paths: list[str],
+    normalized_text: str,
+    domain: str,
+) -> dict[str, Any]:
+    """Return score and evidence for one task-classification rule."""
+
+    score = 0
+    reasons: list[str] = []
+
+    if domain in rule.domain_weights:
+        weight = rule.domain_weights[domain]
+        score += weight
+        reasons.append(f"domain:{domain}(+{weight})")
+
+    matched_prefixes = _match_path_prefixes(rule.path_prefixes, normalized_paths)
+    if matched_prefixes:
+        prefix_score = len(matched_prefixes) * 3
+        score += prefix_score
+        reasons.append(f"path:{', '.join(matched_prefixes)}(+{prefix_score})")
+
+    matched_keywords = _match_keywords(rule.keywords, normalized_text)
+    if matched_keywords:
+        keyword_score = min(len(matched_keywords), 3) * 2
+        score += keyword_score
+        reasons.append(f"lexeme:{', '.join(matched_keywords[:3])}(+{keyword_score})")
+
+    return {"label": rule.label, "score": score, "reasons": reasons}
+
+
+def _classify_task(
+    *,
+    normalized_paths: list[str],
+    normalized_text: str,
+    domain: str,
+) -> dict[str, Any]:
+    """Return deterministic task classification metadata."""
+
+    scored = [
+        _score_task_classification(
+            rule=rule,
+            normalized_paths=normalized_paths,
+            normalized_text=normalized_text,
+            domain=domain,
+        )
+        for rule in TASK_CLASSIFICATION_RULES
+    ]
+    scored_by_label = {item["label"]: item for item in scored}
+    winning_label = "implementation"
+    winning_score = -1
+
+    for label in CLASSIFICATION_PRECEDENCE:
+        candidate = scored_by_label[label]
+        candidate_score = int(candidate["score"])
+        if candidate_score > winning_score:
+            winning_label = label
+            winning_score = candidate_score
+
+    winner = scored_by_label[winning_label]
+    if winning_score <= 0:
+        return {
+            "label": "implementation",
+            "score": 0,
+            "reasons": ["fallback:default-implementation"],
+        }
+
+    tied_labels = [
+        label
+        for label in CLASSIFICATION_PRECEDENCE
+        if int(scored_by_label[label]["score"]) == winning_score
+    ]
+    reasons = list(winner["reasons"])
+    if len(tied_labels) > 1:
+        reasons.append(
+            f"tie-break:{winning_label}>{', '.join(label for label in tied_labels if label != winning_label)}"
+        )
+    return {"label": winning_label, "score": winning_score, "reasons": reasons}
+
+
+def _build_required_skills(
+    *,
+    task_classification: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """Return deterministic required skills for the classified lane."""
+
+    if task_classification["label"] == "pr_governance":
+        required_skills = PR_GOVERNANCE_REQUIRED_SKILLS
+    else:
+        required_skills = ALWAYS_ON_SKILLS
+
+    required: list[dict[str, Any]] = []
+    for skill in required_skills:
+        rule = SKILL_RULES_BY_SKILL.get(skill)
+        rationale = (
+            rule.rationale
+            if rule is not None
+            else f"Required for the `{task_classification['label']}` lane."
+        )
+        reasons = (
+            ["always-on"]
+            if skill in ALWAYS_ON_SKILLS
+            else [f"classification:{task_classification['label']}-required"]
+        )
+        required.append(
+            {
+                "skill": skill,
+                "rationale": rationale,
+                "reasons": reasons,
+            }
+        )
+    return required
+
+
+def _conditional_when_for_skill(*, skill: str, task_classification_label: str) -> str | None:
+    """Return a deterministic conditional explanation for supported helper families."""
+
+    if skill in CI_CONDITIONAL_SKILLS and task_classification_label not in {
+        "bugfix",
+        "pr_governance",
+    }:
+        return "Enable when a failing CI job, workflow run, or check log is explicitly in scope."
+    if skill in PR_GOVERNANCE_CONDITIONAL_SKILLS and task_classification_label != "pr_governance":
+        return "Enable when the task explicitly enters PR/review/merge-governance execution."
+    if skill in DESIGN_CONDITIONAL_SKILLS and task_classification_label != "design":
+        return (
+            "Enable when a concrete Figma/design node-id or fidelity requirement becomes explicit."
+        )
+    if skill in RESEARCH_CONDITIONAL_SKILLS and task_classification_label != "creative_research":
+        return "Enable when the task requires a report/research deliverable or durable knowledge capture."
+    return None
+
+
+def _build_conditional_skills(
+    *,
+    scored: list[dict[str, Any]],
+    selected_skills: set[str],
+    task_classification: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """Return deterministic conditional skills for partial or out-of-lane signals."""
+
+    conditional: list[dict[str, Any]] = []
+    for item in sorted(scored, key=lambda entry: entry["skill"]):
+        if item["skill"] in selected_skills:
+            continue
+        if not item["reasons"]:
+            continue
+        when = _conditional_when_for_skill(
+            skill=item["skill"],
+            task_classification_label=task_classification["label"],
+        )
+        if when is None:
+            continue
+        conditional.append(
+            {
+                "skill": item["skill"],
+                "when": when,
+                "rationale": item["rationale"],
+                "reasons": list(item["reasons"]),
+            }
+        )
+    return conditional
+
+
 def route_skills(
     *,
     goal: str,
@@ -537,9 +878,14 @@ def route_skills(
     normalized_text = normalize_text(goal, task_class, *normalized_paths)
     normalized_request_text = normalize_text(goal, task_class)
     normalized_requested_agents = tuple(normalize_requested_agents(requested_agents))
+    task_classification = _classify_task(
+        normalized_paths=normalized_paths,
+        normalized_text=normalized_text,
+        domain=domain,
+    )
 
     blocked = [
-        {"label": pattern, "reason": reason}
+        {"label": pattern, "reason": reason, "kind": "pattern"}
         for pattern, reason in SCRAPING_BLOCK_PATTERNS
         if pattern in normalized_request_text
     ]
@@ -553,10 +899,14 @@ def route_skills(
         )
         for rule in SKILL_RULES
     ]
+    required = _build_required_skills(task_classification=task_classification)
+    required_skill_names = {item["skill"] for item in required}
+
     selected = [
         result
         for result, rule in zip(scored, SKILL_RULES)
-        if result["score"] >= rule.min_score or rule.skill in ALWAYS_ON_SKILLS
+        if (result["score"] >= rule.min_score or rule.skill in ALWAYS_ON_SKILLS)
+        and result["skill"] not in required_skill_names
     ]
 
     selected_by_skill = {item["skill"]: item for item in selected}
@@ -590,12 +940,20 @@ def route_skills(
 
     selected = list(selected_by_skill.values())
     selected.sort(key=lambda item: (-int(item["score"]), item["skill"]))
+    conditional = _build_conditional_skills(
+        scored=scored,
+        selected_skills=required_skill_names.union(item["skill"] for item in selected),
+        task_classification=task_classification,
+    )
 
     return {
         "policy_version": ROUTING_POLICY_VERSION,
         "selection_mode": SELECTION_MODE,
         "requested_agents": list(normalized_requested_agents),
+        "task_classification": task_classification,
+        "required": required,
         "recommended": selected,
+        "conditional": conditional,
         "blocked": blocked,
     }
 
@@ -617,4 +975,20 @@ def select_recommended_skills(
         domain=domain,
         requested_agents=requested_agents,
     )
-    return [item["skill"] for item in decision["recommended"]]
+    return flatten_recommended_skills(decision)
+
+
+def flatten_recommended_skills(decision: dict[str, Any]) -> list[str]:
+    """Return the backward-compatible ordered skill slug list.
+
+    RU: Flatten required + recommended без conditional lanes.
+    EN: Flatten required + recommended while excluding conditional suggestions.
+    """
+
+    ordered: list[str] = []
+    for bucket in ("required", "recommended"):
+        for item in decision.get(bucket, []):
+            skill = item["skill"]
+            if skill not in ordered:
+                ordered.append(skill)
+    return ordered

@@ -92,7 +92,7 @@ Minimum required keys:
 - `constraints` (array of strings)
 - `inputs.must_read_paths` (array of strings; paths)
 - `inputs.recommended_skills` (array of strings; optional but recommended when skill routing is enabled)
-- `inputs.skill_routing` (object; optional compact evidence map for why those skills were selected)
+- `inputs.skill_routing` (object; optional compact evidence map for why those skills were selected; when present, it should expose `task_classification`, `required`, `recommended`, `conditional`, and `blocked`)
 - `output_requirements.must_return` (array of strings)
 - `budgets` (object; recommended when cost/latency matters)
 
@@ -166,11 +166,59 @@ Task packet:
     ],
     "recommended_skills": [
       "pulseplate-workflow",
-      "docs-sync"
+      "docs-sync",
+      "pulseplate-gates"
     ],
     "skill_routing": {
       "selection_mode": "deterministic-weighted",
-      "policy_version": "2026-03-08"
+      "policy_version": "2026-03-27",
+      "task_classification": {
+        "label": "pr_governance",
+        "score": 5,
+        "reasons": [
+          "lexeme:review thread(+2)",
+          "lexeme:merge readiness(+2)"
+        ]
+      },
+      "required": [
+        {
+          "skill": "pulseplate-workflow",
+          "rationale": "Mandatory entry skill for all PulsePlate tasks.",
+          "reasons": ["always-on"]
+        },
+        {
+          "skill": "docs-sync",
+          "rationale": "Keep orchestration, runbooks, and product docs aligned with the implementation.",
+          "reasons": ["classification:pr_governance-required"]
+        },
+        {
+          "skill": "pulseplate-gates",
+          "rationale": "Run PulsePlate quality gates for code, docs, and contract-safe changes.",
+          "reasons": ["classification:pr_governance-required"]
+        }
+      ],
+      "recommended": [
+        {
+          "skill": "pulseplate-guards",
+          "score": 8,
+          "category": "repo-tracked",
+          "rationale": "Handle architecture guards, fail-closed policy checks, and security-oriented invariants.",
+          "reasons": [
+            "privileged-surface:docs/review/(+4)"
+          ]
+        }
+      ],
+      "conditional": [
+        {
+          "skill": "gh-address-comments",
+          "when": "Enable when the task explicitly enters PR/review/merge-governance execution.",
+          "rationale": "GitHub review-thread handling should use the dedicated comment workflow.",
+          "reasons": [
+            "lexeme:review thread(+2)"
+          ]
+        }
+      ],
+      "blocked": []
     },
     "automation_flags": {
       "coordinator_first_required": true,

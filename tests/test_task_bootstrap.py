@@ -733,10 +733,23 @@ def test_main_writes_relative_output_inside_repo(tmp_path, monkeypatch, capsys) 
         "required_context": ["AGENTS.md"],
         "recommended_skills": ["pulseplate-workflow"],
         "skill_routing": {
-            "policy_version": "2026-03-08",
+            "policy_version": "2026-03-27",
             "selection_mode": "deterministic-weighted",
             "requested_agents": [],
-            "recommended": [{"skill": "pulseplate-workflow", "score": 100}],
+            "task_classification": {
+                "label": "implementation",
+                "score": 0,
+                "reasons": ["fallback:default-implementation"],
+            },
+            "required": [
+                {
+                    "skill": "pulseplate-workflow",
+                    "rationale": "Mandatory entry skill for all PulsePlate tasks.",
+                    "reasons": ["always-on"],
+                }
+            ],
+            "recommended": [],
+            "conditional": [],
             "blocked": [],
         },
         "decision_contract": {
@@ -820,10 +833,23 @@ def test_main_writes_repo_root_output_as_relative_path(monkeypatch, capsys) -> N
         "required_context": ["AGENTS.md"],
         "recommended_skills": ["pulseplate-workflow"],
         "skill_routing": {
-            "policy_version": "2026-03-08",
+            "policy_version": "2026-03-27",
             "selection_mode": "deterministic-weighted",
             "requested_agents": [],
-            "recommended": [{"skill": "pulseplate-workflow", "score": 100}],
+            "task_classification": {
+                "label": "implementation",
+                "score": 0,
+                "reasons": ["fallback:default-implementation"],
+            },
+            "required": [
+                {
+                    "skill": "pulseplate-workflow",
+                    "rationale": "Mandatory entry skill for all PulsePlate tasks.",
+                    "reasons": ["always-on"],
+                }
+            ],
+            "recommended": [],
+            "conditional": [],
             "blocked": [],
         },
         "decision_contract": {
@@ -904,10 +930,23 @@ def test_main_passes_requested_agent_flags(monkeypatch, capsys) -> None:
             "required_context": ["AGENTS.md"],
             "recommended_skills": ["pulseplate-workflow"],
             "skill_routing": {
-                "policy_version": "2026-03-08",
+                "policy_version": "2026-03-27",
                 "selection_mode": "deterministic-weighted",
                 "requested_agents": ["agent-coordinator", "security-auditor"],
-                "recommended": [{"skill": "pulseplate-workflow", "score": 100}],
+                "task_classification": {
+                    "label": "implementation",
+                    "score": 0,
+                    "reasons": ["fallback:default-implementation"],
+                },
+                "required": [
+                    {
+                        "skill": "pulseplate-workflow",
+                        "rationale": "Mandatory entry skill for all PulsePlate tasks.",
+                        "reasons": ["always-on"],
+                    }
+                ],
+                "recommended": [],
+                "conditional": [],
                 "blocked": [],
             },
             "native_subagent_bridge": {
