@@ -3,7 +3,7 @@ name: Greenlight iOS Preflight
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened]
+    types: [opened, synchronize, reopened, edited]
     paths:
       - "ios/**"
       - "scripts/ci/greenlight_ios_preflight.sh"
