@@ -21,6 +21,7 @@ DEFAULT_MAX_RUNS = 20
 DEFAULT_WORKFLOW_FILE = "ci.yml"
 DEFAULT_WORKFLOW_NAME = "CI"
 DEFAULT_BRANCH = "main"
+DEFAULT_PYTHON313_JOB_NAME = "test-main (3.13)"
 MAX_REDIRECT_HOPS = 5
 
 
@@ -28,6 +29,12 @@ def _github_token() -> str:
     """Return the preferred GitHub auth token from environment."""
 
     return os.getenv("GH_TOKEN", "").strip() or os.getenv("GITHUB_TOKEN", "").strip()
+
+
+def _python313_job_name() -> str:
+    """Return the canonical Python 3.13 job name for the Tier 1 CI lane."""
+
+    return os.getenv("CI_METRICS_PYTHON313_JOB_NAME", "").strip() or DEFAULT_PYTHON313_JOB_NAME
 
 
 def _parse_iso8601(value: str) -> datetime | None:
@@ -317,9 +324,10 @@ def _critical_path_summary(
 def _find_python313_job(jobs: list[dict[str, Any]]) -> dict[str, Any] | None:
     """Find the canonical main-branch Python 3.13 job when present."""
 
+    canonical_name = _python313_job_name().casefold()
     for job in jobs:
-        name = str(job.get("name") or "")
-        if "test-main" in name and "3.13" in name:
+        name = str(job.get("name") or "").strip().casefold()
+        if name == canonical_name:
             return job
     return None
 

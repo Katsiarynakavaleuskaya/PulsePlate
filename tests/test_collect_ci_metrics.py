@@ -544,6 +544,21 @@ def test_read_text_url_raises_when_redirect_limit_is_exceeded(
         collect_ci_metrics._read_text_url("https://example.invalid/start", max_redirect_hops=2)
 
 
+def test_find_python313_job_uses_configurable_canonical_name(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("CI_METRICS_PYTHON313_JOB_NAME", "custom-main-3.13")
+
+    found = collect_ci_metrics._find_python313_job(
+        [
+            {"id": 1, "name": "test-main (3.13)"},
+            {"id": 2, "name": "custom-main-3.13"},
+        ]
+    )
+
+    assert found == {"id": 2, "name": "custom-main-3.13"}
+
+
 def test_main_requires_repo_token_and_paths(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
