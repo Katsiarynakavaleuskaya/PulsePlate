@@ -65,6 +65,31 @@ Commit: dafa6683
 Evidence: [collect_ci_metrics.py](../../scripts/ci/collect_ci_metrics.py#L558), [collect_ci_metrics.py](../../scripts/ci/collect_ci_metrics.py#L561), [test_collect_ci_metrics.py](../../tests/test_collect_ci_metrics.py#L623)
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1257#discussion_r3000155288 -> dafa6683
 
+Disposition: NOT-A-BUG
+Evidence: [collect_ci_metrics.py](../../scripts/ci/collect_ci_metrics.py#L35), [collect_ci_metrics.py](../../scripts/ci/collect_ci_metrics.py#L113), [test_collect_ci_metrics.py](../../tests/test_collect_ci_metrics.py#L287)
+Reason: Top-level Sourcery review is a summary container for already-resolved actionable findings; the concrete fixes are tracked by the resolved discussion-thread mappings above.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1257#pullrequestreview-4020034844
+
+Disposition: FIXED
+Commit: fbb4f2cc
+Evidence: [collect_ci_metrics.py](../../scripts/ci/collect_ci_metrics.py#L55), [test_collect_ci_metrics.py](../../tests/test_collect_ci_metrics.py#L513), [BACKLOG_LEDGER.md](../../docs/roadmap/BACKLOG_LEDGER.md#L2281)
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1257#pullrequestreview-4020052423 -> fbb4f2cc
+
+Disposition: NOT-A-BUG
+Evidence: [collect_ci_metrics.py](../../scripts/ci/collect_ci_metrics.py#L403), [collect_ci_metrics.py](../../scripts/ci/collect_ci_metrics.py#L420), [test_collect_ci_metrics.py](../../tests/test_collect_ci_metrics.py#L371)
+Reason: Top-level Cubic review is a summary container; the malformed-job-id handling it flagged is already represented by resolved thread mappings and covered by the current tests.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1257#pullrequestreview-4020052801
+
+Disposition: NOT-A-BUG
+Evidence: [collect_ci_metrics.py](../../scripts/ci/collect_ci_metrics.py#L41), [collect_ci_metrics.py](../../scripts/ci/collect_ci_metrics.py#L126), [test_collect_ci_metrics.py](../../tests/test_collect_ci_metrics.py#L548)
+Reason: Top-level Cubic review is a summary container; credential-stripping and portable evidence-link concerns are already reflected in the resolved code and artifact state.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1257#pullrequestreview-4020192725
+
+Disposition: NOT-A-BUG
+Evidence: [collect_ci_metrics.py](../../scripts/ci/collect_ci_metrics.py#L35), [collect_ci_metrics.py](../../scripts/ci/collect_ci_metrics.py#L438), [test_collect_ci_metrics.py](../../tests/test_collect_ci_metrics.py#L623)
+Reason: Top-level CodeRabbit review is a summary container for resolved follow-up comments; the actual code changes are already mapped above and verified by current tests.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1257#pullrequestreview-4020209333
+
 ## Merge Readiness
 - [ ] All required checks pass
 - [ ] No unresolved review threads (re-check on current head before merge)
