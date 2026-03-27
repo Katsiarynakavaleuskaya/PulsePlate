@@ -251,6 +251,24 @@ def test_task_classifier_prioritizes_pr_governance_over_review() -> None:
     assert decision["task_classification"]["label"] == "pr_governance"
 
 
+def test_task_classifier_prioritizes_pr_governance_for_docs_review_updates() -> None:
+    """Docs-review mapping updates should stay in the PR-governance lane."""
+
+    decision = route_skills(
+        goal="Update fixed mapping notes",
+        task_class="Documentation",
+        candidate_paths=["docs/review/PR_999_FIXED_MAPPING.md"],
+        domain="docs",
+    )
+
+    assert decision["task_classification"]["label"] == "pr_governance"
+    assert [item["skill"] for item in decision["required"]] == [
+        "pulseplate-workflow",
+        "docs-sync",
+        "pulseplate-gates",
+    ]
+
+
 def test_task_classifier_prioritizes_design_over_implementation() -> None:
     """Design signals should override generic implementation wording."""
 
@@ -305,7 +323,7 @@ def test_requested_agent_bundle_parity_is_covered(
     requested_agent: str,
     expected_bundle: tuple[str, ...],
 ) -> None:
-    """Every documented auto-routed requested-agent bundle should be emitted."""
+    """Every documented requested-agent bundle should appear in required or recommended lanes."""
 
     decision = route_skills(
         goal="Need deterministic agent bundle parity coverage",
@@ -315,15 +333,20 @@ def test_requested_agent_bundle_parity_is_covered(
         requested_agents=[requested_agent],
     )
 
+    required_by_skill = {item["skill"]: item for item in decision["required"]}
     recommended_by_skill = {item["skill"]: item for item in decision["recommended"]}
+    routed_skill_names = set(required_by_skill) | set(recommended_by_skill)
 
     assert decision["requested_agents"] == [requested_agent]
     for skill in expected_bundle:
-        assert skill in recommended_by_skill
-        assert any(
-            reason.startswith(f"requested-agent:{requested_agent}(+")
-            for reason in recommended_by_skill[skill]["reasons"]
-        )
+        assert skill in routed_skill_names
+        if skill in recommended_by_skill:
+            assert any(
+                reason.startswith(f"requested-agent:{requested_agent}(+")
+                for reason in recommended_by_skill[skill]["reasons"]
+            )
+        else:
+            assert skill in required_by_skill
 
 
 def test_requested_agent_companion_guidance_stays_manual_only() -> None:
@@ -377,6 +400,29 @@ def test_pr_governance_required_lane_adds_governance_baseline() -> None:
         "docs-sync",
         "pulseplate-gates",
     ]
+
+
+def test_pr_governance_requested_agent_bundle_keeps_required_skills_out_of_recommended() -> None:
+    """Requested-agent boosts must not duplicate required governance skills."""
+
+    decision = route_skills(
+        goal="Prepare pull request merge readiness and fixed mapping governance pass",
+        task_class="QA",
+        candidate_paths=["docs/review/PR_999_FIXED_MAPPING.md"],
+        domain="qa",
+        requested_agents=["agent-coordinator"],
+    )
+
+    required_skill_names = {item["skill"] for item in decision["required"]}
+    recommended_skill_names = {item["skill"] for item in decision["recommended"]}
+
+    assert required_skill_names == {
+        "pulseplate-workflow",
+        "docs-sync",
+        "pulseplate-gates",
+    }
+    assert "agents-md" in recommended_skill_names
+    assert required_skill_names.isdisjoint(recommended_skill_names)
 
 
 @pytest.mark.parametrize("expected_row", EXPECTED_REQUESTED_AGENT_POLICY_ROWS)

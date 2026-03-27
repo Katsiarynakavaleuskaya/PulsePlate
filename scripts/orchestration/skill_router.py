@@ -162,10 +162,9 @@ TASK_CLASSIFICATION_RULES: tuple[TaskClassificationRule, ...] = (
     ),
     TaskClassificationRule(
         label="creative_research",
-        domain_weights={"research": 3, "business": 2, "wellness": 2, "docs": 1},
+        domain_weights={"research": 3, "business": 2, "wellness": 2},
         path_prefixes=("docs/reports/", "docs/insights/", "docs/audience_pack/"),
         keywords=(
-            "report",
             "weekly",
             "monthly",
             "quarterly",
@@ -239,7 +238,7 @@ TASK_CLASSIFICATION_RULES: tuple[TaskClassificationRule, ...] = (
             "cv": 1,
             "qa": 1,
         },
-        path_prefixes=("app/", "core/", "frontend/", "scripts/", "docs/", "ios/"),
+        path_prefixes=("app/", "core/", "frontend/", "scripts/", "ios/"),
         keywords=("implement", "add", "build", "wire", "update", "refactor"),
     ),
 )
@@ -955,6 +954,8 @@ def route_skills(
     for requested_agent in normalized_requested_agents:
         bundle = REQUESTED_AGENT_SKILL_BUNDLES.get(requested_agent, ())
         for bundled_skill in bundle:
+            if bundled_skill in required_skill_names:
+                continue
             boost = 6 if bundled_skill not in selected_by_skill else 2
             _apply_bundle_reason(
                 selected_by_skill=selected_by_skill,
