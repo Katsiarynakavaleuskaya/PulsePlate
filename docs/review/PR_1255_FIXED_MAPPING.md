@@ -60,7 +60,7 @@ Reason: the only actionable CodeRabbit review on the current head asked for a be
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1255#pullrequestreview-4020778214
 Disposition: FIXED
-Commit: PENDING
+Commit: 94a7de38
 Evidence: `docs/roadmap/BACKLOG_LEDGER.md:7926`, `docs/roadmap/BACKLOG_LEDGER.md:7945`
 Reason: the follow-up ledger entries now use canonical deterministic `PR-TBD-*` target identifiers instead of prose-only target text.
 
@@ -75,6 +75,7 @@ Reason: the thread's requested relative-order assertion was implemented using wo
 - Current fix commits:
   - `2d1fcf6f` — `fix(ci): raise lint timeout`
   - `65bdf110` — `test(security): tighten supply chain guards`
+  - `94a7de38` — `docs(governance): fix PR 1255 blockers`
 - Deferred follow-ups:
   - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-runner-disk-reclaim-centralization`
   - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-runner-disk-reclaim-safety-guards`
