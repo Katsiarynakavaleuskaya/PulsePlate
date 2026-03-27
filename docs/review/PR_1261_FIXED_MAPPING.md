@@ -19,6 +19,13 @@ Commit: 14347b44
 Evidence: `.github/actions/python-setup/action.yml:43-67`, `tests/test_python_supply_chain_controls.py:47-68`
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1261#discussion_r3000466719 -> 14347b44
 
+Disposition: NOT-A-BUG
+Evidence: `docs/review/PR_1261_FIXED_MAPPING.md:8-21`
+Reason: These aggregate bot summaries only restate actionable findings already dispositioned by the mapped inline thread URLs above, so they do not require separate code changes or backlog items.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1261#issuecomment-4141912212
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1261#pullrequestreview-4020555158
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1261#pullrequestreview-4020559328
+
 ## Merge Readiness
 - [ ] All required checks pass
 - [ ] No unresolved review threads
