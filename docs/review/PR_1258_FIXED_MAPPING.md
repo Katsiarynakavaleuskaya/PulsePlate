@@ -18,7 +18,7 @@ Reason: Restored the legacy CI-check classification anchor to the correct ledger
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1258#discussion_r3000050478 -> 1d2ac887
 
 Disposition: NOT-A-BUG
-Evidence: `docs/review/PR_1258_FIXED_MAPPING.md:13`; `docs/review/PR_1258_FIXED_MAPPING.md:19`
+Evidence: Aggregates the inline anchor finding already fixed in commit `1d2ac887`; see `docs/roadmap/BACKLOG_LEDGER.md:2061` and `docs/roadmap/BACKLOG_LEDGER.md:2187`.
 Reason: The CodeRabbit review wrapper only aggregates the single inline anchor finding fixed in `1d2ac887`; no standalone defect remains on the current head.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1258#pullrequestreview-4020096423
 
