@@ -1,7 +1,7 @@
 # Tier 1 CI/CD Task Packet
 
 **Date:** 2026-03-26 (`America/New_York`)
-**Status:** Active PR-3 packet for the Tier 1 backend/shared CI consolidation wave following the landed PR-1 / PR-2 baseline work.
+**Status:** Historical packet for the landed PR-3 Tier 1 backend/shared CI consolidation slice.
 **Wave:** stacked PRs, coordinator-first, governance-first.
 
 ## Goal
@@ -25,8 +25,9 @@ without weakening current merge blockers or broadening runtime behavior.
 
 - PR-1 governance/bootstrap is already landed in PR `#1240` (`24c51f85`).
 - PR-2 workflow consolidation is already landed on `origin/main` in PR `#1244` (`b7e029b4`).
-- This packet therefore points to PR-3 as the live execution branch and keeps PR-4 as the next follow-up.
-- Reconciliation of Tier 1 bookkeeping is part of the opening commit set for PR-3, not a separate restart PR.
+- PR-3 risk topology is already landed on `origin/main` in PR `#1253` (`3be5debf`).
+- PR-4 is now the next canonical follow-up slice for this wave.
+- This packet is retained as the branch-scoped record of the landed PR-3 execution lane.
 
 ### In scope
 
@@ -101,14 +102,14 @@ Blocking surfaces for Tier 1 PR-lane decisions:
 - risk-based PR topology
 - PR-size governance with explicit `## Split Justification` PR-body proof for `>800` LoC cases
 - blocker/non-blocker split documented and enforced
-- Status: active next slice
+- Status: landed baseline (`#1253`)
 
 ### PR-4
 
 - `scripts/ci/` metrics collector
 - `ci-metrics-summary.json`
 - `ci-metrics-summary.md`
-- Status: deferred/next
+- Status: next pending slice
 
 ## Acceptance Criteria
 

@@ -58,8 +58,9 @@ Deliver a Tier 1 CI/CD consolidation program in stacked PRs that:
 
 - PR-1 governance/bootstrap already landed in merged PR `#1240` (`24c51f85`).
 - PR-2 workflow consolidation already landed on `origin/main` via PR `#1244` (`b7e029b4`).
-- This runbook now treats PR-3 as the active execution slice and PR-4 as the next follow-up wave.
-- Do not restart the series from PR-1; reconcile Tier 1 bookkeeping inside PR-3 and continue forward.
+- PR-3 risk topology already landed on `origin/main` via PR `#1253` (`3be5debf`).
+- PR-4 is now the next canonical Tier 1 follow-up wave.
+- Do not restart the series from PR-1; treat PR-1/PR-2/PR-3 as landed history and continue forward from PR-4.
 
 ## PR Series
 
@@ -86,14 +87,14 @@ Deliver a Tier 1 CI/CD consolidation program in stacked PRs that:
 - Split PR execution into deterministic smoke, contract/risk suites, and nightly-only depth.
 - Keep PR blockers focused on business-critical surfaces.
 - Add PR-size governance and explicit `## Split Justification` PR-body proof for `>800` LoC cases.
-- Status: active next execution slice.
+- Status: landed in PR `#1253`; retained here as completed baseline context.
 
 ### PR-4: CI Metrics and Feedback Loop
 
 - Add lightweight non-blocking CI metrics collection under `scripts/ci/`.
 - Emit summary artifacts for critical-path duration, reruns, red-build rate, and xdist fallback frequency.
 - Wire a weekly reporting path without changing merge blockers.
-- Status: next/deferred until PR-3 lands.
+- Status: next pending canonical Tier 1 slice.
 
 ## Routing Card
 

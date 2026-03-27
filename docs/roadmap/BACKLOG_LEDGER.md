@@ -2203,7 +2203,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Target PR: PR #1240 -> PR #1244 -> PR #1253 -> PR-TBD-TIER1-CI-CD-PR4
   - Area: orchestration / CI / review governance
   - Finding Type: process hardening
-  - Status: In progress
+  - Status: In progress; PR1/PR2/PR3 landed, PR4 pending
   - Reason: Tier 1 requires a coordinator-led stacked PR program that first locks governance, then consolidates workflow topology, then narrows PR blockers, then adds advisory CI metrics without widening release risk.
   - Links:
     - `docs/orchestration/TIER1_CI_CD_PR_SERIES_RUNBOOK.md`
@@ -2258,13 +2258,13 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `build.yml`, frontend-only lanes, and nightly/release lanes stay isolated
     - Required-check parity is preserved on current-head PR checks
 
-- [ ] P1: PR3 risk-based PR test topology {#ledger-p1-tier1-ci-cd-pr3-risk-topology}
+- [x] P1: PR3 risk-based PR test topology {#ledger-p1-tier1-ci-cd-pr3-risk-topology}
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
   - Target PR: #1253
   - Area: orchestration / CI / review governance
   - Finding Type: process hardening
-  - Status: 🚧 In progress in PR `#1253` (PR3 risk-topology lane), following landed PR1/PR2 reconciliation (`#1240`, `#1244`) after clean-topology replacement of PR `#1250` and earlier closed PR `#1248`.
+  - Status: Materially completed on `origin/main` in PR `#1253` (`3be5debf`); this slice now serves as landed baseline input for PR4.
   - Reason: PR blockers should stay focused on business-critical runtime paths, while nightly depth absorbs broad non-critical coverage tails.
   - Links:
     - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-test-hygiene-wave`
@@ -2284,7 +2284,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Target PR: PR-TBD-TIER1-CI-CD-PR4
   - Area: orchestration / CI / review governance
   - Finding Type: process hardening
-  - Status: Deferred/next after PR3 risk-topology rollout.
+  - Status: Next canonical Tier 1 slice after landed PR3.
   - Reason: Tier 1 needs advisory metrics for critical-path duration, reruns, and flaky-signal tracking without turning observability into another merge blocker.
   - Links:
     - `docs/orchestration/TIER1_CI_CD_PR_SERIES_RUNBOOK.md`
