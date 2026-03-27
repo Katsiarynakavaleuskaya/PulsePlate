@@ -22,6 +22,13 @@ Evidence: `docs/review/PR_1258_FIXED_MAPPING.md:13`; `docs/review/PR_1258_FIXED_
 Reason: The CodeRabbit review wrapper only aggregates the single inline anchor finding fixed in `1d2ac887`; no standalone defect remains on the current head.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1258#pullrequestreview-4020096423
 
+Disposition: FIXED
+Commit: b221afe1
+Evidence: `git diff --name-only origin/main...HEAD` returns only `docs/orchestration/AUTOMATION_READINESS_MATRIX.md`, `docs/review/PR_1258_FIXED_MAPPING.md`, and `docs/roadmap/BACKLOG_LEDGER.md`; the PR no longer changes `.github/workflows/ci.yml`, `.github/workflows/frontend-ci.yml`, `.github/workflows/greenlight-ios.yml`, or `.secrets.baseline`.
+Reason: Reverted the CI-only metadata-rerun commit so PR `#1258` returns to a docs-only scope and no longer carries CI/infra changes.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1258#discussion_r3000836617 -> b221afe1
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1258#pullrequestreview-4020978587 -> b221afe1
+
 ## Merge Readiness
 - [ ] All required checks pass
 - [ ] No unresolved review threads (re-check on current head before merge)
