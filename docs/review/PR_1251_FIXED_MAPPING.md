@@ -106,8 +106,8 @@ Commit: 4fa6745d
 Evidence: scripts/ci/check_python_startup_hooks.py:103
 
 ## Merge Readiness
-- [x] Local `python -m pre_commit run --all-files` passed on current head
-- [x] Local `make verify` passed on current head
+- [ ] Local `python -m pre_commit run --all-files` passed on current head
+- [ ] Local `make verify` passed on current head
 - [ ] Required CI checks are green on current head
 - [ ] GitHub approved proxy provisioning is present for `PULSEPLATE_PYTHON_INDEX_URL`
 - [ ] Mandatory wait-window completed after the latest bot/review activity

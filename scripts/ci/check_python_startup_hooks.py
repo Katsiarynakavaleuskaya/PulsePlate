@@ -75,7 +75,10 @@ def current_interpreter_site_packages() -> list[Path]:
 
     site_packages: list[str] = []
     for getter_name in ("getsitepackages", "getusersitepackages"):
-        if getter_name == "getusersitepackages" and not getattr(site, "ENABLE_USER_SITE", False):
+        if (
+            getter_name == "getusersitepackages"
+            and getattr(site, "ENABLE_USER_SITE", None) is False
+        ):
             continue
         getter = getattr(site, getter_name, None)
         if getter is None:
@@ -96,7 +99,7 @@ def external_interpreter_site_packages(python_executable: str) -> list[Path]:
         "import json, site\n"
         "paths = []\n"
         "for getter_name in ('getsitepackages', 'getusersitepackages'):\n"
-        "    if getter_name == 'getusersitepackages' and not getattr(site, 'ENABLE_USER_SITE', False):\n"
+        "    if getter_name == 'getusersitepackages' and getattr(site, 'ENABLE_USER_SITE', None) is False:\n"
         "        continue\n"
         "    getter = getattr(site, getter_name, None)\n"
         "    if getter is None:\n"

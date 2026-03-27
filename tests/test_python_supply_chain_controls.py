@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -30,6 +31,7 @@ APPROVED_PROXY_ENV_EXPRESSION = (
 APPROVED_TRUSTED_HOST_EXPRESSION = (
     "${{ vars.PULSEPLATE_PYTHON_TRUSTED_HOST || secrets.PULSEPLATE_PYTHON_TRUSTED_HOST }}"
 )
+PIP_INSTALL_PATTERN = re.compile(r"\b\S*python\S*\s+-m\s+pip\s+install\b")
 
 
 def test_dependency_security_schema_blocks_known_bad_litellm_versions() -> None:
@@ -126,8 +128,14 @@ def test_canonical_ci_and_docker_use_supply_chain_guardrails() -> None:
 def test_all_changed_python_install_surfaces_use_locked_installer(workflow_path: str) -> None:
     workflow_text = (REPO_ROOT / workflow_path).read_text(encoding="utf-8")
 
+    assert (
+        "install_locked_python_requirements.py" in workflow_text
+        or ".github/actions/python-setup" in workflow_text
+        or 'pip_index_args=(--index-url "$PULSEPLATE_PYTHON_INDEX_URL")' in workflow_text
+    )
     assert "PULSEPLATE_PYTHON_INDEX_URL" in workflow_text
-    assert "pypi.org/simple" not in workflow_text
+    for blocked_host in locked_installer.BLOCKED_INDEX_HOSTS:
+        assert blocked_host not in workflow_text
 
 
 @pytest.mark.parametrize("workflow_path", PROXY_WORKFLOW_ENV_PATHS)
@@ -143,7 +151,7 @@ def test_no_canonical_workflow_uses_unscoped_public_pip_install() -> None:
         workflow_text = (REPO_ROOT / workflow_path).read_text(encoding="utf-8")
         lines = workflow_text.splitlines()
         for index, line in enumerate(lines):
-            if "python -m pip install" not in line:
+            if not PIP_INSTALL_PATTERN.search(line):
                 continue
             context = "\n".join(lines[max(0, index - 6) : index + 1])
-            assert "PULSEPLATE_PYTHON_INDEX_URL" in context or "--index-url" in context
+            assert "PULSEPLATE_PYTHON_INDEX_URL" in context

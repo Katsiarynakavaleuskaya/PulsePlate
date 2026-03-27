@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 import subprocess
+from pathlib import Path
 
 import pytest
 
@@ -113,9 +113,12 @@ def test_external_interpreter_site_packages_uses_startup_safe_probe(
         stderr="",
     )
     observed_command: list[str] = []
+    observed_kwargs: dict[str, object] = {}
 
     def fake_run(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
         observed_command[:] = command
+        observed_kwargs.clear()
+        observed_kwargs.update(kwargs)
         return completed
 
     monkeypatch.setattr(hook_guard.subprocess, "run", fake_run)
@@ -124,6 +127,10 @@ def test_external_interpreter_site_packages_uses_startup_safe_probe(
 
     assert observed_command[:3] == ["/usr/bin/python3", "-S", "-c"]
     assert "import json, site" in observed_command[3]
+    assert observed_kwargs.get("check") is True
+    assert observed_kwargs.get("capture_output") is True
+    assert observed_kwargs.get("text") is True
+    assert observed_kwargs.get("timeout") == 30
     assert result == [Path("/tmp/site-packages")]
 
 
@@ -154,4 +161,19 @@ def test_external_interpreter_site_packages_wraps_subprocess_failure(
     monkeypatch.setattr(hook_guard.subprocess, "run", raise_called_process_error)
 
     with pytest.raises(RuntimeError, match="Unable to probe site-packages"):
+        hook_guard.external_interpreter_site_packages("/usr/bin/python3")
+
+
+def test_external_interpreter_site_packages_wraps_timeout_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def raise_timeout(*args: object, **kwargs: object) -> object:
+        raise subprocess.TimeoutExpired(
+            cmd=["python3", "-S", "-c", "probe"],
+            timeout=30,
+        )
+
+    monkeypatch.setattr(hook_guard.subprocess, "run", raise_timeout)
+
+    with pytest.raises(RuntimeError, match="Timed out probing site-packages"):
         hook_guard.external_interpreter_site_packages("/usr/bin/python3")

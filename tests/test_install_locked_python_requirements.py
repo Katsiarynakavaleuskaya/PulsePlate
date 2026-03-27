@@ -14,6 +14,14 @@ import scripts.ci.install_locked_python_requirements as installer
 APPROVED_PROXY_URL = "https://packages.example.internal/simple"
 
 
+@pytest.fixture(autouse=True)
+def isolate_proxy_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv(installer.APPROVED_INDEX_ENV_VAR, raising=False)
+    monkeypatch.delenv(installer.TRUSTED_HOST_ENV_VAR, raising=False)
+    for env_var in installer.AMBIENT_INDEX_OVERRIDE_ENV_VARS:
+        monkeypatch.delenv(env_var, raising=False)
+
+
 def test_resolve_requirement_files_prefers_dev_only_when_requested(tmp_path: Path) -> None:
     requirements = tmp_path / "requirements.txt"
     requirements.write_text("openai==2.29.0\n", encoding="utf-8")
@@ -107,8 +115,6 @@ def test_validate_private_proxy_url_strips_whitespace_and_trailing_dot() -> None
 def test_resolve_private_proxy_settings_requires_explicit_contract(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.delenv(installer.APPROVED_INDEX_ENV_VAR, raising=False)
-
     with pytest.raises(RuntimeError, match="Approved Python package proxy is required"):
         installer.resolve_private_proxy_settings(index_url=None, trusted_host=None)
 
@@ -494,10 +500,7 @@ def test_main_reports_guard_runtime_error_cleanly(
 def test_main_reports_missing_private_proxy_cleanly(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
-    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.delenv("PULSEPLATE_PYTHON_INDEX_URL", raising=False)
-    monkeypatch.delenv("PULSEPLATE_PYTHON_TRUSTED_HOST", raising=False)
     requirements = tmp_path / "requirements.txt"
     requirements.write_text("openai==2.29.0\n", encoding="utf-8")
 
