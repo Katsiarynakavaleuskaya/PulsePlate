@@ -38,7 +38,12 @@ runs:
       run: |
         set -euxo pipefail
         if [[ -f requirements-dev.txt || -f requirements.txt ]]; then
+          : "${PULSEPLATE_PYTHON_INDEX_URL:?Set PULSEPLATE_PYTHON_INDEX_URL to the approved private package proxy URL.}"
           install_args=()
+          install_args+=(--index-url "$PULSEPLATE_PYTHON_INDEX_URL")
+          if [[ -n "${PULSEPLATE_PYTHON_TRUSTED_HOST:-}" ]]; then
+            install_args+=(--trusted-host "$PULSEPLATE_PYTHON_TRUSTED_HOST")
+          fi
           if [[ -f requirements-dev.txt && ( ! -f requirements.txt || "${{ inputs.install-dev-deps }}" == 'true' || "${{ inputs.install-test-deps }}" == 'true' ) ]]; then
             install_args+=(--install-dev)
           fi

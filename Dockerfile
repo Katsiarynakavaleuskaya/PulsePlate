@@ -10,6 +10,8 @@ FROM python:3.13.6-slim-bookworm AS builder
 # Set build arguments
 ARG BUILDPLATFORM
 ARG TARGETPLATFORM
+ARG PULSEPLATE_PYTHON_INDEX_URL
+ARG PULSEPLATE_PYTHON_TRUSTED_HOST=""
 
 # Install system dependencies for building (curl removed - not needed)
 RUN apt-get update && apt-get install -y \
@@ -31,16 +33,39 @@ ARG PIP_VERSION_RANGE
 # We must upgrade pip inside the image (system + venv) because scanners flag installed pip dist-info.
 # requirements.in cannot affect pip shipped in the base image.
 # Policy: do not pin exact pip in Dockerfile; use a safe version range instead.
-RUN /opt/venv/bin/python -m pip install --no-cache-dir --upgrade "${PIP_VERSION_RANGE}"
+RUN if [ -z "${PULSEPLATE_PYTHON_INDEX_URL:-}" ]; then \
+      echo "PULSEPLATE_PYTHON_INDEX_URL is required for Docker builds." >&2; \
+      exit 1; \
+    fi; \
+    if [ -n "${PULSEPLATE_PYTHON_TRUSTED_HOST:-}" ]; then \
+      /opt/venv/bin/python -m pip install --no-cache-dir --upgrade "${PIP_VERSION_RANGE}" --index-url "${PULSEPLATE_PYTHON_INDEX_URL}" --trusted-host "${PULSEPLATE_PYTHON_TRUSTED_HOST}"; \
+    else \
+      /opt/venv/bin/python -m pip install --no-cache-dir --upgrade "${PIP_VERSION_RANGE}" --index-url "${PULSEPLATE_PYTHON_INDEX_URL}"; \
+    fi
 
 # Copy requirements and install Python dependencies
 COPY requirements.txt requirements-dev.txt constraints.txt ./
 COPY scripts/ci/check_python_startup_hooks.py scripts/ci/install_locked_python_requirements.py /tmp/pulseplate-ci/
-RUN /opt/venv/bin/python /tmp/pulseplate-ci/install_locked_python_requirements.py \
-      --python-executable /opt/venv/bin/python \
-      --requirements-file requirements.txt \
-      --guard-script /tmp/pulseplate-ci/check_python_startup_hooks.py \
-      --constraints-file constraints.txt && \
+RUN if [ -z "${PULSEPLATE_PYTHON_INDEX_URL:-}" ]; then \
+      echo "PULSEPLATE_PYTHON_INDEX_URL is required for Docker builds." >&2; \
+      exit 1; \
+    fi; \
+    if [ -n "${PULSEPLATE_PYTHON_TRUSTED_HOST:-}" ]; then \
+      /opt/venv/bin/python /tmp/pulseplate-ci/install_locked_python_requirements.py \
+        --python-executable /opt/venv/bin/python \
+        --requirements-file requirements.txt \
+        --guard-script /tmp/pulseplate-ci/check_python_startup_hooks.py \
+        --constraints-file constraints.txt \
+        --index-url "${PULSEPLATE_PYTHON_INDEX_URL}" \
+        --trusted-host "${PULSEPLATE_PYTHON_TRUSTED_HOST}"; \
+    else \
+      /opt/venv/bin/python /tmp/pulseplate-ci/install_locked_python_requirements.py \
+        --python-executable /opt/venv/bin/python \
+        --requirements-file requirements.txt \
+        --guard-script /tmp/pulseplate-ci/check_python_startup_hooks.py \
+        --constraints-file constraints.txt \
+        --index-url "${PULSEPLATE_PYTHON_INDEX_URL}"; \
+    fi && \
     # Remove setuptools from runtime image to fix GHSA-58pv-8j8x-9vj2 (jaraco.context vulnerability)
     # setuptools is only needed for build-time (pip install), not runtime
     /opt/venv/bin/pip uninstall -y setuptools wheel && \
@@ -57,6 +82,8 @@ FROM python:3.13.6-slim-bookworm AS runtime-base
 
 # Re-declare build arg in this stage.
 ARG PIP_VERSION_RANGE
+ARG PULSEPLATE_PYTHON_INDEX_URL
+ARG PULSEPLATE_PYTHON_TRUSTED_HOST=""
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1 \
@@ -70,7 +97,15 @@ ENV PYTHONUNBUFFERED=1 \
 # We must upgrade pip inside the image (system + venv) because scanners flag installed pip dist-info.
 # requirements.in cannot affect pip shipped in the base image.
 # Policy: do not pin exact pip in Dockerfile; use a safe version range instead.
-RUN python -m pip install --no-cache-dir --upgrade "${PIP_VERSION_RANGE}"
+RUN if [ -z "${PULSEPLATE_PYTHON_INDEX_URL:-}" ]; then \
+      echo "PULSEPLATE_PYTHON_INDEX_URL is required for Docker builds." >&2; \
+      exit 1; \
+    fi; \
+    if [ -n "${PULSEPLATE_PYTHON_TRUSTED_HOST:-}" ]; then \
+      python -m pip install --no-cache-dir --upgrade "${PIP_VERSION_RANGE}" --index-url "${PULSEPLATE_PYTHON_INDEX_URL}" --trusted-host "${PULSEPLATE_PYTHON_TRUSTED_HOST}"; \
+    else \
+      python -m pip install --no-cache-dir --upgrade "${PIP_VERSION_RANGE}" --index-url "${PULSEPLATE_PYTHON_INDEX_URL}"; \
+    fi
 
 # Install runtime dependencies only (curl removed - using Python for healthcheck)
 # NOTE: libtasn1-6 comes transitively via libgnutls30 (required for TLS/HTTPS).
@@ -190,6 +225,9 @@ FROM production AS staging
 # Stage 5: Development stage
 FROM runtime-base AS development
 
+ARG PULSEPLATE_PYTHON_INDEX_URL
+ARG PULSEPLATE_PYTHON_TRUSTED_HOST=""
+
 # Switch back to root for development tools
 USER root
 
@@ -200,13 +238,30 @@ COPY scripts/ci/check_python_startup_hooks.py scripts/ci/install_locked_python_r
 # SECURITY NOTE: Do NOT uninstall setuptools/wheel in development stage.
 # They are required runtime dependencies of pip-tools for lockfile generation (pip-compile).
 # Security mitigation (GHSA-58pv-8j8x-9vj2) applies to runtime/production images only.
-RUN python /tmp/pulseplate-ci/install_locked_python_requirements.py \
-      --python-executable python \
-      --requirements-file requirements.txt \
-      --dev-requirements-file requirements-dev.txt \
-      --guard-script /tmp/pulseplate-ci/check_python_startup_hooks.py \
-      --constraints-file constraints.txt \
-      --install-dev
+RUN if [ -z "${PULSEPLATE_PYTHON_INDEX_URL:-}" ]; then \
+      echo "PULSEPLATE_PYTHON_INDEX_URL is required for Docker builds." >&2; \
+      exit 1; \
+    fi; \
+    if [ -n "${PULSEPLATE_PYTHON_TRUSTED_HOST:-}" ]; then \
+      python /tmp/pulseplate-ci/install_locked_python_requirements.py \
+        --python-executable python \
+        --requirements-file requirements.txt \
+        --dev-requirements-file requirements-dev.txt \
+        --guard-script /tmp/pulseplate-ci/check_python_startup_hooks.py \
+        --constraints-file constraints.txt \
+        --install-dev \
+        --index-url "${PULSEPLATE_PYTHON_INDEX_URL}" \
+        --trusted-host "${PULSEPLATE_PYTHON_TRUSTED_HOST}"; \
+    else \
+      python /tmp/pulseplate-ci/install_locked_python_requirements.py \
+        --python-executable python \
+        --requirements-file requirements.txt \
+        --dev-requirements-file requirements-dev.txt \
+        --guard-script /tmp/pulseplate-ci/check_python_startup_hooks.py \
+        --constraints-file constraints.txt \
+        --install-dev \
+        --index-url "${PULSEPLATE_PYTHON_INDEX_URL}"; \
+    fi
 
 # Install additional development tools
 RUN apt-get update && apt-get install -y \

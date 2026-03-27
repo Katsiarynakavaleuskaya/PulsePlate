@@ -46,6 +46,7 @@ def test_build_failure_output_includes_recovery_commands() -> None:
     )
 
     assert "ERROR: local verify environment is incomplete." in lines
+    assert any("PULSEPLATE_PYTHON_INDEX_URL" in line for line in lines)
     assert any("make venv" in line for line in lines)
     assert any("make venv-sync" in line for line in lines)
     assert "Missing verify-critical Python modules:" in lines
@@ -131,6 +132,7 @@ def test_main_fails_when_running_outside_repo_venv(
     assert result == 1
     captured = capsys.readouterr()
     assert "verify-env must run inside the repo .venv interpreter." in captured.out
+    assert "PULSEPLATE_PYTHON_INDEX_URL" in captured.out
 
 
 def test_main_fails_when_verify_dependencies_are_missing(
