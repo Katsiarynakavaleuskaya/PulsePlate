@@ -539,6 +539,12 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pip-
 
+      - name: Reclaim runner disk before Python install
+        run: |
+          set -euo pipefail
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc
+          df -h
+
       - name: Install dependencies
         run: |
           python scripts/ci/install_locked_python_requirements.py --python-executable python --constraints-file constraints.txt --install-dev

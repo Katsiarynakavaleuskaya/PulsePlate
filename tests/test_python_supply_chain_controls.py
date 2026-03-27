@@ -82,3 +82,11 @@ def test_all_changed_python_install_surfaces_use_locked_installer(workflow_path:
 
     assert "install_locked_python_requirements.py" in workflow_text
     assert "--constraints-file constraints.txt" in workflow_text
+
+
+def test_tier1_pr_lane_reclaims_runner_disk_before_locked_python_install() -> None:
+    workflow_text = (REPO_ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+
+    assert "Reclaim runner disk before Python install" in workflow_text
+    assert "sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc" in workflow_text
+    assert "df -h" in workflow_text
