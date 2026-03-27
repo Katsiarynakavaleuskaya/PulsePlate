@@ -287,6 +287,7 @@ def test_main_marks_xdist_metric_unknown_when_log_lookup_fails(
 def test_main_marks_xdist_metric_unknown_when_no_canonical_python313_job(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    monkeypatch.setenv("CI_METRICS_PYTHON313_JOB_NAME", "custom-main-3.13")
     anchor = _anchor_now()
     runs = [
         {
@@ -322,8 +323,8 @@ def test_main_marks_xdist_metric_unknown_when_no_canonical_python313_job(
 
     assert exit_code == 0
     assert payload["xdist_fallback_frequency"]["state"] == "unknown"
-    assert "No canonical Python 3.13 main-branch test jobs were found." in markdown
-    assert any("no canonical 'test-main (3.13)' jobs" in warning for warning in payload["warnings"])
+    assert "No canonical Python 3.13 job 'custom-main-3.13' was found." in markdown
+    assert any("no canonical 'custom-main-3.13' jobs" in warning for warning in payload["warnings"])
 
 
 def test_main_marks_xdist_metric_unknown_when_python313_job_id_is_missing(
@@ -544,6 +545,66 @@ def test_read_text_url_raises_when_redirect_limit_is_exceeded(
         collect_ci_metrics._read_text_url("https://example.invalid/start", max_redirect_hops=2)
 
 
+def test_read_text_url_drops_github_api_headers_after_cross_host_redirect(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class FakeResponse:
+        def __init__(self, *, status: int, location: str = "", body: bytes = b"") -> None:
+            self.status = status
+            self.reason = "Found" if status < 400 else "Error"
+            self.headers = {"Location": location} if location else {}
+            self._body = body
+
+        def read(self) -> bytes:
+            return self._body
+
+    recorded_requests: list[dict[str, object]] = []
+
+    class FakeConnection:
+        def __init__(self, netloc: str, timeout: int) -> None:
+            self.netloc = netloc
+            self.timeout = timeout
+
+        def request(self, method: str, path: str, headers: dict[str, str]) -> None:
+            recorded_requests.append(
+                {"host": self.netloc, "method": method, "path": path, "headers": dict(headers)}
+            )
+
+        def getresponse(self) -> FakeResponse:
+            if self.netloc == collect_ci_metrics.GITHUB_API_HOST:
+                return FakeResponse(
+                    status=302,
+                    location="https://pipelines.actions.githubusercontent.com/logs/download",
+                )
+            return FakeResponse(status=200, body=b"log output")
+
+        def close(self) -> None:
+            return None
+
+    monkeypatch.setattr(collect_ci_metrics.http.client, "HTTPSConnection", FakeConnection)
+
+    body = collect_ci_metrics._read_text_url(
+        "https://api.github.com/repos/octo/test/actions/jobs/1/logs",
+        headers={
+            "Authorization": "Bearer secret",
+            "Accept": "application/vnd.github+json",
+            "X-GitHub-Api-Version": "2022-11-28",
+            "User-Agent": collect_ci_metrics.USER_AGENT,
+        },
+    )
+
+    assert body == "log output"
+    assert len(recorded_requests) == 2
+    assert recorded_requests[0]["host"] == collect_ci_metrics.GITHUB_API_HOST
+    assert recorded_requests[0]["headers"]["Authorization"] == "Bearer secret"
+    redirected_headers = recorded_requests[1]["headers"]
+    assert recorded_requests[1]["host"] == "pipelines.actions.githubusercontent.com"
+    assert "Authorization" not in redirected_headers
+    assert "Accept" not in redirected_headers
+    assert "X-GitHub-Api-Version" not in redirected_headers
+    assert redirected_headers["User-Agent"] == collect_ci_metrics.USER_AGENT
+
+
 def test_find_python313_job_uses_configurable_canonical_name(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -557,6 +618,46 @@ def test_find_python313_job_uses_configurable_canonical_name(
     )
 
     assert found == {"id": 2, "name": "custom-main-3.13"}
+
+
+def test_main_uses_requested_workflow_and_branch_in_summary_notes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    json_out = tmp_path / "ci-metrics-summary.json"
+    markdown_out = tmp_path / "ci-metrics-summary.md"
+
+    monkeypatch.setenv("GH_TOKEN", "token")
+    monkeypatch.setattr(collect_ci_metrics, "_fetch_workflow_runs", lambda **kwargs: [])
+
+    exit_code = collect_ci_metrics.main(
+        [
+            "--repo",
+            "Katsiarynakavaleuskaya/PulsePlate",
+            "--branch",
+            "release/hotfix",
+            "--workflow-name",
+            "CI Metrics Preview",
+            "--workflow-file",
+            "ci-metrics.yml",
+            "--json-out",
+            str(json_out),
+            "--markdown-out",
+            str(markdown_out),
+        ]
+    )
+
+    payload = json.loads(json_out.read_text(encoding="utf-8"))
+    markdown = markdown_out.read_text(encoding="utf-8")
+
+    assert exit_code == 0
+    assert payload["notes"] == [
+        "Headline metrics are calculated from workflow 'CI Metrics Preview' on branch 'release/hotfix'."
+    ]
+    assert (
+        "Headline metrics are calculated from workflow 'CI Metrics Preview' on branch 'release/hotfix'."
+        in markdown
+    )
+    assert "Specialized add-on lanes remain contextual" not in markdown
 
 
 def test_main_requires_repo_token_and_paths(

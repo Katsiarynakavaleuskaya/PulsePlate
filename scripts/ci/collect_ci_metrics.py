@@ -23,6 +23,7 @@ DEFAULT_WORKFLOW_NAME = "CI"
 DEFAULT_BRANCH = "main"
 DEFAULT_PYTHON313_JOB_NAME = "test-main (3.13)"
 MAX_REDIRECT_HOPS = 5
+GITHUB_API_ONLY_HEADERS = frozenset({"authorization", "accept", "x-github-api-version"})
 
 
 def _github_token() -> str:
@@ -35,6 +36,20 @@ def _python313_job_name() -> str:
     """Return the canonical Python 3.13 job name for the Tier 1 CI lane."""
 
     return os.getenv("CI_METRICS_PYTHON313_JOB_NAME", "").strip() or DEFAULT_PYTHON313_JOB_NAME
+
+
+def _headers_for_request_host(headers: dict[str, str], *, host: str) -> dict[str, str]:
+    """Keep API auth headers only for api.github.com requests.
+
+    RU: Signed log URLs уже авторизованы, поэтому GitHub API bearer нельзя отправлять на другой host.
+    EN: Signed log URLs are already authorized, so never forward GitHub API bearer headers cross-host.
+    """
+
+    if host == GITHUB_API_HOST:
+        return dict(headers)
+    return {
+        key: value for key, value in headers.items() if key.lower() not in GITHUB_API_ONLY_HEADERS
+    }
 
 
 def _parse_iso8601(value: str) -> datetime | None:
@@ -108,6 +123,10 @@ def _read_text_url(
     """
 
     current_url = url
+    current_headers = _headers_for_request_host(
+        dict(headers or {}),
+        host=urllib.parse.urlparse(current_url).netloc,
+    )
     for redirect_hop in range(max_redirect_hops + 1):
         parsed = urllib.parse.urlparse(current_url)
         if parsed.scheme != "https":
@@ -119,7 +138,7 @@ def _read_text_url(
 
         conn = http.client.HTTPSConnection(parsed.netloc, timeout=30)
         try:
-            conn.request("GET", path, headers=headers or {})
+            conn.request("GET", path, headers=current_headers)
             response = conn.getresponse()
             body = response.read()
             location = response.headers.get("Location", "")
@@ -134,6 +153,10 @@ def _read_text_url(
                     "Redirect limit exceeded while fetching " f"{url}; last location was {location}"
                 )
             current_url = urllib.parse.urljoin(current_url, location)
+            current_headers = _headers_for_request_host(
+                current_headers,
+                host=urllib.parse.urlparse(current_url).netloc,
+            )
             continue
 
         if response.status >= 400:
@@ -343,6 +366,7 @@ def _xdist_fallback_summary(
     """Estimate xdist fallback frequency from the Python 3.13 canonical main job logs."""
 
     warnings: list[str] = []
+    python313_job_name = _python313_job_name()
     if latest_run is None:
         return (
             {
@@ -413,13 +437,13 @@ def _xdist_fallback_summary(
 
     if observed_runs == 0:
         warnings.append(
-            "xdist fallback frequency is unknown because no canonical 'test-main (3.13)' jobs "
-            "were found in the scanned CI runs."
+            "xdist fallback frequency is unknown because no canonical "
+            f"'{python313_job_name}' jobs were found in the scanned CI runs."
         )
         return (
             {
                 "state": "unknown",
-                "reason": "No canonical Python 3.13 main-branch test jobs were found.",
+                "reason": f"No canonical Python 3.13 job '{python313_job_name}' was found.",
             },
             warnings,
         )
@@ -532,9 +556,12 @@ def _build_summary(
 
     warnings: list[str] = []
     notes = [
-        "Headline metrics are calculated from the canonical backend/shared 'CI' workflow on 'main'.",
-        "Specialized add-on lanes remain contextual and do not influence the headline Tier 1 rates.",
+        f"Headline metrics are calculated from workflow '{workflow_name}' on branch '{branch}'."
     ]
+    if workflow_name == DEFAULT_WORKFLOW_NAME and branch == DEFAULT_BRANCH:
+        notes.append(
+            "Specialized add-on lanes remain contextual and do not influence the headline Tier 1 rates."
+        )
 
     try:
         runs = _fetch_workflow_runs(
