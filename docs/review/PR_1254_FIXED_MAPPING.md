@@ -43,6 +43,18 @@ Disposition: NOT-A-BUG
 Evidence: `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1254#discussion_r2999566123`; `scripts/orchestration/task_bootstrap.py:176`; `scripts/orchestration/task_bootstrap.py:181`
 Reason: This review shell only summarizes the single inline CodeRabbit note above; because the current head already contains the root-level `SKILL.md` fix, the shell carries no additional unresolved action.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1254#discussion_r2999587498 -> f69629ebfa4100398ee9b3a26b55acfc3277907b
+Disposition: FIXED
+Commit: f69629ebfa4100398ee9b3a26b55acfc3277907b
+Evidence: `docs/roadmap/BACKLOG_LEDGER.md:2110`
+Reason: The downstream PR3 dependency now points at the concrete PR2 identifier `PR-1254`, eliminating the stale placeholder that triggered the inline review comment.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1254#pullrequestreview-4019546133 -> f69629ebfa4100398ee9b3a26b55acfc3277907b
+Disposition: FIXED
+Commit: f69629ebfa4100398ee9b3a26b55acfc3277907b
+Evidence: `scripts/orchestration/task_bootstrap.py:130`; `scripts/orchestration/task_bootstrap.py:133`; `scripts/orchestration/task_bootstrap.py:162`; `tests/test_task_bootstrap.py:616`; `tests/test_task_bootstrap.py:623`; `docs/roadmap/BACKLOG_LEDGER.md:2110`
+Reason: The new review shell is fully addressed by the latest fix commit: the stale backlog dependency was corrected, prefix matching now uses a shared helper, and deterministic packet-stability coverage now locks the additive top-level metadata fields.
+
 ## Merge Readiness
 - [ ] All required checks pass
 - [ ] No unresolved review threads (re-check on current head before merge)
