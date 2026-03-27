@@ -150,6 +150,16 @@ contract lives in:
 - `docs/orchestration/TIER1_CI_CD_PR_SERIES_RUNBOOK.md`
 - `docs/orchestration/TIER1_CI_CD_TASK_PACKET_2026-03-26.md`
 
+Current Tier 1 execution baseline on `main` after PR3 landing:
+- PR1 (`#1240`) and PR2 (`#1244`) are landed baseline.
+- PR3 (`#1253`, merge commit `3be5debf`) is landed baseline.
+- PR4 is the active next execution slice and is limited to advisory CI metrics
+  plus the weekly feedback loop.
+- `.github/workflows/ci-metrics.yml` is advisory observability only:
+  schedule/manual trigger, artifact + `GITHUB_STEP_SUMMARY` publication, and it
+  must stay outside ordinary PR merge truth unless branch protection explicitly
+  promotes it later.
+
 Operator routing baseline before PR2 workflow consolidation:
 
 - Backend/shared PR: inspect `CI` first; treat it as the canonical lane.
@@ -351,6 +361,12 @@ stacked-PR routing card, mandatory post-open lane, and packet/runbook pair
 documented in:
 - `docs/orchestration/TIER1_CI_CD_PR_SERIES_RUNBOOK.md`
 - `docs/orchestration/TIER1_CI_CD_TASK_PACKET_2026-03-26.md`
+
+For the active PR4 wave, operators must keep the scope narrow:
+- `CI` remains the only canonical backend/shared PR merge lane.
+- `CI Metrics` is an advisory feedback lane for scheduled/manual reporting only.
+- PR4 must not widen branch-protection merge blockers or convert advisory
+  metrics into required PR checks.
 
 ## Pre-merge readiness pass (mandatory for non-draft PRs)
 
