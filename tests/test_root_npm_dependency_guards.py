@@ -54,24 +54,38 @@ def test_root_lock_tracks_hono_as_mcp_sdk_transitive_dependency() -> None:
 
 
 def test_root_lock_resolves_brace_expansion_to_safe_npm_release() -> None:
-    """RU/EN: Root lockfile must resolve brace-expansion to the patched npm floor."""
+    """RU/EN: Root lockfile must resolve all brace-expansion entries to the patched npm floor."""
     package_lock = _load_json(ROOT_LOCK_JSON)
-    brace_expansion_pkg = package_lock.get("packages", {}).get("node_modules/brace-expansion", {})
-    lock_version = brace_expansion_pkg.get("version")
-    resolved = brace_expansion_pkg.get("resolved", "")
+    packages = package_lock.get("packages", {})
 
-    assert isinstance(lock_version, str), "package-lock.json: brace-expansion version missing"
-    assert Version(lock_version) >= MIN_BRACE_EXPANSION_VERSION
+    assert isinstance(packages, dict), "package-lock.json: 'packages' must be a dict"
+
+    brace_expansion_entries = {
+        package_path: package_data
+        for package_path, package_data in packages.items()
+        if isinstance(package_path, str) and package_path.endswith("/brace-expansion")
+    }
+
     assert (
-        isinstance(resolved, str) and resolved
-    ), "package-lock.json: brace-expansion resolved missing"
+        brace_expansion_entries
+    ), "package-lock.json: no brace-expansion entries found in packages map"
 
-    parsed = urlparse(resolved)
-    assert parsed.scheme == "https", "brace-expansion lock resolution must use https"
-    assert parsed.netloc == "registry.npmjs.org", "brace-expansion must resolve from npm registry"
-    assert parsed.path.startswith(
-        "/brace-expansion/"
-    ), "brace-expansion lock resolution path mismatch"
+    for package_path, brace_expansion_pkg in brace_expansion_entries.items():
+        lock_version = brace_expansion_pkg.get("version")
+        resolved = brace_expansion_pkg.get("resolved", "")
+
+        assert isinstance(lock_version, str), f"{package_path}: brace-expansion version missing"
+        assert Version(lock_version) >= MIN_BRACE_EXPANSION_VERSION
+        assert isinstance(resolved, str) and resolved, f"{package_path}: resolved tarball missing"
+
+        parsed = urlparse(resolved)
+        assert parsed.scheme == "https", f"{package_path}: lock resolution must use https"
+        assert (
+            parsed.netloc == "registry.npmjs.org"
+        ), f"{package_path}: must resolve from npm registry"
+        assert parsed.path.startswith(
+            "/brace-expansion/"
+        ), f"{package_path}: brace-expansion lock resolution path mismatch"
 
 
 def test_root_lock_tracks_brace_expansion_under_agentguard_dependency_path() -> None:

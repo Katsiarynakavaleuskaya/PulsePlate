@@ -44,6 +44,10 @@ DOCKER_RECLAIM_WORKFLOW_PATHS: tuple[str, ...] = (
 RECLAIM_STEP_NAME = "Reclaim runner disk before Python install"
 RECLAIM_COMMAND = "sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc"
 DOCKER_RECLAIM_STEP_NAME = "Reclaim runner disk before Docker build"
+DOCKER_BUILD_STEP_MARKERS: dict[str, str] = {
+    ".github/workflows/docker-image.yml": "Build the Docker image",
+    ".github/workflows/build.yml": "Build Docker image (local, for tests)",
+}
 PIP_INSTALL_PATTERN = re.compile(r"\b\S*python\S*\s+-m\s+pip\s+install\b")
 
 
@@ -207,3 +211,6 @@ def test_docker_build_workflows_reclaim_runner_disk_before_build(workflow_path: 
     assert DOCKER_RECLAIM_STEP_NAME in workflow_text
     assert RECLAIM_COMMAND in workflow_text
     assert "df -h" in workflow_text
+
+    build_step_marker = DOCKER_BUILD_STEP_MARKERS[workflow_path]
+    assert workflow_text.index(DOCKER_RECLAIM_STEP_NAME) < workflow_text.index(build_step_marker)

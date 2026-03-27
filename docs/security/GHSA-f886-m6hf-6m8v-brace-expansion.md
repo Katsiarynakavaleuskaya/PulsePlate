@@ -42,10 +42,10 @@ surface.
 
 ## Evidence Anchors
 
-- `package.json` — direct dependency and override set for the patched graph
-- `package-lock.json` — resolved `glob` / `minimatch` / `brace-expansion` chain updated
-- `tests/test_root_npm_dependency_guards.py` — deterministic regression guard
-- `docs/security/GHSA-f886-m6hf-6m8v-brace-expansion.md:1` — canonical remediation record
+- `package.json:28` — direct dependency and override set for the patched graph
+- `package-lock.json:828` — resolved `glob` / `minimatch` / `brace-expansion` chain updated
+- `tests/test_root_npm_dependency_guards.py:56` — deterministic regression guard
+- `docs/security/GHSA-f886-m6hf-6m8v-brace-expansion.md:43` — canonical remediation record
 
 ## Validation
 
