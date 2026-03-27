@@ -2058,7 +2058,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Deterministic tests cover workflow/Fastlane/orchestration-path review routing
     - Merge-readiness docs explain that this is a default requirement, not optional reviewer theater
 
-<a id="ledger-p1-classify-ci-checks-as-hard-soft-external"></a>
+<a id="ledger-p1-coordinator-automation-pr2-bootstrap-hardening"></a>
 - [x] P1: Coordinator automation PR2 — bootstrap engine hardening
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
@@ -2183,6 +2183,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Compatible local runtime settings are documented with explicit caveats about host/runtime limits
     - Local rollout steps do not mutate repo governance docs as a substitute for launcher support
     - Repo PR chain remains independently valid without the local rollout
+
+<a id="ledger-p1-classify-ci-checks-as-hard-soft-external"></a>
 - [x] P1: Classify CI checks as hard / soft / external in AGENTS or CI governance
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
