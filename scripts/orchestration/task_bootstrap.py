@@ -48,7 +48,7 @@ from scripts.orchestration.routing_graph_loader import (
     require_bootstrap_lane_activation,
 )
 from scripts.orchestration.requested_agents import normalize_requested_agents
-from scripts.orchestration.skill_router import route_skills
+from scripts.orchestration.skill_router import flatten_recommended_skills, route_skills
 
 SCHEMA_VERSION = "2.0"
 TASK_PACKET_DIR: Path = REPO_ROOT / "artifacts" / "orchestration" / "task_packets"
@@ -557,7 +557,7 @@ def build_task_packet(
         "requested_agents": normalized_requested_agents,
         "requested_agent_disposition": requested_agent_resolution["requested_agent_disposition"],
         "required_context": context_pack,
-        "recommended_skills": [item["skill"] for item in skill_routing["recommended"]],
+        "recommended_skills": flatten_recommended_skills(skill_routing),
         "skill_routing": skill_routing,
         "automation_flags": {
             "coordinator_first_required": True,

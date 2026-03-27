@@ -4,18 +4,25 @@ from __future__ import annotations
 
 from pathlib import Path
 import pytest
+import scripts.orchestration.skill_router as skill_router_module
 
 from scripts.orchestration.skill_router import (
+    CLASSIFICATION_PRECEDENCE,
     PRIVILEGED_SURFACE_PREFIXES,
     REQUESTED_AGENT_COMPANION_SKILL_BUNDLES,
     REQUESTED_AGENT_SKILL_BUNDLES,
     ROUTING_POLICY_VERSION,
+    TASK_CLASSIFICATION_RULES,
+    flatten_recommended_skills,
     route_skills,
     select_recommended_skills,
 )
 
 POLICY_DOC_PATH = (
     Path(__file__).resolve().parents[1] / "docs/orchestration/AGENT_SKILL_ROUTING_POLICY.md"
+)
+MESSAGE_PROTOCOL_DOC_PATH = (
+    Path(__file__).resolve().parents[1] / "docs/orchestration/AGENT_MESSAGE_PROTOCOL.md"
 )
 
 EXPECTED_REQUESTED_AGENT_POLICY_ROWS: tuple[str, ...] = (
@@ -40,12 +47,33 @@ EXPECTED_PRIVILEGED_SURFACE_POLICY_LINES: tuple[str, ...] = (
     "- merge-governance scripts under `scripts/ci/**`",
     "- merge-governance docs under `docs/orchestration/**` and `docs/review/**`",
 )
+EXPECTED_CLASSIFICATION_POLICY_LINES: tuple[str, ...] = (
+    "- `implementation`",
+    "- `bugfix`",
+    "- `review`",
+    "- `design`",
+    "- `creative_research`",
+    "- `experiment`",
+    "- `pr_governance`",
+)
+EXPECTED_ROUTING_BUCKET_POLICY_LINES: tuple[str, ...] = (
+    "- `required`: non-optional skills for the classified lane. `pulseplate-workflow`",
+    "- `recommended`: deterministic ranked helpers that are safe to auto-promote into",
+    "- `conditional`: task-fit helpers that need a stronger trigger before promotion.",
+    "- `blocked`: deterministic low-fit or disallowed patterns. Pattern-based blocks",
+)
 
 
 def _read_policy_doc() -> str:
     """Load the canonical policy markdown for doc-to-implementation parity checks."""
 
     return POLICY_DOC_PATH.read_text(encoding="utf-8")
+
+
+def _read_message_protocol_doc() -> str:
+    """Load the canonical message protocol markdown."""
+
+    return MESSAGE_PROTOCOL_DOC_PATH.read_text(encoding="utf-8")
 
 
 def test_skill_router_prefers_orchestration_docs_skills() -> None:
@@ -62,9 +90,12 @@ def test_skill_router_prefers_orchestration_docs_skills() -> None:
         domain="orchestration",
     )
 
-    skills = [item["skill"] for item in decision["recommended"]]
+    required_skills = [item["skill"] for item in decision["required"]]
+    skills = flatten_recommended_skills(decision)
     assert decision["policy_version"] == ROUTING_POLICY_VERSION
     assert decision["selection_mode"] == "deterministic-weighted"
+    assert decision["task_classification"]["label"] == "implementation"
+    assert required_skills == ["pulseplate-workflow"]
     assert skills[0] == "pulseplate-workflow"
     assert "docs-sync" in skills
     assert "agents-md" in skills
@@ -89,6 +120,202 @@ def test_skill_router_applies_requested_agent_default_bundle() -> None:
 
 
 @pytest.mark.parametrize(
+    ("goal", "task_class", "candidate_paths", "domain", "expected_label"),
+    (
+        (
+            "Implement backend endpoint contract for nutrition insights",
+            "Backend API",
+            ["app/routers/insight.py"],
+            "backend",
+            "implementation",
+        ),
+        (
+            "Fix flaky regression in frontend dashboard chart",
+            "Frontend",
+            ["frontend/src/pages/Dashboard.tsx", "tests/test_dashboard.py"],
+            "frontend",
+            "bugfix",
+        ),
+        (
+            "Perform code review for this frontend change",
+            "Frontend",
+            ["frontend/src/App.tsx"],
+            "frontend",
+            "review",
+        ),
+        (
+            "Implement design fidelity from Figma node-id 42-7",
+            "Frontend",
+            ["frontend/src/components/Hero.tsx"],
+            "frontend",
+            "design",
+        ),
+        (
+            "Prepare weekly wellness AI trend report and GTM brief",
+            "Research",
+            ["docs/audience_pack/ENGINEERING_OVERVIEW.md"],
+            "research",
+            "creative_research",
+        ),
+        (
+            "Run benchmark eval for RAG reliability optimization",
+            "Experimentation",
+            ["core/rag/vector_rag.py"],
+            "ml",
+            "experiment",
+        ),
+        (
+            "Update merge readiness review thread mapping for the pull request",
+            "QA",
+            ["docs/review/PR_999_FIXED_MAPPING.md"],
+            "qa",
+            "pr_governance",
+        ),
+    ),
+)
+def test_task_classifier_supports_all_canonical_labels(
+    goal: str,
+    task_class: str,
+    candidate_paths: list[str],
+    domain: str,
+    expected_label: str,
+) -> None:
+    """Classifier should deterministically cover the canonical label set."""
+
+    decision = route_skills(
+        goal=goal,
+        task_class=task_class,
+        candidate_paths=candidate_paths,
+        domain=domain,
+    )
+
+    assert decision["task_classification"]["label"] == expected_label
+    assert isinstance(decision["task_classification"]["score"], int)
+    assert decision["task_classification"]["reasons"]
+
+
+def test_task_classifier_uses_documented_precedence_order() -> None:
+    """Classifier precedence list should remain explicit and stable."""
+
+    assert CLASSIFICATION_PRECEDENCE == (
+        "pr_governance",
+        "design",
+        "creative_research",
+        "experiment",
+        "review",
+        "bugfix",
+        "implementation",
+    )
+
+
+def test_task_classifier_rule_labels_match_precedence_contract() -> None:
+    """Rule labels should stay in lockstep with the precedence contract."""
+
+    rule_labels = tuple(rule.label for rule in TASK_CLASSIFICATION_RULES)
+
+    assert len(rule_labels) == len(set(rule_labels))
+    assert set(rule_labels) == set(CLASSIFICATION_PRECEDENCE)
+
+
+def test_task_classifier_skips_unknown_precedence_labels_without_key_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Unknown precedence labels should not crash the classifier during routing."""
+
+    monkeypatch.setattr(
+        skill_router_module,
+        "CLASSIFICATION_PRECEDENCE",
+        ("unknown_lane", *CLASSIFICATION_PRECEDENCE),
+    )
+
+    decision = route_skills(
+        goal="Implement backend endpoint contract for nutrition insights",
+        task_class="Backend API",
+        candidate_paths=["app/routers/insight.py"],
+        domain="backend",
+    )
+
+    assert decision["task_classification"]["label"] == "implementation"
+
+
+def test_task_classifier_prioritizes_pr_governance_over_review() -> None:
+    """PR governance should win when review-thread and merge signals are both present."""
+
+    decision = route_skills(
+        goal="Address review thread mapping before merge readiness pass",
+        task_class="QA",
+        candidate_paths=["docs/review/PR_999_FIXED_MAPPING.md"],
+        domain="qa",
+    )
+
+    assert decision["task_classification"]["label"] == "pr_governance"
+
+
+def test_task_classifier_prioritizes_pr_governance_for_docs_review_updates() -> None:
+    """Docs-review mapping updates should stay in the PR-governance lane."""
+
+    decision = route_skills(
+        goal="Update fixed mapping notes",
+        task_class="Documentation",
+        candidate_paths=["docs/review/PR_999_FIXED_MAPPING.md"],
+        domain="docs",
+    )
+
+    assert decision["task_classification"]["label"] == "pr_governance"
+    assert [item["skill"] for item in decision["required"]] == [
+        "pulseplate-workflow",
+        "docs-sync",
+        "pulseplate-gates",
+    ]
+
+
+def test_task_classifier_prioritizes_design_over_implementation() -> None:
+    """Design signals should override generic implementation wording."""
+
+    decision = route_skills(
+        goal="Implement Figma node-id fidelity for the dashboard hero",
+        task_class="Frontend",
+        candidate_paths=["frontend/src/components/Hero.tsx"],
+        domain="frontend",
+    )
+
+    assert decision["task_classification"]["label"] == "design"
+
+
+def test_task_classifier_prioritizes_experiment_over_implementation() -> None:
+    """Experiment signals should override generic implementation wording."""
+
+    decision = route_skills(
+        goal="Implement benchmark eval harness for reliability optimization",
+        task_class="Experimentation",
+        candidate_paths=["core/rag/vector_rag.py"],
+        domain="ml",
+    )
+
+    assert decision["task_classification"]["label"] == "experiment"
+
+
+def test_task_classifier_requires_review_signals_to_dominate_bugfix() -> None:
+    """Review should only beat bugfix when review evidence is stronger."""
+
+    review_dominant = route_skills(
+        goal="Review bugfix comments and code review disposition",
+        task_class="QA",
+        candidate_paths=["docs/review/PR_999_FIXED_MAPPING.md"],
+        domain="qa",
+    )
+    bugfix_dominant = route_skills(
+        goal="Fix failing flaky regression in the dashboard chart",
+        task_class="Frontend",
+        candidate_paths=["frontend/src/pages/Dashboard.tsx", "tests/test_dashboard.py"],
+        domain="frontend",
+    )
+
+    assert review_dominant["task_classification"]["label"] == "review"
+    assert bugfix_dominant["task_classification"]["label"] == "bugfix"
+
+
+@pytest.mark.parametrize(
     ("requested_agent", "expected_bundle"),
     sorted(REQUESTED_AGENT_SKILL_BUNDLES.items()),
 )
@@ -96,7 +323,7 @@ def test_requested_agent_bundle_parity_is_covered(
     requested_agent: str,
     expected_bundle: tuple[str, ...],
 ) -> None:
-    """Every documented auto-routed requested-agent bundle should be emitted."""
+    """Every documented requested-agent bundle should appear in required or recommended lanes."""
 
     decision = route_skills(
         goal="Need deterministic agent bundle parity coverage",
@@ -106,15 +333,20 @@ def test_requested_agent_bundle_parity_is_covered(
         requested_agents=[requested_agent],
     )
 
+    required_by_skill = {item["skill"]: item for item in decision["required"]}
     recommended_by_skill = {item["skill"]: item for item in decision["recommended"]}
+    routed_skill_names = set(required_by_skill) | set(recommended_by_skill)
 
     assert decision["requested_agents"] == [requested_agent]
     for skill in expected_bundle:
-        assert skill in recommended_by_skill
-        assert any(
-            reason.startswith(f"requested-agent:{requested_agent}(+")
-            for reason in recommended_by_skill[skill]["reasons"]
-        )
+        assert skill in routed_skill_names
+        if skill in recommended_by_skill:
+            assert any(
+                reason.startswith(f"requested-agent:{requested_agent}(+")
+                for reason in recommended_by_skill[skill]["reasons"]
+            )
+        else:
+            assert skill in required_by_skill
 
 
 def test_requested_agent_companion_guidance_stays_manual_only() -> None:
@@ -135,6 +367,64 @@ def test_requested_agent_companion_guidance_stays_manual_only() -> None:
     )
 
 
+def test_required_lane_always_contains_pulseplate_workflow() -> None:
+    """Every routed task must keep pulseplate-workflow in required lane metadata."""
+
+    decision = route_skills(
+        goal="Implement backend endpoint contract for nutrition insights",
+        task_class="Backend API",
+        candidate_paths=["app/routers/insight.py"],
+        domain="backend",
+    )
+
+    assert [item["skill"] for item in decision["required"]] == ["pulseplate-workflow"]
+
+
+def test_pr_governance_required_lane_adds_governance_baseline() -> None:
+    """PR-governance tasks should require the minimal governance baseline."""
+
+    decision = route_skills(
+        goal="Prepare pull request merge readiness and fixed mapping governance pass",
+        task_class="QA",
+        candidate_paths=["docs/review/PR_999_FIXED_MAPPING.md"],
+        domain="qa",
+    )
+
+    assert [item["skill"] for item in decision["required"]] == [
+        "pulseplate-workflow",
+        "docs-sync",
+        "pulseplate-gates",
+    ]
+    assert flatten_recommended_skills(decision)[:3] == [
+        "pulseplate-workflow",
+        "docs-sync",
+        "pulseplate-gates",
+    ]
+
+
+def test_pr_governance_requested_agent_bundle_keeps_required_skills_out_of_recommended() -> None:
+    """Requested-agent boosts must not duplicate required governance skills."""
+
+    decision = route_skills(
+        goal="Prepare pull request merge readiness and fixed mapping governance pass",
+        task_class="QA",
+        candidate_paths=["docs/review/PR_999_FIXED_MAPPING.md"],
+        domain="qa",
+        requested_agents=["agent-coordinator"],
+    )
+
+    required_skill_names = {item["skill"] for item in decision["required"]}
+    recommended_skill_names = {item["skill"] for item in decision["recommended"]}
+
+    assert required_skill_names == {
+        "pulseplate-workflow",
+        "docs-sync",
+        "pulseplate-gates",
+    }
+    assert "agents-md" in recommended_skill_names
+    assert required_skill_names.isdisjoint(recommended_skill_names)
+
+
 @pytest.mark.parametrize("expected_row", EXPECTED_REQUESTED_AGENT_POLICY_ROWS)
 def test_requested_agent_policy_rows_stay_in_sync(expected_row: str) -> None:
     """Canonical policy rows should stay explicit so router parity tests have a stable contract."""
@@ -146,6 +436,30 @@ def test_requested_agent_policy_agent_set_stays_in_sync() -> None:
     """Documented requested-agent names should match the implementation exactly."""
 
     assert EXPECTED_REQUESTED_AGENT_NAMES == frozenset(REQUESTED_AGENT_SKILL_BUNDLES.keys())
+
+
+@pytest.mark.parametrize("expected_line", EXPECTED_CLASSIFICATION_POLICY_LINES)
+def test_classification_policy_lines_stay_in_sync(expected_line: str) -> None:
+    """Canonical classifier labels must remain locked between docs and implementation."""
+
+    assert expected_line in _read_policy_doc()
+
+
+@pytest.mark.parametrize("expected_line", EXPECTED_ROUTING_BUCKET_POLICY_LINES)
+def test_routing_bucket_policy_lines_stay_in_sync(expected_line: str) -> None:
+    """Routing bucket semantics must remain explicit in the policy doc."""
+
+    assert expected_line in _read_policy_doc()
+
+
+def test_message_protocol_example_mentions_expanded_skill_routing_contract() -> None:
+    """Message protocol should document the nested skill_routing fields."""
+
+    doc = _read_message_protocol_doc()
+    assert '"task_classification": {' in doc
+    assert '"required": [' in doc
+    assert '"recommended": [' in doc
+    assert '"conditional": [' in doc
 
 
 def test_requested_agent_bundle_boosts_existing_skill_without_duplication() -> None:
@@ -389,6 +703,88 @@ def test_skill_router_selects_github_comment_skill_for_review_threads() -> None:
     assert "gh-address-comments" in skills
 
 
+def test_skill_router_keeps_pr_helpers_conditional_outside_pr_governance() -> None:
+    """PR helper skills should stay conditional when the task is not in PR lane yet."""
+
+    decision = route_skills(
+        goal="Implement backend contract and open PR later when execution is ready",
+        task_class="Backend API",
+        candidate_paths=["app/routers/example.py"],
+        domain="backend",
+    )
+
+    conditional_by_skill = {item["skill"]: item for item in decision["conditional"]}
+    assert "create-pr" in conditional_by_skill
+    assert (
+        conditional_by_skill["create-pr"]["when"]
+        == "Enable when the task explicitly enters PR/review/merge-governance execution."
+    )
+    assert "create-pr" not in [item["skill"] for item in decision["recommended"]]
+
+
+def test_skill_router_keeps_design_helpers_conditional_for_partial_signals() -> None:
+    """Partial design language should not force design helpers into recommended lane."""
+
+    decision = route_skills(
+        goal="Review component polish for the dashboard hero",
+        task_class="Frontend",
+        candidate_paths=["frontend/src/components/Hero.tsx"],
+        domain="frontend",
+    )
+
+    assert "figma" not in [item["skill"] for item in decision["recommended"]]
+
+    partial_design = route_skills(
+        goal="Refresh screen polish before design handoff",
+        task_class="Frontend",
+        candidate_paths=["frontend/src/components/Hero.tsx"],
+        domain="frontend",
+    )
+
+    conditional_by_skill = {item["skill"]: item for item in partial_design["conditional"]}
+    assert "figma" in conditional_by_skill
+    assert (
+        conditional_by_skill["figma"]["when"]
+        == "Enable when a concrete Figma/design node-id or fidelity requirement becomes explicit."
+    )
+
+
+def test_skill_router_keeps_research_helpers_conditional_for_weak_research_intent() -> None:
+    """Weak research/report signals should stay conditional until the deliverable is explicit."""
+
+    decision = route_skills(
+        goal="Capture a quick report note for later",
+        task_class="Documentation",
+        candidate_paths=["docs/ENGINEERING_LESSONS.md"],
+        domain="docs",
+    )
+
+    conditional_by_skill = {item["skill"]: item for item in decision["conditional"]}
+    assert "pulseplate-ai-reports" in conditional_by_skill
+    assert (
+        conditional_by_skill["pulseplate-ai-reports"]["when"]
+        == "Enable when the task requires a report/research deliverable or durable knowledge capture."
+    )
+
+
+def test_skill_router_keeps_ci_helpers_conditional_without_explicit_failure_scope() -> None:
+    """CI repair helpers should stay conditional unless failure scope is explicit."""
+
+    decision = route_skills(
+        goal="Document a CI note for later workflow follow-up",
+        task_class="Documentation",
+        candidate_paths=["docs/orchestration/workflow.md"],
+        domain="docs",
+    )
+
+    conditional_by_skill = {item["skill"]: item for item in decision["conditional"]}
+    assert "ci-fix" in conditional_by_skill
+    assert (
+        conditional_by_skill["ci-fix"]["when"]
+        == "Enable when a failing CI job, workflow run, or check log is explicitly in scope."
+    )
+
+
 def test_skill_router_selects_threat_model_for_explicit_security_intent() -> None:
     """Threat-model requests should cross the explicit security threshold."""
 
@@ -511,6 +907,7 @@ def test_skill_router_records_blocked_scraping_patterns() -> None:
     assert "tiktok" in blocked_labels
     assert "google maps" in blocked_labels
     assert "entire internet" in blocked_labels
+    assert all(item["kind"] == "pattern" for item in decision["blocked"])
 
 
 def test_skill_router_ignores_scraping_tokens_from_candidate_paths() -> None:

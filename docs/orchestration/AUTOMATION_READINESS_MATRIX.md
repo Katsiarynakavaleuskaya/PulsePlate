@@ -158,6 +158,8 @@ In:
 
 - minimal-optimal skill stack selection,
 - deterministic task-class classifier,
+- nested `inputs.skill_routing.task_classification`,
+- backward-compatible `recommended_skills = required + recommended`,
 - required/recommended/conditional/blocked routing outputs.
 
 Out:
