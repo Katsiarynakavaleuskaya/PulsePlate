@@ -177,6 +177,7 @@ def _needs_agents_sync(candidate_paths: list[str] | tuple[str, ...]) -> bool:
         path == "AGENTS.md"
         or path.endswith("/AGENTS.md")
         or path.startswith(".cursor/agents/")
+        or path == "SKILL.md"
         or path.endswith("/SKILL.md")
         for path in candidate_paths
     )

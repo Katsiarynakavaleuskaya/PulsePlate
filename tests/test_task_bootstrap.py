@@ -572,10 +572,28 @@ def test_task_bootstrap_marks_agents_sync_for_agent_contract_paths() -> None:
     packet = build_task_packet(
         goal="Refresh coordinator contract guidance",
         task_class="Documentation",
-        candidate_paths=["frontend/AGENTS.md", ".cursor/agents/agent-coordinator.md"],
+        candidate_paths=[
+            "AGENTS.md",
+            "frontend/AGENTS.md",
+            ".cursor/agents/agent-coordinator.md",
+            "SKILL.md",
+            "skills/coordination/SKILL.md",
+        ],
     )
 
     assert packet["needs_agents_sync"] is True
+
+
+def test_task_bootstrap_does_not_mark_agents_sync_for_non_contract_paths() -> None:
+    """Non-contract docs should not trigger agent synchronization."""
+
+    packet = build_task_packet(
+        goal="Refresh orchestration docs",
+        task_class="Documentation",
+        candidate_paths=["docs/AGENTS-guide.md", "docs/orchestration/workflow.md"],
+    )
+
+    assert packet["needs_agents_sync"] is False
 
 
 def test_task_bootstrap_keeps_packet_id_stable_for_identical_inputs() -> None:

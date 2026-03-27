@@ -2080,6 +2080,25 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Deterministic tests cover coordinator-first packet stability and new schema invariants
     - No PR-open automation, Figma trigger logic, or local launcher changes are included
 
+- [ ] P2: Centralize bootstrap sync-policy constants for task packet derivation
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR-TBD-AUTOMATION-BOOTSTRAP-SYNC-POLICY
+  - Area: orchestration / task bootstrap / policy constants
+  - Finding Type: follow-up hardening
+  - Reason: PR2 intentionally keeps sync heuristics local to `task_bootstrap.py`, but review feedback highlighted that implementation roots and sync-signal markers should eventually move into a shared policy surface so future automation slices can evolve them without editing bootstrap logic directly.
+  - Dependencies:
+    - `PR-1254`
+  - Lifecycle: Review → Backlog → Execute
+  - Links:
+    - `scripts/orchestration/task_bootstrap.py`
+    - `tests/test_task_bootstrap.py`
+    - `docs/orchestration/AGENT_MESSAGE_PROTOCOL.md`
+  - DoD:
+    - Sync-signal terms and path roots move into a shared policy module or equivalent canonical config
+    - `task_bootstrap.py` consumes the shared policy source instead of duplicating constants inline
+    - Deterministic tests cover the shared policy contract and bootstrap integration
+
 - [ ] P1: Coordinator automation PR3 — skill routing and intent classifier
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
