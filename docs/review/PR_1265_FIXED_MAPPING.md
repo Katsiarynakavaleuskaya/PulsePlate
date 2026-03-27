@@ -5,12 +5,20 @@
 - [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
-- FIXED: `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1265#discussion_r3003475440` -> `08ed7c2b`
-  Evidence: `scripts/orchestration/skill_router.py:248`, `scripts/orchestration/skill_router.py:779`, `tests/test_skill_router.py:211`, `tests/test_skill_router.py:220`
-- FIXED: `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1265#discussion_r3003485202` -> `d3c3a9d1`
-  Evidence: `scripts/orchestration/skill_router.py:123`, `tests/test_skill_router.py:254`
-- FIXED: `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1265#discussion_r3003485207` -> `d3c3a9d1`
-  Evidence: `scripts/orchestration/skill_router.py:954`, `tests/test_skill_router.py:405`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1265#discussion_r3003475440 -> 08ed7c2b
+Disposition: FIXED
+Commit: 08ed7c2b
+Evidence: scripts/orchestration/skill_router.py:248, scripts/orchestration/skill_router.py:779, tests/test_skill_router.py:211, tests/test_skill_router.py:220
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1265#discussion_r3003485202 -> d3c3a9d1
+Disposition: FIXED
+Commit: d3c3a9d1
+Evidence: scripts/orchestration/skill_router.py:123, tests/test_skill_router.py:254
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1265#discussion_r3003485207 -> d3c3a9d1
+Disposition: FIXED
+Commit: d3c3a9d1
+Evidence: scripts/orchestration/skill_router.py:954, tests/test_skill_router.py:405
 
 ## Merge Readiness
 - [ ] All required checks pass
