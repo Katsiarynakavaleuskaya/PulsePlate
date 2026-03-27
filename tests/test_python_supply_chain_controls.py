@@ -160,8 +160,34 @@ def test_no_canonical_workflow_uses_unscoped_public_pip_install() -> None:
 
 
 def test_ci_workflow_uses_single_direct_proxy_python_install_path_per_job() -> None:
-    ci_text = (REPO_ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+    import yaml
 
-    assert ci_text.count("install-mode: direct-proxy") >= 7
-    assert ci_text.count('install-test-deps: "true"') >= 3
-    assert "\n      - name: Install dependencies\n" not in ci_text
+    ci_workflow = yaml.safe_load(
+        (REPO_ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+    )
+    jobs = ci_workflow["jobs"]
+
+    def _python_setup_step(job_name: str) -> dict[str, object]:
+        steps = jobs[job_name]["steps"]
+        for step in steps:
+            if step.get("uses") == "./.github/actions/python-setup":
+                return step
+        raise AssertionError(f"Missing python-setup step for job: {job_name}")
+
+    direct_proxy_jobs = (
+        "lint",
+        "security",
+        "openapi-sync",
+        "diff-coverage",
+        "test-pr",
+        "test-feature",
+        "test-main",
+    )
+    for job_name in direct_proxy_jobs:
+        setup_step = _python_setup_step(job_name)
+        assert setup_step["with"]["install-mode"] == "direct-proxy"
+
+    for job_name in ("test-pr", "test-feature", "test-main"):
+        setup_step = _python_setup_step(job_name)
+        assert setup_step["with"]["install-test-deps"] == "true"
+        assert all(step.get("name") != "Install dependencies" for step in jobs[job_name]["steps"])
