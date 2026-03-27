@@ -110,6 +110,12 @@ Current approved wording:
 
 ## Approved PR Series For This Wave
 
+Current series state on `origin/main`:
+
+- PR1 governance and SoT alignment landed in PR `#1252`.
+- PR2 bootstrap engine hardening landed in PR `#1254`.
+- PR3 skill routing and intent classifier is now the active next execution slice.
+
 Series invariant:
 
 - Do not start `PR<N+1>` until `PR<N>` has:
@@ -152,6 +158,10 @@ Out:
 - design/Figma triggers,
 - local launcher.
 
+Status:
+
+- Landed in PR `#1254` on `origin/main`; treated as closed baseline for PR3.
+
 ### PR3: Skill routing and intent classifier
 
 In:
@@ -165,6 +175,10 @@ Out:
 - PR lifecycle hooks,
 - Figma mutation flow,
 - local launcher wiring.
+
+Status:
+
+- Active next execution slice after landed PR1/PR2 baseline.
 
 ### PR4: PR lifecycle automation
 
