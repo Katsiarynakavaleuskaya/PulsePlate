@@ -23,11 +23,22 @@ Reason: The CodeRabbit review wrapper only aggregates the single inline anchor f
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1258#pullrequestreview-4020096423
 
 Disposition: FIXED
+Commit: 0ea5d98f
+Evidence: `docs/review/PR_1258_FIXED_MAPPING.md:20`
+Reason: Updated the `NOT-A-BUG` evidence format to reference commit `1d2ac887` and the real ledger anchors directly, so the aggregated wrapper finding is verifiable without self-referential evidence.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1258#pullrequestreview-4021041543 -> 0ea5d98f
+
+Disposition: FIXED
 Commit: b221afe1
 Evidence: `git diff --name-only origin/main...HEAD` returns only `docs/orchestration/AUTOMATION_READINESS_MATRIX.md`, `docs/review/PR_1258_FIXED_MAPPING.md`, and `docs/roadmap/BACKLOG_LEDGER.md`; the PR no longer changes `.github/workflows/ci.yml`, `.github/workflows/frontend-ci.yml`, `.github/workflows/greenlight-ios.yml`, or `.secrets.baseline`.
 Reason: Reverted the CI-only metadata-rerun commit so PR `#1258` returns to a docs-only scope and no longer carries CI/infra changes.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1258#discussion_r3000836617 -> b221afe1
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1258#pullrequestreview-4020978587 -> b221afe1
+
+Disposition: NOT-A-BUG
+Evidence: `git diff --name-only origin/main...HEAD` returns only `docs/orchestration/AUTOMATION_READINESS_MATRIX.md`, `docs/review/PR_1258_FIXED_MAPPING.md`, and `docs/roadmap/BACKLOG_LEDGER.md`; current head does not touch `.github/workflows/ci.yml` or `.github/workflows/frontend-ci.yml`.
+Reason: cubic identified transient CI metadata-rerun changes in intermediate branch history, but the current head is docs-only after `b221afe1`, so no workflow-scope defect remains to fix on this PR.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1258#pullrequestreview-4021052560
 
 ## Merge Readiness
 - [ ] All required checks pass
