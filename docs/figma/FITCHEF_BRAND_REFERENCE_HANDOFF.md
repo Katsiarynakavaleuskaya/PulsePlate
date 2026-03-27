@@ -38,13 +38,17 @@ file `2JDwOByQIbcPgp93FDzHii`.
 - Page `11_Welcome_Gate_States`:
   - `85:32` `FitChef Mascot State Coverage / Approved`
 
-These boards are `reference_only`.
+These boards are reference-only.
 
 They document:
 
 - the approved six-asset repo-backed canon
 - placement studies for the current Welcome Gate lane
 - state coverage that is safe relative to the current preview/runtime canon
+
+For `11_Welcome_Gate_States`, treat `85:32` `FitChef Mascot State Coverage / Approved`
+as the active board. Earlier state-board variants on that page are legacy audit material,
+not parallel live canon.
 
 They do not authorize:
 
