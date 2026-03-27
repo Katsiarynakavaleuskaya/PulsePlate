@@ -140,9 +140,12 @@ None. This packet is engineering-governance only.
 ## Next Actions
 
 1. Open a focused implementation PR for CI decomposition only.
+   Owner: CI maintainers. Target date: 2026-03-29.
 2. Keep PR body and mapping artifacts aligned with merge-governance rules.
+   Owner: PR owner. Target date: 2026-03-27.
 3. Update AGENTS/process notes after the implementation PR lands so future
    agents do not re-expand `lint` into a hidden repo-wide verify lane.
+   Owner: Orchestration maintainers. Target date: 2026-03-31.
 
 ## References
 
