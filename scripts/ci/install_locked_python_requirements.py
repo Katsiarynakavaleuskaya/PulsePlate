@@ -32,6 +32,7 @@ BLOCKED_INDEX_HOSTS: tuple[str, ...] = (
     "files.pythonhosted.org",
     "test.pypi.org",
 )
+INSTALL_MODES: tuple[str, ...] = ("wheelhouse", "direct-proxy")
 
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
@@ -92,6 +93,15 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--trusted-host",
         help=f"Optional trusted host for the approved proxy. Defaults to ${TRUSTED_HOST_ENV_VAR}.",
+    )
+    parser.add_argument(
+        "--install-mode",
+        choices=INSTALL_MODES,
+        default="wheelhouse",
+        help=(
+            "Installation transport. 'wheelhouse' keeps the hermetic local wheelhouse path; "
+            "'direct-proxy' installs from the approved proxy without creating a local wheelhouse."
+        ),
     )
     return parser.parse_args(argv)
 
@@ -163,6 +173,35 @@ def build_pip_install_command(
         "--requirement",
         str(requirement_file),
     ]
+    if constraints_file is not None:
+        command.extend(["--constraint", str(constraints_file)])
+    return command
+
+
+def build_pip_proxy_install_command(
+    *,
+    python_executable: str,
+    requirement_file: Path,
+    constraints_file: Path | None,
+    index_url: str,
+    trusted_host: str | None,
+) -> list[str]:
+    constraints_file = validate_constraints_file(constraints_file)
+    command = [
+        python_executable,
+        "-m",
+        "pip",
+        "install",
+        "--no-cache-dir",
+        "--only-binary",
+        ":all:",
+        "--index-url",
+        index_url,
+        "--requirement",
+        str(requirement_file),
+    ]
+    if trusted_host:
+        command.extend(["--trusted-host", trusted_host])
     if constraints_file is not None:
         command.extend(["--constraint", str(constraints_file)])
     return command
@@ -365,6 +404,26 @@ def install_from_wheelhouse(
         )
 
 
+def install_from_proxy(
+    *,
+    python_executable: str,
+    requirement_files: Sequence[Path],
+    constraints_file: Path | None,
+    index_url: str,
+    trusted_host: str | None,
+) -> None:
+    for requirement_file in requirement_files:
+        run_command(
+            build_pip_proxy_install_command(
+                python_executable=python_executable,
+                requirement_file=requirement_file,
+                constraints_file=constraints_file,
+                index_url=index_url,
+                trusted_host=trusted_host,
+            )
+        )
+
+
 def build_wheelhouse(
     *,
     python_executable: str,
@@ -433,6 +492,43 @@ def install_with_guard(
     return 0
 
 
+def install_with_guard_from_proxy(
+    *,
+    python_executable: str,
+    requirement_files: Sequence[Path],
+    constraints_file: Path | None,
+    guard_script: Path,
+    index_url: str,
+    trusted_host: str | None,
+) -> int:
+    with staged_python_environment(python_executable) as staging_python:
+        install_from_proxy(
+            python_executable=staging_python,
+            requirement_files=requirement_files,
+            constraints_file=constraints_file,
+            index_url=index_url,
+            trusted_host=trusted_host,
+        )
+
+        failure_lines = collect_startup_hook_failure_lines(
+            guard_script=guard_script,
+            python_executable=staging_python,
+        )
+        if failure_lines:
+            for line in failure_lines:
+                print(line)
+            return 1
+
+    install_from_proxy(
+        python_executable=python_executable,
+        requirement_files=requirement_files,
+        constraints_file=constraints_file,
+        index_url=index_url,
+        trusted_host=trusted_host,
+    )
+    return 0
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     try:
         args = parse_args(argv)
@@ -456,6 +552,16 @@ def main(argv: Sequence[str] | None = None) -> int:
         if args.upgrade_pip:
             upgrade_pip(
                 args.python_executable,
+                index_url=index_url,
+                trusted_host=trusted_host,
+            )
+
+        if args.install_mode == "direct-proxy":
+            return install_with_guard_from_proxy(
+                python_executable=args.python_executable,
+                requirement_files=requirement_files,
+                constraints_file=validated_constraints_file,
+                guard_script=args.guard_script,
                 index_url=index_url,
                 trusted_host=trusted_host,
             )

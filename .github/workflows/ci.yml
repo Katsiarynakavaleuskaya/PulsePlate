@@ -546,7 +546,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          python scripts/ci/install_locked_python_requirements.py --python-executable python --constraints-file constraints.txt --install-dev
+          python scripts/ci/install_locked_python_requirements.py --python-executable python --constraints-file constraints.txt --install-dev --install-mode direct-proxy
 
       - name: Install root Node dependencies
         run: npm ci
@@ -747,7 +747,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          python scripts/ci/install_locked_python_requirements.py --python-executable python --constraints-file constraints.txt --install-dev
+          python scripts/ci/install_locked_python_requirements.py --python-executable python --constraints-file constraints.txt --install-dev --install-mode direct-proxy
 
       - name: Install root Node dependencies
         run: npm ci
@@ -864,7 +864,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          python scripts/ci/install_locked_python_requirements.py --python-executable python --constraints-file constraints.txt --install-dev
+          python scripts/ci/install_locked_python_requirements.py --python-executable python --constraints-file constraints.txt --install-dev --install-mode direct-proxy
 
       - name: Install root Node dependencies
         run: npm ci

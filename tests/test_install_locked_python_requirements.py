@@ -96,6 +96,30 @@ def test_build_pip_install_command_is_hermetic(tmp_path: Path) -> None:
     assert "--find-links" in command
 
 
+def test_build_pip_proxy_install_command_uses_approved_proxy_without_cache(
+    tmp_path: Path,
+) -> None:
+    constraints = tmp_path / "constraints.txt"
+    constraints.write_text("openai>=2.29.0\n", encoding="utf-8")
+
+    command = installer.build_pip_proxy_install_command(
+        python_executable="python",
+        requirement_file=tmp_path / "requirements.txt",
+        constraints_file=constraints,
+        index_url=APPROVED_PROXY_URL,
+        trusted_host="packages.example.internal",
+    )
+
+    assert command[:4] == ["python", "-m", "pip", "install"]
+    assert "--no-cache-dir" in command
+    assert "--only-binary" in command
+    assert ":all:" in command
+    assert "--index-url" in command
+    assert APPROVED_PROXY_URL in command
+    assert "--trusted-host" in command
+    assert "--constraint" in command
+
+
 def test_validate_private_proxy_url_rejects_public_hosts() -> None:
     with pytest.raises(RuntimeError, match="must not point to public host"):
         installer.validate_private_proxy_url("https://pypi.org/simple")
@@ -495,6 +519,115 @@ def test_main_reports_guard_runtime_error_cleanly(
 
     assert result == 1
     assert "ERROR: locked install failed: guard subprocess failed" in capsys.readouterr().out
+
+
+def test_main_runs_direct_proxy_install_and_static_guard(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    requirements = tmp_path / "requirements.txt"
+    requirements.write_text("openai==2.29.0\n", encoding="utf-8")
+    guard_script = tmp_path / "check_python_startup_hooks.py"
+    guard_script.write_text("# test guard\n", encoding="utf-8")
+    observed_commands: list[list[str]] = []
+    observed_guard_python: list[str] = []
+
+    @contextmanager
+    def fake_staging_environment(target_python: str) -> str:
+        assert target_python == "python"
+        yield "staging-python"
+
+    monkeypatch.setattr(
+        installer, "run_command", lambda command: observed_commands.append(list(command))
+    )
+    monkeypatch.setattr(
+        installer,
+        "collect_startup_hook_failure_lines",
+        lambda **kwargs: observed_guard_python.append(kwargs["python_executable"]) or [],
+    )
+    monkeypatch.setattr(installer, "staged_python_environment", fake_staging_environment)
+    monkeypatch.setenv(installer.APPROVED_INDEX_ENV_VAR, APPROVED_PROXY_URL)
+
+    result = installer.main(
+        [
+            "--python-executable",
+            "python",
+            "--requirements-file",
+            str(requirements),
+            "--guard-script",
+            str(guard_script),
+            "--install-mode",
+            "direct-proxy",
+        ]
+    )
+
+    assert result == 0
+    assert len(observed_commands) == 2
+
+    staging_install_command = observed_commands[0]
+    assert staging_install_command[:4] == ["staging-python", "-m", "pip", "install"]
+    assert "--no-cache-dir" in staging_install_command
+    assert "--index-url" in staging_install_command
+    assert APPROVED_PROXY_URL in staging_install_command
+    assert str(requirements) in staging_install_command
+    assert "--constraint" in staging_install_command
+    assert str(installer.DEFAULT_CONSTRAINTS_FILE) in staging_install_command
+
+    install_command = observed_commands[1]
+    assert install_command[:4] == ["python", "-m", "pip", "install"]
+    assert "--no-cache-dir" in install_command
+    assert "--index-url" in install_command
+    assert APPROVED_PROXY_URL in install_command
+    assert str(requirements) in install_command
+    assert observed_guard_python == ["staging-python"]
+
+
+def test_main_direct_proxy_mode_stops_before_target_install_when_guard_fails(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    requirements = tmp_path / "requirements.txt"
+    requirements.write_text("openai==2.29.0\n", encoding="utf-8")
+    guard_script = tmp_path / "check_python_startup_hooks.py"
+    guard_script.write_text("# test guard\n", encoding="utf-8")
+    observed_commands: list[list[str]] = []
+
+    @contextmanager
+    def fake_staging_environment(target_python: str) -> str:
+        yield "staging-python"
+
+    monkeypatch.setattr(
+        installer, "run_command", lambda command: observed_commands.append(list(command))
+    )
+    monkeypatch.setattr(
+        installer,
+        "collect_startup_hook_failure_lines",
+        lambda **kwargs: [
+            "ERROR: unexpected executable Python startup hook (.pth) detected.",
+            "- /tmp/litellm_init.pth:1 :: import os",
+        ],
+    )
+    monkeypatch.setattr(installer, "staged_python_environment", fake_staging_environment)
+    monkeypatch.setenv(installer.APPROVED_INDEX_ENV_VAR, APPROVED_PROXY_URL)
+
+    result = installer.main(
+        [
+            "--python-executable",
+            "python",
+            "--requirements-file",
+            str(requirements),
+            "--guard-script",
+            str(guard_script),
+            "--install-mode",
+            "direct-proxy",
+        ]
+    )
+
+    assert result == 1
+    assert "litellm_init.pth:1 :: import os" in capsys.readouterr().out
+    assert len(observed_commands) == 1
+    assert observed_commands[0][:4] == ["staging-python", "-m", "pip", "install"]
 
 
 def test_main_reports_missing_private_proxy_cleanly(
