@@ -1,217 +1,107 @@
-import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import fitchefOnboardingWelcome from '../../assets/brand/fitchef-onboarding-welcome-v1.png';
+import { PulsePlateLogo } from '../../components/brand';
 
-type WelcomeScreen = 1 | 2 | 3;
-const PREVIEW_SCREEN_ORDER: readonly WelcomeScreen[] = [1, 2, 3] as const;
-const PREVIEW_SCREEN_COUNT = PREVIEW_SCREEN_ORDER.length;
-const PREVIEW_FLOW_SUMMARY = `Gate → screens 1-${PREVIEW_SCREEN_COUNT} preview → setup`;
 const PREVIEW_LOCALES = ['ru', 'en', 'es'] as const;
-const PREVIEW_POLICY = 'preview only, no persistence';
+const PREVIEW_STEP = 1;
+const PREVIEW_STEP_COUNT = 1;
+const FEATURE_POINT_IDS = [1, 2, 3] as const;
 
-interface ScreenConfig {
-  eyebrow: string;
-  title: string;
-  body: string;
-}
-
-function StepDots({ current }: { current: WelcomeScreen }): JSX.Element {
+function StepIndicator({ label }: { label: string }): JSX.Element {
   return (
-    <div aria-hidden="true" className="flex items-center gap-2">
-      {PREVIEW_SCREEN_ORDER.map((step) => (
-        <span
-          key={step}
-          className={[
-            'h-2.5 w-2.5 rounded-full transition',
-            step === current ? 'bg-[var(--color-primary)]' : 'bg-white/20',
-          ].join(' ')}
-        />
-      ))}
+    <div className="inline-flex items-center gap-3">
+      <span aria-hidden="true" className="h-2.5 w-2.5 rounded-full bg-[var(--pp-green)]" />
+      <span className="text-sm text-white/52">{label}</span>
     </div>
   );
 }
 
-interface WelcomeGateV1Props {
-  initialScreen?: WelcomeScreen;
-}
-
-export default function WelcomeGateV1({ initialScreen = 1 }: WelcomeGateV1Props): JSX.Element {
+export default function WelcomeGateV1(): JSX.Element {
   const { t } = useTranslation();
-  const [screen, setScreen] = useState<WelcomeScreen>(initialScreen);
-  const [selectedGoal, setSelectedGoal] = useState<number>(1);
-
-  const screenConfigs: Record<WelcomeScreen, ScreenConfig> = {
-    1: {
-      eyebrow: t('onboarding.welcome.screen1.eyebrow'),
-      title: t('onboarding.welcome.screen1.title'),
-      body: t('onboarding.welcome.screen1.body'),
-    },
-    2: {
-      eyebrow: t('onboarding.welcome.screen2.eyebrow'),
-      title: t('onboarding.welcome.screen2.title'),
-      body: t('onboarding.welcome.screen2.body'),
-    },
-    3: {
-      eyebrow: t('onboarding.welcome.screen3.eyebrow'),
-      title: t('onboarding.welcome.screen3.title'),
-      body: t('onboarding.welcome.screen3.body'),
-    },
-  };
-
   const stepLabel = t('onboarding.welcome.stepA11y', {
-    current: screen,
-    total: PREVIEW_SCREEN_COUNT,
+    current: PREVIEW_STEP,
+    total: PREVIEW_STEP_COUNT,
   });
-  const currentScreen = screenConfigs[screen];
 
   return (
     <main
       aria-label={t('onboarding.welcome.mainA11y')}
-      className="min-h-dvh bg-[var(--pp-navy)] px-4 py-6 text-white sm:px-6"
+      className="min-h-dvh bg-[radial-gradient(circle_at_top,rgba(51,159,255,0.18),transparent_38%),var(--pp-navy)] px-4 py-6 text-white sm:px-6"
     >
-      <section className="mx-auto flex min-h-[calc(100dvh-3rem)] max-w-[24rem] flex-col rounded-[2rem] bg-[var(--pp-navy)] p-6 shadow-[0_30px_70px_rgba(0,0,0,0.35)]">
-        {screen === 1 ? (
-          <>
-            <div className="flex justify-end">
-              <Link to="/setup" className="text-sm text-white/55">
-                {t('onboarding.welcome.skip')}
-              </Link>
+      <section className="mx-auto grid min-h-[calc(100dvh-3rem)] max-w-5xl gap-6 rounded-[2rem] border border-white/10 bg-[rgba(20,24,38,0.86)] p-5 shadow-[0_30px_70px_rgba(0,0,0,0.35)] sm:p-6 lg:grid-cols-[minmax(0,1.05fr)_minmax(320px,0.95fr)] lg:gap-8">
+        <div className="flex flex-col rounded-[1.7rem] border border-white/8 bg-white/[0.04] p-6 sm:p-7">
+          <div className="flex items-center justify-between gap-4">
+            <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.2em] text-white/50">
+              <span className="h-2 w-2 rounded-full bg-[var(--pp-green)]" />
+              {t('onboarding.welcome.routeMirrorBadge')}
             </div>
+            <Link to="/setup" className="text-sm text-white/55 transition hover:text-white/78">
+              {t('onboarding.welcome.skip')}
+            </Link>
+          </div>
 
-            <div className="mt-6 flex flex-col items-center text-center">
-              <div className="relative flex h-[4.5rem] w-[4.5rem] items-center justify-center rounded-full bg-[var(--color-primary)]">
-                <div className="absolute inset-[-0.6rem] rounded-full bg-[var(--color-primary)]/20 blur-xl" />
-                <div className="relative h-[4.5rem] w-[4.5rem] rounded-full bg-[var(--color-primary)]" />
-              </div>
-              <p className="mt-6 text-lg text-white/90">{currentScreen.eyebrow}</p>
-              <h1 className="mt-3 text-[2.25rem] font-medium leading-[1.08] tracking-[-0.05em] text-white">
-                {currentScreen.title}
-              </h1>
+          <div className="mt-8">
+            <PulsePlateLogo className="h-auto w-[11.5rem]" variant="lockup" />
+            <p className="mt-8 text-sm uppercase tracking-[0.24em] text-white/42">
+              {t('onboarding.welcome.screen1.eyebrow')}
+            </p>
+            <h1 className="mt-4 max-w-xl text-[2.9rem] font-semibold leading-[0.98] tracking-[-0.06em] text-white sm:text-[3.4rem]">
+              {t('onboarding.welcome.screen1.title')}
+            </h1>
+            <p className="mt-5 max-w-xl text-lg leading-8 text-white/68">{t('onboarding.welcome.screen1.body')}</p>
+          </div>
+
+          <div className="mt-10 rounded-[1.4rem] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.08),rgba(255,255,255,0.03))] p-5">
+            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-white/48">
+              {t('onboarding.welcome.screen1.cardTitle')}
+            </p>
+            <ul className="mt-4 space-y-3 text-base leading-7 text-white/78">
+              {FEATURE_POINT_IDS.map((item) => (
+                <li key={item}>{t(`onboarding.welcome.screen1.points.${item}`)}</li>
+              ))}
+            </ul>
+          </div>
+
+          <p className="mt-6 text-sm text-white/40">{t('onboarding.welcome.screen1.footer')}</p>
+
+          <div className="mt-auto flex flex-col gap-4 pt-8 sm:flex-row sm:items-center sm:justify-between">
+            <StepIndicator label={stepLabel} />
+            <Link
+              to="/setup"
+              className="inline-flex items-center justify-center rounded-full bg-[var(--pp-green)] px-7 py-4 text-lg font-semibold text-[var(--pp-navy)] transition hover:brightness-105"
+            >
+              {t('onboarding.welcome.cta.start')}
+            </Link>
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-6">
+          <div className="relative overflow-hidden rounded-[1.8rem] border border-white/10 bg-[linear-gradient(180deg,rgba(51,159,255,0.14),rgba(255,255,255,0.03))] p-4 sm:p-5">
+            <div className="absolute inset-x-0 top-0 h-px bg-white/12" />
+            <img
+              alt={t('onboarding.welcome.heroAlt')}
+              className="h-full w-full rounded-[1.35rem] object-cover"
+              src={fitchefOnboardingWelcome}
+            />
+          </div>
+
+          <section className="rounded-[1.5rem] border border-white/8 bg-white/[0.04] p-4 text-sm text-white/52">
+            <p className="font-semibold uppercase tracking-[0.18em] text-white/38">
+              {t('onboarding.welcome.preview.panelTitle')}
+            </p>
+            <div className="mt-3 space-y-2">
+              <p>
+                {t('onboarding.welcome.preview.panelFlowLabel')} {t('onboarding.welcome.preview.panelFlowValue')}
+              </p>
+              <p>
+                {t('onboarding.welcome.preview.panelLocalesLabel')} {PREVIEW_LOCALES.join(' · ')}
+              </p>
+              <p>
+                {t('onboarding.welcome.preview.panelPolicyLabel')} {t('onboarding.welcome.preview.panelPolicyValue')}
+              </p>
             </div>
-
-            <div className="mt-14 grid grid-cols-3 text-center text-sm text-white/84">
-              <span>{t('onboarding.welcome.screen1.tabs.bmi')}</span>
-              <span>{t('onboarding.welcome.screen1.tabs.plate')}</span>
-              <span>{t('onboarding.welcome.screen1.tabs.plans')}</span>
-            </div>
-
-            <div className="mt-8 rounded-[1.25rem] border border-white/12 bg-white/[0.06] p-5">
-              <p className="text-base text-white">{t('onboarding.welcome.screen1.cardTitle')}</p>
-              <ul className="mt-4 space-y-3 text-[1rem] text-white/75">
-                {PREVIEW_SCREEN_ORDER.map((item) => (
-                  <li key={item}>{t(`onboarding.welcome.screen1.points.${item}`)}</li>
-                ))}
-              </ul>
-            </div>
-
-            <p className="mt-6 text-center text-sm text-white/36">{t('onboarding.welcome.screen1.footer')}</p>
-
-            <div className="mt-auto space-y-6 pt-8">
-              <div aria-label={stepLabel} className="flex justify-center">
-                <StepDots current={screen} />
-              </div>
-              <button
-                type="button"
-                className="w-full rounded-full bg-[var(--color-primary)] px-6 py-4 text-lg font-semibold text-white"
-                onClick={() => setScreen(2)}
-              >
-                {t('onboarding.welcome.cta.start')}
-              </button>
-            </div>
-          </>
-        ) : (
-          <>
-            <div className="flex items-center justify-between">
-              <button
-                type="button"
-                className="text-sm text-white/55"
-                onClick={() => setScreen((prev) => (prev === 3 ? 2 : 1))}
-              >
-                {t('onboarding.welcome.back')}
-              </button>
-              <div aria-label={stepLabel}>
-                <StepDots current={screen} />
-              </div>
-            </div>
-
-            <div className="mt-16">
-              <p className="text-sm text-white/42">{currentScreen.eyebrow}</p>
-              <h1 className="mt-4 text-[2.1rem] font-semibold leading-[1.08] tracking-[-0.05em] text-white">
-                {currentScreen.title}
-              </h1>
-              <p className="mt-4 text-base leading-7 text-white/68">{currentScreen.body}</p>
-            </div>
-
-            {screen === 2 ? (
-              <div className="mt-14 space-y-6">
-                {[1, 2, 3].map((item) => (
-                  <div key={item} className="rounded-[1.25rem] border border-white/10 bg-white/[0.04] p-4">
-                    <p className="text-base font-semibold text-white">
-                      {t(`onboarding.welcome.screen2.steps.${item}.title`)}
-                    </p>
-                    <p className="mt-2 text-sm leading-6 text-white/62">
-                      {t(`onboarding.welcome.screen2.steps.${item}.body`)}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="mt-10 rounded-[1.25rem] border border-white/10 bg-white/[0.06] p-4">
-                <div className="space-y-4">
-                  {[1, 2, 3, 4].map((goal) => (
-                    <button
-                      aria-pressed={selectedGoal === goal}
-                      key={goal}
-                      type="button"
-                      className={[
-                        'flex w-full items-center rounded-2xl border px-4 py-4 text-left text-base transition',
-                        selectedGoal === goal
-                          ? 'border-white/25 bg-white/[0.08] text-white'
-                          : 'border-transparent bg-transparent text-white/82 hover:bg-white/[0.04]',
-                      ].join(' ')}
-                      onClick={() => setSelectedGoal(goal)}
-                    >
-                      {t(`onboarding.welcome.screen3.goals.${goal}`)}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            <div className="mt-auto pt-10">
-              {screen === 2 ? (
-                <button
-                  type="button"
-                  className="w-full rounded-2xl bg-[var(--pp-green)] px-6 py-4 text-lg font-semibold text-[var(--pp-navy)]"
-                  onClick={() => setScreen(3)}
-                >
-                  {t('onboarding.welcome.cta.continue')}
-                </button>
-              ) : (
-                <Link
-                  to="/setup"
-                  className="flex w-full items-center justify-center rounded-2xl bg-[var(--pp-green)] px-6 py-4 text-lg font-semibold text-[var(--pp-navy)]"
-                >
-                  {t('onboarding.welcome.cta.finish')}
-                </Link>
-              )}
-            </div>
-          </>
-        )}
-      </section>
-
-      <section className="mx-auto mt-6 max-w-[24rem] rounded-[1.5rem] border border-white/8 bg-white/[0.04] p-4 text-sm text-white/52">
-        <p className="font-semibold uppercase tracking-[0.18em] text-white/38">{t('onboarding.welcome.preview.panelTitle')}</p>
-        <div className="mt-3 space-y-2">
-          <p>
-            {t('onboarding.welcome.preview.panelFlowLabel')} {PREVIEW_FLOW_SUMMARY}
-          </p>
-          <p>
-            {t('onboarding.welcome.preview.panelLocalesLabel')} {PREVIEW_LOCALES.join(' · ')}
-          </p>
-          <p>
-            {t('onboarding.welcome.preview.panelPolicyLabel')} {PREVIEW_POLICY}
-          </p>
+          </section>
         </div>
       </section>
     </main>

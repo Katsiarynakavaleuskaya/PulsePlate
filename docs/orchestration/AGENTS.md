@@ -3,6 +3,7 @@
 Scope: `docs/orchestration/**`
 
 - Root [`AGENTS.md`](../../AGENTS.md) owns repo-global workflow, merge gates, and cross-repo agent policy. Keep this scope file focused on orchestration-doc specifics only.
+- [`docs/orchestration/AUTOMATION_READINESS_MATRIX.md`](./AUTOMATION_READINESS_MATRIX.md) is the scope-level SoT for what is policy-only vs launcher-enforced vs host-runtime-constrained automation.
 - When a PR changes workflow or agent behavior only for an orchestration/docs lane, update this scoped file instead of broadcasting initiative-specific routing into root `AGENTS.md`.
 - PR-local orchestration packets are the canonical field-level contract for their lane. Higher-level chain docs should keep only the invariant and link back to the packet.
 - For the design-agent runtime realignment bridge:
