@@ -12,10 +12,30 @@ inputs:
     description: 'Install test dependencies (pytest, pytest-cov)'
     required: false
     default: 'false'
+  test-requirements-file:
+    description: 'Pinned test requirements file used when install-test-deps is true'
+    required: false
+    default: 'requirements-test.txt'
+  ci-lite-requirements-file:
+    description: 'Pinned lightweight CI requirements file used when requirements-profile is ci-lite'
+    required: false
+    default: 'requirements-ci-lite.txt'
+  requirements-profile:
+    description: 'Explicit pinned dependency profile (runtime, runtime-dev, runtime-test, ci-lite)'
+    required: false
+    default: ''
   constraints-file:
     description: 'Constraints file applied during wheelhouse build/install'
     required: false
     default: 'constraints.txt'
+  install-mode:
+    description: 'Locked installer mode (wheelhouse or direct-proxy)'
+    required: false
+    default: 'wheelhouse'
+  skip-base-install:
+    description: 'Skip the locked base dependency install step'
+    required: false
+    default: 'false'
   working-directory:
     description: 'Working directory for the job'
     required: false
@@ -33,27 +53,89 @@ runs:
           ${{ inputs.working-directory }}/requirements*.txt
 
     - name: Install base dependencies
+      if: ${{ inputs.skip-base-install != 'true' }}
       shell: bash
       working-directory: ${{ inputs.working-directory }}
       run: |
         set -euxo pipefail
-        if [[ -f requirements-dev.txt || -f requirements.txt ]]; then
-          : "${PULSEPLATE_PYTHON_INDEX_URL:?Set PULSEPLATE_PYTHON_INDEX_URL to the approved private package proxy URL.}"
-          install_args=()
-          install_args+=(--index-url "$PULSEPLATE_PYTHON_INDEX_URL")
-          if [[ -n "${PULSEPLATE_PYTHON_TRUSTED_HOST:-}" ]]; then
-            install_args+=(--trusted-host "$PULSEPLATE_PYTHON_TRUSTED_HOST")
+        : "${PULSEPLATE_PYTHON_INDEX_URL:?Set PULSEPLATE_PYTHON_INDEX_URL to the approved private package proxy URL.}"
+        install_args=()
+        install_args+=(--index-url "$PULSEPLATE_PYTHON_INDEX_URL")
+        if [[ -n "${PULSEPLATE_PYTHON_TRUSTED_HOST:-}" ]]; then
+          install_args+=(--trusted-host "$PULSEPLATE_PYTHON_TRUSTED_HOST")
+        fi
+        selected_profile="${{ inputs.requirements-profile }}"
+        if [[ -n "$selected_profile" ]]; then
+          if [[ "${{ inputs.install-dev-deps }}" == 'true' || "${{ inputs.install-test-deps }}" == 'true' ]]; then
+            echo "::error::requirements-profile cannot be combined with install-dev-deps/install-test-deps"
+            exit 1
           fi
-          if [[ -f requirements-dev.txt && ( ! -f requirements.txt || "${{ inputs.install-dev-deps }}" == 'true' || "${{ inputs.install-test-deps }}" == 'true' ) ]]; then
+          case "$selected_profile" in
+            runtime)
+              if [[ ! -f requirements.txt ]]; then
+                echo "::error::Expected requirements.txt when requirements-profile is runtime"
+                exit 1
+              fi
+              ;;
+            runtime-dev)
+              if [[ ! -f requirements.txt ]]; then
+                echo "::error::Expected requirements.txt when requirements-profile is runtime-dev"
+                exit 1
+              fi
+              if [[ ! -f requirements-dev.txt ]]; then
+                echo "::error::Expected requirements-dev.txt when requirements-profile is runtime-dev"
+                exit 1
+              fi
+              ;;
+            runtime-test)
+              if [[ ! -f requirements.txt ]]; then
+                echo "::error::Expected requirements.txt when requirements-profile is runtime-test"
+                exit 1
+              fi
+              if [[ ! -f "${{ inputs.test-requirements-file }}" ]]; then
+                echo "::error::Expected ${{ inputs.test-requirements-file }} when requirements-profile is runtime-test"
+                exit 1
+              fi
+              ;;
+            ci-lite)
+              if [[ ! -f "${{ inputs.ci-lite-requirements-file }}" ]]; then
+                echo "::error::Expected ${{ inputs.ci-lite-requirements-file }} when requirements-profile is ci-lite"
+                exit 1
+              fi
+              ;;
+            *)
+              echo "::error::Unsupported requirements-profile: $selected_profile"
+              exit 1
+              ;;
+          esac
+          install_args+=(--requirements-profile "$selected_profile")
+          install_args+=(--test-requirements-file "${{ inputs.test-requirements-file }}")
+          install_args+=(--ci-lite-requirements-file "${{ inputs.ci-lite-requirements-file }}")
+        elif [[ -f requirements.txt ]]; then
+          if [[ "${{ inputs.install-dev-deps }}" == 'true' ]]; then
+            if [[ ! -f requirements-dev.txt ]]; then
+              echo "::error::Expected requirements-dev.txt when install-dev-deps is true"
+              exit 1
+            fi
             install_args+=(--install-dev)
           fi
-          python "${{ github.workspace }}/scripts/ci/install_locked_python_requirements.py" \
-            --python-executable python \
-            --constraints-file "${{ inputs.constraints-file }}" \
-            "${install_args[@]}"
+          if [[ "${{ inputs.install-test-deps }}" == 'true' ]]; then
+            if [[ ! -f "${{ inputs.test-requirements-file }}" ]]; then
+              echo "::error::Expected ${{ inputs.test-requirements-file }} when install-test-deps is true"
+              exit 1
+            fi
+            install_args+=(--install-test)
+            install_args+=(--test-requirements-file "${{ inputs.test-requirements-file }}")
+          fi
         else
-          echo "::notice::No requirements-dev.txt or requirements.txt found; skipping base dependency install"
+          echo "::error::Expected requirements.txt for locked dependency install"
+          exit 1
         fi
+        python "${{ github.workspace }}/scripts/ci/install_locked_python_requirements.py" \
+          --python-executable python \
+          --constraints-file "${{ inputs.constraints-file }}" \
+          --install-mode "${{ inputs.install-mode }}" \
+          "${install_args[@]}"
 
     # Backward-compatibility no-op: requirements-dev.txt is installed above via
     # install_locked_python_requirements.py when workflows still pass install-dev-deps.
@@ -73,4 +155,4 @@ runs:
       working-directory: ${{ inputs.working-directory }}
       run: |
         set -euxo pipefail
-        echo "::notice::Pinned test tooling is provided by requirements-dev.txt via install_locked_python_requirements.py"
+        echo "::notice::Pinned test tooling is provided by ${{ inputs.test-requirements-file }} via install_locked_python_requirements.py"
