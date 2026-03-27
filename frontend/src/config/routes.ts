@@ -9,6 +9,7 @@ import NutritionSetup from '../pages/NutritionSetup';
 import BMICalculatePage from '../pages/BMI/BMICalculatePage';
 import ProPaywallPage from '../pages/Pro/ProPaywallPage';
 import DesignSystemPage from '../pages/DesignSystemPage';
+import { WELCOME_GATE_V1_ROUTE_PATH } from '../pages/Onboarding/welcomeGateV1Policy';
 
 export interface RouteConfig {
   path: string;
@@ -31,7 +32,7 @@ export type RoutePath =
   | '/bmi'
   | '/pro'
   | '/design-system'
-  | '/welcome-gate-v1';
+  | typeof WELCOME_GATE_V1_ROUTE_PATH;
 
 export const routes: RouteConfig[] = [
   { path: '/', label: 'Home', requiresAuth: false, component: Home },
@@ -51,7 +52,7 @@ export const routes: RouteConfig[] = [
     previewOnly: true,
   },
   {
-    path: '/welcome-gate-v1',
+    path: WELCOME_GATE_V1_ROUTE_PATH,
     label: 'WelcomeGateV1',
     requiresAuth: false,
     component: WelcomeGateV1,
