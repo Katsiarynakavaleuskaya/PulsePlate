@@ -314,7 +314,20 @@ def _xdist_fallback_summary(
         if python313_job is None:
             continue
         observed_runs += 1
-        job_id = int(python313_job.get("id"))
+        raw_job_id = python313_job.get("id")
+        if raw_job_id is None:
+            warnings.append(
+                "xdist fallback frequency is unknown because Python 3.13 job metadata "
+                f"for run {run.get('id')} did not include a job id"
+            )
+            return (
+                {
+                    "state": "unknown",
+                    "reason": "Python 3.13 job metadata was incomplete.",
+                },
+                warnings,
+            )
+        job_id = int(str(raw_job_id))
         try:
             log_text = _fetch_job_log_text(repo=repo, job_id=job_id, token=token)
         except (RuntimeError, urllib.error.HTTPError, ValueError) as exc:
