@@ -26,6 +26,7 @@ ADVISORY_ID = "GHSA-5239-wwwm-4pmq"
 PACKAGE_NAME = "pygments"
 TRACKED_REQUIREMENTS = (
     "requirements.txt",
+    "requirements-ci-lite.txt",
     "requirements-dev.txt",
     "requirements-lock.txt",
 )

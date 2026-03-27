@@ -18,6 +18,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_REQUIREMENTS_FILE = REPO_ROOT / "requirements.txt"
 DEFAULT_DEV_REQUIREMENTS_FILE = REPO_ROOT / "requirements-dev.txt"
 DEFAULT_TEST_REQUIREMENTS_FILE = REPO_ROOT / "requirements-test.txt"
+DEFAULT_CI_LITE_REQUIREMENTS_FILE = REPO_ROOT / "requirements-ci-lite.txt"
 DEFAULT_CONSTRAINTS_FILE = REPO_ROOT / "constraints.txt"
 DEFAULT_STARTUP_HOOK_GUARD_PATH = REPO_ROOT / "scripts" / "ci" / "check_python_startup_hooks.py"
 APPROVED_INDEX_ENV_VAR = "PULSEPLATE_PYTHON_INDEX_URL"
@@ -34,6 +35,12 @@ BLOCKED_INDEX_HOSTS: tuple[str, ...] = (
     "test.pypi.org",
 )
 INSTALL_MODES: tuple[str, ...] = ("wheelhouse", "direct-proxy")
+REQUIREMENTS_PROFILES: tuple[str, ...] = (
+    "runtime",
+    "runtime-dev",
+    "runtime-test",
+    "ci-lite",
+)
 
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
@@ -62,6 +69,12 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         help="Pinned test requirements file.",
     )
     parser.add_argument(
+        "--ci-lite-requirements-file",
+        type=Path,
+        default=DEFAULT_CI_LITE_REQUIREMENTS_FILE,
+        help="Pinned lightweight CI requirements file for non-test control-plane jobs.",
+    )
+    parser.add_argument(
         "--constraints-file",
         type=Path,
         default=DEFAULT_CONSTRAINTS_FILE,
@@ -81,6 +94,14 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         "--install-test",
         action="store_true",
         help="Install test requirements after runtime requirements.",
+    )
+    parser.add_argument(
+        "--requirements-profile",
+        choices=REQUIREMENTS_PROFILES,
+        help=(
+            "Explicit pinned dependency profile. "
+            "When set, it replaces the legacy --install-dev/--install-test flags."
+        ),
     )
     parser.add_argument(
         "--require-virtualenv",
@@ -123,23 +144,47 @@ def resolve_requirement_files(
     requirements_file: Path,
     dev_requirements_file: Path,
     test_requirements_file: Path,
+    ci_lite_requirements_file: Path,
     install_dev: bool,
     install_test: bool,
+    requirements_profile: str | None,
 ) -> list[Path]:
     """Return the pinned requirement surfaces to download/install."""
-    if not requirements_file.exists():
-        raise FileNotFoundError(f"Requirements file not found: {requirements_file}")
+    profile_files: dict[str, list[tuple[str, Path]]] = {
+        "runtime": [("Requirements file", requirements_file)],
+        "runtime-dev": [
+            ("Requirements file", requirements_file),
+            ("Dev requirements file", dev_requirements_file),
+        ],
+        "runtime-test": [
+            ("Requirements file", requirements_file),
+            ("Test requirements file", test_requirements_file),
+        ],
+        "ci-lite": [("CI lite requirements file", ci_lite_requirements_file)],
+    }
+    if requirements_profile is not None:
+        return [
+            validate_requirement_file(path, label=label)
+            for label, path in profile_files[requirements_profile]
+        ]
 
-    requirement_files = [requirements_file]
+    requirement_files = [validate_requirement_file(requirements_file, label="Requirements file")]
     if install_test:
-        if not test_requirements_file.exists():
-            raise FileNotFoundError(f"Test requirements file not found: {test_requirements_file}")
-        requirement_files.append(test_requirements_file)
+        requirement_files.append(
+            validate_requirement_file(test_requirements_file, label="Test requirements file")
+        )
     if install_dev:
-        if not dev_requirements_file.exists():
-            raise FileNotFoundError(f"Dev requirements file not found: {dev_requirements_file}")
-        requirement_files.append(dev_requirements_file)
+        requirement_files.append(
+            validate_requirement_file(dev_requirements_file, label="Dev requirements file")
+        )
     return requirement_files
+
+
+def validate_requirement_file(requirement_file: Path, *, label: str) -> Path:
+    """Return an existing requirements surface or fail closed with a stable label."""
+    if not requirement_file.exists():
+        raise FileNotFoundError(f"{label} not found: {requirement_file}")
+    return requirement_file
 
 
 def build_pip_download_command(
@@ -550,13 +595,21 @@ def install_with_guard_from_proxy(
 def main(argv: Sequence[str] | None = None) -> int:
     try:
         args = parse_args(argv)
+        if args.requirements_profile and (args.install_dev or args.install_test):
+            print(
+                "ERROR: requirements-profile cannot be combined with "
+                "--install-dev or --install-test."
+            )
+            return 1
         validated_constraints_file = validate_constraints_file(args.constraints_file)
         requirement_files = resolve_requirement_files(
             requirements_file=args.requirements_file,
             dev_requirements_file=args.dev_requirements_file,
             test_requirements_file=args.test_requirements_file,
+            ci_lite_requirements_file=args.ci_lite_requirements_file,
             install_dev=args.install_dev,
             install_test=args.install_test,
+            requirements_profile=args.requirements_profile,
         )
 
         if args.require_virtualenv and not is_virtualenv_python(args.python_executable):

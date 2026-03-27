@@ -53,17 +53,38 @@ def test_python_setup_action_uses_locked_installer_not_floating_tools() -> None:
     assert "${{ github.workspace }}/scripts/ci/install_locked_python_requirements.py" in action_text
     assert "PULSEPLATE_PYTHON_INDEX_URL" in action_text
     assert '--index-url "$PULSEPLATE_PYTHON_INDEX_URL"' in action_text
+    assert "${{ inputs.requirements-profile }}" in action_text
+    assert "${{ inputs.ci-lite-requirements-file }}" in action_text
     assert "${{ inputs.install-dev-deps }}" in action_text
     assert "${{ inputs.install-test-deps }}" in action_text
     assert "${{ inputs.test-requirements-file }}" in action_text
     assert "${{ inputs.install-mode }}" in action_text
     assert "${{ inputs.skip-base-install != 'true' }}" in action_text
+    assert (
+        "::error::requirements-profile cannot be combined with install-dev-deps/install-test-deps"
+        in action_text
+    )
+    assert "::error::Expected requirements.txt when requirements-profile is runtime" in action_text
+    assert (
+        "::error::Expected requirements-dev.txt when requirements-profile is runtime-dev"
+        in action_text
+    )
+    assert (
+        "::error::Expected ${{ inputs.test-requirements-file }} when requirements-profile is runtime-test"
+        in action_text
+    )
+    assert (
+        "::error::Expected ${{ inputs.ci-lite-requirements-file }} when requirements-profile is ci-lite"
+        in action_text
+    )
     assert "::error::Expected requirements.txt for locked dependency install" in action_text
     assert "::error::Expected requirements-dev.txt when install-dev-deps is true" in action_text
     assert (
         "::error::Expected ${{ inputs.test-requirements-file }} when install-test-deps is true"
         in action_text
     )
+    assert "--requirements-profile" in action_text
+    assert "--ci-lite-requirements-file" in action_text
     assert "skipping base dependency install" not in action_text
     assert "pre-commit>=" not in action_text
     assert "bandit>=" not in action_text
@@ -200,9 +221,15 @@ def test_ci_workflow_uses_single_direct_proxy_python_install_path_per_job() -> N
         setup_step = _python_setup_step(job_name)
         assert setup_step["with"]["install-mode"] == "direct-proxy"
 
+    for job_name in ("lint", "security", "openapi-sync", "diff-coverage"):
+        setup_step = _python_setup_step(job_name)
+        assert setup_step["with"]["requirements-profile"] == "ci-lite"
+        assert "install-dev-deps" not in setup_step["with"]
+
     for job_name in ("test-pr", "test-feature", "test-main"):
         setup_step = _python_setup_step(job_name)
-        assert setup_step["with"]["install-test-deps"] == "true"
+        assert setup_step["with"]["requirements-profile"] == "runtime-test"
+        assert "install-test-deps" not in setup_step["with"]
         assert all(step.get("name") != "Install dependencies" for step in jobs[job_name]["steps"])
 
 
@@ -218,3 +245,21 @@ def test_test_dependency_profile_is_split_from_dev_tooling() -> None:
     assert "pip-audit==" not in requirements_test
     assert "mypy==" not in requirements_test
     assert "ruff==" not in requirements_test
+
+
+def test_ci_lite_dependency_profile_excludes_ml_gpu_stack() -> None:
+    requirements_ci_lite = (REPO_ROOT / "requirements-ci-lite.txt").read_text(encoding="utf-8")
+
+    assert "fastapi==" in requirements_ci_lite
+    assert "sqlalchemy==" in requirements_ci_lite
+    assert "openai==" in requirements_ci_lite
+    assert "pre-commit==" in requirements_ci_lite
+    assert "bandit==" in requirements_ci_lite
+    assert "diff-cover==" in requirements_ci_lite
+    assert "pytest==" in requirements_ci_lite
+    assert "sentence-transformers==" not in requirements_ci_lite
+    assert "transformers==" not in requirements_ci_lite
+    assert "torch==" not in requirements_ci_lite
+    assert "triton==" not in requirements_ci_lite
+    assert "cuda-bindings==" not in requirements_ci_lite
+    assert "nvidia-cublas-cu12==" not in requirements_ci_lite

@@ -33,6 +33,8 @@ BACKEND_SHARED_EXACT: tuple[str, ...] = (
     "mcp_pulseplate_server.py",
     "pyproject.toml",
     "pytest.ini",
+    "requirements-ci-lite.in",
+    "requirements-ci-lite.txt",
     "requirements-dev.txt",
     "requirements.txt",
 )

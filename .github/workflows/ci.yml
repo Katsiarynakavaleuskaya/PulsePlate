@@ -322,7 +322,7 @@ jobs:
         uses: ./.github/actions/python-setup
         with:
           python-version: ${{ env.COVERAGE_PY }}
-          install-dev-deps: "true"
+          requirements-profile: ci-lite
           install-mode: direct-proxy
 
       - name: Pre-commit (lint/format/security quick checks)
@@ -343,7 +343,7 @@ jobs:
         uses: ./.github/actions/python-setup
         with:
           python-version: ${{ env.COVERAGE_PY }}
-          install-dev-deps: "true"
+          requirements-profile: ci-lite
           install-mode: direct-proxy
 
       - name: Security scan with Bandit
@@ -482,7 +482,7 @@ jobs:
         uses: ./.github/actions/python-setup
         with:
           python-version: ${{ env.COVERAGE_PY }}
-          install-dev-deps: "true"
+          requirements-profile: ci-lite
           install-mode: direct-proxy
 
       - name: Setup Node.js
@@ -528,7 +528,7 @@ jobs:
         uses: ./.github/actions/python-setup
         with:
           python-version: ${{ matrix.python-version }}
-          install-test-deps: "true"
+          requirements-profile: runtime-test
           install-mode: direct-proxy
 
       - name: Setup Node.js
@@ -727,7 +727,7 @@ jobs:
         uses: ./.github/actions/python-setup
         with:
           python-version: ${{ matrix.python-version }}
-          install-test-deps: "true"
+          requirements-profile: runtime-test
           install-mode: direct-proxy
 
       - name: Setup Node.js
@@ -841,7 +841,7 @@ jobs:
         uses: ./.github/actions/python-setup
         with:
           python-version: ${{ matrix.python-version }}
-          install-test-deps: "true"
+          requirements-profile: runtime-test
           install-mode: direct-proxy
 
       - name: Setup Node.js
@@ -988,7 +988,7 @@ jobs:
         uses: ./.github/actions/python-setup
         with:
           python-version: ${{ env.COVERAGE_PY }}
-          install-dev-deps: "true"
+          requirements-profile: ci-lite
           install-mode: direct-proxy
 
       - name: Download coverage artifact (Python ${{ env.COVERAGE_PY }})
