@@ -31,10 +31,20 @@ Evidence: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1266#pullreq
 Reason: cubic reported no actionable findings, so the review wrapper is informational only and does not require a follow-up change.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1266#pullrequestreview-4025456211
 
+Disposition: FIXED
+Commit: d0616e2b
+Evidence: `scripts/orchestration/task_bootstrap.py:336`; `python -m flake8 scripts/orchestration/task_bootstrap.py`; `pytest -q tests/test_task_bootstrap.py`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1266#discussion_r3004686369 -> d0616e2b
+
+Disposition: NOT-A-BUG
+Evidence: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1266#discussion_r3004686369 is mapped explicitly as the only actionable CodeRabbit thread from this review batch.
+Reason: The review-level wrapper aggregates the mapped F841 finding and does not require a separate code change beyond commit `d0616e2b`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1266#pullrequestreview-4025464734
+
 ## Merge Readiness
 - [ ] All required checks pass
 - [ ] No unresolved review threads (re-check on current head before merge)
 - [ ] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
 - [ ] Pre-commit green
 - [ ] `make verify` green
-Notes: Post-open review findings from Sourcery and Codex are mapped in this artifact. Local `pre-commit run --all-files` is green on head `815f0e12`, but merge-readiness boxes stay unchecked until the current-head CI/bot cycle completes and all review threads are explicitly resolved on GitHub.
+Notes: Post-open review findings from Sourcery, Codex, and CodeRabbit are mapped in this artifact. Local `pre-commit run --all-files` is green on head `d0616e2b`, but merge-readiness boxes stay unchecked until the current-head CI/bot cycle completes and all review threads are explicitly resolved on GitHub.
