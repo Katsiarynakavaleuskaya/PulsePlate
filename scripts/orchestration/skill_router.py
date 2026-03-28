@@ -12,11 +12,15 @@ import re
 from typing import Any
 
 from scripts.orchestration.context_pack import normalize_text, repo_relative_paths
+from scripts.orchestration.design_lane_contract import (
+    FIGMA_DESIGN_SOURCES,
+    design_trigger_present,
+    normalize_optional_text,
+)
 from scripts.orchestration.requested_agents import normalize_requested_agents
 
 ROUTING_POLICY_VERSION = "2026-03-27"
 SELECTION_MODE = "deterministic-weighted"
-FIGMA_DESIGN_SOURCES: frozenset[str] = frozenset({"figma_design", "figma_make"})
 
 ALWAYS_ON_SKILLS: tuple[str, ...] = ("pulseplate-workflow",)
 PR_GOVERNANCE_REQUIRED_SKILLS: tuple[str, ...] = (
@@ -897,14 +901,6 @@ def _build_conditional_skills(
     return conditional
 
 
-def _normalize_optional_text(value: str | None) -> str:
-    """Return a stripped optional string."""
-
-    if value is None:
-        return ""
-    return value.strip()
-
-
 def _has_explicit_design_activation_data(
     *,
     design_source: str | None,
@@ -919,18 +915,16 @@ def _has_explicit_design_activation_data(
 ) -> bool:
     """Return True when the caller explicitly supplied design-lane metadata."""
 
-    return any(
-        (
-            _normalize_optional_text(design_source),
-            _normalize_optional_text(source_url),
-            _normalize_optional_text(file_key_or_workspace),
-            _normalize_optional_text(node_id_or_frame_id),
-            _normalize_optional_text(target_surface),
-            _normalize_optional_text(task_mode),
-            _normalize_optional_text(figma_lane_tool),
-            _normalize_optional_text(code_native_design_brief_path),
-            explicit_creation_mode,
-        )
+    return design_trigger_present(
+        design_source=normalize_optional_text(design_source),
+        source_url=normalize_optional_text(source_url),
+        file_key_or_workspace=normalize_optional_text(file_key_or_workspace),
+        node_id_or_frame_id=normalize_optional_text(node_id_or_frame_id),
+        target_surface=normalize_optional_text(target_surface),
+        task_mode=normalize_optional_text(task_mode),
+        figma_lane_tool=normalize_optional_text(figma_lane_tool),
+        code_native_design_brief_path=normalize_optional_text(code_native_design_brief_path),
+        explicit_creation_mode=explicit_creation_mode,
     )
 
 
@@ -1043,7 +1037,7 @@ def route_skills(
     normalized_text = normalize_text(goal, task_class, *normalized_paths)
     normalized_request_text = normalize_text(goal, task_class)
     normalized_requested_agents = tuple(normalize_requested_agents(requested_agents))
-    normalized_design_source = _normalize_optional_text(design_source)
+    normalized_design_source = normalize_optional_text(design_source)
     explicit_design_metadata = _has_explicit_design_activation_data(
         design_source=design_source,
         source_url=source_url,
@@ -1129,7 +1123,6 @@ def route_skills(
                 ),
             )
 
-    selected = list(selected_by_skill.values())
     for bundled_skill in TRIAGE_CLASSIFICATION_SKILL_BUNDLES.get(
         str(task_classification["label"]), ()
     ):
@@ -1145,6 +1138,7 @@ def route_skills(
                 "Review and bugfix lanes require deterministic triage-helper coverage."
             ),
         )
+    selected = list(selected_by_skill.values())
 
     if explicit_design_metadata and normalized_design_source in FIGMA_DESIGN_SOURCES:
         for bundled_skill in DESIGN_CONDITIONAL_SKILLS:

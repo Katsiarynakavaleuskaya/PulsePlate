@@ -167,7 +167,7 @@ def test_task_bootstrap_enables_code_native_design_lane_with_valid_packet() -> N
     assert packet["design_lane_mode"] == "implement"
     assert packet["design_lane_contract"]["blockers"] == []
     assert packet["design_lane_contract"]["design_source"] == "code_native_brief"
-    assert packet["design_lane_contract"]["code_native_design_brief_required"] is False
+    assert packet["design_lane_contract"]["code_native_design_brief_required"] is True
 
 
 def test_task_bootstrap_enables_figma_design_lane_with_complete_packet() -> None:

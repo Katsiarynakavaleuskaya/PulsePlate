@@ -804,6 +804,25 @@ def test_skill_router_keeps_non_figma_reference_sources_out_of_figma_execution_b
     assert "figma-implement-design" not in recommended
 
 
+def test_skill_router_applies_triage_bundle_without_figma_activation() -> None:
+    """Review lanes must keep triage helpers even without Figma promotion."""
+
+    decision = route_skills(
+        goal="Review hero patch",
+        task_class="Frontend",
+        candidate_paths=["frontend/src/components/Hero.tsx"],
+        domain="frontend",
+        design_source="notion",
+        source_url="https://www.notion.so/workspace/hero-review",
+        target_surface="web.hero",
+        task_mode="read_only",
+    )
+
+    recommended = {item["skill"] for item in decision["recommended"]}
+    assert decision["task_classification"]["label"] == "review"
+    assert "code-review-expert" in recommended
+
+
 @pytest.mark.parametrize(
     ("goal", "task_class", "candidate_paths", "domain", "expected_label", "expected_skill"),
     (
