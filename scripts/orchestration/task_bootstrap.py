@@ -333,10 +333,6 @@ def _reconcile_requested_agent_dispositions(
 ) -> None:
     """Align requested-agent disposition metadata with the final packet roles."""
 
-    advisory_statuses = {
-        REQUESTED_AGENT_STATUS_ADVISORY_NON_ROUTABLE,
-        REQUESTED_AGENT_STATUS_ADVISORY_DOMAIN_MISMATCH,
-    }
     secondary_honored_statuses = {
         REQUESTED_AGENT_STATUS_PROMOTED,
         REQUESTED_AGENT_STATUS_HONORED_PRIMARY,
