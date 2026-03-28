@@ -33,6 +33,7 @@ Disposition: FIXED
 Commit: 1d03adc8
 Evidence: scripts/PRODUCTION_ENV_FIX.md:24, scripts/PRODUCTION_ENV_FIX.md:42, scripts/PRODUCTION_ENV_FIX.md:81
 Reason: The production env runbook now treats `API_KEY_REQUIRED` as a compatibility request-time flag instead of describing it as a startup fail-closed production guard, matching the current runtime contract.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1271#pullrequestreview-4026074209 -> 1d03adc8
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1271#discussion_r3005374426 -> 1d03adc8
 
 Disposition: NOT-A-BUG
