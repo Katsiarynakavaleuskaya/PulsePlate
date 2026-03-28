@@ -825,7 +825,7 @@ def build_task_packet(
         file_key_or_workspace=design_lane_contract["file_key_or_workspace"],
         node_id_or_frame_id=design_lane_contract["node_id_or_frame_id"],
         target_surface=design_lane_contract["target_surface"],
-        task_mode=design_lane_contract["task_mode"],
+        task_mode="" if design_lane_mode == "disabled" else design_lane_mode,
         figma_lane_tool=design_lane_contract["figma_lane_tool"],
         code_native_design_brief_path=design_lane_contract["code_native_design_brief_path"],
         explicit_creation_mode=design_lane_contract["explicit_creation_mode"],
