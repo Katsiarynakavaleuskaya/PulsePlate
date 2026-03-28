@@ -102,7 +102,11 @@ Optional packet-level automation metadata (PR2 bootstrap hardening):
   `coordinator_first_required`, `skill_routing_applied`,
   `native_subagent_bridge_available`, `security_review_required`,
   `judgment_lane_enabled`, `pr_lifecycle_enabled`, `design_lane_enabled`)
-- `inputs.pr_phase` (string; current bootstrap baseline uses `"none"`)
+- `inputs.pr_phase` (string; default bootstrap baseline uses `"none"`; PR4
+  lifecycle packets may use `"pre_open"`, `"post_open_review"`, or
+  `"merge_ready"`)
+- `inputs.pr_lifecycle_contract` (object; additive lifecycle metadata derived
+  from `pr_phase`, including post-open review lane and current-head truth)
 - `inputs.design_lane_mode` (string; current bootstrap baseline uses `"disabled"`)
 - `inputs.needs_backlog_update` (boolean; deterministic sync signal)
 - `inputs.needs_docs_sync` (boolean; deterministic sync signal)
@@ -226,10 +230,19 @@ Task packet:
       "native_subagent_bridge_available": true,
       "security_review_required": true,
       "judgment_lane_enabled": false,
-      "pr_lifecycle_enabled": false,
+      "pr_lifecycle_enabled": true,
       "design_lane_enabled": false
     },
-    "pr_phase": "none",
+    "pr_phase": "post_open_review",
+    "pr_lifecycle_contract": {
+      "requires_pr": true,
+      "post_open_review_required": true,
+      "review_lane": ["qa-engineer-agent", "bug-hunter"],
+      "artifact_template": "docs/review/PR_<N>_FIXED_MAPPING.md",
+      "current_head_required": true,
+      "current_head_truth": "latest-current-head",
+      "merge_readiness_entrypoint": ""
+    },
     "design_lane_mode": "disabled",
     "needs_backlog_update": false,
     "needs_docs_sync": false,

@@ -124,9 +124,13 @@ derivable from existing inputs:
 - `recommended_skills` remains backward-compatible and is derived from
   `skill_routing.required + skill_routing.recommended`
 - `automation_flags.judgment_lane_enabled` mirrors `decision_contract.judgment_enabled`
-- `automation_flags.pr_lifecycle_enabled = false`
+- `automation_flags.pr_lifecycle_enabled = false` by default and becomes `true`
+  only when bootstrap is invoked with an explicit PR lifecycle phase
 - `automation_flags.design_lane_enabled = false`
 - `pr_phase = "none"`
+- `pr_lifecycle_contract` is additive lifecycle metadata derived from the
+  explicit `pr_phase`; `post_open_review` must surface the canonical
+  `qa-engineer-agent -> bug-hunter` lane and current-head preparation contract
 - `design_lane_mode = "disabled"`
 - `needs_backlog_update`, `needs_docs_sync`, and `needs_agents_sync` are deterministic
   sync signals derived from task text and candidate paths
@@ -135,6 +139,13 @@ PR2 scope note:
 
 - This baseline does not enable PR lifecycle automation, design/Figma routing, or
   local launcher/runtime rollout. Those belong to later PR slices.
+
+PR4 scope note:
+
+- PR lifecycle automation stays deterministic only after explicit bootstrap
+  invocation with `pr_phase` such as `post_open_review` or `merge_ready`.
+- Post-open review lane synthesis is a packet-level contract, not raw-session or
+  host-runtime event automation.
 
 ---
 

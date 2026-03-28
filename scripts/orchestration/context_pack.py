@@ -238,6 +238,7 @@ def compute_task_packet_id(
     domain: str,
     candidate_paths: list[str] | tuple[str, ...],
     requested_agents: list[str] | tuple[str, ...] = (),
+    pr_phase: str = "none",
 ) -> str:
     """Return deterministic short task packet id."""
 
@@ -246,6 +247,7 @@ def compute_task_packet_id(
             goal.strip(),
             task_class.strip(),
             domain.strip(),
+            pr_phase.strip(),
             *repo_relative_paths(candidate_paths),
             *requested_agents,
         ]

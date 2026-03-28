@@ -22,6 +22,8 @@ from scripts.orchestration.routing_graph_loader import (
     REQUIRED_BOOTSTRAP_LANE,
 )
 from scripts.orchestration.task_bootstrap import (
+    _apply_pr_lifecycle_review_path,
+    _normalize_secondary_review_path,
     _matches_any_prefix,
     _resolve_output_path,
     build_task_packet,
@@ -96,10 +98,189 @@ def test_task_bootstrap_adds_automation_metadata_defaults() -> None:
         "design_lane_enabled": False,
     }
     assert packet["pr_phase"] == "none"
+    assert packet["pr_lifecycle_contract"] == {
+        "requires_pr": False,
+        "post_open_review_required": False,
+        "review_lane": [],
+        "artifact_template": "",
+        "current_head_required": False,
+        "current_head_truth": "not-applicable",
+        "merge_readiness_entrypoint": "",
+    }
     assert packet["design_lane_mode"] == "disabled"
     assert packet["needs_backlog_update"] is False
     assert packet["needs_docs_sync"] is False
     assert packet["needs_agents_sync"] is False
+
+
+def test_task_bootstrap_enables_post_open_review_lane_for_pr_phase() -> None:
+    """Post-open review packets must synthesize the canonical QA -> bug-hunter lane."""
+
+    packet = build_task_packet(
+        goal="Prepare post-open PR review loop for orchestration automation",
+        task_class="Orchestration",
+        candidate_paths=["scripts/orchestration/task_bootstrap.py"],
+        pr_phase="post_open_review",
+    )
+
+    assert packet["automation_flags"]["pr_lifecycle_enabled"] is True
+    assert packet["pr_phase"] == "post_open_review"
+    assert packet["pr_lifecycle_contract"] == {
+        "requires_pr": True,
+        "post_open_review_required": True,
+        "review_lane": ["qa-engineer-agent", "bug-hunter"],
+        "artifact_template": "docs/review/PR_<N>_FIXED_MAPPING.md",
+        "current_head_required": True,
+        "current_head_truth": "latest-current-head",
+        "merge_readiness_entrypoint": "",
+    }
+    assert packet["reviewer"] == "qa-engineer-agent"
+    assert "bug-hunter" in packet["secondary_agents"]
+    assert "bug-hunter" in {
+        binding["repo_agent_slug"] for binding in packet["native_subagent_bridge"]["secondary"]
+    }
+
+
+def test_task_bootstrap_keeps_requested_bug_hunter_executable_in_post_open_lane() -> None:
+    """Requested bug-hunter must stay runnable in the canonical post-open lane."""
+
+    packet = build_task_packet(
+        goal="Run post-open review with explicit bug hunter request",
+        task_class="Orchestration",
+        candidate_paths=["scripts/orchestration/task_bootstrap.py"],
+        requested_agents=["bug-hunter"],
+        pr_phase="post_open_review",
+    )
+
+    assert "bug-hunter" in packet["secondary_agents"]
+    assert "bug-hunter" in {
+        binding["repo_agent_slug"] for binding in packet["native_subagent_bridge"]["secondary"]
+    }
+    assert packet["requested_agent_disposition"] == [
+        {
+            "agent": "bug-hunter",
+            "status": "honored_secondary",
+            "reason": (
+                "Requested agent is required for the PR lifecycle review path and stays "
+                "executable in secondary."
+            ),
+        }
+    ]
+
+
+def test_task_bootstrap_preserves_qa_then_bug_hunter_order_in_qa_post_open_lane() -> None:
+    """QA-domain post-open packets must not allow bug-hunter to remain primary."""
+
+    packet = build_task_packet(
+        goal="Run qa post-open review with explicit bug hunter request",
+        task_class="QA",
+        candidate_paths=["tests/test_task_bootstrap.py"],
+        requested_agents=["bug-hunter"],
+        pr_phase="post_open_review",
+    )
+
+    assert packet["primary_agent"] == "qa-engineer-agent"
+    assert packet["reviewer"] == "agent-coordinator"
+    assert packet["secondary_agents"] == ["bug-hunter"]
+    assert packet["requested_agent_disposition"] == [
+        {
+            "agent": "bug-hunter",
+            "status": "honored_secondary",
+            "reason": "Requested agent stayed honored in secondary after PR lifecycle synthesis.",
+        }
+    ]
+
+
+def test_post_open_review_path_keeps_bug_hunter_executable_when_primary_was_bug_hunter() -> None:
+    """Helper-level regression: reviewer independence must not drop bug-hunter from secondary."""
+
+    primary_agent, secondary_agents, reviewer = _apply_pr_lifecycle_review_path(
+        pr_phase="post_open_review",
+        primary_agent="bug-hunter",
+        secondary_agents=[],
+        reviewer="qa-engineer-agent",
+    )
+
+    normalized_secondary_agents = _normalize_secondary_review_path(
+        primary_agent=primary_agent,
+        secondary_agents=secondary_agents,
+        reviewer=reviewer,
+    )
+
+    assert primary_agent == "qa-engineer-agent"
+    assert reviewer == "agent-coordinator"
+    assert normalized_secondary_agents == ["bug-hunter"]
+
+
+def test_task_bootstrap_deduplicates_reviewer_from_secondary_in_post_open_lane() -> None:
+    """Canonical packet identities must not list the reviewer twice."""
+
+    packet = build_task_packet(
+        goal="Run post-open review with explicit QA request",
+        task_class="Orchestration",
+        candidate_paths=["scripts/orchestration/task_bootstrap.py"],
+        requested_agents=["qa-engineer-agent"],
+        pr_phase="post_open_review",
+    )
+
+    assert packet["reviewer"] == "qa-engineer-agent"
+    assert "qa-engineer-agent" not in packet["secondary_agents"]
+    assert packet["requested_agent_disposition"] == [
+        {
+            "agent": "qa-engineer-agent",
+            "status": "honored_reviewer",
+            "reason": "Requested agent stayed honored as reviewer after PR lifecycle synthesis.",
+        }
+    ]
+
+
+def test_task_bootstrap_keeps_non_routable_requested_agent_advisory_in_post_open_lane() -> None:
+    """Lifecycle reconciliation must not upgrade advisory-only agents to executable roles."""
+
+    packet = build_task_packet(
+        goal="Prepare ML post-open review packet with advisory collaborator",
+        task_class="AI / ML",
+        candidate_paths=["docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md"],
+        requested_agents=["ml-engineer-agent"],
+        pr_phase="post_open_review",
+    )
+
+    assert "ml-engineer-agent" in packet["secondary_agents"]
+    assert [
+        binding["repo_agent_slug"] for binding in packet["native_subagent_bridge"]["advisory"]
+    ] == ["ml-engineer-agent"]
+    assert packet["requested_agent_disposition"] == [
+        {
+            "agent": "ml-engineer-agent",
+            "status": "advisory_non_routable",
+            "reason": "Agent is canonical but non-routable; kept as an advisory collaborator.",
+        }
+    ]
+
+
+def test_task_bootstrap_sets_merge_ready_contract_without_post_open_lane() -> None:
+    """Merge-ready packets should keep lifecycle prep explicit without re-adding QA loop."""
+
+    packet = build_task_packet(
+        goal="Prepare merge readiness packet for orchestration automation",
+        task_class="Orchestration",
+        candidate_paths=["scripts/orchestration/task_bootstrap.py"],
+        pr_phase="merge_ready",
+    )
+
+    assert packet["automation_flags"]["pr_lifecycle_enabled"] is True
+    assert packet["pr_phase"] == "merge_ready"
+    assert packet["pr_lifecycle_contract"] == {
+        "requires_pr": True,
+        "post_open_review_required": False,
+        "review_lane": [],
+        "artifact_template": "docs/review/PR_<N>_FIXED_MAPPING.md",
+        "current_head_required": True,
+        "current_head_truth": "latest-current-head",
+        "merge_readiness_entrypoint": "scripts/orchestration/check_merge_ready.py",
+    }
+    assert packet["reviewer"] != "qa-engineer-agent"
+    assert "bug-hunter" not in packet["secondary_agents"]
 
 
 def test_task_bootstrap_enables_judgment_lane_for_relevant_work() -> None:
@@ -654,6 +835,24 @@ def test_task_bootstrap_keeps_packet_id_stable_for_identical_inputs() -> None:
     assert first_packet["needs_agents_sync"] == second_packet["needs_agents_sync"]
 
 
+def test_task_bootstrap_changes_packet_id_when_pr_phase_changes() -> None:
+    """Lifecycle phase must affect packet identity to avoid artifact collisions."""
+
+    baseline_packet = build_task_packet(
+        goal="Refresh docs sync guidance",
+        task_class="Documentation",
+        candidate_paths=["docs/orchestration/AGENT_MESSAGE_PROTOCOL.md"],
+    )
+    review_packet = build_task_packet(
+        goal="Refresh docs sync guidance",
+        task_class="Documentation",
+        candidate_paths=["docs/orchestration/AGENT_MESSAGE_PROTOCOL.md"],
+        pr_phase="post_open_review",
+    )
+
+    assert baseline_packet["task_packet_id"] != review_packet["task_packet_id"]
+
+
 def test_matches_any_prefix_covers_exact_and_nested_paths() -> None:
     """Prefix matcher must honor exact directory roots and nested repo paths."""
 
@@ -985,3 +1184,77 @@ def test_main_passes_requested_agent_flags(monkeypatch, capsys) -> None:
         "security-auditor",
     ]
     assert json.loads(captured.out)["primary_native_agent_type"] == "default"
+
+
+def test_main_passes_pr_phase_flag(monkeypatch, capsys) -> None:
+    """CLI should propagate --pr-phase into the packet builder."""
+
+    observed: dict[str, object] = {}
+
+    def _fake_build_task_packet(**kwargs: object) -> dict[str, object]:
+        observed.update(kwargs)
+        return {
+            "schema_version": "2.0",
+            "task_packet_id": "pr-phase-packet",
+            "goal": "Use explicit PR phase",
+            "task_class": "Orchestration",
+            "domain": "orchestration",
+            "cluster": "ops",
+            "candidate_paths": ["scripts/orchestration/task_bootstrap.py"],
+            "primary_agent": "agent-coordinator",
+            "secondary_agents": ["bug-hunter"],
+            "reviewer": "qa-engineer-agent",
+            "requested_agents": [],
+            "requested_agent_disposition": [],
+            "required_context": ["AGENTS.md"],
+            "recommended_skills": ["pulseplate-workflow"],
+            "skill_routing": {
+                "policy_version": "2026-03-27",
+                "selection_mode": "deterministic-weighted",
+                "requested_agents": [],
+                "task_classification": {
+                    "label": "implementation",
+                    "score": 0,
+                    "reasons": ["fallback:default-implementation"],
+                },
+                "required": [
+                    {
+                        "skill": "pulseplate-workflow",
+                        "rationale": "Mandatory entry skill for all PulsePlate tasks.",
+                        "reasons": ["always-on"],
+                    }
+                ],
+                "recommended": [],
+                "conditional": [],
+                "blocked": [],
+            },
+            "native_subagent_bridge": {
+                "protocol_version": "1.0",
+                "transport": "codex-native-subagents",
+                "primary": {"native_agent_type": "default"},
+                "secondary": [{"native_agent_type": "worker"}],
+                "reviewer": {"native_agent_type": "explorer"},
+            },
+            "routing_rationale": {"source": "canonical_only"},
+        }
+
+    monkeypatch.setattr(
+        "scripts.orchestration.task_bootstrap.build_task_packet",
+        _fake_build_task_packet,
+    )
+
+    exit_code = main(
+        [
+            "--goal",
+            "Run post-open review phase",
+            "--task-class",
+            "Orchestration",
+            "--pr-phase",
+            "post_open_review",
+        ]
+    )
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert observed["pr_phase"] == "post_open_review"
+    assert json.loads(captured.out)["task_packet_id"] == "pr-phase-packet"

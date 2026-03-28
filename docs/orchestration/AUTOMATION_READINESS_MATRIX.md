@@ -83,7 +83,7 @@ unconditionally guaranteed by Markdown alone.
 | Coordinator-first task handling | Yes | Partial | Usually yes | Yes | Policy-required, not guaranteed raw-session auto-start |
 | Bootstrap task packet generation | Yes | Yes | No for manual invocation; yes for auto-start | Low | Deterministic once invoked |
 | Skill auto-selection | Yes | Yes | Yes for raw-session auto-start | Medium | Automatic after bootstrap, not at raw chat start |
-| Mandatory post-open bug-hunter pass | Yes | Partial | No | Medium | Mandatory by policy, not globally event-triggered |
+| Mandatory post-open bug-hunter pass | Yes | Yes | No | Medium | Deterministic once invoked via PR phase packet; not globally event-triggered |
 | Creative research lane | Partial | Planned | Likely yes | Medium | Not yet canonical automatic behavior |
 | Figma execution lane | Partial | Planned | Likely yes | High | Conditional only, never unconditional |
 | Post-merge local sync / cleanup gating next PR | Yes | N/A | No | Low | Required by process, enforced by canon/runbook discipline |
@@ -104,8 +104,8 @@ Current approved wording:
 - Coordinator-first is **policy-required**.
 - Bootstrap packet generation is **deterministic once invoked**.
 - Skill routing is **automatic after bootstrap**, not automatic at raw chat start.
-- Bug-hunter post-open pass is **mandatory by policy**, not yet globally
-  event-triggered.
+- Bug-hunter post-open pass is **deterministic once invoked** via
+  `pr_phase=post_open_review`, not yet globally event-triggered.
 - Figma execution is **conditionally automatic**, never unconditional.
 
 ## Approved PR Series For This Wave
