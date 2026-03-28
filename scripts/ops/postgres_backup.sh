@@ -8,6 +8,9 @@ BACKUP_DIR="${BACKUP_DIR:-/srv/pulseplate-production/backups}"
 COMPOSE_FILE="${COMPOSE_FILE:-}"
 TIMESTAMP="$(date +%Y%m%d_%H%M%S)"
 
+: "${POSTGRES_USER:?POSTGRES_USER is required}"
+: "${POSTGRES_DB:?POSTGRES_DB is required}"
+
 mkdir -p "${BACKUP_DIR}"
 
 if [ -n "${COMPOSE_FILE}" ] && [ "${COMPOSE_FILE#/}" = "${COMPOSE_FILE}" ]; then

@@ -12,6 +12,9 @@ BACKUP_FILE="$1"
 PROJECT_DIR="${PROJECT_DIR:-/srv/pulseplate-production}"
 COMPOSE_FILE="${COMPOSE_FILE:-}"
 
+: "${POSTGRES_USER:?POSTGRES_USER is required}"
+: "${POSTGRES_DB:?POSTGRES_DB is required}"
+
 if [ ! -f "${BACKUP_FILE}" ]; then
   echo "Backup file not found: ${BACKUP_FILE}"
   exit 1

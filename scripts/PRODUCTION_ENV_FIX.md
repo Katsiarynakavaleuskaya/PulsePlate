@@ -55,7 +55,8 @@ grep -E '^POSTGRES_(DB|USER|PASSWORD)=' .env
 docker compose --env-file .env -f docker-compose.production.yaml config >/dev/null
 docker compose --env-file .env -f docker-compose.production.yaml up -d --force-recreate
 
-curl -fsS https://pulseplate.app/ready | jq .
+PRODUCTION_DOMAIN="$(grep '^PRODUCTION_DOMAIN=' .env | tail -1 | cut -d'=' -f2- | tr -d '\r\n')"
+curl -fsS "https://${PRODUCTION_DOMAIN}/ready" | jq .
 ```
 
 ## ⚠️ Важные замечания
@@ -79,4 +80,4 @@ curl -fsS https://pulseplate.app/ready | jq .
 - [ ] `ALLOW_DEV_API_KEY=false`
 - [ ] `API_KEY_REQUIRED=true`
 - [ ] `docker compose ... config` проходит
-- [ ] `curl https://pulseplate.app/ready | jq .` возвращает 200
+- [ ] `curl "https://${PRODUCTION_DOMAIN}/ready" | jq .` возвращает 200

@@ -450,7 +450,7 @@ To reduce disk usage, consider compressing backups. Common approaches:
   PROJECT_DIR=/srv/pulseplate-production \
   COMPOSE_FILE=/srv/pulseplate-production/docker-compose.production.yaml \
   POSTGRES_USER=... POSTGRES_DB=... \
-  scripts/ops/postgres_restore.sh /absolute/path/to/pulseplate_20260101_010101.dump
+  /srv/pulseplate-production/scripts/ops/postgres_restore.sh /absolute/path/to/pulseplate_20260101_010101.dump
   ```
 
 - Monitor compressed backup sizes when setting retention thresholds
@@ -465,7 +465,7 @@ COMPOSE_FILE=/srv/pulseplate-production/docker-compose.production.yaml \
 BACKUP_DIR=/srv/pulseplate-production/backups \
 POSTGRES_USER="$POSTGRES_USER" \
 POSTGRES_DB="$POSTGRES_DB" \
-scripts/ops/postgres_backup.sh
+/srv/pulseplate-production/scripts/ops/postgres_backup.sh
 ```
 
 ## 🔑 GitHub Environment Setup

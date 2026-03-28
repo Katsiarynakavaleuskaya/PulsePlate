@@ -1,6 +1,7 @@
 import os
 import stat
 import subprocess
+from collections.abc import Callable
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -9,6 +10,17 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 def _write_executable(path: Path, content: str) -> None:
     path.write_text(content, encoding="utf-8")
     path.chmod(path.stat().st_mode | stat.S_IXUSR)
+
+
+def _assert_log_index(
+    log_lines: list[str],
+    *,
+    predicate: Callable[[str], bool],
+    message: str,
+) -> int:
+    index = next((position for position, line in enumerate(log_lines) if predicate(line)), None)
+    assert index is not None, message
+    return index
 
 
 def test_postgres_backup_helper_passes_project_dir_and_compose_file(tmp_path: Path) -> None:
@@ -182,29 +194,38 @@ printf 'curl %s\\n' "$*" >> "{log_file}"
     )
 
     log_lines = log_file.read_text(encoding="utf-8").splitlines()
-    postgres_up_index = next(
-        index
-        for index, line in enumerate(log_lines)
-        if "compose --env-file" in line and "up -d --remove-orphans postgres" in line
+    postgres_up_index = _assert_log_index(
+        log_lines,
+        predicate=lambda line: "compose --env-file" in line
+        and "up -d --remove-orphans postgres" in line,
+        message="Expected postgres docker-compose up step to appear in deploy log",
     )
-    helper_index = next(index for index, line in enumerate(log_lines) if line.startswith("helper "))
-    app_up_index = next(
-        index
-        for index, line in enumerate(log_lines)
-        if "compose --env-file" in line and "up -d --remove-orphans app" in line
+    helper_index = _assert_log_index(
+        log_lines,
+        predicate=lambda line: line.startswith("helper "),
+        message="Expected backup helper step to appear in deploy log",
     )
-    migrate_index = next(
-        index for index, line in enumerate(log_lines) if "exec app-id alembic upgrade head" in line
+    app_up_index = _assert_log_index(
+        log_lines,
+        predicate=lambda line: "compose --env-file" in line
+        and "up -d --remove-orphans app" in line,
+        message="Expected app docker-compose up step to appear in deploy log",
     )
-    caddy_up_index = next(
-        index
-        for index, line in enumerate(log_lines)
-        if "compose --env-file" in line and "up -d --remove-orphans caddy" in line
+    migrate_index = _assert_log_index(
+        log_lines,
+        predicate=lambda line: "exec app-id alembic upgrade head" in line,
+        message="Expected alembic migration step to appear in deploy log",
     )
-    external_ready_index = next(
-        index
-        for index, line in enumerate(log_lines)
-        if line.startswith("curl ") and "https://pulseplate.test/ready" in line
+    caddy_up_index = _assert_log_index(
+        log_lines,
+        predicate=lambda line: "compose --env-file" in line
+        and "up -d --remove-orphans caddy" in line,
+        message="Expected caddy docker-compose up step to appear in deploy log",
+    )
+    external_ready_index = _assert_log_index(
+        log_lines,
+        predicate=lambda line: line.startswith("curl ") and "https://pulseplate.test/ready" in line,
+        message="Expected external readiness check to appear in deploy log",
     )
 
     assert (
@@ -216,3 +237,90 @@ printf 'curl %s\\n' "$*" >> "{log_file}"
         < external_ready_index
     )
     assert any("helper " in line and "docker-compose.production.yaml" in line for line in log_lines)
+
+
+def test_deploy_production_exits_non_zero_when_migrations_fail(tmp_path: Path) -> None:
+    project_dir = tmp_path / "production"
+    bin_dir = tmp_path / "bin"
+    scripts_dir = project_dir / "scripts" / "ops"
+    log_file = tmp_path / "deploy.log"
+    project_dir.mkdir()
+    bin_dir.mkdir()
+    scripts_dir.mkdir(parents=True)
+    (project_dir / "docker-compose.production.yaml").write_text("services: {}\n", encoding="utf-8")
+    (project_dir / ".env").write_text(
+        "\n".join(
+            [
+                "POSTGRES_USER=pulseplate",
+                "POSTGRES_DB=pulseplate",
+                "POSTGRES_PASSWORD=secret",
+                "DATABASE_URL=postgresql+psycopg://pulseplate:secret@postgres:5432/pulseplate",  # pragma: allowlist secret
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    helper_stub = f"""#!/usr/bin/env bash
+set -euo pipefail
+printf 'helper %s %s\\n' "$PROJECT_DIR" "${{COMPOSE_FILE:-}}" >> "{log_file}"
+"""
+    docker_stub = f"""#!/usr/bin/env bash
+set -euo pipefail
+printf 'docker %s\\n' "$*" >> "{log_file}"
+case "$*" in
+  *"compose --env-file "*"-f docker-compose.production.yaml ps -q postgres"*)
+    printf 'postgres-id\\n'
+    ;;
+  *"compose --env-file "*"-f docker-compose.production.yaml ps -q app"*)
+    printf 'app-id\\n'
+    ;;
+  *"inspect --format "*)
+    printf 'healthy\\n'
+    ;;
+  *"exec app-id alembic upgrade head"*)
+    printf 'migration failed\\n' >&2
+    exit 1
+    ;;
+  *"ps --format "*)
+    printf 'CONTAINER ID\\n'
+    ;;
+esac
+"""
+    curl_stub = f"""#!/usr/bin/env bash
+set -euo pipefail
+printf 'curl %s\\n' "$*" >> "{log_file}"
+"""
+    sleep_stub = "#!/usr/bin/env bash\nset -euo pipefail\n"
+    _write_executable(scripts_dir / "postgres_backup.sh", helper_stub)
+    _write_executable(bin_dir / "docker", docker_stub)
+    _write_executable(bin_dir / "curl", curl_stub)
+    _write_executable(bin_dir / "sleep", sleep_stub)
+
+    env = os.environ.copy()
+    env["PATH"] = f"{bin_dir}:{env['PATH']}"
+    env["DEPLOY_DIR"] = str(project_dir)
+    env["ENV_FILE"] = str(project_dir / ".env")
+    env["COMPOSE_FILE"] = "docker-compose.production.yaml"
+    env["IMAGE_REF"] = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:test"
+    env["TAG"] = "prod-vtest"
+    env["PRODUCTION_DOMAIN"] = "pulseplate.test"
+
+    completed = subprocess.run(
+        [str(REPO_ROOT / "scripts/deploy_production.sh")],
+        cwd=str(REPO_ROOT),
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert completed.returncode == 1
+    assert "Database migrations failed in container: app-id (exit code: 1)" in completed.stderr
+
+    log_lines = log_file.read_text(encoding="utf-8").splitlines()
+    assert any("exec app-id alembic upgrade head" in line for line in log_lines)
+    assert not any("up -d --remove-orphans caddy" in line for line in log_lines)
+    assert not any(
+        line.startswith("curl ") and "https://pulseplate.test/ready" in line for line in log_lines
+    )

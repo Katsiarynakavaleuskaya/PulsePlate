@@ -4,7 +4,8 @@ set -euo pipefail
 : "${IMAGE_REF:?IMAGE_REF is required (ghcr.io/<image>@sha256:...)}"
 : "${TAG:?TAG is required (prod-vX.Y.Z)}"
 
-export IMAGE_REF TAG
+DEPLOY_IMAGE_REF="$IMAGE_REF"
+DEPLOY_TAG="$TAG"
 
 # Healthcheck configuration
 HEALTH_MAX_ATTEMPTS="${HEALTH_MAX_ATTEMPTS:-12}"
@@ -82,6 +83,10 @@ set -a
 # shellcheck disable=SC1090
 . "$ENV_FILE"
 set +a
+
+IMAGE_REF="$DEPLOY_IMAGE_REF"
+TAG="$DEPLOY_TAG"
+export IMAGE_REF TAG
 
 : "${POSTGRES_USER:?POSTGRES_USER is required}"
 : "${POSTGRES_DB:?POSTGRES_DB is required}"

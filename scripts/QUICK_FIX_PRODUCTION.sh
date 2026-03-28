@@ -52,7 +52,7 @@ echo ""
 
 # Check for duplicates
 echo "=== Step 1: Check for duplicate env vars ==="
-DUPLICATES=$(grep -nE '^(APP_ENV|ENVIRONMENT|POSTGRES_DB|POSTGRES_USER|POSTGRES_PASSWORD|DATABASE_URL)=' .env 2>/dev/null | wc -l || echo "0")
+DUPLICATES=$({ grep -nE '^(APP_ENV|ENVIRONMENT|POSTGRES_DB|POSTGRES_USER|POSTGRES_PASSWORD|DATABASE_URL)=' .env 2>/dev/null || true; } | wc -l | tr -d '[:space:]')
 if [ "$DUPLICATES" -gt 6 ]; then
     echo "⚠️  Found potential duplicates in .env"
     grep -nE '^(APP_ENV|ENVIRONMENT|POSTGRES_DB|POSTGRES_USER|POSTGRES_PASSWORD|DATABASE_URL)=' .env || true
@@ -162,9 +162,13 @@ echo ""
 
 # Check health
 echo "=== Step 8: Health check ==="
-PUBLIC_DOMAIN=$(grep PRODUCTION_DOMAIN .env 2>/dev/null | cut -d'=' -f2 | tr -d '\n\r' || echo "pulseplate.app")
+PUBLIC_DOMAIN=$(grep '^PRODUCTION_DOMAIN=' .env 2>/dev/null | tail -1 | cut -d'=' -f2- | tr -d '\n\r' || echo "pulseplate.app")
 echo "Checking: https://${PUBLIC_DOMAIN}/ready"
-curl -fsS "https://${PUBLIC_DOMAIN}/ready" | jq . 2>/dev/null || curl -fsS "https://${PUBLIC_DOMAIN}/ready" || echo "⚠️  Health check failed"
+if command -v jq >/dev/null 2>&1; then
+    curl -fsS "https://${PUBLIC_DOMAIN}/ready" | jq . 2>/dev/null || echo "⚠️  Health check failed"
+else
+    curl -fsS "https://${PUBLIC_DOMAIN}/ready" || echo "⚠️  Health check failed"
+fi
 echo ""
 
 echo "=========================================="
