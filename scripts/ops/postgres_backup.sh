@@ -1,18 +1,32 @@
 #!/usr/bin/env bash
-# Backup Postgres database for PulsePlate production.
-# Usage: POSTGRES_USER=... POSTGRES_DB=... [PROJECT_DIR=...] [BACKUP_DIR=...] scripts/ops/postgres_backup.sh
+# Backup Postgres database for PulsePlate production/staging.
+# Usage: POSTGRES_USER=... POSTGRES_DB=... [PROJECT_DIR=...] [BACKUP_DIR=...] [COMPOSE_FILE=...] scripts/ops/postgres_backup.sh
 set -euo pipefail
 
 PROJECT_DIR="${PROJECT_DIR:-/srv/pulseplate-production}"
 BACKUP_DIR="${BACKUP_DIR:-/srv/pulseplate-production/backups}"
+COMPOSE_FILE="${COMPOSE_FILE:-}"
 TIMESTAMP="$(date +%Y%m%d_%H%M%S)"
+
+: "${POSTGRES_USER:?POSTGRES_USER is required}"
+: "${POSTGRES_DB:?POSTGRES_DB is required}"
 
 mkdir -p "${BACKUP_DIR}"
 
-cd "${PROJECT_DIR}"
+if [ -n "${COMPOSE_FILE}" ] && [ "${COMPOSE_FILE#/}" = "${COMPOSE_FILE}" ]; then
+  COMPOSE_FILE="${PROJECT_DIR}/${COMPOSE_FILE}"
+fi
+
+compose_exec() {
+  local compose_cmd=(docker compose --project-directory "${PROJECT_DIR}")
+  if [ -n "${COMPOSE_FILE}" ]; then
+    compose_cmd+=(-f "${COMPOSE_FILE}")
+  fi
+  "${compose_cmd[@]}" exec -T postgres "$@"
+}
 
 OUTPUT="${BACKUP_DIR}/pulseplate_${TIMESTAMP}.dump"
-docker compose exec -T postgres \
+compose_exec \
   pg_dump -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -Fc \
   > "${OUTPUT}" || { rm -f "${OUTPUT}"; exit 1; }
 

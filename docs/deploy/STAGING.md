@@ -76,7 +76,12 @@ sudo chown $USER:$USER /srv/pulseplate-staging
 sudo cp deploy/docker-compose.staging.yaml /srv/pulseplate-staging/
 sudo cp deploy/Caddyfile /srv/pulseplate-staging/
 sudo cp scripts/deploy.sh /srv/pulseplate-staging/
+sudo mkdir -p /srv/pulseplate-staging/scripts/ops
+sudo cp scripts/ops/postgres_backup.sh /srv/pulseplate-staging/scripts/ops/
+sudo cp scripts/ops/postgres_restore.sh /srv/pulseplate-staging/scripts/ops/
 sudo chmod +x /srv/pulseplate-staging/deploy.sh
+sudo chmod +x /srv/pulseplate-staging/scripts/ops/postgres_backup.sh
+sudo chmod +x /srv/pulseplate-staging/scripts/ops/postgres_restore.sh
 ```
 
 ### 4. Configure Environment
@@ -86,7 +91,13 @@ sudo chmod +x /srv/pulseplate-staging/deploy.sh
 sudo tee /srv/pulseplate-staging/.env > /dev/null << 'EOF'
 # Application Configuration
 STAGING_DOMAIN=staging.yourdomain.com
-DATABASE_URL=sqlite:///app/cache/app.db
+DATABASE_URL=postgresql+psycopg://<user>:<password>@postgres:5432/<dbname>
+POSTGRES_DB=pulseplate
+POSTGRES_USER=pulseplate
+POSTGRES_PASSWORD=replace-with-strong-secret
+SUBSCRIPTION_DB_ENABLED=true
+ALLOW_DEV_API_KEY=false
+API_KEY_REQUIRED=true
 SECRET_KEY=your-secret-key-here
 DEBUG=false
 
@@ -95,6 +106,8 @@ EOF
 
 sudo chown $USER:$USER /srv/pulseplate-staging/.env
 ```
+
+Staging uses the same Postgres-first deploy contract as production: the compose stack includes an internal-only `postgres` service, deploy backups go through `scripts/ops/postgres_backup.sh`, and readiness must be verified via `/ready` or `/health/db`.
 
 ### 5. Configure Firewall
 
@@ -289,7 +302,7 @@ cd /srv/pulseplate-staging
 1. Push a commit to `main` branch
 2. Check GitHub Actions → CD workflow
 3. Visit your staging domain
-4. Verify `/health` endpoint returns 200
+4. Verify `/ready` endpoint returns 200
 
 ## 🔍 Troubleshooting
 
@@ -344,10 +357,13 @@ free -h
 
 ```bash
 # Check if application is running
-curl -f https://staging.yourdomain.com/health
+curl -f https://staging.yourdomain.com/ready
+
+# Optional DB-specific readiness check
+curl -f https://staging.yourdomain.com/health/db
 
 # Check response time
-curl -w "@curl-format.txt" -o /dev/null -s https://staging.yourdomain.com/health
+curl -w "@curl-format.txt" -o /dev/null -s https://staging.yourdomain.com/ready
 ```
 
 ### Log Monitoring

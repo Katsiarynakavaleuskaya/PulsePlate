@@ -51,11 +51,12 @@ fi
 echo "📍 Compose file: $COMPOSE_FILE"
 echo ""
 
-# Check if postgres service exists in compose file
-HAS_POSTGRES=false
-if grep -qE "^\s+postgres:" "$COMPOSE_FILE" || grep -qE "^\s+db:" "$COMPOSE_FILE"; then
-    HAS_POSTGRES=true
-    echo "⚠️  Found postgres/db service in compose file"
+# Production deploy contract is Postgres-first and fail-closed.
+if grep -qE "^\s+postgres:" "$COMPOSE_FILE"; then
+    echo "✅ Found postgres service in compose file"
+else
+    echo "❌ Production compose must define a postgres service"
+    exit 1
 fi
 
 # Check if .env exists
@@ -64,31 +65,7 @@ if [ ! -f ".env" ]; then
     touch .env
 fi
 
-echo "=== Step 1: Check current POSTGRES_PASSWORD ==="
-if [ "$HAS_POSTGRES" = true ]; then
-    # Try to get password from existing postgres container
-    POSTGRES_CONTAINER=$(docker ps -q --filter "name=postgres" --filter "name=db" | head -1)
-    if [ -n "$POSTGRES_CONTAINER" ]; then
-        echo "✅ Found existing postgres container: $POSTGRES_CONTAINER"
-        EXISTING_PASSWORD=$(docker inspect "$POSTGRES_CONTAINER" --format '{{range .Config.Env}}{{println .}}{{end}}' 2>/dev/null | grep -E '^POSTGRES_PASSWORD=' | cut -d'=' -f2- || true)
-        if [ -n "$EXISTING_PASSWORD" ]; then
-            echo "✅ Found existing POSTGRES_PASSWORD in container"
-            POSTGRES_PASSWORD_VALUE="$EXISTING_PASSWORD"
-        else
-            echo "⚠️  POSTGRES_PASSWORD not found in container, will use dummy"
-            POSTGRES_PASSWORD_VALUE="dummy"  # pragma: allowlist secret
-        fi
-    else
-        echo "⚠️  No existing postgres container found, will use dummy password"
-        POSTGRES_PASSWORD_VALUE="dummy"  # pragma: allowlist secret
-    fi
-else
-    echo "ℹ️  No postgres service in compose file, skipping POSTGRES_PASSWORD"
-    POSTGRES_PASSWORD_VALUE=""
-fi
-
-echo ""
-echo "=== Step 2: Update .env file ==="
+echo "=== Step 1: Update .env file ==="
 
 # Backup .env
 if [ -f ".env" ]; then
@@ -115,13 +92,39 @@ set_env_var() {
     echo "   Set: ${key}=${value}"
 }
 
-# Set required variables
-if [ "$HAS_POSTGRES" = true ] && [ -n "$POSTGRES_PASSWORD_VALUE" ]; then
-    set_env_var "POSTGRES_PASSWORD" "$POSTGRES_PASSWORD_VALUE"
-fi
-
 set_env_var "APP_ENV" "production"
 set_env_var "ENVIRONMENT" "production"
+set_env_var "SUBSCRIPTION_DB_ENABLED" "true"
+set_env_var "ALLOW_DEV_API_KEY" "false"
+set_env_var "API_KEY_REQUIRED" "true"
+
+echo ""
+echo "=== Step 2: Validate required Postgres contract ==="
+
+require_env_var() {
+    local key="$1"
+    local value=""
+    value="$(grep -E "^${key}=" .env 2>/dev/null | tail -1 | cut -d'=' -f2- | tr -d '\r\n' || true)"
+    if [ -z "$value" ]; then
+        echo "❌ Missing required env var in .env: ${key}"
+        exit 1
+    fi
+    echo "✅ Found ${key}"
+}
+
+require_env_var "DATABASE_URL"
+require_env_var "POSTGRES_DB"
+require_env_var "POSTGRES_USER"
+require_env_var "POSTGRES_PASSWORD"
+
+DATABASE_URL_VALUE="$(grep -E '^DATABASE_URL=' .env | tail -1 | cut -d'=' -f2- | tr -d '\r\n')"
+case "$DATABASE_URL_VALUE" in
+    postgresql+psycopg://*) echo "✅ DATABASE_URL uses Postgres DSN" ;;
+    *)
+        echo "❌ DATABASE_URL must use canonical Postgres DSN (postgresql+psycopg://...)"
+        exit 1
+        ;;
+esac
 
 # Check for other required vars from compose
 if grep -qE '\$\{PRODUCTION_DOMAIN' "$COMPOSE_FILE"; then
@@ -204,12 +207,12 @@ echo "Fix Complete"
 echo "=========================================="
 echo ""
 echo "Next steps:"
-echo "1. Check health endpoint:"
+echo "1. Check readiness endpoint:"
 PROD_DOMAIN="$(grep -E '^PRODUCTION_DOMAIN=' .env 2>/dev/null | head -1 | cut -d'=' -f2- | tr -d '\r\n' || true)"
 if [ -z "${PROD_DOMAIN}" ]; then
     PROD_DOMAIN="YOUR_DOMAIN"
 fi
-echo "   curl -fsS https://${PROD_DOMAIN}/health | jq ."
+echo "   curl -fsS https://${PROD_DOMAIN}/ready | jq ."
 if [ "${PROD_DOMAIN}" = "YOUR_DOMAIN" ]; then
     echo "   (If it prints YOUR_DOMAIN — set PRODUCTION_DOMAIN in .env)"
 fi

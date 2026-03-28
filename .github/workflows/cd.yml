@@ -145,7 +145,7 @@ jobs:
         run: |
           set -euo pipefail
           for i in 1 2 3; do
-            if curl -fsS --max-time 10 "https://${{ secrets.STAGING_DOMAIN }}/health" > /dev/null; then
+            if curl -fsS --max-time 10 "https://${{ secrets.STAGING_DOMAIN }}/ready" > /dev/null; then
               echo "Healthcheck passed"
               exit 0
             fi

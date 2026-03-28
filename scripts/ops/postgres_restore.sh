@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Restore Postgres database from backup.
-# Usage: POSTGRES_USER=... POSTGRES_DB=... scripts/ops/postgres_restore.sh path/to/backup.dump
+# Usage: POSTGRES_USER=... POSTGRES_DB=... [PROJECT_DIR=...] [COMPOSE_FILE=...] scripts/ops/postgres_restore.sh path/to/backup.dump
 set -euo pipefail
 
 if [ "${#}" -ne 1 ]; then
@@ -10,6 +10,10 @@ fi
 
 BACKUP_FILE="$1"
 PROJECT_DIR="${PROJECT_DIR:-/srv/pulseplate-production}"
+COMPOSE_FILE="${COMPOSE_FILE:-}"
+
+: "${POSTGRES_USER:?POSTGRES_USER is required}"
+: "${POSTGRES_DB:?POSTGRES_DB is required}"
 
 if [ ! -f "${BACKUP_FILE}" ]; then
   echo "Backup file not found: ${BACKUP_FILE}"
@@ -21,12 +25,22 @@ if [ "${BACKUP_FILE#/}" = "${BACKUP_FILE}" ]; then
   BACKUP_FILE="$(cd "$(dirname "${BACKUP_FILE}")" && pwd)/$(basename "${BACKUP_FILE}")"
 fi
 
-cd "${PROJECT_DIR}"
+if [ -n "${COMPOSE_FILE}" ] && [ "${COMPOSE_FILE#/}" = "${COMPOSE_FILE}" ]; then
+  COMPOSE_FILE="${PROJECT_DIR}/${COMPOSE_FILE}"
+fi
 
-docker compose exec -T postgres \
+compose_exec() {
+  local compose_cmd=(docker compose --project-directory "${PROJECT_DIR}")
+  if [ -n "${COMPOSE_FILE}" ]; then
+    compose_cmd+=(-f "${COMPOSE_FILE}")
+  fi
+  "${compose_cmd[@]}" exec -T postgres "$@"
+}
+
+compose_exec \
   psql -v ON_ERROR_STOP=1 -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"
 
-docker compose exec -T postgres \
+compose_exec \
   pg_restore -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" --clean --if-exists \
   < "${BACKUP_FILE}"
 
