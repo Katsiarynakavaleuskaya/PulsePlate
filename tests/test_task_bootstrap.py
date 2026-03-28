@@ -973,6 +973,41 @@ def test_task_bootstrap_changes_packet_id_when_design_contract_changes() -> None
     assert baseline_packet["task_packet_id"] != design_packet["task_packet_id"]
 
 
+def test_task_bootstrap_canonicalizes_design_blocker_order_for_packet_identity() -> None:
+    """Design blocker ordering must not perturb deterministic packet identity."""
+
+    first_packet = build_task_packet(
+        goal="Refresh docs sync guidance",
+        task_class="Documentation",
+        candidate_paths=["docs/orchestration/AGENT_MESSAGE_PROTOCOL.md"],
+        design_source="code_native_brief",
+        target_surface="web.hero",
+        task_mode="implement",
+        code_native_design_brief_path="docs/design/HERO_BRIEF.md",
+        design_blockers=("stale", "blocked_by_plan"),
+    )
+    second_packet = build_task_packet(
+        goal="Refresh docs sync guidance",
+        task_class="Documentation",
+        candidate_paths=["docs/orchestration/AGENT_MESSAGE_PROTOCOL.md"],
+        design_source="code_native_brief",
+        target_surface="web.hero",
+        task_mode="implement",
+        code_native_design_brief_path="docs/design/HERO_BRIEF.md",
+        design_blockers=("blocked_by_plan", "stale"),
+    )
+
+    assert first_packet["task_packet_id"] == second_packet["task_packet_id"]
+    assert first_packet["design_lane_contract"]["blockers"] == [
+        "blocked_by_plan",
+        "stale",
+    ]
+    assert second_packet["design_lane_contract"]["blockers"] == [
+        "blocked_by_plan",
+        "stale",
+    ]
+
+
 def test_matches_any_prefix_covers_exact_and_nested_paths() -> None:
     """Prefix matcher must honor exact directory roots and nested repo paths."""
 

@@ -77,6 +77,18 @@ def dedupe_preserve_order(values: list[str]) -> list[str]:
     return deduped
 
 
+def canonicalize_design_blockers(
+    design_blockers: list[str] | tuple[str, ...],
+) -> list[str]:
+    """Return blockers in canonical vocabulary order for deterministic hashing."""
+
+    blocker_rank = {blocker: index for index, blocker in enumerate(DESIGN_BLOCKERS)}
+    return sorted(
+        dedupe_preserve_order(list(design_blockers)),
+        key=lambda blocker: blocker_rank[blocker],
+    )
+
+
 def normalize_design_blockers(
     design_blockers: list[str] | tuple[str, ...],
 ) -> list[str]:
@@ -91,7 +103,7 @@ def normalize_design_blockers(
         )
         if normalized_blocker:
             normalized.append(normalized_blocker)
-    return dedupe_preserve_order(normalized)
+    return canonicalize_design_blockers(normalized)
 
 
 def design_trigger_present(

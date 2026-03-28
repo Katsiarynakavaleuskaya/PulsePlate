@@ -47,7 +47,7 @@ from scripts.orchestration.design_lane_contract import (
     FIGMA_DESIGN_SOURCES,
     FIGMA_LANE_TOOLS,
     READ_ONLY_DESIGN_SOURCES,
-    dedupe_preserve_order,
+    canonicalize_design_blockers,
     design_trigger_present,
     normalize_design_blockers,
     normalize_design_enum,
@@ -132,10 +132,14 @@ def _read_json(path: Path) -> dict[str, Any] | None:
 def _design_fingerprint(*, design_lane_mode: str, design_lane_contract: dict[str, Any]) -> str:
     """Return a deterministic fingerprint for design-lane packet identity."""
 
+    canonical_contract = dict(design_lane_contract)
+    canonical_contract["blockers"] = canonicalize_design_blockers(
+        list(design_lane_contract.get("blockers", ()))
+    )
     return json.dumps(
         {
             "design_lane_mode": design_lane_mode,
-            "design_lane_contract": design_lane_contract,
+            "design_lane_contract": canonical_contract,
         },
         ensure_ascii=False,
         sort_keys=True,
@@ -244,7 +248,7 @@ def _build_design_lane_contract(
             ):
                 blockers.append("blocked_by_node_id_capture")
 
-    blockers = dedupe_preserve_order(blockers)
+    blockers = canonicalize_design_blockers(blockers)
     design_lane_mode = "read_only"
     if normalized_design_source in READ_ONLY_DESIGN_SOURCES:
         design_lane_mode = "read_only"
