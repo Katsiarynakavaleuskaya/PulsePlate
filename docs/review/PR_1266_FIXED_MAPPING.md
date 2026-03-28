@@ -5,7 +5,15 @@
 - [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
-- No actionable review comments
+Disposition: FIXED
+Commit: 7a91800f
+Evidence: `docs/orchestration/workflow.md:148`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1266#discussion_r3004669178 -> 7a91800f
+
+Disposition: NOT-A-BUG
+Evidence: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1266#discussion_r3004669178 is mapped explicitly as the only actionable thread from this Sourcery review batch.
+Reason: The review-level wrapper also contains high-level maintainability suggestions, but they are advisory design guidance rather than a separate blocking defect requiring an additional code change in this PR.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1266#pullrequestreview-4025447129
 
 ## Merge Readiness
 - [ ] All required checks pass
