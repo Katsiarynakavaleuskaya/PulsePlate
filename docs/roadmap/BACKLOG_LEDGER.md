@@ -2167,12 +2167,13 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Coordinator automation PR5 — creative research and design/Figma activation
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-TBD-AUTOMATION-PR5-DESIGN-CREATIVE
+  - Target PR: PR #1268 (`feat(orchestration): gate design lanes`)
   - Area: orchestration / research / design tooling
   - Finding Type: automation rollout slice
+  - Status: Draft PR `#1268` opened on March 28, 2026; local preflight, targeted tests, `pre-commit run --all-files`, and `make verify` passed on head `6af6ca34`.
   - Reason: Creative research and design lanes are the broadest automation surface and must come after bootstrap and skill routing stabilize. This slice should add explicit trigger rules and safe activation boundaries instead of letting design/Figma behavior emerge implicitly.
   - Dependencies:
-    - `PR-TBD-AUTOMATION-PR4-PR-LIFECYCLE`
+    - `PR #1266`
   - Lifecycle: Start → Open → Push → Review → Merge
   - Links:
     - `docs/orchestration/AUTOMATION_READINESS_MATRIX.md`
