@@ -915,16 +915,18 @@ def _has_explicit_design_activation_data(
 ) -> bool:
     """Return True when the caller explicitly supplied design-lane metadata."""
 
-    return design_trigger_present(
-        design_source=normalize_optional_text(design_source),
-        source_url=normalize_optional_text(source_url),
-        file_key_or_workspace=normalize_optional_text(file_key_or_workspace),
-        node_id_or_frame_id=normalize_optional_text(node_id_or_frame_id),
-        target_surface=normalize_optional_text(target_surface),
-        task_mode=normalize_optional_text(task_mode),
-        figma_lane_tool=normalize_optional_text(figma_lane_tool),
-        code_native_design_brief_path=normalize_optional_text(code_native_design_brief_path),
-        explicit_creation_mode=explicit_creation_mode,
+    return bool(
+        design_trigger_present(
+            design_source=normalize_optional_text(design_source),
+            source_url=normalize_optional_text(source_url),
+            file_key_or_workspace=normalize_optional_text(file_key_or_workspace),
+            node_id_or_frame_id=normalize_optional_text(node_id_or_frame_id),
+            target_surface=normalize_optional_text(target_surface),
+            task_mode=normalize_optional_text(task_mode),
+            figma_lane_tool=normalize_optional_text(figma_lane_tool),
+            code_native_design_brief_path=normalize_optional_text(code_native_design_brief_path),
+            explicit_creation_mode=explicit_creation_mode,
+        )
     )
 
 
