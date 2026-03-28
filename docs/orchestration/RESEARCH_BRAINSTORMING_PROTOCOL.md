@@ -22,7 +22,12 @@ Use this protocol when the task requires:
 - web/OSS intake (libraries, papers, advisories, best practices)
 - a decision that must be promotable into repo artifacts (ledger/ADR/tests)
 
-If the task class is `creative_research`, this protocol remains the brainstorm / research entrypoint, but phase semantics and hypothesis / scorecard contracts come from `docs/orchestration/CREATIVE_RESEARCH_SUBLANE_PROTOCOL.md`.
+If the task class is `creative_research`, this protocol remains the brainstorm /
+research entrypoint, but phase semantics and hypothesis / scorecard contracts
+come from `docs/orchestration/CREATIVE_RESEARCH_SUBLANE_PROTOCOL.md`.
+Activation must stay explicit: use a real report/research deliverable,
+governed research surface, or explicit packet metadata rather than generic
+“wellness/market/design” wording.
 
 If the task requires verification-first judgment or claim reconciliation before promotion, the brainstorm output must also name the adjudication path and evidence reconciliation contract:
 

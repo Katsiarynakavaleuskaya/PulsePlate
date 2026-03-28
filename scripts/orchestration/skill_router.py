@@ -16,6 +16,18 @@ from scripts.orchestration.requested_agents import normalize_requested_agents
 
 ROUTING_POLICY_VERSION = "2026-03-27"
 SELECTION_MODE = "deterministic-weighted"
+FIGMA_DESIGN_SOURCES: frozenset[str] = frozenset({"figma_design", "figma_make"})
+DESIGN_ACTIVATION_SOURCES: frozenset[str] = frozenset(
+    {
+        "code_native_brief",
+        "figma_design",
+        "figma_make",
+        "notion",
+        "airweave",
+        "penpot",
+        "stitch_reference",
+    }
+)
 
 ALWAYS_ON_SKILLS: tuple[str, ...] = ("pulseplate-workflow",)
 PR_GOVERNANCE_REQUIRED_SKILLS: tuple[str, ...] = (
@@ -169,13 +181,11 @@ TASK_CLASSIFICATION_RULES: tuple[TaskClassificationRule, ...] = (
             "monthly",
             "quarterly",
             "trend",
+            "report",
             "research brief",
             "gtm",
             "aso",
             "seo",
-            "wellness",
-            "market",
-            "industry",
         ),
     ),
     TaskClassificationRule(
@@ -773,12 +783,15 @@ def _classify_task(
     scored_by_label = {item["label"]: item for item in scored}
     winning_label = "implementation"
     winning_score = -1
+    minimum_score_by_label = {"creative_research": 4}
 
     for label in CLASSIFICATION_PRECEDENCE:
         candidate = scored_by_label.get(label)
         if candidate is None:
             continue
         candidate_score = int(candidate["score"])
+        if candidate_score < minimum_score_by_label.get(label, 1):
+            continue
         if candidate_score > winning_score:
             winning_label = label
             winning_score = candidate_score
@@ -891,6 +904,72 @@ def _build_conditional_skills(
     return conditional
 
 
+def _normalize_optional_text(value: str | None) -> str:
+    """Return a stripped optional string."""
+
+    if value is None:
+        return ""
+    return value.strip()
+
+
+def _has_explicit_design_activation_data(
+    *,
+    design_source: str | None,
+    source_url: str | None,
+    file_key_or_workspace: str | None,
+    node_id_or_frame_id: str | None,
+    target_surface: str | None,
+    task_mode: str | None,
+    figma_lane_tool: str | None,
+    code_native_design_brief_path: str | None,
+    explicit_creation_mode: bool,
+) -> bool:
+    """Return True when the caller explicitly supplied design-lane metadata."""
+
+    return any(
+        (
+            _normalize_optional_text(design_source),
+            _normalize_optional_text(source_url),
+            _normalize_optional_text(file_key_or_workspace),
+            _normalize_optional_text(node_id_or_frame_id),
+            _normalize_optional_text(target_surface),
+            _normalize_optional_text(task_mode),
+            _normalize_optional_text(figma_lane_tool),
+            _normalize_optional_text(code_native_design_brief_path),
+            explicit_creation_mode,
+        )
+    )
+
+
+def _promote_task_classification_for_explicit_design_metadata(
+    *,
+    task_classification: dict[str, Any],
+    design_source: str,
+    explicit_design_metadata: bool,
+) -> dict[str, Any]:
+    """Promote explicit design packets into the canonical design lane."""
+
+    if not explicit_design_metadata or not design_source:
+        return task_classification
+    if task_classification["label"] in {"pr_governance", "creative_research", "experiment"}:
+        return task_classification
+    if task_classification["label"] == "design":
+        updated = dict(task_classification)
+        updated["reasons"] = [
+            *updated["reasons"],
+            f"explicit-design-source:{design_source}(+packet)",
+        ]
+        return updated
+    return {
+        "label": "design",
+        "score": max(int(task_classification["score"]), 1),
+        "reasons": [
+            *task_classification["reasons"],
+            f"explicit-design-source:{design_source}(+packet)",
+        ],
+    }
+
+
 def route_skills(
     *,
     goal: str,
@@ -898,6 +977,15 @@ def route_skills(
     candidate_paths: list[str] | tuple[str, ...],
     domain: str,
     requested_agents: list[str] | tuple[str, ...] = (),
+    design_source: str | None = None,
+    source_url: str | None = None,
+    file_key_or_workspace: str | None = None,
+    node_id_or_frame_id: str | None = None,
+    target_surface: str | None = None,
+    task_mode: str | None = None,
+    figma_lane_tool: str | None = None,
+    code_native_design_brief_path: str | None = None,
+    explicit_creation_mode: bool = False,
 ) -> dict[str, Any]:
     """Return deterministic skill routing decision with evidence."""
 
@@ -905,10 +993,27 @@ def route_skills(
     normalized_text = normalize_text(goal, task_class, *normalized_paths)
     normalized_request_text = normalize_text(goal, task_class)
     normalized_requested_agents = tuple(normalize_requested_agents(requested_agents))
+    normalized_design_source = _normalize_optional_text(design_source)
+    explicit_design_metadata = _has_explicit_design_activation_data(
+        design_source=design_source,
+        source_url=source_url,
+        file_key_or_workspace=file_key_or_workspace,
+        node_id_or_frame_id=node_id_or_frame_id,
+        target_surface=target_surface,
+        task_mode=task_mode,
+        figma_lane_tool=figma_lane_tool,
+        code_native_design_brief_path=code_native_design_brief_path,
+        explicit_creation_mode=explicit_creation_mode,
+    )
     task_classification = _classify_task(
         normalized_paths=normalized_paths,
         normalized_text=normalized_text,
         domain=domain,
+    )
+    task_classification = _promote_task_classification_for_explicit_design_metadata(
+        task_classification=task_classification,
+        design_source=normalized_design_source,
+        explicit_design_metadata=explicit_design_metadata,
     )
 
     blocked = [
@@ -968,6 +1073,21 @@ def route_skills(
             )
 
     selected = list(selected_by_skill.values())
+    if explicit_design_metadata and normalized_design_source in DESIGN_ACTIVATION_SOURCES:
+        for bundled_skill in DESIGN_CONDITIONAL_SKILLS:
+            if bundled_skill in required_skill_names:
+                continue
+            boost = 6 if bundled_skill not in selected_by_skill else 2
+            _apply_bundle_reason(
+                selected_by_skill=selected_by_skill,
+                skill=bundled_skill,
+                boost=boost,
+                reason=f"design-metadata:{normalized_design_source}(+{boost})",
+                fallback_rationale=(
+                    "Explicit design activation metadata upgrades the design lane from advisory to actionable."
+                ),
+            )
+        selected = list(selected_by_skill.values())
     selected.sort(key=lambda item: (-int(item["score"]), item["skill"]))
     conditional = _build_conditional_skills(
         scored=scored,
@@ -994,6 +1114,15 @@ def select_recommended_skills(
     candidate_paths: list[str] | tuple[str, ...],
     domain: str,
     requested_agents: list[str] | tuple[str, ...] = (),
+    design_source: str | None = None,
+    source_url: str | None = None,
+    file_key_or_workspace: str | None = None,
+    node_id_or_frame_id: str | None = None,
+    target_surface: str | None = None,
+    task_mode: str | None = None,
+    figma_lane_tool: str | None = None,
+    code_native_design_brief_path: str | None = None,
+    explicit_creation_mode: bool = False,
 ) -> list[str]:
     """Backward-compatible helper returning only the ordered skill names."""
 
@@ -1003,6 +1132,15 @@ def select_recommended_skills(
         candidate_paths=candidate_paths,
         domain=domain,
         requested_agents=requested_agents,
+        design_source=design_source,
+        source_url=source_url,
+        file_key_or_workspace=file_key_or_workspace,
+        node_id_or_frame_id=node_id_or_frame_id,
+        target_surface=target_surface,
+        task_mode=task_mode,
+        figma_lane_tool=figma_lane_tool,
+        code_native_design_brief_path=code_native_design_brief_path,
+        explicit_creation_mode=explicit_creation_mode,
     )
     return flatten_recommended_skills(decision)
 

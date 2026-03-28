@@ -108,9 +108,110 @@ def test_task_bootstrap_adds_automation_metadata_defaults() -> None:
         "merge_readiness_entrypoint": "",
     }
     assert packet["design_lane_mode"] == "disabled"
+    assert packet["design_lane_contract"] == {
+        "design_source": "",
+        "source_url": "",
+        "file_key_or_workspace": "",
+        "node_id_or_frame_id": "",
+        "target_surface": "",
+        "task_mode": "",
+        "figma_lane_tool": "",
+        "blockers": ["missing_design_trigger"],
+        "code_native_design_brief_required": False,
+        "code_native_design_brief_path": "",
+        "explicit_creation_mode": False,
+    }
     assert packet["needs_backlog_update"] is False
     assert packet["needs_docs_sync"] is False
     assert packet["needs_agents_sync"] is False
+
+
+def test_task_bootstrap_sets_read_only_design_lane_for_incomplete_figma_packet() -> None:
+    """Explicit Figma packets should fail closed into read-only until metadata is complete."""
+
+    packet = build_task_packet(
+        goal="Prepare Figma activation packet",
+        task_class="Frontend",
+        candidate_paths=["frontend/src/components/Hero.tsx"],
+        design_source="figma_design",
+        target_surface="web.hero",
+        task_mode="implement",
+        figma_lane_tool="figma_native",
+        code_native_design_brief_path="docs/design/HERO_BRIEF.md",
+    )
+
+    assert packet["automation_flags"]["design_lane_enabled"] is True
+    assert packet["design_lane_mode"] == "read_only"
+    assert packet["design_lane_contract"]["design_source"] == "figma_design"
+    assert packet["design_lane_contract"]["blockers"] == [
+        "blocked_by_design_url",
+        "blocked_by_node_id_capture",
+    ]
+    assert packet["design_lane_contract"]["code_native_design_brief_required"] is True
+
+
+def test_task_bootstrap_enables_code_native_design_lane_with_valid_packet() -> None:
+    """Code-native design packets should activate without Figma-specific blockers."""
+
+    packet = build_task_packet(
+        goal="Implement code-native design brief",
+        task_class="Frontend",
+        candidate_paths=["frontend/src/components/Hero.tsx"],
+        design_source="code_native_brief",
+        target_surface="web.hero",
+        task_mode="implement",
+        code_native_design_brief_path="docs/design/HERO_BRIEF.md",
+    )
+
+    assert packet["automation_flags"]["design_lane_enabled"] is True
+    assert packet["design_lane_mode"] == "implement"
+    assert packet["design_lane_contract"]["blockers"] == []
+    assert packet["design_lane_contract"]["design_source"] == "code_native_brief"
+    assert packet["design_lane_contract"]["code_native_design_brief_required"] is False
+
+
+def test_task_bootstrap_enables_figma_design_lane_with_complete_packet() -> None:
+    """Complete Figma packets should activate the requested task mode."""
+
+    packet = build_task_packet(
+        goal="Sync Figma-backed design packet",
+        task_class="Frontend",
+        candidate_paths=["frontend/src/components/Hero.tsx"],
+        design_source="figma_design",
+        source_url="https://www.figma.com/design/demo/File?node-id=42-7",
+        file_key_or_workspace="demo",
+        node_id_or_frame_id="42:7",
+        target_surface="web.hero",
+        task_mode="sync",
+        figma_lane_tool="figma_native",
+        code_native_design_brief_path="docs/design/HERO_BRIEF.md",
+    )
+
+    assert packet["automation_flags"]["design_lane_enabled"] is True
+    assert packet["design_lane_mode"] == "sync"
+    assert packet["design_lane_contract"]["blockers"] == []
+    assert packet["design_lane_contract"]["node_id_or_frame_id"] == "42:7"
+
+
+def test_task_bootstrap_allows_explicit_figma_creation_mode_without_existing_node() -> None:
+    """Explicit creation mode should unlock Figma activation without existing URL/node metadata."""
+
+    packet = build_task_packet(
+        goal="Create a new Figma design surface from the canonical brief",
+        task_class="Frontend",
+        candidate_paths=["frontend/src/components/Hero.tsx"],
+        design_source="figma_design",
+        target_surface="web.hero",
+        task_mode="implement",
+        figma_lane_tool="figma_native",
+        code_native_design_brief_path="docs/design/HERO_BRIEF.md",
+        explicit_creation_mode=True,
+    )
+
+    assert packet["automation_flags"]["design_lane_enabled"] is True
+    assert packet["design_lane_mode"] == "implement"
+    assert packet["design_lane_contract"]["blockers"] == []
+    assert packet["design_lane_contract"]["explicit_creation_mode"] is True
 
 
 def test_task_bootstrap_enables_post_open_review_lane_for_pr_phase() -> None:
@@ -830,6 +931,7 @@ def test_task_bootstrap_keeps_packet_id_stable_for_identical_inputs() -> None:
     assert first_packet["automation_flags"] == second_packet["automation_flags"]
     assert first_packet["pr_phase"] == second_packet["pr_phase"]
     assert first_packet["design_lane_mode"] == second_packet["design_lane_mode"]
+    assert first_packet["design_lane_contract"] == second_packet["design_lane_contract"]
     assert first_packet["needs_backlog_update"] == second_packet["needs_backlog_update"]
     assert first_packet["needs_docs_sync"] == second_packet["needs_docs_sync"]
     assert first_packet["needs_agents_sync"] == second_packet["needs_agents_sync"]
@@ -851,6 +953,27 @@ def test_task_bootstrap_changes_packet_id_when_pr_phase_changes() -> None:
     )
 
     assert baseline_packet["task_packet_id"] != review_packet["task_packet_id"]
+
+
+def test_task_bootstrap_changes_packet_id_when_design_contract_changes() -> None:
+    """Design metadata must participate in packet identity."""
+
+    baseline_packet = build_task_packet(
+        goal="Refresh docs sync guidance",
+        task_class="Documentation",
+        candidate_paths=["docs/orchestration/AGENT_MESSAGE_PROTOCOL.md"],
+    )
+    design_packet = build_task_packet(
+        goal="Refresh docs sync guidance",
+        task_class="Documentation",
+        candidate_paths=["docs/orchestration/AGENT_MESSAGE_PROTOCOL.md"],
+        design_source="code_native_brief",
+        target_surface="web.hero",
+        task_mode="implement",
+        code_native_design_brief_path="docs/design/HERO_BRIEF.md",
+    )
+
+    assert baseline_packet["task_packet_id"] != design_packet["task_packet_id"]
 
 
 def test_matches_any_prefix_covers_exact_and_nested_paths() -> None:
@@ -1258,3 +1381,146 @@ def test_main_passes_pr_phase_flag(monkeypatch, capsys) -> None:
     assert exit_code == 0
     assert observed["pr_phase"] == "post_open_review"
     assert json.loads(captured.out)["task_packet_id"] == "pr-phase-packet"
+
+
+def test_main_passes_design_lane_flags(monkeypatch, capsys) -> None:
+    """CLI should propagate additive design-lane arguments into the packet builder."""
+
+    observed: dict[str, object] = {}
+
+    def _fake_build_task_packet(**kwargs: object) -> dict[str, object]:
+        observed.update(kwargs)
+        return {
+            "schema_version": "2.0",
+            "task_packet_id": "design-packet",
+            "goal": "Use explicit design packet",
+            "task_class": "Frontend",
+            "domain": "frontend",
+            "cluster": "product",
+            "candidate_paths": ["frontend/src/components/Hero.tsx"],
+            "primary_agent": "agent-coordinator",
+            "secondary_agents": [],
+            "reviewer": "architecture-specialist",
+            "requested_agents": [],
+            "requested_agent_disposition": [],
+            "required_context": ["AGENTS.md"],
+            "recommended_skills": ["pulseplate-workflow"],
+            "skill_routing": {
+                "policy_version": "2026-03-27",
+                "selection_mode": "deterministic-weighted",
+                "requested_agents": [],
+                "task_classification": {
+                    "label": "design",
+                    "score": 1,
+                    "reasons": ["explicit-design-source:figma_design(+packet)"],
+                },
+                "required": [
+                    {
+                        "skill": "pulseplate-workflow",
+                        "rationale": "Mandatory entry skill for all PulsePlate tasks.",
+                        "reasons": ["always-on"],
+                    }
+                ],
+                "recommended": [],
+                "conditional": [],
+                "blocked": [],
+            },
+            "automation_flags": {
+                "coordinator_first_required": True,
+                "skill_routing_applied": True,
+                "native_subagent_bridge_available": True,
+                "security_review_required": False,
+                "judgment_lane_enabled": False,
+                "pr_lifecycle_enabled": False,
+                "design_lane_enabled": True,
+            },
+            "pr_phase": "none",
+            "pr_lifecycle_contract": {
+                "requires_pr": False,
+                "post_open_review_required": False,
+                "review_lane": [],
+                "artifact_template": "",
+                "current_head_required": False,
+                "current_head_truth": "not-applicable",
+                "merge_readiness_entrypoint": "",
+            },
+            "design_lane_mode": "implement",
+            "design_lane_contract": {
+                "design_source": "figma_design",
+                "source_url": "",
+                "file_key_or_workspace": "",
+                "node_id_or_frame_id": "",
+                "target_surface": "web.hero",
+                "task_mode": "implement",
+                "figma_lane_tool": "figma_native",
+                "blockers": [],
+                "code_native_design_brief_required": True,
+                "code_native_design_brief_path": "docs/design/HERO_BRIEF.md",
+                "explicit_creation_mode": True,
+            },
+            "needs_backlog_update": False,
+            "needs_docs_sync": False,
+            "needs_agents_sync": False,
+            "decision_contract": {
+                "mode": "standard",
+                "judgment_enabled": False,
+                "claim_taxonomy": [],
+                "flow": [],
+            },
+            "judgment_budget": {
+                "skeptic_pass_required": False,
+                "verifier_pass_required": False,
+                "max_provider_calls": 0,
+                "uncertainty_split_required": False,
+            },
+            "result_adjudication": {
+                "claim_evidence_fields": [],
+                "support_statuses": [],
+                "evidence_modes": [],
+                "uncertainty_fields": [],
+                "promotion_labels": [],
+            },
+            "native_subagent_bridge": {
+                "protocol_version": "1.0",
+                "transport": "codex-native-subagents",
+                "primary": {"native_agent_type": "default"},
+                "secondary": [],
+                "reviewer": {"native_agent_type": "explorer"},
+            },
+            "routing_rationale": {"source": "canonical_only"},
+        }
+
+    monkeypatch.setattr(
+        "scripts.orchestration.task_bootstrap.build_task_packet",
+        _fake_build_task_packet,
+    )
+
+    exit_code = main(
+        [
+            "--goal",
+            "Run design activation packet",
+            "--task-class",
+            "Frontend",
+            "--design-source",
+            "figma_design",
+            "--target-surface",
+            "web.hero",
+            "--task-mode",
+            "implement",
+            "--figma-lane-tool",
+            "figma_native",
+            "--code-native-design-brief-path",
+            "docs/design/HERO_BRIEF.md",
+            "--explicit-creation-mode",
+        ]
+    )
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert observed["design_source"] == "figma_design"
+    assert observed["target_surface"] == "web.hero"
+    assert observed["task_mode"] == "implement"
+    assert observed["figma_lane_tool"] == "figma_native"
+    assert observed["code_native_design_brief_path"] == "docs/design/HERO_BRIEF.md"
+    assert observed["explicit_creation_mode"] is True
+    assert json.loads(captured.out)["task_packet_id"] == "design-packet"

@@ -126,12 +126,32 @@ derivable from existing inputs:
 - `automation_flags.judgment_lane_enabled` mirrors `decision_contract.judgment_enabled`
 - `automation_flags.pr_lifecycle_enabled = false` by default and becomes `true`
   only when bootstrap is invoked with an explicit PR lifecycle phase
-- `automation_flags.design_lane_enabled = false`
+- `automation_flags.design_lane_enabled = false` only when no explicit design
+  trigger is present; explicit design packets may enable the lane even when
+  the resolved mode is still `read_only`
 - `pr_phase = "none"`
 - `pr_lifecycle_contract` is additive lifecycle metadata derived from the
   explicit `pr_phase`; `post_open_review` must surface the canonical
   `qa-engineer-agent -> bug-hunter` lane and current-head preparation contract
-- `design_lane_mode = "disabled"`
+- `design_lane_mode = "disabled"` only when the task has no explicit design
+  trigger; otherwise the packet must resolve to one of:
+  - `read_only`
+  - `verify`
+  - `implement`
+  - `sync`
+- `design_lane_contract` is additive metadata derived from explicit design
+  inputs and contains:
+  - `design_source`
+  - `source_url`
+  - `file_key_or_workspace`
+  - `node_id_or_frame_id`
+  - `target_surface`
+  - `task_mode`
+  - optional `figma_lane_tool`
+  - `blockers`
+  - `code_native_design_brief_required`
+  - `code_native_design_brief_path`
+  - `explicit_creation_mode`
 - `needs_backlog_update`, `needs_docs_sync`, and `needs_agents_sync` are deterministic
   sync signals derived from task text and candidate paths
 
@@ -146,6 +166,16 @@ PR4 scope note:
   invocation with `pr_phase` such as `post_open_review` or `merge_ready`.
 - Post-open review lane synthesis is a packet-level contract, not raw-session or
   host-runtime event automation.
+
+PR5 scope note:
+
+- `creative_research` activation must stay explicit and governed: weak
+  “wellness/market/design” wording alone is insufficient without a real
+  report/research deliverable or governed research surface.
+- Design/Figma activation must stay packet-driven and blocker-aware.
+- Code-native design brief paths must be expressible before any Figma mutation
+  path is considered activation-ready.
+- PR5 does not add live Figma execution or raw-session launcher automation.
 
 ---
 

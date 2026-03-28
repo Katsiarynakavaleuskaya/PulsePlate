@@ -2141,12 +2141,13 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Routing stays minimal-optimal and explainable
     - No PR event hooks, Figma mutation flow, or launcher wiring are included
 
-- [ ] P1: Coordinator automation PR4 — PR lifecycle automation
+- [x] P1: Coordinator automation PR4 — PR lifecycle automation
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-TBD-AUTOMATION-PR4-PR-LIFECYCLE
+  - Target PR: PR #1266 (`docs(review): map coderabbit nitpick wrapper`)
   - Area: orchestration / PR governance / review lifecycle
   - Finding Type: automation rollout slice
+  - Status: Materially completed via merged PR `#1266` (`5dfa055d`) on March 28, 2026; this slice now serves as the landed baseline input for PR5.
   - Reason: The canonical docs already require a post-open `qa-engineer-agent -> bug-hunter` loop, but the behavior is still policy-only and easy to forget. The PR lifecycle slice must turn that requirement into deterministic PR-phase automation without widening into design or brainstorming lanes.
   - Dependencies:
     - `PR-TBD-AUTOMATION-PR3-SKILL-INTENT`

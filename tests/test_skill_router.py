@@ -625,6 +625,19 @@ def test_skill_router_selects_report_stack_for_research() -> None:
     assert "notion-research-documentation" in skills
 
 
+def test_task_classifier_keeps_generic_market_wellness_language_out_of_creative_research() -> None:
+    """Generic wellness/market wording without a research deliverable must not trigger the lane."""
+
+    decision = route_skills(
+        goal="Document wellness market positioning notes for later UI discussion",
+        task_class="Documentation",
+        candidate_paths=["docs/ENGINEERING_LESSONS.md"],
+        domain="docs",
+    )
+
+    assert decision["task_classification"]["label"] != "creative_research"
+
+
 def test_skill_router_selects_create_pr_for_explicit_pr_intent() -> None:
     """Explicit PR-prep tasks should cross the dedicated create-pr threshold."""
 
@@ -747,6 +760,28 @@ def test_skill_router_keeps_design_helpers_conditional_for_partial_signals() -> 
         conditional_by_skill["figma"]["when"]
         == "Enable when a concrete Figma/design node-id or fidelity requirement becomes explicit."
     )
+
+
+def test_skill_router_promotes_design_lane_for_explicit_design_metadata() -> None:
+    """Explicit design packet metadata should upgrade design helpers into recommended lane."""
+
+    decision = route_skills(
+        goal="Refresh hero implementation",
+        task_class="Frontend",
+        candidate_paths=["frontend/src/components/Hero.tsx"],
+        domain="frontend",
+        design_source="figma_design",
+        target_surface="web.hero",
+        task_mode="implement",
+        figma_lane_tool="figma_native",
+        code_native_design_brief_path="docs/design/HERO_BRIEF.md",
+        explicit_creation_mode=True,
+    )
+
+    assert decision["task_classification"]["label"] == "design"
+    recommended = [item["skill"] for item in decision["recommended"]]
+    assert "figma" in recommended
+    assert "figma-implement-design" in recommended
 
 
 def test_skill_router_keeps_research_helpers_conditional_for_weak_research_intent() -> None:

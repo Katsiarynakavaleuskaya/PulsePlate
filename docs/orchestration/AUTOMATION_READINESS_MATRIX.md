@@ -84,8 +84,8 @@ unconditionally guaranteed by Markdown alone.
 | Bootstrap task packet generation | Yes | Yes | No for manual invocation; yes for auto-start | Low | Deterministic once invoked |
 | Skill auto-selection | Yes | Yes | Yes for raw-session auto-start | Medium | Automatic after bootstrap, not at raw chat start |
 | Mandatory post-open bug-hunter pass | Yes | Yes | No | Medium | Deterministic once invoked via PR phase packet; not globally event-triggered |
-| Creative research lane | Partial | Planned | Likely yes | Medium | Not yet canonical automatic behavior |
-| Figma execution lane | Partial | Planned | Likely yes | High | Conditional only, never unconditional |
+| Creative research lane | Yes | Yes | Likely yes for raw-session auto-start | Medium | Deterministic once invoked via explicit report/research triggers; not generic wellness wording |
+| Figma execution lane | Partial | Yes (packet gating only) | Likely yes for raw-session auto-start | High | Packet-gated and blocker-aware; `read_only` by default until valid metadata or explicit creation mode exists |
 | Post-merge local sync / cleanup gating next PR | Yes | N/A | No | Low | Required by process, enforced by canon/runbook discipline |
 
 ## Claim Rules
@@ -106,7 +106,10 @@ Current approved wording:
 - Skill routing is **automatic after bootstrap**, not automatic at raw chat start.
 - Bug-hunter post-open pass is **deterministic once invoked** via
   `pr_phase=post_open_review`, not yet globally event-triggered.
-- Figma execution is **conditionally automatic**, never unconditional.
+- Creative research is **deterministic once invoked** only for explicit
+  report/research deliverables or governed research surfaces.
+- Figma execution is **conditionally automatic**, packet-gated, blocker-aware,
+  and never unconditional.
 
 ## Approved PR Series For This Wave
 
@@ -186,7 +189,9 @@ In:
 
 - `creative_research` trigger rules,
 - code-native design brief path,
-- Figma lane activation rules with explicit trigger and valid packet.
+- `design_lane_contract` packet semantics,
+- Figma lane activation rules with explicit trigger, blocker states, and valid
+  packet metadata or explicit creation mode.
 
 Out:
 

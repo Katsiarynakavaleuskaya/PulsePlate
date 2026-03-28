@@ -52,6 +52,34 @@ from scripts.orchestration.skill_router import flatten_recommended_skills, route
 
 SCHEMA_VERSION = "2.0"
 TASK_PACKET_DIR: Path = REPO_ROOT / "artifacts" / "orchestration" / "task_packets"
+DESIGN_SOURCE_CODE_NATIVE_BRIEF = "code_native_brief"
+DESIGN_SOURCE_FIGMA_DESIGN = "figma_design"
+DESIGN_SOURCE_FIGMA_MAKE = "figma_make"
+FIGMA_DESIGN_SOURCES: tuple[str, ...] = (
+    DESIGN_SOURCE_FIGMA_DESIGN,
+    DESIGN_SOURCE_FIGMA_MAKE,
+)
+READ_ONLY_DESIGN_SOURCES: tuple[str, ...] = (
+    "notion",
+    "airweave",
+    "penpot",
+    "stitch_reference",
+)
+DESIGN_SOURCES: tuple[str, ...] = (
+    DESIGN_SOURCE_CODE_NATIVE_BRIEF,
+    *FIGMA_DESIGN_SOURCES,
+    *READ_ONLY_DESIGN_SOURCES,
+)
+FIGMA_LANE_TOOLS: tuple[str, ...] = ("figma_native", "tokens_studio")
+DESIGN_TASK_MODES: tuple[str, ...] = ("read_only", "verify", "implement", "sync")
+DESIGN_BLOCKERS: tuple[str, ...] = (
+    "missing_design_trigger",
+    "missing_design_metadata",
+    "blocked_by_design_url",
+    "blocked_by_node_id_capture",
+    "blocked_by_plan",
+    "stale",
+)
 REQUESTED_AGENT_STATUS_REJECTED_UNKNOWN = "rejected_unknown_agent"
 REQUESTED_AGENT_STATUS_HONORED_PRIMARY = "honored_primary"
 REQUESTED_AGENT_STATUS_HONORED_SECONDARY = "honored_secondary"
@@ -112,6 +140,219 @@ def _read_json(path: Path) -> dict[str, Any] | None:
     except (OSError, UnicodeDecodeError, json.JSONDecodeError):
         return None
     return payload if isinstance(payload, dict) else None
+
+
+def _normalize_optional_text(value: str | None) -> str:
+    """Return a stripped optional string."""
+
+    if value is None:
+        return ""
+    return value.strip()
+
+
+def _normalize_design_enum(
+    *,
+    field_name: str,
+    value: str | None,
+    allowed_values: tuple[str, ...],
+) -> str:
+    """Normalize optional design enum values and reject drift."""
+
+    normalized = _normalize_optional_text(value)
+    if not normalized:
+        return ""
+    if normalized not in allowed_values:
+        supported = ", ".join(allowed_values)
+        raise ValueError(f"Unsupported {field_name}: {value}. Supported: {supported}")
+    return normalized
+
+
+def _dedupe_preserve_order(values: list[str]) -> list[str]:
+    """Return a stable de-duplicated list."""
+
+    deduped: list[str] = []
+    for value in values:
+        if value and value not in deduped:
+            deduped.append(value)
+    return deduped
+
+
+def _normalize_design_blockers(
+    design_blockers: list[str] | tuple[str, ...],
+) -> list[str]:
+    """Normalize explicit design blockers."""
+
+    normalized: list[str] = []
+    for blocker in design_blockers:
+        normalized_blocker = _normalize_design_enum(
+            field_name="design_blocker",
+            value=blocker,
+            allowed_values=DESIGN_BLOCKERS,
+        )
+        if normalized_blocker:
+            normalized.append(normalized_blocker)
+    return _dedupe_preserve_order(normalized)
+
+
+def _design_trigger_present(
+    *,
+    design_source: str,
+    source_url: str,
+    file_key_or_workspace: str,
+    node_id_or_frame_id: str,
+    target_surface: str,
+    task_mode: str,
+    figma_lane_tool: str,
+    code_native_design_brief_path: str,
+    explicit_creation_mode: bool,
+) -> bool:
+    """Return True when explicit design-lane metadata is present."""
+
+    return any(
+        (
+            design_source,
+            source_url,
+            file_key_or_workspace,
+            node_id_or_frame_id,
+            target_surface,
+            task_mode,
+            figma_lane_tool,
+            code_native_design_brief_path,
+            explicit_creation_mode,
+        )
+    )
+
+
+def _design_fingerprint(*, design_lane_mode: str, design_lane_contract: dict[str, Any]) -> str:
+    """Return a deterministic fingerprint for design-lane packet identity."""
+
+    return json.dumps(
+        {
+            "design_lane_mode": design_lane_mode,
+            "design_lane_contract": design_lane_contract,
+        },
+        ensure_ascii=False,
+        sort_keys=True,
+    )
+
+
+def _build_design_lane_contract(
+    *,
+    design_source: str | None,
+    source_url: str | None,
+    file_key_or_workspace: str | None,
+    node_id_or_frame_id: str | None,
+    target_surface: str | None,
+    task_mode: str | None,
+    figma_lane_tool: str | None,
+    design_blockers: list[str] | tuple[str, ...],
+    code_native_design_brief_path: str | None,
+    explicit_creation_mode: bool,
+) -> tuple[str, dict[str, Any], bool]:
+    """Build deterministic design-lane packet metadata."""
+
+    normalized_design_source = _normalize_design_enum(
+        field_name="design_source",
+        value=design_source,
+        allowed_values=DESIGN_SOURCES,
+    )
+    normalized_source_url = _normalize_optional_text(source_url)
+    normalized_file_key_or_workspace = _normalize_optional_text(file_key_or_workspace)
+    normalized_node_id_or_frame_id = _normalize_optional_text(node_id_or_frame_id)
+    normalized_target_surface = _normalize_optional_text(target_surface)
+    normalized_task_mode = _normalize_design_enum(
+        field_name="task_mode",
+        value=task_mode,
+        allowed_values=DESIGN_TASK_MODES,
+    )
+    normalized_figma_lane_tool = _normalize_design_enum(
+        field_name="figma_lane_tool",
+        value=figma_lane_tool,
+        allowed_values=FIGMA_LANE_TOOLS,
+    )
+    normalized_code_native_design_brief_path = _normalize_optional_text(
+        code_native_design_brief_path
+    )
+    blockers = _normalize_design_blockers(design_blockers)
+    design_trigger_present = _design_trigger_present(
+        design_source=normalized_design_source,
+        source_url=normalized_source_url,
+        file_key_or_workspace=normalized_file_key_or_workspace,
+        node_id_or_frame_id=normalized_node_id_or_frame_id,
+        target_surface=normalized_target_surface,
+        task_mode=normalized_task_mode,
+        figma_lane_tool=normalized_figma_lane_tool,
+        code_native_design_brief_path=normalized_code_native_design_brief_path,
+        explicit_creation_mode=explicit_creation_mode,
+    )
+    code_native_design_brief_required = normalized_design_source in FIGMA_DESIGN_SOURCES
+
+    if normalized_figma_lane_tool and normalized_design_source not in FIGMA_DESIGN_SOURCES:
+        raise ValueError(
+            "figma_lane_tool is allowed only for figma_design or figma_make design_source"
+        )
+
+    if not design_trigger_present:
+        contract = {
+            "design_source": "",
+            "source_url": "",
+            "file_key_or_workspace": "",
+            "node_id_or_frame_id": "",
+            "target_surface": "",
+            "task_mode": "",
+            "figma_lane_tool": "",
+            "blockers": ["missing_design_trigger"],
+            "code_native_design_brief_required": False,
+            "code_native_design_brief_path": "",
+            "explicit_creation_mode": False,
+        }
+        return "disabled", contract, False
+
+    if not normalized_design_source:
+        blockers.append("missing_design_metadata")
+    if not normalized_target_surface:
+        blockers.append("missing_design_metadata")
+    if not normalized_task_mode:
+        blockers.append("missing_design_metadata")
+
+    if (
+        normalized_design_source == DESIGN_SOURCE_CODE_NATIVE_BRIEF
+        and not normalized_code_native_design_brief_path
+    ):
+        blockers.append("missing_design_metadata")
+
+    if normalized_design_source in FIGMA_DESIGN_SOURCES:
+        if not normalized_figma_lane_tool:
+            blockers.append("missing_design_metadata")
+        if code_native_design_brief_required and not normalized_code_native_design_brief_path:
+            blockers.append("missing_design_metadata")
+        if not explicit_creation_mode:
+            if not normalized_source_url or not normalized_file_key_or_workspace:
+                blockers.append("blocked_by_design_url")
+            if not normalized_node_id_or_frame_id:
+                blockers.append("blocked_by_node_id_capture")
+
+    blockers = _dedupe_preserve_order(blockers)
+    design_lane_mode = "read_only"
+    if normalized_design_source in READ_ONLY_DESIGN_SOURCES:
+        design_lane_mode = "read_only"
+    elif normalized_task_mode and not blockers:
+        design_lane_mode = normalized_task_mode
+
+    contract = {
+        "design_source": normalized_design_source,
+        "source_url": normalized_source_url,
+        "file_key_or_workspace": normalized_file_key_or_workspace,
+        "node_id_or_frame_id": normalized_node_id_or_frame_id,
+        "target_surface": normalized_target_surface,
+        "task_mode": normalized_task_mode,
+        "figma_lane_tool": normalized_figma_lane_tool,
+        "blockers": blockers,
+        "code_native_design_brief_required": code_native_design_brief_required,
+        "code_native_design_brief_path": normalized_code_native_design_brief_path,
+        "explicit_creation_mode": explicit_creation_mode,
+    }
+    return design_lane_mode, contract, True
 
 
 def _select_independent_reviewer(
@@ -563,6 +804,16 @@ def build_task_packet(
     candidate_paths: list[str],
     requested_agents: list[str] | tuple[str, ...] = (),
     pr_phase: str = PR_PHASE_NONE,
+    design_source: str | None = None,
+    source_url: str | None = None,
+    file_key_or_workspace: str | None = None,
+    node_id_or_frame_id: str | None = None,
+    target_surface: str | None = None,
+    task_mode: str | None = None,
+    figma_lane_tool: str | None = None,
+    design_blockers: list[str] | tuple[str, ...] = (),
+    code_native_design_brief_path: str | None = None,
+    explicit_creation_mode: bool = False,
     telemetry_path: Path = TELEMETRY_PATH,
 ) -> dict[str, Any]:
     """Build a deterministic task packet for orchestration tooling."""
@@ -570,6 +821,18 @@ def build_task_packet(
     normalized_paths = repo_relative_paths(candidate_paths)
     normalized_requested_agents = normalize_requested_agents(requested_agents)
     normalized_pr_phase = _normalize_pr_phase(pr_phase)
+    design_lane_mode, design_lane_contract, design_lane_enabled = _build_design_lane_contract(
+        design_source=design_source,
+        source_url=source_url,
+        file_key_or_workspace=file_key_or_workspace,
+        node_id_or_frame_id=node_id_or_frame_id,
+        target_surface=target_surface,
+        task_mode=task_mode,
+        figma_lane_tool=figma_lane_tool,
+        design_blockers=design_blockers,
+        code_native_design_brief_path=code_native_design_brief_path,
+        explicit_creation_mode=explicit_creation_mode,
+    )
     domain = resolve_domain(
         task_class=task_class,
         candidate_paths=normalized_paths,
@@ -590,6 +853,10 @@ def build_task_packet(
         candidate_paths=normalized_paths,
         requested_agents=normalized_requested_agents,
         pr_phase=normalized_pr_phase,
+        design_fingerprint=_design_fingerprint(
+            design_lane_mode=design_lane_mode,
+            design_lane_contract=design_lane_contract,
+        ),
     )
     context_pack = collect_context_pack(
         normalized_paths,
@@ -637,6 +904,15 @@ def build_task_packet(
         candidate_paths=normalized_paths,
         domain=decision.domain,
         requested_agents=normalized_requested_agents,
+        design_source=design_lane_contract["design_source"],
+        source_url=design_lane_contract["source_url"],
+        file_key_or_workspace=design_lane_contract["file_key_or_workspace"],
+        node_id_or_frame_id=design_lane_contract["node_id_or_frame_id"],
+        target_surface=design_lane_contract["target_surface"],
+        task_mode=design_lane_contract["task_mode"],
+        figma_lane_tool=design_lane_contract["figma_lane_tool"],
+        code_native_design_brief_path=design_lane_contract["code_native_design_brief_path"],
+        explicit_creation_mode=design_lane_contract["explicit_creation_mode"],
     )
     forced_executable_agents = {"security-auditor"} if security_review_required else set()
     if normalized_pr_phase == PR_PHASE_POST_OPEN_REVIEW:
@@ -749,11 +1025,12 @@ def build_task_packet(
             "security_review_required": security_review_required,
             "judgment_lane_enabled": judgment_enabled,
             "pr_lifecycle_enabled": normalized_pr_phase != PR_PHASE_NONE,
-            "design_lane_enabled": False,
+            "design_lane_enabled": design_lane_enabled,
         },
         "pr_phase": normalized_pr_phase,
         "pr_lifecycle_contract": pr_lifecycle_contract,
-        "design_lane_mode": "disabled",
+        "design_lane_mode": design_lane_mode,
+        "design_lane_contract": design_lane_contract,
         "needs_backlog_update": needs_backlog_update,
         "needs_docs_sync": needs_docs_sync,
         "needs_agents_sync": needs_agents_sync,
@@ -806,6 +1083,41 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument("--telemetry", default=str(TELEMETRY_PATH))
     parser.add_argument(
+        "--design-source",
+        choices=DESIGN_SOURCES,
+        default=None,
+        help="Optional design lane source selector.",
+    )
+    parser.add_argument("--source-url", default=None)
+    parser.add_argument("--file-key-or-workspace", default=None)
+    parser.add_argument("--node-id-or-frame-id", default=None)
+    parser.add_argument("--target-surface", default=None)
+    parser.add_argument(
+        "--task-mode",
+        choices=DESIGN_TASK_MODES,
+        default=None,
+        help="Optional design lane task mode.",
+    )
+    parser.add_argument(
+        "--figma-lane-tool",
+        choices=FIGMA_LANE_TOOLS,
+        default=None,
+        help="Optional Figma lane tool when a Figma source is selected.",
+    )
+    parser.add_argument(
+        "--design-blocker",
+        action="append",
+        choices=DESIGN_BLOCKERS,
+        default=[],
+        help="Optional explicit design blocker. May be repeated.",
+    )
+    parser.add_argument("--code-native-design-brief-path", default=None)
+    parser.add_argument(
+        "--explicit-creation-mode",
+        action="store_true",
+        help="Allow explicit creation-mode activation without an existing Figma URL/node id.",
+    )
+    parser.add_argument(
         "--output",
         default=None,
         help="Optional JSON output path. Defaults to artifacts/orchestration/task_packets/<id>.json",
@@ -821,6 +1133,16 @@ def main(argv: list[str] | None = None) -> int:
         candidate_paths=args.path,
         requested_agents=args.requested_agent,
         pr_phase=args.pr_phase,
+        design_source=args.design_source,
+        source_url=args.source_url,
+        file_key_or_workspace=args.file_key_or_workspace,
+        node_id_or_frame_id=args.node_id_or_frame_id,
+        target_surface=args.target_surface,
+        task_mode=args.task_mode,
+        figma_lane_tool=args.figma_lane_tool,
+        design_blockers=args.design_blocker,
+        code_native_design_brief_path=args.code_native_design_brief_path,
+        explicit_creation_mode=args.explicit_creation_mode,
         telemetry_path=Path(args.telemetry),
     )
     try:
