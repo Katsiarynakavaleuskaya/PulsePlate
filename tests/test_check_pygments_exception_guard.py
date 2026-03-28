@@ -173,6 +173,29 @@ def test_evaluate_guard_state_flags_versions_below_patched_floor() -> None:
     assert "requirements-dev.txt" not in errors[1]
 
 
+def test_evaluate_guard_state_flags_requirements_test_only_regression() -> None:
+    pins = {
+        "requirements.txt": "2.19.3",
+        "requirements-ci-lite.txt": "2.19.3",
+        "requirements-dev.txt": "2.19.3",
+        "requirements-lock.txt": "2.19.3",
+        "requirements-test.txt": "2.19.2",
+    }
+
+    errors = guard.evaluate_guard_state(
+        alerts=None,
+        advisory_patched_versions={"2.19.3"},
+        pins=pins,
+        exception_present=True,
+    )
+
+    assert len(errors) == 2
+    assert errors[1] == (
+        "Dependabot reports a patched release for GHSA-5239-wwwm-4pmq (2.19.3), "
+        "but tracked requirement pins are still unresolved: requirements-test.txt=2.19.2."
+    )
+
+
 def test_evaluate_guard_state_treats_equivalent_release_tuples_as_equal() -> None:
     pins = {
         "requirements.txt": "2.19",
