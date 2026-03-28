@@ -5,7 +5,16 @@
 - [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
-- No actionable review comments
+
+Disposition: NOT-A-BUG
+Evidence: `scripts/ci/check_pygments_exception_guard.py:27` (`TRACKED_REQUIREMENTS` is the code-level source of truth); `docs/security/GHSA-5239-wwwm-4pmq-pygments.md:8`; `docs/roadmap/BACKLOG_LEDGER.md:7856`
+Reason: The tracked Pygments surfaces are already centralized in code for enforcement. The matching docs/backlog entries intentionally mirror that list as explicit governance artifacts for auditability and operator readability; replacing this narrow seam with pattern-based auto-discovery is a broader design change, not a defect in the current security remediation PR.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1270#pullrequestreview-4025908838
+
+Disposition: FIXED
+Commit: 503e3c03cf9ea58887b84609bd64f62600310389
+Evidence: `tests/test_check_pygments_exception_guard.py` (`test_evaluate_guard_state_flags_requirements_test_only_regression`)
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1270#pullrequestreview-4025910961 -> 503e3c03cf9ea58887b84609bd64f62600310389
 
 ## Merge Readiness
 - [ ] All required checks pass
