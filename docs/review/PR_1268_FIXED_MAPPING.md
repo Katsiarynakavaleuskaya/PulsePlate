@@ -11,6 +11,7 @@ Evidence: `scripts/orchestration/design_lane_contract.py:1`; `scripts/orchestrat
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1268#pullrequestreview-4025677170 -> 1ae659f3
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1268#discussion_r3004956941 -> 1ae659f3
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1268#discussion_r3004956944 -> 1ae659f3
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1268#discussion_r3004962595 -> 1ae659f3
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1268#discussion_r3004963273 -> 1ae659f3
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1268#discussion_r3004963278 -> 1ae659f3
 
@@ -35,17 +36,25 @@ Commit: acb14b45
 Evidence: `scripts/orchestration/skill_router.py:876`; `scripts/orchestration/task_bootstrap.py:828`; `tests/test_skill_router.py:763`; `tests/test_task_bootstrap.py:1418`; `pytest -q tests/test_skill_router.py tests/test_task_bootstrap.py`; `pre-commit run --all-files`; `make verify`
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1268#pullrequestreview-4025733794 -> acb14b45
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1268#pullrequestreview-4025737063 -> acb14b45
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1268#discussion_r3005008675 -> acb14b45
 
 Disposition: FIXED
 Commit: 21118f83
 Evidence: `scripts/orchestration/task_bootstrap.py:824`; `pytest -q tests/test_task_bootstrap.py tests/test_skill_router.py`; `pre-commit run --all-files`; `make verify`
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1268#pullrequestreview-4025743718 -> 21118f83
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1268#discussion_r3005013244 -> 21118f83
 
 Disposition: FIXED
 Commit: 0529ddd3
 Evidence: `scripts/orchestration/design_lane_contract.py:86`; `tests/test_skill_router.py:850`; `tests/test_task_bootstrap.py:1012`; `pytest -q tests/test_task_bootstrap.py`; `pytest -q tests/test_skill_router.py`; `pre-commit run --all-files`; `make verify`
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1268#pullrequestreview-4025751026 -> 0529ddd3
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1268#pullrequestreview-4025751293 -> 0529ddd3
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1268#discussion_r3005033297 -> 0529ddd3
+
+Disposition: FIXED
+Commit: e130634b
+Evidence: `scripts/orchestration/task_bootstrap.py:241`; `tests/test_task_bootstrap.py:215`; `pytest -q tests/test_task_bootstrap.py`; `pytest -q tests/test_skill_router.py`; `pre-commit run --all-files`; `make verify`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1268#discussion_r3005013243 -> e130634b
 
 Disposition: NOT-A-BUG
 Evidence: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1268#pullrequestreview-4025680383 contains the two mapped inline Codex findings above and no standalone defect beyond them.
@@ -74,4 +83,4 @@ Reason: The duplicate routing concern was fixed in commit `49f44165`; the remain
 - [ ] Pre-commit green
 - [ ] `make verify` green
 - [ ] Mandatory post-open bug-hunter pass completed
-Notes: Draft PR `#1268` was opened on March 28, 2026 for the deterministic PR5 contract slice. The mandatory post-open `qa-engineer-agent -> bug-hunter` pass found two P1 routing defects and one docs-contract drift; those were fixed in commit `23b22a61`. A subsequent Sourcery review plus two Codex inline findings were fixed in commit `1ae659f3`, which also centralized shared design-lane helpers and aligned the code-native brief contract. The remediation slice in commit `49f44165` tightened fail-closed Figma helper routing, corrected node-capture blocker semantics, and added the missing `creative_research` file:line anchor. The follow-up determinism fix in commit `bbe08814` canonicalized design blocker ordering before packet fingerprinting so `task_packet_id` remains stable regardless of CLI blocker order. The router/bootstrap follow-up in commit `acb14b45` threads resolved blocker/mode state into skill routing, keeps design-classified tasks conditional when metadata is absent, and tightens the typed-test surface called out by the latest review wave. The final task-mode threading fix in commit `21118f83` ensures `build_task_packet()` routes the effective downgraded design mode into `route_skills()` instead of the raw requested mode. The latest follow-up in commit `0529ddd3` hardens direct blocker canonicalization against unknown review-only inputs and removes the blocker-test false positive where read-only mode could mask execution-lane gating. The refreshed targeted suite, `pre-commit run --all-files`, and `make verify` are green on the current branch head, but merge-readiness boxes stay unchecked until the refreshed current-head CI/bot cycle completes and review threads are resolved on GitHub.
+Notes: Draft PR `#1268` was opened on March 28, 2026 for the deterministic PR5 contract slice. The mandatory post-open `qa-engineer-agent -> bug-hunter` pass found two P1 routing defects and one docs-contract drift; those were fixed in commit `23b22a61`. A subsequent Sourcery review plus two Codex inline findings were fixed in commit `1ae659f3`, which also centralized shared design-lane helpers and aligned the code-native brief contract. The remediation slice in commit `49f44165` tightened fail-closed Figma helper routing, corrected node-capture blocker semantics, and added the missing `creative_research` file:line anchor. The follow-up determinism fix in commit `bbe08814` canonicalized design blocker ordering before packet fingerprinting so `task_packet_id` remains stable regardless of CLI blocker order. The router/bootstrap follow-up in commit `acb14b45` threads resolved blocker/mode state into skill routing, keeps design-classified tasks conditional when metadata is absent, and tightens the typed-test surface called out by the latest review wave. The final task-mode threading fix in commit `21118f83` ensures `build_task_packet()` routes the effective downgraded design mode into `route_skills()` instead of the raw requested mode. The latest two follow-ups in commits `0529ddd3` and `e130634b` harden direct blocker canonicalization against unknown review-only inputs, remove the blocker-test false positive where read-only mode could mask execution-lane gating, and restrict explicit Figma creation-mode bypass to the `implement` path so `verify/sync` still require existing URL/file/node metadata. The refreshed targeted suite, `pre-commit run --all-files`, and `make verify` are green on the current branch head, but merge-readiness boxes stay unchecked until the refreshed current-head CI/bot cycle completes and review threads are resolved on GitHub.
