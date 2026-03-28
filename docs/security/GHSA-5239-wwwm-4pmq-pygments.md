@@ -6,17 +6,21 @@
 - Package: `Pygments`
 - Pinned repo version at the time of triage: `2.19.2`
 - Tracked repo surfaces carrying the pinned package:
+  - `requirements-ci-lite.txt`
+  - `requirements-test.txt`
   - `requirements.txt`
   - `requirements-dev.txt`
   - `requirements-lock.txt`
 
 ## Current Triage Status
 
-As of `26 March 2026`, the repo still has no patched Pygments release available
-to adopt for this advisory. GitHub Dependabot alerts `#58`, `#59`, and `#60`
-remain open across `requirements-dev.txt`, `requirements-lock.txt`, and
-`requirements.txt`. Because of that, a strict `pip-audit` pre-push gate on
-`requirements.txt` blocks unrelated narrow PRs even when no dependency
+As of `28 March 2026`, the GitHub advisory page for `GHSA-5239-wwwm-4pmq`
+still lists patched versions as `None`, so the repo has no upstream Pygments
+release it can safely adopt yet. GitHub Dependabot alerts `#80` and `#81`
+remain open across `requirements-ci-lite.txt` and `requirements-test.txt`
+while the repo pin stays at `2.19.2` across the tracked requirement surfaces.
+Because of that, a strict `pip-audit` pre-push gate on the tracked Python lock
+surfaces would still block unrelated narrow PRs even when no dependency
 regression was introduced in the branch.
 
 ## Temporary Exception
@@ -47,10 +51,10 @@ Scope of the exception:
 - `scripts/ci/check_pygments_exception_guard.py:231`
 - `.github/workflows/ci.yml:117`
 - `.github/workflows/ci.yml:134`
-- `docs/roadmap/BACKLOG_LEDGER.md:7540`
-- `requirements.txt:230`
-- `requirements-dev.txt:163`
-- `requirements-lock.txt:230`
+- `docs/roadmap/BACKLOG_LEDGER.md:7856`
+- `requirements-ci-lite.txt:278`
+- `requirements-test.txt:27`
+- `https://github.com/advisories/GHSA-5239-wwwm-4pmq`
 
 ## Exit Criteria
 
