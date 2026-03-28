@@ -21,7 +21,7 @@ POSTGRES_USER=pulseplate
 POSTGRES_PASSWORD=replace-with-strong-secret
 SUBSCRIPTION_DB_ENABLED=true
 ALLOW_DEV_API_KEY=false
-API_KEY_REQUIRED=true
+API_KEY_REQUIRED=true  # compatibility flag for request-time API-key enforcement
 APP_ENV=production
 ENVIRONMENT=production
 EOF
@@ -39,7 +39,7 @@ bash scripts/fix_production_env.sh
 Скрипт:
 
 1. Требует `postgres` service в production compose
-2. Нормализует `APP_ENV`, `ENVIRONMENT`, `SUBSCRIPTION_DB_ENABLED`, `ALLOW_DEV_API_KEY`, `API_KEY_REQUIRED`
+2. Нормализует `APP_ENV`, `ENVIRONMENT`, `SUBSCRIPTION_DB_ENABLED`, `ALLOW_DEV_API_KEY` и совместимый `API_KEY_REQUIRED`
 3. Проверяет `DATABASE_URL`, `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`
 4. Падает, если `DATABASE_URL` не использует `postgresql+psycopg://`
 5. Валидирует compose и перезапускает сервисы
@@ -78,6 +78,6 @@ curl -fsS "https://${PRODUCTION_DOMAIN}/ready" | jq .
 - [ ] `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD` заданы
 - [ ] `SUBSCRIPTION_DB_ENABLED=true`
 - [ ] `ALLOW_DEV_API_KEY=false`
-- [ ] `API_KEY_REQUIRED=true`
+- [ ] При необходимости для совместимости задан `API_KEY_REQUIRED=true`
 - [ ] `docker compose ... config` проходит
 - [ ] `curl "https://${PRODUCTION_DOMAIN}/ready" | jq .` возвращает 200
