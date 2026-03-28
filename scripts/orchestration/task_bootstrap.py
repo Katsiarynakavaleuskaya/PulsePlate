@@ -270,7 +270,7 @@ def _apply_pr_lifecycle_review_path(
     primary_agent: str,
     secondary_agents: list[str],
     reviewer: str,
-) -> tuple[list[str], str]:
+) -> tuple[str, list[str], str]:
     """Inject the canonical post-open review lane for PR lifecycle work.
 
     RU: post-open review обязан держать `qa-engineer-agent -> bug-hunter`.
@@ -278,19 +278,33 @@ def _apply_pr_lifecycle_review_path(
     """
 
     if pr_phase != PR_PHASE_POST_OPEN_REVIEW:
-        return secondary_agents, reviewer
+        return primary_agent, secondary_agents, reviewer
 
+    adjusted_primary_agent = primary_agent
     adjusted_secondary_agents = list(secondary_agents)
     adjusted_reviewer = reviewer
+    qa_agent, bug_hunter_agent = POST_OPEN_REVIEW_LANE
 
-    if primary_agent == POST_OPEN_REVIEW_LANE[0]:
-        adjusted_reviewer = POST_OPEN_REVIEW_LANE[1]
+    if primary_agent == bug_hunter_agent:
+        adjusted_primary_agent = qa_agent
+        adjusted_reviewer = _select_independent_reviewer(
+            primary_agent=adjusted_primary_agent,
+            canonical_reviewer=reviewer,
+            canonical_secondary=bug_hunter_agent,
+            previous_primary=primary_agent,
+        )
+        adjusted_secondary_agents = [
+            candidate
+            for candidate in [bug_hunter_agent, *adjusted_secondary_agents]
+            if candidate != adjusted_primary_agent
+        ]
+    elif primary_agent == qa_agent:
+        adjusted_secondary_agents = [bug_hunter_agent, *adjusted_secondary_agents]
     else:
-        adjusted_reviewer = POST_OPEN_REVIEW_LANE[0]
-        if POST_OPEN_REVIEW_LANE[1] not in adjusted_secondary_agents:
-            adjusted_secondary_agents.append(POST_OPEN_REVIEW_LANE[1])
+        adjusted_reviewer = qa_agent
+        adjusted_secondary_agents = [bug_hunter_agent, *adjusted_secondary_agents]
 
-    return adjusted_secondary_agents, adjusted_reviewer
+    return adjusted_primary_agent, adjusted_secondary_agents, adjusted_reviewer
 
 
 def _normalize_secondary_review_path(
@@ -323,6 +337,10 @@ def _reconcile_requested_agent_dispositions(
         REQUESTED_AGENT_STATUS_ADVISORY_NON_ROUTABLE,
         REQUESTED_AGENT_STATUS_ADVISORY_DOMAIN_MISMATCH,
     }
+    secondary_honored_statuses = {
+        REQUESTED_AGENT_STATUS_PROMOTED,
+        REQUESTED_AGENT_STATUS_HONORED_PRIMARY,
+    }
     secondary_agent_set = set(secondary_agents)
     for disposition in requested_agent_disposition:
         agent_slug = disposition["agent"]
@@ -337,7 +355,7 @@ def _reconcile_requested_agent_dispositions(
                 "Requested agent stayed honored as reviewer after PR lifecycle synthesis."
             )
             continue
-        if agent_slug in secondary_agent_set and status in advisory_statuses:
+        if agent_slug in secondary_agent_set and status in secondary_honored_statuses:
             disposition["status"] = REQUESTED_AGENT_STATUS_HONORED_SECONDARY
             disposition["reason"] = (
                 "Requested agent stayed honored in secondary after PR lifecycle synthesis."
@@ -598,14 +616,19 @@ def build_task_packet(
         if not security_in_review_path:
             secondary_agents.append("security-auditor")
         requested_agent_resolution["secondary_agents"] = secondary_agents
-    lifecycle_secondary_agents, lifecycle_reviewer = _apply_pr_lifecycle_review_path(
+    (
+        lifecycle_primary_agent,
+        lifecycle_secondary_agents,
+        lifecycle_reviewer,
+    ) = _apply_pr_lifecycle_review_path(
         pr_phase=normalized_pr_phase,
         primary_agent=requested_agent_resolution["primary_agent"],
         secondary_agents=requested_agent_resolution["secondary_agents"],
         reviewer=requested_agent_resolution["reviewer"],
     )
+    requested_agent_resolution["primary_agent"] = lifecycle_primary_agent
     requested_agent_resolution["secondary_agents"] = _normalize_secondary_review_path(
-        primary_agent=requested_agent_resolution["primary_agent"],
+        primary_agent=lifecycle_primary_agent,
         secondary_agents=lifecycle_secondary_agents,
         reviewer=lifecycle_reviewer,
     )

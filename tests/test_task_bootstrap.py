@@ -166,6 +166,29 @@ def test_task_bootstrap_keeps_requested_bug_hunter_executable_in_post_open_lane(
     ]
 
 
+def test_task_bootstrap_preserves_qa_then_bug_hunter_order_in_qa_post_open_lane() -> None:
+    """QA-domain post-open packets must not allow bug-hunter to remain primary."""
+
+    packet = build_task_packet(
+        goal="Run qa post-open review with explicit bug hunter request",
+        task_class="QA",
+        candidate_paths=["tests/test_task_bootstrap.py"],
+        requested_agents=["bug-hunter"],
+        pr_phase="post_open_review",
+    )
+
+    assert packet["primary_agent"] == "qa-engineer-agent"
+    assert packet["reviewer"] == "agent-coordinator"
+    assert packet["secondary_agents"] == ["bug-hunter"]
+    assert packet["requested_agent_disposition"] == [
+        {
+            "agent": "bug-hunter",
+            "status": "honored_secondary",
+            "reason": "Requested agent stayed honored in secondary after PR lifecycle synthesis.",
+        }
+    ]
+
+
 def test_task_bootstrap_deduplicates_reviewer_from_secondary_in_post_open_lane() -> None:
     """Canonical packet identities must not list the reviewer twice."""
 
@@ -184,6 +207,30 @@ def test_task_bootstrap_deduplicates_reviewer_from_secondary_in_post_open_lane()
             "agent": "qa-engineer-agent",
             "status": "honored_reviewer",
             "reason": "Requested agent stayed honored as reviewer after PR lifecycle synthesis.",
+        }
+    ]
+
+
+def test_task_bootstrap_keeps_non_routable_requested_agent_advisory_in_post_open_lane() -> None:
+    """Lifecycle reconciliation must not upgrade advisory-only agents to executable roles."""
+
+    packet = build_task_packet(
+        goal="Prepare ML post-open review packet with advisory collaborator",
+        task_class="AI / ML",
+        candidate_paths=["docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md"],
+        requested_agents=["ml-engineer-agent"],
+        pr_phase="post_open_review",
+    )
+
+    assert "ml-engineer-agent" in packet["secondary_agents"]
+    assert [
+        binding["repo_agent_slug"] for binding in packet["native_subagent_bridge"]["advisory"]
+    ] == ["ml-engineer-agent"]
+    assert packet["requested_agent_disposition"] == [
+        {
+            "agent": "ml-engineer-agent",
+            "status": "advisory_non_routable",
+            "reason": "Agent is canonical but non-routable; kept as an advisory collaborator.",
         }
     ]
 
