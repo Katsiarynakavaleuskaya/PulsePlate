@@ -27,6 +27,7 @@ def test_evaluate_guard_state_allows_blocked_upstream_with_exception() -> None:
         "requirements-ci-lite.txt": "2.19.2",
         "requirements-dev.txt": "2.19.2",
         "requirements-lock.txt": "2.19.2",
+        "requirements-test.txt": "2.19.2",
     }
 
     errors = guard.evaluate_guard_state(
@@ -45,6 +46,7 @@ def test_evaluate_guard_state_fails_when_patch_exists_and_exception_remains() ->
         "requirements-ci-lite.txt": "2.19.2",
         "requirements-dev.txt": "2.19.2",
         "requirements-lock.txt": "2.19.2",
+        "requirements-test.txt": "2.19.2",
     }
 
     errors = guard.evaluate_guard_state(
@@ -66,6 +68,7 @@ def test_evaluate_guard_state_fails_when_alerts_disappear_but_exception_remains(
         "requirements-ci-lite.txt": "2.19.2",
         "requirements-dev.txt": "2.19.2",
         "requirements-lock.txt": "2.19.2",
+        "requirements-test.txt": "2.19.2",
     }
 
     errors = guard.evaluate_guard_state(
@@ -87,6 +90,7 @@ def test_evaluate_guard_state_ignores_unrelated_alerts() -> None:
         "requirements-ci-lite.txt": "2.19.2",
         "requirements-dev.txt": "2.19.2",
         "requirements-lock.txt": "2.19.2",
+        "requirements-test.txt": "2.19.2",
     }
     unrelated = {
         "dependency": {"package": {"name": "requests"}},
@@ -113,6 +117,7 @@ def test_evaluate_guard_state_allows_unreadable_alert_endpoint_while_unpatched()
         "requirements-ci-lite.txt": "2.19.2",
         "requirements-dev.txt": "2.19.2",
         "requirements-lock.txt": "2.19.2",
+        "requirements-test.txt": "2.19.2",
     }
 
     errors = guard.evaluate_guard_state(
@@ -131,6 +136,7 @@ def test_evaluate_guard_state_fails_when_public_advisory_reports_patch() -> None
         "requirements-ci-lite.txt": "2.19.2",
         "requirements-dev.txt": "2.19.2",
         "requirements-lock.txt": "2.19.2",
+        "requirements-test.txt": "2.19.2",
     }
 
     errors = guard.evaluate_guard_state(
@@ -152,6 +158,7 @@ def test_evaluate_guard_state_flags_versions_below_patched_floor() -> None:
         "requirements-ci-lite.txt": "2.19.3",
         "requirements-dev.txt": "2.19.3",
         "requirements-lock.txt": "2.19.3",
+        "requirements-test.txt": "2.19.3",
     }
 
     errors = guard.evaluate_guard_state(
@@ -172,6 +179,7 @@ def test_evaluate_guard_state_treats_equivalent_release_tuples_as_equal() -> Non
         "requirements-ci-lite.txt": "2.19.0",
         "requirements-dev.txt": "2.19.0",
         "requirements-lock.txt": "2.19.1",
+        "requirements-test.txt": "2.19.1",
     }
 
     errors = guard.evaluate_guard_state(

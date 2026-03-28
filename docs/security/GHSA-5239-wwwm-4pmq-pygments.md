@@ -19,9 +19,10 @@ still lists patched versions as `None`, so the repo has no upstream Pygments
 release it can safely adopt yet. GitHub Dependabot alerts `#80` and `#81`
 remain open across `requirements-ci-lite.txt` and `requirements-test.txt`
 while the repo pin stays at `2.19.2` across the tracked requirement surfaces.
-Because of that, a strict `pip-audit` pre-push gate on the tracked Python lock
-surfaces would still block unrelated narrow PRs even when no dependency
-regression was introduced in the branch.
+Because of that, the strict `pip-audit` pre-push gate on `requirements.txt`,
+combined with the CI seam guard over the tracked requirement surfaces, would
+still block unrelated narrow PRs even when no dependency regression was
+introduced in the branch.
 
 ## Temporary Exception
 
@@ -45,8 +46,8 @@ Scope of the exception:
 
 - `.pre-commit-config.yaml:132`
 - `.pre-commit-config.yaml:135`
-- `scripts/ci/check_pygments_exception_guard.py:44`
-- `scripts/ci/check_pygments_exception_guard.py:151`
+- `scripts/ci/check_pygments_exception_guard.py:27`
+- `scripts/ci/check_pygments_exception_guard.py:143`
 - `scripts/ci/check_pygments_exception_guard.py:158`
 - `scripts/ci/check_pygments_exception_guard.py:231`
 - `.github/workflows/ci.yml:117`
