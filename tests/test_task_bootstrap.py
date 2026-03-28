@@ -22,6 +22,8 @@ from scripts.orchestration.routing_graph_loader import (
     REQUIRED_BOOTSTRAP_LANE,
 )
 from scripts.orchestration.task_bootstrap import (
+    _apply_pr_lifecycle_review_path,
+    _normalize_secondary_review_path,
     _matches_any_prefix,
     _resolve_output_path,
     build_task_packet,
@@ -187,6 +189,27 @@ def test_task_bootstrap_preserves_qa_then_bug_hunter_order_in_qa_post_open_lane(
             "reason": "Requested agent stayed honored in secondary after PR lifecycle synthesis.",
         }
     ]
+
+
+def test_post_open_review_path_keeps_bug_hunter_executable_when_primary_was_bug_hunter() -> None:
+    """Helper-level regression: reviewer independence must not drop bug-hunter from secondary."""
+
+    primary_agent, secondary_agents, reviewer = _apply_pr_lifecycle_review_path(
+        pr_phase="post_open_review",
+        primary_agent="bug-hunter",
+        secondary_agents=[],
+        reviewer="qa-engineer-agent",
+    )
+
+    normalized_secondary_agents = _normalize_secondary_review_path(
+        primary_agent=primary_agent,
+        secondary_agents=secondary_agents,
+        reviewer=reviewer,
+    )
+
+    assert primary_agent == "qa-engineer-agent"
+    assert reviewer == "agent-coordinator"
+    assert normalized_secondary_agents == ["bug-hunter"]
 
 
 def test_task_bootstrap_deduplicates_reviewer_from_secondary_in_post_open_lane() -> None:

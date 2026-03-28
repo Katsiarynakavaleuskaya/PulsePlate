@@ -293,6 +293,8 @@ def _apply_pr_lifecycle_review_path(
             canonical_secondary=bug_hunter_agent,
             previous_primary=primary_agent,
         )
+        if adjusted_reviewer == bug_hunter_agent:
+            adjusted_reviewer = "agent-coordinator"
         adjusted_secondary_agents = [
             candidate
             for candidate in [bug_hunter_agent, *adjusted_secondary_agents]
