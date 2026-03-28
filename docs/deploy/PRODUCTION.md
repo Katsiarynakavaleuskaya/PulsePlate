@@ -142,11 +142,11 @@ sudo chown $USER:$USER /srv/pulseplate-production
 ```bash
 # Copy deployment templates
 sudo cp deploy/Caddyfile /srv/pulseplate-production/
-sudo cp scripts/deploy.sh /srv/pulseplate-production/
+sudo cp scripts/deploy_production.sh /srv/pulseplate-production/
 sudo mkdir -p /srv/pulseplate-production/scripts/ops
 sudo cp scripts/ops/postgres_backup.sh /srv/pulseplate-production/scripts/ops/
 sudo cp scripts/ops/postgres_restore.sh /srv/pulseplate-production/scripts/ops/
-sudo chmod +x /srv/pulseplate-production/deploy.sh
+sudo chmod +x /srv/pulseplate-production/deploy_production.sh
 sudo chmod +x /srv/pulseplate-production/scripts/ops/postgres_backup.sh
 sudo chmod +x /srv/pulseplate-production/scripts/ops/postgres_restore.sh
 ```
@@ -283,14 +283,17 @@ docker compose --env-file .env -f docker-compose.production.yaml exec -T postgre
   pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB"
 
 PROJECT_DIR=/srv/pulseplate-production \
+COMPOSE_FILE=/srv/pulseplate-production/docker-compose.production.yaml \
 BACKUP_DIR=/srv/pulseplate-production/backups \
 POSTGRES_USER="$POSTGRES_USER" \
 POSTGRES_DB="$POSTGRES_DB" \
 /srv/pulseplate-production/scripts/ops/postgres_backup.sh
 
-docker compose --env-file .env -f docker-compose.production.yaml up -d app caddy
-curl -fsS http://127.0.0.1:8000/ready
+docker compose --env-file .env -f docker-compose.production.yaml up -d app
+docker compose --env-file .env -f docker-compose.production.yaml exec app \
+  python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/ready').read()"
 docker compose --env-file .env -f docker-compose.production.yaml exec app alembic upgrade head
+docker compose --env-file .env -f docker-compose.production.yaml up -d caddy
 curl -fsS https://yourdomain.com/ready
 ```
 
@@ -444,7 +447,10 @@ To reduce disk usage, consider compressing backups. Common approaches:
 - **Always test restores** after implementing compression:
 
   ```bash
-  POSTGRES_USER=... POSTGRES_DB=... scripts/ops/postgres_restore.sh /absolute/path/to/pulseplate_20260101_010101.dump
+  PROJECT_DIR=/srv/pulseplate-production \
+  COMPOSE_FILE=/srv/pulseplate-production/docker-compose.production.yaml \
+  POSTGRES_USER=... POSTGRES_DB=... \
+  scripts/ops/postgres_restore.sh /absolute/path/to/pulseplate_20260101_010101.dump
   ```
 
 - Monitor compressed backup sizes when setting retention thresholds
@@ -455,6 +461,7 @@ To reduce disk usage, consider compressing backups. Common approaches:
 
 ```bash
 PROJECT_DIR=/srv/pulseplate-production \
+COMPOSE_FILE=/srv/pulseplate-production/docker-compose.production.yaml \
 BACKUP_DIR=/srv/pulseplate-production/backups \
 POSTGRES_USER="$POSTGRES_USER" \
 POSTGRES_DB="$POSTGRES_DB" \
@@ -620,9 +627,9 @@ du -sh /srv/pulseplate-production/backups/pulseplate_*.dump | head -1
 
 ```bash
 # Test the production configuration locally
-docker compose -f deploy/docker-compose.staging.yaml up -d
+docker compose --env-file deploy/.env -f deploy/docker-compose.production.yaml up -d postgres app
 curl -f http://localhost:8000/ready
-docker compose -f deploy/docker-compose.staging.yaml down
+docker compose --env-file deploy/.env -f deploy/docker-compose.production.yaml down
 ```
 
 ### 2. Production Test
@@ -630,7 +637,9 @@ docker compose -f deploy/docker-compose.staging.yaml down
 ```bash
 # On your production server
 cd /srv/pulseplate-production
-./deploy.sh latest
+export IMAGE_REF=ghcr.io/katsiarynakavaleuskaya/pulseplate:prod-vX.Y.Z
+export TAG=prod-vX.Y.Z
+./deploy_production.sh
 
 # Check readiness
 curl -f https://yourdomain.com/ready
@@ -662,8 +671,9 @@ curl -f https://yourdomain.com/ready
 ```bash
 # On production server
 cd /srv/pulseplate-production
+export IMAGE_REF=ghcr.io/katsiarynakavaleuskaya/pulseplate:previous-tag
 export TAG=previous-tag
-./deploy.sh $TAG
+./deploy_production.sh
 ```
 
 ## 📞 Support

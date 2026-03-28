@@ -29,6 +29,7 @@ GHCR_TOKEN=${GHCR_TOKEN:?"GHCR_TOKEN not set"}
 GHCR_USER=${GHCR_USER:?"GHCR_USER not set"}
 POSTGRES_USER=${POSTGRES_USER:?"POSTGRES_USER not set"}
 POSTGRES_DB=${POSTGRES_DB:?"POSTGRES_DB not set"}
+POSTGRES_PASSWORD=${POSTGRES_PASSWORD:?"POSTGRES_PASSWORD not set"}
 DATABASE_URL=${DATABASE_URL:?"DATABASE_URL not set"}
 
 # Healthcheck configuration
@@ -82,11 +83,11 @@ if [ ! -x "${BACKUP_HELPER}" ]; then
 fi
 
 echo "Creating Postgres backup before migrations..."
-PROJECT_DIR="${PROJECT_DIR}" BACKUP_DIR="${BACKUP_DIR}" POSTGRES_USER="${POSTGRES_USER}" POSTGRES_DB="${POSTGRES_DB}" \
+PROJECT_DIR="${PROJECT_DIR}" BACKUP_DIR="${BACKUP_DIR}" COMPOSE_FILE="${COMPOSE_FILE}" POSTGRES_USER="${POSTGRES_USER}" POSTGRES_DB="${POSTGRES_DB}" \
   "${BACKUP_HELPER}"
 
-echo "Starting app and caddy..."
-"${COMPOSE[@]}" up -d app caddy
+echo "Starting app before exposing traffic..."
+"${COMPOSE[@]}" up -d app
 
 echo "[4/4] Run migrations"
 echo "Waiting for app readiness..."
@@ -118,6 +119,9 @@ else
   echo "Check container logs with: docker logs $APP_CONTAINER" >&2
   exit $migration_exit_code
 fi
+
+echo "Starting caddy after successful migrations..."
+"${COMPOSE[@]}" up -d caddy
 
 echo "[post] Smoke check with retry"
 # Healthcheck using --resolve to avoid DNS dependency (works even if DNS is temporarily unavailable)

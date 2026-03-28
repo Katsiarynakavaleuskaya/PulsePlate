@@ -3,9 +3,8 @@ set -euo pipefail
 
 : "${IMAGE_REF:?IMAGE_REF is required (ghcr.io/<image>@sha256:...)}"
 : "${TAG:?TAG is required (prod-vX.Y.Z)}"
-: "${PRODUCTION_DOMAIN:?PRODUCTION_DOMAIN is required}"
 
-export IMAGE_REF TAG PRODUCTION_DOMAIN
+export IMAGE_REF TAG
 
 # Healthcheck configuration
 HEALTH_MAX_ATTEMPTS="${HEALTH_MAX_ATTEMPTS:-12}"
@@ -14,6 +13,7 @@ HEALTH_CURL_MAX_TIME_S="${HEALTH_CURL_MAX_TIME_S:-10}"
 
 COMPOSE_FILE="${COMPOSE_FILE:-}"
 DEPLOY_DIR="${DEPLOY_DIR:-}"
+ENV_FILE="${ENV_FILE:-}"
 
 resolve_deploy_dir() {
   if [ -n "$DEPLOY_DIR" ]; then
@@ -64,6 +64,36 @@ elif [ -f "compose.yaml" ]; then
   compose_args=(-f "compose.yaml")
 fi
 
+HELPER_COMPOSE_FILE="${COMPOSE_FILE:-}"
+if [ -z "$HELPER_COMPOSE_FILE" ] && [ ${#compose_args[@]} -ge 2 ]; then
+  HELPER_COMPOSE_FILE="${compose_args[1]}"
+fi
+
+if [ -z "$ENV_FILE" ]; then
+  ENV_FILE="$DEPLOY_DIR/.env"
+fi
+
+if [ ! -f "$ENV_FILE" ]; then
+  echo "❌ Missing production env file: $ENV_FILE" >&2
+  exit 1
+fi
+
+set -a
+# shellcheck disable=SC1090
+. "$ENV_FILE"
+set +a
+
+: "${POSTGRES_USER:?POSTGRES_USER is required}"
+: "${POSTGRES_DB:?POSTGRES_DB is required}"
+: "${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}"
+: "${DATABASE_URL:?DATABASE_URL is required}"
+: "${PRODUCTION_DOMAIN:?PRODUCTION_DOMAIN is required}"
+
+export PRODUCTION_DOMAIN
+
+BACKUP_DIR="${BACKUP_DIR:-$DEPLOY_DIR/backups}"
+BACKUP_HELPER="${BACKUP_HELPER:-$DEPLOY_DIR/scripts/ops/postgres_backup.sh}"
+
 echo "Deploy dir: $DEPLOY_DIR"
 if [ ${#compose_args[@]} -gt 0 ]; then
   echo "Compose file: ${compose_args[*]}"
@@ -72,28 +102,108 @@ else
 fi
 echo "TAG: $TAG"
 echo "IMAGE_REF: $IMAGE_REF"
+echo "ENV_FILE: $ENV_FILE"
 
 dc() {
+  local base=(docker compose --env-file "$ENV_FILE")
   if [ ${#compose_args[@]} -gt 0 ]; then
-    docker compose "${compose_args[@]}" "$@"
-  else
-    docker compose "$@"
+    base+=("${compose_args[@]}")
   fi
+  "${base[@]}" "$@"
 }
 
-dc pull
-dc up -d --remove-orphans
+wait_for_service_health() {
+  local service_name="$1"
+  local max_wait="${2:-60}"
+  local wait_count=0
+
+  while [ "$wait_count" -lt "$max_wait" ]; do
+    local container_id
+    local health_status
+    container_id="$(dc ps -q "$service_name" | tr -d '\n\r ')"
+    health_status="$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' "${container_id:-missing}" 2>/dev/null || true)"
+    if [ -n "${container_id:-}" ] && [ "$health_status" = "healthy" ]; then
+      echo "$service_name is healthy"
+      return 0
+    fi
+    wait_count=$((wait_count + 1))
+    echo "Waiting for $service_name health... ($wait_count/$max_wait)"
+    sleep 1
+  done
+
+  echo "❌ $service_name failed to become healthy within $max_wait seconds" >&2
+  return 1
+}
+
+wait_for_app_ready() {
+  local max_wait="${1:-30}"
+  local wait_count=0
+
+  while [ "$wait_count" -lt "$max_wait" ]; do
+    local app_container
+    app_container="$(dc ps -q app | tr -d '\n\r ')"
+    if [ -n "${app_container:-}" ] && docker exec "$app_container" python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/ready').read()" 2>/dev/null; then
+      echo "app is ready"
+      return 0
+    fi
+    wait_count=$((wait_count + 1))
+    echo "Waiting for app readiness... ($wait_count/$max_wait)"
+    sleep 1
+  done
+
+  echo "❌ App failed to become ready within $max_wait seconds" >&2
+  return 1
+}
+
+if [ ! -x "$BACKUP_HELPER" ]; then
+  echo "❌ Missing Postgres backup helper: $BACKUP_HELPER" >&2
+  exit 1
+fi
+
+echo "Pulling production app image..."
+dc pull app
+
+echo "Starting postgres first..."
+dc up -d --remove-orphans postgres
+wait_for_service_health postgres 60
+
+echo "Creating Postgres backup before migrations..."
+PROJECT_DIR="$DEPLOY_DIR" BACKUP_DIR="$BACKUP_DIR" COMPOSE_FILE="$HELPER_COMPOSE_FILE" POSTGRES_USER="$POSTGRES_USER" POSTGRES_DB="$POSTGRES_DB" \
+  "$BACKUP_HELPER"
+
+echo "Starting app before exposing traffic..."
+dc up -d --remove-orphans app
+wait_for_app_ready 30
+
+APP_CONTAINER="$(dc ps -q app | tr -d '\n\r ')"
+if [ -z "${APP_CONTAINER:-}" ]; then
+  echo "❌ Unable to resolve running app container for migrations" >&2
+  exit 1
+fi
+
+echo "Running database migrations in container: $APP_CONTAINER"
+if docker exec "$APP_CONTAINER" alembic upgrade head; then
+  echo "✅ Database migrations completed successfully in container: $APP_CONTAINER"
+else
+  migration_exit_code=$?
+  echo "❌ Database migrations failed in container: $APP_CONTAINER (exit code: $migration_exit_code)" >&2
+  echo "Check container logs with: docker logs $APP_CONTAINER" >&2
+  exit "$migration_exit_code"
+fi
+
+echo "Starting caddy after successful migrations..."
+dc up -d --remove-orphans caddy
 
 # Healthcheck using --resolve to avoid DNS dependency (works even if DNS is temporarily unavailable)
 # This checks locally via 127.0.0.1 but uses the domain for Host/SNI headers (TLS works correctly)
 DOMAIN="${PRODUCTION_DOMAIN}"
-HEALTH_URL="https://${DOMAIN}/health"
+HEALTH_URL="https://${DOMAIN}/ready"
 attempt=1
 
 # Quick non-blocking HTTP smoke check (diagnostic only; expected 308 -> HTTPS redirect)
 echo "Smoke check HTTP..."
 curl -sS -o /dev/null -w "HTTP:%{http_code}\n" \
-  "http://${DOMAIN}/health" --resolve "${DOMAIN}:80:127.0.0.1" --max-time "${HEALTH_CURL_MAX_TIME_S}" || true
+  "http://${DOMAIN}/ready" --resolve "${DOMAIN}:80:127.0.0.1" --max-time "${HEALTH_CURL_MAX_TIME_S}" || true
 
 # Main healthcheck on HTTPS (does not depend on external DNS)
 echo "Healthcheck HTTPS (attempt ${attempt}/${HEALTH_MAX_ATTEMPTS})..."
