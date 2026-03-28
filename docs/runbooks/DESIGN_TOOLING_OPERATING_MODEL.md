@@ -72,7 +72,11 @@ Every design-tooling task must define:
 - `node_id_or_frame_id`
 - `target_surface`
 - `task_mode`
-- `code_native_design_brief_path`
+
+`code_native_design_brief_path` is required only when `design_source` is
+`code_native_brief`, `figma_design`, or `figma_make`. It remains optional for
+read-only reference sources such as `notion`, `airweave`, `penpot`, and
+`stitch_reference`.
 
 Additionally, `figma_lane_tool` is required only when `design_source` is
 `figma_design` or `figma_make`. `explicit_creation_mode` is optional and is the

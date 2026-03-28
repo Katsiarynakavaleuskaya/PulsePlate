@@ -17,17 +17,6 @@ from scripts.orchestration.requested_agents import normalize_requested_agents
 ROUTING_POLICY_VERSION = "2026-03-27"
 SELECTION_MODE = "deterministic-weighted"
 FIGMA_DESIGN_SOURCES: frozenset[str] = frozenset({"figma_design", "figma_make"})
-DESIGN_ACTIVATION_SOURCES: frozenset[str] = frozenset(
-    {
-        "code_native_brief",
-        "figma_design",
-        "figma_make",
-        "notion",
-        "airweave",
-        "penpot",
-        "stitch_reference",
-    }
-)
 
 ALWAYS_ON_SKILLS: tuple[str, ...] = ("pulseplate-workflow",)
 PR_GOVERNANCE_REQUIRED_SKILLS: tuple[str, ...] = (
@@ -69,6 +58,10 @@ RESEARCH_CONDITIONAL_SKILLS: frozenset[str] = frozenset(
     }
 )
 CI_CONDITIONAL_SKILLS: frozenset[str] = frozenset({"ci-fix", "gh-fix-ci"})
+TRIAGE_CLASSIFICATION_SKILL_BUNDLES: dict[str, tuple[str, ...]] = {
+    "review": ("code-review-expert",),
+    "bugfix": ("bug-triage",),
+}
 
 REQUESTED_AGENT_SKILL_BUNDLES: dict[str, tuple[str, ...]] = {
     "agent-coordinator": ("docs-sync", "agents-md", "pulseplate-gates"),
@@ -951,7 +944,13 @@ def _promote_task_classification_for_explicit_design_metadata(
 
     if not explicit_design_metadata or not design_source:
         return task_classification
-    if task_classification["label"] in {"pr_governance", "creative_research", "experiment"}:
+    if task_classification["label"] in {
+        "pr_governance",
+        "creative_research",
+        "experiment",
+        "review",
+        "bugfix",
+    }:
         return task_classification
     if task_classification["label"] == "design":
         updated = dict(task_classification)
@@ -968,6 +967,57 @@ def _promote_task_classification_for_explicit_design_metadata(
             f"explicit-design-source:{design_source}(+packet)",
         ],
     }
+
+
+def _preserve_triage_lane_for_explicit_design_metadata(
+    *,
+    task_classification: dict[str, Any],
+    normalized_paths: list[str],
+    normalized_text: str,
+    domain: str,
+    explicit_design_metadata: bool,
+) -> dict[str, Any]:
+    """Keep review/bugfix classification when explicit design packets carry triage intent."""
+
+    if not explicit_design_metadata:
+        return task_classification
+    if task_classification["label"] in {"pr_governance", "creative_research", "experiment"}:
+        return task_classification
+    if task_classification["label"] in {"review", "bugfix"}:
+        return task_classification
+
+    scored_by_label = {
+        rule.label: _score_task_classification(
+            rule=rule,
+            normalized_paths=normalized_paths,
+            normalized_text=normalized_text,
+            domain=domain,
+        )
+        for rule in TASK_CLASSIFICATION_RULES
+        if rule.label in {"review", "bugfix"}
+    }
+    review_score = int(scored_by_label["review"]["score"])
+    bugfix_score = int(scored_by_label["bugfix"]["score"])
+
+    if review_score >= 2:
+        return {
+            "label": "review",
+            "score": review_score,
+            "reasons": [
+                *scored_by_label["review"]["reasons"],
+                "explicit-design-metadata:preserve-review",
+            ],
+        }
+    if bugfix_score >= 2:
+        return {
+            "label": "bugfix",
+            "score": bugfix_score,
+            "reasons": [
+                *scored_by_label["bugfix"]["reasons"],
+                "explicit-design-metadata:preserve-bugfix",
+            ],
+        }
+    return task_classification
 
 
 def route_skills(
@@ -1009,6 +1059,13 @@ def route_skills(
         normalized_paths=normalized_paths,
         normalized_text=normalized_text,
         domain=domain,
+    )
+    task_classification = _preserve_triage_lane_for_explicit_design_metadata(
+        task_classification=task_classification,
+        normalized_paths=normalized_paths,
+        normalized_text=normalized_text,
+        domain=domain,
+        explicit_design_metadata=explicit_design_metadata,
     )
     task_classification = _promote_task_classification_for_explicit_design_metadata(
         task_classification=task_classification,
@@ -1073,7 +1130,23 @@ def route_skills(
             )
 
     selected = list(selected_by_skill.values())
-    if explicit_design_metadata and normalized_design_source in DESIGN_ACTIVATION_SOURCES:
+    for bundled_skill in TRIAGE_CLASSIFICATION_SKILL_BUNDLES.get(
+        str(task_classification["label"]), ()
+    ):
+        if bundled_skill in required_skill_names:
+            continue
+        boost = 6 if bundled_skill not in selected_by_skill else 2
+        _apply_bundle_reason(
+            selected_by_skill=selected_by_skill,
+            skill=bundled_skill,
+            boost=boost,
+            reason=f"classification:{task_classification['label']}(+{boost})",
+            fallback_rationale=(
+                "Review and bugfix lanes require deterministic triage-helper coverage."
+            ),
+        )
+
+    if explicit_design_metadata and normalized_design_source in FIGMA_DESIGN_SOURCES:
         for bundled_skill in DESIGN_CONDITIONAL_SKILLS:
             if bundled_skill in required_skill_names:
                 continue

@@ -784,6 +784,77 @@ def test_skill_router_promotes_design_lane_for_explicit_design_metadata() -> Non
     assert "figma-implement-design" in recommended
 
 
+def test_skill_router_keeps_non_figma_reference_sources_out_of_figma_execution_bundle() -> None:
+    """Read-only external design sources must not auto-promote Figma execution skills."""
+
+    decision = route_skills(
+        goal="Sync read-only reference notes for the hero",
+        task_class="Frontend",
+        candidate_paths=["frontend/src/components/Hero.tsx"],
+        domain="frontend",
+        design_source="notion",
+        source_url="https://www.notion.so/workspace/hero-reference",
+        target_surface="web.hero",
+        task_mode="read_only",
+    )
+
+    recommended = {item["skill"] for item in decision["recommended"]}
+    assert decision["task_classification"]["label"] == "design"
+    assert "figma" not in recommended
+    assert "figma-implement-design" not in recommended
+
+
+@pytest.mark.parametrize(
+    ("goal", "task_class", "candidate_paths", "domain", "expected_label", "expected_skill"),
+    (
+        (
+            "Review bug in figma-backed hero",
+            "Frontend",
+            ["frontend/src/components/Hero.tsx"],
+            "frontend",
+            "review",
+            "code-review-expert",
+        ),
+        (
+            "Fix bug in figma-backed hero",
+            "Frontend",
+            ["frontend/src/components/Hero.tsx", "tests/test_dashboard.py"],
+            "frontend",
+            "bugfix",
+            "bug-triage",
+        ),
+    ),
+)
+def test_skill_router_preserves_review_and_bugfix_lanes_with_explicit_design_metadata(
+    goal: str,
+    task_class: str,
+    candidate_paths: list[str],
+    domain: str,
+    expected_label: str,
+    expected_skill: str,
+) -> None:
+    """Explicit design metadata must not overwrite review or bugfix routing semantics."""
+
+    decision = route_skills(
+        goal=goal,
+        task_class=task_class,
+        candidate_paths=candidate_paths,
+        domain=domain,
+        design_source="figma_design",
+        source_url="https://www.figma.com/design/demo/File?node-id=42-7",
+        file_key_or_workspace="demo",
+        node_id_or_frame_id="42:7",
+        target_surface="web.hero",
+        task_mode="implement",
+        figma_lane_tool="figma_native",
+        code_native_design_brief_path="docs/design/HERO_BRIEF.md",
+    )
+
+    recommended = {item["skill"] for item in decision["recommended"]}
+    assert decision["task_classification"]["label"] == expected_label
+    assert expected_skill in recommended
+
+
 def test_skill_router_keeps_research_helpers_conditional_for_weak_research_intent() -> None:
     """Weak research/report signals should stay conditional until the deliverable is explicit."""
 
