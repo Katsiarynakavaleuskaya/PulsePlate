@@ -30,6 +30,12 @@ Commit: bbe08814
 Evidence: `scripts/orchestration/design_lane_contract.py:65`; `scripts/orchestration/task_bootstrap.py:132`; `tests/test_task_bootstrap.py:975`; `pytest -q tests/test_task_bootstrap.py`; `pre-commit run --all-files`; `make verify`
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1268#discussion_r3004994225 -> bbe08814
 
+Disposition: FIXED
+Commit: acb14b45
+Evidence: `scripts/orchestration/skill_router.py:876`; `scripts/orchestration/task_bootstrap.py:828`; `tests/test_skill_router.py:763`; `tests/test_task_bootstrap.py:1418`; `pytest -q tests/test_skill_router.py tests/test_task_bootstrap.py`; `pre-commit run --all-files`; `make verify`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1268#pullrequestreview-4025733794 -> acb14b45
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1268#pullrequestreview-4025737063 -> acb14b45
+
 Disposition: NOT-A-BUG
 Evidence: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1268#pullrequestreview-4025680383 contains the two mapped inline Codex findings above and no standalone defect beyond them.
 Reason: The review-level wrapper aggregates the actionable inline comments already fixed in commit `1ae659f3`.
@@ -45,6 +51,11 @@ Evidence: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1268#pullreq
 Reason: All concrete CodeRabbit actionables are either fixed in commits `1ae659f3`, `49f44165`, and `19444d3c`, or are advisory governance guidance that does not require a code/docs change in this PR.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1268#pullrequestreview-4025685591
 
+Disposition: NOT-A-BUG
+Evidence: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1268#pullrequestreview-4025723129 repeats the already-mapped execution-ready routing issue and adds a stylistic runbook note that does not represent a runtime or contract defect.
+Reason: The duplicate routing concern was fixed in commit `49f44165`; the remaining runbook comment is advisory documentation style guidance, not a blocker for this deterministic PR5 slice.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1268#pullrequestreview-4025723129
+
 ## Merge Readiness
 - [ ] All required checks pass
 - [ ] No unresolved review threads (re-check on current head before merge)
@@ -52,4 +63,4 @@ Reason: All concrete CodeRabbit actionables are either fixed in commits `1ae659f
 - [ ] Pre-commit green
 - [ ] `make verify` green
 - [ ] Mandatory post-open bug-hunter pass completed
-Notes: Draft PR `#1268` was opened on March 28, 2026 for the deterministic PR5 contract slice. The mandatory post-open `qa-engineer-agent -> bug-hunter` pass found two P1 routing defects and one docs-contract drift; those were fixed in commit `23b22a61`. A subsequent Sourcery review plus two Codex inline findings were fixed in commit `1ae659f3`, which also centralized shared design-lane helpers and aligned the code-native brief contract. The remediation slice in commit `49f44165` tightened fail-closed Figma helper routing, corrected node-capture blocker semantics, and added the missing `creative_research` file:line anchor. The follow-up determinism fix in commit `bbe08814` canonicalized design blocker ordering before packet fingerprinting so `task_packet_id` remains stable regardless of CLI blocker order. The refreshed targeted suite, `pre-commit run --all-files`, and `make verify` are green on the current branch head, but merge-readiness boxes stay unchecked until the refreshed current-head CI/bot cycle completes and review threads are resolved on GitHub.
+Notes: Draft PR `#1268` was opened on March 28, 2026 for the deterministic PR5 contract slice. The mandatory post-open `qa-engineer-agent -> bug-hunter` pass found two P1 routing defects and one docs-contract drift; those were fixed in commit `23b22a61`. A subsequent Sourcery review plus two Codex inline findings were fixed in commit `1ae659f3`, which also centralized shared design-lane helpers and aligned the code-native brief contract. The remediation slice in commit `49f44165` tightened fail-closed Figma helper routing, corrected node-capture blocker semantics, and added the missing `creative_research` file:line anchor. The follow-up determinism fix in commit `bbe08814` canonicalized design blocker ordering before packet fingerprinting so `task_packet_id` remains stable regardless of CLI blocker order. The latest router/bootstrap follow-up in commit `acb14b45` threads resolved blocker/mode state into skill routing, keeps design-classified tasks conditional when metadata is absent, and tightens the typed-test surface called out by the latest review wave. The refreshed targeted suite, `pre-commit run --all-files`, and `make verify` are green on the current branch head, but merge-readiness boxes stay unchecked until the refreshed current-head CI/bot cycle completes and review threads are resolved on GitHub.
