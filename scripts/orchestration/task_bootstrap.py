@@ -238,7 +238,7 @@ def _build_design_lane_contract(
             blockers.append("missing_design_metadata")
         if code_native_design_brief_required and not normalized_code_native_design_brief_path:
             blockers.append("missing_design_metadata")
-        if not explicit_creation_mode:
+        if not (explicit_creation_mode and normalized_task_mode == "implement"):
             if not normalized_source_url or not normalized_file_key_or_workspace:
                 blockers.append("blocked_by_design_url")
             if (

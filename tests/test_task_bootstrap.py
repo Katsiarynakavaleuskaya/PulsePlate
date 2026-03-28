@@ -212,6 +212,27 @@ def test_task_bootstrap_allows_explicit_figma_creation_mode_without_existing_nod
     assert packet["design_lane_contract"]["explicit_creation_mode"] is True
 
 
+def test_task_bootstrap_requires_existing_figma_metadata_for_non_implement_creation_mode() -> None:
+    """Creation-mode bypass must not skip URL/node checks for verify or sync flows."""
+
+    packet = build_task_packet(
+        goal="Verify an existing Figma design surface from the canonical brief",
+        task_class="Frontend",
+        candidate_paths=["frontend/src/components/Hero.tsx"],
+        design_source="figma_design",
+        target_surface="web.hero",
+        task_mode="sync",
+        figma_lane_tool="figma_native",
+        code_native_design_brief_path="docs/design/HERO_BRIEF.md",
+        explicit_creation_mode=True,
+    )
+
+    assert packet["automation_flags"]["design_lane_enabled"] is True
+    assert packet["design_lane_mode"] == "read_only"
+    assert packet["design_lane_contract"]["blockers"] == ["blocked_by_design_url"]
+    assert packet["design_lane_contract"]["explicit_creation_mode"] is True
+
+
 def test_task_bootstrap_enables_post_open_review_lane_for_pr_phase() -> None:
     """Post-open review packets must synthesize the canonical QA -> bug-hunter lane."""
 
