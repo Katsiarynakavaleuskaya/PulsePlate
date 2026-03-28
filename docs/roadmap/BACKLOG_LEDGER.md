@@ -2164,13 +2164,13 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Docs/runbooks/ledger references stay in sync with the lifecycle contract
     - No creative research or design execution behavior is added
 
-- [ ] P1: Coordinator automation PR5 — creative research and design/Figma activation
+- [x] P1: Coordinator automation PR5 — creative research and design/Figma activation
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
   - Target PR: PR #1268 (`feat(orchestration): gate design lanes`)
   - Area: orchestration / research / design tooling
   - Finding Type: automation rollout slice
-  - Status: Draft PR `#1268` opened on March 28, 2026; local preflight, targeted tests, `pre-commit run --all-files`, and `make verify` passed on head `6af6ca34`.
+  - Status: Materially completed via merged PR `#1268` (`ef7ac2fe`) on March 28, 2026; this slice now serves as the landed baseline input for the security-first remediation PR.
   - Reason: Creative research and design lanes are the broadest automation surface and must come after bootstrap and skill routing stabilize. This slice should add explicit trigger rules and safe activation boundaries instead of letting design/Figma behavior emerge implicitly.
   - Dependencies:
     - `PR #1266`
