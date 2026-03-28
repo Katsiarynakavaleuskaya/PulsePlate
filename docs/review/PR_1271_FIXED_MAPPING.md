@@ -29,9 +29,15 @@ Reason: The quick-fix script now counts duplicate keys safely, resolves the read
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1271#discussion_r3005353306 -> de778e4a
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1271#discussion_r3005353309 -> de778e4a
 
+Disposition: FIXED
+Commit: 1d03adc8
+Evidence: scripts/PRODUCTION_ENV_FIX.md:24, scripts/PRODUCTION_ENV_FIX.md:42, scripts/PRODUCTION_ENV_FIX.md:81
+Reason: The production env runbook now treats `API_KEY_REQUIRED` as a compatibility request-time flag instead of describing it as a startup fail-closed production guard, matching the current runtime contract.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1271#discussion_r3005374426 -> 1d03adc8
+
 Disposition: NOT-A-BUG
 Evidence: app/AGENTS.md:27-36, docs/deploy/PRODUCTION.md:222, deploy/docker-compose.production.yaml:51, deploy/docker-compose.staging.yaml:49
-Reason: The repository health-endpoint contract explicitly reserves `/health` for liveness and `/ready` for dependency-aware readiness, and it states that orchestrators such as Docker and Caddy should use `/ready` for traffic gating. CodeRabbit's `/health` suggestion conflicts with that source-of-truth contract, while the other actionable points from the same review were already fixed in `de778e4a`.
+Reason: The repository health-endpoint contract explicitly reserves `/health` for liveness and `/ready` for dependency-aware readiness, and it states that orchestrators such as Docker and Caddy should use `/ready` for traffic gating. CodeRabbit's `/health` suggestion conflicts with that source-of-truth contract; the separate `API_KEY_REQUIRED` doc wording comment was fixed in `1d03adc8`.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1271#pullrequestreview-4026052294
 
 ## Merge Readiness
