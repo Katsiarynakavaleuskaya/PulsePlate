@@ -762,6 +762,26 @@ def test_skill_router_keeps_design_helpers_conditional_for_partial_signals() -> 
     )
 
 
+def test_skill_router_keeps_design_classified_tasks_conditional_without_explicit_metadata() -> None:
+    """Design-labeled tasks still need conditional helper guidance when metadata is absent."""
+
+    decision = route_skills(
+        goal="Apply figma-level design fidelity for hero",
+        task_class="Frontend",
+        candidate_paths=["frontend/src/components/Hero.tsx"],
+        domain="frontend",
+    )
+
+    conditional_by_skill = {item["skill"]: item for item in decision["conditional"]}
+    assert decision["task_classification"]["label"] == "design"
+    assert "figma" in conditional_by_skill
+    assert "figma-implement-design" in conditional_by_skill
+    assert (
+        conditional_by_skill["figma"]["when"]
+        == "Enable when a concrete Figma/design node-id or fidelity requirement becomes explicit."
+    )
+
+
 def test_skill_router_promotes_design_lane_for_explicit_design_metadata() -> None:
     """Explicit design packet metadata should upgrade design helpers into recommended lane."""
 
@@ -811,6 +831,32 @@ def test_skill_router_keeps_figma_helpers_conditional_until_packet_is_execution_
         == "Enable when the design packet becomes execution-ready with concrete "
         "Figma source metadata, node/frame capture, and fidelity intent."
     )
+
+
+def test_skill_router_keeps_figma_helpers_conditional_when_packet_has_blockers() -> None:
+    """Resolved blocker state must keep execution helpers out of the recommended lane."""
+
+    decision = route_skills(
+        goal="Refresh hero implementation",
+        task_class="Frontend",
+        candidate_paths=["frontend/src/components/Hero.tsx"],
+        domain="frontend",
+        design_source="figma_design",
+        target_surface="web.hero",
+        task_mode="implement",
+        figma_lane_tool="figma_native",
+        code_native_design_brief_path="docs/design/HERO_BRIEF.md",
+        explicit_creation_mode=True,
+        design_lane_mode="read_only",
+        design_blockers=("blocked_by_plan",),
+    )
+
+    recommended = {item["skill"] for item in decision["recommended"]}
+    conditional_by_skill = {item["skill"] for item in decision["conditional"]}
+    assert "figma" not in recommended
+    assert "figma-implement-design" not in recommended
+    assert "figma" in conditional_by_skill
+    assert "figma-implement-design" in conditional_by_skill
 
 
 def test_skill_router_keeps_non_figma_reference_sources_out_of_figma_execution_bundle() -> None:

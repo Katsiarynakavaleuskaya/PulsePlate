@@ -829,6 +829,8 @@ def build_task_packet(
         figma_lane_tool=design_lane_contract["figma_lane_tool"],
         code_native_design_brief_path=design_lane_contract["code_native_design_brief_path"],
         explicit_creation_mode=design_lane_contract["explicit_creation_mode"],
+        design_lane_mode=design_lane_mode,
+        design_blockers=design_lane_contract["blockers"],
     )
     forced_executable_agents = {"security-auditor"} if security_review_required else set()
     if normalized_pr_phase == PR_PHASE_POST_OPEN_REVIEW:

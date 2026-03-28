@@ -1415,7 +1415,10 @@ def test_main_passes_pr_phase_flag(monkeypatch, capsys) -> None:
     assert json.loads(captured.out)["task_packet_id"] == "pr-phase-packet"
 
 
-def test_main_passes_design_lane_flags(monkeypatch, capsys) -> None:
+def test_main_passes_design_lane_flags(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
     """CLI should propagate additive design-lane arguments into the packet builder."""
 
     observed: dict[str, object] = {}

@@ -13,8 +13,10 @@ from typing import Any
 
 from scripts.orchestration.context_pack import normalize_text, repo_relative_paths
 from scripts.orchestration.design_lane_contract import (
+    DESIGN_EXECUTION_TASK_MODES,
     design_trigger_present,
     figma_packet_is_execution_ready,
+    normalize_design_blockers,
     normalize_optional_text,
 )
 from scripts.orchestration.requested_agents import normalize_requested_agents
@@ -887,6 +889,11 @@ def _conditional_when_for_skill_with_design_state(
                 "Enable when the design packet becomes execution-ready with concrete "
                 "Figma source metadata, node/frame capture, and fidelity intent."
             )
+        if task_classification_label == "design":
+            return (
+                "Enable when a concrete Figma/design node-id or fidelity requirement "
+                "becomes explicit."
+            )
     return _conditional_when_for_skill(
         skill=skill,
         task_classification_label=task_classification_label,
@@ -1059,6 +1066,8 @@ def route_skills(
     figma_lane_tool: str | None = None,
     code_native_design_brief_path: str | None = None,
     explicit_creation_mode: bool = False,
+    design_lane_mode: str | None = None,
+    design_blockers: list[str] | tuple[str, ...] = (),
 ) -> dict[str, Any]:
     """Return deterministic skill routing decision with evidence."""
 
@@ -1076,6 +1085,8 @@ def route_skills(
     normalized_code_native_design_brief_path = normalize_optional_text(
         code_native_design_brief_path
     )
+    normalized_design_lane_mode = normalize_optional_text(design_lane_mode)
+    normalized_design_blockers = normalize_design_blockers(design_blockers)
     explicit_design_metadata = _has_explicit_design_activation_data(
         design_source=normalized_design_source,
         source_url=normalized_source_url,
@@ -1098,6 +1109,12 @@ def route_skills(
         code_native_design_brief_path=normalized_code_native_design_brief_path,
         explicit_creation_mode=explicit_creation_mode,
     )
+    if normalized_design_lane_mode:
+        figma_execution_ready = figma_execution_ready and (
+            normalized_design_lane_mode in DESIGN_EXECUTION_TASK_MODES
+        )
+    if normalized_design_blockers:
+        figma_execution_ready = False
     task_classification = _classify_task(
         normalized_paths=normalized_paths,
         normalized_text=normalized_text,
@@ -1242,6 +1259,8 @@ def select_recommended_skills(
     figma_lane_tool: str | None = None,
     code_native_design_brief_path: str | None = None,
     explicit_creation_mode: bool = False,
+    design_lane_mode: str | None = None,
+    design_blockers: list[str] | tuple[str, ...] = (),
 ) -> list[str]:
     """Backward-compatible helper returning only the ordered skill names."""
 
@@ -1260,6 +1279,8 @@ def select_recommended_skills(
         figma_lane_tool=figma_lane_tool,
         code_native_design_brief_path=code_native_design_brief_path,
         explicit_creation_mode=explicit_creation_mode,
+        design_lane_mode=design_lane_mode,
+        design_blockers=design_blockers,
     )
     return flatten_recommended_skills(decision)
 

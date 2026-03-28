@@ -155,6 +155,6 @@ def figma_packet_is_execution_ready(
         return False
     if not target_surface or not figma_lane_tool or not code_native_design_brief_path:
         return False
-    if explicit_creation_mode:
+    if explicit_creation_mode and task_mode == "implement":
         return True
     return bool(source_url and file_key_or_workspace and node_id_or_frame_id)
