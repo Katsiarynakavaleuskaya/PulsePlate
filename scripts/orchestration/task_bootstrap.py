@@ -55,6 +55,7 @@ TASK_PACKET_DIR: Path = REPO_ROOT / "artifacts" / "orchestration" / "task_packet
 REQUESTED_AGENT_STATUS_REJECTED_UNKNOWN = "rejected_unknown_agent"
 REQUESTED_AGENT_STATUS_HONORED_PRIMARY = "honored_primary"
 REQUESTED_AGENT_STATUS_HONORED_SECONDARY = "honored_secondary"
+REQUESTED_AGENT_STATUS_HONORED_REVIEWER = "honored_reviewer"
 REQUESTED_AGENT_STATUS_ADVISORY_NON_ROUTABLE = "advisory_non_routable"
 REQUESTED_AGENT_STATUS_PROMOTED = "promoted_requested_agent"
 REQUESTED_AGENT_STATUS_ADVISORY_DOMAIN_MISMATCH = "advisory_domain_mismatch"
@@ -292,6 +293,57 @@ def _apply_pr_lifecycle_review_path(
     return adjusted_secondary_agents, adjusted_reviewer
 
 
+def _normalize_secondary_review_path(
+    *,
+    primary_agent: str,
+    secondary_agents: list[str],
+    reviewer: str,
+) -> list[str]:
+    """Keep packet review roles unique before building the native bridge."""
+
+    normalized_secondary_agents: list[str] = []
+    blocked_agents = {primary_agent, reviewer}
+    for agent_slug in secondary_agents:
+        if agent_slug in blocked_agents or agent_slug in normalized_secondary_agents:
+            continue
+        normalized_secondary_agents.append(agent_slug)
+    return normalized_secondary_agents
+
+
+def _reconcile_requested_agent_dispositions(
+    *,
+    requested_agent_disposition: list[dict[str, str]],
+    primary_agent: str,
+    secondary_agents: list[str],
+    reviewer: str,
+) -> None:
+    """Align requested-agent disposition metadata with the final packet roles."""
+
+    advisory_statuses = {
+        REQUESTED_AGENT_STATUS_ADVISORY_NON_ROUTABLE,
+        REQUESTED_AGENT_STATUS_ADVISORY_DOMAIN_MISMATCH,
+    }
+    secondary_agent_set = set(secondary_agents)
+    for disposition in requested_agent_disposition:
+        agent_slug = disposition["agent"]
+        status = disposition["status"]
+        if status == REQUESTED_AGENT_STATUS_REJECTED_UNKNOWN:
+            continue
+        if agent_slug == primary_agent:
+            continue
+        if agent_slug == reviewer and status != REQUESTED_AGENT_STATUS_HONORED_REVIEWER:
+            disposition["status"] = REQUESTED_AGENT_STATUS_HONORED_REVIEWER
+            disposition["reason"] = (
+                "Requested agent stayed honored as reviewer after PR lifecycle synthesis."
+            )
+            continue
+        if agent_slug in secondary_agent_set and status in advisory_statuses:
+            disposition["status"] = REQUESTED_AGENT_STATUS_HONORED_SECONDARY
+            disposition["reason"] = (
+                "Requested agent stayed honored in secondary after PR lifecycle synthesis."
+            )
+
+
 def _partition_native_secondaries(
     *,
     secondary_agents: list[str],
@@ -348,11 +400,18 @@ def _promote_forced_secondary_dispositions(
             continue
         if disposition["status"] not in advisory_statuses:
             continue
+        if disposition["agent"] == "security-auditor":
+            reason = (
+                "Requested agent is required for the privileged review path and stays "
+                "executable in secondary."
+            )
+        else:
+            reason = (
+                "Requested agent is required for the PR lifecycle review path and stays "
+                "executable in secondary."
+            )
         disposition["status"] = REQUESTED_AGENT_STATUS_HONORED_SECONDARY
-        disposition["reason"] = (
-            "Requested agent is required for the privileged review path and stays "
-            "executable in secondary."
-        )
+        disposition["reason"] = reason
 
 
 def _apply_requested_agent_overrides(
@@ -545,7 +604,11 @@ def build_task_packet(
         secondary_agents=requested_agent_resolution["secondary_agents"],
         reviewer=requested_agent_resolution["reviewer"],
     )
-    requested_agent_resolution["secondary_agents"] = lifecycle_secondary_agents
+    requested_agent_resolution["secondary_agents"] = _normalize_secondary_review_path(
+        primary_agent=requested_agent_resolution["primary_agent"],
+        secondary_agents=lifecycle_secondary_agents,
+        reviewer=lifecycle_reviewer,
+    )
     requested_agent_resolution["reviewer"] = lifecycle_reviewer
     skill_routing = route_skills(
         goal=goal,
@@ -555,10 +618,19 @@ def build_task_packet(
         requested_agents=normalized_requested_agents,
     )
     forced_executable_agents = {"security-auditor"} if security_review_required else set()
+    if normalized_pr_phase == PR_PHASE_POST_OPEN_REVIEW:
+        forced_executable_agents.update(POST_OPEN_REVIEW_LANE)
     if forced_executable_agents:
         _promote_forced_secondary_dispositions(
             requested_agent_disposition=requested_agent_resolution["requested_agent_disposition"],
             forced_executable_agents=forced_executable_agents,
+        )
+    if normalized_pr_phase != PR_PHASE_NONE:
+        _reconcile_requested_agent_dispositions(
+            requested_agent_disposition=requested_agent_resolution["requested_agent_disposition"],
+            primary_agent=requested_agent_resolution["primary_agent"],
+            secondary_agents=requested_agent_resolution["secondary_agents"],
+            reviewer=requested_agent_resolution["reviewer"],
         )
     executable_secondaries, advisory_agents = _partition_native_secondaries(
         secondary_agents=requested_agent_resolution["secondary_agents"],

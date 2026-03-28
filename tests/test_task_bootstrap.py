@@ -139,6 +139,55 @@ def test_task_bootstrap_enables_post_open_review_lane_for_pr_phase() -> None:
     }
 
 
+def test_task_bootstrap_keeps_requested_bug_hunter_executable_in_post_open_lane() -> None:
+    """Requested bug-hunter must stay runnable in the canonical post-open lane."""
+
+    packet = build_task_packet(
+        goal="Run post-open review with explicit bug hunter request",
+        task_class="Orchestration",
+        candidate_paths=["scripts/orchestration/task_bootstrap.py"],
+        requested_agents=["bug-hunter"],
+        pr_phase="post_open_review",
+    )
+
+    assert "bug-hunter" in packet["secondary_agents"]
+    assert "bug-hunter" in {
+        binding["repo_agent_slug"] for binding in packet["native_subagent_bridge"]["secondary"]
+    }
+    assert packet["requested_agent_disposition"] == [
+        {
+            "agent": "bug-hunter",
+            "status": "honored_secondary",
+            "reason": (
+                "Requested agent is required for the PR lifecycle review path and stays "
+                "executable in secondary."
+            ),
+        }
+    ]
+
+
+def test_task_bootstrap_deduplicates_reviewer_from_secondary_in_post_open_lane() -> None:
+    """Canonical packet identities must not list the reviewer twice."""
+
+    packet = build_task_packet(
+        goal="Run post-open review with explicit QA request",
+        task_class="Orchestration",
+        candidate_paths=["scripts/orchestration/task_bootstrap.py"],
+        requested_agents=["qa-engineer-agent"],
+        pr_phase="post_open_review",
+    )
+
+    assert packet["reviewer"] == "qa-engineer-agent"
+    assert "qa-engineer-agent" not in packet["secondary_agents"]
+    assert packet["requested_agent_disposition"] == [
+        {
+            "agent": "qa-engineer-agent",
+            "status": "honored_reviewer",
+            "reason": "Requested agent stayed honored as reviewer after PR lifecycle synthesis.",
+        }
+    ]
+
+
 def test_task_bootstrap_sets_merge_ready_contract_without_post_open_lane() -> None:
     """Merge-ready packets should keep lifecycle prep explicit without re-adding QA loop."""
 
