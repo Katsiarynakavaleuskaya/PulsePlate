@@ -143,7 +143,12 @@ sudo chown $USER:$USER /srv/pulseplate-production
 # Copy deployment templates
 sudo cp deploy/Caddyfile /srv/pulseplate-production/
 sudo cp scripts/deploy.sh /srv/pulseplate-production/
+sudo mkdir -p /srv/pulseplate-production/scripts/ops
+sudo cp scripts/ops/postgres_backup.sh /srv/pulseplate-production/scripts/ops/
+sudo cp scripts/ops/postgres_restore.sh /srv/pulseplate-production/scripts/ops/
 sudo chmod +x /srv/pulseplate-production/deploy.sh
+sudo chmod +x /srv/pulseplate-production/scripts/ops/postgres_backup.sh
+sudo chmod +x /srv/pulseplate-production/scripts/ops/postgres_restore.sh
 ```
 
 ### 4. Configure Production Environment
@@ -153,7 +158,13 @@ sudo chmod +x /srv/pulseplate-production/deploy.sh
 sudo tee /srv/pulseplate-production/.env > /dev/null << 'EOF'
 # Production Configuration
 PRODUCTION_DOMAIN=yourdomain.com
-DATABASE_URL=sqlite:///app/cache/app.db
+DATABASE_URL=postgresql+psycopg://<user>:<password>@postgres:5432/<dbname>
+POSTGRES_DB=pulseplate
+POSTGRES_USER=pulseplate
+POSTGRES_PASSWORD=replace-with-strong-secret
+SUBSCRIPTION_DB_ENABLED=true
+ALLOW_DEV_API_KEY=false
+API_KEY_REQUIRED=true
 SECRET_KEY=your-production-secret-key-here
 DEBUG=false
 
@@ -175,6 +186,24 @@ networks:
     external: false
 
 services:
+  postgres:
+    image: postgres:15-alpine
+    env_file:
+      - /srv/pulseplate-production/.env
+    restart: always
+    networks: [web]
+    environment:
+      - POSTGRES_DB=${POSTGRES_DB:?POSTGRES_DB is required}
+      - POSTGRES_USER=${POSTGRES_USER:?POSTGRES_USER is required}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
   app:
     image: ghcr.io/katsiarynakavaleuskaya/pulseplate:${TAG:-latest}
     env_file:
@@ -183,18 +212,14 @@ services:
     networks: [web]
     expose:
       - "8000"
-    # RU: Bind mount БД на хост для персистентности и бэкапов
-    # EN: Bind mount DB to host for persistence and backups
-    volumes:
-      - /srv/pulseplate-production/app_data:/app/cache
+    depends_on:
+      postgres:
+        condition: service_healthy
     command: >
-      uvicorn app:app --host 0.0.0.0 --port 8000
+      uvicorn app.main:app --host 0.0.0.0 --port 8000
       --proxy-headers --forwarded-allow-ips="caddy"
-    # RU: Resource limits (deploy: блок удалён из примера, т.к. работает только в Swarm)
-    # EN: Resource limits (deploy: block removed from example as it only works in Swarm)
-    # Limits can be set via docker-compose CLI flags if needed
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health').read()"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/ready').read()"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -214,13 +239,13 @@ services:
       - caddy_data:/data
       - caddy_config:/config
     depends_on:
-      - app
+      app:
+        condition: service_healthy
 
 volumes:
+  postgres_data:
   caddy_data:
   caddy_config:
-  # RU: app_data volume не используется, т.к. БД монтируется через bind mount
-  # EN: app_data volume not used, as DB is mounted via bind mount
 EOF
 ```
 
@@ -248,147 +273,28 @@ sudo tee /srv/pulseplate-production/Caddyfile > /dev/null << 'EOF'
 EOF
 ```
 
-### 7. Update Deploy Script for Production
+### 7. Update Deploy Flow for Production
 
 ```bash
-# Update deploy.sh for production
-sudo tee /srv/pulseplate-production/deploy.sh > /dev/null << 'EOF'
-#!/usr/bin/env bash
-# Production deployment script
-set -euo pipefail
+# Canonical production sequence (Postgres-first, fail-closed)
+docker compose --env-file .env -f docker-compose.production.yaml pull app
+docker compose --env-file .env -f docker-compose.production.yaml up -d postgres
+docker compose --env-file .env -f docker-compose.production.yaml exec -T postgres \
+  pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB"
 
-# Validate required environment variables
-PRODUCTION_DOMAIN=${PRODUCTION_DOMAIN:?"PRODUCTION_DOMAIN not set"}
-GHCR_TOKEN=${GHCR_TOKEN:?"GHCR_TOKEN not set"}
-GHCR_USER=${GHCR_USER:?"GHCR_USER not set"}
+PROJECT_DIR=/srv/pulseplate-production \
+BACKUP_DIR=/srv/pulseplate-production/backups \
+POSTGRES_USER="$POSTGRES_USER" \
+POSTGRES_DB="$POSTGRES_DB" \
+/srv/pulseplate-production/scripts/ops/postgres_backup.sh
 
-IMG_REF="${1:-latest}"
-COMPOSE="docker compose -f /srv/pulseplate-production/docker-compose.production.yaml"
-
-# Warn if using latest tag
-if [ "$IMG_REF" = "latest" ]; then
-  echo "⚠️  WARNING: Using 'latest' tag. For production deployments, use specific commit SHA tags."
-fi
-
-echo "[1/4] Login GHCR"
-echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
-
-echo "[2/4] Pull image $IMG_REF"
-export TAG="$IMG_REF"
-$COMPOSE pull app
-
-echo "[3/4] Start stack and DB backup"
-$COMPOSE up -d app caddy
-
-# Wait for app container to be ready
-echo "Waiting for app container to be ready..."
-max_wait=60
-wait_count=0
-while [ $wait_count -lt $max_wait ]; do
-  if $COMPOSE ps app | grep -q "Up"; then
-    echo "App container is running"
-    break
-  fi
-  wait_count=$((wait_count + 1))
-  echo "Waiting for app container... ($wait_count/$max_wait)"
-  sleep 1
-done
-
-if [ $wait_count -eq $max_wait ]; then
-  echo "❌ App container failed to start within $max_wait seconds"
-  exit 1
-fi
-
-# Get the actual container name dynamically
-APP_CONTAINER=$($COMPOSE ps -q app | tr -d '\n\r ')
-if [ -z "$APP_CONTAINER" ]; then
-  echo "❌ Failed to find app container"
-  exit 1
-fi
-echo "Using app container: $APP_CONTAINER"
-
-# Create database backup if it exists
-if docker exec "$APP_CONTAINER" test -f /app/cache/app.db 2>/dev/null; then
-  timestamp=$(date +"%Y%m%d_%H%M%S")
-  backup_dir="/srv/pulseplate-production/backups"
-  mkdir -p "$backup_dir"
-  backup_path="$backup_dir/app.db.backup-$timestamp"
-  echo "Creating database backup: $backup_path"
-  docker cp "$APP_CONTAINER:/app/cache/app.db" "$backup_path"
-
-  # RU: Храним 30 последних бэкапов для production
-  # EN: Keep last 30 backups for production
-  ls -t "$backup_dir"/app.db.backup-* 2>/dev/null | tail -n +31 | xargs -r rm -f
-  # See section 7.2 for detailed disk usage and compression guidance
-  echo "Database backup completed"
-else
-  echo "No existing database found, skipping backup"
-fi
-
-echo "[4/4] Run migrations"
-# Wait for app to be ready
-echo "Waiting for app to be ready for migrations..."
-max_wait=30
-wait_count=0
-while [ $wait_count -lt $max_wait ]; do
-  if docker exec "$APP_CONTAINER" python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health').read()" 2>/dev/null; then
-    echo "App is ready for migrations"
-    break
-  fi
-  wait_count=$((wait_count + 1))
-  echo "Waiting for app readiness... ($wait_count/$max_wait)"
-  sleep 1
-done
-
-if [ $wait_count -eq $max_wait ]; then
-  echo "❌ App failed to become ready within $max_wait seconds"
-  exit 1
-fi
-
-# Run migrations
-echo "Running database migrations in container: $APP_CONTAINER"
-if docker exec "$APP_CONTAINER" alembic upgrade head; then
-  echo "✅ Database migrations completed successfully in container: $APP_CONTAINER"
-else
-  migration_exit_code=$?
-  echo "❌ Database migrations failed in container: $APP_CONTAINER (exit code: $migration_exit_code)" >&2
-  echo "Check container logs with: docker logs $APP_CONTAINER" >&2
-  exit $migration_exit_code
-fi
-
-echo "[post] Production health check"
-max_attempts=30
-attempt=0
-while [ $attempt -lt $max_attempts ]; do
-  attempt=$((attempt + 1))
-  echo "Health check attempt $attempt/$max_attempts..."
-
-  curl_output=$(curl -fsS "https://${PRODUCTION_DOMAIN}/health" 2>&1)
-  curl_exit_code=$?
-
-  if [ $curl_exit_code -eq 0 ]; then
-    echo "✅ Production health check successful"
-    break
-  else
-    echo "❌ Health check failed (exit code: $curl_exit_code)" >&2
-    echo "Error details: $curl_output" >&2
-
-    if [ $attempt -eq $max_attempts ]; then
-      echo "❌ Production health check failed after ${max_attempts} attempts" >&2
-      echo "Final error: $curl_output" >&2
-      exit 1
-    fi
-
-    echo "Waiting 2 seconds before retry..."
-    sleep 2
-  fi
-done
-
-echo "✅ Production deployed: $IMG_REF"
-EOF
-
-sudo chmod +x /srv/pulseplate-production/deploy.sh
+docker compose --env-file .env -f docker-compose.production.yaml up -d app caddy
+curl -fsS http://127.0.0.1:8000/ready
+docker compose --env-file .env -f docker-compose.production.yaml exec app alembic upgrade head
+curl -fsS https://yourdomain.com/ready
 ```
+
+Do not use SQLite file copies such as `/app/cache/app.db` in production deploy flow. Production backup/restore must go through `scripts/ops/postgres_backup.sh` and `scripts/ops/postgres_restore.sh`.
 
 ### 7.1. Set Up Disk Space Monitoring and Alerts
 
@@ -497,7 +403,7 @@ This section provides detailed guidance on managing disk space for database back
 To estimate the size of a single backup, use:
 
 ```bash
-du -sh "$backup_dir"/app.db.backup-* | head -1
+du -sh "$backup_dir"/pulseplate_*.dump | head -1
 ```
 
 **Example Calculation**:
@@ -518,18 +424,18 @@ To reduce disk usage, consider compressing backups. Common approaches:
 
    ```bash
    gzip "$backup_path"
-   # Creates: app.db.backup-YYYYMMDD_HHMMSS.gz
+   # Creates: pulseplate_YYYYMMDD_HHMMSS.dump.gz
    ```
 
-2. **SQLite dump with compression**:
+2. **Archive completed dumps after retention pruning**:
 
    ```bash
-   sqlite3 app.db .dump | gzip > "$backup_dir/backup-$timestamp.sql.gz"
+   find "$backup_dir" -type f -name 'pulseplate_*.dump' -mtime +7 -exec gzip {} \;
    ```
 
 **Compression Ratios**:
 
-- Typical SQLite compression: **2-5x** for common databases
+- `pg_dump -Fc` already produces a compact custom-format dump
 - Example: if uncompressed backup ≈ 500MB, after compression ≈ 100-250MB
 - 30 compressed backups ≈ 3-7.5GB (vs 15GB uncompressed)
 
@@ -538,9 +444,7 @@ To reduce disk usage, consider compressing backups. Common approaches:
 - **Always test restores** after implementing compression:
 
   ```bash
-  # Test decompression and restore
-  gunzip backup.sql.gz
-  sqlite3 restored.db < backup.sql
+  POSTGRES_USER=... POSTGRES_DB=... scripts/ops/postgres_restore.sh /absolute/path/to/pulseplate_20260101_010101.dump
   ```
 
 - Monitor compressed backup sizes when setting retention thresholds
@@ -550,16 +454,11 @@ To reduce disk usage, consider compressing backups. Common approaches:
 **Modified Backup Script with Compression** (example):
 
 ```bash
-# Create compressed backup
-timestamp=$(date +"%Y%m%d_%H%M%S")
-backup_dir="/srv/pulseplate-production/backups"
-mkdir -p "$backup_dir"
-backup_path="$backup_dir/app.db.backup-$timestamp"
-docker cp "$APP_CONTAINER:/app/cache/app.db" "$backup_path"
-gzip "$backup_path"  # Compress immediately after creation
-
-# Retention: keep last 30 compressed backups
-ls -t "$backup_dir"/app.db.backup-*.gz 2>/dev/null | tail -n +31 | xargs -r rm -f
+PROJECT_DIR=/srv/pulseplate-production \
+BACKUP_DIR=/srv/pulseplate-production/backups \
+POSTGRES_USER="$POSTGRES_USER" \
+POSTGRES_DB="$POSTGRES_DB" \
+scripts/ops/postgres_backup.sh
 ```
 
 ## 🔑 GitHub Environment Setup
@@ -623,7 +522,7 @@ git push origin v1.0.0
 
 ### Monitoring
 
-1. **Health checks**: Automatic monitoring of `/health` endpoint
+1. **Health checks**: Automatic monitoring of `/ready` (or `/health/db`) endpoint
 2. **Logs**: Available via `docker logs` commands
 3. **Backups**: Automatic database backups before deployments
 4. **Rollback**: Previous image tags available for quick rollback
@@ -669,7 +568,7 @@ fi
 # Check if usage exceeds threshold
 if [ "$USED" -gt "$THRESHOLD" ]; then
     # Remove older backups while retaining the last 30
-    ls -t "$BACKUP_DIR"/app.db.backup-* 2>/dev/null | tail -n +31 | xargs -r rm -f
+    ls -t "$BACKUP_DIR"/pulseplate_*.dump 2>/dev/null | tail -n +31 | xargs -r rm -f
     echo "$(date): Cleaned up old backups (disk usage was ${USED}%)"
 fi
 EOF
@@ -708,7 +607,7 @@ du -sh /srv/pulseplate-production/backups
 df -h
 
 # Estimate backup retention impact
-du -sh /srv/pulseplate-production/backups/app.db.backup-* | head -1
+du -sh /srv/pulseplate-production/backups/pulseplate_*.dump | head -1
 ```
 
 **RU:** Рекомендуется регулярно проверять использование диска и корректировать retention-политики в зависимости от размера бэкапов и доступного места.
@@ -722,7 +621,7 @@ du -sh /srv/pulseplate-production/backups/app.db.backup-* | head -1
 ```bash
 # Test the production configuration locally
 docker compose -f deploy/docker-compose.staging.yaml up -d
-curl -f http://localhost:8000/health
+curl -f http://localhost:8000/ready
 docker compose -f deploy/docker-compose.staging.yaml down
 ```
 
@@ -733,8 +632,8 @@ docker compose -f deploy/docker-compose.staging.yaml down
 cd /srv/pulseplate-production
 ./deploy.sh latest
 
-# Check health
-curl -f https://yourdomain.com/health
+# Check readiness
+curl -f https://yourdomain.com/ready
 ```
 
 ## 📋 Production Checklist
