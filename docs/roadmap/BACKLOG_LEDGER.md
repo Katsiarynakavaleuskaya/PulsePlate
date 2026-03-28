@@ -7857,7 +7857,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (dependency security / pre-push unblock follow-up)
   - Target PR: TBD after upstream patched release
-  - Status: Opened on 25 March 2026; upstream still blocked as of 26 March 2026
+  - Status: Opened on 25 March 2026; upstream still blocked as of 28 March 2026
   - See ADR: `docs/architecture/ADR_PIP_AUDIT_PYGMENTS_SUPPRESSION_SEAM_2026-03-25.md`
   - Reason: `pip-audit` blocks unrelated narrow PRs because `GHSA-5239-wwwm-4pmq`
     currently has no patched `Pygments` release available to pin in the repo
@@ -7865,16 +7865,19 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     exception in `.pre-commit-config.yaml`, which must be removed as soon as a
     safe upstream version exists.
   - Links:
-    - GitHub alerts: `security/dependabot/58`, `security/dependabot/59`, `security/dependabot/60`
+    - GitHub alerts: `security/dependabot/80`, `security/dependabot/81`
+    - GitHub advisory: `https://github.com/advisories/GHSA-5239-wwwm-4pmq`
     - `docs/architecture/ADR_PIP_AUDIT_PYGMENTS_SUPPRESSION_SEAM_2026-03-25.md`
     - `.pre-commit-config.yaml`
     - `docs/security/GHSA-5239-wwwm-4pmq-pygments.md`
+    - `requirements-ci-lite.txt`
+    - `requirements-test.txt`
     - `requirements.txt`
     - `requirements-dev.txt`
     - `requirements-lock.txt`
   - Blockers / Exit criteria:
     - `GHSA-5239-wwwm-4pmq` still has no patched upstream `Pygments` release
-    - CI guard must re-check Dependabot open alerts `#58/#59/#60` and fail once
+    - CI guard must re-check Dependabot open alerts `#80/#81` and fail once
       `first_patched_version` appears or the alerts disappear while the seam remains
     - Seam removal must satisfy the ADR exit criteria before this item can close
   - DoD:

@@ -29,6 +29,7 @@ TRACKED_REQUIREMENTS = (
     "requirements-ci-lite.txt",
     "requirements-dev.txt",
     "requirements-lock.txt",
+    "requirements-test.txt",
 )
 PRE_COMMIT_PATH = ".pre-commit-config.yaml"
 DEPENDABOT_ALERTS_PER_PAGE = 100
