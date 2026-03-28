@@ -70,6 +70,13 @@ instructions still match the live contract:
 - See canonical definition: `AGENTS.md` (Agent Coordination section)
 - Templates: `docs/orchestration/*.template.md`
 - Full workflow: `docs/orchestration/workflow.md`
+- For PR lifecycle packets, bootstrap may now accept `--pr-phase`:
+  - `pre_open` for pre-PR scope lock without review-lane synthesis
+  - `post_open_review` after PR creation to surface the mandatory
+    `qa-engineer-agent -> bug-hunter` lane
+  - `merge_ready` for explicit current-head merge-preparation packets
+- `post_open_review` remains deterministic once invoked; it is not a raw-session
+  or host-runtime auto-trigger by itself.
 
 **Postponed items:** Always record in `docs/roadmap/BACKLOG_LEDGER.md` immediately.
 

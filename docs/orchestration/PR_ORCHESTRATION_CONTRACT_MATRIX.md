@@ -95,6 +95,12 @@ Artifact-only governance findings are fixed in the canonical artifact itself, bu
 - Unresolved review threads must be zero
 - Actionable bot comments must be mapped
 - Cancelled/stale runs do not define mergeability
+- PR lifecycle packets may distinguish `post_open_review` from `merge_ready`,
+  but both phases still use current-head truth and the canonical artifact
+  `docs/review/PR_<N>_FIXED_MAPPING.md`
+- `post_open_review` is the packet-level phase where the canonical
+  `qa-engineer-agent -> bug-hunter` lane is synthesized; `merge_ready` keeps the
+  current-head merge-wrapper contract explicit without widening the review lane
 
 Evidence:
 - `scripts/ci/check_pr_merge_readiness.py:1`

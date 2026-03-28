@@ -88,6 +88,19 @@ JUDGMENT_REQUIRED_CONTEXT_FILES: tuple[str, ...] = (
     "docs/orchestration/EVIDENCE_RECONCILIATION_PROTOCOL.md",
 )
 SUPPORTED_JUDGMENT_DECISION_MODE = "verification_first"
+PR_PHASE_NONE = "none"
+PR_PHASE_PRE_OPEN = "pre_open"
+PR_PHASE_POST_OPEN_REVIEW = "post_open_review"
+PR_PHASE_MERGE_READY = "merge_ready"
+PR_PHASES: tuple[str, ...] = (
+    PR_PHASE_NONE,
+    PR_PHASE_PRE_OPEN,
+    PR_PHASE_POST_OPEN_REVIEW,
+    PR_PHASE_MERGE_READY,
+)
+POST_OPEN_REVIEW_LANE: tuple[str, ...] = ("qa-engineer-agent", "bug-hunter")
+PR_REVIEW_ARTIFACT_TEMPLATE = "docs/review/PR_<N>_FIXED_MAPPING.md"
+MERGE_READINESS_ENTRYPOINT = "scripts/orchestration/check_merge_ready.py"
 
 
 def _read_json(path: Path) -> dict[str, Any] | None:
@@ -212,6 +225,71 @@ def _validated_judgment_activation(
             f"{activation.decision_mode}. Supported: {SUPPORTED_JUDGMENT_DECISION_MODE}"
         )
     return activation
+
+
+def _normalize_pr_phase(pr_phase: str) -> str:
+    """Return a validated PR lifecycle phase.
+
+    RU: PR4 adds explicit lifecycle phases without changing the safe default.
+    EN: PR4 adds explicit lifecycle phases without changing the safe default.
+    """
+
+    normalized_phase = pr_phase.strip().lower()
+    if normalized_phase not in PR_PHASES:
+        supported_phases = ", ".join(PR_PHASES)
+        raise ValueError(f"Unsupported pr_phase: {pr_phase}. Supported: {supported_phases}")
+    return normalized_phase
+
+
+def _build_pr_lifecycle_contract(pr_phase: str) -> dict[str, Any]:
+    """Return deterministic packet metadata for the requested PR phase."""
+
+    requires_pr = pr_phase in {PR_PHASE_POST_OPEN_REVIEW, PR_PHASE_MERGE_READY}
+    requires_current_head = requires_pr
+    if pr_phase == PR_PHASE_POST_OPEN_REVIEW:
+        review_lane = list(POST_OPEN_REVIEW_LANE)
+    else:
+        review_lane = []
+    return {
+        "requires_pr": requires_pr,
+        "post_open_review_required": pr_phase == PR_PHASE_POST_OPEN_REVIEW,
+        "review_lane": review_lane,
+        "artifact_template": PR_REVIEW_ARTIFACT_TEMPLATE if requires_pr else "",
+        "current_head_required": requires_current_head,
+        "current_head_truth": "latest-current-head" if requires_current_head else "not-applicable",
+        "merge_readiness_entrypoint": (
+            MERGE_READINESS_ENTRYPOINT if pr_phase == PR_PHASE_MERGE_READY else ""
+        ),
+    }
+
+
+def _apply_pr_lifecycle_review_path(
+    *,
+    pr_phase: str,
+    primary_agent: str,
+    secondary_agents: list[str],
+    reviewer: str,
+) -> tuple[list[str], str]:
+    """Inject the canonical post-open review lane for PR lifecycle work.
+
+    RU: post-open review обязан держать `qa-engineer-agent -> bug-hunter`.
+    EN: post-open review must keep `qa-engineer-agent -> bug-hunter`.
+    """
+
+    if pr_phase != PR_PHASE_POST_OPEN_REVIEW:
+        return secondary_agents, reviewer
+
+    adjusted_secondary_agents = list(secondary_agents)
+    adjusted_reviewer = reviewer
+
+    if primary_agent == POST_OPEN_REVIEW_LANE[0]:
+        adjusted_reviewer = POST_OPEN_REVIEW_LANE[1]
+    else:
+        adjusted_reviewer = POST_OPEN_REVIEW_LANE[0]
+        if POST_OPEN_REVIEW_LANE[1] not in adjusted_secondary_agents:
+            adjusted_secondary_agents.append(POST_OPEN_REVIEW_LANE[1])
+
+    return adjusted_secondary_agents, adjusted_reviewer
 
 
 def _partition_native_secondaries(
@@ -409,12 +487,14 @@ def build_task_packet(
     task_class: str,
     candidate_paths: list[str],
     requested_agents: list[str] | tuple[str, ...] = (),
+    pr_phase: str = PR_PHASE_NONE,
     telemetry_path: Path = TELEMETRY_PATH,
 ) -> dict[str, Any]:
     """Build a deterministic task packet for orchestration tooling."""
 
     normalized_paths = repo_relative_paths(candidate_paths)
     normalized_requested_agents = normalize_requested_agents(requested_agents)
+    normalized_pr_phase = _normalize_pr_phase(pr_phase)
     domain = resolve_domain(
         task_class=task_class,
         candidate_paths=normalized_paths,
@@ -434,6 +514,7 @@ def build_task_packet(
         domain=decision.domain,
         candidate_paths=normalized_paths,
         requested_agents=normalized_requested_agents,
+        pr_phase=normalized_pr_phase,
     )
     context_pack = collect_context_pack(
         normalized_paths,
@@ -458,6 +539,14 @@ def build_task_packet(
         if not security_in_review_path:
             secondary_agents.append("security-auditor")
         requested_agent_resolution["secondary_agents"] = secondary_agents
+    lifecycle_secondary_agents, lifecycle_reviewer = _apply_pr_lifecycle_review_path(
+        pr_phase=normalized_pr_phase,
+        primary_agent=requested_agent_resolution["primary_agent"],
+        secondary_agents=requested_agent_resolution["secondary_agents"],
+        reviewer=requested_agent_resolution["reviewer"],
+    )
+    requested_agent_resolution["secondary_agents"] = lifecycle_secondary_agents
+    requested_agent_resolution["reviewer"] = lifecycle_reviewer
     skill_routing = route_skills(
         goal=goal,
         task_class=task_class,
@@ -501,6 +590,7 @@ def build_task_packet(
     )
     needs_docs_sync = _needs_docs_sync(normalized_paths)
     needs_agents_sync = _needs_agents_sync(normalized_paths)
+    pr_lifecycle_contract = _build_pr_lifecycle_contract(normalized_pr_phase)
     if judgment_enabled:
         context_pack = sorted(set(context_pack).union(JUDGMENT_REQUIRED_CONTEXT_FILES))
         decision_contract = {
@@ -565,10 +655,11 @@ def build_task_packet(
             "native_subagent_bridge_available": True,
             "security_review_required": security_review_required,
             "judgment_lane_enabled": judgment_enabled,
-            "pr_lifecycle_enabled": False,
+            "pr_lifecycle_enabled": normalized_pr_phase != PR_PHASE_NONE,
             "design_lane_enabled": False,
         },
-        "pr_phase": "none",
+        "pr_phase": normalized_pr_phase,
+        "pr_lifecycle_contract": pr_lifecycle_contract,
         "design_lane_mode": "disabled",
         "needs_backlog_update": needs_backlog_update,
         "needs_docs_sync": needs_docs_sync,
@@ -614,6 +705,12 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=[],
         help="Optional requested agent slug. May be repeated.",
     )
+    parser.add_argument(
+        "--pr-phase",
+        default=PR_PHASE_NONE,
+        choices=PR_PHASES,
+        help="Optional PR lifecycle phase for deterministic review-lane synthesis.",
+    )
     parser.add_argument("--telemetry", default=str(TELEMETRY_PATH))
     parser.add_argument(
         "--output",
@@ -630,6 +727,7 @@ def main(argv: list[str] | None = None) -> int:
         task_class=args.task_class,
         candidate_paths=args.path,
         requested_agents=args.requested_agent,
+        pr_phase=args.pr_phase,
         telemetry_path=Path(args.telemetry),
     )
     try:
