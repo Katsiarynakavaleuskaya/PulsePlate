@@ -237,7 +237,11 @@ def _build_design_lane_contract(
         if not explicit_creation_mode:
             if not normalized_source_url or not normalized_file_key_or_workspace:
                 blockers.append("blocked_by_design_url")
-            if not normalized_node_id_or_frame_id:
+            if (
+                normalized_source_url
+                and normalized_file_key_or_workspace
+                and not normalized_node_id_or_frame_id
+            ):
                 blockers.append("blocked_by_node_id_capture")
 
     blockers = dedupe_preserve_order(blockers)

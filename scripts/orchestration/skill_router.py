@@ -13,8 +13,8 @@ from typing import Any
 
 from scripts.orchestration.context_pack import normalize_text, repo_relative_paths
 from scripts.orchestration.design_lane_contract import (
-    FIGMA_DESIGN_SOURCES,
     design_trigger_present,
+    figma_packet_is_execution_ready,
     normalize_optional_text,
 )
 from scripts.orchestration.requested_agents import normalize_requested_agents
@@ -870,11 +870,36 @@ def _conditional_when_for_skill(*, skill: str, task_classification_label: str) -
     return None
 
 
+def _conditional_when_for_skill_with_design_state(
+    *,
+    skill: str,
+    task_classification_label: str,
+    explicit_design_metadata: bool,
+    figma_execution_ready: bool,
+) -> str | None:
+    """Return conditional guidance while preserving fail-closed design semantics."""
+
+    if skill in DESIGN_CONDITIONAL_SKILLS:
+        if figma_execution_ready:
+            return None
+        if task_classification_label == "design" and explicit_design_metadata:
+            return (
+                "Enable when the design packet becomes execution-ready with concrete "
+                "Figma source metadata, node/frame capture, and fidelity intent."
+            )
+    return _conditional_when_for_skill(
+        skill=skill,
+        task_classification_label=task_classification_label,
+    )
+
+
 def _build_conditional_skills(
     *,
     scored: list[dict[str, Any]],
     selected_skills: set[str],
     task_classification: dict[str, Any],
+    explicit_design_metadata: bool = False,
+    figma_execution_ready: bool = False,
 ) -> list[dict[str, Any]]:
     """Return deterministic conditional skills for partial or out-of-lane signals."""
 
@@ -884,9 +909,11 @@ def _build_conditional_skills(
             continue
         if not item["reasons"]:
             continue
-        when = _conditional_when_for_skill(
+        when = _conditional_when_for_skill_with_design_state(
             skill=item["skill"],
             task_classification_label=task_classification["label"],
+            explicit_design_metadata=explicit_design_metadata,
+            figma_execution_ready=figma_execution_ready,
         )
         if when is None:
             continue
@@ -1040,15 +1067,35 @@ def route_skills(
     normalized_request_text = normalize_text(goal, task_class)
     normalized_requested_agents = tuple(normalize_requested_agents(requested_agents))
     normalized_design_source = normalize_optional_text(design_source)
+    normalized_source_url = normalize_optional_text(source_url)
+    normalized_file_key_or_workspace = normalize_optional_text(file_key_or_workspace)
+    normalized_node_id_or_frame_id = normalize_optional_text(node_id_or_frame_id)
+    normalized_target_surface = normalize_optional_text(target_surface)
+    normalized_task_mode = normalize_optional_text(task_mode)
+    normalized_figma_lane_tool = normalize_optional_text(figma_lane_tool)
+    normalized_code_native_design_brief_path = normalize_optional_text(
+        code_native_design_brief_path
+    )
     explicit_design_metadata = _has_explicit_design_activation_data(
-        design_source=design_source,
-        source_url=source_url,
-        file_key_or_workspace=file_key_or_workspace,
-        node_id_or_frame_id=node_id_or_frame_id,
-        target_surface=target_surface,
-        task_mode=task_mode,
-        figma_lane_tool=figma_lane_tool,
-        code_native_design_brief_path=code_native_design_brief_path,
+        design_source=normalized_design_source,
+        source_url=normalized_source_url,
+        file_key_or_workspace=normalized_file_key_or_workspace,
+        node_id_or_frame_id=normalized_node_id_or_frame_id,
+        target_surface=normalized_target_surface,
+        task_mode=normalized_task_mode,
+        figma_lane_tool=normalized_figma_lane_tool,
+        code_native_design_brief_path=normalized_code_native_design_brief_path,
+        explicit_creation_mode=explicit_creation_mode,
+    )
+    figma_execution_ready = figma_packet_is_execution_ready(
+        design_source=normalized_design_source,
+        source_url=normalized_source_url,
+        file_key_or_workspace=normalized_file_key_or_workspace,
+        node_id_or_frame_id=normalized_node_id_or_frame_id,
+        target_surface=normalized_target_surface,
+        task_mode=normalized_task_mode,
+        figma_lane_tool=normalized_figma_lane_tool,
+        code_native_design_brief_path=normalized_code_native_design_brief_path,
         explicit_creation_mode=explicit_creation_mode,
     )
     task_classification = _classify_task(
@@ -1091,6 +1138,7 @@ def route_skills(
         result
         for result, rule in zip(scored, SKILL_RULES)
         if (result["score"] >= rule.min_score or rule.skill in ALWAYS_ON_SKILLS)
+        and (result["skill"] not in DESIGN_CONDITIONAL_SKILLS or figma_execution_ready)
         and result["skill"] not in required_skill_names
     ]
 
@@ -1142,7 +1190,7 @@ def route_skills(
         )
     selected = list(selected_by_skill.values())
 
-    if explicit_design_metadata and normalized_design_source in FIGMA_DESIGN_SOURCES:
+    if figma_execution_ready:
         for bundled_skill in DESIGN_CONDITIONAL_SKILLS:
             if bundled_skill in required_skill_names:
                 continue
@@ -1162,6 +1210,8 @@ def route_skills(
         scored=scored,
         selected_skills=required_skill_names.union(item["skill"] for item in selected),
         task_classification=task_classification,
+        explicit_design_metadata=explicit_design_metadata,
+        figma_execution_ready=figma_execution_ready,
     )
 
     return {

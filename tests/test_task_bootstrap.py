@@ -143,10 +143,7 @@ def test_task_bootstrap_sets_read_only_design_lane_for_incomplete_figma_packet()
     assert packet["automation_flags"]["design_lane_enabled"] is True
     assert packet["design_lane_mode"] == "read_only"
     assert packet["design_lane_contract"]["design_source"] == "figma_design"
-    assert packet["design_lane_contract"]["blockers"] == [
-        "blocked_by_design_url",
-        "blocked_by_node_id_capture",
-    ]
+    assert packet["design_lane_contract"]["blockers"] == ["blocked_by_design_url"]
     assert packet["design_lane_contract"]["code_native_design_brief_required"] is True
 
 

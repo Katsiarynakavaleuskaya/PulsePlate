@@ -31,6 +31,7 @@ DESIGN_SOURCES_REQUIRING_CODE_NATIVE_BRIEF: tuple[str, ...] = (
 )
 FIGMA_LANE_TOOLS: tuple[str, ...] = ("figma_native", "tokens_studio")
 DESIGN_TASK_MODES: tuple[str, ...] = ("read_only", "verify", "implement", "sync")
+DESIGN_EXECUTION_TASK_MODES: tuple[str, ...] = ("verify", "implement", "sync")
 DESIGN_BLOCKERS: tuple[str, ...] = (
     "missing_design_trigger",
     "missing_design_metadata",
@@ -120,3 +121,28 @@ def design_trigger_present(
             explicit_creation_mode,
         )
     )
+
+
+def figma_packet_is_execution_ready(
+    *,
+    design_source: str,
+    source_url: str,
+    file_key_or_workspace: str,
+    node_id_or_frame_id: str,
+    target_surface: str,
+    task_mode: str,
+    figma_lane_tool: str,
+    code_native_design_brief_path: str,
+    explicit_creation_mode: bool,
+) -> bool:
+    """Return True when a Figma packet is complete enough for execution helpers."""
+
+    if design_source not in FIGMA_DESIGN_SOURCES:
+        return False
+    if task_mode not in DESIGN_EXECUTION_TASK_MODES:
+        return False
+    if not target_surface or not figma_lane_tool or not code_native_design_brief_path:
+        return False
+    if explicit_creation_mode:
+        return True
+    return bool(source_url and file_key_or_workspace and node_id_or_frame_id)

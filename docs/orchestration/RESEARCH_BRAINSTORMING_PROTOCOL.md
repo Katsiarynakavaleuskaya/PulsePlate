@@ -24,7 +24,7 @@ Use this protocol when the task requires:
 
 If the task class is `creative_research`, this protocol remains the brainstorm /
 research entrypoint, but phase semantics and hypothesis / scorecard contracts
-come from `docs/orchestration/CREATIVE_RESEARCH_SUBLANE_PROTOCOL.md`.
+come from `docs/orchestration/CREATIVE_RESEARCH_SUBLANE_PROTOCOL.md:95`.
 Activation must stay explicit: use a real report/research deliverable,
 governed research surface, or explicit packet metadata rather than generic
 “wellness/market/design” wording.

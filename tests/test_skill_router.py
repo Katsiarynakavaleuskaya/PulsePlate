@@ -784,6 +784,35 @@ def test_skill_router_promotes_design_lane_for_explicit_design_metadata() -> Non
     assert "figma-implement-design" in recommended
 
 
+def test_skill_router_keeps_figma_helpers_conditional_until_packet_is_execution_ready() -> None:
+    """Explicit but incomplete Figma packets must fail closed into conditional helpers."""
+
+    decision = route_skills(
+        goal="Refresh hero implementation",
+        task_class="Frontend",
+        candidate_paths=["frontend/src/components/Hero.tsx"],
+        domain="frontend",
+        design_source="figma_design",
+        target_surface="web.hero",
+        task_mode="implement",
+        figma_lane_tool="figma_native",
+        code_native_design_brief_path="docs/design/HERO_BRIEF.md",
+    )
+
+    recommended = {item["skill"] for item in decision["recommended"]}
+    conditional_by_skill = {item["skill"]: item for item in decision["conditional"]}
+    assert decision["task_classification"]["label"] == "design"
+    assert "figma" not in recommended
+    assert "figma-implement-design" not in recommended
+    assert "figma" in conditional_by_skill
+    assert "figma-implement-design" in conditional_by_skill
+    assert (
+        conditional_by_skill["figma"]["when"]
+        == "Enable when the design packet becomes execution-ready with concrete "
+        "Figma source metadata, node/frame capture, and fidelity intent."
+    )
+
+
 def test_skill_router_keeps_non_figma_reference_sources_out_of_figma_execution_bundle() -> None:
     """Read-only external design sources must not auto-promote Figma execution skills."""
 
