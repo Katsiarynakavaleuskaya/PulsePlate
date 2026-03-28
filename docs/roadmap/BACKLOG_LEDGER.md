@@ -2141,12 +2141,13 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Routing stays minimal-optimal and explainable
     - No PR event hooks, Figma mutation flow, or launcher wiring are included
 
-- [ ] P1: Coordinator automation PR4 — PR lifecycle automation
+- [x] P1: Coordinator automation PR4 — PR lifecycle automation
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-TBD-AUTOMATION-PR4-PR-LIFECYCLE
+  - Target PR: PR #1266 (`docs(review): map coderabbit nitpick wrapper`)
   - Area: orchestration / PR governance / review lifecycle
   - Finding Type: automation rollout slice
+  - Status: Materially completed via merged PR `#1266` (`5dfa055d`) on March 28, 2026; this slice now serves as the landed baseline input for PR5.
   - Reason: The canonical docs already require a post-open `qa-engineer-agent -> bug-hunter` loop, but the behavior is still policy-only and easy to forget. The PR lifecycle slice must turn that requirement into deterministic PR-phase automation without widening into design or brainstorming lanes.
   - Dependencies:
     - `PR-TBD-AUTOMATION-PR3-SKILL-INTENT`
@@ -2166,12 +2167,13 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Coordinator automation PR5 — creative research and design/Figma activation
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-TBD-AUTOMATION-PR5-DESIGN-CREATIVE
+  - Target PR: PR #1268 (`feat(orchestration): gate design lanes`)
   - Area: orchestration / research / design tooling
   - Finding Type: automation rollout slice
+  - Status: Draft PR `#1268` opened on March 28, 2026; local preflight, targeted tests, `pre-commit run --all-files`, and `make verify` passed on head `6af6ca34`.
   - Reason: Creative research and design lanes are the broadest automation surface and must come after bootstrap and skill routing stabilize. This slice should add explicit trigger rules and safe activation boundaries instead of letting design/Figma behavior emerge implicitly.
   - Dependencies:
-    - `PR-TBD-AUTOMATION-PR4-PR-LIFECYCLE`
+    - `PR #1266`
   - Lifecycle: Start → Open → Push → Review → Merge
   - Links:
     - `docs/orchestration/AUTOMATION_READINESS_MATRIX.md`

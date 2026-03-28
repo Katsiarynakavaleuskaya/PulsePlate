@@ -12,6 +12,13 @@ import re
 from typing import Any
 
 from scripts.orchestration.context_pack import normalize_text, repo_relative_paths
+from scripts.orchestration.design_lane_contract import (
+    DESIGN_EXECUTION_TASK_MODES,
+    design_trigger_present,
+    figma_packet_is_execution_ready,
+    normalize_design_blockers,
+    normalize_optional_text,
+)
 from scripts.orchestration.requested_agents import normalize_requested_agents
 
 ROUTING_POLICY_VERSION = "2026-03-27"
@@ -57,6 +64,10 @@ RESEARCH_CONDITIONAL_SKILLS: frozenset[str] = frozenset(
     }
 )
 CI_CONDITIONAL_SKILLS: frozenset[str] = frozenset({"ci-fix", "gh-fix-ci"})
+TRIAGE_CLASSIFICATION_SKILL_BUNDLES: dict[str, tuple[str, ...]] = {
+    "review": ("code-review-expert",),
+    "bugfix": ("bug-triage",),
+}
 
 REQUESTED_AGENT_SKILL_BUNDLES: dict[str, tuple[str, ...]] = {
     "agent-coordinator": ("docs-sync", "agents-md", "pulseplate-gates"),
@@ -169,13 +180,11 @@ TASK_CLASSIFICATION_RULES: tuple[TaskClassificationRule, ...] = (
             "monthly",
             "quarterly",
             "trend",
+            "report",
             "research brief",
             "gtm",
             "aso",
             "seo",
-            "wellness",
-            "market",
-            "industry",
         ),
     ),
     TaskClassificationRule(
@@ -773,12 +782,15 @@ def _classify_task(
     scored_by_label = {item["label"]: item for item in scored}
     winning_label = "implementation"
     winning_score = -1
+    minimum_score_by_label = {"creative_research": 4}
 
     for label in CLASSIFICATION_PRECEDENCE:
         candidate = scored_by_label.get(label)
         if candidate is None:
             continue
         candidate_score = int(candidate["score"])
+        if candidate_score < minimum_score_by_label.get(label, 1):
+            continue
         if candidate_score > winning_score:
             winning_label = label
             winning_score = candidate_score
@@ -860,11 +872,41 @@ def _conditional_when_for_skill(*, skill: str, task_classification_label: str) -
     return None
 
 
+def _conditional_when_for_skill_with_design_state(
+    *,
+    skill: str,
+    task_classification_label: str,
+    explicit_design_metadata: bool,
+    figma_execution_ready: bool,
+) -> str | None:
+    """Return conditional guidance while preserving fail-closed design semantics."""
+
+    if skill in DESIGN_CONDITIONAL_SKILLS:
+        if figma_execution_ready:
+            return None
+        if task_classification_label == "design" and explicit_design_metadata:
+            return (
+                "Enable when the design packet becomes execution-ready with concrete "
+                "Figma source metadata, node/frame capture, and fidelity intent."
+            )
+        if task_classification_label == "design":
+            return (
+                "Enable when a concrete Figma/design node-id or fidelity requirement "
+                "becomes explicit."
+            )
+    return _conditional_when_for_skill(
+        skill=skill,
+        task_classification_label=task_classification_label,
+    )
+
+
 def _build_conditional_skills(
     *,
     scored: list[dict[str, Any]],
     selected_skills: set[str],
     task_classification: dict[str, Any],
+    explicit_design_metadata: bool = False,
+    figma_execution_ready: bool = False,
 ) -> list[dict[str, Any]]:
     """Return deterministic conditional skills for partial or out-of-lane signals."""
 
@@ -874,9 +916,11 @@ def _build_conditional_skills(
             continue
         if not item["reasons"]:
             continue
-        when = _conditional_when_for_skill(
+        when = _conditional_when_for_skill_with_design_state(
             skill=item["skill"],
             task_classification_label=task_classification["label"],
+            explicit_design_metadata=explicit_design_metadata,
+            figma_execution_ready=figma_execution_ready,
         )
         if when is None:
             continue
@@ -891,6 +935,121 @@ def _build_conditional_skills(
     return conditional
 
 
+def _has_explicit_design_activation_data(
+    *,
+    design_source: str | None,
+    source_url: str | None,
+    file_key_or_workspace: str | None,
+    node_id_or_frame_id: str | None,
+    target_surface: str | None,
+    task_mode: str | None,
+    figma_lane_tool: str | None,
+    code_native_design_brief_path: str | None,
+    explicit_creation_mode: bool,
+) -> bool:
+    """Return True when the caller explicitly supplied design-lane metadata."""
+
+    return bool(
+        design_trigger_present(
+            design_source=normalize_optional_text(design_source),
+            source_url=normalize_optional_text(source_url),
+            file_key_or_workspace=normalize_optional_text(file_key_or_workspace),
+            node_id_or_frame_id=normalize_optional_text(node_id_or_frame_id),
+            target_surface=normalize_optional_text(target_surface),
+            task_mode=normalize_optional_text(task_mode),
+            figma_lane_tool=normalize_optional_text(figma_lane_tool),
+            code_native_design_brief_path=normalize_optional_text(code_native_design_brief_path),
+            explicit_creation_mode=explicit_creation_mode,
+        )
+    )
+
+
+def _promote_task_classification_for_explicit_design_metadata(
+    *,
+    task_classification: dict[str, Any],
+    design_source: str,
+    explicit_design_metadata: bool,
+) -> dict[str, Any]:
+    """Promote explicit design packets into the canonical design lane."""
+
+    if not explicit_design_metadata or not design_source:
+        return task_classification
+    if task_classification["label"] in {
+        "pr_governance",
+        "creative_research",
+        "experiment",
+        "review",
+        "bugfix",
+    }:
+        return task_classification
+    if task_classification["label"] == "design":
+        updated = dict(task_classification)
+        updated["reasons"] = [
+            *updated["reasons"],
+            f"explicit-design-source:{design_source}(+packet)",
+        ]
+        return updated
+    return {
+        "label": "design",
+        "score": max(int(task_classification["score"]), 1),
+        "reasons": [
+            *task_classification["reasons"],
+            f"explicit-design-source:{design_source}(+packet)",
+        ],
+    }
+
+
+def _preserve_triage_lane_for_explicit_design_metadata(
+    *,
+    task_classification: dict[str, Any],
+    normalized_paths: list[str],
+    normalized_text: str,
+    domain: str,
+    explicit_design_metadata: bool,
+) -> dict[str, Any]:
+    """Keep review/bugfix classification when explicit design packets carry triage intent."""
+
+    if not explicit_design_metadata:
+        return task_classification
+    if task_classification["label"] in {"pr_governance", "creative_research", "experiment"}:
+        return task_classification
+    if task_classification["label"] in {"review", "bugfix"}:
+        return task_classification
+
+    scored_by_label = {
+        rule.label: _score_task_classification(
+            rule=rule,
+            normalized_paths=normalized_paths,
+            normalized_text=normalized_text,
+            domain=domain,
+        )
+        for rule in TASK_CLASSIFICATION_RULES
+        if rule.label in {"review", "bugfix"}
+    }
+    review_score = int(scored_by_label["review"]["score"])
+    bugfix_score = int(scored_by_label["bugfix"]["score"])
+
+    if review_score >= 2:
+        return {
+            "label": "review",
+            "score": review_score,
+            "reasons": [
+                *scored_by_label["review"]["reasons"],
+                "explicit-design-metadata:preserve-review",
+            ],
+        }
+    if bugfix_score >= 2:
+        return {
+            "label": "bugfix",
+            "score": bugfix_score,
+            "reasons": [
+                *scored_by_label["bugfix"]["reasons"],
+                "explicit-design-metadata:preserve-bugfix",
+            ],
+        }
+    return task_classification
+
+
 def route_skills(
     *,
     goal: str,
@@ -898,6 +1057,17 @@ def route_skills(
     candidate_paths: list[str] | tuple[str, ...],
     domain: str,
     requested_agents: list[str] | tuple[str, ...] = (),
+    design_source: str | None = None,
+    source_url: str | None = None,
+    file_key_or_workspace: str | None = None,
+    node_id_or_frame_id: str | None = None,
+    target_surface: str | None = None,
+    task_mode: str | None = None,
+    figma_lane_tool: str | None = None,
+    code_native_design_brief_path: str | None = None,
+    explicit_creation_mode: bool = False,
+    design_lane_mode: str | None = None,
+    design_blockers: list[str] | tuple[str, ...] = (),
 ) -> dict[str, Any]:
     """Return deterministic skill routing decision with evidence."""
 
@@ -905,10 +1075,62 @@ def route_skills(
     normalized_text = normalize_text(goal, task_class, *normalized_paths)
     normalized_request_text = normalize_text(goal, task_class)
     normalized_requested_agents = tuple(normalize_requested_agents(requested_agents))
+    normalized_design_source = normalize_optional_text(design_source)
+    normalized_source_url = normalize_optional_text(source_url)
+    normalized_file_key_or_workspace = normalize_optional_text(file_key_or_workspace)
+    normalized_node_id_or_frame_id = normalize_optional_text(node_id_or_frame_id)
+    normalized_target_surface = normalize_optional_text(target_surface)
+    normalized_task_mode = normalize_optional_text(task_mode)
+    normalized_figma_lane_tool = normalize_optional_text(figma_lane_tool)
+    normalized_code_native_design_brief_path = normalize_optional_text(
+        code_native_design_brief_path
+    )
+    normalized_design_lane_mode = normalize_optional_text(design_lane_mode)
+    normalized_design_blockers = normalize_design_blockers(design_blockers)
+    explicit_design_metadata = _has_explicit_design_activation_data(
+        design_source=normalized_design_source,
+        source_url=normalized_source_url,
+        file_key_or_workspace=normalized_file_key_or_workspace,
+        node_id_or_frame_id=normalized_node_id_or_frame_id,
+        target_surface=normalized_target_surface,
+        task_mode=normalized_task_mode,
+        figma_lane_tool=normalized_figma_lane_tool,
+        code_native_design_brief_path=normalized_code_native_design_brief_path,
+        explicit_creation_mode=explicit_creation_mode,
+    )
+    figma_execution_ready = figma_packet_is_execution_ready(
+        design_source=normalized_design_source,
+        source_url=normalized_source_url,
+        file_key_or_workspace=normalized_file_key_or_workspace,
+        node_id_or_frame_id=normalized_node_id_or_frame_id,
+        target_surface=normalized_target_surface,
+        task_mode=normalized_task_mode,
+        figma_lane_tool=normalized_figma_lane_tool,
+        code_native_design_brief_path=normalized_code_native_design_brief_path,
+        explicit_creation_mode=explicit_creation_mode,
+    )
+    if normalized_design_lane_mode:
+        figma_execution_ready = figma_execution_ready and (
+            normalized_design_lane_mode in DESIGN_EXECUTION_TASK_MODES
+        )
+    if normalized_design_blockers:
+        figma_execution_ready = False
     task_classification = _classify_task(
         normalized_paths=normalized_paths,
         normalized_text=normalized_text,
         domain=domain,
+    )
+    task_classification = _preserve_triage_lane_for_explicit_design_metadata(
+        task_classification=task_classification,
+        normalized_paths=normalized_paths,
+        normalized_text=normalized_text,
+        domain=domain,
+        explicit_design_metadata=explicit_design_metadata,
+    )
+    task_classification = _promote_task_classification_for_explicit_design_metadata(
+        task_classification=task_classification,
+        design_source=normalized_design_source,
+        explicit_design_metadata=explicit_design_metadata,
     )
 
     blocked = [
@@ -933,6 +1155,7 @@ def route_skills(
         result
         for result, rule in zip(scored, SKILL_RULES)
         if (result["score"] >= rule.min_score or rule.skill in ALWAYS_ON_SKILLS)
+        and (result["skill"] not in DESIGN_CONDITIONAL_SKILLS or figma_execution_ready)
         and result["skill"] not in required_skill_names
     ]
 
@@ -967,12 +1190,45 @@ def route_skills(
                 ),
             )
 
+    for bundled_skill in TRIAGE_CLASSIFICATION_SKILL_BUNDLES.get(
+        str(task_classification["label"]), ()
+    ):
+        if bundled_skill in required_skill_names:
+            continue
+        boost = 6 if bundled_skill not in selected_by_skill else 2
+        _apply_bundle_reason(
+            selected_by_skill=selected_by_skill,
+            skill=bundled_skill,
+            boost=boost,
+            reason=f"classification:{task_classification['label']}(+{boost})",
+            fallback_rationale=(
+                "Review and bugfix lanes require deterministic triage-helper coverage."
+            ),
+        )
     selected = list(selected_by_skill.values())
+
+    if figma_execution_ready:
+        for bundled_skill in DESIGN_CONDITIONAL_SKILLS:
+            if bundled_skill in required_skill_names:
+                continue
+            boost = 6 if bundled_skill not in selected_by_skill else 2
+            _apply_bundle_reason(
+                selected_by_skill=selected_by_skill,
+                skill=bundled_skill,
+                boost=boost,
+                reason=f"design-metadata:{normalized_design_source}(+{boost})",
+                fallback_rationale=(
+                    "Explicit design activation metadata upgrades the design lane from advisory to actionable."
+                ),
+            )
+        selected = list(selected_by_skill.values())
     selected.sort(key=lambda item: (-int(item["score"]), item["skill"]))
     conditional = _build_conditional_skills(
         scored=scored,
         selected_skills=required_skill_names.union(item["skill"] for item in selected),
         task_classification=task_classification,
+        explicit_design_metadata=explicit_design_metadata,
+        figma_execution_ready=figma_execution_ready,
     )
 
     return {
@@ -994,6 +1250,17 @@ def select_recommended_skills(
     candidate_paths: list[str] | tuple[str, ...],
     domain: str,
     requested_agents: list[str] | tuple[str, ...] = (),
+    design_source: str | None = None,
+    source_url: str | None = None,
+    file_key_or_workspace: str | None = None,
+    node_id_or_frame_id: str | None = None,
+    target_surface: str | None = None,
+    task_mode: str | None = None,
+    figma_lane_tool: str | None = None,
+    code_native_design_brief_path: str | None = None,
+    explicit_creation_mode: bool = False,
+    design_lane_mode: str | None = None,
+    design_blockers: list[str] | tuple[str, ...] = (),
 ) -> list[str]:
     """Backward-compatible helper returning only the ordered skill names."""
 
@@ -1003,6 +1270,17 @@ def select_recommended_skills(
         candidate_paths=candidate_paths,
         domain=domain,
         requested_agents=requested_agents,
+        design_source=design_source,
+        source_url=source_url,
+        file_key_or_workspace=file_key_or_workspace,
+        node_id_or_frame_id=node_id_or_frame_id,
+        target_surface=target_surface,
+        task_mode=task_mode,
+        figma_lane_tool=figma_lane_tool,
+        code_native_design_brief_path=code_native_design_brief_path,
+        explicit_creation_mode=explicit_creation_mode,
+        design_lane_mode=design_lane_mode,
+        design_blockers=design_blockers,
     )
     return flatten_recommended_skills(decision)
 

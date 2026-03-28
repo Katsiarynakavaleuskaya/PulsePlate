@@ -625,6 +625,19 @@ def test_skill_router_selects_report_stack_for_research() -> None:
     assert "notion-research-documentation" in skills
 
 
+def test_task_classifier_keeps_generic_market_wellness_language_out_of_creative_research() -> None:
+    """Generic wellness/market wording without a research deliverable must not trigger the lane."""
+
+    decision = route_skills(
+        goal="Document wellness market positioning notes for later UI discussion",
+        task_class="Documentation",
+        candidate_paths=["docs/ENGINEERING_LESSONS.md"],
+        domain="docs",
+    )
+
+    assert decision["task_classification"]["label"] != "creative_research"
+
+
 def test_skill_router_selects_create_pr_for_explicit_pr_intent() -> None:
     """Explicit PR-prep tasks should cross the dedicated create-pr threshold."""
 
@@ -747,6 +760,193 @@ def test_skill_router_keeps_design_helpers_conditional_for_partial_signals() -> 
         conditional_by_skill["figma"]["when"]
         == "Enable when a concrete Figma/design node-id or fidelity requirement becomes explicit."
     )
+
+
+def test_skill_router_keeps_design_classified_tasks_conditional_without_explicit_metadata() -> None:
+    """Design-labeled tasks still need conditional helper guidance when metadata is absent."""
+
+    decision = route_skills(
+        goal="Apply figma-level design fidelity for hero",
+        task_class="Frontend",
+        candidate_paths=["frontend/src/components/Hero.tsx"],
+        domain="frontend",
+    )
+
+    conditional_by_skill = {item["skill"]: item for item in decision["conditional"]}
+    assert decision["task_classification"]["label"] == "design"
+    assert "figma" in conditional_by_skill
+    assert "figma-implement-design" in conditional_by_skill
+    assert (
+        conditional_by_skill["figma"]["when"]
+        == "Enable when a concrete Figma/design node-id or fidelity requirement becomes explicit."
+    )
+
+
+def test_skill_router_promotes_design_lane_for_explicit_design_metadata() -> None:
+    """Explicit design packet metadata should upgrade design helpers into recommended lane."""
+
+    decision = route_skills(
+        goal="Refresh hero implementation",
+        task_class="Frontend",
+        candidate_paths=["frontend/src/components/Hero.tsx"],
+        domain="frontend",
+        design_source="figma_design",
+        target_surface="web.hero",
+        task_mode="implement",
+        figma_lane_tool="figma_native",
+        code_native_design_brief_path="docs/design/HERO_BRIEF.md",
+        explicit_creation_mode=True,
+    )
+
+    assert decision["task_classification"]["label"] == "design"
+    recommended = [item["skill"] for item in decision["recommended"]]
+    assert "figma" in recommended
+    assert "figma-implement-design" in recommended
+
+
+def test_skill_router_keeps_figma_helpers_conditional_until_packet_is_execution_ready() -> None:
+    """Explicit but incomplete Figma packets must fail closed into conditional helpers."""
+
+    decision = route_skills(
+        goal="Refresh hero implementation",
+        task_class="Frontend",
+        candidate_paths=["frontend/src/components/Hero.tsx"],
+        domain="frontend",
+        design_source="figma_design",
+        target_surface="web.hero",
+        task_mode="implement",
+        figma_lane_tool="figma_native",
+        code_native_design_brief_path="docs/design/HERO_BRIEF.md",
+    )
+
+    recommended = {item["skill"] for item in decision["recommended"]}
+    conditional_by_skill = {item["skill"]: item for item in decision["conditional"]}
+    assert decision["task_classification"]["label"] == "design"
+    assert "figma" not in recommended
+    assert "figma-implement-design" not in recommended
+    assert "figma" in conditional_by_skill
+    assert "figma-implement-design" in conditional_by_skill
+    assert (
+        conditional_by_skill["figma"]["when"]
+        == "Enable when the design packet becomes execution-ready with concrete "
+        "Figma source metadata, node/frame capture, and fidelity intent."
+    )
+
+
+def test_skill_router_keeps_figma_helpers_conditional_when_packet_has_blockers() -> None:
+    """Resolved blocker state must keep execution helpers out of the recommended lane."""
+
+    decision = route_skills(
+        goal="Refresh hero implementation",
+        task_class="Frontend",
+        candidate_paths=["frontend/src/components/Hero.tsx"],
+        domain="frontend",
+        design_source="figma_design",
+        target_surface="web.hero",
+        task_mode="implement",
+        figma_lane_tool="figma_native",
+        code_native_design_brief_path="docs/design/HERO_BRIEF.md",
+        explicit_creation_mode=True,
+        design_lane_mode="implement",
+        design_blockers=("blocked_by_plan",),
+    )
+
+    recommended = {item["skill"] for item in decision["recommended"]}
+    conditional_by_skill = {item["skill"] for item in decision["conditional"]}
+    assert "figma" not in recommended
+    assert "figma-implement-design" not in recommended
+    assert "figma" in conditional_by_skill
+    assert "figma-implement-design" in conditional_by_skill
+
+
+def test_skill_router_keeps_non_figma_reference_sources_out_of_figma_execution_bundle() -> None:
+    """Read-only external design sources must not auto-promote Figma execution skills."""
+
+    decision = route_skills(
+        goal="Sync read-only reference notes for the hero",
+        task_class="Frontend",
+        candidate_paths=["frontend/src/components/Hero.tsx"],
+        domain="frontend",
+        design_source="notion",
+        source_url="https://www.notion.so/workspace/hero-reference",
+        target_surface="web.hero",
+        task_mode="read_only",
+    )
+
+    recommended = {item["skill"] for item in decision["recommended"]}
+    assert decision["task_classification"]["label"] == "design"
+    assert "figma" not in recommended
+    assert "figma-implement-design" not in recommended
+
+
+def test_skill_router_applies_triage_bundle_without_figma_activation() -> None:
+    """Review lanes must keep triage helpers even without Figma promotion."""
+
+    decision = route_skills(
+        goal="Review hero patch",
+        task_class="Frontend",
+        candidate_paths=["frontend/src/components/Hero.tsx"],
+        domain="frontend",
+        design_source="notion",
+        source_url="https://www.notion.so/workspace/hero-review",
+        target_surface="web.hero",
+        task_mode="read_only",
+    )
+
+    recommended = {item["skill"] for item in decision["recommended"]}
+    assert decision["task_classification"]["label"] == "review"
+    assert "code-review-expert" in recommended
+
+
+@pytest.mark.parametrize(
+    ("goal", "task_class", "candidate_paths", "domain", "expected_label", "expected_skill"),
+    (
+        (
+            "Review bug in figma-backed hero",
+            "Frontend",
+            ["frontend/src/components/Hero.tsx"],
+            "frontend",
+            "review",
+            "code-review-expert",
+        ),
+        (
+            "Fix bug in figma-backed hero",
+            "Frontend",
+            ["frontend/src/components/Hero.tsx", "tests/test_dashboard.py"],
+            "frontend",
+            "bugfix",
+            "bug-triage",
+        ),
+    ),
+)
+def test_skill_router_preserves_review_and_bugfix_lanes_with_explicit_design_metadata(
+    goal: str,
+    task_class: str,
+    candidate_paths: list[str],
+    domain: str,
+    expected_label: str,
+    expected_skill: str,
+) -> None:
+    """Explicit design metadata must not overwrite review or bugfix routing semantics."""
+
+    decision = route_skills(
+        goal=goal,
+        task_class=task_class,
+        candidate_paths=candidate_paths,
+        domain=domain,
+        design_source="figma_design",
+        source_url="https://www.figma.com/design/demo/File?node-id=42-7",
+        file_key_or_workspace="demo",
+        node_id_or_frame_id="42:7",
+        target_surface="web.hero",
+        task_mode="implement",
+        figma_lane_tool="figma_native",
+        code_native_design_brief_path="docs/design/HERO_BRIEF.md",
+    )
+
+    recommended = {item["skill"] for item in decision["recommended"]}
+    assert decision["task_classification"]["label"] == expected_label
+    assert expected_skill in recommended
 
 
 def test_skill_router_keeps_research_helpers_conditional_for_weak_research_intent() -> None:

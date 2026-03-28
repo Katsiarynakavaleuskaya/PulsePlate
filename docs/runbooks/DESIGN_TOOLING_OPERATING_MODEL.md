@@ -73,11 +73,19 @@ Every design-tooling task must define:
 - `target_surface`
 - `task_mode`
 
+`code_native_design_brief_path` is required when `design_source` is
+`code_native_brief`, `figma_design`, or `figma_make`. It remains optional for
+read-only reference sources such as `notion`, `airweave`, `penpot`, and
+`stitch_reference`. The packet field `code_native_design_brief_required`
+mirrors that same contract for downstream consumers.
+
 Additionally, `figma_lane_tool` is required only when `design_source` is
-`figma_design` or `figma_make`.
+`figma_design` or `figma_make`. `explicit_creation_mode` is optional and is the
+only approved way to activate a Figma lane without an existing URL/node pair.
 
 Allowed `design_source` values:
 
+- `code_native_brief`
 - `figma_design`
 - `figma_make`
 - `notion`
@@ -101,6 +109,25 @@ Rule: when `design_source` is non-Figma (`notion`, `airweave`, `penpot`,
 `stitch_reference`), `figma_lane_tool` must be omitted. When
 `figma_lane_tool=tokens_studio`, `design_source` still remains `figma_design`
 or `figma_make`; Tokens Studio does not become a separate source lane.
+
+Bootstrap / packet rule:
+
+- `code_native_brief` is the canonical repo-first design source for PR5-style
+  activation contracts.
+- Figma sources require a code-native brief path before they may resolve to an
+  executable mode.
+- Figma packets without current URL/file-key/node metadata must stay
+  `read_only` unless `explicit_creation_mode=true`.
+- External/reference sources (`notion`, `airweave`, `penpot`,
+  `stitch_reference`) remain `read_only` even when they are explicitly present
+  in the packet.
+- Canonical blocker vocabulary for packet-driven design activation is:
+  - `missing_design_trigger`
+  - `missing_design_metadata`
+  - `blocked_by_design_url`
+  - `blocked_by_node_id_capture`
+  - `blocked_by_plan`
+  - `stale`
 
 ## 6. Lifecycle Model
 
