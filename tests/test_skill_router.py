@@ -847,7 +847,7 @@ def test_skill_router_keeps_figma_helpers_conditional_when_packet_has_blockers()
         figma_lane_tool="figma_native",
         code_native_design_brief_path="docs/design/HERO_BRIEF.md",
         explicit_creation_mode=True,
-        design_lane_mode="read_only",
+        design_lane_mode="implement",
         design_blockers=("blocked_by_plan",),
     )
 

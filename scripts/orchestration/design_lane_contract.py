@@ -83,9 +83,10 @@ def canonicalize_design_blockers(
     """Return blockers in canonical vocabulary order for deterministic hashing."""
 
     blocker_rank = {blocker: index for index, blocker in enumerate(DESIGN_BLOCKERS)}
+    max_rank = len(DESIGN_BLOCKERS)
     return sorted(
         dedupe_preserve_order(list(design_blockers)),
-        key=lambda blocker: blocker_rank[blocker],
+        key=lambda blocker: (blocker_rank.get(blocker, max_rank), blocker),
     )
 
 

@@ -16,6 +16,7 @@ from core.judgment import (
     SUPPORT_STATUSES,
     UNCERTAINTY_FIELDS,
 )
+from scripts.orchestration.design_lane_contract import canonicalize_design_blockers
 from scripts.orchestration.context_pack import REPO_ROOT, normalize_repo_path
 from scripts.orchestration.routing_graph_loader import (
     BootstrapLaneActivation,
@@ -1005,6 +1006,18 @@ def test_task_bootstrap_canonicalizes_design_blocker_order_for_packet_identity()
     assert second_packet["design_lane_contract"]["blockers"] == [
         "blocked_by_plan",
         "stale",
+    ]
+
+
+def test_canonicalize_design_blockers_keeps_unknown_entries_deterministic() -> None:
+    """Unknown blockers must not crash direct canonicalization helpers."""
+
+    assert canonicalize_design_blockers(
+        ("custom_blocker", "blocked_by_plan", "custom_alpha"),
+    ) == [
+        "blocked_by_plan",
+        "custom_alpha",
+        "custom_blocker",
     ]
 
 
