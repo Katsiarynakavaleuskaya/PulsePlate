@@ -144,7 +144,7 @@ PR4 scope note:
 
 - PR lifecycle automation stays deterministic only after explicit bootstrap
   invocation with `pr_phase` such as `post_open_review` or `merge_ready`.
-- Post-open review lane synthesis is packet-level contract, not raw-session or
+- Post-open review lane synthesis is a packet-level contract, not raw-session or
   host-runtime event automation.
 
 ---
