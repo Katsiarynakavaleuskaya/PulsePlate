@@ -225,6 +225,17 @@ Use `docs/runbooks/FIGMA_MCP_SESSION_EVIDENCE_TEMPLATE.md`.
   `docs/design/ui_component_vocabulary.json`; they remain lifecycle
   `read_only` until promoted into repo docs/code.
 
+### Figma rebuild-family rule
+
+- Rebuild helper families created in Figma do not become canonical primitives
+  by existence alone.
+- Exact repo vocabulary mapping is required for canonical status.
+- Families marked `specialized_existing_candidate` remain helper-level until
+  explicitly promoted.
+- Families marked `governed_gap_missing` remain governed gaps.
+- Families marked `off_canon_risk_stop_promotion` must not be expanded further
+  in Figma until repo-side review decides their fate.
+
 ## 9. Security Rules
 
 - Never store secrets for Figma, Notion, Airweave, Penpot, or Stitch-related integrations in repo files. Evidence:
