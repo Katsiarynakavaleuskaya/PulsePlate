@@ -20,6 +20,14 @@ Evidence: `docs/security/CVE-2026-4926-path-to-regexp-and-CVE-2026-33750-brace-e
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1272#discussion_r3005804715 -> ef976140
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1272#pullrequestreview-4026444931 -> ef976140
 
+Disposition: FIXED
+Commit: 85410b38
+Evidence: `docs/review/PR_1272_FIXED_MAPPING.md:18` now uses the corrected phrase `latest-head`, and `frontend/src/mocks/handlers.ts:3` plus `frontend/src/mocks/handlers.ts:6` now add explicit return types for the helper and returned predicate in line with repo typing guidance. Validation re-ran with `cd frontend && npx vitest run src/mocks/__tests__/purchase.test.ts`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1272#discussion_r3005846136 -> 85410b38
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1272#pullrequestreview-4026477941 -> 85410b38
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1272#discussion_r3005869531 -> 85410b38
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1272#pullrequestreview-4026498070 -> 85410b38
+
 ## Merge Readiness
 - [ ] All required checks pass
 - [ ] No unresolved review threads (re-check on current head before merge)
