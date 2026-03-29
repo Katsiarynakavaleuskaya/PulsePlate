@@ -57,7 +57,7 @@ distlib==0.4.0
     # via virtualenv
 execnet==2.1.2
     # via pytest-xdist
-faker==40.11.0
+faker==40.11.1
     # via -r requirements-dev.in
 filelock==3.24.3
     # via
@@ -66,7 +66,7 @@ filelock==3.24.3
     #   virtualenv
 flake8==7.3.0
     # via -r requirements-dev.in
-hypothesis==6.151.9
+hypothesis==6.151.10
     # via -r requirements-dev.in
 identify==2.6.15
     # via pre-commit
@@ -204,6 +204,7 @@ pyyaml==6.0.3
 requests==2.33.0
     # via
     #   -c requirements.txt
+    #   -r requirements-dev.in
     #   cachecontrol
     #   detect-secrets
     #   pip-audit
