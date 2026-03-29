@@ -14,11 +14,11 @@ Reason: The remaining Sourcery suggestion about adding an inline comment above `
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1272#discussion_r3005802120 -> 6adb803f
 
 Disposition: FIXED
-Commit: e3473f24
-Evidence: `docs/security/CVE-2026-4926-path-to-regexp-and-CVE-2026-33750-brace-expansion.md:5` now records the explicit policy exception for this grouped npm remediation batch, `frontend/package.json:86` now adds matching frontend `overrides` for `brace-expansion=2.0.3` and `path-to-regexp=8.4.0`, and `frontend/package-lock.json:4979` plus `frontend/package-lock.json:8616` now resolve the frontend lockfile to the fixed versions. Validation was re-run with `cd frontend && npm install --package-lock-only` and `cd frontend && npm audit --package-lock-only --omit=dev --json`.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1272#discussion_r3005804714 -> e3473f24
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1272#discussion_r3005804715 -> e3473f24
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1272#pullrequestreview-4026444931 -> e3473f24
+Commit: ef976140
+Evidence: `docs/security/CVE-2026-4926-path-to-regexp-and-CVE-2026-33750-brace-expansion.md:5` still records the explicit policy exception for this grouped npm remediation batch, but the latest latest-head CI failure showed the blanket frontend `brace-expansion=2.0.3` pin was too broad for the Node 22 design-token tool chain. `frontend/package.json:86` now keeps only the frontend-safe `path-to-regexp=8.4.0` override, `frontend/package-lock.json:467` and `frontend/package-lock.json:10333` now restore compatible patched `brace-expansion=5.0.5` for dev-only `minimatch` consumers, and `frontend/package-lock.json:8640` still pins `path-to-regexp=8.4.0`. Validation was re-run with `make tokens-check`, `cd frontend && npm audit --package-lock-only --json`, `pre-commit run --all-files`, and `make verify`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1272#discussion_r3005804714 -> ef976140
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1272#discussion_r3005804715 -> ef976140
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1272#pullrequestreview-4026444931 -> ef976140
 
 ## Merge Readiness
 - [ ] All required checks pass
@@ -27,4 +27,4 @@ Evidence: `docs/security/CVE-2026-4926-path-to-regexp-and-CVE-2026-33750-brace-e
 - [x] Pre-commit green
 - [x] `make verify` green
 - [x] Mandatory post-open bug-hunter pass completed
-Notes: PR `#1272` remains the narrow security/dependabot remediation lane for alerts `#76`, `#82`, and `#83`. Scope is limited to npm manifest policy plus canonical security evidence across the two repo-managed npm surfaces that install independently in CI: root and `frontend/`. The mandatory post-open bug-hunter pass confirmed the original root-only lockfile state was insufficient for full npm-surface remediation, so the lane was widened only to matching frontend overrides/lockfile regeneration while still keeping Pygments alerts `#80` and `#81` plus unrelated npm audit findings (`smol-toml`, `yaml`) out of scope.
+Notes: PR `#1272` remains the narrow security/dependabot remediation lane for alerts `#76`, `#82`, and `#83`. Scope is limited to npm manifest policy plus canonical security evidence across the two repo-managed npm surfaces that install independently in CI: root and `frontend/`. The mandatory post-open bug-hunter pass confirmed the original root-only lockfile state was insufficient for full npm-surface remediation, but the follow-up latest-head CI investigation also showed that a blanket frontend `brace-expansion` override was invalid for the design-token tool chain. The final lane therefore keeps the root `brace-expansion=2.0.3` pin, keeps the frontend `path-to-regexp=8.4.0` pin, and narrows the frontend lockfile to a patched/tool-compatible `brace-expansion` resolution while still keeping Pygments alerts `#80` and `#81` plus unrelated npm audit findings (`smol-toml`, `yaml`) out of scope.
