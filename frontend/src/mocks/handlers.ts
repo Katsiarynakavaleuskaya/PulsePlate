@@ -1,7 +1,9 @@
 import { http, HttpResponse, delay } from "msw";
 
-const matchesApiPath = (expectedPathname: string) => {
-  return ({ request }: { request: Request }) => {
+const matchesApiPath = (
+  expectedPathname: string,
+): ({ request }: { request: Request }) => boolean => {
+  return ({ request }: { request: Request }): boolean => {
     return new URL(request.url).pathname === expectedPathname;
   };
 };
