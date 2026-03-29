@@ -758,6 +758,46 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Release/rollback runbook exists for token builds across web/iOS surfaces
     - Existing semantic/token-governance docs link to the same deterministic build contract
 
+<a id="ledger-p1-rebuild-runtime-vocabulary-promotion-decision"></a>
+- [ ] P1: Rebuild runtime family vocabulary promotion decision
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-REBUILD-RUNTIME-VOCABULARY-PROMOTION
+  - Area: design-system / governance / vocabulary
+  - Reason: Current Figma rebuild families have been audited, but most do not
+    have exact canonical vocabulary support. A dedicated repo-side decision is
+    required before any helper family is promoted into canonical primitive
+    status.
+  - Links:
+    - `docs/design/FIGMA_REBUILD_RUNTIME_VOCABULARY_DECISION.md`
+    - `docs/design/UI_COMPONENT_VOCABULARY.md`
+    - `docs/runbooks/DESIGN_TOOLING_OPERATING_MODEL.md`
+  - DoD:
+    - each helper family is either explicitly promoted, explicitly kept as
+      helper-only, or explicitly rejected
+    - no off-canon-risk family is promoted without repo-side decision
+    - UI vocabulary docs remain aligned with the final decision
+    - Figma no longer leads primitive semantics for these families
+
+<a id="ledger-p1-specialized-family-promotion-review"></a>
+- [ ] P1: Specialized rebuild family promotion review
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-SPECIALIZED-FAMILY-PROMOTION-REVIEW
+  - Area: design-system / governance / vocabulary
+  - Reason: Specialized rebuild families are adjacent to canonical concepts but
+    are not exact primitives. A narrow review is required before any future
+    primitive promotion or vocabulary expansion.
+  - Links:
+    - `docs/design/FIGMA_REBUILD_RUNTIME_VOCABULARY_DECISION.md`
+    - `docs/design/FIGMA_REBUILD_SPECIALIZED_FAMILY_REVIEW.md`
+    - `docs/design/UI_COMPONENT_VOCABULARY.md`
+  - DoD:
+    - each specialized family has a repo-side decision
+    - no specialized family is silently promoted through Figma usage
+    - future RFC candidates are explicitly identified
+    - helper-only families remain helper-only until a later reviewed decision
+
 <a id="ledger-p1-color-profile-automation-parity"></a>
 - [ ] P1: Color-profile automation and parity evidence follow-through
   - Owner: @katsiaryna_kavaleuskaya
