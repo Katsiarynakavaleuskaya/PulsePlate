@@ -1,8 +1,17 @@
 import { http, HttpResponse, delay } from "msw";
 
+const matchesApiPath = (
+  expectedPathname: string,
+): ({ request }: { request: Request }) => boolean => {
+  return ({ request }: { request: Request }): boolean => {
+    return new URL(request.url).pathname === expectedPathname;
+  };
+};
+
 export const handlers = [
-  // Работает на любом origin: */api/purchase
-  http.post("*/api/purchase", async ({ request: _request }) => {
+  // Явно матчим pathname, чтобы не зависеть от wildcard coercion в path-to-regexp 8.x.
+  // Match pathname explicitly to avoid wildcard coercion issues in path-to-regexp 8.x.
+  http.post(matchesApiPath("/api/purchase"), async ({ request: _request }) => {
     await delay(300);
 
     // Simulate error scenarios for testing
@@ -25,7 +34,7 @@ export const handlers = [
     return HttpResponse.json({ status: "ok", entitlement: "premium" }, { status: 200 });
   }),
 
-  http.post("*/api/restore", async ({ request: _request }) => {
+  http.post(matchesApiPath("/api/restore"), async ({ request: _request }) => {
     await delay(200);
 
     // Simulate error scenarios for testing
