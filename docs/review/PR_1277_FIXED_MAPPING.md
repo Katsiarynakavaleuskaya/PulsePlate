@@ -9,11 +9,13 @@
 Disposition: FIXED
 Commit: aa522bc3
 Evidence: `docs/design/FIGMA_REBUILD_RUNTIME_VOCABULARY_DECISION.md:8`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1277#pullrequestreview-4026510118 -> aa522bc3
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1277#discussion_r3005881155 -> aa522bc3
 
 Disposition: FIXED
 Commit: aa522bc3
 Evidence: `docs/review/PR_1277_FIXED_MAPPING.md:15`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1277#pullrequestreview-4026514697 -> aa522bc3
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1277#discussion_r3005887093 -> aa522bc3
 
 ## Merge Readiness
