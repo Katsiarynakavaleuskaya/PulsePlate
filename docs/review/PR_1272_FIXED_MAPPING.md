@@ -11,6 +11,7 @@ Commit: 6adb803f
 Evidence: `docs/security/CVE-2026-4926-path-to-regexp-and-CVE-2026-33750-brace-expansion.md:14` now uses the clearer term "affected transitive dependencies", and `docs/security/CVE-2026-4926-path-to-regexp-and-CVE-2026-33750-brace-expansion.md:26` now explicitly states that the safe versions are enforced via root-level `overrides` in `package.json`.
 Reason: The remaining Sourcery suggestion about adding an inline comment above `package.json` `overrides` is not applicable because `package.json` is strict JSON and does not support comments; the rationale is preserved in the canonical security note instead.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1272#pullrequestreview-4026442420 -> 6adb803f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1272#discussion_r3005802120 -> 6adb803f
 
 Disposition: FIXED
 Commit: e3473f24
