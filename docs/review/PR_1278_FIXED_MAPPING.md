@@ -5,8 +5,8 @@
 - [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1278#discussion_r3006738235 -> COMMIT_SHA_PLACEHOLDER | Disposition: FIXED | Proof: commit COMMIT_SHA_PLACEHOLDER
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1278#pullrequestreview-4027226975 -> COMMIT_SHA_PLACEHOLDER | Disposition: FIXED | Proof: commit COMMIT_SHA_PLACEHOLDER
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1278#discussion_r3006738235 -> 6f082ff6 | Disposition: FIXED | Proof: commit 6f082ff6
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1278#pullrequestreview-4027226975 -> 6f082ff6 | Disposition: FIXED | Proof: commit 6f082ff6
 
 ## Merge Readiness
 - [ ] All required checks pass
