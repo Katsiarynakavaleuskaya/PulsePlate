@@ -84,7 +84,9 @@
     "vitest": "^3.2.4"
   },
   "overrides": {
-    "dompurify": "3.3.2"
+    "brace-expansion": "2.0.3",
+    "dompurify": "3.3.2",
+    "path-to-regexp": "8.4.0"
   },
   "msw": {
     "workerDirectory": [
