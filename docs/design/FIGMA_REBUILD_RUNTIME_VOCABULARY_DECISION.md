@@ -4,7 +4,7 @@
 
 This document freezes the repo-side semantic decision for current Figma rebuild
 families. Figma remains a governed secondary lane. Repo vocabulary and runtime
-contracts remain source of truth.
+contracts remain the source of truth.
 
 ## Hard Rule
 
