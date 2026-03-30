@@ -10,6 +10,7 @@ import pytest
 from fastapi import HTTPException
 
 from app.security.agent_input_guard import (
+    AgentInputThreat,
     AgentInputScanResult,
     UNSAFE_AI_INPUT_DETAIL,
     _try_upstream_scan,
@@ -250,7 +251,13 @@ def test_try_upstream_scan_returns_none_when_constructor_fails(
             ),
             AgentInputScanResult(
                 is_safe=False,
-                threats=(SimpleNamespace(),),  # placeholder, assertions below inspect fields
+                threats=(
+                    AgentInputThreat(
+                        category="third_party_agent_guard",
+                        severity="high",
+                        reason="placeholder",
+                    ),
+                ),
             ),
         ),
     ],
@@ -348,6 +355,24 @@ def test_scan_text_with_goplus_agentguard_returns_normalized_result(
         summary="Found issues",
     )
     assert result.should_block is True
+
+
+def test_scan_text_with_goplus_agentguard_live_runtime_smoke() -> None:
+    """Live Node scanner path must stay callable for the pinned dependency graph."""
+
+    from app.security import goplus_agentguard_bridge as bridge_mod
+
+    if bridge_mod.shutil.which("node") is None or not bridge_mod.AGENTGUARD_SCAN_SCRIPT.exists():
+        pytest.skip("local Node runtime or GoPlus scan script unavailable")
+
+    result = scan_text_with_goplus_agentguard("How can I build a steady breakfast habit?")
+
+    assert result == GoPlusAgentGuardScanResult(
+        risk_level="low",
+        risk_tags=(),
+        summary="No security issues detected",
+    )
+    assert result.should_block is False
 
 
 def test_goplus_scan_result_ignores_non_relevant_tags() -> None:
