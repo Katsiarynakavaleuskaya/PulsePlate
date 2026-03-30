@@ -6,9 +6,9 @@
 
 ## Fixed in Commit Mapping
 
-- Disposition: FIXED
-- Commit: `a21707c4`
-- Evidence: `docs/security/CVE-2025-69720-ncurses.md`
+Disposition: FIXED
+Commit: a21707c4
+Evidence: docs/security/CVE-2025-69720-ncurses.md
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1285#discussion_r3011982993 -> a21707c4
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1285#discussion_r3011983005 -> a21707c4
 
