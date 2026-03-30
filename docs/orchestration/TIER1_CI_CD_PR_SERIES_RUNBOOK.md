@@ -2,7 +2,7 @@
 
 **Version:** 2026-03-26 (`America/New_York`)
 **Scope:** Governance-first CI/CD consolidation wave for backend/shared PR lanes.
-**Execution surface:** repo root with coordinator-first routing; no runtime product-surface mutation in PR1.
+**Execution surface:** repo root with coordinator-first routing; no runtime product-surface mutation in this wave.
 
 ## Purpose
 
@@ -58,8 +58,9 @@ Deliver a Tier 1 CI/CD consolidation program in stacked PRs that:
 
 - PR-1 governance/bootstrap already landed in merged PR `#1240` (`24c51f85`).
 - PR-2 workflow consolidation already landed on `origin/main` via PR `#1244` (`b7e029b4`).
-- This runbook now treats PR-3 as the active execution slice and PR-4 as the next follow-up wave.
-- Do not restart the series from PR-1; reconcile Tier 1 bookkeeping inside PR-3 and continue forward.
+- PR-3 risk topology already landed on `main` in merged PR `#1253` (`3be5debf`).
+- This runbook now treats PR-4 as the active execution slice.
+- Do not restart the series from PR-1; continue forward from the landed PR1-PR3 baseline.
 
 ## PR Series
 
@@ -86,14 +87,15 @@ Deliver a Tier 1 CI/CD consolidation program in stacked PRs that:
 - Split PR execution into deterministic smoke, contract/risk suites, and nightly-only depth.
 - Keep PR blockers focused on business-critical surfaces.
 - Add PR-size governance and explicit `## Split Justification` PR-body proof for `>800` LoC cases.
-- Status: active next execution slice.
+- Status: landed baseline in PR `#1253`.
 
 ### PR-4: CI Metrics and Feedback Loop
 
 - Add lightweight non-blocking CI metrics collection under `scripts/ci/`.
 - Emit summary artifacts for critical-path duration, reruns, red-build rate, and xdist fallback frequency.
-- Wire a weekly reporting path without changing merge blockers.
-- Status: next/deferred until PR-3 lands.
+- Wire a weekly reporting path via artifacts + `GITHUB_STEP_SUMMARY` without changing merge blockers.
+- Keep PR4 explicitly advisory and outside canonical merge truth / branch-protection widening.
+- Status: active next execution slice.
 
 ## Routing Card
 
@@ -129,6 +131,7 @@ Deliver a Tier 1 CI/CD consolidation program in stacked PRs that:
 4. **PR-4 metrics**
    - metrics collector exists
    - artifacts emit deterministically
+   - weekly/manual reporting path uses artifact + `GITHUB_STEP_SUMMARY` only
    - metrics remain advisory only
 
 ## Hard Rules
@@ -145,6 +148,7 @@ Deliver a Tier 1 CI/CD consolidation program in stacked PRs that:
 - Isolate runtime/API behavior changes from PR-1 and PR-2 unless the workflow change cannot be isolated from the contract.
 - Keep `build.yml` isolated as a specialized lane; do not reintroduce duplicate PR-time blockers.
 - Treat Tier 1 metrics as advisory rather than merge blockers.
+- Keep the new `ci-metrics.yml` workflow on `schedule` / `workflow_dispatch` only; it must not become an ordinary PR required check.
 
 ## Validation
 
