@@ -2320,13 +2320,13 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `build.yml`, frontend-only lanes, and nightly/release lanes stay isolated
     - Required-check parity is preserved on current-head PR checks
 
-- [ ] P1: PR3 risk-based PR test topology {#ledger-p1-tier1-ci-cd-pr3-risk-topology}
+- [x] P1: PR3 risk-based PR test topology {#ledger-p1-tier1-ci-cd-pr3-risk-topology}
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
   - Target PR: #1253
   - Area: orchestration / CI / review governance
   - Finding Type: process hardening
-  - Status: 🚧 In progress in PR `#1253` (PR3 risk-topology lane), following landed PR1/PR2 reconciliation (`#1240`, `#1244`) after clean-topology replacement of PR `#1250` and earlier closed PR `#1248`.
+  - Status: Materially completed on `main` in merged PR `#1253` (`3be5debf`); this slice now serves as landed baseline input for PR4.
   - Reason: PR blockers should stay focused on business-critical runtime paths, while nightly depth absorbs broad non-critical coverage tails.
   - Links:
     - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-test-hygiene-wave`
@@ -2346,15 +2346,19 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Target PR: PR-TBD-TIER1-CI-CD-PR4
   - Area: orchestration / CI / review governance
   - Finding Type: process hardening
-  - Status: Deferred/next after PR3 risk-topology rollout.
-  - Reason: Tier 1 needs advisory metrics for critical-path duration, reruns, and flaky-signal tracking without turning observability into another merge blocker.
+  - Status: Active next execution slice after merged PR `#1253`; implementation starts from a clean worktree off `origin/main`.
+  - Reason: Tier 1 needs advisory metrics for critical-path duration, reruns, red-build rate, and xdist fallback tracking without turning observability into another merge blocker or widening branch-protection truth.
   - Links:
     - `docs/orchestration/TIER1_CI_CD_PR_SERIES_RUNBOOK.md`
+    - `docs/orchestration/TIER1_CI_CD_TASK_PACKET_2026-03-26.md`
+    - `.github/workflows/ci-metrics.yml`
+    - `scripts/ci/collect_ci_metrics.py`
   - DoD:
     - `scripts/ci/` emits `ci-metrics-summary.json` and `ci-metrics-summary.md`
-    - Metrics remain informational only
-    - Weekly reporting path is documented
-    - Artifact absence degrades gracefully
+    - Metrics remain informational only and outside canonical merge truth
+    - Weekly reporting path uses artifact + `GITHUB_STEP_SUMMARY` only
+    - Artifact absence degrades gracefully with explicit `unknown`/`unavailable` metric states
+    - Tier 1 docs/runbook/task packet all point to PR4 as the active slice
 
 
 - [ ] P1: Disposition guard — ban mapping to trigger-only commits
@@ -2434,6 +2438,26 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Remove CVE-2026-29111 suppression from `trivy/ignore-policy.rego`
     - Remove `docs/security/CVE-2026-29111-systemd.md` (or mark as resolved)
     - Trivy Code Scanning alerts `#573` and `#575` remain closed on `main`
+- [ ] Remove Trivy suppression for ncurses CVE (CVE-2025-69720)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: TBD (follow-up after upstream fix)
+  - Reason: Trivy reports Debian bookworm `ncurses` family packages
+    (`libncursesw6`, `libtinfo6`, `ncurses-base`, `ncurses-bin`) as vulnerable at
+    `6.4-4` with no actionable fixed version in the current bookworm image line as
+    of 2026-03-30; we suppress narrowly in `trivy/ignore-policy.rego` until
+    Debian bookworm or Trivy metadata catches up.
+  - Links:
+    - `trivy/ignore-policy.rego` (rule for CVE-2025-69720)
+    - `docs/security/CVE-2025-69720-ncurses.md`
+    - `.github/workflows/build.yml`
+  - DoD:
+    - Debian bookworm publishes a fixed `ncurses` package line (or Trivy reports a
+      fixed version in our image context)
+    - Remove CVE-2025-69720 suppression from `trivy/ignore-policy.rego`
+    - Remove `docs/security/CVE-2025-69720-ncurses.md` (or mark as resolved)
+    - Trivy Code Scanning alerts #572, #574, #576, and #577 remain closed on
+      `main`
 
 
 - [ ] Security suppression expiry monitoring
