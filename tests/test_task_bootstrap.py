@@ -378,6 +378,55 @@ def test_task_bootstrap_keeps_non_routable_requested_agent_advisory_in_post_open
     ]
 
 
+def test_task_bootstrap_keeps_unknown_requested_agent_rejected_in_post_open_lane() -> None:
+    """Post-open synthesis must not upgrade unknown requested agents into runnable roles."""
+
+    packet = build_task_packet(
+        goal="Prepare post-open review packet with unknown collaborator request",
+        task_class="Orchestration",
+        candidate_paths=["scripts/orchestration/task_bootstrap.py"],
+        requested_agents=["unknown-agent"],
+        pr_phase="post_open_review",
+    )
+
+    assert packet["requested_agents"] == ["unknown-agent"]
+    assert "unknown-agent" not in packet["secondary_agents"]
+    assert not [
+        binding["repo_agent_slug"] for binding in packet["native_subagent_bridge"]["advisory"]
+    ]
+    assert packet["requested_agent_disposition"] == [
+        {
+            "agent": "unknown-agent",
+            "status": "rejected_unknown_agent",
+            "reason": "Agent is not registered in the canonical inventory.",
+        }
+    ]
+
+
+def test_task_bootstrap_keeps_domain_mismatch_requested_agent_advisory_in_post_open_lane() -> None:
+    """Post-open synthesis must preserve domain-mismatched requests as advisory only."""
+
+    packet = build_task_packet(
+        goal="Prepare post-open review packet with frontend collaborator request",
+        task_class="Orchestration",
+        candidate_paths=["scripts/orchestration/task_bootstrap.py"],
+        requested_agents=["frontend-engineer"],
+        pr_phase="post_open_review",
+    )
+
+    assert "frontend-engineer" in packet["secondary_agents"]
+    assert [
+        binding["repo_agent_slug"] for binding in packet["native_subagent_bridge"]["advisory"]
+    ] == ["frontend-engineer"]
+    assert packet["requested_agent_disposition"] == [
+        {
+            "agent": "frontend-engineer",
+            "status": "advisory_domain_mismatch",
+            "reason": "Requested agent stays advisory because it is outside the routed domain slot set.",
+        }
+    ]
+
+
 def test_task_bootstrap_sets_merge_ready_contract_without_post_open_lane() -> None:
     """Merge-ready packets should keep lifecycle prep explicit without re-adding QA loop."""
 

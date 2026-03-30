@@ -265,13 +265,13 @@ Out:
 
 ## Decision Rules
 
-- If a task changes task bootstrap or skill routing, take `Wave 1` and `Wave 2`
-  before product work.
-- If a task widens any LLM or coach surface, require `Wave 3` artifacts first.
-- If a task expands FitChef behavior, prefer structured coaching tools over open
+- For tasks that change task bootstrap or skill routing, complete `Wave 1` and
+  `Wave 2` before product work.
+- Any widening of LLM or coach surfaces should require `Wave 3` artifacts first.
+- FitChef behavior expansions should prefer structured coaching tools over open
   chat.
-- If a task only changes user-facing AI messaging, it should still align with
-  `Wave 3` reliability evidence and `Wave 5` parity rules.
+- User-facing AI messaging updates should still align with `Wave 3` reliability
+  evidence and `Wave 5` parity rules.
 
 ---
 
