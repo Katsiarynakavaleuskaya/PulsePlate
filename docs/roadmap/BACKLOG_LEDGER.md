@@ -2415,6 +2415,27 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Remove `docs/security/CVE-2026-24883-gpgv.md` (or mark as resolved)
     - Trivy Code Scanning alerts remain closed on `main`
 
+- [ ] Remove Trivy suppression for ncurses CVE (CVE-2025-69720)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: TBD (follow-up after upstream fix)
+  - Reason: Trivy reports Debian bookworm `ncurses` family packages
+    (`libncursesw6`, `libtinfo6`, `ncurses-base`, `ncurses-bin`) as vulnerable at
+    `6.4-4` with no actionable fixed version in the current bookworm image line as
+    of 2026-03-30; we suppress narrowly in `trivy/ignore-policy.rego` until
+    Debian bookworm or Trivy metadata catches up.
+  - Links:
+    - `trivy/ignore-policy.rego` (rule for CVE-2025-69720)
+    - `docs/security/CVE-2025-69720-ncurses.md`
+    - `.github/workflows/build.yml`
+  - DoD:
+    - Debian bookworm publishes a fixed `ncurses` package line (or Trivy reports a
+      fixed version in our image context)
+    - Remove CVE-2025-69720 suppression from `trivy/ignore-policy.rego`
+    - Remove `docs/security/CVE-2025-69720-ncurses.md` (or mark as resolved)
+    - Trivy Code Scanning alerts #572, #574, #576, and #577 remain closed on
+      `main`
+
 
 - [ ] Security suppression expiry monitoring
   - Owner: @katsiaryna_kavaleuskaya
