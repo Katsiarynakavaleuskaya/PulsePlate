@@ -1,191 +1,249 @@
 # PulsePlate
 
 [![CI](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/workflows/ci.yml/badge.svg)](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/workflows/ci.yml)
-[![Tests + Coverage](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/workflows/coverage.yml/badge.svg)](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/workflows/coverage.yml)
+[![Codecov Upload](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/workflows/codecov-upload.yml/badge.svg)](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/workflows/codecov-upload.yml)
 [![codecov](https://codecov.io/gh/Katsiarynakavaleuskaya/PulsePlate/branch/main/graph/badge.svg)](https://codecov.io/gh/Katsiarynakavaleuskaya/PulsePlate)
-[![Data sources: USDA, OFF](https://img.shields.io/badge/Data%20sources-USDA%2C%20OFF-brightgreen)](DATA_SOURCES.md)
+[![Food data: USDA + OFF](https://img.shields.io/badge/Food%20data-USDA%20%2B%20OFF-brightgreen)](docs/architecture/FOOD_DATABASE_PLATFORM_STRATEGY_v1.md)
 
-> **PulsePlate** is a nutrition and meal-planning platform for web, iOS, and API integrations.  
-> It connects BMI screening, nutrition targets, daily plate guidance, weekly planning, shopping lists, and AI-assisted nutrition workflows into one product flow.
+> **PulsePlate turns body-metric check-ins into practical meal decisions.**
+>
+> It is a planning-first wellness product built around one continuous flow:
+>
+> **check-in -> targets -> daily plate -> weekly plan -> shopping list**
 
-**Positioning:** PulsePlate is built as a **wellness and nutrition product**.  
-It is not presented in this repository as a diagnosis, treatment, or emergency-care system.
+PulsePlate is designed as a **wellness and meal-planning product**, not as a diagnosis, treatment, therapy, crisis-support, or emergency-care system. BMI and related outputs are informational wellness tools only, and the product should not replace clinician guidance for diagnosed conditions, pregnancy, eating disorders, medically prescribed diets, or emergencies.
 
----
+PulsePlate is currently in a **private staged rollout**. This repository is the clearest technical and product snapshot of the platform today.
 
-## What PulsePlate does
+## From Metrics To Meals
 
-PulsePlate is designed to help users move from **raw health metrics** to **practical daily decisions**.
+Most nutrition apps stop at logging. PulsePlate is being built to keep going:
 
-### Current product capabilities
+1. Start from simple body-metric and nutrition inputs.
+2. Turn them into practical targets and daily plate guidance.
+3. Extend that into weekly planning and grocery workflows.
+4. Layer in AI-assisted support only where it adds real planning value.
 
-- BMI and risk-oriented screening
-- WHO-based nutrition targets
-- Daily nutrition and plate guidance
-- Weekly meal planning
-- Shopping list generation and export
-- Food lookup powered by USDA FoodData Central and Open Food Facts
-- Web and iOS clients over a FastAPI backend
-- PRO and VIP gated product surfaces for advanced planning features
+The goal is straightforward: **less tracking noise, less decision fatigue, more repeatable nutrition planning**.
 
-### In active hardening / staged rollout
+## Who PulsePlate Is For
 
-- Monetization runtime and entitlement closure
-- Release-readiness shell for web and iOS
-- Advanced AI-assisted planning and coaching surfaces
-- Deeper food-data and retrieval-quality expansion
+PulsePlate is aimed first at people who want nutrition planning to feel more actionable:
 
----
+- users who want a clearer path from simple check-ins to actual meal decisions
+- people who want less decision friction around meals and groceries
+- users who want planning help, not just another calorie log
 
-## Why PulsePlate is different
+### A concrete PulsePlate moment
 
-### 1. It connects planning, not just logging
+The target PulsePlate experience is simple: a user starts with a quick body-metric check-in, gets practical targets, sees what today's plate should look like, turns that into a weekly plan, and finishes with a shopping workflow. That is the product shape PulsePlate is optimizing for.
 
-Many nutrition apps stop at calorie counting. PulsePlate is structured around a broader flow:
+## Why PulsePlate Stands Out
 
-**screening -> targets -> daily plate -> weekly plan -> shopping list**
+### 1. It is planning-first, not logging-first
 
-That makes the product more operational and more useful in real daily life.
+PulsePlate is structured around execution, not just record-keeping. The product thesis is that users need help moving from inputs to action:
 
-### 2. It combines nutrition logic with real product workflows
+- `check-in -> targets -> plate -> weekly plan -> groceries`
 
-PulsePlate is not only a calculator. It already includes the main layers needed for a practical nutrition product:
+### 2. It combines domain logic with product workflows
 
-- nutrition engine
-- meal-planning engine
-- shopping pipeline
-- food database layer
-- thin web and iOS client surfaces
+This repository already contains the core layers needed for a serious nutrition product:
 
-### 3. It uses a snapshot-first food-data architecture
+- a backend/domain core for BMI and nutrition logic
+- planning surfaces for daily and weekly decision-making
+- shopping/export flows
+- thin web and iOS client layers
+- a food-data foundation that can support richer planning over time
 
-Instead of depending on live third-party requests for every lookup, PulsePlate is designed around a local merged catalog strategy. This reduces latency, improves stability, and makes future enrichment possible.
+### 3. It uses a snapshot-first food-data model
 
-### 4. Its AI roadmap is grounded, not decorative
+Instead of relying on live third-party lookups for every request, PulsePlate is built around a local merged catalog strategy. That supports lower latency, more stable lookups, and future enrichment on top of a controlled data foundation.
 
-The long-term AI direction is informed by:
+### 4. Its AI direction is staged, not decorative
 
-- Bayesian personalization
-- recursive RAG
-- philosophical logic validation
-- CBT-aligned coaching
+PulsePlate has a real AI research and product direction, but it is being rolled out carefully. Current and planned work explores:
 
-These layers are part of the project’s real architecture and research direction, but they are being productized progressively rather than marketed as fully finished everywhere.
+- retrieval-augmented support
+- consistency and contradiction checks
+- optional planning assistance
+- progressively stronger planning assistance
 
----
+Not all of these capabilities are user-facing, enabled by default, or fully deployed in production today.
 
-## Current status
+## What Exists Today
+
+| Layer | Current reality |
+|---|---|
+| FREE | BMI-based wellness check-ins and basic lookup surfaces |
+| PRO | Nutrition targets, daily nutrition guidance, planning and payment flows |
+| VIP | Higher-end planning, menu flows, recipes, export/shoplist surfaces |
+| Data foundation | Local merged food catalog built from USDA and Open Food Facts inputs |
+| Clients | Active web and iOS codebases over a FastAPI backend |
+
+### Live and staged surfaces
+
+- **Live core:** backend API, domain logic, food-data pipeline, PRO/VIP planning surfaces
+- **Selective rollout:** release packaging, monetization closure, and deploy/runtime polish
+- **Feature-gated exceptions:** `/api/v1/insight*` and `/api/v1/insight/fitchef*`
+
+## Where The Product Stands
+
+PulsePlate is already **substantial at the backend/domain level**. Today the strongest parts are the planning core and the data foundation; advanced assistance and release packaging are being rolled out selectively around that base.
+
+At a high level, treat PulsePlate as an **active product platform in staged rollout**: the planning foundation is real today, while some packaging, monetization, and advanced assistance layers are still being tightened.
 
 | Area | Status |
 |---|---|
-| Backend API | Strong and active |
+| Backend API and domain core | Active and substantially implemented |
+| Food-data pipeline | Active and substantially implemented |
 | Web app | Active |
 | iOS app | Active |
-| Core nutrition engine | Strong |
-| Food-data pipeline | Strong |
-| Release shell | Under active hardening |
-| Monetization closure | Under active hardening |
-| Advanced AI runtime wiring | Partial / staged |
+| Monetization and entitlement closure | Selective rollout / hardening |
+| Release packaging and deployment polish | Selective rollout / hardening |
+| Advanced assistance surfaces | Partial / feature-gated |
 
-### Honest project state
+## For Contributors And Integrators
 
-PulsePlate is **architecturally strong**, but the repository is still in an **active release-hardening phase**.
+If you are reading this README primarily as a product visitor, the sections above are the main story. Everything below is contributor and integration context.
 
-That means:
+If you are here primarily as a contributor, reviewer, or integration partner, use the paths below.
 
-- the product core is already meaningful and non-trivial
-- backend and data layers are ahead of the public packaging layer
-- deploy, entitlement truth, release policy, and some client-runtime surfaces are still being tightened
+### Fastest first-success path
 
-If you are reading this as a developer, contributor, or reviewer, the most important current theme is not “more scope”, but **closing the runtime and release shell cleanly**.
+If you do not have access to the approved Python package proxy, the safest newcomer path today is:
 
----
+- docs-only contributions
+- frontend work in `frontend/`
+- iOS exploration in `ios/`
 
-## Product tiers
+That lets you get productive without depending on full maintainer-only backend bootstrap.
+
+## Maintainer Setup
+
+### Prerequisites
+
+- Python `3.13.x`
+- Node `22.22.1` for the web client
+- Xcode for the iOS project in `ios/PulsePlate.xcodeproj`
+- Access to the approved Python package proxy for full backend bootstrap
+
+If you do **not** have access to the approved package proxy, stop here and use the first-success path above. Full backend bootstrap is currently maintainer-oriented.
+
+If you need full backend access, coordinate with the maintainer before attempting backend/bootstrap work.
+
+### 1. Backend
+
+Bootstrap environment values first:
+
+```bash
+cp .env.example .env
+```
+
+For local contributor setup, make sure `.env` contains at least:
+
+- `PULSEPLATE_PYTHON_INDEX_URL`
+- `SERVER_SALT`
+- `APPLE_SHARED_SECRET`
+- `EXPORT_TOKEN_SECRET`
+
+For local-only boot, non-empty placeholder values are acceptable for required secrets unless you are actively testing those integrations.
+
+Export the env into your current shell, then run the supported bootstrap path:
+
+```bash
+set -a && source .env && set +a
+make venv
+source .venv/bin/activate
+alembic upgrade head
+make dev
+```
+
+Verify the API from another terminal:
+
+```bash
+curl http://127.0.0.1:8001/health
+```
+
+### 2. Web app
+
+```bash
+cd frontend
+nvm use
+npm ci
+npm run dev
+```
+
+`nvm use` reads the repo-root `.nvmrc` and selects Node `22.22.1`.
+
+### 3. iOS app
+
+Open `ios/PulsePlate.xcodeproj` in Xcode and run the `PulsePlate` scheme on a simulator.
+
+### 4. Docker
+
+Docker build also expects the approved Python package proxy and runtime env values that satisfy startup guards:
+
+```bash
+set -a && source .env && set +a
+make docker-build
+docker compose up -d
+curl http://localhost:8000/health
+```
+
+## Architecture At A Glance
+
+```mermaid
+flowchart LR
+    CLIENTS["Web + iOS + API consumers"] --> APP["FastAPI platform<br/>app.main:app"]
+
+    APP --> FREE["FREE<br/>/api/v1/bmi/*"]
+    APP --> PRO["PRO<br/>/api/v1/pro/*"]
+    APP --> VIP["VIP<br/>/api/v1/vip/*"]
+    APP --> INSIGHT["Insight<br/>/api/v1/insight*"]
+
+    FREE --> DOMAIN["Core domain logic"]
+    PRO --> DOMAIN
+    VIP --> DOMAIN
+    INSIGHT --> AI["Feature-gated AI surfaces"]
+
+    DOMAIN --> DATA["Local food catalog + planning data"]
+    AI --> DATA
+    SOURCES["USDA + Open Food Facts inputs"] --> DATA
+```
+
+### Working rule of thumb
+
+- `app/` orchestrates HTTP/runtime behavior
+- `core/` owns domain logic
+- clients stay thin over backend truth
+- backend OpenAPI is the contract baseline
+
+## Product Tiers
 
 | Tier | Purpose | Typical surface |
 |---|---|---|
-| **FREE** | Entry point into the product | BMI, food/recipe lookup, basic screening |
-| **PRO** | Core planning value | Nutrition targets, daily nutrition, weekly planning, shopping workflows |
-| **VIP** | Advanced planning and AI-assisted flows | Higher-end planning, optimization, selected AI surfaces |
+| **FREE** | Entry point into the product | BMI-based check-ins, lookup, simple planning inputs |
+| **PRO** | Core planning value | Targets, daily nutrition, weekly planning, payment activation |
+| **VIP** | Advanced planning and AI-assisted surfaces | Weekly menu flows, recipes, shop/export, insight and FitChef lanes |
 
-### Canonical API namespaces
+## Canonical Product Surfaces
 
-For new work, treat these as the product source of truth:
+For new backend or client work, the main canonical route families are:
 
 - `/api/v1/bmi/*`
 - `/api/v1/pro/*`
 - `/api/v1/vip/*`
 
-Legacy `/api/v1/premium/*` routes remain compatibility surfaces and should not be treated as the canonical namespace for new client work.
+Important canonical exceptions also exist:
 
----
+- `/api/v1/insight*`
+- `/api/v1/insight/fitchef*`
+- `/api/v1/billing/apple/verify-receipt`
 
-## System overview
+Legacy `/api/v1/premium/*` routes remain compatibility surfaces only and should not be treated as the canonical namespace for new client work.
 
-```mermaid
-flowchart TB
-
-    subgraph CLIENTS["Client Layer"]
-        IOS["iOS app"]
-        WEB["Web app"]
-        EXT["API consumers"]
-    end
-
-    subgraph API["FastAPI Platform"]
-        APP["app.main:app"]
-        BMI["/api/v1/bmi/*"]
-        PRO["/api/v1/pro/*"]
-        VIP["/api/v1/vip/*"]
-    end
-
-    subgraph DOMAIN["Core Domain"]
-        BMIE["BMI engine"]
-        TARGETS["Nutrition targets"]
-        PLATE["Plate generation"]
-        WEEK["Weekly planning"]
-        SHOP["Shopping / exports"]
-    end
-
-    subgraph AI["AI Layer"]
-        RAG["RAG retrieval"]
-        PHILO["Philosophical validation"]
-        LLM["LLM providers"]
-        COACH["Coaching runtime"]
-    end
-
-    subgraph DATA["Data Layer"]
-        FOOD["Food database"]
-        SOURCES["USDA + OFF + future sources"]
-        SNAP["Snapshot / local DB"]
-        ANALYTICS["Analytics"]
-    end
-
-    IOS --> APP
-    WEB --> APP
-    EXT --> APP
-
-    APP --> BMI
-    APP --> PRO
-    APP --> VIP
-
-    BMI --> BMIE
-    PRO --> TARGETS
-    PRO --> PLATE
-    PRO --> WEEK
-    VIP --> SHOP
-
-    WEEK --> AI
-    PLATE --> AI
-
-    AI --> FOOD
-    SOURCES --> SNAP
-    SNAP --> FOOD
-```
-
----
-
-## Repository layout
+## Repository Layout
 
 ```text
 PulsePlate/
@@ -194,130 +252,58 @@ PulsePlate/
 ├── frontend/       # React + TypeScript + Vite web client
 ├── ios/            # SwiftUI iOS client
 ├── providers/      # LLM/provider integrations
-├── docs/           # Specs, runbooks, contracts, roadmaps, reports
-├── tests/          # Backend and policy guard tests
+├── data/           # Local food snapshots, merge outputs, recipe templates
+├── docs/           # Contracts, specs, runbooks, roadmap, architecture
+├── tests/          # Backend, client, and policy guard tests
 ├── scripts/        # CI, ops, orchestration, and utility scripts
 └── alembic/        # Database migrations
 ```
 
-### Architectural rule of thumb
+## Data Foundation
 
-- `app/` orchestrates
-- `core/` owns business logic
-- clients should stay thin over backend truth
-- backend OpenAPI is the canonical contract source
+PulsePlate's food-data layer is built around reviewed local snapshots and merge workflows rather than live-request dependency for every lookup.
 
----
+- Sources include **USDA FoodData Central** and **Open Food Facts**
+- Merge outputs live in `data/`
+- Architecture direction: `docs/architecture/FOOD_DATABASE_PLATFORM_STRATEGY_v1.md`
+- Source-policy boundaries: `docs/legal/EXTERNAL_FOOD_SOURCE_OPERATING_POLICY.md`
 
-## Quick start
+Food data can be incomplete or vary by market, manufacturer, and packaging updates. Critical nutrition information should always be verified against official labels or source records.
 
-### 1. Backend
+## Go Deeper
 
-```bash
-python -m venv .venv
-source .venv/bin/activate
-python -m pip install -U pip setuptools wheel
-pip install -r requirements-dev.txt
-pip install -r requirements.txt
-alembic upgrade head
-uvicorn app.main:app --reload
-```
+- `docs/architecture/system_overview.md` - system-level product and runtime map
+- `docs/contracts/API_CANONICAL_MAP.md` - canonical route map and namespace rules
+- `docs/contracts/PRODUCT_TIER_MAP.md` - FREE / PRO / VIP semantics
+- `docs/deploy/README.md` - deployment and infrastructure guidance
+- `docs/runbooks/ENGINEER_QUICKPATH.md` - operator quick path
 
-Verify the API:
+## Interested In PulsePlate?
 
-```bash
-curl http://127.0.0.1:8000/health
-```
+For demo, collaboration, integration, or licensing conversations:
 
-### 2. Web app
+- email: [pulseplate@pm.me](mailto:pulseplate@pm.me)
+- topic examples: product demo, API/integration discussion, partnership, private rollout access
 
-```bash
-cd frontend
-npm install
-npm run dev
-```
+## Contributing
 
-### 3. iOS app
-
-Open the project in Xcode from the `ios/` directory and run the **PulsePlate** scheme on a simulator.
-
-### 4. Docker
-
-```bash
-make docker-build
-docker run -p 8000:8000 pulseplate:latest
-curl http://localhost:8000/health
-```
-
----
-
-## Documentation map
-
-Key entry points:
-
-- [`docs/policy/`](docs/policy/) — invariants and engineering rules
-- [`docs/runbooks/`](docs/runbooks/) — CI, debugging, and ops playbooks
-- [`docs/deploy/`](docs/deploy/) — deployment and infrastructure
-- [`docs/specs/`](docs/specs/) — contracts and API-facing specifications
-- [`docs/roadmap/`](docs/roadmap/) — roadmap, backlog, and execution planning
-- [`docs/reports/`](docs/reports/) — status and audit artifacts
-
----
-
-## Current roadmap focus
-
-Current priority is **release closure**, not architecture expansion.
-
-### Current critical path
-
-- monetization runtime and entitlement truth
-- canonical API parity across clients
-- web and iOS release-readiness hardening
-- Postgres-first deploy hardening
-- legal / compliance publication surfaces
-- AI/runtime follow-through only after release blockers are stable
-
-### What is intentionally not the immediate priority
-
-- broad new AI scope
-- speculative feature expansion
-- GTM/brand work that hides runtime gaps instead of solving them
-
----
-
-## Contributing and repo governance
-
-Before making changes:
+Before changing code:
 
 1. Read `AGENTS.md`
 2. Read the nearest scoped `AGENTS.md` for the files you touch
-3. Run:
+3. Use the checks that match your surface:
+
+- docs / copy changes: follow the relevant docs guidance and keep the PR docs-only
+- frontend-only changes: run the frontend-local checks for `frontend/`
+- iOS-only changes: run the iOS-local checks for `ios/`
+- maintainer full-stack/backend changes: run
 
 ```bash
 pre-commit run --all-files
 make verify
 ```
 
-Important repo rule: **green CI alone is not merge readiness**.  
-Review-thread resolution, fixed-in-commit mapping, and current-head checks remain part of the merge contract.
-
----
-
-## Project direction
-
-PulsePlate is being built as a serious nutrition platform with:
-
-- a strong backend/domain core
-- staged productization on web and iOS
-- a practical food-data foundation
-- a disciplined execution model
-- a long-term AI moat that is being rolled out carefully
-
-The core thesis is simple:
-
-> move from fragmented tracking tools to a single system that helps users understand their metrics, set targets, plan meals, and act on them.
-
----
+Public deployments should also ship with clear privacy and data-use notices for health-related inputs and any third-party services involved in processing them.
 
 ## License
 
@@ -325,4 +311,4 @@ This project is **proprietary software**. All rights reserved.
 
 Unauthorized copying, distribution, modification, or use of this code is prohibited without prior written permission from the author.
 
-For commercial or licensing inquiries: **lexakm532@gmail.com**
+For commercial or licensing inquiries: [pulseplate@pm.me](mailto:pulseplate@pm.me)
