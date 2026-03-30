@@ -1,12 +1,18 @@
 # PR 1281 — Fixed in Commit Mapping
 
 ## Discussion Thread Pass
-- [ ] Discussion-thread pass completed
-- [ ] Fixed in commit mapping completed
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
 
-- Pending current-head bot/human review activity.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1281#pullrequestreview-4031038239 -> 2e76f178
+Disposition: FIXED
+Commit: 2e76f178
+Evidence: package.json; tests/test_root_npm_dependency_guards.py; tests/test_agent_input_guard.py; docs/security/GHSA-f886-m6hf-6m8v-brace-expansion.md; docs/security/CVE-2026-4926-path-to-regexp-and-CVE-2026-33750-brace-expansion.md
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1281#pullrequestreview-4031079480
+Disposition: FIXED
+Evidence: docs/review/PR_1281_FIXED_MAPPING.md
 
 ## Merge Readiness
 - [ ] All required checks pass
