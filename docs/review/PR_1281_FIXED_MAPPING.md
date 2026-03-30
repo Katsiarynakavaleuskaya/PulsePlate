@@ -10,8 +10,9 @@
 Disposition: FIXED
 Commit: 2e76f178
 Evidence: package.json; tests/test_root_npm_dependency_guards.py; tests/test_agent_input_guard.py; docs/security/GHSA-f886-m6hf-6m8v-brace-expansion.md; docs/security/CVE-2026-4926-path-to-regexp-and-CVE-2026-33750-brace-expansion.md
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1281#pullrequestreview-4031079480
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1281#pullrequestreview-4031079480 -> 6a14c9e4
 Disposition: FIXED
+Commit: 6a14c9e4
 Evidence: docs/review/PR_1281_FIXED_MAPPING.md
 
 ## Merge Readiness
