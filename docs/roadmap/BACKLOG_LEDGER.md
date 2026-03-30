@@ -7896,8 +7896,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Remove temporary Pygments pip-audit ignore when patched release exists
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (dependency security / pre-push unblock follow-up)
-  - Target PR: #1281
-  - Status: In progress in PR #1281 after the public GHSA flipped to
+  - Target PR: #1282
+  - Status: In progress in PR #1282 after the public GHSA flipped to
     `first_patched_version: 2.20.0` on 30 March 2026
   - See ADR: `docs/architecture/ADR_PIP_AUDIT_PYGMENTS_SUPPRESSION_SEAM_2026-03-25.md`
   - Reason: `pip-audit` previously needed a documented temporary
@@ -7917,7 +7917,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `requirements-dev.txt`
     - `requirements-lock.txt`
   - Blockers / Exit criteria:
-    - Merge PR #1281 with the patched `Pygments` pins and seam removal
+    - Merge PR #1282 with the patched `Pygments` pins and seam removal
     - CI guard must confirm the live advisory state and reject any attempt to
       reintroduce the ignore or a stale pin below `2.20.0`
     - ADR exit criteria must remain satisfied after merge
