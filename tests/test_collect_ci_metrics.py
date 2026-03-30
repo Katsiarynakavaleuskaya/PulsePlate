@@ -812,3 +812,20 @@ def test_main_requires_repo_token_and_paths(
     captured = capsys.readouterr()
     assert exit_code == 1
     assert "GH_TOKEN or GITHUB_TOKEN is required" in captured.out
+
+
+def test_ci_metrics_workflow_remains_advisory_only() -> None:
+    import yaml
+
+    repo_root = Path(__file__).resolve().parents[1]
+    workflow = yaml.load(
+        (repo_root / ".github" / "workflows" / "ci-metrics.yml").read_text(encoding="utf-8"),
+        Loader=yaml.BaseLoader,
+    )
+
+    triggers = workflow["on"]
+
+    assert set(triggers) == {"schedule", "workflow_dispatch"}
+    assert "pull_request" not in triggers
+    assert "push" not in triggers
+    assert triggers["schedule"] == [{"cron": "0 13 * * 1"}]
