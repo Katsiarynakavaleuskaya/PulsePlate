@@ -5,7 +5,10 @@
 - [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
-- No actionable review comments
+Disposition: NOT-A-BUG
+Evidence: scripts/orchestration/task_bootstrap.py:118; docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md:17; docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md:19; docs/roadmap/BACKLOG_LEDGER.md:6398; docs/roadmap/BACKLOG_LEDGER.md:6399; docs/roadmap/BACKLOG_LEDGER.md:7385; docs/roadmap/BACKLOG_LEDGER.md:7386
+Reason: The repository intentionally uses the PR-scoped `docs/review/PR_<N>_FIXED_MAPPING.md` naming contract as the canonical review artifact, and the PR body remains an optional human-readable mirror by governance design rather than accidental duplication.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1280#pullrequestreview-4030012955
 
 ## Merge Readiness
 - [ ] All required checks pass
