@@ -47,7 +47,7 @@ The temporary exception is retired on this branch:
 - `scripts/ci/check_pygments_exception_guard.py:231`
 - `.github/workflows/ci.yml:117`
 - `.github/workflows/ci.yml:134`
-- `docs/roadmap/BACKLOG_LEDGER.md:7856`
+- `docs/roadmap/BACKLOG_LEDGER.md:7896`
 - `requirements-ci-lite.txt:278`
 - `requirements-test.txt:27`
 - `requirements.txt:230`
