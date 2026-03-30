@@ -664,6 +664,57 @@ def test_task_bootstrap_keeps_non_routable_requested_agent_as_advisory() -> None
     ]
 
 
+def test_task_bootstrap_rejects_unknown_requested_agent_with_explicit_rationale() -> None:
+    """Unknown requested agents must stay visible in packet metadata with rejection rationale."""
+
+    packet = build_task_packet(
+        goal="Implement backend entitlement routing",
+        task_class="Backend API",
+        candidate_paths=["app/middleware/api_tiers.py"],
+        requested_agents=[" Unknown-Agent ", "unknown-agent"],
+    )
+
+    assert packet["requested_agents"] == ["unknown-agent"]
+    assert packet["requested_agent_disposition"] == [
+        {
+            "agent": "unknown-agent",
+            "status": "rejected_unknown_agent",
+            "reason": "Agent is not registered in the canonical inventory.",
+        }
+    ]
+    assert "unknown-agent" not in packet["secondary_agents"]
+    assert not [
+        binding["repo_agent_slug"] for binding in packet["native_subagent_bridge"]["advisory"]
+    ]
+
+
+def test_task_bootstrap_keeps_domain_mismatch_requested_agent_as_advisory() -> None:
+    """Routable-but-mismatched requested agents should remain advisory with explicit rationale."""
+
+    packet = build_task_packet(
+        goal="Implement backend entitlement routing",
+        task_class="Backend API",
+        candidate_paths=["app/middleware/api_tiers.py"],
+        requested_agents=["frontend-engineer"],
+    )
+
+    assert packet["requested_agents"] == ["frontend-engineer"]
+    assert "frontend-engineer" in packet["secondary_agents"]
+    assert packet["requested_agent_disposition"] == [
+        {
+            "agent": "frontend-engineer",
+            "status": "advisory_domain_mismatch",
+            "reason": "Requested agent stays advisory because it is outside the routed domain slot set.",
+        }
+    ]
+    assert {
+        binding["repo_agent_slug"] for binding in packet["native_subagent_bridge"]["secondary"]
+    } == {"architecture-specialist"}
+    assert [
+        binding["repo_agent_slug"] for binding in packet["native_subagent_bridge"]["advisory"]
+    ] == ["frontend-engineer"]
+
+
 def test_task_bootstrap_requested_agents_change_packet_id() -> None:
     """Requested agents should contribute to the deterministic packet identity."""
 
