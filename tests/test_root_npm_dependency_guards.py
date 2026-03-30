@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any, cast
 from urllib.parse import urlparse
 
 from packaging.version import Version
@@ -18,11 +19,12 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 ROOT_LOCK_JSON = REPO_ROOT / "package-lock.json"
 MIN_HONO_VERSION = Version("4.12.7")
 MIN_BRACE_EXPANSION_VERSION = Version("5.0.5")
+MIN_PATH_TO_REGEXP_VERSION = Version("8.4.0")
 
 
-def _load_json(path: Path) -> dict:
+def _load_json(path: Path) -> dict[str, Any]:
     """RU/EN: Read a UTF-8 JSON file and return the decoded object."""
-    return json.loads(path.read_text(encoding="utf-8"))
+    return cast(dict[str, Any], json.loads(path.read_text(encoding="utf-8")))
 
 
 def test_root_lock_resolves_hono_to_safe_npm_release() -> None:
@@ -112,3 +114,50 @@ def test_root_lock_tracks_brace_expansion_under_agentguard_dependency_path() -> 
     assert (
         isinstance(brace_expansion_range, str) and brace_expansion_range.strip()
     ), "package-lock.json: minimatch brace-expansion dependency missing"
+
+
+def test_root_lock_resolves_path_to_regexp_to_safe_npm_release() -> None:
+    """RU/EN: Root lockfile must keep path-to-regexp at the secure runtime floor."""
+    package_lock = _load_json(ROOT_LOCK_JSON)
+    path_to_regexp_pkg = package_lock.get("packages", {}).get("node_modules/path-to-regexp", {})
+    lock_version = path_to_regexp_pkg.get("version")
+    resolved = path_to_regexp_pkg.get("resolved", "")
+
+    assert isinstance(lock_version, str), "package-lock.json: path-to-regexp version missing"
+    assert Version(lock_version) >= MIN_PATH_TO_REGEXP_VERSION
+    assert (
+        isinstance(resolved, str) and resolved
+    ), "package-lock.json: path-to-regexp resolved missing"
+
+    parsed = urlparse(resolved)
+    assert parsed.scheme == "https", "path-to-regexp lock resolution must use https"
+    assert parsed.netloc == "registry.npmjs.org", "path-to-regexp must resolve from npm registry"
+    assert parsed.path.startswith(
+        "/path-to-regexp/"
+    ), "path-to-regexp lock resolution path mismatch"
+
+
+def test_root_lock_tracks_path_to_regexp_under_agentguard_runtime_path() -> None:
+    """RU/EN: Runtime chain must keep the express router path-to-regexp dependency visible."""
+    package_lock = _load_json(ROOT_LOCK_JSON)
+    mcp_sdk_pkg = package_lock.get("packages", {}).get("node_modules/@modelcontextprotocol/sdk", {})
+    express_pkg = package_lock.get("packages", {}).get("node_modules/express", {})
+    router_pkg = package_lock.get("packages", {}).get("node_modules/router", {})
+
+    mcp_sdk_dependencies = mcp_sdk_pkg.get("dependencies", {})
+    express_dependencies = express_pkg.get("dependencies", {})
+    router_dependencies = router_pkg.get("dependencies", {})
+
+    express_range = mcp_sdk_dependencies.get("express")
+    router_range = express_dependencies.get("router")
+    path_to_regexp_range = router_dependencies.get("path-to-regexp")
+
+    assert (
+        isinstance(express_range, str) and express_range.strip()
+    ), "package-lock.json: MCP SDK express dependency missing"
+    assert (
+        isinstance(router_range, str) and router_range.strip()
+    ), "package-lock.json: express router dependency missing"
+    assert (
+        isinstance(path_to_regexp_range, str) and path_to_regexp_range.strip()
+    ), "package-lock.json: router path-to-regexp dependency missing"
