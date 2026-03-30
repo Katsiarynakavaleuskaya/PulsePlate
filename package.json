@@ -25,8 +25,26 @@
     "url": "https://github.com/Katsiarynakavaleuskaya/PulsePlate/issues"
   },
   "homepage": "https://github.com/Katsiarynakavaleuskaya/PulsePlate#readme",
+  "overrides": {
+    "@goplus/agentguard": {
+      "glob": "13.0.6"
+    },
+    "glob": {
+      "minimatch": "10.2.4"
+    },
+    "minimatch": {
+      "brace-expansion": "5.0.5"
+    },
+    "@modelcontextprotocol/sdk": {
+      "express": {
+        "router": {
+          "path-to-regexp": "8.4.0"
+        }
+      }
+    }
+  },
   "dependencies": {
-    "@goplus/agentguard": "^1.0.4",
+    "@goplus/agentguard": "^1.0.12",
     "docx": "^9.6.1",
     "pptxgenjs": "^4.0.1",
     "thesvg": "^2.0.1"
@@ -37,9 +55,5 @@
     "@cspell/dict-python": "^4.2.19",
     "@cspell/dict-ru_ru": "^2.3.2",
     "cspell": "^9.2.1"
-  },
-  "overrides": {
-    "brace-expansion": "2.0.3",
-    "path-to-regexp": "8.4.0"
   }
 }

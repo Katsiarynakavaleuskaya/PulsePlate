@@ -1,10 +1,10 @@
-# GHSA-5239-wwwm-4pmq — Pygments temporary pip-audit exception
+# GHSA-5239-wwwm-4pmq — Pygments seam retirement remediation
 
 ## Summary
 
 - Advisory: `GHSA-5239-wwwm-4pmq`
 - Package: `Pygments`
-- Pinned repo version at the time of triage: `2.19.2`
+- Patched repo version on the remediation branch: `2.20.0`
 - Tracked repo surfaces carrying the pinned package:
   - `requirements-ci-lite.txt`
   - `requirements-test.txt`
@@ -14,53 +14,51 @@
 
 ## Current Triage Status
 
-As of `28 March 2026`, the GitHub advisory page for `GHSA-5239-wwwm-4pmq`
-still lists patched versions as `None`, so the repo has no upstream Pygments
-release it can safely adopt yet. GitHub Dependabot alerts `#80` and `#81`
-remain open across `requirements-ci-lite.txt` and `requirements-test.txt`
-while the repo pin stays at `2.19.2` across the tracked requirement surfaces.
-Because of that, the strict `pip-audit` pre-push gate on `requirements.txt`,
-combined with the CI seam guard over the tracked requirement surfaces, would
-still block unrelated narrow PRs even when no dependency regression was
-introduced in the branch.
+As of `30 March 2026`, the GitHub advisory page for `GHSA-5239-wwwm-4pmq`
+reports `first_patched_version: 2.20.0`. That flips the temporary seam from an
+allowed unblock to a required remediation, because the repo can now adopt a
+safe upstream release across every tracked requirement surface. The current-head
+remediation lane therefore:
 
-## Temporary Exception
+- bumps `Pygments` to `2.20.0` in all tracked requirement files;
+- removes the `pip-audit --ignore-vuln GHSA-5239-wwwm-4pmq` exception from
+  `.pre-commit-config.yaml`;
+- keeps the CI seam guard in place so future regressions still fail closed if
+  the ignore ever reappears or the tracked pins drift below the patched floor.
 
-The security-unblock PR adds a documented `pip-audit` ignore for:
+## Remediation Completed
 
-```text
-GHSA-5239-wwwm-4pmq
-```
+The temporary exception is retired on this branch:
 
-Scope of the exception:
-
-- limited to the `pip-audit` pre-push hook in `.pre-commit-config.yaml`
-- does not remove the pinned `Pygments` evidence from requirement surfaces
-- remains tracked in `docs/roadmap/BACKLOG_LEDGER.md` until a patched release is available
-- is now watched by `scripts/ci/check_pygments_exception_guard.py`, which fails
-  CI as soon as the public GHSA advisory reports a patched version; when repo
-  tokens can read Dependabot alerts, the same guard also checks that tracked
-  alerts no longer silently remain open
+- `.pre-commit-config.yaml` no longer carries `--ignore-vuln
+  GHSA-5239-wwwm-4pmq`;
+- `requirements-ci-lite.txt`, `requirements-test.txt`, `requirements.txt`,
+  `requirements-dev.txt`, and `requirements-lock.txt` all pin
+  `Pygments==2.20.0`;
+- `scripts/ci/check_pygments_exception_guard.py` remains the contract guard that
+  enforces "patched release exists -> seam must be gone".
 
 ## Evidence Anchors
 
-- `.pre-commit-config.yaml:132`
-- `.pre-commit-config.yaml:135`
+- `.pre-commit-config.yaml:123`
 - `scripts/ci/check_pygments_exception_guard.py:27`
 - `scripts/ci/check_pygments_exception_guard.py:143`
 - `scripts/ci/check_pygments_exception_guard.py:158`
 - `scripts/ci/check_pygments_exception_guard.py:231`
 - `.github/workflows/ci.yml:117`
 - `.github/workflows/ci.yml:134`
-- `docs/roadmap/BACKLOG_LEDGER.md:7856`
+- `docs/roadmap/BACKLOG_LEDGER.md:7896`
 - `requirements-ci-lite.txt:278`
 - `requirements-test.txt:27`
+- `requirements.txt:230`
+- `requirements-dev.txt:163`
+- `requirements-lock.txt:230`
 - `https://github.com/advisories/GHSA-5239-wwwm-4pmq`
 
 ## Exit Criteria
 
-Remove the ignore when all of the following are true:
+Satisfied on this remediation branch when all of the following hold:
 
-1. a patched `Pygments` release exists;
-2. the lockfiles can be regenerated to that safe version without breaking local gates;
-3. `pip-audit` passes without `--ignore-vuln GHSA-5239-wwwm-4pmq`.
+1. `Pygments==2.20.0` is pinned across the tracked requirement surfaces;
+2. `pip-audit` passes without `--ignore-vuln GHSA-5239-wwwm-4pmq`;
+3. the seam guard passes against the live advisory state.
