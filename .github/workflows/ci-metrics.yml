@@ -1,0 +1,58 @@
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
+name: CI Metrics
+
+on:
+  schedule:
+    - cron: "0 13 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  collect-ci-metrics:
+    name: collect-ci-metrics
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Setup Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: "3.13"
+
+      - name: Collect Tier 1 CI metrics
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          python3 scripts/ci/collect_ci_metrics.py \
+            --repo "${GITHUB_REPOSITORY}" \
+            --json-out ci-metrics-summary.json \
+            --markdown-out ci-metrics-summary.md
+
+      - name: Publish metrics to step summary
+        run: |
+          set -euo pipefail
+          cat ci-metrics-summary.md >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Upload CI metrics artifacts
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: ci-metrics-summary
+          path: |
+            ci-metrics-summary.json
+            ci-metrics-summary.md
+          if-no-files-found: error
+          retention-days: 14
