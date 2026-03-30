@@ -142,21 +142,23 @@ ignore if {
 # Documented in: docs/security/CVE-2026-29111-systemd.md
 # Removal condition: Remove when Debian bookworm publishes a fixed systemd package line or Trivy metadata includes Fixed Version
 
+cve_2026_29111_version := "252.38-1~deb12u1"
+
 cve_2026_29111_pkg_match if {
 	systemd_pkgs := {"libsystemd0", "libudev1"}
 	systemd_pkgs[input.PkgName]
 }
 
 cve_2026_29111_version_match if {
-	input.InstalledVersion == "252.38-1~deb12u1"
+	input.InstalledVersion == cve_2026_29111_version
 }
 
 cve_2026_29111_pkgid_match if {
-	startswith(input.PkgID, "libsystemd0@252.38-1~deb12u1")
+	startswith(input.PkgID, sprintf("libsystemd0@%s", [cve_2026_29111_version]))
 }
 
 cve_2026_29111_pkgid_match if {
-	startswith(input.PkgID, "libudev1@252.38-1~deb12u1")
+	startswith(input.PkgID, sprintf("libudev1@%s", [cve_2026_29111_version]))
 }
 
 ignore if {
