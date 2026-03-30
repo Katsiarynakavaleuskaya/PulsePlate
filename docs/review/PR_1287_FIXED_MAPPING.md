@@ -17,8 +17,11 @@
 - [ ] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
 - [x] Pre-commit green
 - [ ] `make verify` green
-- [ ] Mandatory post-open bug-hunter pass completed
-Notes: Draft recovery PR for six live image-alert findings on `main`. The latest
+- [x] Mandatory post-open bug-hunter pass completed
+Notes: Draft recovery PR for the four ncurses image-alert findings on `main`.
+The initial two-CVE draft scope was narrowed after the mandatory QA and
+bug-hunter post-open passes flagged the repo rule that suppression PRs must be
+CVE-scoped. The latest
 `main` CI cancellations on merge commit `6b16dadc23dc99ddc4f1761afbeeff2b2a68f1f9`
 did not reproduce as a deterministic repo-side failure in local validation, so
 this PR intentionally limits code changes to the live security-tab remediation.
