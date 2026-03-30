@@ -12,4 +12,10 @@
 - No actionable review comments
 
 ## Merge Readiness
-- Draft while the post-open review lane and current-head CI settle.
+- [ ] No unresolved review threads
+- [ ] Required current-head checks PASS
+- [ ] Canonical artifact complete and mirrored in PR body
+- [ ] `pre-commit run --all-files` and `make verify` green
+- [ ] Mandatory post-open review lane complete
+-
+- Status: Draft while the post-open review lane and current-head CI settle.
