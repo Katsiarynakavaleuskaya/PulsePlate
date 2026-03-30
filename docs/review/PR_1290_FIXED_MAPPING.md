@@ -9,7 +9,11 @@
 - [x] Fixed in commit mapping completed
 
 ### Fixed in Commit Mapping
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1290#discussion_r3012635195 -> fd5b6c5
+Disposition: FIXED
+Commit: fd5b6c5
+Evidence: docs/review/PR_1290_FIXED_MAPPING.md
+Reason: Added the standard merge-readiness checklist structure requested by the CodeRabbit review and mirrored it in the PR body.
 
 ## Merge Readiness
 - [ ] No unresolved review threads
