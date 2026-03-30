@@ -204,6 +204,7 @@ pyyaml==6.0.3
 requests==2.33.0
     # via
     #   -c requirements.txt
+    #   -r requirements-dev.in
     #   cachecontrol
     #   detect-secrets
     #   pip-audit
@@ -212,7 +213,7 @@ rich==14.3.3
     #   -c requirements.txt
     #   bandit
     #   pip-audit
-ruff==0.15.7
+ruff==0.15.8
     # via -r requirements-dev.in
 sortedcontainers==2.4.0
     # via
