@@ -14,6 +14,10 @@ Evidence: package.json; tests/test_root_npm_dependency_guards.py; tests/test_age
 Disposition: FIXED
 Commit: 6a14c9e4
 Evidence: docs/review/PR_1281_FIXED_MAPPING.md
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1281#pullrequestreview-4031109566 -> 0a67b850
+Disposition: FIXED
+Commit: 0a67b850
+Evidence: tests/test_root_npm_dependency_guards.py
 
 ## Merge Readiness
 - [ ] All required checks pass
