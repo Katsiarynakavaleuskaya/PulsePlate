@@ -2400,6 +2400,24 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `pre-commit run --all-files` and `make verify` pass in follow-up PR
   - Blockers: None (deferred by scope, not blocked)
 
+- [ ] Remove Trivy suppression for systemd CVE (CVE-2026-29111)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: TBD (follow-up after upstream fix)
+  - Reason: Trivy reports `libsystemd0` and `libudev1` alerts on `main`, but
+    Debian bookworm still has no fixed package for CVE-2026-29111 at the time
+    of triage. The repo therefore uses a narrow `trivy/ignore-policy.rego`
+    suppression until Debian or Trivy exposes a fixed version.
+  - Links:
+    - `trivy/ignore-policy.rego` (rule for CVE-2026-29111)
+    - `docs/security/CVE-2026-29111-systemd.md`
+    - `.github/workflows/build.yml`
+  - DoD:
+    - Debian bookworm publishes fixed `systemd` binary packages (or Trivy publishes fixed-version metadata)
+    - Remove CVE-2026-29111 suppression from `trivy/ignore-policy.rego`
+    - Remove `docs/security/CVE-2026-29111-systemd.md` (or mark as resolved)
+    - Trivy code-scanning alerts 573/575 remain closed on `main`
+
 - [ ] Remove Trivy suppression for gpgv CVE (CVE-2026-24883)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
