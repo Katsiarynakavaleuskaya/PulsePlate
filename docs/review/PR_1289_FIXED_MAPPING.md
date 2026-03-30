@@ -6,9 +6,9 @@
 
 ## Fixed in Commit Mapping
 
-- Disposition: FIXED
-- Commit: `b9c42ac7`
-- Evidence: `trivy/ignore-policy.rego`, `docs/security/CVE-2026-29111-systemd.md`
+Disposition: FIXED
+Commit: b9c42ac7
+Evidence: trivy/ignore-policy.rego, docs/security/CVE-2026-29111-systemd.md
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1289#discussion_r3011982836 -> b9c42ac7
 
 ## Merge Readiness
