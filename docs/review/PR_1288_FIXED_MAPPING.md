@@ -3,12 +3,12 @@
 
 ## Discussion Thread Pass
 
-- [ ] Discussion-thread pass completed
-- [ ] Fixed in commit mapping completed
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments yet.
+- No actionable review comments
 
 ## Merge Readiness
 
@@ -17,7 +17,7 @@
 - [ ] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
 - [x] Pre-commit green
 - [ ] `make verify` green
-- [ ] Mandatory post-open bug-hunter pass completed
+- [x] Mandatory post-open bug-hunter pass completed
 Notes: Draft recovery PR for the two systemd image-alert findings on `main`.
 This branch was split from the earlier mixed-CVE draft so the suppression work
 stays compliant with the repo rule that security suppression PRs are CVE-scoped.
