@@ -77,7 +77,7 @@ Not all of these capabilities are user-facing, enabled by default, or fully depl
 |---|---|
 | FREE | BMI-based wellness check-ins and basic lookup surfaces |
 | PRO | Nutrition targets, daily nutrition guidance, planning and payment flows |
-| VIP | Higher-end planning, menu flows, recipes, export/shoplist surfaces |
+| VIP | Higher-end planning, menu flows, recipes, export/shopping-list surfaces |
 | Data foundation | Local merged food catalog built from USDA and Open Food Facts inputs |
 | Clients | Active web and iOS codebases over a FastAPI backend |
 
@@ -261,7 +261,7 @@ PulsePlate/
 
 ## Data Foundation
 
-PulsePlate's food-data layer is built around reviewed local snapshots and merge workflows rather than live-request dependency for every lookup.
+PulsePlate's food-data layer is built around reviewed local snapshots and merge workflows rather than a live-request dependency for every lookup.
 
 - Sources include **USDA FoodData Central** and **Open Food Facts**
 - Merge outputs live in `data/`
@@ -289,14 +289,17 @@ For demo, collaboration, integration, or licensing conversations:
 
 Before changing code:
 
-1. Read `AGENTS.md`
-2. Read the nearest scoped `AGENTS.md` for the files you touch
-3. Use the checks that match your surface:
+1. Required reading:
+   - `AGENTS.md`
+   - `docs/ENGINEERING_LESSONS.md`
+   - `RUNBOOK_AGENT.md`
+   - the nearest scoped `AGENTS.md` for the files you touch
+2. Use the checks that match your surface:
 
 - docs / copy changes: follow the relevant docs guidance and keep the PR docs-only
 - frontend-only changes: run the frontend-local checks for `frontend/`
 - iOS-only changes: run the iOS-local checks for `ios/`
-- maintainer full-stack/backend changes: run
+- maintainer full-stack/backend changes: run:
 
 ```bash
 pre-commit run --all-files
