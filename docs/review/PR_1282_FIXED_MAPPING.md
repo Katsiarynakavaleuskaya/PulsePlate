@@ -6,8 +6,7 @@
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments on current head at PR bootstrap. Re-check after bots
-  and humans finish the replacement-lane review cycle.
+- No actionable review comments
 
 ## Merge Readiness
 - [ ] All required checks pass
