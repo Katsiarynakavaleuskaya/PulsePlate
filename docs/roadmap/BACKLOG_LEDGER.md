@@ -2340,13 +2340,13 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - PR-size governance exists for `<300`, `300-800`, and `>800` LoC cases, and `>800` requires explicit `## Split Justification` proof in the PR body
     - No new flaky test class is introduced
 
-- [ ] P1: PR4 lightweight CI metrics and weekly feedback loop {#ledger-p1-tier1-ci-cd-pr4-metrics}
+- [x] P1: PR4 lightweight CI metrics and weekly feedback loop {#ledger-p1-tier1-ci-cd-pr4-metrics}
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-TBD-TIER1-CI-CD-PR4
+  - Target PR: #1286
   - Area: orchestration / CI / review governance
   - Finding Type: process hardening
-  - Status: Active next execution slice after merged PR `#1253`; implementation starts from a clean worktree off `origin/main`.
+  - Status: Materially completed on `main` in merged PR `#1286` (`a9bf2781`); advisory metrics now serve as the landed Tier 1 PR4 baseline.
   - Reason: Tier 1 needs advisory metrics for critical-path duration, reruns, red-build rate, and xdist fallback tracking without turning observability into another merge blocker or widening branch-protection truth.
   - Links:
     - `docs/orchestration/TIER1_CI_CD_PR_SERIES_RUNBOOK.md`
@@ -2358,15 +2358,16 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Metrics remain informational only and outside canonical merge truth
     - Weekly reporting path uses artifact + `GITHUB_STEP_SUMMARY` only
     - Artifact absence degrades gracefully with explicit `unknown`/`unavailable` metric states
-    - Tier 1 docs/runbook/task packet all point to PR4 as the active slice
+    - Tier 1 docs/runbook/task packet record PR4 as landed baseline evidence
 
 
-- [ ] P1: Disposition guard — ban mapping to trigger-only commits
+- [x] P1: Disposition guard — ban mapping to trigger-only commits
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-TBD (fix/orch-ban-trigger-commit-mapping)
+  - Target PR: #990
   - Area: orchestration / review governance
   - Finding Type: process hardening
+  - Status: Materially completed on `main` in merged PR `#990` (`91477308`); trigger-only FIXED proof mappings are now rejected by the disposition guard.
   - Reason: Prevent FIXED proof bypass via empty or CI rerun/trigger commits. Mapping `- <url> -> <sha>` must not accept empty commits or commits whose subject matches trigger/rerun patterns.
   - Links:
     - `scripts/orchestration/check_review_threads_disposition.py`
