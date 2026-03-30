@@ -9,6 +9,8 @@
 Disposition: FIXED
 Commit: b9c42ac7
 Evidence: trivy/ignore-policy.rego, docs/security/CVE-2026-29111-systemd.md
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1289#pullrequestreview-4033073553 -> b9c42ac7
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1289#pullrequestreview-4033084449 -> b9c42ac7
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1289#discussion_r3011982836 -> b9c42ac7
 
 ## Merge Readiness
