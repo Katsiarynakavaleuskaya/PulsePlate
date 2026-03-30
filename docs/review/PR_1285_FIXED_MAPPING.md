@@ -9,6 +9,8 @@
 Disposition: FIXED
 Commit: a21707c4
 Evidence: docs/security/CVE-2025-69720-ncurses.md
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1285#pullrequestreview-4033073677 -> a21707c4
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1285#pullrequestreview-4033091855 -> a21707c4
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1285#discussion_r3011982993 -> a21707c4
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1285#discussion_r3011983005 -> a21707c4
 
