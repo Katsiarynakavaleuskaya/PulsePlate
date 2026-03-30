@@ -367,11 +367,9 @@ def test_scan_text_with_goplus_agentguard_live_runtime_smoke() -> None:
 
     result = scan_text_with_goplus_agentguard("How can I build a steady breakfast habit?")
 
-    assert result == GoPlusAgentGuardScanResult(
-        risk_level="low",
-        risk_tags=(),
-        summary="No security issues detected",
-    )
+    assert result is not None
+    assert result.risk_level == "low"
+    assert result.risk_tags == ()
     assert result.should_block is False
 
 

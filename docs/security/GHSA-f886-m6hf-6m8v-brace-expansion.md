@@ -33,12 +33,14 @@ lane.
 ## Remediation Implemented
 
 - Refreshed the root direct dependency on `@goplus/agentguard` to `^1.0.12`.
-- Added root npm `overrides` entries for `glob`, `minimatch`, and
-  `brace-expansion` so the entire transitive chain resolves to a compatible,
-  patched set.
-- Preserved the root `path-to-regexp` override at `8.4.0` so the AgentGuard
-  runtime chain does not regress into the separate router DoS advisories
-  (`GHSA-j3q9-mxjg-w52f`, `GHSA-27v5-c462-wpq7`).
+- Added scoped root npm `overrides` entries so the AgentGuard runtime path
+  (`@goplus/agentguard -> glob -> minimatch -> brace-expansion`) resolves to a
+  compatible, patched set without forcing the same pins onto unrelated npm
+  consumers.
+- Preserved the `@modelcontextprotocol/sdk -> express -> router ->
+  path-to-regexp` override at `8.4.0` so the same runtime surface does not
+  regress into the separate router DoS advisories (`GHSA-j3q9-mxjg-w52f`,
+  `GHSA-27v5-c462-wpq7`).
 - Refreshed the root lockfile under the repo-canonical Node `22.22.1` runtime.
 - Kept the remediation scoped to package-manager metadata only; no Python or
   bridge runtime code paths were modified.
@@ -47,7 +49,7 @@ lane.
 
 ## Evidence Anchors
 
-- `package.json:28` — override set keeps the patched npm graph and preserves `path-to-regexp=8.4.0`
+- `package.json:28` — scoped override set keeps the patched npm graph and preserves `path-to-regexp=8.4.0`
 - `package-lock.json:828` — resolved `glob` / `minimatch` / `brace-expansion` chain updated
 - `package-lock.json` — `node_modules/path-to-regexp` remains at the secure floor after lock refresh
 - `tests/test_root_npm_dependency_guards.py:56` — deterministic regression guard

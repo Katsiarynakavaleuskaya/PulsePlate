@@ -65,7 +65,11 @@ def test_root_lock_resolves_brace_expansion_to_safe_npm_release() -> None:
     brace_expansion_entries = {
         package_path: package_data
         for package_path, package_data in packages.items()
-        if isinstance(package_path, str) and package_path.endswith("/brace-expansion")
+        if (
+            isinstance(package_path, str)
+            and package_path.endswith("/brace-expansion")
+            and isinstance(package_data, dict)
+        )
     }
 
     assert (
