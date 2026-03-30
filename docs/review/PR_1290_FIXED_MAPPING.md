@@ -15,6 +15,12 @@ Commit: fd5b6c5
 Evidence: docs/review/PR_1290_FIXED_MAPPING.md
 Reason: Added the standard merge-readiness checklist structure requested by the CodeRabbit review and mirrored it in the PR body.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1290#pullrequestreview-4033758840 -> fd5b6c5
+Disposition: FIXED
+Commit: fd5b6c5
+Evidence: docs/review/PR_1290_FIXED_MAPPING.md
+Reason: The review-summary status comment is satisfied by the same checklist fix recorded for the underlying actionable thread.
+
 ## Merge Readiness
 - [ ] No unresolved review threads
 - [ ] Required current-head checks PASS
