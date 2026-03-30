@@ -141,7 +141,7 @@ def test_root_lock_resolves_path_to_regexp_to_safe_npm_release() -> None:
     ), "path-to-regexp lock resolution path mismatch"
 
 
-def test_root_lock_tracks_path_to_regexp_under_agentguard_runtime_path() -> None:
+def test_root_lock_tracks_path_to_regexp_under_mcp_sdk_runtime_path() -> None:
     """RU/EN: Runtime chain must keep the express router path-to-regexp dependency visible."""
     package_lock = _load_json(ROOT_LOCK_JSON)
     mcp_sdk_pkg = package_lock.get("packages", {}).get("node_modules/@modelcontextprotocol/sdk", {})
