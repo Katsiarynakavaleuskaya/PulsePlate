@@ -10,8 +10,8 @@ default ignore := false
 # - CI enforces a single file-level expiry (exactly one "Suppression expires: YYYY-MM-DD" per policy file)
 #
 # Suppression expires: 2026-05-27 (manual removal)
-# Last reviewed: 2026-02-27
-# Documented in: docs/security/CVE-2026-0915-glibc.md, docs/security/CVE-2025-15281-glibc.md, docs/security/CVE-2026-27171-zlib1g.md, docs/security/CVE-2026-3184-util-linux.md, docs/security/CVE-2025-14831-gnutls.md
+# Last reviewed: 2026-03-30
+# Documented in: docs/security/CVE-2026-0915-glibc.md, docs/security/CVE-2025-15281-glibc.md, docs/security/CVE-2026-27171-zlib1g.md, docs/security/CVE-2026-3184-util-linux.md, docs/security/CVE-2025-14831-gnutls.md, docs/security/CVE-2025-69720-ncurses.md
 
 ignore if {
 	input.VulnerabilityID == "CVE-2026-0915"
@@ -133,4 +133,43 @@ ignore if {
 	input.VulnerabilityID == "CVE-2026-3184"
 	cve_2026_3184_pkg_match
 	cve_2026_3184_version_match
+}
+
+# CVE-2025-69720 (ncurses family) - upstream unfixed in Debian bookworm
+# Review-by: 2026-05-27 (manual removal)
+# Rationale: Debian bookworm remains vulnerable; fix is published only in forky/sid at triage time
+# Monitor: https://security-tracker.debian.org/tracker/CVE-2025-69720
+# Documented in: docs/security/CVE-2025-69720-ncurses.md
+# Removal condition: Remove when Debian bookworm publishes a fixed ncurses package or Trivy metadata includes Fixed Version
+
+cve_2025_69720_pkg_match if {
+	ncurses_pkgs := {"libncursesw6", "libtinfo6", "ncurses-base", "ncurses-bin"}
+	ncurses_pkgs[input.PkgName]
+}
+
+cve_2025_69720_version_match if {
+	input.InstalledVersion == "6.4-4"
+}
+
+cve_2025_69720_pkgid_match if {
+	startswith(input.PkgID, "libncursesw6@6.4-4")
+}
+
+cve_2025_69720_pkgid_match if {
+	startswith(input.PkgID, "libtinfo6@6.4-4")
+}
+
+cve_2025_69720_pkgid_match if {
+	startswith(input.PkgID, "ncurses-base@6.4-4")
+}
+
+cve_2025_69720_pkgid_match if {
+	startswith(input.PkgID, "ncurses-bin@6.4-4")
+}
+
+ignore if {
+	input.VulnerabilityID == "CVE-2025-69720"
+	cve_2025_69720_pkg_match
+	cve_2025_69720_version_match
+	cve_2025_69720_pkgid_match
 }
