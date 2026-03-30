@@ -37,5 +37,9 @@
     "@cspell/dict-python": "^4.2.19",
     "@cspell/dict-ru_ru": "^2.3.2",
     "cspell": "^9.2.1"
+  },
+  "overrides": {
+    "brace-expansion": "2.0.3",
+    "path-to-regexp": "8.4.0"
   }
 }
