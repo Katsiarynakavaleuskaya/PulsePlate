@@ -15,6 +15,12 @@ Evidence: .env.example, docs/deploy/POSTGRES_SELF_HOSTED_DROPLET.md, tests/test_
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1291#discussion_r3014961259 -> 1c20cb1a
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1291#discussion_r3014961264 -> 1c20cb1a
 
+Disposition: FIXED
+Commit: 24ecf7c4
+Evidence: core/db.py, tests/test_app_lifespan_additional.py
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1291#discussion_r3015455174 -> 24ecf7c4
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1291#discussion_r3015471248 -> 24ecf7c4
+
 Disposition: DEFERRED
 Backlog: docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-execution-doc-sot-reconciliation
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1291#discussion_r3015018643
