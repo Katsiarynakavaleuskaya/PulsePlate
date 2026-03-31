@@ -295,20 +295,37 @@ def test_build_engine_url_treats_whitespace_database_url_as_missing_in_productio
         _build_engine_url()
 
 
+@pytest.mark.parametrize(
+    "database_url",
+    [
+        "sqlite:///./cache/app.db",
+        "sqlite+pysqlite:///./cache/app.db",
+        "sqlite+aiosqlite:///./cache/app.db",
+        "SQLITE:///./cache/app.db",
+    ],
+)
 def test_build_engine_url_rejects_sqlite_database_url_in_production_like_env(
     monkeypatch: pytest.MonkeyPatch,
+    database_url: str,
 ) -> None:
-    """Production-like environments must reject an explicit SQLite DATABASE_URL."""
+    """Production-like environments must reject SQLite DATABASE_URL variants."""
 
     from core.db import _build_engine_url
 
     monkeypatch.setenv("ENVIRONMENT", "production")
     monkeypatch.delenv("APP_ENV", raising=False)
     monkeypatch.setenv("DEBUG", "false")
-    monkeypatch.setenv("DATABASE_URL", "sqlite:///./cache/app.db")
+    monkeypatch.setenv("DATABASE_URL", database_url)
 
     with pytest.raises(RuntimeError, match="SQLite DATABASE_URL is not allowed"):
         _build_engine_url()
+
+
+def test_is_sqlite_database_url_falls_back_to_scheme_check_when_make_url_fails() -> None:
+    """Fallback scheme parsing must still reject dialect-qualified SQLite URLs."""
+
+    with patch.object(core_db, "make_url", side_effect=ValueError("invalid url")):
+        assert core_db._is_sqlite_database_url("SQLITE+Pysqlite:///./cache/app.db") is True
 
 
 @pytest.mark.asyncio

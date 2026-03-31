@@ -120,6 +120,16 @@ def _extract_sqlite_path(database_url: str) -> str | None:
     return sqlite_path if sqlite_path else None
 
 
+def _is_sqlite_database_url(database_url: str) -> bool:
+    """Return True when the URL resolves to any SQLite backend variant."""
+
+    try:
+        return make_url(database_url).get_backend_name().lower() == "sqlite"
+    except Exception:
+        scheme = urlparse(database_url).scheme.lower()
+        return scheme == "sqlite" or scheme.startswith("sqlite+")
+
+
 def _ensure_sqlite_directory(database_url: str, env_provided: bool = False) -> None:
     """Create parent directory for SQLite file if path is file-based and controlled by app.
 
@@ -160,7 +170,7 @@ def _build_engine_url() -> str:
                 "SQLite fallback is allowed only for local/dev/test runtimes."
             )
 
-    if env_provided and is_production_like_env() and raw_database_url.startswith("sqlite:///"):
+    if env_provided and is_production_like_env() and _is_sqlite_database_url(raw_database_url):
         runtime_env = get_runtime_env_name() or "unknown"
         raise RuntimeError(
             f"SQLite DATABASE_URL is not allowed in production-like environments (resolved env: {runtime_env}). "
