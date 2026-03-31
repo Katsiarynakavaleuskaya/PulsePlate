@@ -8,6 +8,8 @@ EN: Tests for remaining modules with low coverage
 
 from unittest.mock import patch
 
+import pytest
+
 
 class TestShoplistModule:
     """Test core.shoplist module."""
@@ -257,3 +259,188 @@ class TestTimeUtilsModule:
         # Test date validation
         assert is_valid_date("2024-01-01") is True
         assert is_valid_date("invalid") is False
+
+
+class TestDbGuardAndFallbackSmokeCoverage:
+    """RU: Smoke-visible coverage tail for DB guard/fallback helpers.
+
+    EN: Smoke-visible coverage tail for DB guard/fallback helpers.
+    """
+
+    TRUTHY = {"1", "true", "yes", "on"}
+
+    def test_build_engine_url_production_guards_fail_closed(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """RU: Prod-like env must reject missing and SQLite URLs.
+
+        EN: Production-like env must reject missing and SQLite DATABASE_URL values.
+        """
+
+        import core.db as core_db
+
+        core_db.reset_db_for_tests()
+        try:
+            monkeypatch.setenv("ENVIRONMENT", "production")
+            monkeypatch.delenv("APP_ENV", raising=False)
+            monkeypatch.setenv("DEBUG", "false")
+            monkeypatch.delenv("DATABASE_URL", raising=False)
+
+            with pytest.raises(RuntimeError, match="DATABASE_URL is required"):
+                core_db._build_engine_url()
+
+            monkeypatch.setenv("DATABASE_URL", "sqlite:///./cache/app.db")
+            with pytest.raises(RuntimeError, match="SQLite DATABASE_URL is not allowed"):
+                core_db._build_engine_url()
+        finally:
+            core_db.reset_db_for_tests()
+
+    def test_is_sqlite_database_url_uses_scheme_fallback_when_sqlalchemy_parse_fails(self) -> None:
+        """RU: Fallback parser must still detect SQLite dialect schemes.
+
+        EN: Fallback parser must still detect SQLite dialect schemes.
+        """
+
+        import core.db as core_db
+
+        with patch.object(core_db, "make_url", side_effect=ValueError("bad url")):
+            assert core_db._is_sqlite_database_url("sqlite+pysqlite:///./cache/app.db") is True
+
+    @pytest.mark.parametrize(
+        ("database_url", "expected"),
+        [
+            ("", "<empty-db-url>"),
+            ("sqlite:///:memory:", "sqlite:///:memory:"),
+            ("sqlite:///./fallback.db", "sqlite:///<redacted>"),
+            ("postgresql://db.example/pulseplate", "<redacted-db-url>"),
+        ],
+    )
+    def test_redact_database_url_variants(self, database_url: str, expected: str) -> None:
+        """RU: Redaction helper must cover empty, memory, file, and remote DSNs.
+
+        EN: Redaction helper must cover empty, memory, file, and remote DSNs.
+        """
+
+        from core.db_fallback import _redact_database_url
+
+        assert _redact_database_url(database_url) == expected
+
+    def test_check_production_constraints_logs_and_raises(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """RU: Production fallback constraint must fail closed with guidance.
+
+        EN: Production fallback constraint must fail closed with guidance.
+        """
+
+        from core.db_fallback import _check_production_constraints
+
+        with pytest.raises(RuntimeError, match="prod-db-error"):
+            _check_production_constraints(
+                env_name="production",
+                fallback_url="sqlite:///./fallback.db",
+                truthy=self.TRUTHY,
+                db_err=RuntimeError("prod-db-error"),
+            )
+
+        assert "canonical Postgres DATABASE_URL" in caplog.text
+
+    def test_initialize_fallback_engine_re_raises_original_error(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """RU: Fallback engine init must preserve the original DB error.
+
+        EN: Fallback engine init must preserve the original DB error.
+        """
+
+        import core.db_fallback as fallback_mod
+
+        def _raise_create_engine(*args: object, **kwargs: object) -> object:
+            raise RuntimeError("fallback init failed")
+
+        monkeypatch.setattr(fallback_mod, "create_engine", _raise_create_engine)
+
+        with pytest.raises(OSError, match="primary-db-error"):
+            fallback_mod._initialize_fallback_engine(
+                "sqlite:///:memory:",
+                OSError("primary-db-error"),
+            )
+
+    def test_attempt_db_fallback_routes_production_and_nonproduction_helpers(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """RU: _attempt_db_fallback must route prod and non-prod helper paths.
+
+        EN: _attempt_db_fallback must route prod and non-prod helper paths.
+        """
+
+        import core.db_fallback as fallback_mod
+
+        production_calls: list[tuple[object, ...]] = []
+        nonproduction_calls: list[tuple[str, object]] = []
+
+        def _fake_check(
+            env_name: str | None,
+            fallback_url: str,
+            truthy: set[str],
+            db_err: Exception,
+        ) -> None:
+            production_calls.append((env_name, fallback_url, truthy, str(db_err)))
+            raise db_err
+
+        def _fake_validate(
+            env_name: str | None,
+            is_production: bool,
+            fallback_url: str,
+            db_err: Exception,
+        ) -> None:
+            nonproduction_calls.append(
+                ("validate", (env_name, is_production, fallback_url, str(db_err)))
+            )
+
+        def _fake_initialize(fallback_url: str, db_err: Exception) -> str:
+            nonproduction_calls.append(("initialize", (fallback_url, str(db_err))))
+            return "engine-sentinel"
+
+        def _fake_configure(
+            engine: str,
+            is_production: bool,
+            fallback_url: str,
+            env_name: str | None,
+        ) -> None:
+            nonproduction_calls.append(
+                ("configure", (engine, is_production, fallback_url, env_name))
+            )
+
+        monkeypatch.setattr(fallback_mod, "_check_production_constraints", _fake_check)
+        monkeypatch.setattr(fallback_mod, "_validate_fallback_url", _fake_validate)
+        monkeypatch.setattr(fallback_mod, "_initialize_fallback_engine", _fake_initialize)
+        monkeypatch.setattr(fallback_mod, "_configure_session_bindings", _fake_configure)
+
+        monkeypatch.setenv("DB_FALLBACK_URL", "sqlite:///./prod-fallback.db")
+        with pytest.raises(RuntimeError, match="prod failure"):
+            fallback_mod._attempt_db_fallback(
+                env_name="production",
+                is_production=True,
+                db_err=RuntimeError("prod failure"),
+                truthy=self.TRUTHY,
+            )
+
+        assert production_calls == [
+            ("production", "sqlite:///./prod-fallback.db", self.TRUTHY, "prod failure")
+        ]
+
+        monkeypatch.delenv("DB_FALLBACK_URL", raising=False)
+        monkeypatch.setenv("ALLOW_DB_INMEMORY_FALLBACK", "true")
+        fallback_mod._attempt_db_fallback(
+            env_name="dev",
+            is_production=False,
+            db_err=RuntimeError("dev failure"),
+            truthy=self.TRUTHY,
+        )
+
+        assert nonproduction_calls == [
+            ("validate", ("dev", False, "sqlite:///:memory:", "dev failure")),
+            ("initialize", ("sqlite:///:memory:", "dev failure")),
+            ("configure", ("engine-sentinel", False, "sqlite:///:memory:", "dev")),
+        ]
