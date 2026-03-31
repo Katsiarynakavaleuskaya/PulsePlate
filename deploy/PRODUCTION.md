@@ -384,7 +384,7 @@ The script will:
 2. Pull the latest Caddy image
 3. Restart the Caddy container
 4. Show container status and recent logs
-5. Run `scripts/diagnose_web.sh` automatically when `PRODUCTION_DOMAIN` is available
+5. Run `scripts/diagnose_web.sh` automatically when `PRODUCTION_DOMAIN` and a colocated diagnosis helper are available; fail fast if the diagnosis reports a routing mismatch
 
 **Note:** If SSH is not available, use DigitalOcean Console or self-hosted runner to execute these commands.
 

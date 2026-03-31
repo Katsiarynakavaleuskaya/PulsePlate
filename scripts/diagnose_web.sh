@@ -215,6 +215,54 @@ assert_not_spa_html() {
     pass "${label}: ${path} stayed off the SPA shell (status ${status}, content-type '${content_type:-<empty>}')."
 }
 
+assert_not_spa_or_static_405() {
+    local label="$1"
+    local path="$2"
+    shift 2
+    local probe=""
+    probe="$(curl_probe "${label}" "${BASE_URL}${path}" "$@")" || {
+        fail "${label}: request to ${BASE_URL}${path} failed."
+        return
+    }
+
+    IFS='|' read -r status content_type _headers _body_file <<<"${probe}"
+    if [[ "${content_type}" == text/html* && "${status}" == "200" ]]; then
+        fail "${label}: ${path} fell through to the SPA shell."
+        return
+    fi
+    if [[ "${status}" == "405" && "${content_type}" == text/plain* ]]; then
+        fail "${label}: ${path} looks like a static file_server 405 instead of the backend split."
+        return
+    fi
+    pass "${label}: ${path} stayed off SPA/static-405 (status ${status}, content-type '${content_type:-<empty>}')."
+}
+
+assert_json_backend() {
+    local label="$1"
+    local path="$2"
+    shift 2
+    local probe=""
+    probe="$(curl_probe "${label}" "${BASE_URL}${path}" "$@")" || {
+        fail "${label}: request to ${BASE_URL}${path} failed."
+        return
+    }
+
+    IFS='|' read -r status content_type _headers body_file <<<"${probe}"
+    if [[ "${status}" =~ ^5 ]]; then
+        fail "${label}: backend probe returned server error ${status}."
+        return
+    fi
+    if [[ "${content_type}" != application/json* ]]; then
+        fail "${label}: expected backend JSON, got '${content_type:-<empty>}' ."
+        return
+    fi
+    if ! rg -q '^\s*[\{\[]' "${body_file}"; then
+        fail "${label}: backend probe body does not look like JSON."
+        return
+    fi
+    pass "${label}: ${path} reached the backend JSON surface (status ${status})."
+}
+
 assert_ws_not_spa() {
     local label="websocket-upgrade"
     local probe=""
@@ -254,6 +302,18 @@ run_http_probes() {
 
     assert_json_200 "health-json" "/health"
     assert_json_200 "openapi-json" "/openapi.json"
+    assert_json_backend \
+        "legacy-bmi-post" \
+        "/bmi" \
+        -X POST \
+        -H "Content-Type: application/json" \
+        --data '{}'
+    assert_not_spa_or_static_405 \
+        "legacy-bmi-options" \
+        "/bmi" \
+        -X OPTIONS \
+        -H "Origin: https://pulseplate.test" \
+        -H "Access-Control-Request-Method: POST"
 
     assert_not_spa_html "legacy-plan-get" "/plan"
     assert_not_spa_html "api-prefix" "/api/v1/does-not-exist"

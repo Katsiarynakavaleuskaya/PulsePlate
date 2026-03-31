@@ -17,7 +17,7 @@ Current repo truth already shows the intended production model is:
 The real gap for PR-2 is therefore not "invent a new production topology", but:
 
 1. Formalize deterministic shell diagnosis (`scripts/diagnose_web.sh`).
-2. Ensure operator workflows call that diagnosis after Caddy redeploy.
+2. Ensure operator workflows call that diagnosis after Caddy redeploy and fail fast on routing mismatches.
 3. Reconcile deploy docs with the actual baked-shell contract and remove stale assumptions from this diagnosis file itself.
 
 ## Current Repo Truth
@@ -126,6 +126,8 @@ Expected diagnosis outcomes:
 - `GET /` -> SPA shell (`200`, `text/html`)
 - `GET /bmi`, `/profile`, `/plate`, `/progress` -> SPA shell (`200`)
 - `GET /health` and `GET /openapi.json` -> backend JSON surface
+- `POST /bmi` with an invalid JSON payload still reaches the backend JSON surface (for example `422`, not SPA/static `405`)
+- `OPTIONS /bmi` stays off SPA/static `file_server`
 - `GET /plan` -> not SPA shell
 - `/ws` upgrade probe -> not SPA shell
 

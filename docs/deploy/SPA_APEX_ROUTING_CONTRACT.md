@@ -81,6 +81,11 @@ Canonical operator probe:
 BASE_URL=https://$PRODUCTION_DOMAIN bash scripts/diagnose_web.sh
 ```
 
+The probe is expected to cover both:
+
+- SPA deep-link GET shell delivery (`/`, `/bmi`, `/profile`, `/plate`, `/progress`)
+- `/bmi` method split so legacy `POST`/`OPTIONS` do not fall through to SPA/static `file_server`
+
 ## References
 
 - [`deploy/docker-compose.production.yaml`](../../deploy/docker-compose.production.yaml)

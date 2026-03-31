@@ -11,6 +11,8 @@
 
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 echo "=========================================="
 echo "Redeploy Caddy Container"
 echo "=========================================="
@@ -56,8 +58,20 @@ cd "$DEPLOY_DIR" || exit 1
 echo "Working directory: $(pwd)"
 echo ""
 
-# Repo root is one level above the canonical deploy directory.
+# Repo root is one level above the canonical nested deploy directory.
 REPO_ROOT="$(cd "$DEPLOY_DIR/.." && pwd)"
+DIAG_SCRIPT=""
+
+for candidate in \
+    "$SCRIPT_DIR/diagnose_web.sh" \
+    "$DEPLOY_DIR/scripts/diagnose_web.sh" \
+    "$REPO_ROOT/scripts/diagnose_web.sh"
+do
+    if [ -x "$candidate" ]; then
+        DIAG_SCRIPT="$candidate"
+        break
+    fi
+done
 
 if [ -z "${PRODUCTION_DOMAIN:-}" ] && [ -f ".env" ]; then
     PRODUCTION_DOMAIN="$(awk -F= '/^PRODUCTION_DOMAIN=/{print $2; exit}' .env | tr -d '"' | tr -d "'" )"
@@ -109,19 +123,25 @@ echo "=== Step 5: Show recent Caddy logs ==="
 $DC_CMD logs --tail=100 caddy
 
 echo ""
-if [ -x "$REPO_ROOT/scripts/diagnose_web.sh" ] && [ -n "${PRODUCTION_DOMAIN:-}" ]; then
+if [ -n "$DIAG_SCRIPT" ] && [ -n "${PRODUCTION_DOMAIN:-}" ]; then
     echo "=== Step 6: Diagnose edge routing ==="
     (
-        cd "$REPO_ROOT"
-        BASE_URL="https://${PRODUCTION_DOMAIN}" bash scripts/diagnose_web.sh --skip-caddy-validate
+        cd "$(dirname "$DIAG_SCRIPT")"
+        BASE_URL="https://${PRODUCTION_DOMAIN}" bash "$DIAG_SCRIPT" --skip-caddy-validate
     ) || {
-        echo "⚠️  Warning: diagnose_web.sh reported a routing mismatch"
+        echo "❌ diagnose_web.sh reported a routing mismatch"
+        exit 1
     }
     echo ""
 fi
 
-if [ -x "$REPO_ROOT/scripts/diagnose_web.sh" ] && [ -z "${PRODUCTION_DOMAIN:-}" ]; then
+if [ -n "$DIAG_SCRIPT" ] && [ -z "${PRODUCTION_DOMAIN:-}" ]; then
     echo "⚠️  Warning: PRODUCTION_DOMAIN is unavailable; skipping diagnose_web.sh"
+    echo ""
+fi
+
+if [ -z "$DIAG_SCRIPT" ]; then
+    echo "⚠️  Warning: diagnose_web.sh is unavailable in the detected server/repo layout; skipping automatic diagnosis"
     echo ""
 fi
 
