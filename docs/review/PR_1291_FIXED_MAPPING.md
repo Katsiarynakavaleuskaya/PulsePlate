@@ -21,6 +21,27 @@ Evidence: core/db.py, tests/test_app_lifespan_additional.py
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1291#discussion_r3015455174 -> 24ecf7c4
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1291#discussion_r3015471248 -> 24ecf7c4
 
+Disposition: FIXED
+Commit: 8f227240
+Evidence: tests/test_app_lifespan_additional.py
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1291#discussion_r3015455158 -> 8f227240
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1291#discussion_r3015471255 -> 8f227240
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1291#discussion_r3015570078 -> 8f227240
+
+Disposition: NOT-A-BUG
+Evidence: docs/review/PR_1291_FIXED_MAPPING.md
+Reason: These bot review summary URLs aggregate actionable child comments that are individually dispositioned in this artifact; the summary shells do not require separate code changes.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1291#pullrequestreview-4036303560
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1291#pullrequestreview-4036332779
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1291#pullrequestreview-4036343380
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1291#pullrequestreview-4036394604
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1291#pullrequestreview-4036431432
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1291#pullrequestreview-4036707659
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1291#pullrequestreview-4036871343
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1291#pullrequestreview-4036890357
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1291#pullrequestreview-4036996074
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1291#pullrequestreview-4037004979
+
 Disposition: DEFERRED
 Backlog: docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-execution-doc-sot-reconciliation
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1291#discussion_r3015018643
