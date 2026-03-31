@@ -6,23 +6,19 @@
 
 ## Fixed in Commit Mapping
 
-### FIXED
-- `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1291#discussion_r3014934202` -> `1c20cb1a`
-  - Evidence: `tests/test_app_lifespan_additional.py`
-- `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1291#discussion_r3014943491` -> `1c20cb1a`
-  - Evidence: `.env.example`
-- `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1291#discussion_r3014961226` -> `1c20cb1a`
-  - Evidence: `.env.example`
-- `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1291#discussion_r3014961259` -> `1c20cb1a`
-  - Evidence: `docs/deploy/POSTGRES_SELF_HOSTED_DROPLET.md`
-- `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1291#discussion_r3014961264` -> `1c20cb1a`
-  - Evidence: `tests/test_app_lifespan_additional.py`
+Disposition: FIXED
+Commit: 1c20cb1a
+Evidence: .env.example, docs/deploy/POSTGRES_SELF_HOSTED_DROPLET.md, tests/test_app_lifespan_additional.py
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1291#discussion_r3014934202 -> 1c20cb1a
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1291#discussion_r3014943491 -> 1c20cb1a
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1291#discussion_r3014961226 -> 1c20cb1a
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1291#discussion_r3014961259 -> 1c20cb1a
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1291#discussion_r3014961264 -> 1c20cb1a
 
-### DEFERRED
-- `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1291#discussion_r3015018643`
-  - Backlog: `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-execution-doc-sot-reconciliation`
-- `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1291#discussion_r3015051066`
-  - Backlog: `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-execution-doc-sot-reconciliation`
+Disposition: DEFERRED
+Backlog: docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-execution-doc-sot-reconciliation
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1291#discussion_r3015018643
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1291#discussion_r3015051066
 
 ## Merge Readiness
 - [ ] All required checks pass
