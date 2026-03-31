@@ -48,9 +48,9 @@ Backlog: docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-execution-doc-sot-reconciliati
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1291#discussion_r3015051066
 
 ## Merge Readiness
-- [ ] All required checks pass
-- [ ] No unresolved review threads (re-check on current head before merge)
-- [ ] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
+- [x] All required checks pass
+- [x] No unresolved review threads (re-check on current head before merge)
+- [x] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
 - [x] Pre-commit green
 - [x] `make verify` green
 - PR-1 lane: canonical production/staging database foundation requires explicit Postgres `DATABASE_URL`; SQLite remains local/dev/test only.
