@@ -9,6 +9,12 @@ from app.bootstrap import startup_guards as bootstrap_guards
 from tests.helpers.fast_update_stubs import patch_background_update_callables
 
 
+def _reset_core_db_state() -> None:
+    """Reset shared DB module state before and after env-driven tests."""
+
+    core_db.reset_db_for_tests()
+
+
 @pytest.mark.asyncio
 async def test_lifespan_validate_template_runtime_error(monkeypatch: pytest.MonkeyPatch) -> None:
     lifespan_globals = app.lifespan.__wrapped__.__globals__
@@ -223,28 +229,29 @@ async def test_lifespan_requires_database_url_in_production_like_env(
 ) -> None:
     """Production-like startup must fail closed when DATABASE_URL is missing."""
 
-    existing_engine = getattr(core_db, "_RAW_ENGINE", None)
-    if existing_engine is not None:
-        existing_engine.dispose()
-    monkeypatch.setattr(core_db, "_RAW_ENGINE", None, raising=False)
+    _reset_core_db_state()
+    try:
+        lifespan_globals = app.lifespan.__wrapped__.__globals__
+        monkeypatch.setitem(
+            lifespan_globals, "run_startup_guards", bootstrap_guards.run_startup_guards
+        )
+        monkeypatch.setenv("ENVIRONMENT", runtime_env)
+        monkeypatch.setenv("DEBUG", "false")
+        monkeypatch.setenv("ALLOW_DEV_API_KEY", "false")
+        monkeypatch.setenv("ALLOW_ANONYMOUS_API_KEYS", "false")
+        monkeypatch.setenv("APPLE_SHARED_SECRET", "apple-shared-secret-for-tests")
+        monkeypatch.setenv("SERVER_SALT", "StrongServerSaltForTests123456789!")
+        monkeypatch.setenv("PRO_LLM_INSIGHT_REQUESTS_PER_MONTH", "50")
+        monkeypatch.setenv("VIP_LLM_INSIGHT_REQUESTS_PER_MONTH", "50")
+        monkeypatch.setenv("SUBSCRIPTION_DB_ENABLED", "true")
+        monkeypatch.delenv("DATABASE_URL", raising=False)
+        monkeypatch.delenv("DB_FALLBACK_URL", raising=False)
 
-    lifespan_globals = app.lifespan.__wrapped__.__globals__
-    monkeypatch.setitem(lifespan_globals, "run_startup_guards", bootstrap_guards.run_startup_guards)
-    monkeypatch.setenv("ENVIRONMENT", runtime_env)
-    monkeypatch.setenv("DEBUG", "false")
-    monkeypatch.setenv("ALLOW_DEV_API_KEY", "false")
-    monkeypatch.setenv("ALLOW_ANONYMOUS_API_KEYS", "false")
-    monkeypatch.setenv("APPLE_SHARED_SECRET", "apple-shared-secret-for-tests")
-    monkeypatch.setenv("SERVER_SALT", "StrongServerSaltForTests123456789!")
-    monkeypatch.setenv("PRO_LLM_INSIGHT_REQUESTS_PER_MONTH", "50")
-    monkeypatch.setenv("VIP_LLM_INSIGHT_REQUESTS_PER_MONTH", "50")
-    monkeypatch.setenv("SUBSCRIPTION_DB_ENABLED", "true")
-    monkeypatch.delenv("DATABASE_URL", raising=False)
-    monkeypatch.delenv("DB_FALLBACK_URL", raising=False)
-
-    with pytest.raises(RuntimeError, match="DATABASE_URL is required"):
-        async with app.lifespan(app.app):
-            pass
+        with pytest.raises(RuntimeError, match="DATABASE_URL is required"):
+            async with app.lifespan(app.app):
+                pass
+    finally:
+        _reset_core_db_state()
 
 
 def test_build_engine_url_requires_database_url_in_prod_env(
@@ -254,13 +261,17 @@ def test_build_engine_url_requires_database_url_in_prod_env(
 
     from core.db import _build_engine_url
 
-    monkeypatch.setenv("ENVIRONMENT", "prod")
-    monkeypatch.delenv("APP_ENV", raising=False)
-    monkeypatch.setenv("DEBUG", "false")
-    monkeypatch.delenv("DATABASE_URL", raising=False)
+    _reset_core_db_state()
+    try:
+        monkeypatch.setenv("ENVIRONMENT", "prod")
+        monkeypatch.delenv("APP_ENV", raising=False)
+        monkeypatch.setenv("DEBUG", "false")
+        monkeypatch.delenv("DATABASE_URL", raising=False)
 
-    with pytest.raises(RuntimeError, match="DATABASE_URL is required"):
-        _build_engine_url()
+        with pytest.raises(RuntimeError, match="DATABASE_URL is required"):
+            _build_engine_url()
+    finally:
+        _reset_core_db_state()
 
 
 def test_build_engine_url_requires_database_url_when_app_env_is_production_like(
@@ -270,13 +281,17 @@ def test_build_engine_url_requires_database_url_when_app_env_is_production_like(
 
     from core.db import _build_engine_url
 
-    monkeypatch.delenv("ENVIRONMENT", raising=False)
-    monkeypatch.setenv("APP_ENV", "production")
-    monkeypatch.setenv("DEBUG", "false")
-    monkeypatch.delenv("DATABASE_URL", raising=False)
+    _reset_core_db_state()
+    try:
+        monkeypatch.delenv("ENVIRONMENT", raising=False)
+        monkeypatch.setenv("APP_ENV", "production")
+        monkeypatch.setenv("DEBUG", "false")
+        monkeypatch.delenv("DATABASE_URL", raising=False)
 
-    with pytest.raises(RuntimeError, match="DATABASE_URL is required"):
-        _build_engine_url()
+        with pytest.raises(RuntimeError, match="DATABASE_URL is required"):
+            _build_engine_url()
+    finally:
+        _reset_core_db_state()
 
 
 def test_build_engine_url_treats_whitespace_database_url_as_missing_in_production_like_env(
@@ -286,13 +301,17 @@ def test_build_engine_url_treats_whitespace_database_url_as_missing_in_productio
 
     from core.db import _build_engine_url
 
-    monkeypatch.setenv("ENVIRONMENT", "production")
-    monkeypatch.delenv("APP_ENV", raising=False)
-    monkeypatch.setenv("DEBUG", "false")
-    monkeypatch.setenv("DATABASE_URL", "   \n\t")
+    _reset_core_db_state()
+    try:
+        monkeypatch.setenv("ENVIRONMENT", "production")
+        monkeypatch.delenv("APP_ENV", raising=False)
+        monkeypatch.setenv("DEBUG", "false")
+        monkeypatch.setenv("DATABASE_URL", "   \n\t")
 
-    with pytest.raises(RuntimeError, match="DATABASE_URL is required"):
-        _build_engine_url()
+        with pytest.raises(RuntimeError, match="DATABASE_URL is required"):
+            _build_engine_url()
+    finally:
+        _reset_core_db_state()
 
 
 @pytest.mark.parametrize(
@@ -312,13 +331,17 @@ def test_build_engine_url_rejects_sqlite_database_url_in_production_like_env(
 
     from core.db import _build_engine_url
 
-    monkeypatch.setenv("ENVIRONMENT", "production")
-    monkeypatch.delenv("APP_ENV", raising=False)
-    monkeypatch.setenv("DEBUG", "false")
-    monkeypatch.setenv("DATABASE_URL", database_url)
+    _reset_core_db_state()
+    try:
+        monkeypatch.setenv("ENVIRONMENT", "production")
+        monkeypatch.delenv("APP_ENV", raising=False)
+        monkeypatch.setenv("DEBUG", "false")
+        monkeypatch.setenv("DATABASE_URL", database_url)
 
-    with pytest.raises(RuntimeError, match="SQLite DATABASE_URL is not allowed"):
-        _build_engine_url()
+        with pytest.raises(RuntimeError, match="SQLite DATABASE_URL is not allowed"):
+            _build_engine_url()
+    finally:
+        _reset_core_db_state()
 
 
 def test_is_sqlite_database_url_falls_back_to_scheme_check_when_make_url_fails() -> None:
