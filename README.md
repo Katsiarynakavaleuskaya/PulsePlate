@@ -159,9 +159,7 @@ cp .env.example .env
 For local contributor setup, make sure `.env` contains at least:
 
 - `PULSEPLATE_PYTHON_INDEX_URL` for `make`-driven bootstrap targets
-- `SERVER_SALT` for app startup validation
-
-For local-only boot, placeholder values from `.env.example` are acceptable for `SERVER_SALT`.
+- `SERVER_SALT` for app startup validation; replace the `.env.example` placeholder with a strong local value before boot
 
 Additional secrets are only required for specific features or production-like environments:
 
