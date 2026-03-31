@@ -124,7 +124,8 @@ def _is_sqlite_database_url(database_url: str) -> bool:
     """Return True when the URL resolves to any SQLite backend variant."""
 
     try:
-        return make_url(database_url).get_backend_name().lower() == "sqlite"
+        backend_name = str(make_url(database_url).get_backend_name()).lower()
+        return backend_name == "sqlite"
     except Exception:
         scheme = urlparse(database_url).scheme.lower()
         return scheme == "sqlite" or scheme.startswith("sqlite+")
