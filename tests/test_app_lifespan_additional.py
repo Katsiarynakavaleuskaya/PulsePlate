@@ -214,6 +214,33 @@ async def test_lifespan_requires_subscription_db_enabled_in_production_like_env(
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("runtime_env", ["production", "staging"])
+async def test_lifespan_requires_database_url_in_production_like_env(
+    monkeypatch: pytest.MonkeyPatch,
+    runtime_env: str,
+) -> None:
+    """Production-like startup must fail closed when DATABASE_URL is missing."""
+
+    lifespan_globals = app.lifespan.__wrapped__.__globals__
+    monkeypatch.setitem(lifespan_globals, "run_startup_guards", bootstrap_guards.run_startup_guards)
+    monkeypatch.setenv("ENVIRONMENT", runtime_env)
+    monkeypatch.setenv("DEBUG", "false")
+    monkeypatch.setenv("ALLOW_DEV_API_KEY", "false")
+    monkeypatch.setenv("ALLOW_ANONYMOUS_API_KEYS", "false")
+    monkeypatch.setenv("APPLE_SHARED_SECRET", "apple-shared-secret-for-tests")
+    monkeypatch.setenv("SERVER_SALT", "StrongServerSaltForTests123456789!")
+    monkeypatch.setenv("PRO_LLM_INSIGHT_REQUESTS_PER_MONTH", "50")
+    monkeypatch.setenv("VIP_LLM_INSIGHT_REQUESTS_PER_MONTH", "50")
+    monkeypatch.setenv("SUBSCRIPTION_DB_ENABLED", "true")
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+    monkeypatch.delenv("DB_FALLBACK_URL", raising=False)
+
+    with pytest.raises(RuntimeError, match="DATABASE_URL is required"):
+        async with app.lifespan(app.app):
+            pass
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize("runtime_env", ["local", "dev", "development", "test", "testing", "ci"])
 async def test_lifespan_allows_subscription_db_disabled_outside_production_like_env(
     monkeypatch: pytest.MonkeyPatch,

@@ -56,40 +56,19 @@ def _check_production_constraints(
 ) -> None:
     """Enforce production-specific fallback constraints.
 
-    Production fallback requires ALLOW_DB_PERSISTENT_FALLBACK=1.
-    Raises db_err if constraints not met.
+    Production-like environments fail closed on DB init errors.
+    Raises db_err after logging the canonical production contract.
     """
-    allow_persistent_fallback = (
-        os.getenv("ALLOW_DB_PERSISTENT_FALLBACK") or ""
-    ).strip().lower() in truthy
-
-    if not allow_persistent_fallback:
-        logger.error(
-            "CRITICAL: Database initialization failed in production (%s). "
-            "Fallback is disabled unless ALLOW_DB_PERSISTENT_FALLBACK=1 is set. "
-            "In-memory fallbacks are not allowed in production. "
-            "Original error: %s",
-            env_name or "production",
-            db_err,
-        )
-        raise db_err
-
-    # Additional verification: ensure fallback URL is persistent
-    is_in_memory = fallback_url.startswith("sqlite:///:memory:")
-    if is_in_memory:
-        logger.error(
-            "CRITICAL: Production fallback URL must be persistent, not in-memory. "
-            "Current DB_FALLBACK_URL=%s is in-memory. Set DB_FALLBACK_URL to a file-based URL "
-            "(e.g., sqlite:///./fallback.db).",
-            fallback_url,
-        )
-        raise db_err
-
-    logger.warning(
-        "Database initialization failed in production (%s), attempting persistent fallback: %s",
+    del fallback_url, truthy
+    logger.error(
+        "CRITICAL: Database initialization failed in production-like environment (%s). "
+        "SQLite fallback is not an accepted production or staging baseline. "
+        "Configure a canonical Postgres DATABASE_URL and recover the primary database. "
+        "Original error: %s",
         env_name or "production",
-        fallback_url,
+        db_err,
     )
+    raise db_err
 
 
 def _initialize_fallback_engine(fallback_url: str, db_err: Exception) -> Engine:
@@ -153,7 +132,9 @@ def _configure_session_bindings(
             tags = [f"env:{env_label}", f"backend:{backend}"]
             with suppress(Exception):
                 client.increment("db_fallback_active", tags=tags)
-    except Exception:  # pragma: no cover - metrics are optional, safe to ignore  # nosec B110
+    except (
+        Exception
+    ):  # pragma: no cover  # nosec B110: metrics are non-critical (remove-by: 2026-06-30, ref: PR-1)
         # Metrics collection is non-critical; failures should not affect application startup
         pass
 
@@ -183,12 +164,8 @@ def _attempt_db_fallback(
 ) -> None:
     """Attempt to initialize database with fallback SQLite when primary DB fails.
 
-    Production environments never accept in-memory fallbacks. For production,
-    fallback is only allowed when:
-    1. ALLOW_DB_PERSISTENT_FALLBACK env var is set
-    2. DB_FALLBACK_URL points to a persistent storage URL (not in-memory SQLite)
-
-    Non-production environments can use any fallback URL including in-memory.
+    Production-like environments fail closed on primary DB errors.
+    Non-production environments can use fallback SQLite when explicitly allowed.
 
     Raises:
         db_err: Original database error if fallback fails or is not allowed
@@ -200,7 +177,7 @@ def _attempt_db_fallback(
     _validate_fallback_url(env_name, is_production, fallback_url, db_err)
 
     if is_production:
-        # Production: enforce strict constraints
+        # Production/staging: fail closed, Postgres is the canonical baseline
         _check_production_constraints(env_name, fallback_url, truthy, db_err)
     else:
         # Non-production: allow any fallback including in-memory

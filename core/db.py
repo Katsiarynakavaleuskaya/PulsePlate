@@ -148,8 +148,17 @@ def _ensure_sqlite_directory(database_url: str, env_provided: bool = False) -> N
 def _build_engine_url() -> str:
     """Return the database URL from env or fall back to local SQLite."""
     default_path = os.path.join("cache", "app.db")
-    env_provided = "DATABASE_URL" in os.environ
-    database_url = os.getenv("DATABASE_URL", f"sqlite:///{default_path}")
+    raw_database_url = (os.getenv("DATABASE_URL") or "").strip()
+    env_provided = bool(raw_database_url)
+    runtime_env = (os.getenv("ENVIRONMENT") or os.getenv("APP_ENV") or "local").strip().lower()
+
+    if not env_provided and runtime_env in {"production", "prod", "staging"}:
+        raise RuntimeError(
+            "DATABASE_URL is required in production/staging environments. "
+            "SQLite fallback is allowed only for local/dev/test runtimes."
+        )
+
+    database_url = raw_database_url or f"sqlite:///{default_path}"
 
     # Create directory only for non-env SQLite URLs that we control
     _ensure_sqlite_directory(database_url, env_provided)
