@@ -6,7 +6,10 @@
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+Disposition: FIXED
+Commit: ed419e44
+Evidence: README.md
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1292#pullrequestreview-4036484509 -> ed419e44
 
 ## Merge Readiness
 - [ ] All required checks pass
