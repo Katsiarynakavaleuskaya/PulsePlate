@@ -17,6 +17,12 @@ Evidence: README.md
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1292#discussion_r3015246376 -> 4c9f7584
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1292#pullrequestreview-4036644072 -> 4c9f7584
 
+Disposition: FIXED
+Commit: f4493a0f
+Evidence: README.md
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1292#discussion_r3015386076 -> f4493a0f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1292#pullrequestreview-4036796849 -> f4493a0f
+
 ## Merge Readiness
 - [ ] All required checks pass
 - [ ] No unresolved review threads (re-check on current head before merge)
