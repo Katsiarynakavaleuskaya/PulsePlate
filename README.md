@@ -5,6 +5,11 @@
 [![codecov](https://codecov.io/gh/Katsiarynakavaleuskaya/PulsePlate/branch/main/graph/badge.svg)](https://codecov.io/gh/Katsiarynakavaleuskaya/PulsePlate)
 [![Food data: USDA + OFF](https://img.shields.io/badge/Food%20data-USDA%20%2B%20OFF-brightgreen)](docs/architecture/FOOD_DATABASE_PLATFORM_STRATEGY_v1.md)
 
+Operational signals:
+- `CI` shows the main backend/shared validation lane.
+- `Codecov Upload` shows the artifact upload job that publishes coverage results.
+- `codecov` shows the latest published repository coverage snapshot.
+
 > **PulsePlate turns body-metric check-ins into practical meal decisions.**
 >
 > It is a planning-first wellness product built around one continuous flow:
@@ -14,6 +19,17 @@
 PulsePlate is designed as a **wellness and meal-planning product**, not as a diagnosis, treatment, therapy, crisis-support, or emergency-care system. BMI and related outputs are informational wellness tools only, and the product should not replace clinician guidance for diagnosed conditions, pregnancy, eating disorders, medically prescribed diets, or emergencies.
 
 PulsePlate is currently in a **private staged rollout**. This repository is the clearest technical and product snapshot of the platform today.
+
+## Developer And Contributor Entrypoint
+
+If you are here to build, review, or deploy rather than evaluate the product story first, start here:
+
+- `AGENTS.md` for repository-wide engineering rules and merge-governance policy
+- `RUNBOOK_AGENT.md` for CI triage, merge-readiness, and post-merge cleanup flow
+- `docs/deploy/README.md` for deployment navigation
+- `docs/contracts/API_CANONICAL_MAP.md` for the canonical public API surface
+
+If you need the shortest docs-only path first, you can contribute safely in markdown without depending on the full maintainer-only backend bootstrap.
 
 ## From Metrics To Meals
 
