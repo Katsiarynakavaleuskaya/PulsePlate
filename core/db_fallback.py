@@ -187,16 +187,18 @@ def _attempt_db_fallback(
     Raises:
         db_err: Original database error if fallback fails or is not allowed
     """
-    # Get fallback URL (prefer DB_FALLBACK_URL env var, otherwise use in-memory SQLite)
-    fallback_url = os.getenv("DB_FALLBACK_URL", "sqlite:///:memory:")
-
-    # Validate fallback URL against production constraints
-    _validate_fallback_url(env_name, is_production, fallback_url, db_err)
-
     if is_production:
         # Production/staging: fail closed, Postgres is the canonical baseline
-        _check_production_constraints(env_name, fallback_url, truthy, db_err)
+        _check_production_constraints(
+            env_name, (os.getenv("DB_FALLBACK_URL") or "").strip(), truthy, db_err
+        )
     else:
+        # Get fallback URL (prefer DB_FALLBACK_URL env var, otherwise use in-memory SQLite)
+        fallback_url = (os.getenv("DB_FALLBACK_URL") or "").strip() or "sqlite:///:memory:"
+
+        # Validate fallback URL against non-production constraints
+        _validate_fallback_url(env_name, is_production, fallback_url, db_err)
+
         # Non-production: allow any fallback including in-memory
         explicit_override = (
             os.getenv("ALLOW_DB_INMEMORY_FALLBACK") or ""

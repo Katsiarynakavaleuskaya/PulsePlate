@@ -208,6 +208,25 @@ class TestAppDBFallback97:
         fallback_mod.reset_fallback_state()
         assert fallback_mod.is_fallback_active() is False
 
+    @pytest.mark.parametrize(
+        ("database_url", "expected"),
+        [
+            ("", "<empty-db-url>"),
+            ("sqlite:///./fallback.db", "sqlite:///<redacted>"),
+            (
+                "postgresql+psycopg://db.example.invalid:5432/pulseplate",
+                "<redacted-db-url>",
+            ),
+        ],
+    )
+    def test_redact_database_url_masks_non_memory_values(
+        self, database_url: str, expected: str
+    ) -> None:
+        """Helper must redact empty, file SQLite, and external DSNs consistently."""
+        from core.db_fallback import _redact_database_url
+
+        assert _redact_database_url(database_url) == expected
+
     def test_attempt_db_fallback_fallback_init_fails(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Fallback DB initialization failure re-raises original error."""
         from core.db_fallback import _attempt_db_fallback

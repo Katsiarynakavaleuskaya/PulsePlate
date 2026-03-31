@@ -34,8 +34,8 @@ docker compose run --rm app alembic upgrade head
 
 ```bash
 docker compose up -d app caddy
-curl http://127.0.0.1:8000/health/db
-curl http://127.0.0.1:8000/ready
+curl http://127.0.0.1/health/db
+curl http://127.0.0.1/ready
 ```
 
 ---

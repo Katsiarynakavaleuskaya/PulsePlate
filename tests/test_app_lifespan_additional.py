@@ -4,6 +4,7 @@ import pytest
 from unittest.mock import AsyncMock, patch
 
 import app
+import core.db as core_db
 from app.bootstrap import startup_guards as bootstrap_guards
 from tests.helpers.fast_update_stubs import patch_background_update_callables
 
@@ -221,6 +222,11 @@ async def test_lifespan_requires_database_url_in_production_like_env(
 ) -> None:
     """Production-like startup must fail closed when DATABASE_URL is missing."""
 
+    existing_engine = getattr(core_db, "_RAW_ENGINE", None)
+    if existing_engine is not None:
+        existing_engine.dispose()
+    monkeypatch.setattr(core_db, "_RAW_ENGINE", None, raising=False)
+
     lifespan_globals = app.lifespan.__wrapped__.__globals__
     monkeypatch.setitem(lifespan_globals, "run_startup_guards", bootstrap_guards.run_startup_guards)
     monkeypatch.setenv("ENVIRONMENT", runtime_env)
@@ -238,6 +244,54 @@ async def test_lifespan_requires_database_url_in_production_like_env(
     with pytest.raises(RuntimeError, match="DATABASE_URL is required"):
         async with app.lifespan(app.app):
             pass
+
+
+def test_build_engine_url_requires_database_url_in_prod_env(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """ENVIRONMENT=prod without DATABASE_URL must fail closed."""
+
+    from core.db import _build_engine_url
+
+    monkeypatch.setenv("ENVIRONMENT", "prod")
+    monkeypatch.delenv("APP_ENV", raising=False)
+    monkeypatch.setenv("DEBUG", "false")
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+
+    with pytest.raises(RuntimeError, match="DATABASE_URL is required"):
+        _build_engine_url()
+
+
+def test_build_engine_url_requires_database_url_when_app_env_is_production_like(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Production-like APP_ENV without ENVIRONMENT set must still fail closed."""
+
+    from core.db import _build_engine_url
+
+    monkeypatch.delenv("ENVIRONMENT", raising=False)
+    monkeypatch.setenv("APP_ENV", "production")
+    monkeypatch.setenv("DEBUG", "false")
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+
+    with pytest.raises(RuntimeError, match="DATABASE_URL is required"):
+        _build_engine_url()
+
+
+def test_build_engine_url_treats_whitespace_database_url_as_missing_in_production_like_env(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Whitespace DATABASE_URL is treated as missing in production-like envs."""
+
+    from core.db import _build_engine_url
+
+    monkeypatch.setenv("ENVIRONMENT", "production")
+    monkeypatch.delenv("APP_ENV", raising=False)
+    monkeypatch.setenv("DEBUG", "false")
+    monkeypatch.setenv("DATABASE_URL", "   \n\t")
+
+    with pytest.raises(RuntimeError, match="DATABASE_URL is required"):
+        _build_engine_url()
 
 
 @pytest.mark.asyncio

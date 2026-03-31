@@ -152,11 +152,12 @@ def _build_engine_url() -> str:
     env_provided = bool(raw_database_url)
 
     if not env_provided:
-        from settings import is_production_like_env
+        from settings import get_runtime_env_name, is_production_like_env
 
         if is_production_like_env():
+            runtime_env = get_runtime_env_name() or "unknown"
             raise RuntimeError(
-                "DATABASE_URL is required in production-like environments. "
+                f"DATABASE_URL is required in production-like environments (resolved env: {runtime_env}). "
                 "SQLite fallback is allowed only for local/dev/test runtimes."
             )
 
