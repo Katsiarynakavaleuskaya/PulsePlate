@@ -59,8 +59,8 @@ Deliver a Tier 1 CI/CD consolidation program in stacked PRs that:
 - PR-1 governance/bootstrap already landed in merged PR `#1240` (`24c51f85`).
 - PR-2 workflow consolidation already landed on `origin/main` via PR `#1244` (`b7e029b4`).
 - PR-3 risk topology already landed on `main` in merged PR `#1253` (`3be5debf`).
-- This runbook now treats PR-4 as the active execution slice.
-- Do not restart the series from PR-1; continue forward from the landed PR1-PR3 baseline.
+- PR-4 advisory CI metrics already landed on `main` in merged PR `#1286` (`a9bf2781`).
+- The original Tier 1 PR1-PR4 wave is now materially complete; keep this runbook as landed baseline evidence and route any follow-up work through fresh backlog items rather than reopening the wave.
 
 ## PR Series
 
@@ -95,7 +95,7 @@ Deliver a Tier 1 CI/CD consolidation program in stacked PRs that:
 - Emit summary artifacts for critical-path duration, reruns, red-build rate, and xdist fallback frequency.
 - Wire a weekly reporting path via artifacts + `GITHUB_STEP_SUMMARY` without changing merge blockers.
 - Keep PR4 explicitly advisory and outside canonical merge truth / branch-protection widening.
-- Status: active next execution slice.
+- Status: landed baseline in PR `#1286`.
 
 ## Routing Card
 
