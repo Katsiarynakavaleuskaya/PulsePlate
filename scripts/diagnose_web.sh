@@ -95,6 +95,11 @@ validate_caddy_config() {
         return 0
     fi
 
+    if ! docker info >/dev/null 2>&1; then
+        warn "Docker daemon/socket is unavailable; skipping local Caddyfile validation."
+        return 0
+    fi
+
     if [[ ! -f "${DEPLOY_DIR}/Caddyfile.production" ]]; then
         warn "deploy/Caddyfile.production is missing; skipping local Caddyfile validation."
         return 0
@@ -166,7 +171,7 @@ assert_html_200() {
         fail "${label}: expected text/html, got '${content_type:-<empty>}' ."
         return
     fi
-    if ! rg -q "<!doctype html|<html" "${body_file}"; then
+    if ! grep -Eiq "<!doctype html|<html" "${body_file}"; then
         fail "${label}: response does not look like the SPA shell."
         return
     fi
@@ -191,7 +196,7 @@ assert_json_200() {
         fail "${label}: expected application/json, got '${content_type:-<empty>}' ."
         return
     fi
-    if ! rg -q '^\s*[\{\[]' "${body_file}"; then
+    if ! grep -Eq '^[[:space:]]*[\{\[]' "${body_file}"; then
         fail "${label}: response body does not look like JSON."
         return
     fi
@@ -301,7 +306,7 @@ run_http_probes() {
     assert_html_200 "spa-progress" "/progress"
 
     assert_json_200 "health-json" "/health"
-    assert_json_200 "openapi-json" "/openapi.json"
+    assert_json_backend "openapi-json" "/openapi.json"
     assert_json_backend \
         "legacy-bmi-post" \
         "/bmi" \
@@ -316,7 +321,11 @@ run_http_probes() {
         -H "Access-Control-Request-Method: POST"
 
     assert_not_spa_html "legacy-plan-get" "/plan"
-    assert_not_spa_html "api-prefix" "/api/v1/does-not-exist"
+    assert_not_spa_html "legacy-insight-get" "/insight"
+    assert_not_spa_html "legacy-premium-bmr-get" "/premium_bmr"
+    assert_not_spa_html "legacy-premium-targets-get" "/premium_targets"
+    assert_not_spa_html "legacy-bmi-calculator-get" "/legacy/bmi-calculator"
+    assert_json_backend "api-prefix" "/api/v1/does-not-exist"
     assert_ws_not_spa
 }
 

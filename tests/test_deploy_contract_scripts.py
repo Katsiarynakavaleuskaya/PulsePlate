@@ -390,7 +390,7 @@ case "$method:$url" in
     content_type="application/json"
     payload='{"detail": "Method Not Allowed"}'
     ;;
-  GET:https://pulseplate.test/plan|GET:https://pulseplate.test/api/v1/does-not-exist)
+  GET:https://pulseplate.test/plan|GET:https://pulseplate.test/insight|GET:https://pulseplate.test/premium_bmr|GET:https://pulseplate.test/premium_targets|GET:https://pulseplate.test/legacy/bmi-calculator|GET:https://pulseplate.test/api/v1/does-not-exist)
     status="404"
     content_type="application/json"
     payload='{"detail": "not found"}'
@@ -435,6 +435,15 @@ printf '%s' "$status"
     )
     assert "PASS: legacy-bmi-options: /bmi stayed off SPA/static-405" in completed.stdout
     assert "PASS: legacy-plan-get: /plan stayed off the SPA shell" in completed.stdout
+    assert "PASS: legacy-insight-get: /insight stayed off the SPA shell" in completed.stdout
+    assert (
+        "PASS: legacy-bmi-calculator-get: /legacy/bmi-calculator stayed off the SPA shell"
+        in completed.stdout
+    )
+    assert (
+        "PASS: api-prefix: /api/v1/does-not-exist reached the backend JSON surface"
+        in completed.stdout
+    )
     assert "PASS: websocket-upgrade: /ws did not fall through to SPA" in completed.stdout
     assert "Summary: all requested checks passed." in completed.stdout
 
@@ -462,6 +471,37 @@ def test_diagnose_web_fails_without_base_url_for_http_probes(tmp_path: Path) -> 
 
     assert completed.returncode == 1
     assert "FAIL: BASE_URL or PRODUCTION_DOMAIN is required for HTTP probes." in completed.stdout
+
+
+def test_diagnose_web_warns_when_docker_daemon_is_unavailable(tmp_path: Path) -> None:
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+
+    docker_stub = """#!/usr/bin/env bash
+set -euo pipefail
+if [[ "${1:-}" == "info" ]]; then
+  exit 1
+fi
+exit 0
+"""
+    _write_executable(bin_dir / "docker", docker_stub)
+
+    env = os.environ.copy()
+    env["PATH"] = f"{bin_dir}:{env['PATH']}"
+
+    completed = subprocess.run(
+        ["bash", str(REPO_ROOT / "scripts/diagnose_web.sh"), "--check-caddy-config-only"],
+        cwd=str(REPO_ROOT),
+        env=env,
+        text=True,
+        capture_output=True,
+        check=True,
+    )
+
+    assert (
+        "WARN: Docker daemon/socket is unavailable; skipping local Caddyfile validation."
+        in completed.stdout
+    )
 
 
 def test_redeploy_caddy_runs_diagnose_web_when_domain_is_available(tmp_path: Path) -> None:
@@ -501,6 +541,8 @@ exit 0
     env = os.environ.copy()
     env["PATH"] = f"{bin_dir}:{env['PATH']}"
     env["DEPLOY_DIR"] = str(deploy_dir)
+    env["DIAG_MAX_ATTEMPTS"] = "1"
+    env["DIAG_RETRY_DELAY_SECONDS"] = "0"
 
     subprocess.run(
         ["bash", str(scripts_dir / "redeploy_caddy.sh")],
@@ -562,6 +604,8 @@ exit 0
     env = os.environ.copy()
     env["PATH"] = f"{bin_dir}:{env['PATH']}"
     env["DEPLOY_DIR"] = str(deploy_dir)
+    env["DIAG_MAX_ATTEMPTS"] = "2"
+    env["DIAG_RETRY_DELAY_SECONDS"] = "0"
 
     completed = subprocess.run(
         ["bash", str(scripts_dir / "redeploy_caddy.sh")],
