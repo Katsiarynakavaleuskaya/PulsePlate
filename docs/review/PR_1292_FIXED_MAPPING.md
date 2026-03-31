@@ -13,5 +13,5 @@
 - [ ] No unresolved review threads (re-check on current head before merge)
 - [ ] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
 - [x] Pre-commit green
-- [ ] `make verify` green
+- [x] `make verify` green
 - Docs-only lane: root `README.md` now mirrors the approved public-facing homepage copy without touching runtime or the active Postgres foundation branch.
