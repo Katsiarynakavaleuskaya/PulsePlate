@@ -175,6 +175,7 @@ async def test_lifespan_accepts_valid_pro_llm_monthly_limit(
     """
 
     lifespan_globals = app.lifespan.__wrapped__.__globals__
+    monkeypatch.setitem(lifespan_globals, "init_db", lambda: None)
     monkeypatch.setitem(lifespan_globals, "run_startup_guards", bootstrap_guards.run_startup_guards)
     monkeypatch.setenv("ENVIRONMENT", "production")
     monkeypatch.setenv("DEBUG", "false")
@@ -291,6 +292,22 @@ def test_build_engine_url_treats_whitespace_database_url_as_missing_in_productio
     monkeypatch.setenv("DATABASE_URL", "   \n\t")
 
     with pytest.raises(RuntimeError, match="DATABASE_URL is required"):
+        _build_engine_url()
+
+
+def test_build_engine_url_rejects_sqlite_database_url_in_production_like_env(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Production-like environments must reject an explicit SQLite DATABASE_URL."""
+
+    from core.db import _build_engine_url
+
+    monkeypatch.setenv("ENVIRONMENT", "production")
+    monkeypatch.delenv("APP_ENV", raising=False)
+    monkeypatch.setenv("DEBUG", "false")
+    monkeypatch.setenv("DATABASE_URL", "sqlite:///./cache/app.db")
+
+    with pytest.raises(RuntimeError, match="SQLite DATABASE_URL is not allowed"):
         _build_engine_url()
 
 

@@ -150,16 +150,22 @@ def _build_engine_url() -> str:
     default_path = os.path.join("cache", "app.db")
     raw_database_url = (os.getenv("DATABASE_URL") or "").strip()
     env_provided = bool(raw_database_url)
+    from settings import get_runtime_env_name, is_production_like_env
 
     if not env_provided:
-        from settings import get_runtime_env_name, is_production_like_env
-
         if is_production_like_env():
             runtime_env = get_runtime_env_name() or "unknown"
             raise RuntimeError(
                 f"DATABASE_URL is required in production-like environments (resolved env: {runtime_env}). "
                 "SQLite fallback is allowed only for local/dev/test runtimes."
             )
+
+    if env_provided and is_production_like_env() and raw_database_url.startswith("sqlite:///"):
+        runtime_env = get_runtime_env_name() or "unknown"
+        raise RuntimeError(
+            f"SQLite DATABASE_URL is not allowed in production-like environments (resolved env: {runtime_env}). "
+            "Use a Postgres DATABASE_URL for production/staging runtimes."
+        )
 
     database_url = raw_database_url or f"sqlite:///{default_path}"
 
