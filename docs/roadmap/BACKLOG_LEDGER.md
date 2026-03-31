@@ -290,6 +290,22 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 
 ### P1
 
+<a id="ledger-p1-execution-doc-sot-reconciliation"></a>
+- [ ] P1: Execution-doc source-of-truth reconciliation after PR-1
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD (fix/deploy-web-spa-routing)
+  - Area: docs / deploy / roadmap
+  - Reason: PR-1 intentionally kept the PR-2 deploy diagnosis packet out of scope, but `docs/roadmap/PulsePlate_P0_P1_Execution_Document_2026-03-30.md` still references source-of-truth documents that are missing or in transition. Reconcile the source-of-truth order in the PR-2 deploy shell lane instead of widening the Postgres foundation PR.
+  - Links:
+    - `docs/roadmap/PulsePlate_P0_P1_Execution_Document_2026-03-30.md`
+    - `docs/roadmap/DEPLOY_WEB_DIAGNOSIS_AND_FIX.md`
+    - `docs/roadmap/BACKLOG_LEDGER.md`
+  - DoD:
+    - The execution document source-of-truth list references only in-repo canonical artifacts
+    - `DEPLOY_WEB_DIAGNOSIS_AND_FIX.md` has a settled canonical location and is tracked in git
+    - Any remaining missing source-of-truth docs are either created or removed from the ordered list with rationale
+
 <a id="ledger-p1-ci-install-profile-split-after-disk-unblock"></a>
 - [ ] P1: CI install profile split after disk-regression unblock
   - Owner: @katsiaryna_kavaleuskaya
