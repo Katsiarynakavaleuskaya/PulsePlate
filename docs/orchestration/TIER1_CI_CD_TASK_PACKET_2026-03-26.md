@@ -1,7 +1,7 @@
 # Tier 1 CI/CD Task Packet
 
 **Date:** 2026-03-26 (`America/New_York`)
-**Status:** Active PR-4 packet for the Tier 1 backend/shared CI consolidation wave following the landed PR1-PR3 baseline work.
+**Status:** Landed PR-4 packet retained as baseline evidence after merged PR `#1286`.
 **Wave:** stacked PRs, coordinator-first, governance-first.
 
 ## Goal
@@ -26,7 +26,8 @@ without weakening current merge blockers or broadening runtime behavior.
 - PR-1 governance/bootstrap is already landed in PR `#1240` (`24c51f85`).
 - PR-2 workflow consolidation is already landed on `origin/main` in PR `#1244` (`b7e029b4`).
 - PR-3 risk topology is already landed on `main` in PR `#1253` (`3be5debf`).
-- This packet therefore points to PR-4 as the live execution branch.
+- PR-4 advisory CI metrics is already landed on `main` in PR `#1286` (`a9bf2781`).
+- This packet is retained as the landed execution record for the original Tier 1 PR1-PR4 wave; follow-up work should open new backlog-scoped packets instead of treating PR-4 as still active.
 
 ### In scope
 
@@ -110,7 +111,7 @@ Blocking surfaces for Tier 1 PR-lane decisions:
 - `ci-metrics-summary.md`
 - `ci-metrics.yml` advisory schedule/manual workflow
 - `GITHUB_STEP_SUMMARY` publication path
-- Status: active next slice
+- Status: landed baseline (`#1286`)
 
 ## Acceptance Criteria
 
