@@ -53,7 +53,7 @@ When traffic hits **FastAPI only** (port `8000`, misconfigured clients, internal
 ## Static (Caddy `file_server`)
 
 - Built assets are copied from `frontend/dist` into `/srv/frontend` by
-  [`frontend/Dockerfile.caddy-spa`](../../frontend/Dockerfile.caddy-spa:25).
+  [`frontend/Dockerfile.caddy-spa`](../../frontend/Dockerfile.caddy-spa) (line 25).
 - **`/favicon.ico`**: prefer `dist` (not proxied to app).
 
 ## CSP

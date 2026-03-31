@@ -34,7 +34,12 @@ EOF
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --base-url)
-            BASE_URL="${2:-}"
+            if [[ -z "${2:-}" ]]; then
+                echo "Error: --base-url requires a URL argument." >&2
+                usage >&2
+                exit 2
+            fi
+            BASE_URL="$2"
             shift 2
             ;;
         --check-caddy-config-only)

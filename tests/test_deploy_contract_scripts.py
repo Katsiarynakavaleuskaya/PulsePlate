@@ -504,6 +504,88 @@ exit 0
     )
 
 
+def test_diagnose_web_reports_failure_for_spa_or_api_contract(tmp_path: Path) -> None:
+    bin_dir = tmp_path / "bin"
+    log_file = tmp_path / "diag-fail.log"
+    bin_dir.mkdir()
+
+    docker_stub = f"""#!/usr/bin/env bash
+set -euo pipefail
+printf 'docker %s\\n' "$*" >> "{log_file}"
+exit 0
+"""
+    curl_stub = """#!/usr/bin/env bash
+set -euo pipefail
+headers=""
+body=""
+url=""
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -D)
+      headers="$2"
+      shift 2
+      ;;
+    -o)
+      body="$2"
+      shift 2
+      ;;
+    http://*|https://*)
+      url="$1"
+      shift
+      ;;
+    *)
+      shift
+      ;;
+  esac
+done
+
+status="200"
+content_type="text/html; charset=utf-8"
+payload='<!doctype html><html><body>spa</body></html>'
+
+if [[ "$url" == "https://pulseplate.test/health" ]]; then
+  status="500"
+  content_type="text/html; charset=utf-8"
+  payload='<html><body>error</body></html>'
+elif [[ "$url" == "https://pulseplate.test/openapi.json" ]]; then
+  status="200"
+  content_type="application/json"
+  payload='{"ok": true}'
+elif [[ "$url" == "https://pulseplate.test/ws" ]]; then
+  status="400"
+  content_type="text/plain"
+  payload='upgrade required'
+fi
+
+printf 'HTTP/1.1 %s Stub\\nContent-Type: %s\\n\\n' "$status" "$content_type" > "$headers"
+printf '%s' "$payload" > "$body"
+printf '%s' "$status"
+"""
+    _write_executable(bin_dir / "docker", docker_stub)
+    _write_executable(bin_dir / "curl", curl_stub)
+
+    env = os.environ.copy()
+    env["PATH"] = f"{bin_dir}:{env['PATH']}"
+
+    completed = subprocess.run(
+        [
+            "bash",
+            str(REPO_ROOT / "scripts/diagnose_web.sh"),
+            "--skip-caddy-validate",
+            "--base-url",
+            "https://pulseplate.test",
+        ],
+        cwd=str(REPO_ROOT),
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert completed.returncode == 1
+    assert "FAIL: health-json: expected HTTP 200, got 500." in completed.stdout
+
+
 def test_redeploy_caddy_runs_diagnose_web_when_domain_is_available(tmp_path: Path) -> None:
     temp_repo = tmp_path / "repo"
     deploy_dir = temp_repo / "deploy"
