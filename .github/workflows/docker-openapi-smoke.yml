@@ -66,6 +66,7 @@ jobs:
           server_salt_name="SERVER""_SALT"
           apple_shared_secret_name="APPLE_SHARED""_SECRET"
           subscription_db_enabled_name="SUBSCRIPTION_DB""_ENABLED"
+          database_url_name="DATABASE""_URL"
 
           args=(
             -d
@@ -76,8 +77,10 @@ jobs:
             -e "${server_salt_name}=StrongServerSaltForCI1234567890!"
             -e "${apple_shared_secret_name}=StrongAppleSharedSecretForCI1234567890!"
             -e "${subscription_db_enabled_name}=true"
-            -e APP_ENV=production
-            -e ENVIRONMENT=production
+            # CI smoke is a local/CI contract check, not a production-like runtime.
+            -e "${database_url_name}=sqlite:////app/cache/pulseplate-smoke.db"
+            -e APP_ENV=ci
+            -e ENVIRONMENT=ci
             -e "${allow_dev_api_key_name}=false"
             --name
             pulseplate-smoke

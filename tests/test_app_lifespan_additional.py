@@ -4,8 +4,15 @@ import pytest
 from unittest.mock import AsyncMock, patch
 
 import app
+import core.db as core_db
 from app.bootstrap import startup_guards as bootstrap_guards
 from tests.helpers.fast_update_stubs import patch_background_update_callables
+
+
+def _reset_core_db_state() -> None:
+    """Reset shared DB module state before and after env-driven tests."""
+
+    core_db.reset_db_for_tests()
 
 
 @pytest.mark.asyncio
@@ -174,6 +181,7 @@ async def test_lifespan_accepts_valid_pro_llm_monthly_limit(
     """
 
     lifespan_globals = app.lifespan.__wrapped__.__globals__
+    monkeypatch.setitem(lifespan_globals, "init_db", lambda: None)
     monkeypatch.setitem(lifespan_globals, "run_startup_guards", bootstrap_guards.run_startup_guards)
     monkeypatch.setenv("ENVIRONMENT", "production")
     monkeypatch.setenv("DEBUG", "false")
@@ -211,6 +219,136 @@ async def test_lifespan_requires_subscription_db_enabled_in_production_like_env(
     with pytest.raises(RuntimeError, match="SUBSCRIPTION_DB_ENABLED"):
         async with app.lifespan(app.app):
             pass
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("runtime_env", ["production", "staging", "prod", "live"])
+async def test_lifespan_requires_database_url_in_production_like_env(
+    monkeypatch: pytest.MonkeyPatch,
+    runtime_env: str,
+) -> None:
+    """Production-like startup must fail closed when DATABASE_URL is missing."""
+
+    _reset_core_db_state()
+    try:
+        lifespan_globals = app.lifespan.__wrapped__.__globals__
+        monkeypatch.setitem(
+            lifespan_globals, "run_startup_guards", bootstrap_guards.run_startup_guards
+        )
+        monkeypatch.setenv("ENVIRONMENT", runtime_env)
+        monkeypatch.setenv("DEBUG", "false")
+        monkeypatch.setenv("ALLOW_DEV_API_KEY", "false")
+        monkeypatch.setenv("ALLOW_ANONYMOUS_API_KEYS", "false")
+        monkeypatch.setenv("APPLE_SHARED_SECRET", "apple-shared-secret-for-tests")
+        monkeypatch.setenv("SERVER_SALT", "StrongServerSaltForTests123456789!")
+        monkeypatch.setenv("PRO_LLM_INSIGHT_REQUESTS_PER_MONTH", "50")
+        monkeypatch.setenv("VIP_LLM_INSIGHT_REQUESTS_PER_MONTH", "50")
+        monkeypatch.setenv("SUBSCRIPTION_DB_ENABLED", "true")
+        monkeypatch.delenv("DATABASE_URL", raising=False)
+        monkeypatch.delenv("DB_FALLBACK_URL", raising=False)
+
+        with pytest.raises(RuntimeError, match="DATABASE_URL is required"):
+            async with app.lifespan(app.app):
+                pass
+    finally:
+        _reset_core_db_state()
+
+
+def test_build_engine_url_requires_database_url_in_prod_env(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """ENVIRONMENT=prod without DATABASE_URL must fail closed."""
+
+    from core.db import _build_engine_url
+
+    _reset_core_db_state()
+    try:
+        monkeypatch.setenv("ENVIRONMENT", "prod")
+        monkeypatch.delenv("APP_ENV", raising=False)
+        monkeypatch.setenv("DEBUG", "false")
+        monkeypatch.delenv("DATABASE_URL", raising=False)
+
+        with pytest.raises(RuntimeError, match="DATABASE_URL is required"):
+            _build_engine_url()
+    finally:
+        _reset_core_db_state()
+
+
+def test_build_engine_url_requires_database_url_when_app_env_is_production_like(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Production-like APP_ENV without ENVIRONMENT set must still fail closed."""
+
+    from core.db import _build_engine_url
+
+    _reset_core_db_state()
+    try:
+        monkeypatch.delenv("ENVIRONMENT", raising=False)
+        monkeypatch.setenv("APP_ENV", "production")
+        monkeypatch.setenv("DEBUG", "false")
+        monkeypatch.delenv("DATABASE_URL", raising=False)
+
+        with pytest.raises(RuntimeError, match="DATABASE_URL is required"):
+            _build_engine_url()
+    finally:
+        _reset_core_db_state()
+
+
+def test_build_engine_url_treats_whitespace_database_url_as_missing_in_production_like_env(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Whitespace DATABASE_URL is treated as missing in production-like envs."""
+
+    from core.db import _build_engine_url
+
+    _reset_core_db_state()
+    try:
+        monkeypatch.setenv("ENVIRONMENT", "production")
+        monkeypatch.delenv("APP_ENV", raising=False)
+        monkeypatch.setenv("DEBUG", "false")
+        monkeypatch.setenv("DATABASE_URL", "   \n\t")
+
+        with pytest.raises(RuntimeError, match="DATABASE_URL is required"):
+            _build_engine_url()
+    finally:
+        _reset_core_db_state()
+
+
+@pytest.mark.parametrize(
+    "database_url",
+    [
+        "sqlite:///./cache/app.db",
+        "sqlite+pysqlite:///./cache/app.db",
+        "sqlite+aiosqlite:///./cache/app.db",
+        "SQLITE:///./cache/app.db",
+    ],
+)
+def test_build_engine_url_rejects_sqlite_database_url_in_production_like_env(
+    monkeypatch: pytest.MonkeyPatch,
+    database_url: str,
+) -> None:
+    """Production-like environments must reject SQLite DATABASE_URL variants."""
+
+    from core.db import _build_engine_url
+
+    _reset_core_db_state()
+    try:
+        monkeypatch.setenv("ENVIRONMENT", "production")
+        monkeypatch.delenv("APP_ENV", raising=False)
+        monkeypatch.setenv("DEBUG", "false")
+        monkeypatch.setenv("DATABASE_URL", database_url)
+
+        with pytest.raises(RuntimeError, match="SQLite DATABASE_URL is not allowed"):
+            _build_engine_url()
+    finally:
+        _reset_core_db_state()
+
+
+def test_is_sqlite_database_url_falls_back_to_scheme_check_when_make_url_fails() -> None:
+    """Fallback scheme parsing must still reject dialect-qualified SQLite URLs."""
+
+    with patch.object(core_db, "make_url", side_effect=ValueError("invalid url")):
+        assert core_db._is_sqlite_database_url("SQLITE+Pysqlite:///./cache/app.db") is True
 
 
 @pytest.mark.asyncio

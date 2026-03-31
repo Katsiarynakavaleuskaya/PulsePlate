@@ -92,8 +92,8 @@ def _db_backed_paid_authz(
     """Force canonical paid routes onto persisted backend entitlement truth."""
 
     payments_activation.reset_state()
-    monkeypatch.setenv("APP_ENV", "production")
-    monkeypatch.setenv("ENVIRONMENT", "production")
+    monkeypatch.setenv("APP_ENV", "test")
+    monkeypatch.setenv("ENVIRONMENT", "test")
     monkeypatch.setenv("DEBUG", "false")
     monkeypatch.setenv("SUBSCRIPTION_DB_ENABLED", "true")
     monkeypatch.setenv("ALLOW_DEV_API_KEY", "false")

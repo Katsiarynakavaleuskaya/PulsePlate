@@ -47,7 +47,8 @@ def test_manual_intent_accepts_env_configured_pro_key_without_entitlement_in_db_
 
     original_override = app.dependency_overrides.pop(app_module.get_api_key, None)
     monkeypatch.setenv("SUBSCRIPTION_DB_ENABLED", "true")
-    monkeypatch.setenv("ENVIRONMENT", "production")
+    monkeypatch.setenv("ENVIRONMENT", "test")
+    monkeypatch.setenv("APP_ENV", "test")
     monkeypatch.setenv("DEBUG", "false")
     monkeypatch.setenv("ALLOW_DEV_API_KEY", "false")
     monkeypatch.setenv("PRO_API_KEYS", pro_headers["X-API-Key"])
