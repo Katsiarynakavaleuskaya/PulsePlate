@@ -1,12 +1,12 @@
 # PR 1291 — Fixed in Commit Mapping
 
 ## Discussion Thread Pass
-- [ ] Discussion-thread pass completed
-- [ ] Fixed in commit mapping completed
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
 
-- No actionable review threads mapped yet.
+- No actionable review comments
 
 ## Merge Readiness
 - [ ] All required checks pass

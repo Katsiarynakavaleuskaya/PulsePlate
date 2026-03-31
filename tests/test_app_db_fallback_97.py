@@ -63,11 +63,11 @@ class TestAppDBFallback97:
     def test_attempt_db_fallback_production_no_override(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """Production rejects fallback when ALLOW_DB_PERSISTENT_FALLBACK not set."""
+        """Production rejects persistent SQLite fallback without legacy override."""
         from core.db_fallback import _attempt_db_fallback
 
         monkeypatch.setenv("DB_FALLBACK_URL", "sqlite:///./fallback.db")
-        # Ensure ALLOW_DB_PERSISTENT_FALLBACK is NOT set
+        # Ensure the legacy override is not set.
         monkeypatch.delenv("ALLOW_DB_PERSISTENT_FALLBACK", raising=False)
 
         mock_err = Exception("Primary DB failed")

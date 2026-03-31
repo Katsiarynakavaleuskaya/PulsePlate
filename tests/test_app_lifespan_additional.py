@@ -214,7 +214,7 @@ async def test_lifespan_requires_subscription_db_enabled_in_production_like_env(
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("runtime_env", ["production", "staging"])
+@pytest.mark.parametrize("runtime_env", ["production", "staging", "prod", "live"])
 async def test_lifespan_requires_database_url_in_production_like_env(
     monkeypatch: pytest.MonkeyPatch,
     runtime_env: str,

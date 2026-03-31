@@ -150,13 +150,15 @@ def _build_engine_url() -> str:
     default_path = os.path.join("cache", "app.db")
     raw_database_url = (os.getenv("DATABASE_URL") or "").strip()
     env_provided = bool(raw_database_url)
-    runtime_env = (os.getenv("ENVIRONMENT") or os.getenv("APP_ENV") or "local").strip().lower()
 
-    if not env_provided and runtime_env in {"production", "prod", "staging"}:
-        raise RuntimeError(
-            "DATABASE_URL is required in production/staging environments. "
-            "SQLite fallback is allowed only for local/dev/test runtimes."
-        )
+    if not env_provided:
+        from settings import is_production_like_env
+
+        if is_production_like_env():
+            raise RuntimeError(
+                "DATABASE_URL is required in production-like environments. "
+                "SQLite fallback is allowed only for local/dev/test runtimes."
+            )
 
     database_url = raw_database_url or f"sqlite:///{default_path}"
 
