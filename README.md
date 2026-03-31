@@ -29,7 +29,7 @@ If you are here to build, review, or deploy rather than evaluate the product sto
 - `docs/deploy/README.md` for deployment navigation
 - `docs/contracts/API_CANONICAL_MAP.md` for the canonical public API surface
 
-If you need the shortest docs-only path first, you can contribute safely in markdown without depending on the full maintainer-only backend bootstrap.
+If you need the shortest docs-only path first, you can contribute safely in Markdown without depending on the full maintainer-only backend bootstrap.
 
 ## From Metrics To Meals
 
@@ -158,12 +158,17 @@ cp .env.example .env
 
 For local contributor setup, make sure `.env` contains at least:
 
-- `PULSEPLATE_PYTHON_INDEX_URL`
-- `SERVER_SALT`
-- `APPLE_SHARED_SECRET`
-- `EXPORT_TOKEN_SECRET`
+- `PULSEPLATE_PYTHON_INDEX_URL` for `make`-driven bootstrap targets
+- `SERVER_SALT` for app startup validation
 
-For local-only boot, non-empty placeholder values are acceptable for required secrets unless you are actively testing those integrations.
+For local-only boot, placeholder values from `.env.example` are acceptable for `SERVER_SALT`.
+
+Additional secrets are only required for specific features or production-like environments:
+
+- `APPLE_SHARED_SECRET` for Apple receipt verification in production/staging-like setups
+- `EXPORT_TOKEN_SECRET` when `PRIVATE_EXPORTS_ENABLED=true` in production/staging-like setups
+
+For local-only boot, non-empty placeholder values remain acceptable for `APPLE_SHARED_SECRET` and `EXPORT_TOKEN_SECRET` unless you are actively testing those flows.
 
 Export the env into your current shell, then run the supported bootstrap path:
 
