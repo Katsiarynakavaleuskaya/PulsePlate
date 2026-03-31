@@ -324,3 +324,177 @@ printf 'curl %s\\n' "$*" >> "{log_file}"
     assert not any(
         line.startswith("curl ") and "https://pulseplate.test/ready" in line for line in log_lines
     )
+
+
+def test_diagnose_web_reports_green_for_spa_and_api_contract(tmp_path: Path) -> None:
+    bin_dir = tmp_path / "bin"
+    log_file = tmp_path / "diag.log"
+    bin_dir.mkdir()
+
+    docker_stub = f"""#!/usr/bin/env bash
+set -euo pipefail
+printf 'docker %s\\n' "$*" >> "{log_file}"
+exit 0
+"""
+    curl_stub = """#!/usr/bin/env bash
+set -euo pipefail
+headers=""
+body=""
+url=""
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -D)
+      headers="$2"
+      shift 2
+      ;;
+    -o)
+      body="$2"
+      shift 2
+      ;;
+    http://*|https://*)
+      url="$1"
+      shift
+      ;;
+    *)
+      shift
+      ;;
+  esac
+done
+
+status="418"
+content_type="text/plain"
+payload="unexpected"
+case "$url" in
+  https://pulseplate.test/|https://pulseplate.test/bmi|https://pulseplate.test/profile|https://pulseplate.test/plate|https://pulseplate.test/progress)
+    status="200"
+    content_type="text/html; charset=utf-8"
+    payload='<!doctype html><html><body>spa</body></html>'
+    ;;
+  https://pulseplate.test/health|https://pulseplate.test/openapi.json)
+    status="200"
+    content_type="application/json"
+    payload='{"ok": true}'
+    ;;
+  https://pulseplate.test/plan|https://pulseplate.test/api/v1/does-not-exist)
+    status="404"
+    content_type="application/json"
+    payload='{"detail": "not found"}'
+    ;;
+  https://pulseplate.test/ws)
+    status="400"
+    content_type="text/plain"
+    payload='upgrade required'
+    ;;
+esac
+
+printf 'HTTP/1.1 %s Stub\\nContent-Type: %s\\n\\n' "$status" "$content_type" > "$headers"
+printf '%s' "$payload" > "$body"
+printf '%s' "$status"
+"""
+    _write_executable(bin_dir / "docker", docker_stub)
+    _write_executable(bin_dir / "curl", curl_stub)
+
+    env = os.environ.copy()
+    env["PATH"] = f"{bin_dir}:{env['PATH']}"
+
+    completed = subprocess.run(
+        [
+            "bash",
+            str(REPO_ROOT / "scripts/diagnose_web.sh"),
+            "--skip-caddy-validate",
+            "--base-url",
+            "https://pulseplate.test",
+        ],
+        cwd=str(REPO_ROOT),
+        env=env,
+        text=True,
+        capture_output=True,
+        check=True,
+    )
+
+    assert "PASS: spa-bmi: /bmi serves the SPA shell with HTTP 200." in completed.stdout
+    assert "PASS: health-json: /health reaches the JSON backend surface." in completed.stdout
+    assert "PASS: legacy-plan-get: /plan stayed off the SPA shell" in completed.stdout
+    assert "PASS: websocket-upgrade: /ws did not fall through to SPA" in completed.stdout
+    assert "Summary: all requested checks passed." in completed.stdout
+
+
+def test_diagnose_web_fails_without_base_url_for_http_probes(tmp_path: Path) -> None:
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+
+    docker_stub = "#!/usr/bin/env bash\nset -euo pipefail\nexit 0\n"
+    _write_executable(bin_dir / "docker", docker_stub)
+
+    env = os.environ.copy()
+    env["PATH"] = f"{bin_dir}:{env['PATH']}"
+    env.pop("BASE_URL", None)
+    env.pop("PRODUCTION_DOMAIN", None)
+
+    completed = subprocess.run(
+        ["bash", str(REPO_ROOT / "scripts/diagnose_web.sh"), "--skip-caddy-validate"],
+        cwd=str(REPO_ROOT),
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert completed.returncode == 1
+    assert "FAIL: BASE_URL or PRODUCTION_DOMAIN is required for HTTP probes." in completed.stdout
+
+
+def test_redeploy_caddy_runs_diagnose_web_when_domain_is_available(tmp_path: Path) -> None:
+    temp_repo = tmp_path / "repo"
+    deploy_dir = temp_repo / "deploy"
+    scripts_dir = temp_repo / "scripts"
+    bin_dir = tmp_path / "bin"
+    log_file = tmp_path / "redeploy.log"
+    temp_repo.mkdir()
+    deploy_dir.mkdir()
+    scripts_dir.mkdir()
+    bin_dir.mkdir()
+
+    (deploy_dir / "docker-compose.production.yaml").write_text("services: {}\n", encoding="utf-8")
+    (deploy_dir / ".env").write_text('PRODUCTION_DOMAIN="pulseplate.test"\n', encoding="utf-8")
+
+    diagnose_stub = f"""#!/usr/bin/env bash
+set -euo pipefail
+printf 'diagnose BASE_URL=%s ARGS=%s\\n' "${{BASE_URL:-}}" "$*" >> "{log_file}"
+"""
+    _write_executable(scripts_dir / "diagnose_web.sh", diagnose_stub)
+
+    docker_stub = f"""#!/usr/bin/env bash
+set -euo pipefail
+printf 'docker %s\\n' "$*" >> "{log_file}"
+if [[ "$*" == "compose version" ]]; then
+  exit 0
+fi
+exit 0
+"""
+    _write_executable(bin_dir / "docker", docker_stub)
+
+    env = os.environ.copy()
+    env["PATH"] = f"{bin_dir}:{env['PATH']}"
+    env["DEPLOY_DIR"] = str(deploy_dir)
+
+    subprocess.run(
+        ["bash", str(REPO_ROOT / "scripts/redeploy_caddy.sh")],
+        cwd=str(REPO_ROOT),
+        env=env,
+        text=True,
+        capture_output=True,
+        check=True,
+    )
+
+    log_lines = log_file.read_text(encoding="utf-8").splitlines()
+    assert any(
+        "docker compose -f docker-compose.production.yaml build caddy" in line for line in log_lines
+    )
+    assert any(
+        "docker compose -f docker-compose.production.yaml up -d caddy" in line for line in log_lines
+    )
+    assert any(
+        "diagnose BASE_URL=https://pulseplate.test ARGS=--skip-caddy-validate" in line
+        for line in log_lines
+    )

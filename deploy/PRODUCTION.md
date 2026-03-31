@@ -357,6 +357,7 @@ High-level steps (run on the production server):
    - Check Caddy container: `docker compose ps caddy`
    - Check ports: `sudo ss -tlnp | grep -E ':(80|443)'`
    - Verify health: `curl -I https://$PRODUCTION_DOMAIN/health`
+   - Verify SPA shell + proxy split: `BASE_URL=https://$PRODUCTION_DOMAIN bash scripts/diagnose_web.sh`
    - Confirm container digest: `docker compose exec app cat /app/.git/HEAD` (or check image digest)
 
 ## Redeploy Caddy Container
@@ -383,6 +384,7 @@ The script will:
 2. Pull the latest Caddy image
 3. Restart the Caddy container
 4. Show container status and recent logs
+5. Run `scripts/diagnose_web.sh` automatically when `PRODUCTION_DOMAIN` is available
 
 **Note:** If SSH is not available, use DigitalOcean Console or self-hosted runner to execute these commands.
 

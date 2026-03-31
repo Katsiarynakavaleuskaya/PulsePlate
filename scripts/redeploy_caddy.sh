@@ -56,6 +56,14 @@ cd "$DEPLOY_DIR" || exit 1
 echo "Working directory: $(pwd)"
 echo ""
 
+# Repo root is one level above the canonical deploy directory.
+REPO_ROOT="$(cd "$DEPLOY_DIR/.." && pwd)"
+
+if [ -z "${PRODUCTION_DOMAIN:-}" ] && [ -f ".env" ]; then
+    PRODUCTION_DOMAIN="$(awk -F= '/^PRODUCTION_DOMAIN=/{print $2; exit}' .env | tr -d '"' | tr -d "'" )"
+    export PRODUCTION_DOMAIN
+fi
+
 # Detect compose command
 DC_CMD=""
 if docker compose version >/dev/null 2>&1; then
@@ -101,6 +109,23 @@ echo "=== Step 5: Show recent Caddy logs ==="
 $DC_CMD logs --tail=100 caddy
 
 echo ""
+if [ -x "$REPO_ROOT/scripts/diagnose_web.sh" ] && [ -n "${PRODUCTION_DOMAIN:-}" ]; then
+    echo "=== Step 6: Diagnose edge routing ==="
+    (
+        cd "$REPO_ROOT"
+        BASE_URL="https://${PRODUCTION_DOMAIN}" bash scripts/diagnose_web.sh --skip-caddy-validate
+    ) || {
+        echo "⚠️  Warning: diagnose_web.sh reported a routing mismatch"
+    }
+    echo ""
+fi
+
+if [ -x "$REPO_ROOT/scripts/diagnose_web.sh" ] && [ -z "${PRODUCTION_DOMAIN:-}" ]; then
+    echo "⚠️  Warning: PRODUCTION_DOMAIN is unavailable; skipping diagnose_web.sh"
+    echo ""
+fi
+
+echo ""
 echo "=========================================="
 echo "Caddy redeploy complete"
 echo "=========================================="
@@ -113,3 +138,6 @@ echo "  $DC_CMD logs --tail=100 caddy"
 echo ""
 echo "Test health endpoint:"
 echo "  curl -fsS https://\${PRODUCTION_DOMAIN}/health | jq ."
+echo ""
+echo "Run the full web-shell diagnosis:"
+echo "  BASE_URL=https://\${PRODUCTION_DOMAIN} bash scripts/diagnose_web.sh"
