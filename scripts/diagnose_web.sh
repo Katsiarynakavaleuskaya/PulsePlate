@@ -158,6 +158,13 @@ curl_probe() {
     printf '%s|%s|%s|%s\n' "${status}" "${content_type}" "${headers_file}" "${body_file}"
 }
 
+looks_like_spa_shell() {
+    local body_file="$1"
+    # RU: SPA shell детектируем по стабильному frontend marker из `frontend/index.html`.
+    # EN: Detect the SPA shell by the stable frontend marker from `frontend/index.html`.
+    grep -Eiq '<div[[:space:]]+id=["'"'"']root["'"'"'][[:space:]]*></div>' "${body_file}"
+}
+
 assert_html_200() {
     local label="$1"
     local path="$2"
@@ -176,8 +183,8 @@ assert_html_200() {
         fail "${label}: expected text/html, got '${content_type:-<empty>}' ."
         return
     fi
-    if ! grep -Eiq "<!doctype html|<html" "${body_file}"; then
-        fail "${label}: response does not look like the SPA shell."
+    if ! looks_like_spa_shell "${body_file}"; then
+        fail "${label}: response does not contain the SPA shell marker."
         return
     fi
     pass "${label}: ${path} serves the SPA shell with HTTP 200."
@@ -217,8 +224,8 @@ assert_not_spa_html() {
         return
     }
 
-    IFS='|' read -r status content_type _headers _body_file <<<"${probe}"
-    if [[ "${content_type}" == text/html* && "${status}" == "200" ]]; then
+    IFS='|' read -r status content_type _headers body_file <<<"${probe}"
+    if [[ "${status}" == "200" ]] && looks_like_spa_shell "${body_file}"; then
         fail "${label}: ${path} fell through to the SPA shell."
         return
     fi
@@ -235,8 +242,8 @@ assert_not_spa_or_static_405() {
         return
     }
 
-    IFS='|' read -r status content_type _headers _body_file <<<"${probe}"
-    if [[ "${content_type}" == text/html* && "${status}" == "200" ]]; then
+    IFS='|' read -r status content_type _headers body_file <<<"${probe}"
+    if [[ "${status}" == "200" ]] && looks_like_spa_shell "${body_file}"; then
         fail "${label}: ${path} fell through to the SPA shell."
         return
     fi

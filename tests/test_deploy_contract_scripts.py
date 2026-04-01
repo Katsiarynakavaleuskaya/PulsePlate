@@ -320,7 +320,7 @@ printf 'curl %s\\n' "$*" >> "{log_file}"
 
     log_lines = log_file.read_text(encoding="utf-8").splitlines()
     assert any("exec app-id alembic upgrade head" in line for line in log_lines)
-    assert not any("up -d --remove-orphans caddy" in line for line in log_lines)
+    assert all("up -d --remove-orphans caddy" not in line for line in log_lines)
     assert not any(
         line.startswith("curl ") and "https://pulseplate.test/ready" in line for line in log_lines
     )
@@ -373,7 +373,7 @@ case "$method:$url" in
   GET:https://pulseplate.test/|GET:https://pulseplate.test/bmi|GET:https://pulseplate.test/profile|GET:https://pulseplate.test/plate|GET:https://pulseplate.test/progress)
     status="200"
     content_type="text/html; charset=utf-8"
-    payload='<!doctype html><html><body>spa</body></html>'
+    payload='<!doctype html><html><body><div id="root"></div></body></html>'
     ;;
   GET:https://pulseplate.test/health|GET:https://pulseplate.test/openapi.json)
     status="200"
@@ -390,10 +390,15 @@ case "$method:$url" in
     content_type="application/json"
     payload='{"detail": "Method Not Allowed"}'
     ;;
-  GET:https://pulseplate.test/plan|GET:https://pulseplate.test/insight|GET:https://pulseplate.test/premium_bmr|GET:https://pulseplate.test/premium_targets|GET:https://pulseplate.test/legacy/bmi-calculator|GET:https://pulseplate.test/api/v1/does-not-exist)
+  GET:https://pulseplate.test/plan|GET:https://pulseplate.test/insight|GET:https://pulseplate.test/premium_bmr|GET:https://pulseplate.test/premium_targets|GET:https://pulseplate.test/api/v1/does-not-exist)
     status="404"
     content_type="application/json"
     payload='{"detail": "not found"}'
+    ;;
+  GET:https://pulseplate.test/legacy/bmi-calculator)
+    status="200"
+    content_type="text/html; charset=utf-8"
+    payload='<!doctype html><html><body><h1>Legacy calculator</h1></body></html>'
     ;;
   GET:https://pulseplate.test/ws)
     status="400"
@@ -541,7 +546,7 @@ done
 
 status="200"
 content_type="text/html; charset=utf-8"
-payload='<!doctype html><html><body>spa</body></html>'
+payload='<!doctype html><html><body><h1>maintenance</h1></body></html>'
 
 if [[ "$url" == "https://pulseplate.test/health" ]]; then
   status="500"
@@ -583,6 +588,7 @@ printf '%s' "$status"
     )
 
     assert completed.returncode == 1
+    assert "FAIL: spa-root: response does not contain the SPA shell marker." in completed.stdout
     assert "FAIL: health-json: expected HTTP 200, got 500." in completed.stdout
 
 
