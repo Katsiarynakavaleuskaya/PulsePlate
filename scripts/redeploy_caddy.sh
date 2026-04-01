@@ -11,6 +11,8 @@
 
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 echo "=========================================="
 echo "Redeploy Caddy Container"
 echo "=========================================="
@@ -19,6 +21,8 @@ echo ""
 # Auto-detect deploy directory (allow override via environment)
 DEPLOY_DIR="${DEPLOY_DIR:-}"
 COMPOSE_FILE="${COMPOSE_FILE:-}"
+DIAG_MAX_ATTEMPTS="${DIAG_MAX_ATTEMPTS:-6}"
+DIAG_RETRY_DELAY_SECONDS="${DIAG_RETRY_DELAY_SECONDS:-5}"
 
 # If DEPLOY_DIR is already set, use it
 if [ -n "$DEPLOY_DIR" ] && [ -d "$DEPLOY_DIR" ] && [ -f "$DEPLOY_DIR/docker-compose.production.yaml" ]; then
@@ -55,6 +59,26 @@ fi
 cd "$DEPLOY_DIR" || exit 1
 echo "Working directory: $(pwd)"
 echo ""
+
+# Repo root is one level above the canonical nested deploy directory.
+REPO_ROOT="$(cd "$DEPLOY_DIR/.." && pwd)"
+DIAG_SCRIPT=""
+
+for candidate in \
+    "$SCRIPT_DIR/diagnose_web.sh" \
+    "$DEPLOY_DIR/scripts/diagnose_web.sh" \
+    "$REPO_ROOT/scripts/diagnose_web.sh"
+do
+    if [ -x "$candidate" ]; then
+        DIAG_SCRIPT="$candidate"
+        break
+    fi
+done
+
+if [ -z "${PRODUCTION_DOMAIN:-}" ] && [ -f ".env" ]; then
+    PRODUCTION_DOMAIN="$(awk -F= '/^PRODUCTION_DOMAIN=/{print $2; exit}' .env | tr -d '"' | tr -d "'" )"
+    export PRODUCTION_DOMAIN
+fi
 
 # Detect compose command
 DC_CMD=""
@@ -101,6 +125,40 @@ echo "=== Step 5: Show recent Caddy logs ==="
 $DC_CMD logs --tail=100 caddy
 
 echo ""
+if [ -n "$DIAG_SCRIPT" ] && [ -n "${PRODUCTION_DOMAIN:-}" ]; then
+    echo "=== Step 6: Diagnose edge routing ==="
+    attempt=1
+    while [ "$attempt" -le "$DIAG_MAX_ATTEMPTS" ]; do
+        if (
+            cd "$(dirname "$DIAG_SCRIPT")"
+            BASE_URL="https://${PRODUCTION_DOMAIN}" bash "$DIAG_SCRIPT" --skip-caddy-validate
+        ); then
+            break
+        fi
+
+        if [ "$attempt" -eq "$DIAG_MAX_ATTEMPTS" ]; then
+            echo "❌ diagnose_web.sh reported a routing mismatch"
+            exit 1
+        fi
+
+        echo "⚠️  diagnose_web.sh attempt ${attempt}/${DIAG_MAX_ATTEMPTS} failed; retrying in ${DIAG_RETRY_DELAY_SECONDS}s"
+        sleep "$DIAG_RETRY_DELAY_SECONDS"
+        attempt=$((attempt + 1))
+    done
+    echo ""
+fi
+
+if [ -n "$DIAG_SCRIPT" ] && [ -z "${PRODUCTION_DOMAIN:-}" ]; then
+    echo "⚠️  Warning: PRODUCTION_DOMAIN is unavailable; skipping diagnose_web.sh"
+    echo ""
+fi
+
+if [ -z "$DIAG_SCRIPT" ]; then
+    echo "⚠️  Warning: diagnose_web.sh is unavailable in the detected server/repo layout; skipping automatic diagnosis"
+    echo ""
+fi
+
+echo ""
 echo "=========================================="
 echo "Caddy redeploy complete"
 echo "=========================================="
@@ -113,3 +171,6 @@ echo "  $DC_CMD logs --tail=100 caddy"
 echo ""
 echo "Test health endpoint:"
 echo "  curl -fsS https://\${PRODUCTION_DOMAIN}/health | jq ."
+echo ""
+echo "Run the full web-shell diagnosis:"
+echo "  BASE_URL=https://\${PRODUCTION_DOMAIN} bash scripts/diagnose_web.sh"

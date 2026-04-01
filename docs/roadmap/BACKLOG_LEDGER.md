@@ -294,7 +294,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Execution-doc source-of-truth reconciliation after PR-1
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-TBD (fix/deploy-web-spa-routing)
+  - Target PR: PR-TBD (fix/deploy-spa-routing-web-shell)
   - Area: docs / deploy / roadmap
   - Reason: PR-1 intentionally kept the PR-2 deploy diagnosis packet out of scope, but `docs/roadmap/PulsePlate_P0_P1_Execution_Document_2026-03-30.md` still references source-of-truth documents that are missing or in transition. Reconcile the source-of-truth order in the PR-2 deploy shell lane instead of widening the Postgres foundation PR.
   - Links:

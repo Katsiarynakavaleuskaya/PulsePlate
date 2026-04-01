@@ -170,7 +170,7 @@ curl -fsS https://pulseplate.app/health | jq .
 | ------------------ | ---------------------------------------------- | --------------------------------------- |
 | **Cursor**         | Код, фиксы, коммиты, PR                       | Правка на сервере                       |
 | **GitHub Actions** | Автоматическая сборка Docker image             | Ручная сборка                           |
-| **DigitalOcean**   | `docker compose pull app` + `build caddy` + `up` (см. `scripts/redeploy_caddy.sh:76`) | Правка кода, git clone, изменение файлов |
+| **DigitalOcean**   | `docker compose pull app` + `build caddy` + `up` + `diagnose_web.sh` (см. `scripts/redeploy_caddy.sh`) | Правка кода, git clone, изменение файлов |
 
 ---
 

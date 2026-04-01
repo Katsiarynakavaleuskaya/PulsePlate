@@ -5,7 +5,8 @@
 
 ## Goals
 
-- Browser **GET** `/` and client-side routes are served from **`frontend/dist`** (SPA fallback to `index.html`).
+- Browser **GET** `/` and client-side routes are served from the baked Caddy shell at
+  **`/srv/frontend`** (copied from `frontend/dist`, with SPA fallback to `index.html`).
 - All API and operational traffic reaches **FastAPI** (`app:8000`) unchanged.
 
 ## Method split (SPA vs legacy POST)
@@ -51,7 +52,8 @@ When traffic hits **FastAPI only** (port `8000`, misconfigured clients, internal
 
 ## Static (Caddy `file_server`)
 
-- Built assets under `/srv/frontend` (from [`frontend/Dockerfile.caddy-spa`](../../frontend/Dockerfile.caddy-spa)).
+- Built assets are copied from `frontend/dist` into `/srv/frontend` by
+  [`frontend/Dockerfile.caddy-spa`](../../frontend/Dockerfile.caddy-spa) (line 25).
 - **`/favicon.ico`**: prefer `dist` (not proxied to app).
 
 ## CSP
@@ -67,11 +69,23 @@ When traffic hits **FastAPI only** (port `8000`, misconfigured clients, internal
 
 - **MIME (through Caddy):** `GET /` returns SPA `text/html` from static `file_server`; `GET /health` returns JSON (via proxy).
 - **Direct API:** `GET /` on uvicorn returns JSON probe (`app/bootstrap/direct_api_root.py:18`); legacy HTML UI: `GET /legacy/bmi-calculator` (proxied via `/legacy*` in `deploy/Caddyfile.production:42`).
-- **Deep link:** `GET /bmi` serves SPA `index.html` (not API); `GET /plan` (no SPA route) is proxied to the app.
+- **Deep link:** `GET /bmi`, `GET /profile`, `GET /plate`, and `GET /progress` serve SPA `index.html`; `GET /plan` (no SPA route) is proxied to the app.
 - **Legacy POST:** `POST /bmi` (and peers) reaches FastAPI (not static 405 from `file_server`).
 - **OpenAPI:** `GET /openapi.json` proxied (200, JSON).
 - **Ops:** `GET /metrics` proxied when enabled; `GET /ready` behavior unchanged.
 - **WebSocket:** upgrade to `/ws` reaches app when feature flag allows.
+
+Canonical operator probe:
+
+```bash
+BASE_URL=https://$PRODUCTION_DOMAIN bash scripts/diagnose_web.sh
+```
+
+The probe is expected to cover both:
+
+- SPA deep-link GET shell delivery (`/`, `/bmi`, `/profile`, `/plate`, `/progress`)
+- `/bmi` method split so legacy `POST`/`OPTIONS` do not fall through to SPA/static `file_server`
+- representative legacy/API-only GET paths (`/plan`, `/insight`, `/premium_bmr`, `/premium_targets`, `/legacy/bmi-calculator`, `/api/v1/...`)
 
 ## References
 
