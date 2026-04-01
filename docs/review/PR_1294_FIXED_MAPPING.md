@@ -29,6 +29,11 @@ Commit: 84c7db78
 Evidence: `docs/DEPENDENCY_MANAGEMENT.md:156`; `docs/DEPENDENCY_MANAGEMENT.md:157`; `docs/DEPENDENCY_MANAGEMENT.md:158`; `docs/DEPENDENCY_MANAGEMENT.md:159`; `docs/DEPENDENCY_MANAGEMENT.md:160`
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1294#discussion_r3022606243 -> 84c7db78
 
+Disposition: FIXED
+Commit: 27627d4a
+Evidence: `docs/DEPENDENCY_MANAGEMENT.md:64`; `docs/DEPENDENCY_MANAGEMENT.md:65`; `docs/DEPENDENCY_MANAGEMENT.md:66`; `docs/DEPENDENCY_MANAGEMENT.md:67`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1294#discussion_r3024387193 -> 27627d4a
+
 Disposition: NOT-A-BUG
 Evidence: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1294#pullrequestreview-4044389281 is the Sourcery review wrapper for inline comments already mapped to commit `2777afd2`.
 Reason: The review-level wrapper does not introduce a separate defect beyond the fixed inline findings above.
@@ -58,6 +63,11 @@ Disposition: NOT-A-BUG
 Evidence: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1294#pullrequestreview-4044763368 is the later Cubic review wrapper created after the dependency-management clarification; the actionable inline thread is already mapped to commit `84c7db78`.
 Reason: The review-level wrapper is an aggregate Cubic review envelope and does not require a separate change beyond the fixed inline dependency-management clarification.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1294#pullrequestreview-4044763368
+
+Disposition: NOT-A-BUG
+Evidence: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1294#pullrequestreview-4046784211 is the later Cubic review wrapper for the inline dependency-management drift comment now fixed in commit `27627d4a`.
+Reason: The review-level wrapper is an aggregate Cubic review envelope and does not require a separate change beyond the fixed inline comment mapping above.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1294#pullrequestreview-4046784211
 
 ## Merge Readiness
 - [ ] All required checks pass
