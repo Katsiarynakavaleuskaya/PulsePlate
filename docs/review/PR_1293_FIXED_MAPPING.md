@@ -25,6 +25,11 @@ Evidence: scripts/diagnose_web.sh, docs/deploy/SPA_APEX_ROUTING_CONTRACT.md, tes
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1293#discussion_r3018083267 -> e0c21998
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1293#discussion_r3018169451 -> e0c21998
 
+Disposition: FIXED
+Commit: dafe35d2
+Evidence: scripts/diagnose_web.sh
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1293#discussion_r3018262078 -> dafe35d2
+
 Disposition: NOT-A-BUG
 Evidence: docs/review/PR_1293_FIXED_MAPPING.md
 Reason: These bot review summary URLs aggregate actionable child comments that are individually dispositioned in this artifact; the summary shells do not require separate code changes.
@@ -33,6 +38,7 @@ Reason: These bot review summary URLs aggregate actionable child comments that a
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1293#pullrequestreview-4039815684
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1293#pullrequestreview-4039829187
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1293#pullrequestreview-4039911668
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1293#pullrequestreview-4040015538
 
 ## Merge Readiness
 - [ ] All required checks pass
