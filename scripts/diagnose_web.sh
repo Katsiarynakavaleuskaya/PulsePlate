@@ -266,7 +266,7 @@ assert_json_backend() {
         fail "${label}: expected backend JSON, got '${content_type:-<empty>}' ."
         return
     fi
-    if ! rg -q '^\s*[\{\[]' "${body_file}"; then
+    if ! grep -Eq '^[[:space:]]*[\{\[]' "${body_file}"; then
         fail "${label}: backend probe body does not look like JSON."
         return
     fi
