@@ -346,9 +346,11 @@ jobs:
             should_deploy=true
           fi
 
-          echo "deploy_mode=$deploy_mode" >> "$GITHUB_OUTPUT"
-          echo "release_ready=$release_ready" >> "$GITHUB_OUTPUT"
-          echo "should_deploy=$should_deploy" >> "$GITHUB_OUTPUT"
+          {
+            echo "deploy_mode=$deploy_mode"
+            echo "release_ready=$release_ready"
+            echo "should_deploy=$should_deploy"
+          } >> "$GITHUB_OUTPUT"
           echo "Resolved production deploy config: release_ready=$release_ready deploy_mode=${deploy_mode:-unset} should_deploy=$should_deploy"
 
   deploy-production:
