@@ -19,6 +19,11 @@ Evidence: `.github/workflows/cd.yml:307`; `.github/workflows/cd.yml:309`; `.gith
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1294#discussion_r3022326433 -> 2777afd2
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1294#discussion_r3022326437 -> 2777afd2
 
+Disposition: FIXED
+Commit: 5b89e5d9
+Evidence: `docs/review/PR_1294_FIXED_MAPPING.md:31`; `docs/review/PR_1294_FIXED_MAPPING.md:32`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1294#discussion_r3022283555 -> 5b89e5d9
+
 ## Merge Readiness
 - [ ] All required checks pass
 - [ ] No unresolved review threads (re-check on current head before merge)
