@@ -148,6 +148,12 @@ os.environ.setdefault("SERVER_SALT", "StrongServerSaltForTests123456789!")
 logger = logging.getLogger(__name__)
 
 
+def pytest_configure(config: pytest.Config) -> None:
+    """Set import-time test env before any app bootstrap happens."""
+    del config
+    os.environ["TESTING"] = "true"
+
+
 @pytest.fixture
 def reset_payments_state() -> Generator[None, None, None]:
     """Reset in-memory payment activation state for deterministic payment tests."""
