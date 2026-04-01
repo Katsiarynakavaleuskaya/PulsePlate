@@ -24,6 +24,11 @@ Commit: 5b89e5d9
 Evidence: `docs/review/PR_1294_FIXED_MAPPING.md:31`; `docs/review/PR_1294_FIXED_MAPPING.md:32`
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1294#discussion_r3022283555 -> 5b89e5d9
 
+Disposition: FIXED
+Commit: 84c7db78
+Evidence: `docs/DEPENDENCY_MANAGEMENT.md:156`; `docs/DEPENDENCY_MANAGEMENT.md:157`; `docs/DEPENDENCY_MANAGEMENT.md:158`; `docs/DEPENDENCY_MANAGEMENT.md:159`; `docs/DEPENDENCY_MANAGEMENT.md:160`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1294#discussion_r3022606243 -> 84c7db78
+
 Disposition: NOT-A-BUG
 Evidence: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1294#pullrequestreview-4044389281 is the Sourcery review wrapper for inline comments already mapped to commit `2777afd2`.
 Reason: The review-level wrapper does not introduce a separate defect beyond the fixed inline findings above.
