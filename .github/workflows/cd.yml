@@ -12,9 +12,13 @@
 # and secrets: SSH_HOST_STAGING, SSH_USER, SSH_KEY, SSH_HOST_STAGING_FINGERPRINT,
 # STAGING_DOMAIN, GHCR_READ_TOKEN. If unset, only build+push run (no SSH); avoids "ssh: no key found".
 #
-# Production deploy: set PROD_DEPLOY_MODE to 'ssh' or 'self-hosted'. When unset or any other value,
-# deploy jobs are skipped (container images are still built and pushed to GHCR). For PROD_DEPLOY_MODE=ssh
-# configure Environment "production" secrets: SSH_HOST_PRODUCTION, SSH_USER, SSH_KEY, PRODUCTION_DOMAIN, GHCR_READ_TOKEN.
+# Production deploy: set PROD_DEPLOY_MODE to 'ssh' or 'self-hosted'. Production deploy config
+# is resolved inside a small "production-deploy-config" job that reads repository/environment
+# Actions variables via the GitHub API, then the actual deploy jobs gate on those resolved
+# outputs. This avoids both the GitHub Actions footgun where job-level `if:` cannot reliably
+# see environment-scoped vars and the accidental approval gate on build-only tags.
+# For PROD_DEPLOY_MODE=ssh configure Environment "production" secrets: SSH_HOST_PRODUCTION,
+# SSH_HOST_PRODUCTION_FINGERPRINT, SSH_USER, SSH_KEY, PRODUCTION_DOMAIN, GHCR_READ_TOKEN.
 # See deploy/PRODUCTION.md.
 
 name: CD
@@ -25,6 +29,7 @@ on:
     tags: ['v*']
 
 permissions:
+  actions: read
   contents: read
   packages: write
   id-token: write
@@ -32,8 +37,8 @@ permissions:
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
-  PULSEPLATE_PYTHON_INDEX_URL: ${{ vars.PULSEPLATE_PYTHON_INDEX_URL || secrets.PULSEPLATE_PYTHON_INDEX_URL }}
-  PULSEPLATE_PYTHON_TRUSTED_HOST: ${{ vars.PULSEPLATE_PYTHON_TRUSTED_HOST || secrets.PULSEPLATE_PYTHON_TRUSTED_HOST }}
+  PULSEPLATE_PYTHON_INDEX_URL: ${{ secrets.PULSEPLATE_PYTHON_INDEX_URL || vars.PULSEPLATE_PYTHON_INDEX_URL }}
+  PULSEPLATE_PYTHON_TRUSTED_HOST: ${{ secrets.PULSEPLATE_PYTHON_TRUSTED_HOST || vars.PULSEPLATE_PYTHON_TRUSTED_HOST }}
 
 jobs:
   build:
@@ -284,17 +289,97 @@ jobs:
           provenance: false
           target: production
 
+  production-deploy-config:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [production-gates, build-production]
+    runs-on: ubuntu-latest
+    outputs:
+      deploy_mode: ${{ steps.resolve.outputs.deploy_mode }}
+      release_ready: ${{ steps.resolve.outputs.release_ready }}
+      should_deploy: ${{ steps.resolve.outputs.should_deploy }}
+    steps:
+      - name: Resolve production deploy configuration
+        id: resolve
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh auth status >/dev/null
+
+          get_actions_variable() {
+            local scope_path="$1"
+            local variable_name="$2"
+            local response
+            if response="$(
+              gh api \
+              -H "Accept: application/vnd.github+json" \
+              "/repos/${GITHUB_REPOSITORY}/${scope_path}/${variable_name}" \
+              --jq '.value' 2>&1
+            )"; then
+              printf '%s\n' "$response"
+              return 0
+            fi
+
+            if printf '%s' "$response" | grep -Eq '(^|[^0-9])404([^0-9]|$)|Not Found'; then
+              return 0
+            fi
+
+            echo "❌ Failed to resolve GitHub Actions variable: ${scope_path}/${variable_name}" >&2
+            printf '%s\n' "$response" >&2
+            exit 1
+          }
+
+          deploy_mode="$(get_actions_variable "environments/production/variables" "PROD_DEPLOY_MODE")"
+          if [ -z "$deploy_mode" ]; then
+            deploy_mode="$(get_actions_variable "actions/variables" "PROD_DEPLOY_MODE")"
+          fi
+
+          release_ready="$(get_actions_variable "environments/production/variables" "WEB_IOS_RELEASE_READY")"
+          if [ -z "$release_ready" ]; then
+            release_ready="$(get_actions_variable "actions/variables" "WEB_IOS_RELEASE_READY")"
+          fi
+          release_ready="${release_ready:-false}"
+
+          case "$deploy_mode" in
+            "")
+              ;;
+            ssh|self-hosted)
+              ;;
+            *)
+              echo "❌ Unsupported PROD_DEPLOY_MODE: $deploy_mode"
+              echo "Expected: ssh, self-hosted, or unset"
+              exit 1
+              ;;
+          esac
+
+          should_deploy=false
+          if [ "$release_ready" = "true" ]; then
+            if [ -z "$deploy_mode" ]; then
+              echo "❌ WEB_IOS_RELEASE_READY=true but PROD_DEPLOY_MODE is unset"
+              exit 1
+            fi
+            should_deploy=true
+          fi
+
+          {
+            echo "deploy_mode=$deploy_mode"
+            echo "release_ready=$release_ready"
+            echo "should_deploy=$should_deploy"
+          } >> "$GITHUB_OUTPUT"
+          echo "Resolved production deploy config: release_ready=$release_ready deploy_mode=${deploy_mode:-unset} should_deploy=$should_deploy"
+
   deploy-production:
     # Run only when PROD_DEPLOY_MODE is explicitly 'ssh' (SSH from GitHub-hosted runners).
-    # When unset or any value other than 'ssh', this job is skipped; avoids "ssh: no key found" when secrets not configured.
-    if: startsWith(github.ref, 'refs/tags/v') && vars.PROD_DEPLOY_MODE == 'ssh' && vars.WEB_IOS_RELEASE_READY == 'true'
-    needs: [production-gates, build-production]
+    # The config is resolved inside production-deploy-config so environment-scoped vars
+    # are visible before the deploy jobs decide whether to run.
+    if: startsWith(github.ref, 'refs/tags/v') && needs.production-deploy-config.outputs.should_deploy == 'true' && needs.production-deploy-config.outputs.deploy_mode == 'ssh'
+    needs: [production-gates, build-production, production-deploy-config]
     runs-on: ubuntu-latest
     environment:
       name: production
       url: https://pulseplate.app
     concurrency:
-      group: cd-deploy-production-${{ github.ref_name }}
+      group: cd-deploy-production
       cancel-in-progress: false
     steps:
       - name: Checkout
@@ -304,6 +389,39 @@ jobs:
         id: deploy-script
         run: |
           echo "script_b64=$(base64 -w0 scripts/deploy_production.sh)" >> "$GITHUB_OUTPUT"
+
+      - name: Stage production shell bundle for SSH deploy
+        env:
+          SSH_HOST_PRODUCTION: ${{ secrets.SSH_HOST_PRODUCTION }}
+          SSH_HOST_PRODUCTION_FINGERPRINT: ${{ secrets.SSH_HOST_PRODUCTION_FINGERPRINT }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          SSH_KEY: ${{ secrets.SSH_KEY }}
+        run: |
+          set -euo pipefail
+
+          mkdir -p "$HOME/.ssh"
+          chmod 700 "$HOME/.ssh"
+          key_path="$HOME/.ssh/pulseplate_production"
+          printf '%s\n' "$SSH_KEY" > "$key_path"
+          chmod 600 "$key_path"
+          scan_path="$(mktemp)"
+          ssh-keyscan -H -t ed25519 "$SSH_HOST_PRODUCTION" > "$scan_path"
+          if ! ssh-keygen -lf "$scan_path" | awk '{print $2}' | grep -Fx "$SSH_HOST_PRODUCTION_FINGERPRINT" >/dev/null; then
+            echo "❌ SSH host fingerprint mismatch for $SSH_HOST_PRODUCTION" >&2
+            exit 1
+          fi
+          cat "$scan_path" >> "$HOME/.ssh/known_hosts"
+          rm -f "$scan_path"
+          chmod 600 "$HOME/.ssh/known_hosts"
+
+          bundle_dir="$(mktemp -d)"
+          bundle_name="pulseplate-shell-bundle-${{ github.run_id }}-${{ github.run_attempt }}"
+          archive_path="$bundle_dir/${bundle_name}.tgz"
+          tar -czf "$archive_path" frontend deploy/Caddyfile.production scripts/diagnose_web.sh
+
+          scp -i "$key_path" \
+            "$archive_path" \
+            "${SSH_USER}@${SSH_HOST_PRODUCTION}:/tmp/${bundle_name}.tgz"
 
       - name: Deploy to production over SSH (pinned digest)
         uses: appleboy/ssh-action@3ca8a7c5359ac6ad91aa47f1946ece1c3b025004
@@ -332,10 +450,19 @@ jobs:
               echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
             fi
 
+            bundle_name="pulseplate-shell-bundle-${{ github.run_id }}-${{ github.run_attempt }}"
+            tmp_bundle_dir="/tmp/${bundle_name}"
+            rm -rf "$tmp_bundle_dir"
+            mkdir -p "$tmp_bundle_dir"
+            tar -xzf "/tmp/${bundle_name}.tgz" -C "$tmp_bundle_dir"
+            export SHELL_BUNDLE_DIR="$tmp_bundle_dir"
+
             tmp_script="/tmp/pulseplate_deploy_production.sh"
             echo "$DEPLOY_SCRIPT_B64" | base64 -d > "$tmp_script"
             chmod +x "$tmp_script"
             "$tmp_script"
+            rm -f "/tmp/${bundle_name}.tgz"
+            rm -rf "$tmp_bundle_dir"
         env:
           DEPLOY_SCRIPT_B64: ${{ steps.deploy-script.outputs.script_b64 }}
           DEPLOY_DIR: ${{ vars.DEPLOY_DIR }}
@@ -346,14 +473,14 @@ jobs:
           GHCR_TOKEN: ${{ secrets.GHCR_READ_TOKEN }}
 
   deploy-production-self-hosted:
-    if: startsWith(github.ref, 'refs/tags/v') && vars.PROD_DEPLOY_MODE == 'self-hosted' && vars.WEB_IOS_RELEASE_READY == 'true'
-    needs: [production-gates, build-production]
+    if: startsWith(github.ref, 'refs/tags/v') && needs.production-deploy-config.outputs.should_deploy == 'true' && needs.production-deploy-config.outputs.deploy_mode == 'self-hosted'
+    needs: [production-gates, build-production, production-deploy-config]
     runs-on: [self-hosted, linux, x64, pulseplate-prod]
     environment:
       name: production
       url: https://pulseplate.app
     concurrency:
-      group: cd-deploy-production-${{ github.ref_name }}
+      group: cd-deploy-production
       cancel-in-progress: false
     steps:
       - name: Checkout
@@ -373,6 +500,7 @@ jobs:
           export PRODUCTION_DOMAIN='${{ secrets.PRODUCTION_DOMAIN }}'
           export IMAGE_REF="ghcr.io/${{ needs.build-production.outputs.image_name }}@${{ needs.build-production.outputs.digest }}"
           export TAG="prod-${{ github.ref_name }}"
+          export SHELL_BUNDLE_DIR="${GITHUB_WORKSPACE}"
           bash scripts/deploy_production.sh
 
           # Clean up dangling Docker images on the self-hosted runner to prevent disk bloat over time.
