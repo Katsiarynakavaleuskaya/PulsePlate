@@ -245,7 +245,7 @@ printf 'curl %s\\n' "$*" >> "{log_file}"
     assert any("helper " in line and "docker-compose.production.yaml" in line for line in log_lines)
 
 
-def test_deploy_production_syncs_shell_bundle_before_caddy_build(tmp_path: Path) -> None:
+def test_deploy_production_syncs_shell_bundle_and_prunes_stale_shell_files(tmp_path: Path) -> None:
     project_dir = tmp_path / "production"
     shell_root = project_dir.parent
     shell_bundle_dir = tmp_path / "shell-bundle"
@@ -279,6 +279,9 @@ def test_deploy_production_syncs_shell_bundle_before_caddy_build(tmp_path: Path)
         encoding="utf-8",
     )
     (shell_bundle_dir / "scripts").mkdir()
+    (shell_bundle_dir / "scripts" / "diagnose_web.sh").write_text(
+        "#!/usr/bin/env bash\nprintf 'bundle-diagnose\\n'\n", encoding="utf-8"
+    )
     (shell_root / "frontend").mkdir()
     (shell_root / "frontend" / "stale.txt").write_text("old-shell\n", encoding="utf-8")
     (shell_root / "scripts").mkdir()
@@ -344,7 +347,9 @@ printf 'curl %s\\n' "$*" >> "{log_file}"
         .startswith("pulseplate.test")
     )
     assert not (shell_root / "frontend" / "stale.txt").exists()
-    assert not (shell_root / "scripts" / "diagnose_web.sh").exists()
+    assert (shell_root / "scripts" / "diagnose_web.sh").read_text(
+        encoding="utf-8"
+    ) == "#!/usr/bin/env bash\nprintf 'bundle-diagnose\\n'\n"
 
 
 def test_deploy_production_exits_non_zero_when_migrations_fail(tmp_path: Path) -> None:

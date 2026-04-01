@@ -123,6 +123,11 @@ sync_shell_bundle() {
     return 0
   fi
 
+  if [ -z "$DEPLOY_DIR" ]; then
+    echo "❌ DEPLOY_DIR is required when SHELL_BUNDLE_DIR is set" >&2
+    exit 1
+  fi
+
   local source_frontend="$SHELL_BUNDLE_DIR/frontend"
   local source_caddyfile="$SHELL_BUNDLE_DIR/deploy/Caddyfile.production"
   local source_diagnose="$SHELL_BUNDLE_DIR/scripts/diagnose_web.sh"

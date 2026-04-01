@@ -18,7 +18,7 @@
 # outputs. This avoids both the GitHub Actions footgun where job-level `if:` cannot reliably
 # see environment-scoped vars and the accidental approval gate on build-only tags.
 # For PROD_DEPLOY_MODE=ssh configure Environment "production" secrets: SSH_HOST_PRODUCTION,
-# SSH_USER, SSH_KEY, PRODUCTION_DOMAIN, GHCR_READ_TOKEN.
+# SSH_HOST_PRODUCTION_FINGERPRINT, SSH_USER, SSH_KEY, PRODUCTION_DOMAIN, GHCR_READ_TOKEN.
 # See deploy/PRODUCTION.md.
 
 name: CD
@@ -304,14 +304,29 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
+          gh auth status >/dev/null
 
           get_actions_variable() {
             local scope_path="$1"
             local variable_name="$2"
-            gh api \
+            local response
+            if response="$(
+              gh api \
               -H "Accept: application/vnd.github+json" \
               "/repos/${GITHUB_REPOSITORY}/${scope_path}/${variable_name}" \
-              --jq '.value' 2>/dev/null || true
+              --jq '.value' 2>&1
+            )"; then
+              printf '%s\n' "$response"
+              return 0
+            fi
+
+            if printf '%s' "$response" | grep -Eq '(^|[^0-9])404([^0-9]|$)|Not Found'; then
+              return 0
+            fi
+
+            echo "❌ Failed to resolve GitHub Actions variable: ${scope_path}/${variable_name}" >&2
+            printf '%s\n' "$response" >&2
+            exit 1
           }
 
           deploy_mode="$(get_actions_variable "environments/production/variables" "PROD_DEPLOY_MODE")"
@@ -378,29 +393,33 @@ jobs:
       - name: Stage production shell bundle for SSH deploy
         env:
           SSH_HOST_PRODUCTION: ${{ secrets.SSH_HOST_PRODUCTION }}
+          SSH_HOST_PRODUCTION_FINGERPRINT: ${{ secrets.SSH_HOST_PRODUCTION_FINGERPRINT }}
           SSH_USER: ${{ secrets.SSH_USER }}
           SSH_KEY: ${{ secrets.SSH_KEY }}
-          DEPLOY_DIR: ${{ vars.DEPLOY_DIR }}
         run: |
           set -euo pipefail
-
-          if [ -z "${DEPLOY_DIR:-}" ]; then
-            echo "❌ DEPLOY_DIR is required for production shell sync" >&2
-            exit 1
-          fi
 
           mkdir -p "$HOME/.ssh"
           chmod 700 "$HOME/.ssh"
           key_path="$HOME/.ssh/pulseplate_production"
           printf '%s\n' "$SSH_KEY" > "$key_path"
           chmod 600 "$key_path"
+          scan_path="$(mktemp)"
+          ssh-keyscan -H -t ed25519 "$SSH_HOST_PRODUCTION" > "$scan_path"
+          if ! ssh-keygen -lf "$scan_path" | awk '{print $2}' | grep -Fx "$SSH_HOST_PRODUCTION_FINGERPRINT" >/dev/null; then
+            echo "❌ SSH host fingerprint mismatch for $SSH_HOST_PRODUCTION" >&2
+            exit 1
+          fi
+          cat "$scan_path" >> "$HOME/.ssh/known_hosts"
+          rm -f "$scan_path"
+          chmod 600 "$HOME/.ssh/known_hosts"
 
           bundle_dir="$(mktemp -d)"
           bundle_name="pulseplate-shell-bundle-${{ github.run_id }}-${{ github.run_attempt }}"
           archive_path="$bundle_dir/${bundle_name}.tgz"
           tar -czf "$archive_path" frontend deploy/Caddyfile.production scripts/diagnose_web.sh
 
-          scp -i "$key_path" -o StrictHostKeyChecking=no \
+          scp -i "$key_path" \
             "$archive_path" \
             "${SSH_USER}@${SSH_HOST_PRODUCTION}:/tmp/${bundle_name}.tgz"
 

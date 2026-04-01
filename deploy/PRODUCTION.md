@@ -14,7 +14,7 @@ variables through the GitHub API before deciding which deploy lane can run.
 That keeps build-only tags approval-free while still letting production-specific
 variables override repository defaults:
 
-- `ssh`: Deploy from GitHub-hosted runners over SSH (port 22 reachable). SSH key must be full PEM including newlines to avoid "ssh: no key found". Required Environment "production" secrets: `SSH_HOST_PRODUCTION`, `SSH_USER`, `SSH_KEY`, `PRODUCTION_DOMAIN`, `GHCR_READ_TOKEN`.  <!-- pragma: allowlist secret -->
+- `ssh`: Deploy from GitHub-hosted runners over SSH (port 22 reachable). SSH key must be full PEM including newlines to avoid "ssh: no key found". Required Environment "production" secrets: `SSH_HOST_PRODUCTION`, `SSH_HOST_PRODUCTION_FINGERPRINT`, `SSH_USER`, `SSH_KEY`, `PRODUCTION_DOMAIN`, `GHCR_READ_TOKEN`. The workflow verifies the scanned host key against the pinned fingerprint before uploading the production shell bundle.  <!-- pragma: allowlist secret -->
 - `self-hosted`: Deploy from a self-hosted runner inside your infrastructure (recommended).
 
 If `PROD_DEPLOY_MODE` is unset, CD remains build-only even when production images
@@ -321,6 +321,7 @@ Configure GitHub Environment `production` with required reviewers (recommended).
 Secrets (store in the `production` environment):
 
 - `SSH_HOST_PRODUCTION`
+- `SSH_HOST_PRODUCTION_FINGERPRINT` (server host key fingerprint, usually `SHA256:...`)
 - `SSH_USER`
 - `SSH_KEY` (private key)
 - `GHCR_READ_TOKEN` (PAT with `read:packages`, if the image is private)
