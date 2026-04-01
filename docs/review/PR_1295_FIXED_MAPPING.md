@@ -5,7 +5,10 @@
 - [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
-- No actionable review comments
+Disposition: FIXED
+Commit: d7374150
+Evidence: `tests/conftest.py`; `tests/test_env_guards.py`; `pytest -q tests/test_env_guards.py`; `make verify`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1295#pullrequestreview-4047385078 -> d7374150
 
 ## Merge Readiness
 - [ ] All required checks pass
