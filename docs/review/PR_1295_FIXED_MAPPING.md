@@ -14,6 +14,6 @@ Evidence: `tests/conftest.py`; `tests/test_env_guards.py`; `pytest -q tests/test
 - [ ] All required checks pass
 - [ ] No unresolved review threads (re-check on current head before merge)
 - [ ] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
-- [x] Pre-commit green
-- [x] `make verify` green
+- [ ] Pre-commit green
+- [ ] `make verify` green
 - Scope: main-CI stabilization for the canonical pytest bootstrap path only; no runtime or product-surface behavior changes are included in this lane.

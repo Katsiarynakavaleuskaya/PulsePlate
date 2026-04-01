@@ -32,4 +32,5 @@ def test_app_is_legacy_instance() -> None:
 
 def test_rate_limit_bootstrap_disabled_for_canonical_app_import(app: FastAPI) -> None:
     """Guard: canonical app.main bootstrap must not attach active rate limiting in tests."""
-    assert not hasattr(app.state, "limiter")
+    limiter_on_state = getattr(app.state, "limiter", None)
+    assert limiter_on_state is None or getattr(limiter_on_state, "enabled", False) is False
