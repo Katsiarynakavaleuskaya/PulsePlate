@@ -147,11 +147,30 @@ os.environ.setdefault("SERVER_SALT", "StrongServerSaltForTests123456789!")
 # Configure logger for test cleanup operations
 logger = logging.getLogger(__name__)
 
+_TESTING_ENV_WAS_SET = False
+_PREVIOUS_TESTING_ENV: str | None = None
+
 
 def pytest_configure(config: pytest.Config) -> None:
     """Set import-time test env before any app bootstrap happens."""
+    global _PREVIOUS_TESTING_ENV, _TESTING_ENV_WAS_SET
     del config
+    _TESTING_ENV_WAS_SET = "TESTING" in os.environ
+    _PREVIOUS_TESTING_ENV = os.environ.get("TESTING")
     os.environ["TESTING"] = "true"
+
+
+def pytest_unconfigure(config: pytest.Config) -> None:
+    """Restore the original TESTING env after the pytest session ends."""
+    del config
+    if _TESTING_ENV_WAS_SET:
+        if _PREVIOUS_TESTING_ENV is not None:
+            os.environ["TESTING"] = _PREVIOUS_TESTING_ENV
+        else:
+            os.environ.pop("TESTING", None)
+        return
+
+    os.environ.pop("TESTING", None)
 
 
 @pytest.fixture
