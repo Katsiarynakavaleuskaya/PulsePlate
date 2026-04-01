@@ -13,9 +13,10 @@
 # STAGING_DOMAIN, GHCR_READ_TOKEN. If unset, only build+push run (no SSH); avoids "ssh: no key found".
 #
 # Production deploy: set PROD_DEPLOY_MODE to 'ssh' or 'self-hosted'. Production deploy config
-# is resolved inside a small "production-deploy-config" job that runs in the "production"
-# environment, then the actual deploy jobs gate on those resolved outputs. This avoids the
-# GitHub Actions footgun where job-level `if:` cannot reliably see environment-scoped vars.
+# is resolved inside a small "production-deploy-config" job that reads repository/environment
+# Actions variables via the GitHub API, then the actual deploy jobs gate on those resolved
+# outputs. This avoids both the GitHub Actions footgun where job-level `if:` cannot reliably
+# see environment-scoped vars and the accidental approval gate on build-only tags.
 # For PROD_DEPLOY_MODE=ssh configure Environment "production" secrets: SSH_HOST_PRODUCTION,
 # SSH_USER, SSH_KEY, PRODUCTION_DOMAIN, GHCR_READ_TOKEN.
 # See deploy/PRODUCTION.md.
@@ -28,6 +29,7 @@ on:
     tags: ['v*']
 
 permissions:
+  actions: read
   contents: read
   packages: write
   id-token: write
@@ -291,9 +293,6 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v')
     needs: [production-gates, build-production]
     runs-on: ubuntu-latest
-    environment:
-      name: production
-      url: https://pulseplate.app
     outputs:
       deploy_mode: ${{ steps.resolve.outputs.deploy_mode }}
       release_ready: ${{ steps.resolve.outputs.release_ready }}
@@ -302,13 +301,29 @@ jobs:
       - name: Resolve production deploy configuration
         id: resolve
         env:
-          PROD_DEPLOY_MODE: ${{ vars.PROD_DEPLOY_MODE }}
-          WEB_IOS_RELEASE_READY: ${{ vars.WEB_IOS_RELEASE_READY }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
 
-          deploy_mode="${PROD_DEPLOY_MODE:-}"
-          release_ready="${WEB_IOS_RELEASE_READY:-false}"
+          get_actions_variable() {
+            local scope_path="$1"
+            local variable_name="$2"
+            gh api \
+              -H "Accept: application/vnd.github+json" \
+              "/repos/${GITHUB_REPOSITORY}/${scope_path}/${variable_name}" \
+              --jq '.value' 2>/dev/null || true
+          }
+
+          deploy_mode="$(get_actions_variable "environments/production/variables" "PROD_DEPLOY_MODE")"
+          if [ -z "$deploy_mode" ]; then
+            deploy_mode="$(get_actions_variable "actions/variables" "PROD_DEPLOY_MODE")"
+          fi
+
+          release_ready="$(get_actions_variable "environments/production/variables" "WEB_IOS_RELEASE_READY")"
+          if [ -z "$release_ready" ]; then
+            release_ready="$(get_actions_variable "actions/variables" "WEB_IOS_RELEASE_READY")"
+          fi
+          release_ready="${release_ready:-false}"
 
           case "$deploy_mode" in
             "")
@@ -347,7 +362,7 @@ jobs:
       name: production
       url: https://pulseplate.app
     concurrency:
-      group: cd-deploy-production-${{ github.ref_name }}
+      group: cd-deploy-production
       cancel-in-progress: false
     steps:
       - name: Checkout
@@ -379,12 +394,13 @@ jobs:
           chmod 600 "$key_path"
 
           bundle_dir="$(mktemp -d)"
-          archive_path="$bundle_dir/pulseplate-shell-bundle.tgz"
+          bundle_name="pulseplate-shell-bundle-${{ github.run_id }}-${{ github.run_attempt }}"
+          archive_path="$bundle_dir/${bundle_name}.tgz"
           tar -czf "$archive_path" frontend deploy/Caddyfile.production scripts/diagnose_web.sh
 
           scp -i "$key_path" -o StrictHostKeyChecking=no \
             "$archive_path" \
-            "${SSH_USER}@${SSH_HOST_PRODUCTION}:/tmp/pulseplate-shell-bundle.tgz"
+            "${SSH_USER}@${SSH_HOST_PRODUCTION}:/tmp/${bundle_name}.tgz"
 
       - name: Deploy to production over SSH (pinned digest)
         uses: appleboy/ssh-action@3ca8a7c5359ac6ad91aa47f1946ece1c3b025004
@@ -413,16 +429,19 @@ jobs:
               echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
             fi
 
-            tmp_bundle_dir="/tmp/pulseplate-shell-bundle"
+            bundle_name="pulseplate-shell-bundle-${{ github.run_id }}-${{ github.run_attempt }}"
+            tmp_bundle_dir="/tmp/${bundle_name}"
             rm -rf "$tmp_bundle_dir"
             mkdir -p "$tmp_bundle_dir"
-            tar -xzf /tmp/pulseplate-shell-bundle.tgz -C "$tmp_bundle_dir"
+            tar -xzf "/tmp/${bundle_name}.tgz" -C "$tmp_bundle_dir"
             export SHELL_BUNDLE_DIR="$tmp_bundle_dir"
 
             tmp_script="/tmp/pulseplate_deploy_production.sh"
             echo "$DEPLOY_SCRIPT_B64" | base64 -d > "$tmp_script"
             chmod +x "$tmp_script"
             "$tmp_script"
+            rm -f "/tmp/${bundle_name}.tgz"
+            rm -rf "$tmp_bundle_dir"
         env:
           DEPLOY_SCRIPT_B64: ${{ steps.deploy-script.outputs.script_b64 }}
           DEPLOY_DIR: ${{ vars.DEPLOY_DIR }}
@@ -440,7 +459,7 @@ jobs:
       name: production
       url: https://pulseplate.app
     concurrency:
-      group: cd-deploy-production-${{ github.ref_name }}
+      group: cd-deploy-production
       cancel-in-progress: false
     steps:
       - name: Checkout

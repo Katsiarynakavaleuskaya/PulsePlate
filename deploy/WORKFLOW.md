@@ -52,7 +52,7 @@ git push origin main
 - `build-production` сам по себе **не означает**, что production origin обновлён.
 - Для semver tag `vX.Y.Z` production deploy запускается только после того, как
   workflow в `production-deploy-config` прочитает `PROD_DEPLOY_MODE` и
-  `WEB_IOS_RELEASE_READY` из production environment и разрешит ровно один deploy lane.
+  `WEB_IOS_RELEASE_READY` через GitHub Actions variables API и разрешит ровно один deploy lane.
 - Если эти флаги не выставлены корректно, CD останется в режиме build-only:
   образ будет в GHCR, но live origin не изменится.
 
@@ -274,6 +274,8 @@ curl -fsS https://pulseplate.app/health | jq .
   `frontend/`, `deploy/Caddyfile.production`, and `scripts/diagnose_web.sh`.
 - `scripts/deploy_production.sh` now rebuilds `caddy` during production deploy, so the
   public SPA shell stays aligned with the same release tree as the backend `IMAGE_REF`.
+- SSH production deploys use run-scoped `/tmp` bundle paths and the production deploy
+  lane is serialized so different tags cannot mix shell artifacts on the same host.
 - If the backend digest is fresh but `GET /` still returns the direct API JSON probe,
   treat that as edge/shell parity drift and run `BASE_URL=https://$PRODUCTION_DOMAIN bash scripts/diagnose_web.sh`
   before assuming an application bug.

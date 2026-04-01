@@ -140,9 +140,11 @@ sync_shell_bundle() {
   fi
 
   echo "Syncing production shell bundle from: $SHELL_BUNDLE_DIR"
+  rm -rf "$shell_root/frontend"
   mkdir -p "$shell_root/frontend" "$shell_root/scripts"
   cp -R "$source_frontend/." "$shell_root/frontend/"
   cp "$source_caddyfile" "$DEPLOY_DIR/Caddyfile.production"
+  rm -f "$shell_root/scripts/diagnose_web.sh"
 
   if [ -f "$source_diagnose" ]; then
     cp "$source_diagnose" "$shell_root/scripts/diagnose_web.sh"

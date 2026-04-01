@@ -6,18 +6,31 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 CD_WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "cd.yml"
+PROD_DEPLOY_MODE_ENV_FETCH = (
+    'get_actions_variable "environments/production/variables" "PROD_DEPLOY_MODE"'
+)
+WEB_IOS_RELEASE_READY_ENV_FETCH = (
+    'get_actions_variable "environments/production/variables" "WEB_IOS_RELEASE_READY"'
+)
 
 
 def test_production_deploy_jobs_use_bridge_job_outputs() -> None:
     """Guard against build-only production tags caused by env var visibility."""
 
     workflow_text = CD_WORKFLOW_PATH.read_text(encoding="utf-8")
+    bridge_section = workflow_text.split("production-deploy-config:", maxsplit=1)[1].split(
+        "deploy-production:", maxsplit=1
+    )[0]
 
     assert "production-deploy-config:" in workflow_text
     assert "Resolve production deploy configuration" in workflow_text
+    assert PROD_DEPLOY_MODE_ENV_FETCH in workflow_text
+    assert WEB_IOS_RELEASE_READY_ENV_FETCH in workflow_text
+    assert "GH_TOKEN: ${{ github.token }}" in workflow_text
     assert "needs.production-deploy-config.outputs.should_deploy == 'true'" in workflow_text
     assert "needs.production-deploy-config.outputs.deploy_mode == 'ssh'" in workflow_text
     assert "needs.production-deploy-config.outputs.deploy_mode == 'self-hosted'" in workflow_text
+    assert "environment:" not in bridge_section
     assert "vars.PROD_DEPLOY_MODE == 'ssh'" not in workflow_text
     assert "vars.PROD_DEPLOY_MODE == 'self-hosted'" not in workflow_text
 
@@ -32,6 +45,12 @@ def test_production_deploy_syncs_shell_bundle_for_caddy_rebuild() -> None:
         'tar -czf "$archive_path" frontend deploy/Caddyfile.production scripts/diagnose_web.sh'
         in workflow_text
     )
-    assert 'tar -xzf /tmp/pulseplate-shell-bundle.tgz -C "$tmp_bundle_dir"' in workflow_text
+    assert (
+        'bundle_name="pulseplate-shell-bundle-${{ github.run_id }}-${{ github.run_attempt }}"'
+        in workflow_text
+    )
+    assert 'tar -xzf "/tmp/${bundle_name}.tgz" -C "$tmp_bundle_dir"' in workflow_text
+    assert 'rm -f "/tmp/${bundle_name}.tgz"' in workflow_text
     assert 'export SHELL_BUNDLE_DIR="$tmp_bundle_dir"' in workflow_text
     assert 'export SHELL_BUNDLE_DIR="${GITHUB_WORKSPACE}"' in workflow_text
+    assert "group: cd-deploy-production" in workflow_text

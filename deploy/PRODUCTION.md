@@ -9,8 +9,10 @@ SSH + `docker compose`.
 
 Auto-deploy is controlled by `PROD_DEPLOY_MODE`, which may live as a repository
 variable or as a `production` environment variable. The CD workflow resolves this
-setting inside a dedicated `production-deploy-config` job before deciding which
-deploy lane can run:
+setting inside a dedicated `production-deploy-config` job by reading Actions
+variables through the GitHub API before deciding which deploy lane can run.
+That keeps build-only tags approval-free while still letting production-specific
+variables override repository defaults:
 
 - `ssh`: Deploy from GitHub-hosted runners over SSH (port 22 reachable). SSH key must be full PEM including newlines to avoid "ssh: no key found". Required Environment "production" secrets: `SSH_HOST_PRODUCTION`, `SSH_USER`, `SSH_KEY`, `PRODUCTION_DOMAIN`, `GHCR_READ_TOKEN`.  <!-- pragma: allowlist secret -->
 - `self-hosted`: Deploy from a self-hosted runner inside your infrastructure (recommended).

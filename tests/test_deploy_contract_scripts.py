@@ -279,10 +279,10 @@ def test_deploy_production_syncs_shell_bundle_before_caddy_build(tmp_path: Path)
         encoding="utf-8",
     )
     (shell_bundle_dir / "scripts").mkdir()
-    _write_executable(
-        shell_bundle_dir / "scripts" / "diagnose_web.sh",
-        "#!/usr/bin/env bash\nset -euo pipefail\n",
-    )
+    (shell_root / "frontend").mkdir()
+    (shell_root / "frontend" / "stale.txt").write_text("old-shell\n", encoding="utf-8")
+    (shell_root / "scripts").mkdir()
+    (shell_root / "scripts" / "diagnose_web.sh").write_text("stale-diagnose\n", encoding="utf-8")
 
     helper_stub = f"""#!/usr/bin/env bash
 set -euo pipefail
@@ -343,7 +343,8 @@ printf 'curl %s\\n' "$*" >> "{log_file}"
         .read_text(encoding="utf-8")
         .startswith("pulseplate.test")
     )
-    assert (shell_root / "scripts" / "diagnose_web.sh").exists()
+    assert not (shell_root / "frontend" / "stale.txt").exists()
+    assert not (shell_root / "scripts" / "diagnose_web.sh").exists()
 
 
 def test_deploy_production_exits_non_zero_when_migrations_fail(tmp_path: Path) -> None:
