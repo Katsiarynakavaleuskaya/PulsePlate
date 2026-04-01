@@ -30,6 +30,11 @@ Commit: dafe35d2
 Evidence: scripts/diagnose_web.sh
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1293#discussion_r3018262078 -> dafe35d2
 
+Disposition: FIXED
+Commit: 4e058915
+Evidence: scripts/diagnose_web.sh, tests/test_deploy_contract_scripts.py, frontend/index.html
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1293#discussion_r3020329260 -> 4e058915
+
 Disposition: NOT-A-BUG
 Evidence: docs/review/PR_1293_FIXED_MAPPING.md
 Reason: These bot review summary URLs aggregate actionable child comments that are individually dispositioned in this artifact; the summary shells do not require separate code changes.
@@ -39,6 +44,7 @@ Reason: These bot review summary URLs aggregate actionable child comments that a
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1293#pullrequestreview-4039829187
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1293#pullrequestreview-4039911668
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1293#pullrequestreview-4040015538
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1293#pullrequestreview-4042272435
 
 ## Merge Readiness
 - [ ] All required checks pass
