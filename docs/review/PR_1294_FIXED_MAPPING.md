@@ -35,6 +35,16 @@ Reason: The review-level wrapper aggregates the mapped inline artifact finding a
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1294#pullrequestreview-4044401550
 
 Disposition: NOT-A-BUG
+Evidence: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1294#pullrequestreview-4044567915 is the later CodeRabbit review wrapper created after the PR-body sync; it does not add a new actionable defect beyond the mapped governance updates on current head.
+Reason: The review-level wrapper is an aggregate bot review envelope and does not require an additional code or artifact change separate from the canonical mappings above.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1294#pullrequestreview-4044567915
+
+Disposition: NOT-A-BUG
+Evidence: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1294#pullrequestreview-4044397086 is the Codex review wrapper for inline comments already mapped to commit `2777afd2`.
+Reason: The review-level wrapper repeats already-fixed inline findings and does not represent a separate actionable item on the current head.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1294#pullrequestreview-4044397086
+
+Disposition: NOT-A-BUG
 Evidence: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1294#pullrequestreview-4044447758 is the Cubic review wrapper for inline comments already mapped to commit `2777afd2`.
 Reason: The review-level wrapper repeats the already-fixed inline findings and does not represent an additional defect on current head.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1294#pullrequestreview-4044447758
