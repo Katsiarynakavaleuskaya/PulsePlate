@@ -153,6 +153,11 @@ GitHub Actions workflows should use the shared installer instead of ad hoc
       --install-dev
 ```
 
+Workflow precedence is `secrets` first and `vars` second for
+`PULSEPLATE_PYTHON_INDEX_URL` and `PULSEPLATE_PYTHON_TRUSTED_HOST`. This keeps
+the repository variable as a non-authoritative fallback and lets an emergency
+secret override immediately replace stale or broken repository-level values.
+
 ### Option 2: pip-sync (For Exact Matching)
 
 For stricter environment control matching local development:
