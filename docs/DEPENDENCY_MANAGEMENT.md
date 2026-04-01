@@ -144,8 +144,8 @@ GitHub Actions workflows should use the shared installer instead of ad hoc
 ```yaml
 - name: Install dependencies
   env:
-    PULSEPLATE_PYTHON_INDEX_URL: ${{ vars.PULSEPLATE_PYTHON_INDEX_URL || secrets.PULSEPLATE_PYTHON_INDEX_URL }}
-    PULSEPLATE_PYTHON_TRUSTED_HOST: ${{ vars.PULSEPLATE_PYTHON_TRUSTED_HOST || secrets.PULSEPLATE_PYTHON_TRUSTED_HOST }}
+    PULSEPLATE_PYTHON_INDEX_URL: ${{ secrets.PULSEPLATE_PYTHON_INDEX_URL || vars.PULSEPLATE_PYTHON_INDEX_URL }}
+    PULSEPLATE_PYTHON_TRUSTED_HOST: ${{ secrets.PULSEPLATE_PYTHON_TRUSTED_HOST || vars.PULSEPLATE_PYTHON_TRUSTED_HOST }}
   run: |
     python scripts/ci/install_locked_python_requirements.py \
       --python-executable python \
