@@ -63,7 +63,7 @@ Canonical contract for shared CI/Docker/bootstrap paths:
 
 - `PULSEPLATE_PYTHON_INDEX_URL` is mandatory and must point to the approved private package proxy.
 - `PULSEPLATE_PYTHON_TRUSTED_HOST` is optional and should only be set when the approved proxy requires it.
-- GitHub Actions may source these values from repository `vars` first and fall back to `secrets`, so pull-request lanes (including Dependabot-owned updates) are not forced into a secrets-only contract.
+- GitHub Actions source these values from `secrets` first and fall back to repository `vars`, so an emergency secret override can immediately replace a stale repository-level default without editing every workflow file.
 - Public package hosts such as `pypi.org`, `files.pythonhosted.org`, and `test.pypi.org` are rejected by the shared installer.
 - Ambient overrides such as `PIP_INDEX_URL` / `PIP_EXTRA_INDEX_URL` are rejected for canonical installs.
 
