@@ -15,6 +15,7 @@ HEALTH_CURL_MAX_TIME_S="${HEALTH_CURL_MAX_TIME_S:-10}"
 COMPOSE_FILE="${COMPOSE_FILE:-}"
 DEPLOY_DIR="${DEPLOY_DIR:-}"
 ENV_FILE="${ENV_FILE:-}"
+SHELL_BUNDLE_DIR="${SHELL_BUNDLE_DIR:-}"
 
 resolve_deploy_dir() {
   if [ -n "$DEPLOY_DIR" ]; then
@@ -117,6 +118,38 @@ dc() {
   "${base[@]}" "$@"
 }
 
+sync_shell_bundle() {
+  if [ -z "$SHELL_BUNDLE_DIR" ]; then
+    return 0
+  fi
+
+  local source_frontend="$SHELL_BUNDLE_DIR/frontend"
+  local source_caddyfile="$SHELL_BUNDLE_DIR/deploy/Caddyfile.production"
+  local source_diagnose="$SHELL_BUNDLE_DIR/scripts/diagnose_web.sh"
+  local shell_root
+  shell_root="$(cd "$DEPLOY_DIR/.." && pwd)"
+
+  if [ ! -d "$source_frontend" ]; then
+    echo "❌ SHELL_BUNDLE_DIR is missing frontend/: $source_frontend" >&2
+    exit 1
+  fi
+
+  if [ ! -f "$source_caddyfile" ]; then
+    echo "❌ SHELL_BUNDLE_DIR is missing deploy/Caddyfile.production: $source_caddyfile" >&2
+    exit 1
+  fi
+
+  echo "Syncing production shell bundle from: $SHELL_BUNDLE_DIR"
+  mkdir -p "$shell_root/frontend" "$shell_root/scripts"
+  cp -R "$source_frontend/." "$shell_root/frontend/"
+  cp "$source_caddyfile" "$DEPLOY_DIR/Caddyfile.production"
+
+  if [ -f "$source_diagnose" ]; then
+    cp "$source_diagnose" "$shell_root/scripts/diagnose_web.sh"
+    chmod +x "$shell_root/scripts/diagnose_web.sh"
+  fi
+}
+
 wait_for_service_health() {
   local service_name="$1"
   local max_wait="${2:-60}"
@@ -168,6 +201,8 @@ fi
 echo "Pulling production app image..."
 dc pull app
 
+sync_shell_bundle
+
 echo "Starting postgres first..."
 dc up -d --remove-orphans postgres
 wait_for_service_health postgres 60
@@ -197,6 +232,7 @@ else
 fi
 
 echo "Starting caddy after successful migrations..."
+dc build caddy
 dc up -d --remove-orphans caddy
 
 # Healthcheck using --resolve to avoid DNS dependency (works even if DNS is temporarily unavailable)

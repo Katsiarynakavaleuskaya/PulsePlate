@@ -216,6 +216,11 @@ printf 'curl %s\\n' "$*" >> "{log_file}"
         predicate=lambda line: "exec app-id alembic upgrade head" in line,
         message="Expected alembic migration step to appear in deploy log",
     )
+    caddy_build_index = _assert_log_index(
+        log_lines,
+        predicate=lambda line: "compose --env-file" in line and "build caddy" in line,
+        message="Expected caddy docker-compose build step to appear in deploy log",
+    )
     caddy_up_index = _assert_log_index(
         log_lines,
         predicate=lambda line: "compose --env-file" in line
@@ -233,10 +238,112 @@ printf 'curl %s\\n' "$*" >> "{log_file}"
         < helper_index
         < app_up_index
         < migrate_index
+        < caddy_build_index
         < caddy_up_index
         < external_ready_index
     )
     assert any("helper " in line and "docker-compose.production.yaml" in line for line in log_lines)
+
+
+def test_deploy_production_syncs_shell_bundle_before_caddy_build(tmp_path: Path) -> None:
+    project_dir = tmp_path / "production"
+    shell_root = project_dir.parent
+    shell_bundle_dir = tmp_path / "shell-bundle"
+    bin_dir = tmp_path / "bin"
+    scripts_dir = project_dir / "scripts" / "ops"
+    log_file = tmp_path / "deploy.log"
+    project_dir.mkdir()
+    shell_bundle_dir.mkdir()
+    bin_dir.mkdir()
+    scripts_dir.mkdir(parents=True)
+    (project_dir / "docker-compose.production.yaml").write_text("services: {}\n", encoding="utf-8")
+    (project_dir / ".env").write_text(
+        "\n".join(
+            [
+                "POSTGRES_USER=pulseplate",
+                "POSTGRES_DB=pulseplate",
+                "POSTGRES_PASSWORD=secret",
+                "DATABASE_URL=postgresql+psycopg://pulseplate:secret@postgres:5432/pulseplate",  # pragma: allowlist secret
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    (shell_bundle_dir / "frontend").mkdir()
+    (shell_bundle_dir / "frontend" / "bundle-marker.txt").write_text(
+        "frontend-sync\n", encoding="utf-8"
+    )
+    (shell_bundle_dir / "deploy").mkdir()
+    (shell_bundle_dir / "deploy" / "Caddyfile.production").write_text(
+        'pulseplate.test {\n    respond "ok"\n}\n',
+        encoding="utf-8",
+    )
+    (shell_bundle_dir / "scripts").mkdir()
+    _write_executable(
+        shell_bundle_dir / "scripts" / "diagnose_web.sh",
+        "#!/usr/bin/env bash\nset -euo pipefail\n",
+    )
+
+    helper_stub = f"""#!/usr/bin/env bash
+set -euo pipefail
+printf 'helper %s %s\\n' "$PROJECT_DIR" "${{COMPOSE_FILE:-}}" >> "{log_file}"
+"""
+    docker_stub = f"""#!/usr/bin/env bash
+set -euo pipefail
+printf 'docker %s\\n' "$*" >> "{log_file}"
+case "$*" in
+  *"compose --env-file "*"-f docker-compose.production.yaml ps -q postgres"*)
+    printf 'postgres-id\\n'
+    ;;
+  *"compose --env-file "*"-f docker-compose.production.yaml ps -q app"*)
+    printf 'app-id\\n'
+    ;;
+  *"inspect --format "*)
+    printf 'healthy\\n'
+    ;;
+  *"ps --format "*)
+    printf 'CONTAINER ID\\n'
+    ;;
+esac
+"""
+    curl_stub = f"""#!/usr/bin/env bash
+set -euo pipefail
+printf 'curl %s\\n' "$*" >> "{log_file}"
+"""
+    sleep_stub = "#!/usr/bin/env bash\nset -euo pipefail\n"
+    _write_executable(scripts_dir / "postgres_backup.sh", helper_stub)
+    _write_executable(bin_dir / "docker", docker_stub)
+    _write_executable(bin_dir / "curl", curl_stub)
+    _write_executable(bin_dir / "sleep", sleep_stub)
+
+    env = os.environ.copy()
+    env["PATH"] = f"{bin_dir}:{env['PATH']}"
+    env["DEPLOY_DIR"] = str(project_dir)
+    env["ENV_FILE"] = str(project_dir / ".env")
+    env["COMPOSE_FILE"] = "docker-compose.production.yaml"
+    env["IMAGE_REF"] = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:test"
+    env["TAG"] = "prod-vtest"
+    env["PRODUCTION_DOMAIN"] = "pulseplate.test"
+    env["SHELL_BUNDLE_DIR"] = str(shell_bundle_dir)
+
+    subprocess.run(
+        [str(REPO_ROOT / "scripts/deploy_production.sh")],
+        cwd=str(REPO_ROOT),
+        env=env,
+        text=True,
+        capture_output=True,
+        check=True,
+    )
+
+    assert (shell_root / "frontend" / "bundle-marker.txt").read_text(
+        encoding="utf-8"
+    ) == "frontend-sync\n"
+    assert (
+        (project_dir / "Caddyfile.production")
+        .read_text(encoding="utf-8")
+        .startswith("pulseplate.test")
+    )
+    assert (shell_root / "scripts" / "diagnose_web.sh").exists()
 
 
 def test_deploy_production_exits_non_zero_when_migrations_fail(tmp_path: Path) -> None:

@@ -7,12 +7,17 @@ SSH + `docker compose`.
 
 ## Deploy mode (required)
 
-Auto-deploy is controlled by repository or environment variable `PROD_DEPLOY_MODE`:
+Auto-deploy is controlled by `PROD_DEPLOY_MODE`, which may live as a repository
+variable or as a `production` environment variable. The CD workflow resolves this
+setting inside a dedicated `production-deploy-config` job before deciding which
+deploy lane can run:
 
 - `ssh`: Deploy from GitHub-hosted runners over SSH (port 22 reachable). SSH key must be full PEM including newlines to avoid "ssh: no key found". Required Environment "production" secrets: `SSH_HOST_PRODUCTION`, `SSH_USER`, `SSH_KEY`, `PRODUCTION_DOMAIN`, `GHCR_READ_TOKEN`.  <!-- pragma: allowlist secret -->
 - `self-hosted`: Deploy from a self-hosted runner inside your infrastructure (recommended).
 
-If `PROD_DEPLOY_MODE` is unset or any other value, deploy jobs are skipped (images are still built and pushed to GHCR).
+If `PROD_DEPLOY_MODE` is unset, CD remains build-only even when production images
+are published to GHCR. Any value other than `ssh` or `self-hosted` is treated as
+invalid and fails the production config resolution step.
 
 ## Global release-readiness lock (required)
 
@@ -24,6 +29,9 @@ Canonical policy:
 
 - While web and iOS are not release-ready, keep `WEB_IOS_RELEASE_READY` unset or `false`.
 - In this state, CD remains build/validation only (no production deploy), while image build/push can still run.
+- When `WEB_IOS_RELEASE_READY=true`, `PROD_DEPLOY_MODE` must also be set to `ssh`
+  or `self-hosted`; otherwise the workflow fails fast instead of silently building
+  an image that never reaches production.
 - In this state, `STAGING_FALLBACK_DOMAIN` (default: `pulseplate-staging.duckdns.org`) is served by a fallback vhost in `deploy/Caddyfile.production`
   to keep staging HTTPS alive and avoid TLS handshake failures.
 - Enable real production deploy only after release readiness is explicitly confirmed.
@@ -350,6 +358,9 @@ High-level steps (run on the production server):
    - `.env` (application runtime env)
    - `Caddyfile.production` (copied from `deploy/Caddyfile.production`)
 3. Ensure the compose file uses `IMAGE_REF` (preferred) or `TAG` (backwards-compatible).
+   - Production CD now also stages the current `frontend/`, `deploy/Caddyfile.production`,
+     and `scripts/diagnose_web.sh` bundle before `scripts/deploy_production.sh` runs so the
+     public shell can be rebuilt from the same release tree as the backend image.
 4. Wait for a successful Nightly run on `main`, then create and push a new semver tag (e.g. `v0.2.2`).
 5. Ensure `PROD_DEPLOY_MODE` is set (`self-hosted` recommended).
 6. Approve the deploy job in the GitHub `production` environment prompt.
@@ -372,7 +383,7 @@ bash scripts/redeploy_caddy.sh
 
 # Option 2: Manual commands
 cd /srv/pulseplate-production  # or your deploy directory
-docker compose -f docker-compose.production.yaml pull caddy
+docker compose -f docker-compose.production.yaml build caddy
 docker compose -f docker-compose.production.yaml up -d caddy
 docker compose -f docker-compose.production.yaml ps caddy
 docker compose -f docker-compose.production.yaml logs --tail=100 caddy
@@ -381,7 +392,7 @@ docker compose -f docker-compose.production.yaml logs --tail=100 caddy
 The script will:
 
 1. Auto-detect the deploy directory
-2. Pull the latest Caddy image
+2. Rebuild the Caddy image from the colocated production shell bundle
 3. Restart the Caddy container
 4. Show container status and recent logs
 5. Run `scripts/diagnose_web.sh` automatically when `PRODUCTION_DOMAIN` and a colocated diagnosis helper are available; retry briefly after restart, then fail fast if the diagnosis still reports a routing mismatch
