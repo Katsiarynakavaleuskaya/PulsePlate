@@ -36,6 +36,12 @@ Evidence: `docs/analysis/FRONTEND_IOS_VISUAL_ANALYSIS.md:655`, `docs/analysis/FR
 Reason: The current head already uses post-gate sequencing language in the touched analysis packet: the section heading is `Immediate Actions (Post-Gate Window)`, the note explicitly requires upstream remediation/backend guards/`make verify`, and the follow-up headings are scoped to post-gate windows. The CodeRabbit thread therefore reflects stale context rather than a remaining docs drift issue.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1301#discussion_r3029202761
 
+Disposition: FIXED
+Commit: 3fd28eb6
+Evidence: `docs/analysis/FRONTEND_IOS_VISUAL_ANALYSIS.md`, `docs/review/PR_1301_FIXED_MAPPING.md`
+Reason: The latest CodeRabbit summary review consolidated two real follow-ups from the current head snapshot: the post-gate sequencing language in the analysis packet and the `Markdown` capitalization fix in this artifact. Commit `3fd28eb6` applies those narrow docs-only adjustments.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1301#pullrequestreview-4051920285 -> 3fd28eb6
+
 ## Merge Readiness
 - [ ] All required checks pass
 - [ ] No unresolved review threads (re-check on current head before merge)
