@@ -6,8 +6,8 @@
 
 ## Fixed in Commit Mapping
 Disposition: NOT-A-BUG
-Evidence: `docs/review/PR_1301_FIXED_MAPPING.md`
-Reason: Initial post-open artifact creation found no actionable review threads or bot comments on PR `#1301`. This lane is docs-only and narrows scope to roadmap/design/audit truth reconciliation for the shipped web progress empty-state contract.
+Evidence: `docs/audit/PR_WEB_PROGRESS_CLOSEOUT_AUDIT_2026-04-02.md`, `frontend/src/features/progress/ProgressCharts.tsx:24`, `frontend/src/features/progress/__tests__/ProgressCharts.test.tsx:32`
+Reason: At artifact creation time PR `#1301` has no actionable review comments yet. The lane is a narrow docs-only closeout that reconciles roadmap/audit/design docs to the already shipped web progress truth: no fabricated charts on the release path, trusted empty state until real data exists, and no claim of backend-fed history implementation.
 
 ## Merge Readiness
 - [ ] All required checks pass
@@ -16,4 +16,4 @@ Reason: Initial post-open artifact creation found no actionable review threads o
 - [x] Pre-commit green
 - [x] `make verify` green
 - [ ] Mandatory post-open bug-hunter pass completed
-- Scope: docs-only closeout for the web progress contract drift. No backend progress API, OpenAPI, generated types, or runtime/frontend implementation changes are included in this PR.
+Notes: Draft PR `#1301` must stay docs-only. It must not widen into frontend runtime changes, backend progress/history API work, OpenAPI changes, or iOS parity claims beyond confirmed runtime evidence.
