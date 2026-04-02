@@ -135,6 +135,16 @@ def _block_external_network_in_ci(monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr(requests.sessions.Session, "request", session_request, raising=True)
 
 
+@pytest.fixture(autouse=True)
+def _disable_singleton_rate_limiters() -> None:
+    """Keep shared singleton app limiter state disabled before each test."""
+    for module_name in ("app.main", "app", "legacy_app"):
+        module = sys.modules.get(module_name)
+        app_instance = getattr(module, "app", None) if module is not None else None
+        if isinstance(app_instance, FastAPI):
+            disable_rate_limiting_for_test_app(app_instance)
+
+
 # NOTE: core.db is imported LAZILY (inside fixtures) to avoid creating Base
 # before pytest_configure sets DATABASE_URL. Direct module-level import here
 # would create a Base instance before conftest's reload, causing dual-Base issues.
