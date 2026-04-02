@@ -23,6 +23,7 @@ from sqlalchemy.exc import OperationalError, ProgrammingError, UnboundExecutionE
 
 import core.recipe_synth as recipe_synth
 from core.test_guards import EXTERNAL_HTTP_BLOCKED_IN_TESTS_MESSAGE
+from tests._client import disable_rate_limiting_for_test_app
 
 # ============================================================================
 # CI NETWORK GUARD (prevents flaky real external calls)
@@ -132,6 +133,16 @@ def _block_external_network_in_ci(monkeypatch: pytest.MonkeyPatch) -> None:
             return real_requests_request(self, method, url, *args, **kwargs)
 
         monkeypatch.setattr(requests.sessions.Session, "request", session_request, raising=True)
+
+
+@pytest.fixture(autouse=True)
+def _disable_singleton_rate_limiters() -> None:
+    """Keep shared singleton app limiter state disabled before each test."""
+    for module_name in ("app.main", "app", "legacy_app"):
+        module = sys.modules.get(module_name)
+        app_instance = getattr(module, "app", None) if module is not None else None
+        if isinstance(app_instance, FastAPI):
+            disable_rate_limiting_for_test_app(app_instance)
 
 
 # NOTE: core.db is imported LAZILY (inside fixtures) to avoid creating Base
@@ -461,6 +472,8 @@ def app(app_module: ModuleType) -> FastAPI:
     import app.main
 
     app_instance = app.main.app
+
+    disable_rate_limiting_for_test_app(app_instance)
 
     # Apply lenient API key mode
     def mock_get_api_key(api_key: str = "") -> str:
