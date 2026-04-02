@@ -5,6 +5,24 @@
 - [x] Fixed in commit mapping completed
 
 ### Fixed in Commit Mapping
+Disposition: NOT-A-BUG
+Evidence: tests/conftest.py:26
+Reason: `disable_rate_limiting_for_test_app` is already imported on the canonical current head; the Sourcery review was a stale false positive.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1306#pullrequestreview-4053531815
+
+Disposition: FIXED
+Commit: 18d4b6ca4a7e6b10f6763294bfc16d4cad36cec4
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1306#pullrequestreview-4053538374
+
+Disposition: FIXED
+Commit: 52490321998c85f253f94f97569b7a21a8ef073f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1306#pullrequestreview-4053589425
+
+Disposition: NOT-A-BUG
+Evidence: tests/test_rate_limit_llm_and_exports_api.py:130
+Reason: The later CodeRabbit review only repeats duplicate/nit coverage suggestions; dedicated deterministic `200 -> 429` suites already enforce the real throttling contract on the current head.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1306#pullrequestreview-4053603190
+
 Disposition: FIXED
 Commit: 18d4b6ca4a7e6b10f6763294bfc16d4cad36cec4
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1306#discussion_r3030694123 -> 18d4b6ca4a7e6b10f6763294bfc16d4cad36cec4
