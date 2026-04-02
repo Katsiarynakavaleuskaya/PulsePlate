@@ -7,8 +7,8 @@
 ## Fixed in Commit Mapping
 Disposition: FIXED
 Commit: 15de9223
-Evidence: `docs/roadmap/BACKLOG_LEDGER.md`, `docs/roadmap/PulsePlate_P0_P1_Execution_Document_2026-03-30.md`, `docs/analysis/FRONTEND_IOS_VISUAL_ANALYSIS.md`, `docs/audit/PR_WEB_PROGRESS_CLOSEOUT_AUDIT_2026-04-02.md`, `docs/review/PR_1301_FIXED_MAPPING.md`
-Reason: Sourcery and CodeRabbit raised two narrow docs/governance issues on the current head: the closed ledger item still used a placeholder target PR label, and the changed Markdown docs still contained numbering/heading patterns that violate markdownlint conventions. The same fix pack also normalizes the closeout packet wording around the shared web progress runtime truth so the audit and review artifacts do not drift.
+Evidence: `docs/roadmap/BACKLOG_LEDGER.md:205`, `docs/roadmap/PulsePlate_P0_P1_Execution_Document_2026-03-30.md:47`, `docs/analysis/FRONTEND_IOS_VISUAL_ANALYSIS.md:322`
+Reason: Sourcery and CodeRabbit raised two narrow docs/governance issues on the current head: the closed ledger item still used a placeholder target PR label, and the changed Markdown docs still contained numbering/heading patterns that violated markdownlint conventions. Commit `15de9223` replaces the placeholder target PR reference and normalizes the affected heading/list syntax in the touched docs packet.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1301#pullrequestreview-4051808021 -> 15de9223
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1301#discussion_r3029109125 -> 15de9223
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1301#pullrequestreview-4051824357 -> 15de9223
@@ -25,8 +25,8 @@ Reason: The Codex connector thread at `discussion_r3029094050` flagged that the 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1301#discussion_r3029094050 -> 7bcd28b0
 
 Disposition: NOT-A-BUG
-Evidence: `docs/roadmap/BACKLOG_LEDGER.md`, `docs/review/PR_1301_FIXED_MAPPING.md`
-Reason: Cubic's later summary review and follow-up discussion threads restated the same two governance issues already captured in this artifact: the closed ledger item needed a concrete target PR, and the canonical review artifact needed required thread-marker lines. Current head already contains those fixes, and the cubic discussion threads were auto-resolved against commits `15de9223` and `7bcd28b0`, so no additional docs/runtime change is required after the review timestamp.
+Evidence: `docs/roadmap/BACKLOG_LEDGER.md:205`, `docs/review/PR_1301_FIXED_MAPPING.md:12`
+Reason: Cubic's later summary review and follow-up discussion threads restated the same two governance issues already captured in this artifact: the closed ledger item needed a concrete target PR, and the canonical review artifact needed thread-marker lines. Current head already contains those fixes, and the cubic discussion threads were auto-resolved against commits `15de9223` and `7bcd28b0`, so no additional docs/runtime change is required after the review timestamp.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1301#pullrequestreview-4051906474
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1301#discussion_r3029189839
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1301#discussion_r3029189843
