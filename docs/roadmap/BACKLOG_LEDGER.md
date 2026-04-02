@@ -2499,6 +2499,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Links:
     - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/security/code-scanning/579`
     - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/security/code-scanning/580`
+    - `https://security-tracker.debian.org/tracker/CVE-2026-4046`
     - `trivy/ignore-policy.rego`
     - `.github/workflows/build.yml`
   - DoD:
