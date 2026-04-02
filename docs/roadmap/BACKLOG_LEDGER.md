@@ -2488,6 +2488,20 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Priority: P1
   - Area: security
   - Finding Type: policy exception
+  - Locations:
+    - `trivy/ignore-policy.rego` — Suppression expires: 2026-05-27
+    - `.trivyignore` — CVE-2026-0861 expires: 2026-05-27
+  - Reason: Upstream glibc CVEs unfixed; suppressions have expiry dates
+  - Links:
+    - docs/security/CVE-2026-0861-glibc.md
+    - docs/security/CVE-2025-15281-glibc.md
+  - DoD:
+    - Weekly monitoring for upstream fixes
+    - Remove suppressions when fixed versions available
+    - Update base image when fixes land
+  - **Last reviewed: 2026-02-27**
+    - PR #929: Removed 4 upstream-fixed CVE suppressions (gpgv, gnutls, p11-kit)
+    - PR #930: Extended review-by dates to 2026-05-27 for unfixed CVEs
 
 - [ ] Triage open Trivy glibc code-scanning alerts (CVE-2026-4046)
   - Owner: @katsiaryna_kavaleuskaya
@@ -2507,20 +2521,6 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Separate security lane decides between narrow suppression and upstream/base-image remediation
     - Billing activation/persistence closeout remains explicitly out of scope for this CVE
     - Alerts `#579` and `#580` are closed or formally covered by the approved suppression policy
-  - Locations:
-    - `trivy/ignore-policy.rego` — Suppression expires: 2026-05-27
-    - `.trivyignore` — CVE-2026-0861 expires: 2026-05-27
-  - Reason: Upstream glibc CVEs unfixed; suppressions have expiry dates
-  - Links:
-    - docs/security/CVE-2026-0861-glibc.md
-    - docs/security/CVE-2025-15281-glibc.md
-  - DoD:
-    - Weekly monitoring for upstream fixes
-    - Remove suppressions when fixed versions available
-    - Update base image when fixes land
-  - **Last reviewed: 2026-02-27**
-    - PR #929: Removed 4 upstream-fixed CVE suppressions (gpgv, gnutls, p11-kit)
-    - PR #930: Extended review-by dates to 2026-05-27 for unfixed CVEs
 
 <a id="ledger-p1-ai-reliability-experiment-sublane"></a>
 - [ ] P1: AI reliability experimentation sublane for logic + philosophy offline replay
