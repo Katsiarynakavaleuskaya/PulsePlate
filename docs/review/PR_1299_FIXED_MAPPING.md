@@ -19,6 +19,12 @@ Evidence: `docs/review/PR_1299_FIXED_MAPPING.md`
 Reason: CodeRabbit correctly flagged that the merge-readiness checklist inside the canonical artifact must stay open until the final merge cycle. Commit `02b5a8e8` reverted the prematurely checked boxes so the artifact no longer overstates readiness on an in-flight PR.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1299#discussion_r3027989349 -> 02b5a8e8
 
+Disposition: FIXED
+Commit: 49d6dc32
+Evidence: `frontend/src/pages/Pro/__tests__/ProPaywallPage.test.tsx`, `frontend/src/mocks/__tests__/purchase.test.ts`
+Reason: CodeRabbit's follow-up review-level summary identified two remaining low-scope hardening gaps on the current head: the `purchasePremium` mock should use a hoisted typed function instead of an `unknown[]` passthrough wrapper, and the local purchase/restore MSW fixtures should exercise their `?error=network` branches. Commit `49d6dc32` fixes both without changing runtime behavior.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1299#pullrequestreview-4050588751 -> 49d6dc32
+
 ## Merge Readiness
 - [ ] All required checks pass
 - [ ] No unresolved review threads (re-check on current head before merge)
