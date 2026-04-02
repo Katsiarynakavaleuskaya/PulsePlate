@@ -384,6 +384,84 @@ printf 'curl %s\\n' "$*" >> "{log_file}"
     )
 
 
+def test_deploy_production_keeps_shell_bundle_untouched_when_migrations_fail(
+    tmp_path: Path,
+) -> None:
+    project_dir = tmp_path / "production"
+    shell_root = project_dir.parent
+    shell_bundle_dir = tmp_path / "shell-bundle"
+    bin_dir = tmp_path / "bin"
+    log_file = tmp_path / "deploy.log"
+    project_dir.mkdir()
+    shell_bundle_dir.mkdir()
+    bin_dir.mkdir()
+    (project_dir / "docker-compose.production.yaml").write_text("services: {}\n", encoding="utf-8")
+    (project_dir / ".env").write_text(
+        "DATABASE_URL=postgresql+psycopg://pulseplate:secret@db.example.com:25060/pulseplate\n",  # pragma: allowlist secret
+        encoding="utf-8",
+    )
+    (shell_bundle_dir / "frontend").mkdir()
+    (shell_bundle_dir / "frontend" / "bundle-marker.txt").write_text(
+        "frontend-sync\n", encoding="utf-8"
+    )
+    (shell_bundle_dir / "deploy").mkdir()
+    (shell_bundle_dir / "deploy" / "Caddyfile.production").write_text(
+        'pulseplate.test {\n    respond "ok"\n}\n',
+        encoding="utf-8",
+    )
+    (shell_bundle_dir / "scripts").mkdir()
+    (shell_bundle_dir / "scripts" / "diagnose_web.sh").write_text(
+        "#!/usr/bin/env bash\nprintf 'bundle-diagnose\\n'\n", encoding="utf-8"
+    )
+    (shell_root / "frontend").mkdir()
+    (shell_root / "frontend" / "stale.txt").write_text("old-shell\n", encoding="utf-8")
+    (shell_root / "scripts").mkdir()
+    (shell_root / "scripts" / "diagnose_web.sh").write_text("stale-diagnose\n", encoding="utf-8")
+
+    docker_stub = f"""#!/usr/bin/env bash
+set -euo pipefail
+printf 'docker %s\\n' "$*" >> "{log_file}"
+case "$*" in
+  *"compose --env-file "*"-f docker-compose.production.yaml run --rm --no-deps app alembic upgrade head"*)
+    printf 'migration failed\\n' >&2
+    exit 1
+    ;;
+esac
+"""
+    curl_stub = f"""#!/usr/bin/env bash
+set -euo pipefail
+printf 'curl %s\\n' "$*" >> "{log_file}"
+"""
+    _write_executable(bin_dir / "docker", docker_stub)
+    _write_executable(bin_dir / "curl", curl_stub)
+
+    env = os.environ.copy()
+    env["PATH"] = f"{bin_dir}:{env['PATH']}"
+    env["DEPLOY_DIR"] = str(project_dir)
+    env["ENV_FILE"] = str(project_dir / ".env")
+    env["COMPOSE_FILE"] = "docker-compose.production.yaml"
+    env["IMAGE_REF"] = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:test"
+    env["TAG"] = "prod-vtest"
+    env["PRODUCTION_DOMAIN"] = "pulseplate.test"
+    env["SHELL_BUNDLE_DIR"] = str(shell_bundle_dir)
+
+    completed = subprocess.run(
+        [str(REPO_ROOT / "scripts/deploy_production.sh")],
+        cwd=str(REPO_ROOT),
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert completed.returncode == 1
+    assert (shell_root / "frontend" / "stale.txt").read_text(encoding="utf-8") == "old-shell\n"
+    assert not (shell_root / "frontend" / "bundle-marker.txt").exists()
+    assert (shell_root / "scripts" / "diagnose_web.sh").read_text(
+        encoding="utf-8"
+    ) == "stale-diagnose\n"
+
+
 def test_deploy_production_rejects_compose_local_postgres_dsn(tmp_path: Path) -> None:
     project_dir = tmp_path / "production"
     bin_dir = tmp_path / "bin"
@@ -418,6 +496,45 @@ def test_deploy_production_rejects_compose_local_postgres_dsn(tmp_path: Path) ->
 
     assert completed.returncode == 1
     assert "external managed PostgreSQL" in completed.stderr
+
+
+def test_deploy_production_rejects_compose_with_local_postgres_reference(tmp_path: Path) -> None:
+    project_dir = tmp_path / "production"
+    bin_dir = tmp_path / "bin"
+    project_dir.mkdir()
+    bin_dir.mkdir()
+    (project_dir / "docker-compose.production.yaml").write_text(
+        "services:\n  app:\n    depends_on:\n      postgres:\n        condition: service_healthy\n  postgres:\n    image: postgres:16\n",
+        encoding="utf-8",
+    )
+    (project_dir / ".env").write_text(
+        "DATABASE_URL=postgresql+psycopg://pulseplate:secret@db.example.com:25060/pulseplate\n",  # pragma: allowlist secret
+        encoding="utf-8",
+    )
+
+    docker_stub = "#!/usr/bin/env bash\nset -euo pipefail\nexit 0\n"
+    _write_executable(bin_dir / "docker", docker_stub)
+
+    env = os.environ.copy()
+    env["PATH"] = f"{bin_dir}:{env['PATH']}"
+    env["DEPLOY_DIR"] = str(project_dir)
+    env["ENV_FILE"] = str(project_dir / ".env")
+    env["COMPOSE_FILE"] = "docker-compose.production.yaml"
+    env["IMAGE_REF"] = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:test"
+    env["TAG"] = "prod-vtest"
+    env["PRODUCTION_DOMAIN"] = "pulseplate.test"
+
+    completed = subprocess.run(
+        [str(REPO_ROOT / "scripts/deploy_production.sh")],
+        cwd=str(REPO_ROOT),
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert completed.returncode == 1
+    assert "still references local postgres" in completed.stderr
 
 
 def test_diagnose_web_reports_green_for_spa_and_api_contract(tmp_path: Path) -> None:

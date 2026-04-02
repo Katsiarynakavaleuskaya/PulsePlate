@@ -167,6 +167,12 @@ wait_for_app_ready() {
 }
 
 validate_managed_postgres_contract() {
+  local compose_file_path=""
+
+  if [ ${#compose_args[@]} -gt 0 ]; then
+    compose_file_path="${compose_args[1]}"
+  fi
+
   case "$DATABASE_URL" in
     postgresql+psycopg://*)
       ;;
@@ -182,15 +188,18 @@ validate_managed_postgres_contract() {
       exit 1
       ;;
   esac
+
+  if [ -n "$compose_file_path" ] && grep -qE '^[[:space:]]+postgres:' "$compose_file_path"; then
+    echo "❌ Production compose still references local postgres; canonical lane is managed PostgreSQL only" >&2
+    exit 1
+  fi
 }
-
-echo "Pulling production app image..."
-dc pull app
-
-sync_shell_bundle
 
 echo "Validating managed PostgreSQL production contract..."
 validate_managed_postgres_contract
+
+echo "Pulling production app image..."
+dc pull app
 
 echo "Production DB backups are managed outside the deploy script (provider snapshots / PITR)."
 
@@ -202,6 +211,8 @@ else
   echo "❌ Database migrations failed (exit code: $migration_exit_code)" >&2
   exit "$migration_exit_code"
 fi
+
+sync_shell_bundle
 
 echo "Starting app before exposing traffic..."
 dc up -d --remove-orphans app

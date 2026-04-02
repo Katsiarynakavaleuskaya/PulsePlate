@@ -64,9 +64,9 @@ curl -fsS "https://${PRODUCTION_DOMAIN}/ready" | jq .
 
 ## 🔐 Security Notes
 
-- Используйте сильный `POSTGRES_PASSWORD` и храните `.env` с правами `600`.
+- Храните managed PostgreSQL credentials only inside `DATABASE_URL` and keep `.env` permissions at `600`.
 - Проверяйте readiness через `/ready` или `/health/db`, а не через liveness-only `/health`.
-- Не удаляйте `depends_on: postgres` из production compose: приложение должно ждать healthy DB.
+- Не добавляйте `depends_on: postgres` или local `postgres` service обратно в canonical production compose.
 
 ## 📝 Чеклист
 
