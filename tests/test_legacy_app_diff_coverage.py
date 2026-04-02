@@ -18,6 +18,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 
 import legacy_app
+from app.routers.legal import build_terms_endpoint_payload
 
 
 def test_language_cookie_has_samesite_and_secure_guard() -> None:
@@ -28,6 +29,12 @@ def test_language_cookie_has_samesite_and_secure_guard() -> None:
     assert "SameSite=Lax" in resp.text
     assert "window.location.protocol === 'https:'" in resp.text
     assert "; Secure" in resp.text
+
+
+@pytest.mark.asyncio
+async def test_terms_wrapper_matches_canonical_helper() -> None:
+    """Cover legacy /terms wrapper lines used by diff-cover in PR CI."""
+    assert await legacy_app.terms() == build_terms_endpoint_payload().model_dump()
 
 
 def test_export_pdf_generic_requires_api_key() -> None:
