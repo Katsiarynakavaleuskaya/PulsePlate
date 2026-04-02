@@ -8,7 +8,7 @@
 Disposition: FIXED
 Commit: 15de9223
 Evidence: `docs/roadmap/BACKLOG_LEDGER.md`, `docs/roadmap/PulsePlate_P0_P1_Execution_Document_2026-03-30.md`, `docs/analysis/FRONTEND_IOS_VISUAL_ANALYSIS.md`, `docs/audit/PR_WEB_PROGRESS_CLOSEOUT_AUDIT_2026-04-02.md`, `docs/review/PR_1301_FIXED_MAPPING.md`
-Reason: Sourcery and CodeRabbit raised two narrow docs/governance issues on the current head: the closed ledger item still used a placeholder target PR label, and the changed markdown docs still contained numbering/heading patterns that violate markdownlint conventions. The same fix pack also normalizes the closeout packet wording around the shared web progress runtime truth so the audit and review artifacts do not drift.
+Reason: Sourcery and CodeRabbit raised two narrow docs/governance issues on the current head: the closed ledger item still used a placeholder target PR label, and the changed Markdown docs still contained numbering/heading patterns that violate markdownlint conventions. The same fix pack also normalizes the closeout packet wording around the shared web progress runtime truth so the audit and review artifacts do not drift.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1301#pullrequestreview-4051808021 -> 15de9223
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1301#discussion_r3029109125 -> 15de9223
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1301#pullrequestreview-4051824357 -> 15de9223

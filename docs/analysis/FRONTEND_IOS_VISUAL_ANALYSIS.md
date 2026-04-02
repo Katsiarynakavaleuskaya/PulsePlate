@@ -652,19 +652,23 @@
 
 ## 🎯 Приоритетные действия
 
-### Immediate Actions (This Week)
+### Immediate Actions (Post-Gate Window)
 
-1. **P0 CRITICAL**
+Do not start this follow-up lane before the upstream remediation and cleanup
+sequence is merged, backend guards are green, and `make verify` passes. The
+roadmap order remains strict: PR-A -> PR-B -> PR-C -> PR-D.
+
+1. **P0 CRITICAL (after backend stabilization gates)**
    - Реализовать Home page (dashboard)
    - Реализовать Progress page (backend API + графики)
    - Добавить брендинг (FitChef, слоган, ECG)
 
-2. **P1 HIGH**
+2. **P1 HIGH (post-gate)**
    - Реализовать Profile page
    - Подключить Daily Plate к API
    - Добавить анимации (Lottie, pulse)
 
-### Short-Term (Next Month)
+### Short-Term (After P0 Gate Completion)
 
 1. **P1 MEDIUM**
    - Реализовать Sports Nutrition UI
