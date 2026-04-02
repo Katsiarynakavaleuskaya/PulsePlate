@@ -14,12 +14,12 @@
 - **Frontend (Web):** 25% (много скелетов, отсутствует графика)
 - **iOS:** 50% (более развит, но много "Coming soon")
 - **Графика/Анимации:** 30% (базовые компоненты, нет брендинга)
-- **Соответствие бэкенду:** 60% (используются правильные endpoints, но много mock данных)
+- **Соответствие бэкенду:** 65% (часть stale mock narrative уже закрыта на web, но остаются скелеты и неподключённые поверхности)
 
 **Критические пробелы:**
 - ❌ Большинство страниц — скелеты ("Скелет страницы", "Coming soon")
 - ❌ Нет брендинга (FitChef только в iOS, нет во frontend)
-- ❌ Нет графики (ProgressCharts использует mock данные)
+- ⚠️ Нет реальной графики в release path (web progress теперь скрывает charts до появления real data)
 - ❌ Нет визуальных элементов (ECG, pulse animations отсутствуют)
 
 ---
@@ -35,7 +35,7 @@
 | **Home** | ❌ Скелет | Только текст | Нет | Нет | 10% |
 | **Profile** | ❌ Скелет | Только текст | Нет | Нет | 10% |
 | **Plate** | ⚠️ Базовая | PremiumGate | Нет | Нет | 20% |
-| **Progress** | ⚠️ Частично | ProgressCharts (mock) | Export PDF | Нет (mock) | 40% |
+| **Progress** | ⚠️ Частично | Trusted empty state | Export PDF (disabled) | Нет release chart endpoint | 45% |
 | **BMI Calculate** | ✅ Работает | Форма + результат | Submit, Reset | ✅ `/api/v1/bmi/calculate` | 80% |
 | **Nutrition Setup** | ✅ Работает | PlateChart, MacroCards | Calculate, Edit | ✅ `/api/v1/pro/nutrition/targets`, `/api/v1/pro/nutrition/plate` | 75% |
 | **Weekly Plan** | ⚠️ Частично | Список дней/блюд | Copy, Download | ✅ `/api/v1/pro/meal/weekly` | 60% |
@@ -62,10 +62,10 @@
    - ✅ Accessibility (ARIA labels)
 
 3. **ProgressCharts** (`features/progress/ProgressCharts.tsx`)
-   - ✅ LineChart (weight/BMI trends)
-   - ✅ BarChart (calorie balance)
-   - ✅ PieChart (macronutrient distribution)
-   - ⚠️ **НО:** Использует **mock данные** (не подключен к backend)
+   - ✅ Trusted empty state для release-safe web path
+   - ✅ Export PDF кнопка остаётся disabled до появления live data
+   - ✅ Явная copy-formula: charts скрыты до появления реальных nutrition/weight данных
+   - ⚠️ Dedicated backend history/chart contract по-прежнему не подключён
 
 4. **TabBar** (`components/TabBar.tsx`)
    - ✅ Навигация между страницами
@@ -260,17 +260,17 @@
 | `BMICalculatePage` | `/api/v1/bmi/calculate` | ✅ Правильно | Нет |
 | `NutritionSetup` | `/api/v1/pro/nutrition/targets`<br>`/api/v1/pro/nutrition/plate` | ✅ Правильно | Нет |
 | `WeeklyPlanViewer` | `/api/v1/pro/meal/weekly` | ✅ Правильно (мигрировано) | Нет |
-| `ProgressCharts` | ❌ Нет endpoint | ❌ **Mock данные** | Нет backend API для progress |
+| `ProgressCharts` | ❌ Нет endpoint | ⚠️ **Trusted empty state** | Нет backend API для chart/history progress |
 | `Home` | ❌ Нет endpoint | ❌ Нет функциональности | Страница — скелет |
 | `Profile` | ❌ Нет endpoint | ❌ Нет функциональности | Страница — скелет |
 | `Plate` | `/api/v1/pro/nutrition/daily` | ⚠️ Не используется | Страница — заглушка |
 
 **Проблемы:**
 
-1. **ProgressCharts использует mock данные**
-   - Нет backend API для progress tracking
-   - Данные hardcoded в компоненте
-   - Нет интеграции с реальными данными
+1. **ProgressCharts больше не показывает fabricated charts, но backend history всё ещё не реализован**
+   - Release path показывает явный trusted empty state
+   - Export intentionally disabled until real progress data exists
+   - Backend API для chart/history progress всё ещё отсутствует
 
 2. **Home/Profile — скелеты**
    - Нет backend endpoints
@@ -343,11 +343,11 @@
    - iOS: ❌ Нет экрана/компонента
    - Backend: ✅ Код готов (`core/sports_nutrition.py`)
 
-2. **Progress Tracking** — ❌ Не реализовано
+2. **Progress Tracking** — ⚠️ Частично закрыто
    - Анализ: `docs/analysis/DOMAIN_ANALYSIS.md` — Progress tracking domain
-   - Фронтенд: ⚠️ `ProgressCharts` использует **mock данные**
+   - Фронтенд: ⚠️ web release path показывает trusted empty state вместо fabricated charts
    - iOS: ❌ `ProgressViewPP` — "Charts coming…"
-   - Backend: ❌ Нет endpoint для progress tracking
+   - Backend: ❌ Нет dedicated endpoint для progress tracking/history
 
 3. **Bayesian Adherence** — ❌ Не реализовано
    - Анализ: `docs/analysis/CORE_MODULES_ANALYSIS_REVIEW.md` — "Bayesian Adherence Domain"
@@ -476,22 +476,22 @@
 
 ---
 
-### 3. ❌ Нет графики (mock данные)
+### 3. ⚠️ Нет реальной progress-графики в release path
 
 **Проблема:**
-- `ProgressCharts.tsx` использует **hardcoded mock данные**
-- Нет backend API для progress tracking
-- iOS `ProgressViewPP` — "Charts coming…"
+- `ProgressCharts.tsx` больше не использует fabricated charts, но и не подключён к backend history/chart API
+- Web release path intentionally hides charts until real data exists
+- iOS `ProgressViewPP` всё ещё не подтверждён как parity-runtime с web
 
 **Влияние:**
-- Пользователи видят фиктивные данные
-- Нет реального progress tracking
-- Плохой UX
+- Пользователи больше не видят фиктивные данные
+- Longitudinal progress tracking как feature всё ещё не реализован
+- UX безопаснее для release truth, но остаётся intentionally minimal
 
 **Рекомендация:**
-- Создать backend API для progress tracking
-- Подключить `ProgressCharts` к реальным данным
-- Реализовать iOS progress charts
+- Не возвращать fabricated charts в release path
+- Если product later решит развивать progress, делать это отдельным backend/history lane
+- iOS progress не выравнивать по narrative с web без отдельного runtime evidence
 
 ---
 

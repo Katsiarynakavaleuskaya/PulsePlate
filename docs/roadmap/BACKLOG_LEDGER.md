@@ -199,23 +199,26 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Funnel/recovery UX stays additive and contract-safe
 
 <a id="ledger-p0-web-progress-contract"></a>
-- [ ] P0: Web progress route must not ship demo-grade health data
+- [x] P0: Web progress route must not ship demo-grade health data
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0
-  - Target PR: PR-TBD-WEB-PROGRESS-CONTRACT
+  - Target PR: PR-TBD-WEB-PROGRESS-CONTRACT-CLOSEOUT
   - Area: frontend / progress UX / trust
   - Finding Type: user-facing data integrity gap
-  - Reason: The live progress route still renders hard-coded mock chart data, which makes the product feel demo-only and creates a direct trust/conversion risk on a health-facing surface.
+  - Status: ✅ Runtime closeout already landed on `main`; this docs-only lane reconciles roadmap/design/audit truth to the shipped release-safe behavior.
+  - Reason: The release path no longer renders fabricated progress charts. Current web behavior is an explicit trusted empty state with export disabled until real data exists, so the remaining gap is documentation drift rather than a new frontend/backend feature lane.
   - Links:
     - `frontend/src/features/progress/ProgressCharts.tsx`
     - `frontend/src/pages/Progress.tsx`
     - `frontend/src/features/progress/__tests__/ProgressCharts.test.tsx`
+    - `docs/audit/PR_WEB_PROGRESS_CLOSEOUT_AUDIT_2026-04-02.md`
     - `docs/analysis/FRONTEND_IOS_VISUAL_ANALYSIS.md`
   - DoD:
-    - Progress route renders backend-fed data or explicit empty/loading states instead of fabricated chart fixtures
-    - Tests no longer lock demo-only values as release behavior
+    - Progress route renders explicit empty/loading states instead of fabricated chart fixtures in the release path
+    - Tests lock the trusted empty-state behavior rather than demo-only chart values
     - UX remains clear when historical data is absent
     - Release screenshots/copy cannot imply fabricated trend data
+    - Future backend-fed history/chart work remains a separate optional lane and is not claimed as implemented here
 
 <a id="ledger-p0-eu-compliance-control-plane-follow-through"></a>
 - [ ] P0: EU-first compliance control plane follow-through
