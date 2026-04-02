@@ -50,8 +50,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P0: Payment rails for RU/BY + iOS-first monetization baseline
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0 (revenue continuity)
-  - Target PR: PR #1182 (B1 baseline) -> PR #1295 (main bootstrap blocker) -> PR-TBD-BILLING-ACTIVATION-PERSISTENCE-CLOSEOUT -> PR-TBD-BILLING-ENTITLEMENT-ROUTING
-  - Status: B1 baseline closed (PR #1182); PR #1295 must merge first; the next lane closes activation + persistence only. Entitlement routing remains separate: `ledger-p0-billing-entitlement-routing`.
+  - Target PR: PR #1182 (B1 baseline) -> PR #1295 (main bootstrap blocker) -> PR #1296 (activation/persistence closeout) -> PR-TBD-BILLING-ENTITLEMENT-ROUTING
+  - Status: B1 baseline closed (PR #1182); bootstrap blocker landed via PR #1295; activation + subscription persistence truth merged in PR #1296; next real closeout lane is entitlement routing. Evidence: `docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md`, `app/services/payments_activation.py:1`, `tests/test_paid_route_guards.py:1`. Entitlement routing remains separate: `ledger-p0-billing-entitlement-routing`.
   - Carryover: PR #1005 keeps only the `RUBY` -> `RU_BY` identifier cleanup so the ledger stays aligned with the existing payments contract naming.
   - Reason (EN): Current business reality requires region-adapted payment rails: iOS as primary automated channel, RU/BY payments via eRIP (QR to account) and SWIFT card transfer fallback. Canonical billing flow must support these rails before global providers expansion. (RU: Текущий источник оплат: iOS + RU/BY локальные каналы (ЕРИП/QR и SWIFT). Нужен канонический billing baseline под эту реальность до расширения на глобальные провайдеры.)
   - Links:
@@ -68,7 +68,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - app/services/payments_activation.py:1
   - Prerequisites:
     - ✅ Tier activation contract exists (FREE/PRO/VIP)
-    - ⏳ Unified billing activation service is finalized for source-specific receipts
+    - ✅ Unified billing activation service is finalized for source-specific receipts
   - DoD:
     - Canonical source model documented: `ios_app_store`, `erip_qr`, `swift_manual`
     - `activate_subscription()` contract supports all three sources with deterministic audit trail
@@ -77,10 +77,11 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Runtime test plan is locked before implementation (`test_payment_source_contract_api`, `test_subscription_activation_api`, `test_ios_receipt_verification_api`, `test_payment_webhook_signature_api`, `test_payment_reconciliation_api`)
 
 <a id="ledger-p0-billing-activation-service"></a>
-- [ ] P0: Billing activation service follow-through after Apple verify
+- [x] P0: Billing activation service follow-through after Apple verify
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0
-  - Target PR: PR-TBD-BILLING-ACTIVATION-PERSISTENCE-CLOSEOUT (PR3 after #1295)
+  - Target PR: PR #1296
+  - Status: ✅ Merged (PR #1296, 2026-04-02)
   - Area: backend / payments / activation
   - Finding Type: monetization chain gap
   - Reason: The verify-only PR intentionally stops before activation side effects, so the next runtime segment must consume the normalized Apple verification payload and activate paid access deterministically.
@@ -97,10 +98,11 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Activation readback is derived from persisted `subscriptions` plus `subscription_activation_audit`
 
 <a id="ledger-p0-billing-subscription-persistence"></a>
-- [ ] P0: Subscription persistence for billing activation outcomes
+- [x] P0: Subscription persistence for billing activation outcomes
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0
-  - Target PR: PR-TBD-BILLING-ACTIVATION-PERSISTENCE-CLOSEOUT (PR3 after #1295)
+  - Target PR: PR #1296
+  - Status: ✅ Merged (PR #1296, 2026-04-02)
   - Area: backend / payments / persistence
   - Finding Type: subscription state gap
   - Reason: Verification responses are activation-ready, but canonical subscription state still lacks durable persistence for user, tier, platform, expiry, and receipt-linked audit fields.
@@ -122,7 +124,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0
   - Target PR: PR-TBD-BILLING-ENTITLEMENT-ROUTING
-  - Status: Explicitly out of scope for PR3 activation/persistence closeout.
+  - Status: 📋 Next real PR after merged activation/persistence closeout in `#1296`
   - Area: backend / authz / routing
   - Finding Type: access-control gap
   - Reason: The release spine still needs entitlement truth and protected routing after activation so paid users reach the correct guarded surfaces without client-side unlock shortcuts. Deploy/readiness audit also shows that production entitlement mode still needs a fail-closed contract for `SUBSCRIPTION_DB_ENABLED`, and RU/BY manual billing needs an explicit pre-entitlement/user-facing routing decision instead of relying on ambiguous PRO-only entrypoints.
@@ -7471,6 +7473,24 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - PR body mirror is optional and no longer creates late-cycle mapping duplication failures
     - The mirror helper validates the canonical artifact before rendering a PR-body block
     - CI guidance explicitly distinguishes canonical SoT vs human-readable mirror
+
+<a id="ledger-p2-pr1298-doc-governance-followup"></a>
+- [ ] P2: PR #1298 docs/governance follow-up for audit evidence dedup and PR1-PR4 SoT labeling
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR-TBD-DOCS-GOVERNANCE-PR1298-FOLLOWUP
+  - Area: docs / governance
+  - Reason (EN): Post-open bot review on PR `#1298` surfaced two valid but non-blocking documentation refinements: the PR4 audit packet repeats some `file:line` evidence anchors inline and in evidence lists, and the PR1-PR4 sequencing narrative is mirrored across several docs without one clearly labeled canonical source note. Both improvements are outside the narrow entitlement-routing closeout scope and should land in a separate docs-only follow-up.
+  - Status: Deferred from PR `#1298` on 2 April 2026; current closeout lane keeps the runtime/authz scope narrow and records the follow-up explicitly instead of widening the packet late.
+  - Links:
+    - `docs/audit/PR4_ENTITLEMENT_ROUTING_CLOSEOUT_AUDIT_2026-04-02.md`
+    - `docs/roadmap/BACKLOG_LEDGER.md`
+    - `docs/roadmap/PulsePlate_P0_P1_Execution_Document_2026-03-30.md`
+    - `docs/review/PR_1298_FIXED_MAPPING.md`
+  - DoD:
+    - The follow-up chooses and labels one canonical PR1-PR4 sequence source across the closeout packet docs
+    - Repeated audit evidence anchors are reduced without weakening `file:line` proof requirements
+    - The resulting docs-only change does not alter runtime authz, OpenAPI, or billing behavior
 
 <a id="ledger-p2-clean-clone-dependency-parity"></a>
 - [x] P2: Restore deterministic clean-clone dependency parity for local verify
