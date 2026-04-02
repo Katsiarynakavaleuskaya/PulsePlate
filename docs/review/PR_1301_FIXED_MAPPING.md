@@ -42,6 +42,18 @@ Evidence: `docs/analysis/FRONTEND_IOS_VISUAL_ANALYSIS.md`, `docs/review/PR_1301_
 Reason: The latest CodeRabbit summary review consolidated two real follow-ups from the current head snapshot: the post-gate sequencing language in the analysis packet and the `Markdown` capitalization fix in this artifact. Commit `3fd28eb6` applies those narrow docs-only adjustments.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1301#pullrequestreview-4051920285 -> 3fd28eb6
 
+Disposition: NOT-A-BUG
+Evidence: `docs/review/PR_1301_FIXED_MAPPING.md:11`
+Reason: The capitalization thread for `Markdown` is already satisfied on current head. CodeRabbit itself marks `discussion_r3029238264` as addressed in commits `3fd28eb` to `163d9d8`, so no additional follow-up beyond the existing artifact evidence is required.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1301#discussion_r3029238264
+
+Disposition: FIXED
+Commit: cfd4b4cd
+Evidence: `docs/review/PR_1301_FIXED_MAPPING.md:10`, `docs/review/PR_1301_FIXED_MAPPING.md:29`
+Reason: The latest artifact cleanup round tightened the first FIXED block with precise `file:line` anchors and removed the redundant `needed required` phrasing in the cubic NOT-A-BUG block. That satisfies the remaining actionable parts of the newest CodeRabbit review round.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1301#pullrequestreview-4051959067 -> cfd4b4cd
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1301#discussion_r3029238272 -> cfd4b4cd
+
 ## Merge Readiness
 - [ ] All required checks pass
 - [ ] No unresolved review threads (re-check on current head before merge)
