@@ -8,7 +8,11 @@
 Disposition: NOT-A-BUG
 Evidence: `docs/review/PR_1298_FIXED_MAPPING.md`
 Reason: Initial post-open pass found no actionable review comments on PR `#1298` at artifact creation time.
-- No actionable review comments
+
+Disposition: FIXED
+Commit: `ed3f121d`
+Evidence: `docs/audit/PR4_ENTITLEMENT_ROUTING_CLOSEOUT_AUDIT_2026-04-02.md`
+Reason: The post-open bug-hunter pass found one actionable docs defect on the opened PR: the audit packet used absolute local filesystem links that do not work in GitHub review context. Commit `ed3f121d` removed those links and kept repo-portable `file:line` evidence only.
 
 Mandatory post-open review lane for this packet:
 - `qa-engineer-agent -> bug-hunter`
