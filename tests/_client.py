@@ -6,6 +6,7 @@ Prevents bypassing /metrics registration, middleware, and lifespan wiring.
 
 from __future__ import annotations
 
+import os
 from typing import Any
 
 from fastapi import FastAPI
@@ -13,7 +14,15 @@ from fastapi.testclient import TestClient
 
 
 def disable_rate_limiting_for_test_app(app_instance: FastAPI) -> None:
-    """Force shared and app-bound rate limiters off for test clients."""
+    """Force shared and app-bound rate limiters off for default test clients."""
+    if os.getenv("RATE_LIMITING_IN_TESTS", "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }:
+        return
+
     from app.security import rate_limit as rate_limit_mod
 
     shared_limiter = getattr(rate_limit_mod, "limiter", None)

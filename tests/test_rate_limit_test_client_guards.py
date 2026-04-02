@@ -1,7 +1,10 @@
 """Guards for test-client limiter neutralization seams."""
 
+import os
+
 from typing import cast
 
+import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
@@ -11,6 +14,9 @@ from tests._client import disable_rate_limiting_for_test_app, get_client
 
 def test_get_client_disables_shared_rate_limiter() -> None:
     """Guard: canonical get_client() must keep shared limiter disabled in tests."""
+    if os.getenv("RATE_LIMITING_IN_TESTS", "").strip().lower() in {"1", "true", "yes", "on"}:
+        pytest.skip("Dedicated rate-limit suites opt in via RATE_LIMITING_IN_TESTS=true")
+
     import app.main
     from app.security import rate_limit as rate_limit_mod
 
@@ -31,6 +37,9 @@ def test_get_client_disables_shared_rate_limiter() -> None:
 
 def test_disable_rate_limiting_helper_covers_app_surface() -> None:
     """Guard: direct app client seams must also disable shared limiter in tests."""
+    if os.getenv("RATE_LIMITING_IN_TESTS", "").strip().lower() in {"1", "true", "yes", "on"}:
+        pytest.skip("Dedicated rate-limit suites opt in via RATE_LIMITING_IN_TESTS=true")
+
     from app.security import rate_limit as rate_limit_mod
 
     app_instance = cast(FastAPI, app_mod.app)
@@ -48,3 +57,32 @@ def test_disable_rate_limiting_helper_covers_app_surface() -> None:
         assert limiter_on_state is None or getattr(limiter_on_state, "enabled", False) is False
 
         assert shared_limiter is None or getattr(shared_limiter, "enabled", False) is False
+
+
+def test_disable_rate_limiting_helper_respects_explicit_test_opt_in(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Guard: helper must not disable dedicated 429 suites that opt in explicitly."""
+    from app.security import rate_limit as rate_limit_mod
+
+    monkeypatch.setenv("RATE_LIMITING_IN_TESTS", "true")
+
+    app_instance = cast(FastAPI, app_mod.app)
+    shared_limiter = getattr(rate_limit_mod, "limiter", None)
+    limiter_on_state = getattr(app_instance.state, "limiter", None)
+
+    if shared_limiter is not None:
+        shared_limiter.enabled = True
+    if limiter_on_state is not None:
+        limiter_on_state.enabled = True
+
+    try:
+        disable_rate_limiting_for_test_app(app_instance)
+
+        assert shared_limiter is None or getattr(shared_limiter, "enabled", False) is True
+        assert limiter_on_state is None or getattr(limiter_on_state, "enabled", False) is True
+    finally:
+        if shared_limiter is not None:
+            shared_limiter.enabled = False
+        if limiter_on_state is not None:
+            limiter_on_state.enabled = False
