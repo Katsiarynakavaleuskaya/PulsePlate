@@ -1,6 +1,6 @@
 # Payments RU/BY + iOS Baseline Contract
 
-- Status: Runtime W1 implemented; B1 baseline closed. B2 (Apple verify activation-contract) implemented.
+- Status: Runtime W1 implemented; B1 baseline closed; Apple verify activation-contract implemented; PR3 scope is activation + persistence closeout only.
 - Owner: `@katsiaryna_kavaleuskaya`
 - Canonical dependency: `docs/contracts/PRODUCT_TIER_MAP.md`
 - Program phase: P0 revenue continuity baseline.
@@ -28,6 +28,7 @@ Implemented endpoints (evidence: `app/routers/billing.py`, `app/routers/pro_paym
 2. `POST /api/v1/pro/payments/ru-by/manual-intent` — runtime W1 manual intent
 3. `POST /api/v1/pro/payments/ru-by/reconcile` — runtime W1 reconciliation
 4. `GET /api/v1/pro/payments/ru-by/reconcile/{intent_id}` — runtime W1 reconciliation status
+5. `GET /api/v1/pro/payments/activations/{activation_id}` — current persisted entitlement readback for an activation lineage
 
 Legacy behavior remains unchanged; additive surface is non-breaking.
 
@@ -88,34 +89,44 @@ Input envelope (source-specific payload inside one canonical contract):
 }
 ```
 
-Output envelope (source-agnostic):
+Output envelope (runtime canonical readback / activation response):
 
 ```json
 {
-  "status": "activated | pending_reconciliation | rejected",
-  "subscription_tier": "pro | vip",
+  "activation_id": "uuid",
+  "status": "pending_manual_review | pending_verification | active | expired | cancelled | rejected",
+  "tier": "pro | vip",
   "source": "ios_app_store | erip_qr | swift_manual",
+  "subscription_tier": "pro | vip",
+  "reconcile_status": "pending | verified | rejected | not_required",
   "audit_id": "uuid",
-  "effective_at": "ISO-8601",
-  "reason_code": "optional"
+  "activated_at": "ISO-8601 | null",
+  "expires_at": "ISO-8601 | null"
 }
 ```
 
 `subscription_tier` reflects the requested paid tier implied by `plan`, not a fallback effective access tier.
+
+### Persisted truth and readback contract
+
+1. Backend persisted truth lives in `subscriptions` plus append-only `subscription_activation_audit`.
+2. `GET /api/v1/pro/payments/activations/{activation_id}` and `GET /api/v1/pro/payments/ru-by/reconcile/{intent_id}` must derive current state from persisted subscription state plus the latest audit event for that subscription lineage.
+3. In-memory shadow state is forbidden as entitlement truth or reconcile-readback truth.
+4. Manual reconcile remains a billing-state transition only; it does not itself widen scope into entitlement-backed routing.
 
 ## 4. Reconciliation Status Lifecycle
 
 For manual rails (`erip_qr`, `swift_manual`). Runtime enum: `ReconcileStatus` in `app/schemas/payments.py` (pending, verified, rejected, not_required).
 
 ```text
-draft_intent -> pending_reconciliation -> verified -> activated
-                                 \-> rejected
+status: pending_manual_review -> active | rejected
+reconcile_status: pending -> verified | rejected | not_required
 ```
 
 Lifecycle invariants:
-1. `verified` can be reached only with immutable `external_txn_id` and evidence payload.
-2. `activated` is idempotent for identical `(user_id, source, external_txn_id, plan)`.
-3. Reconcile retry is safe and cannot duplicate entitlements.
+1. `reconcile_status=verified` can be reached only with immutable `external_txn_id` and evidence payload.
+2. Business `status=active` is idempotent for identical `(user_id, source, external_txn_id, plan)`.
+3. Reconcile retry is safe and cannot duplicate entitlements even when `reconcile_status` is retried.
 
 ## 5. Webhook/Signature and Idempotency Contract
 
@@ -147,7 +158,7 @@ Lifecycle invariants:
 ```
 
 Semantic note:
-1. In activation responses, `status` is business-state (`activated | pending_reconciliation | rejected`).
+1. In activation responses, `status` is business-state (`pending_manual_review | pending_verification | active | expired | cancelled | rejected`).
 2. In error responses, `status` is transport-state (`error`), while `code` is machine-readable error type.
 
 ## 7. Security and Compliance Notes
@@ -179,20 +190,23 @@ Required runtime PR gates:
 1. Keep existing client contracts intact while additive billing routes roll out.
 2. Feature-flag runtime activation paths until reconciliation flow is validated on staging.
 3. Promote manual rails only after deterministic reconciliation tests are stable.
+4. Activation/persistence closeout is separate from entitlement routing, frontend/web entitlement truth, and App Store modernization.
 
 ## 10. Backlog / Action Items (temporary seam control)
 
 1. Primary implementation track: `docs/roadmap/BACKLOG_LEDGER.md#ledger-p0-payments-ruby-ios`.
 2. Apple verify activation-contract: B2 implemented; verify returns IOSVerifiedActivationResult in activation_payload when verified.
 3. iOS subscription manager integration path: `PR-TBD-IOS-SUBSCRIPTION-MANAGER`.
-4. B1 baseline status: runtime handlers merged, reconciliation tests merged, OpenAPI billing surfaces generated. Webhook signature contract test added in B1.
+4. Activation/persistence closeout remains a backend-only lane; entitlement routing, frontend/web entitlement truth, and App Store modernization stay out of scope.
+5. B1 baseline status: runtime handlers merged, reconciliation tests merged, OpenAPI billing surfaces generated. Webhook signature contract test added in B1.
 
 ## 11. Exit Criteria
 
 1. Runtime implementation PR for `#ledger-p0-payments-ruby-ios` is merged.
 2. Runtime tests listed in section 8 are green in CI.
 3. `make openapi` + `make openapi-check` + `make verify` pass on runtime billing PR.
-4. Backlog item state is updated from in-progress to done with merge evidence.
+4. Activation and subscription persistence ledger items are closed with merge evidence.
+5. Entitlement routing remains tracked separately and is not silently closed by the activation/persistence lane.
 
 ## 12. Runtime W1 Namespace Lock
 

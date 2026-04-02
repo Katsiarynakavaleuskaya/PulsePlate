@@ -355,6 +355,16 @@ def _delete_subscription_for_user_source(*, user_id: int, source: str) -> None:
         session.close()
 
 
+def test_activation_service_has_no_shadow_activation_state() -> None:
+    """Activation runtime must not regress to in-memory shadow truth.
+
+    RU: Entitlement/readback truth должна оставаться только в persisted state.
+    EN: Entitlement/readback truth must stay in persisted state only.
+    """
+
+    assert not hasattr(payments_activation, "_ACTIVATIONS")
+
+
 def _premium_week_payload() -> dict[str, Any]:
     return {
         "targets": {
