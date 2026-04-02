@@ -632,6 +632,10 @@ Circular progress ring overlay.
 
 Figma Component Set: `PP/Web/DataViz/ProgressCharts`
 
+Note: this section describes the target design language for a future chart-rich
+progress surface. Current shipped web runtime does not render fabricated charts;
+it uses a trusted empty state until real progress data exists.
+
 Three chart types in a stacked layout.
 
 **LineChart (Weight/BMI Trends):**
@@ -1492,7 +1496,7 @@ Status claims below are target/roadmap assessments based on codebase analysis; f
 | **GlassCard** | Implemented | Implemented | - |
 | **TabBar/Navigation** | Implemented | Implemented | - |
 | **PlateChart** | Implemented | Implemented (PlateSegments) | - |
-| **ProgressCharts** | Implemented (mock data) | Skeleton only | P0-A |
+| **ProgressCharts** | Trusted empty state in release path; chart-rich design remains target-only | Skeleton only | P0-A |
 | **PremiumGate** | Implemented | N/A (StoreKit paywall) | - |
 | **SoftPaywallHook** | Implemented | Implemented | - |
 | **BeforeAfter Modal** | Implemented | N/A | - |

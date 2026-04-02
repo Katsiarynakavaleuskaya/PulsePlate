@@ -14,8 +14,10 @@ Status: operator execution map
 - PR1 Postgres foundation is already merged; do not reopen it inside the authz closeout lane.
 - PR2 deploy shell lane materially landed via `#1293`, with the extra CD env-token follow-up in `#1297`.
 - PR3 activation + persistence truth merged as `#1296`; shadow runtime truth is removed from the active monetization critical path.
-- The next real implementation PR is PR4: entitlement-backed routing after billing activation.
-- After PR4, the sequence moves to web entitlement truth, legal/release shell follow-through, App Store/provider modernization, and only then the remaining AI waves.
+- PR4 is no longer pending implementation; that closeout merged as `#1298`.
+- PR4 closeout landed as docs/authz packet `#1298`, and web entitlement truth hardening landed via `#1299`.
+- Web progress no longer ships fabricated charts on the release path; the current lane is a docs-only closeout that reconciles stale narrative to the trusted empty-state runtime truth.
+- After this closeout, the next active lane moves to `docs/legal-policy-publish`, then App Store/provider modernization, and only then the remaining AI waves.
 - WebSocket foundation is no longer a stub-only surface; it is sufficiently wired for foundation scope, but it is not the current release priority.
 
 ## Source of truth order
@@ -42,36 +44,36 @@ Status: operator execution map
 3. `docs/release-env-security-contract` only if it blocks deploy truth on staging/production
 
 ### Wave 2 — Backend monetization follow-through
-4. `feat/billing-activation-and-persistence`
-5. `feat/billing-entitlement-routing`
+1. `feat/billing-activation-and-persistence`
+2. `feat/billing-entitlement-routing`
 
 ### Wave 3 — Web truth
-6. `feat/web-entitlement-truth`
-7. `feat/web-progress-contract`
+1. `feat/web-entitlement-truth`
+2. `docs/web-progress-contract-closeout`
 
 ### Wave 4 — Legal / release shell
-8. `docs/legal-policy-publish`
-9. `feat/eu-compliance-control-plane-followthrough`
-10. `docs/ios-subscription-offers-governance`
-11. `feat/ios-appstore-assets-rollout`
-12. `feat/ios-appstore-semantic-validators`
-13. `feat/apple-server-api-migration`
+1. `docs/legal-policy-publish`
+2. `feat/eu-compliance-control-plane-followthrough`
+3. `docs/ios-subscription-offers-governance`
+4. `feat/ios-appstore-assets-rollout`
+5. `feat/ios-appstore-semantic-validators`
+6. `feat/apple-server-api-migration`
 
 ### Wave 5 — API / contract truth
-14. `chore/openapi-runtime-sync`
-15. `feat/openapi-decoupling-split`
+1. `chore/openapi-runtime-sync`
+2. `feat/openapi-decoupling-split`
 
 ### Wave 6 — AI follow-through
-16. `feat/insight-fallback-chain`
-17. `feat/rag-hardening-followthrough`
-18. `docs/ai-bounded-context-packet`
-19. `feat/ai-bounded-context-extraction`
-20. `feat/llm-reliability-security-gates`
+1. `feat/insight-fallback-chain`
+2. `feat/rag-hardening-followthrough`
+3. `docs/ai-bounded-context-packet`
+4. `feat/ai-bounded-context-extraction`
+5. `feat/llm-reliability-security-gates`
 
 ### Wave 7 — Design bridge operationalization
-21. `docs/design-agent-runtime-realignment`
-22. `feat/design-bridge-preflight-and-capture`
-23. `feat/design-bridge-first-parity-pack`
+1. `docs/design-agent-runtime-realignment`
+2. `feat/design-bridge-preflight-and-capture`
+3. `feat/design-bridge-first-parity-pack`
 
 ## PR map
 
@@ -96,19 +98,22 @@ Status: operator execution map
 - do not include: entitlement routing, iOS UI, App Store migration
 
 ### 4. feat(authz): enforce entitlement-backed routing after billing activation
-- status: next real implementation PR
+- status: closeout merged as `#1298`
 - closes: `ledger-p0-billing-entitlement-routing`
 - goal: backend entitlement truth for `/api/v1/pro/*` and `/api/v1/vip/*`; fail-closed startup contract; explicit RU/BY pre-entitlement rule
 - policy: manual RU/BY billing entry routes stay transport-auth only, not entitlement surfaces
 
 ### 5. feat(frontend): move web premium truth to canonical backend/store state
+- status: merged as `#1299`
 - closes: `ledger-p0-web-entitlement-truth`
 - goal: remove local premium source of truth; dev-only gate mock purchase/restore
 - do not include: backend subscription redesign
 
-### 6. feat(frontend): replace demo-grade progress data with backend/empty-state truth
+### 6. docs(frontend): close web progress contract drift
+- status: docs-only closeout lane after shipped runtime hardening
 - closes: `ledger-p0-web-progress-contract`
-- goal: no fabricated chart values in release path
+- goal: reconcile docs to the shipped web truth: no fabricated chart values in release path and an explicit trusted empty state until real data exists
+- do not include: backend progress API, chart-history implementation, or new frontend runtime data contracts
 
 ### 7. docs(release): publish legal policy paths and align client links
 - closes: `ledger-p0-legal-policy-publish`
