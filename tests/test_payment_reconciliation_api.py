@@ -5,8 +5,11 @@ from typing import cast
 
 from fastapi.testclient import TestClient
 import pytest
+from sqlalchemy import select
 
+from app.models import SubscriptionActivationAudit
 from core.billing_policy import manual_monthly_entitlement_expires_at
+from core import db as core_db
 from tests.payment_test_utils import json_response_payload as _json
 
 pytestmark = pytest.mark.usefixtures("reset_payments_state")
@@ -89,6 +92,34 @@ def _create_ios_activation_via_service(*, issuer: str, client_event_suffix: str 
         ),
     )
     return activation.activation_id
+
+
+def _set_audit_reconcile_status(
+    *,
+    activation_id: str,
+    reconcile_status: str,
+) -> None:
+    """Persist stale audit metadata to prove readback ignores non-canonical values.
+
+    RU: Меняем исторический audit snapshot, чтобы проверить persisted-only readback.
+    EN: Mutate the historical audit snapshot to prove readback stays persisted-only.
+    """
+
+    session_factory = core_db.get_session_factory()
+    session = session_factory()
+    try:
+        audit = session.execute(
+            select(SubscriptionActivationAudit).where(
+                SubscriptionActivationAudit.id == activation_id
+            )
+        ).scalar_one()
+        audit.evidence_summary = {
+            **(audit.evidence_summary or {}),
+            "reconcile_status": reconcile_status,
+        }
+        session.commit()
+    finally:
+        session.close()
 
 
 def test_manual_reconcile_verified_flow(
@@ -417,13 +448,16 @@ def test_manual_status_rejects_ios_activation_via_api(
     assert payload["detail"] == "manual_status_not_supported_for_ios"
 
 
-def test_manual_reconcile_ignores_stale_shadow_state_via_service() -> None:
+def test_manual_reconcile_ignores_stale_audit_metadata_via_service() -> None:
     from app.schemas.payments import ManualRailReconcileRequest
     from app.services import payments_activation
 
     issuer = payments_activation.issuer_from_api_key("test_pro_key")
     activation_id = _create_manual_intent_via_service(issuer=issuer, source="erip_qr")
-    payments_activation._ACTIVATIONS[activation_id]["reconcile_status"] = "unsupported_state"
+    _set_audit_reconcile_status(
+        activation_id=activation_id,
+        reconcile_status="unsupported_state",
+    )
 
     response = payments_activation.reconcile_activation(
         issuer=issuer,
@@ -440,15 +474,15 @@ def test_manual_reconcile_ignores_stale_shadow_state_via_service() -> None:
     assert response.reconcile_status == "verified"
 
 
-def test_manual_reconcile_ignores_stale_shadow_state_via_api(
+def test_manual_reconcile_readback_uses_persisted_state_via_api(
     client: TestClient,
     pro_headers: dict[str, str],
 ) -> None:
     intent_id = _create_manual_intent(client, pro_headers, source="erip_qr")
-
-    from app.services import payments_activation
-
-    payments_activation._ACTIVATIONS[intent_id]["reconcile_status"] = "unsupported_state"
+    _set_audit_reconcile_status(
+        activation_id=intent_id,
+        reconcile_status="unsupported_state",
+    )
 
     response = client.post(
         "/api/v1/pro/payments/ru-by/reconcile",
@@ -460,8 +494,23 @@ def test_manual_reconcile_ignores_stale_shadow_state_via_api(
         },
     )
     assert response.status_code == 200, response.text
-    assert _json(response)["status"] == "active"
-    assert _json(response)["reconcile_status"] == "verified"
+    reconcile_payload = _json(response)
+    assert reconcile_payload["status"] == "active"
+    assert reconcile_payload["reconcile_status"] == "verified"
+
+    status_response = client.get(
+        f"/api/v1/pro/payments/ru-by/reconcile/{intent_id}",
+        headers=pro_headers,
+    )
+    assert status_response.status_code == 200, status_response.text
+    assert _json(status_response)["reconcile_status"] == "verified"
+
+    activation_response = client.get(
+        f"/api/v1/pro/payments/activations/{intent_id}",
+        headers=pro_headers,
+    )
+    assert activation_response.status_code == 200, activation_response.text
+    assert _json(activation_response)["reconcile_status"] == "verified"
 
 
 def test_activation_state_detail_maps_manual_status_and_unknown_errors() -> None:

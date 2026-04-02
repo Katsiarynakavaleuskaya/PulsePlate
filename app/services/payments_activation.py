@@ -57,7 +57,6 @@ APPLE_EXPIRED_RECEIPT_STATUS = 21006
 APPLE_VERIFY_TIMEOUT_SECONDS = 10.0
 APPLE_ETC_GMT_DATETIME_FORMAT = "%Y-%m-%d %H:%M:%S Etc/GMT"
 _LEGACY_ISSUER_PREFIX = "subject:"
-_ACTIVATIONS: dict[str, dict[str, Any]] = {}
 
 
 class ActivationAccessForbiddenError(PermissionError):
@@ -1373,11 +1372,6 @@ def activate_subscription(
             audit=audit,
             subscription=subscription,
         )
-        _ACTIVATIONS[audit.id] = {
-            "payment_source": normalized.source.value,
-            "reconcile_status": normalized.reconcile_status.value,
-            "status": normalized.status.value,
-        }
         if _legacy_response_mode(user_id=user_id, issuer=issuer):
             return response, True
         return response
@@ -1616,11 +1610,6 @@ def reconcile_activation(
         session.commit()
         session.refresh(reconcile_audit)
         session.refresh(subscription)
-        _ACTIVATIONS[payload.intent_id] = {
-            "payment_source": initial_audit.source,
-            "reconcile_status": reconcile_status.value,
-            "status": subscription.status,
-        }
 
         return _to_response(
             activation_id=payload.intent_id,
@@ -1652,7 +1641,6 @@ def reset_state() -> None:
         session.execute(delete(SubscriptionActivationAudit))
         session.execute(delete(Subscription))
         session.commit()
-        _ACTIVATIONS.clear()
     except SQLAlchemyError:
         session.rollback()
     finally:

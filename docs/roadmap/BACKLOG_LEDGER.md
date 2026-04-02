@@ -50,8 +50,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P0: Payment rails for RU/BY + iOS-first monetization baseline
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0 (revenue continuity)
-  - Target PR: PR #1182 (B1 baseline) -> PR-TBD (B2 Apple verify full activation) -> PR-TBD-BILLING-ENTITLEMENT-ROUTING
-  - Status: B1 baseline closed (PR #1182); B2 Apple verify full activation deferred/next. Evidence: `docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md`, `app/services/payments_activation.validate_webhook_signature`, `tests/test_payment_webhook_signature_api.py`. Entitlement routing: `ledger-p0-billing-entitlement-routing`.
+  - Target PR: PR #1182 (B1 baseline) -> PR #1295 (main bootstrap blocker) -> PR-TBD-BILLING-ACTIVATION-PERSISTENCE-CLOSEOUT -> PR-TBD-BILLING-ENTITLEMENT-ROUTING
+  - Status: B1 baseline closed (PR #1182); PR #1295 must merge first; the next lane closes activation + persistence only. Entitlement routing remains separate: `ledger-p0-billing-entitlement-routing`.
   - Carryover: PR #1005 keeps only the `RUBY` -> `RU_BY` identifier cleanup so the ledger stays aligned with the existing payments contract naming.
   - Reason (EN): Current business reality requires region-adapted payment rails: iOS as primary automated channel, RU/BY payments via eRIP (QR to account) and SWIFT card transfer fallback. Canonical billing flow must support these rails before global providers expansion. (RU: Текущий источник оплат: iOS + RU/BY локальные каналы (ЕРИП/QR и SWIFT). Нужен канонический billing baseline под эту реальность до расширения на глобальные провайдеры.)
   - Links:
@@ -80,7 +80,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P0: Billing activation service follow-through after Apple verify
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0
-  - Target PR: PR #1095
+  - Target PR: PR-TBD-BILLING-ACTIVATION-PERSISTENCE-CLOSEOUT (PR3 after #1295)
   - Area: backend / payments / activation
   - Finding Type: monetization chain gap
   - Reason: The verify-only PR intentionally stops before activation side effects, so the next runtime segment must consume the normalized Apple verification payload and activate paid access deterministically.
@@ -93,23 +93,28 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Activation service consumes the Apple verification contract without reintroducing client tier truth
     - Verify and activate remain separate runtime stages with deterministic handoff semantics
     - Activation-path tests cover success, replay, and failure transitions
+    - No active runtime truth or readback path depends on `_ACTIVATIONS`
+    - Activation readback is derived from persisted `subscriptions` plus `subscription_activation_audit`
 
 <a id="ledger-p0-billing-subscription-persistence"></a>
 - [ ] P0: Subscription persistence for billing activation outcomes
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0
-  - Target PR: PR #1095
+  - Target PR: PR-TBD-BILLING-ACTIVATION-PERSISTENCE-CLOSEOUT (PR3 after #1295)
   - Area: backend / payments / persistence
   - Finding Type: subscription state gap
   - Reason: Verification responses are activation-ready, but canonical subscription state still lacks durable persistence for user, tier, platform, expiry, and receipt-linked audit fields.
   - Links:
     - `docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md`
     - `app/services/payments_activation.py`
+    - `app/services/subscriptions.py`
     - `app/schemas/payments.py`
     - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p0-billing-apple-verify`
   - DoD:
     - Subscription state is persisted with deterministic idempotency semantics
+    - Persisted truth is stored in `subscriptions` plus `subscription_activation_audit`
     - Persistence schema stores canonical tier/platform/expires_at/receipt audit fields
+    - Activation readback and reconcile status resolve from persisted subscription lineage
     - Tests prove repeated activation cannot create duplicate subscription state
 
 <a id="ledger-p0-billing-entitlement-routing"></a>
@@ -117,6 +122,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0
   - Target PR: PR-TBD-BILLING-ENTITLEMENT-ROUTING
+  - Status: Explicitly out of scope for PR3 activation/persistence closeout.
   - Area: backend / authz / routing
   - Finding Type: access-control gap
   - Reason: The release spine still needs entitlement truth and protected routing after activation so paid users reach the correct guarded surfaces without client-side unlock shortcuts. Deploy/readiness audit also shows that production entitlement mode still needs a fail-closed contract for `SUBSCRIPTION_DB_ENABLED`, and RU/BY manual billing needs an explicit pre-entitlement/user-facing routing decision instead of relying on ambiguous PRO-only entrypoints.
@@ -2476,6 +2482,23 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Trivy Code Scanning alerts #572, #574, #576, and #577 remain closed on
       `main`
 
+- [ ] Triage and close Trivy libc CVE alerts outside billing lane (CVE-2026-4046)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-SECURITY-TRIVY-LIBC-CVE-2026-4046
+  - Area: security / base image / CI
+  - Finding Type: dependency-vulnerability
+  - Reason: GitHub code scanning still reports open Trivy alerts `#579` (`libc-bin`) and `#580` (`libc6`) for `CVE-2026-4046` on `main` as of 02 April 2026. These alerts must be triaged in a dedicated security/base-image lane and must not be absorbed into the billing activation/persistence closeout PR unless they become an explicit branch-protection blocker.
+  - Links:
+    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/security/code-scanning/579`
+    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/security/code-scanning/580`
+    - `.github/workflows/trivy.yml`
+    - `.github/workflows/build.yml`
+  - DoD:
+    - Dedicated triage records whether the fix is base-image bump, narrow suppression, or accepted upstream wait
+    - Billing PR scope remains limited to activation + persistence closeout
+    - GitHub code scanning alerts `#579` and `#580` are either closed or tracked with explicit security disposition evidence
+
 
 - [ ] Security suppression expiry monitoring
   - Owner: @katsiaryna_kavaleuskaya
@@ -2483,6 +2506,25 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Priority: P1
   - Area: security
   - Finding Type: policy exception
+
+- [ ] Triage open Trivy glibc code-scanning alerts (CVE-2026-4046)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-SECURITY-CVE-2026-4046
+  - Area: security / base-image / code-scanning
+  - Finding Type: container base image vulnerability
+  - Reason: GitHub code scanning on `main` currently reports open Trivy alerts `#579` (`libc-bin`) and `#580` (`libc6`) for `CVE-2026-4046` at version `2.36-9+deb12u13` with no fixed version published in Trivy metadata as of 2026-04-02. This must be triaged and resolved in a dedicated security lane rather than being absorbed into the billing activation/persistence closeout.
+  - Links:
+    - `docs/security/CVE-2026-4046-glibc.md`
+    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/security/code-scanning/579`
+    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/security/code-scanning/580`
+    - `trivy/ignore-policy.rego`
+    - `.github/workflows/build.yml`
+  - DoD:
+    - Triage outcome is documented with evidence for both alerts
+    - Separate security lane decides between narrow suppression and upstream/base-image remediation
+    - Billing activation/persistence closeout remains explicitly out of scope for this CVE
+    - Alerts `#579` and `#580` are closed or formally covered by the approved suppression policy
   - Locations:
     - `trivy/ignore-policy.rego` — Suppression expires: 2026-05-27
     - `.trivyignore` — CVE-2026-0861 expires: 2026-05-27
