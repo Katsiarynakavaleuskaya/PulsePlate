@@ -9,6 +9,15 @@ Status: operator execution map
 - The active critical path is now: deploy/runtime closure -> backend monetization follow-through -> web truth -> legal/release shell -> App Store closeout -> AI hardening follow-through.
 - Do not reopen B1-B4 baseline work. Use explicit follow-up items already open in the canonical ledger.
 
+## Status update — 2026-04-02
+
+- PR1 Postgres foundation is already merged; do not reopen it inside the authz closeout lane.
+- PR2 deploy shell lane materially landed via `#1293`, with the extra CD env-token follow-up in `#1297`.
+- PR3 activation + persistence truth merged as `#1296`; shadow runtime truth is removed from the active monetization critical path.
+- The next real implementation PR is PR4: entitlement-backed routing after billing activation.
+- After PR4, the sequence moves to web entitlement truth, legal/release shell follow-through, App Store/provider modernization, and only then the remaining AI waves.
+- WebSocket foundation is no longer a stub-only surface; it is sufficiently wired for foundation scope, but it is not the current release priority.
+
 ## Source of truth order
 
 1. `BACKLOG_LEDGER.md`
@@ -67,16 +76,19 @@ Status: operator execution map
 ## PR map
 
 ### 1. infra(postgres): promote self-hosted Postgres to canonical Droplet foundation
+- status: merged; keep out of PR4 scope
 - closes: `ledger-p0-self-hosted-postgres-droplet-foundation`
 - goal: remove optional/profile-gated posture, require `DATABASE_URL`, add health-gated dependency, backup/restore scripts, runbook
 - do not include: billing, pgvector, MinIO, search, analytics
 
 ### 2. fix(deploy): restore SPA routing and production web shell
+- status: materially landed via `#1293`; CD env-token follow-up landed via `#1297`
 - closes: deploy blocker from `DEPLOY_WEB_DIAGNOSIS_AND_FIX.md`
 - goal: Caddy SPA fallback, API proxy split, deep-route 200s, diagnose script, artifact path truth
 - do not include: visual polish, progress data refactor, legal copy changes
 
 ### 3. feat(billing): activation + subscription persistence follow-through
+- status: merged as `#1296`
 - closes together:
   - `ledger-p0-billing-activation-service`
   - `ledger-p0-billing-subscription-persistence`
@@ -84,6 +96,7 @@ Status: operator execution map
 - do not include: entitlement routing, iOS UI, App Store migration
 
 ### 4. feat(authz): enforce entitlement-backed routing after billing activation
+- status: next real implementation PR
 - closes: `ledger-p0-billing-entitlement-routing`
 - goal: backend entitlement truth for `/api/v1/pro/*` and `/api/v1/vip/*`; fail-closed startup contract; explicit RU/BY pre-entitlement rule
 - policy: manual RU/BY billing entry routes stay transport-auth only, not entitlement surfaces
