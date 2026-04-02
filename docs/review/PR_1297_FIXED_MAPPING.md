@@ -5,7 +5,11 @@
 - [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
-- No actionable review comments yet
+Disposition: NOT-A-BUG
+Evidence: `deploy/WORKFLOW.md`; current head `fc0da359` does not contain the `bridge-job` wording referenced by the Sourcery review, so there is no remaining code/doc change to apply in this lane.
+Reason: The Sourcery review wrapper and inline thread point to wording that is not present on the current head. The comment is fully dispositioned as a non-actionable review artifact on the latest revision.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1297#pullrequestreview-4048197945
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1297#discussion_r3025741998
 
 ## Merge Readiness
 - [ ] All required checks pass
