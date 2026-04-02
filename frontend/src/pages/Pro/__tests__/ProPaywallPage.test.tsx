@@ -2,7 +2,7 @@
 import "../../../test/setup";
 import "../../../i18n";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import ProPaywallPage from "../ProPaywallPage";
 import { WEB_CHECKOUT_UNAVAILABLE_MESSAGE } from "../../../lib/paywallPurchase";
 
@@ -28,6 +28,10 @@ vi.mock("../../../lib/paywallPurchase", async () => {
 });
 
 describe("ProPaywallPage", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
   it("surfaces the release-safe checkout message and does not navigate on failed web purchase", async () => {
     purchasePremiumMock.mockRejectedValueOnce(new Error(WEB_CHECKOUT_UNAVAILABLE_MESSAGE));
 
@@ -46,5 +50,23 @@ describe("ProPaywallPage", () => {
       via: "pro_page",
     });
     expect(navigateMock).not.toHaveBeenCalled();
+  });
+
+  it("navigates back on successful web purchase without surfacing an error", async () => {
+    purchasePremiumMock.mockResolvedValueOnce(undefined);
+
+    render(<ProPaywallPage />);
+
+    fireEvent.click(screen.getByTestId("paywall-cta"));
+
+    await waitFor(() => {
+      expect(purchasePremiumMock).toHaveBeenCalledWith({
+        source: "bmi_soft_paywall",
+        via: "pro_page",
+      });
+      expect(navigateMock).toHaveBeenCalledWith(-1);
+    });
+
+    expect(screen.queryByTestId("paywall-purchase-error")).toBeNull();
   });
 });
