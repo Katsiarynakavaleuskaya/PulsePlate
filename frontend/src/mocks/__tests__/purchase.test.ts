@@ -1,8 +1,59 @@
 /* @vitest-environment jsdom */
 import "../../test/setup";
-import { expect, test } from "vitest";
+import { beforeEach, expect, test } from "vitest";
+import { delay, http, HttpResponse } from "msw";
+import { server } from "../server";
 
 const BASE_URL = "http://localhost";
+
+const matchesApiPath =
+  (expectedPathname: string) =>
+  ({ request }: { request: Request }): boolean =>
+    new URL(request.url).pathname === expectedPathname;
+
+function registerPurchaseHandlers(): void {
+  server.use(
+    http.post(matchesApiPath("/api/purchase"), async ({ request }) => {
+      await delay(300);
+      const errorParam = new URL(request.url).searchParams.get("error");
+
+      if (errorParam === "network") {
+        return HttpResponse.error();
+      }
+      if (errorParam === "server") {
+        return HttpResponse.json({ error: "Internal server error" }, { status: 500 });
+      }
+      if (errorParam === "payment") {
+        return HttpResponse.json(
+          { error: "Payment failed", code: "INSUFFICIENT_FUNDS" },
+          { status: 402 }
+        );
+      }
+
+      return HttpResponse.json({ status: "ok", entitlement: "premium" }, { status: 200 });
+    }),
+    http.post(matchesApiPath("/api/restore"), async ({ request }) => {
+      await delay(200);
+      const errorParam = new URL(request.url).searchParams.get("error");
+
+      if (errorParam === "network") {
+        return HttpResponse.error();
+      }
+      if (errorParam === "server") {
+        return HttpResponse.json({ error: "Restore service unavailable" }, { status: 503 });
+      }
+      if (errorParam === "not_found") {
+        return HttpResponse.json({ error: "No purchases found" }, { status: 404 });
+      }
+
+      return HttpResponse.json({ status: "ok", restored: true }, { status: 200 });
+    })
+  );
+}
+
+beforeEach(() => {
+  registerPurchaseHandlers();
+});
 
 test("msw /api/purchase responds ok", async () => {
   const res = await fetch(`${BASE_URL}/api/purchase`, { method: "POST" });
@@ -26,6 +77,10 @@ test("msw /api/purchase handles payment error", async () => {
   expect(json.code).toBe("INSUFFICIENT_FUNDS");
 });
 
+test("msw /api/purchase handles network error", async () => {
+  await expect(fetch(`${BASE_URL}/api/purchase?error=network`, { method: "POST" })).rejects.toThrow();
+});
+
 test("msw /api/restore responds ok", async () => {
   const res = await fetch(`${BASE_URL}/api/restore`, { method: "POST" });
   const json = await res.json();
@@ -45,4 +100,8 @@ test("msw /api/restore handles not found error", async () => {
   expect(res.status).toBe(404);
   const json = await res.json();
   expect(json.error).toBe("No purchases found");
+});
+
+test("msw /api/restore handles network error", async () => {
+  await expect(fetch(`${BASE_URL}/api/restore?error=network`, { method: "POST" })).rejects.toThrow();
 });
