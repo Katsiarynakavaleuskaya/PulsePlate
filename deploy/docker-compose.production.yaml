@@ -9,24 +9,6 @@ networks:
         - subnet: 172.30.100.0/24
 
 services:
-  postgres:
-    image: postgres:15-alpine
-    restart: unless-stopped
-    networks: [web]
-    env_file:
-      - .env
-    environment:
-      - POSTGRES_DB=${POSTGRES_DB:?POSTGRES_DB is required}
-      - POSTGRES_USER=${POSTGRES_USER:?POSTGRES_USER is required}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-
   app:
     image: ${IMAGE_REF:?IMAGE_REF is required}
     restart: unless-stopped
@@ -37,10 +19,8 @@ services:
       - .env
     environment:
       - ENVIRONMENT=production
+      # Production uses an external managed PostgreSQL instance.
       - DATABASE_URL=${DATABASE_URL:?DATABASE_URL is required}
-    depends_on:
-      postgres:
-        condition: service_healthy
     command: >
       uvicorn app.main:app --host 0.0.0.0 --port 8000
       --proxy-headers
@@ -86,6 +66,5 @@ services:
       retries: 3
 
 volumes:
-  postgres_data:
   caddy_data:
   caddy_config:

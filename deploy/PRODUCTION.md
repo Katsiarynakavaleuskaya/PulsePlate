@@ -62,6 +62,8 @@ On the production server:
   - a compose file (`docker-compose.yml`, `docker-compose.production.yaml`, etc.)
   - `.env` (application runtime env; not committed)
   - `Caddyfile.production` (Caddy reverse proxy config; see Caddyfile Configuration below)
+- A managed PostgreSQL instance reachable from the production host via `DATABASE_URL`
+- Managed database backup / PITR handled by the provider; the production deploy script no longer runs local `pg_dump`
 - Compose must reference `IMAGE_REF` (recommended) or `TAG` (backwards-compatible):
 - **Firewall configured**: Ports 80 (HTTP) and 443 (HTTPS) must be open (see Firewall Setup below)
 
@@ -86,6 +88,8 @@ services:
     networks: [web]
     expose: ["8000"]  # Internal only, accessed via Caddy
     env_file: [".env"]
+    environment:
+      - DATABASE_URL=${DATABASE_URL:?DATABASE_URL is required}
     command: >
       uvicorn app.main:app --host 0.0.0.0 --port 8000
       --proxy-headers
@@ -189,6 +193,7 @@ The following environment variables must be set in your `.env` file or exported 
 - **`PRODUCTION_DOMAIN`** (required): Your production domain name (e.g., `api.pulseplate.com`)
 - **`STAGING_FALLBACK_DOMAIN`** (optional): staging hostname served by production fallback vhost in build-only mode (default: `pulseplate-staging.duckdns.org`)
 - **`IMAGE_REF`** (required): Docker image reference (e.g., `ghcr.io/owner/repo@sha256:...`)
+- **`DATABASE_URL`** (required): external managed PostgreSQL DSN using `postgresql+psycopg://...`
 
 Example `.env` file:
 
@@ -196,10 +201,20 @@ Example `.env` file:
 PRODUCTION_DOMAIN=pulseplate.app
 STAGING_FALLBACK_DOMAIN=pulseplate-staging.duckdns.org
 IMAGE_REF=ghcr.io/owner/repo@sha256:abc123...
+DATABASE_URL=postgresql+psycopg://pulseplate:__replace_me__@db.example.com:25060/pulseplate  # pragma: allowlist secret
 # Add other application-specific variables here
 ```
 
 **Security Note:** Never commit `.env` files to the repository. If deploying via GitHub Actions, store sensitive variables as GitHub Secrets in the `production` environment.
+
+## Managed PostgreSQL Contract
+
+Canonical production is `managed PostgreSQL only`.
+
+- `deploy/docker-compose.production.yaml` must not define a local `postgres` service.
+- `DATABASE_URL` must target the external managed database, not `@postgres:5432`.
+- `scripts/deploy_production.sh` runs `alembic upgrade head` via a one-shot release container before it restarts `app` and `caddy`.
+- Provider-native snapshots / PITR are the production backup baseline. Local `scripts/ops/postgres_backup.sh` remains a self-hosted alternate helper, not part of the canonical production deploy path.
 
 ## Firewall Setup (Critical!)
 
@@ -366,6 +381,7 @@ High-level steps (run on the production server):
    - compose file (`docker-compose.production.yaml`)
    - `.env` (application runtime env)
    - `Caddyfile.production` (copied from `deploy/Caddyfile.production`)
+   - managed PostgreSQL credentials in `DATABASE_URL`
 3. Ensure the compose file uses `IMAGE_REF` (preferred) or `TAG` (backwards-compatible).
    - Production CD now also stages the current `frontend/`, `deploy/Caddyfile.production`,
      and `scripts/diagnose_web.sh` bundle before `scripts/deploy_production.sh` runs so the

@@ -4,6 +4,8 @@ import subprocess
 from collections.abc import Callable
 from pathlib import Path
 
+import pytest
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -42,7 +44,7 @@ EOF
     _write_executable(bin_dir / "docker", docker_stub)
 
     env = os.environ.copy()
-    env["PATH"] = f"{bin_dir}:{env['PATH']}"
+    env["PATH"] = f"{bin_dir}:{env['PATH']}"  # pragma: allowlist secret
     env["PROJECT_DIR"] = str(project_dir)
     env["BACKUP_DIR"] = str(backup_dir)
     env["COMPOSE_FILE"] = "docker-compose.staging.yaml"
@@ -124,36 +126,24 @@ def test_deploy_production_runs_migrations_before_caddy_and_external_ready(
 ) -> None:
     project_dir = tmp_path / "production"
     bin_dir = tmp_path / "bin"
-    scripts_dir = project_dir / "scripts" / "ops"
     log_file = tmp_path / "deploy.log"
     project_dir.mkdir()
     bin_dir.mkdir()
-    scripts_dir.mkdir(parents=True)
     (project_dir / "docker-compose.production.yaml").write_text("services: {}\n", encoding="utf-8")
     (project_dir / ".env").write_text(
         "\n".join(
             [
-                "POSTGRES_USER=pulseplate",
-                "POSTGRES_DB=pulseplate",
-                "POSTGRES_PASSWORD=secret",
-                "DATABASE_URL=postgresql+psycopg://pulseplate:secret@postgres:5432/pulseplate",  # pragma: allowlist secret
+                "DATABASE_URL=postgresql+psycopg://pulseplate:secret@db.example.com:25060/pulseplate",  # pragma: allowlist secret
             ]
         )
         + "\n",
         encoding="utf-8",
     )
 
-    helper_stub = f"""#!/usr/bin/env bash
-set -euo pipefail
-printf 'helper %s %s\\n' "$PROJECT_DIR" "${{COMPOSE_FILE:-}}" >> "{log_file}"
-"""
     docker_stub = f"""#!/usr/bin/env bash
 set -euo pipefail
 printf 'docker %s\\n' "$*" >> "{log_file}"
 case "$*" in
-  *"compose --env-file "*"-f docker-compose.production.yaml ps -q postgres"*)
-    printf 'postgres-id\\n'
-    ;;
   *"compose --env-file "*"-f docker-compose.production.yaml ps -q app"*)
     printf 'app-id\\n'
     ;;
@@ -170,7 +160,6 @@ set -euo pipefail
 printf 'curl %s\\n' "$*" >> "{log_file}"
 """
     sleep_stub = "#!/usr/bin/env bash\nset -euo pipefail\n"
-    _write_executable(scripts_dir / "postgres_backup.sh", helper_stub)
     _write_executable(bin_dir / "docker", docker_stub)
     _write_executable(bin_dir / "curl", curl_stub)
     _write_executable(bin_dir / "sleep", sleep_stub)
@@ -194,27 +183,17 @@ printf 'curl %s\\n' "$*" >> "{log_file}"
     )
 
     log_lines = log_file.read_text(encoding="utf-8").splitlines()
-    postgres_up_index = _assert_log_index(
+    migrate_index = _assert_log_index(
         log_lines,
         predicate=lambda line: "compose --env-file" in line
-        and "up -d --remove-orphans postgres" in line,
-        message="Expected postgres docker-compose up step to appear in deploy log",
-    )
-    helper_index = _assert_log_index(
-        log_lines,
-        predicate=lambda line: line.startswith("helper "),
-        message="Expected backup helper step to appear in deploy log",
+        and "run --rm --no-deps app alembic upgrade head" in line,
+        message="Expected one-shot alembic migration step to appear in deploy log",
     )
     app_up_index = _assert_log_index(
         log_lines,
         predicate=lambda line: "compose --env-file" in line
         and "up -d --remove-orphans app" in line,
         message="Expected app docker-compose up step to appear in deploy log",
-    )
-    migrate_index = _assert_log_index(
-        log_lines,
-        predicate=lambda line: "exec app-id alembic upgrade head" in line,
-        message="Expected alembic migration step to appear in deploy log",
     )
     caddy_build_index = _assert_log_index(
         log_lines,
@@ -233,16 +212,9 @@ printf 'curl %s\\n' "$*" >> "{log_file}"
         message="Expected external readiness check to appear in deploy log",
     )
 
-    assert (
-        postgres_up_index
-        < helper_index
-        < app_up_index
-        < migrate_index
-        < caddy_build_index
-        < caddy_up_index
-        < external_ready_index
-    )
-    assert any("helper " in line and "docker-compose.production.yaml" in line for line in log_lines)
+    assert migrate_index < app_up_index < caddy_build_index < caddy_up_index < external_ready_index
+    assert all("up -d --remove-orphans postgres" not in line for line in log_lines)
+    assert all("helper " not in line for line in log_lines)
 
 
 def test_deploy_production_syncs_shell_bundle_and_prunes_stale_shell_files(tmp_path: Path) -> None:
@@ -250,20 +222,15 @@ def test_deploy_production_syncs_shell_bundle_and_prunes_stale_shell_files(tmp_p
     shell_root = project_dir.parent
     shell_bundle_dir = tmp_path / "shell-bundle"
     bin_dir = tmp_path / "bin"
-    scripts_dir = project_dir / "scripts" / "ops"
     log_file = tmp_path / "deploy.log"
     project_dir.mkdir()
     shell_bundle_dir.mkdir()
     bin_dir.mkdir()
-    scripts_dir.mkdir(parents=True)
     (project_dir / "docker-compose.production.yaml").write_text("services: {}\n", encoding="utf-8")
     (project_dir / ".env").write_text(
         "\n".join(
             [
-                "POSTGRES_USER=pulseplate",
-                "POSTGRES_DB=pulseplate",
-                "POSTGRES_PASSWORD=secret",
-                "DATABASE_URL=postgresql+psycopg://pulseplate:secret@postgres:5432/pulseplate",  # pragma: allowlist secret
+                "DATABASE_URL=postgresql+psycopg://pulseplate:secret@db.example.com:25060/pulseplate",  # pragma: allowlist secret
             ]
         )
         + "\n",
@@ -287,17 +254,10 @@ def test_deploy_production_syncs_shell_bundle_and_prunes_stale_shell_files(tmp_p
     (shell_root / "scripts").mkdir()
     (shell_root / "scripts" / "diagnose_web.sh").write_text("stale-diagnose\n", encoding="utf-8")
 
-    helper_stub = f"""#!/usr/bin/env bash
-set -euo pipefail
-printf 'helper %s %s\\n' "$PROJECT_DIR" "${{COMPOSE_FILE:-}}" >> "{log_file}"
-"""
     docker_stub = f"""#!/usr/bin/env bash
 set -euo pipefail
 printf 'docker %s\\n' "$*" >> "{log_file}"
 case "$*" in
-  *"compose --env-file "*"-f docker-compose.production.yaml ps -q postgres"*)
-    printf 'postgres-id\\n'
-    ;;
   *"compose --env-file "*"-f docker-compose.production.yaml ps -q app"*)
     printf 'app-id\\n'
     ;;
@@ -314,7 +274,6 @@ set -euo pipefail
 printf 'curl %s\\n' "$*" >> "{log_file}"
 """
     sleep_stub = "#!/usr/bin/env bash\nset -euo pipefail\n"
-    _write_executable(scripts_dir / "postgres_backup.sh", helper_stub)
     _write_executable(bin_dir / "docker", docker_stub)
     _write_executable(bin_dir / "curl", curl_stub)
     _write_executable(bin_dir / "sleep", sleep_stub)
@@ -355,43 +314,31 @@ printf 'curl %s\\n' "$*" >> "{log_file}"
 def test_deploy_production_exits_non_zero_when_migrations_fail(tmp_path: Path) -> None:
     project_dir = tmp_path / "production"
     bin_dir = tmp_path / "bin"
-    scripts_dir = project_dir / "scripts" / "ops"
     log_file = tmp_path / "deploy.log"
     project_dir.mkdir()
     bin_dir.mkdir()
-    scripts_dir.mkdir(parents=True)
     (project_dir / "docker-compose.production.yaml").write_text("services: {}\n", encoding="utf-8")
     (project_dir / ".env").write_text(
         "\n".join(
             [
-                "POSTGRES_USER=pulseplate",
-                "POSTGRES_DB=pulseplate",
-                "POSTGRES_PASSWORD=secret",
-                "DATABASE_URL=postgresql+psycopg://pulseplate:secret@postgres:5432/pulseplate",  # pragma: allowlist secret
+                "DATABASE_URL=postgresql+psycopg://pulseplate:secret@db.example.com:25060/pulseplate",  # pragma: allowlist secret
             ]
         )
         + "\n",
         encoding="utf-8",
     )
 
-    helper_stub = f"""#!/usr/bin/env bash
-set -euo pipefail
-printf 'helper %s %s\\n' "$PROJECT_DIR" "${{COMPOSE_FILE:-}}" >> "{log_file}"
-"""
     docker_stub = f"""#!/usr/bin/env bash
 set -euo pipefail
 printf 'docker %s\\n' "$*" >> "{log_file}"
 case "$*" in
-  *"compose --env-file "*"-f docker-compose.production.yaml ps -q postgres"*)
-    printf 'postgres-id\\n'
-    ;;
   *"compose --env-file "*"-f docker-compose.production.yaml ps -q app"*)
     printf 'app-id\\n'
     ;;
   *"inspect --format "*)
     printf 'healthy\\n'
     ;;
-  *"exec app-id alembic upgrade head"*)
+  *"compose --env-file "*"-f docker-compose.production.yaml run --rm --no-deps app alembic upgrade head"*)
     printf 'migration failed\\n' >&2
     exit 1
     ;;
@@ -405,7 +352,6 @@ set -euo pipefail
 printf 'curl %s\\n' "$*" >> "{log_file}"
 """
     sleep_stub = "#!/usr/bin/env bash\nset -euo pipefail\n"
-    _write_executable(scripts_dir / "postgres_backup.sh", helper_stub)
     _write_executable(bin_dir / "docker", docker_stub)
     _write_executable(bin_dir / "curl", curl_stub)
     _write_executable(bin_dir / "sleep", sleep_stub)
@@ -429,14 +375,179 @@ printf 'curl %s\\n' "$*" >> "{log_file}"
     )
 
     assert completed.returncode == 1
-    assert "Database migrations failed in container: app-id (exit code: 1)" in completed.stderr
+    assert "Database migrations failed (exit code: 1)" in completed.stderr
 
     log_lines = log_file.read_text(encoding="utf-8").splitlines()
-    assert any("exec app-id alembic upgrade head" in line for line in log_lines)
+    assert any("run --rm --no-deps app alembic upgrade head" in line for line in log_lines)
+    assert all("up -d --remove-orphans app" not in line for line in log_lines)
     assert all("up -d --remove-orphans caddy" not in line for line in log_lines)
     assert not any(
         line.startswith("curl ") and "https://pulseplate.test/ready" in line for line in log_lines
     )
+
+
+def test_deploy_production_keeps_shell_bundle_untouched_when_migrations_fail(
+    tmp_path: Path,
+) -> None:
+    project_dir = tmp_path / "production"
+    shell_root = project_dir.parent
+    shell_bundle_dir = tmp_path / "shell-bundle"
+    bin_dir = tmp_path / "bin"
+    log_file = tmp_path / "deploy.log"
+    project_dir.mkdir()
+    shell_bundle_dir.mkdir()
+    bin_dir.mkdir()
+    (project_dir / "docker-compose.production.yaml").write_text("services: {}\n", encoding="utf-8")
+    (project_dir / ".env").write_text(
+        "DATABASE_URL=postgresql+psycopg://pulseplate:secret@db.example.com:25060/pulseplate\n",  # pragma: allowlist secret
+        encoding="utf-8",
+    )
+    (shell_bundle_dir / "frontend").mkdir()
+    (shell_bundle_dir / "frontend" / "bundle-marker.txt").write_text(
+        "frontend-sync\n", encoding="utf-8"
+    )
+    (shell_bundle_dir / "deploy").mkdir()
+    (shell_bundle_dir / "deploy" / "Caddyfile.production").write_text(
+        'pulseplate.test {\n    respond "ok"\n}\n',
+        encoding="utf-8",
+    )
+    (shell_bundle_dir / "scripts").mkdir()
+    (shell_bundle_dir / "scripts" / "diagnose_web.sh").write_text(
+        "#!/usr/bin/env bash\nprintf 'bundle-diagnose\\n'\n", encoding="utf-8"
+    )
+    (shell_root / "frontend").mkdir()
+    (shell_root / "frontend" / "stale.txt").write_text("old-shell\n", encoding="utf-8")
+    (shell_root / "scripts").mkdir()
+    (shell_root / "scripts" / "diagnose_web.sh").write_text("stale-diagnose\n", encoding="utf-8")
+
+    docker_stub = f"""#!/usr/bin/env bash
+set -euo pipefail
+printf 'docker %s\\n' "$*" >> "{log_file}"
+case "$*" in
+  *"compose --env-file "*"-f docker-compose.production.yaml run --rm --no-deps app alembic upgrade head"*)
+    printf 'migration failed\\n' >&2
+    exit 1
+    ;;
+esac
+"""
+    curl_stub = f"""#!/usr/bin/env bash
+set -euo pipefail
+printf 'curl %s\\n' "$*" >> "{log_file}"
+"""
+    _write_executable(bin_dir / "docker", docker_stub)
+    _write_executable(bin_dir / "curl", curl_stub)
+
+    env = os.environ.copy()
+    env["PATH"] = f"{bin_dir}:{env['PATH']}"
+    env["DEPLOY_DIR"] = str(project_dir)
+    env["ENV_FILE"] = str(project_dir / ".env")
+    env["COMPOSE_FILE"] = "docker-compose.production.yaml"
+    env["IMAGE_REF"] = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:test"
+    env["TAG"] = "prod-vtest"
+    env["PRODUCTION_DOMAIN"] = "pulseplate.test"
+    env["SHELL_BUNDLE_DIR"] = str(shell_bundle_dir)
+
+    completed = subprocess.run(
+        [str(REPO_ROOT / "scripts/deploy_production.sh")],
+        cwd=str(REPO_ROOT),
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert completed.returncode == 1
+    assert (shell_root / "frontend" / "stale.txt").read_text(encoding="utf-8") == "old-shell\n"
+    assert not (shell_root / "frontend" / "bundle-marker.txt").exists()
+    assert (shell_root / "scripts" / "diagnose_web.sh").read_text(
+        encoding="utf-8"
+    ) == "stale-diagnose\n"
+
+
+@pytest.mark.parametrize(
+    "database_url",
+    [
+        "postgresql+psycopg://pulseplate:secret@postgres:5432/pulseplate",  # pragma: allowlist secret
+        "postgresql+psycopg://pulseplate:secret@postgres/pulseplate",  # pragma: allowlist secret
+        "postgresql+psycopg://pulseplate:secret@postgres:6543/pulseplate",  # pragma: allowlist secret
+    ],
+)
+def test_deploy_production_rejects_compose_local_postgres_dsn(
+    tmp_path: Path,
+    database_url: str,
+) -> None:
+    project_dir = tmp_path / "production"
+    bin_dir = tmp_path / "bin"
+    project_dir.mkdir()
+    bin_dir.mkdir()
+    (project_dir / "docker-compose.production.yaml").write_text("services: {}\n", encoding="utf-8")
+    (project_dir / ".env").write_text(
+        f"DATABASE_URL={database_url}\n",
+        encoding="utf-8",
+    )
+
+    docker_stub = "#!/usr/bin/env bash\nset -euo pipefail\nexit 0\n"
+    _write_executable(bin_dir / "docker", docker_stub)
+
+    env = os.environ.copy()
+    env["PATH"] = f"{bin_dir}:{env['PATH']}"
+    env["DEPLOY_DIR"] = str(project_dir)
+    env["ENV_FILE"] = str(project_dir / ".env")
+    env["COMPOSE_FILE"] = "docker-compose.production.yaml"
+    env["IMAGE_REF"] = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:test"
+    env["TAG"] = "prod-vtest"
+    env["PRODUCTION_DOMAIN"] = "pulseplate.test"
+
+    completed = subprocess.run(
+        [str(REPO_ROOT / "scripts/deploy_production.sh")],
+        cwd=str(REPO_ROOT),
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert completed.returncode == 1
+    assert "external managed PostgreSQL" in completed.stderr
+
+
+def test_deploy_production_rejects_compose_with_local_postgres_reference(tmp_path: Path) -> None:
+    project_dir = tmp_path / "production"
+    bin_dir = tmp_path / "bin"
+    project_dir.mkdir()
+    bin_dir.mkdir()
+    (project_dir / "docker-compose.production.yaml").write_text(
+        "services:\n  app:\n    depends_on:\n      postgres:\n        condition: service_healthy\n  postgres:\n    image: postgres:16\n",
+        encoding="utf-8",
+    )
+    (project_dir / ".env").write_text(
+        "DATABASE_URL=postgresql+psycopg://pulseplate:secret@db.example.com:25060/pulseplate\n",  # pragma: allowlist secret
+        encoding="utf-8",
+    )
+
+    docker_stub = "#!/usr/bin/env bash\nset -euo pipefail\nexit 0\n"
+    _write_executable(bin_dir / "docker", docker_stub)
+
+    env = os.environ.copy()
+    env["PATH"] = f"{bin_dir}:{env['PATH']}"
+    env["DEPLOY_DIR"] = str(project_dir)
+    env["ENV_FILE"] = str(project_dir / ".env")
+    env["COMPOSE_FILE"] = "docker-compose.production.yaml"
+    env["IMAGE_REF"] = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:test"
+    env["TAG"] = "prod-vtest"
+    env["PRODUCTION_DOMAIN"] = "pulseplate.test"
+
+    completed = subprocess.run(
+        [str(REPO_ROOT / "scripts/deploy_production.sh")],
+        cwd=str(REPO_ROOT),
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert completed.returncode == 1
+    assert "still references local postgres" in completed.stderr
 
 
 def test_diagnose_web_reports_green_for_spa_and_api_contract(tmp_path: Path) -> None:

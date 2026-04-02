@@ -23,6 +23,35 @@ from app.security.goplus_agentguard_bridge import (
 )
 
 
+def require_feature(feature_key: str, reason: str) -> None:
+    expected_reason = f"feature_disabled:{feature_key}"
+    if reason != expected_reason:
+        pytest.fail(f"invalid feature skip reason: expected {expected_reason!r}, got {reason!r}")
+    pytest.skip(reason)
+
+
+def _node_agentguard_dependency_available(node_binary: str) -> bool:
+    completed = subprocess.run(
+        [node_binary, "-e", 'require.resolve("@goplus/agentguard")'],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if completed.returncode == 0:
+        return True
+
+    stderr = (completed.stderr or "").lower()
+    if "module_not_found" in stderr or "cannot find module" in stderr:
+        return False
+
+    pytest.fail(
+        "Node failed while checking @goplus/agentguard availability:\n"
+        f"exit code: {completed.returncode}\n"
+        f"stdout: {completed.stdout}\n"
+        f"stderr: {completed.stderr}"
+    )
+
+
 def test_scan_ai_agent_input_allows_benign_wellness_prompt(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -362,12 +391,26 @@ def test_scan_text_with_goplus_agentguard_live_runtime_smoke() -> None:
 
     from app.security import goplus_agentguard_bridge as bridge_mod
 
-    if bridge_mod.shutil.which("node") is None or not bridge_mod.AGENTGUARD_SCAN_SCRIPT.exists():
-        pytest.skip("local Node runtime or GoPlus scan script unavailable")
+    node_binary = bridge_mod.shutil.which("node")
+    if node_binary is None or not bridge_mod.AGENTGUARD_SCAN_SCRIPT.exists():
+        require_feature(
+            "goplus_scanner_runtime",
+            "feature_disabled:goplus_scanner_runtime",
+        )
+        raise AssertionError("require_feature should always raise pytest skip")
+    if not _node_agentguard_dependency_available(node_binary):
+        require_feature(
+            "goplus_scanner_runtime",
+            "feature_disabled:goplus_scanner_runtime",
+        )
 
     result = scan_text_with_goplus_agentguard("How can I build a steady breakfast habit?")
+    if result is None:
+        pytest.fail(
+            "GoPlus scanner returned no result despite Node/script availability; "
+            "runtime, dependency, or output contract likely failed"
+        )
 
-    assert result is not None
     assert result.risk_level == "low"
     assert result.risk_tags == ()
     assert result.should_block is False
