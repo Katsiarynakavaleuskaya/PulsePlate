@@ -5,7 +5,10 @@
 - [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
-- No actionable review comments
+Disposition: FIXED
+Commit: de8b7a36
+Evidence: trivy/ignore-policy.rego:36
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1305#discussion_r3030302201 -> de8b7a36
 
 ## Merge Readiness
 - [ ] Local verification completed
