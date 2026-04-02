@@ -2482,24 +2482,6 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Trivy Code Scanning alerts #572, #574, #576, and #577 remain closed on
       `main`
 
-- [ ] Triage and close Trivy libc CVE alerts outside billing lane (CVE-2026-4046)
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P1
-  - Target PR: PR-TBD-SECURITY-TRIVY-LIBC-CVE-2026-4046
-  - Area: security / base image / CI
-  - Finding Type: dependency-vulnerability
-  - Reason: GitHub code scanning still reports open Trivy alerts `#579` (`libc-bin`) and `#580` (`libc6`) for `CVE-2026-4046` on `main` as of 02 April 2026. These alerts must be triaged in a dedicated security/base-image lane and must not be absorbed into the billing activation/persistence closeout PR unless they become an explicit branch-protection blocker.
-  - Links:
-    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/security/code-scanning/579`
-    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/security/code-scanning/580`
-    - `.github/workflows/trivy.yml`
-    - `.github/workflows/build.yml`
-  - DoD:
-    - Dedicated triage records whether the fix is base-image bump, narrow suppression, or accepted upstream wait
-    - Billing PR scope remains limited to activation + persistence closeout
-    - GitHub code scanning alerts `#579` and `#580` are either closed or tracked with explicit security disposition evidence
-
-
 - [ ] Security suppression expiry monitoring
   - Owner: @katsiaryna_kavaleuskaya
   - Target PR: N/A (ongoing)
@@ -2513,15 +2495,14 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Target PR: PR-TBD-SECURITY-CVE-2026-4046
   - Area: security / base-image / code-scanning
   - Finding Type: container base image vulnerability
-  - Reason: GitHub code scanning on `main` currently reports open Trivy alerts `#579` (`libc-bin`) and `#580` (`libc6`) for `CVE-2026-4046` at version `2.36-9+deb12u13` with no fixed version published in Trivy metadata as of 2026-04-02. This must be triaged and resolved in a dedicated security lane rather than being absorbed into the billing activation/persistence closeout.
+  - Reason: GitHub code scanning on `main` currently reports open Trivy alerts `#579` (`libc-bin`) and `#580` (`libc6`) for `CVE-2026-4046` at version `2.36-9+deb12u13` with no fixed version published in Trivy metadata as of 2026-04-02. This CVE must stay on a single canonical tracker and be triaged in a dedicated security lane rather than being absorbed into the billing activation/persistence closeout.
   - Links:
-    - `docs/security/CVE-2026-4046-glibc.md`
     - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/security/code-scanning/579`
     - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/security/code-scanning/580`
     - `trivy/ignore-policy.rego`
     - `.github/workflows/build.yml`
   - DoD:
-    - Triage outcome is documented with evidence for both alerts
+    - Triage outcome is documented with evidence for both alerts in the dedicated security PR
     - Separate security lane decides between narrow suppression and upstream/base-image remediation
     - Billing activation/persistence closeout remains explicitly out of scope for this CVE
     - Alerts `#579` and `#580` are closed or formally covered by the approved suppression policy

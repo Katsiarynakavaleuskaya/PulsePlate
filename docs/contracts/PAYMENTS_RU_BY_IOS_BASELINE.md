@@ -119,14 +119,14 @@ Output envelope (runtime canonical readback / activation response):
 For manual rails (`erip_qr`, `swift_manual`). Runtime enum: `ReconcileStatus` in `app/schemas/payments.py` (pending, verified, rejected, not_required).
 
 ```text
-draft_intent -> pending_manual_review -> verified -> active
-                                 \-> rejected
+status: pending_manual_review -> active | rejected
+reconcile_status: pending -> verified | rejected | not_required
 ```
 
 Lifecycle invariants:
-1. `verified` can be reached only with immutable `external_txn_id` and evidence payload.
-2. `active` is idempotent for identical `(user_id, source, external_txn_id, plan)`.
-3. Reconcile retry is safe and cannot duplicate entitlements.
+1. `reconcile_status=verified` can be reached only with immutable `external_txn_id` and evidence payload.
+2. Business `status=active` is idempotent for identical `(user_id, source, external_txn_id, plan)`.
+3. Reconcile retry is safe and cannot duplicate entitlements even when `reconcile_status` is retried.
 
 ## 5. Webhook/Signature and Idempotency Contract
 
