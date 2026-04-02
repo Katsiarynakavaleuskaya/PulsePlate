@@ -142,7 +142,12 @@ _PROCESSING_CATEGORIES: tuple[ProcessingCategory, ...] = (
     ProcessingCategory(
         category_id="ai_generated_wellness_analysis",
         title="AI-generated wellness analysis",
-        endpoints=("/insight", "/api/v1/insight", "/api/v1/pro/cbt/insight"),
+        endpoints=(
+            "/insight",
+            "/api/v1/insight",
+            "/api/v1/pro/cbt/insight",
+            "/api/v1/pro/fitchef/explain",
+        ),
         purpose="Generate wellness-oriented, automated AI responses and explanations",
         sensitivity="derived sensitive",
         third_party_exposure=(

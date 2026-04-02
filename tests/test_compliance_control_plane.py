@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import cast
 from unittest.mock import MagicMock
 
@@ -26,6 +27,11 @@ from core.compliance import (
 )
 from core.compliance.transparency import get_blocked_regulated_lane
 
+_REPO_ROOT = Path(__file__).resolve().parents[1]
+_LEGAL_PRIVACY_DOC = _REPO_ROOT / "docs/legal/Privacy.md"
+_DATA_MATRIX_DOC = _REPO_ROOT / "docs/compliance/DATA_CLASSIFICATION_AND_PROCESSING_MATRIX.md"
+_AI_NOTICE_DOC = _REPO_ROOT / "docs/compliance/AI_TRANSPARENCY_AND_PROFILING_NOTICE.md"
+
 
 def test_privacy_payload_contains_additive_control_plane_fields() -> None:
     payload = build_privacy_endpoint_payload()
@@ -48,18 +54,78 @@ def test_privacy_payload_contains_additive_control_plane_fields() -> None:
     assert "/api/v1/premium/plate" in endpoints
 
 
+def test_privacy_metadata_stays_in_sync_with_canonical_docs() -> None:
+    payload = build_privacy_endpoint_payload()
+    legal_privacy_doc = _LEGAL_PRIVACY_DOC.read_text(encoding="utf-8")
+    data_matrix_doc = _DATA_MATRIX_DOC.read_text(encoding="utf-8")
+    ai_notice_doc = _AI_NOTICE_DOC.read_text(encoding="utf-8")
+    retention_summary = cast(dict[str, object], payload["retention_summary"])
+    regulated_lane = cast(dict[str, object], retention_summary["regulated_lane"])
+    processing_categories = cast(list[dict[str, object]], payload["processing_categories"])
+    ai_generated_surface = next(
+        item
+        for item in processing_categories
+        if item["category_id"] == "ai_generated_wellness_analysis"
+    )
+
+    expected_policy_version = cast(str, payload["policy_version"])
+    expected_last_updated = cast(str, payload["last_updated"])
+
+    assert f"**Policy version:** `{expected_policy_version}`" in legal_privacy_doc
+    assert f"**Policy version:** `{expected_policy_version}`" in data_matrix_doc
+    assert f"**Last updated:** {expected_last_updated}" in legal_privacy_doc
+    assert f"**Last updated:** {expected_last_updated}" in data_matrix_doc
+    assert f"**Last updated:** {expected_last_updated}" in ai_notice_doc
+    assert "Consumer wellness product, not a clinical system" in legal_privacy_doc
+    assert (
+        "This matrix is the canonical control-plane view for the current wellness runtime."
+        in data_matrix_doc
+    )
+    assert (
+        "PulsePlate treats health-adjacent AI features as **automated wellness analysis**."
+        in ai_notice_doc
+    )
+
+    regulated_lane_examples = cast(list[str], regulated_lane["examples"])
+    for blocked_example in regulated_lane_examples:
+        assert blocked_example in ai_notice_doc
+    assert "separate regulated lane" in ai_notice_doc
+
+    for provider_name in (
+        "Ollama-compatible",
+        "xAI/Grok",
+        "OpenAI-compatible",
+        "Anthropic-compatible",
+        "Pico",
+    ):
+        assert provider_name in legal_privacy_doc
+
+    ai_generated_endpoints = cast(list[str], ai_generated_surface["endpoints"])
+    assert "/api/v1/pro/fitchef/explain" in ai_generated_endpoints
+    assert "/api/v1/pro/fitchef/explain" in legal_privacy_doc
+    assert "/api/v1/pro/fitchef/explain" in data_matrix_doc
+
+
 def test_transparency_registry_covers_core_healthish_surfaces() -> None:
     registry = get_transparency_registry()
+    ai_notice_doc = _AI_NOTICE_DOC.read_text(encoding="utf-8")
 
     assert "bmi_wellness_screening" in registry
     assert "bodyfat_estimation" in registry
     assert "nutrition_targets_and_weekly_plan" in registry
     assert "ai_generated_insight" in registry
+    assert "fitchef_structured_v1" in registry
     ai_generated_insight = registry["ai_generated_insight"]
     assert ai_generated_insight["analysis_kind"] == "automated AI-assisted analysis"
     nutrition_surface = registry["nutrition_targets_and_weekly_plan"]
     nutrition_endpoints = cast(list[str], nutrition_surface["endpoints"])
     assert "/api/v1/pro/meal/weekly" in nutrition_endpoints
+    fitchef_surface = registry["fitchef_structured_v1"]
+    fitchef_endpoints = cast(list[str], fitchef_surface["endpoints"])
+    assert fitchef_surface["analysis_kind"] == "automated AI-assisted wellness coaching structure"
+    assert "/api/v1/pro/fitchef/explain" in fitchef_endpoints
+    assert "fitchef_structured_v1" in ai_notice_doc
+    assert "/api/v1/pro/fitchef/explain" in ai_notice_doc
 
 
 def test_sensitive_field_taxonomy_and_minimization_rules() -> None:
@@ -72,6 +138,20 @@ def test_sensitive_field_taxonomy_and_minimization_rules() -> None:
         field_name="query",
     )
     hashed_prompt = minimize_free_text("private provider prompt", field_name="prompt")
+    minimized_response = minimize_free_text(
+        "member@example.com " + "y" * 5000,
+        field_name="llm_response",
+    )
+    minimized_correction = minimize_free_text(
+        "member@example.com " + "z" * 5000,
+        field_name="user_correction",
+    )
+    minimized_source_content = minimize_free_text(
+        "member@example.com " + "k" * 1000,
+        field_name="content",
+    )
+    hashed_provider_trace = minimize_free_text("trace payload", field_name="provider_trace")
+    hashed_profile = minimize_free_text("profile payload", field_name="health_profile")
 
     assert minimized_query is not None
     assert "[EMAIL_REDACTED]" in minimized_query
@@ -79,6 +159,24 @@ def test_sensitive_field_taxonomy_and_minimization_rules() -> None:
     assert len(minimized_query) <= 512
     assert hashed_prompt is not None
     assert len(hashed_prompt) == 64
+    assert taxonomy["llm_response"].persistence_rule == "redact_and_truncate"
+    assert taxonomy["user_correction"].persistence_rule == "redact_and_truncate"
+    assert taxonomy["source_content"].persistence_rule == "redact_and_truncate"
+    assert taxonomy["provider_trace"].persistence_rule == "hash_only"
+    assert taxonomy["health_profile"].persistence_rule == "hash_only"
+    assert minimized_response is not None
+    assert "[EMAIL_REDACTED]" in minimized_response
+    assert len(minimized_response) <= 4000
+    assert minimized_correction is not None
+    assert "[EMAIL_REDACTED]" in minimized_correction
+    assert len(minimized_correction) <= 4000
+    assert minimized_source_content is not None
+    assert "[EMAIL_REDACTED]" in minimized_source_content
+    assert len(minimized_source_content) <= 240
+    assert hashed_provider_trace is not None
+    assert len(hashed_provider_trace) == 64
+    assert hashed_profile is not None
+    assert len(hashed_profile) == 64
 
 
 def test_dsar_artifact_map_distinguishes_direct_and_indirect_artifacts() -> None:

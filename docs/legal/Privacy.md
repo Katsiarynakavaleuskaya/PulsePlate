@@ -44,6 +44,7 @@
 - BMI / body-fat / nutrition-target calculations
 - nutrition planning and weekly-plan generation
 - AI insight surfaces (`/insight`, `/api/v1/insight`, `/api/v1/pro/cbt/insight`)
+- FitChef structured coaching (`/api/v1/pro/fitchef/explain`)
 
 Для таких поверхностей действуют общие правила:
 
@@ -125,6 +126,7 @@ Some surfaces perform **automated wellness analysis**, including:
 - BMI, body-fat, and nutrition-target calculations
 - nutrition planning and weekly-plan generation
 - AI insight surfaces (`/insight`, `/api/v1/insight`, `/api/v1/pro/cbt/insight`)
+- FitChef structured coaching (`/api/v1/pro/fitchef/explain`)
 
 For these surfaces:
 
@@ -192,6 +194,7 @@ Algunas superficies realizan análisis automatizado de wellness:
 - cálculos de BMI, body-fat y nutrition targets
 - planificación nutricional y weekly-plan generation
 - superficies AI insight (`/insight`, `/api/v1/insight`, `/api/v1/pro/cbt/insight`)
+- coaching estructurado de FitChef (`/api/v1/pro/fitchef/explain`)
 
 Estos resultados son para wellness y educación, no para emergencias ni decisiones de tratamiento.
 El tracing backend solo almacena huellas HMAC, longitudes y metadatos de uso limitados; no exporta prompts/completions en texto plano en v1.
