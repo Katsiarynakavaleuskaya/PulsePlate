@@ -48,9 +48,17 @@ describe('Profile', () => {
       'href',
       'https://pulseplate.app/privacy'
     );
+    expect(screen.getByRole('link', { name: 'Privacy Policy' })).toHaveAttribute(
+      'rel',
+      'noopener noreferrer'
+    );
     expect(screen.getByRole('link', { name: 'Terms of Use' })).toHaveAttribute(
       'href',
       'https://pulseplate.app/terms'
+    );
+    expect(screen.getByRole('link', { name: 'Terms of Use' })).toHaveAttribute(
+      'rel',
+      'noopener noreferrer'
     );
   });
 
@@ -93,5 +101,4 @@ describe('Profile', () => {
     expect(main).toHaveClass('min-h-screen');
     expect(main).toHaveClass('flex-col');
   });
-
 });

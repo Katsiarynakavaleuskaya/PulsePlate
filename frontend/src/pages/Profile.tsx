@@ -130,7 +130,7 @@ export default function Profile() {
                 <a
                   href={CANONICAL_PRIVACY_URL}
                   target="_blank"
-                  rel="noreferrer"
+                  rel="noopener noreferrer"
                   className="inline-flex items-center justify-center rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] px-4 py-3 text-sm font-semibold text-[var(--color-text)] transition-all hover:bg-[var(--color-surface)] hover:shadow-sm"
                 >
                   Privacy Policy
@@ -138,7 +138,7 @@ export default function Profile() {
                 <a
                   href={CANONICAL_TERMS_URL}
                   target="_blank"
-                  rel="noreferrer"
+                  rel="noopener noreferrer"
                   className="inline-flex items-center justify-center rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] px-4 py-3 text-sm font-semibold text-[var(--color-text)] transition-all hover:bg-[var(--color-surface)] hover:shadow-sm"
                 >
                   Terms of Use
