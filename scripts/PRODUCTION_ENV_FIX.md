@@ -2,10 +2,10 @@
 
 ## 🚨 Проблема
 
-Production deploy contract теперь Postgres-first и fail-closed. Сервер не должен запускаться с:
+Production deploy contract теперь managed-PostgreSQL-only и fail-closed. Сервер не должен запускаться с:
 
 - `DATABASE_URL=sqlite:///...`
-- отсутствующим `POSTGRES_DB` / `POSTGRES_USER` / `POSTGRES_PASSWORD`
+- `DATABASE_URL`, указывающим на compose-local `@postgres:5432`
 - dev-friendly флагами вроде `ALLOW_DEV_API_KEY=true`
 
 ## ✅ Канонический production env contract
@@ -15,10 +15,7 @@ cd /srv/pulseplate-production
 
 cat >> .env <<'EOF'
 PRODUCTION_DOMAIN=yourdomain.com
-DATABASE_URL=postgresql+psycopg://<user>:<password>@postgres:5432/<dbname>
-POSTGRES_DB=pulseplate
-POSTGRES_USER=pulseplate
-POSTGRES_PASSWORD=replace-with-strong-secret
+DATABASE_URL=postgresql+psycopg://<user>:<password>@db.example.com:25060/<dbname>
 SUBSCRIPTION_DB_ENABLED=true
 ALLOW_DEV_API_KEY=false
 API_KEY_REQUIRED=true  # compatibility flag for request-time API-key enforcement
@@ -38,10 +35,10 @@ bash scripts/fix_production_env.sh
 
 Скрипт:
 
-1. Требует `postgres` service в production compose
+1. Требует отсутствие `postgres` service в canonical production compose
 2. Нормализует `APP_ENV`, `ENVIRONMENT`, `SUBSCRIPTION_DB_ENABLED`, `ALLOW_DEV_API_KEY` и совместимый `API_KEY_REQUIRED`
-3. Проверяет `DATABASE_URL`, `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`
-4. Падает, если `DATABASE_URL` не использует `postgresql+psycopg://`
+3. Проверяет `DATABASE_URL`
+4. Падает, если `DATABASE_URL` не использует `postgresql+psycopg://` или указывает на `@postgres:5432`
 5. Валидирует compose и перезапускает сервисы
 
 ## 🔍 Ручная проверка
@@ -50,7 +47,6 @@ bash scripts/fix_production_env.sh
 cd /srv/pulseplate-production
 
 grep -E '^DATABASE_URL=' .env
-grep -E '^POSTGRES_(DB|USER|PASSWORD)=' .env
 
 docker compose --env-file .env -f docker-compose.production.yaml config >/dev/null
 docker compose --env-file .env -f docker-compose.production.yaml up -d --force-recreate
@@ -61,10 +57,10 @@ curl -fsS "https://${PRODUCTION_DOMAIN}/ready" | jq .
 
 ## ⚠️ Важные замечания
 
-1. `POSTGRES_PASSWORD=dummy` больше не является допустимым production workaround.
-2. `postgres` не должен становиться optional через `profiles` для production.
-3. `DATABASE_URL` должен указывать на `@postgres:5432` внутри compose network.
-4. SQLite разрешён только для local/dev/test fallback, не для canonical production deploy path.
+1. `postgres` не должен появляться даже optional через `profiles` для canonical production.
+2. `DATABASE_URL` не должен указывать на `@postgres:5432` внутри compose network.
+3. SQLite разрешён только для local/dev/test fallback, не для canonical production deploy path.
+4. Backup / PITR для production managed Postgres должны обеспечиваться провайдером, а не hot-path скриптом деплоя.
 
 ## 🔐 Security Notes
 
@@ -75,7 +71,7 @@ curl -fsS "https://${PRODUCTION_DOMAIN}/ready" | jq .
 ## 📝 Чеклист
 
 - [ ] В `.env` задан Postgres DSN
-- [ ] `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD` заданы
+- [ ] DSN указывает на внешний managed Postgres host, не `@postgres:5432`
 - [ ] `SUBSCRIPTION_DB_ENABLED=true`
 - [ ] `ALLOW_DEV_API_KEY=false`
 - [ ] При необходимости для совместимости задан `API_KEY_REQUIRED=true`

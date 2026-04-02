@@ -66,11 +66,6 @@ elif [ -f "compose.yaml" ]; then
   compose_args=(-f "compose.yaml")
 fi
 
-HELPER_COMPOSE_FILE="${COMPOSE_FILE:-}"
-if [ -z "$HELPER_COMPOSE_FILE" ] && [ ${#compose_args[@]} -ge 2 ]; then
-  HELPER_COMPOSE_FILE="${compose_args[1]}"
-fi
-
 if [ -z "$ENV_FILE" ]; then
   ENV_FILE="$DEPLOY_DIR/.env"
 fi
@@ -89,16 +84,10 @@ IMAGE_REF="$DEPLOY_IMAGE_REF"
 TAG="$DEPLOY_TAG"
 export IMAGE_REF TAG
 
-: "${POSTGRES_USER:?POSTGRES_USER is required}"
-: "${POSTGRES_DB:?POSTGRES_DB is required}"
-: "${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}"
 : "${DATABASE_URL:?DATABASE_URL is required}"
 : "${PRODUCTION_DOMAIN:?PRODUCTION_DOMAIN is required}"
 
 export PRODUCTION_DOMAIN
-
-BACKUP_DIR="${BACKUP_DIR:-$DEPLOY_DIR/backups}"
-BACKUP_HELPER="${BACKUP_HELPER:-$DEPLOY_DIR/scripts/ops/postgres_backup.sh}"
 
 echo "Deploy dir: $DEPLOY_DIR"
 if [ ${#compose_args[@]} -gt 0 ]; then
@@ -157,29 +146,6 @@ sync_shell_bundle() {
   fi
 }
 
-wait_for_service_health() {
-  local service_name="$1"
-  local max_wait="${2:-60}"
-  local wait_count=0
-
-  while [ "$wait_count" -lt "$max_wait" ]; do
-    local container_id
-    local health_status
-    container_id="$(dc ps -q "$service_name" | tr -d '\n\r ')"
-    health_status="$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' "${container_id:-missing}" 2>/dev/null || true)"
-    if [ -n "${container_id:-}" ] && [ "$health_status" = "healthy" ]; then
-      echo "$service_name is healthy"
-      return 0
-    fi
-    wait_count=$((wait_count + 1))
-    echo "Waiting for $service_name health... ($wait_count/$max_wait)"
-    sleep 1
-  done
-
-  echo "❌ $service_name failed to become healthy within $max_wait seconds" >&2
-  return 1
-}
-
 wait_for_app_ready() {
   local max_wait="${1:-30}"
   local wait_count=0
@@ -200,43 +166,46 @@ wait_for_app_ready() {
   return 1
 }
 
-if [ ! -x "$BACKUP_HELPER" ]; then
-  echo "❌ Missing Postgres backup helper: $BACKUP_HELPER" >&2
-  exit 1
-fi
+validate_managed_postgres_contract() {
+  case "$DATABASE_URL" in
+    postgresql+psycopg://*)
+      ;;
+    *)
+      echo "❌ DATABASE_URL must use canonical Postgres DSN (postgresql+psycopg://...)" >&2
+      exit 1
+      ;;
+  esac
+
+  case "$DATABASE_URL" in
+    *@postgres:5432/*)
+      echo "❌ Production deploy expects external managed PostgreSQL, not compose-local @postgres:5432" >&2
+      exit 1
+      ;;
+  esac
+}
 
 echo "Pulling production app image..."
 dc pull app
 
 sync_shell_bundle
 
-echo "Starting postgres first..."
-dc up -d --remove-orphans postgres
-wait_for_service_health postgres 60
+echo "Validating managed PostgreSQL production contract..."
+validate_managed_postgres_contract
 
-echo "Creating Postgres backup before migrations..."
-PROJECT_DIR="$DEPLOY_DIR" BACKUP_DIR="$BACKUP_DIR" COMPOSE_FILE="$HELPER_COMPOSE_FILE" POSTGRES_USER="$POSTGRES_USER" POSTGRES_DB="$POSTGRES_DB" \
-  "$BACKUP_HELPER"
+echo "Production DB backups are managed outside the deploy script (provider snapshots / PITR)."
+
+echo "Running database migrations via one-shot release container..."
+if dc run --rm --no-deps app alembic upgrade head; then
+  echo "✅ Database migrations completed successfully"
+else
+  migration_exit_code=$?
+  echo "❌ Database migrations failed (exit code: $migration_exit_code)" >&2
+  exit "$migration_exit_code"
+fi
 
 echo "Starting app before exposing traffic..."
 dc up -d --remove-orphans app
 wait_for_app_ready 30
-
-APP_CONTAINER="$(dc ps -q app | tr -d '\n\r ')"
-if [ -z "${APP_CONTAINER:-}" ]; then
-  echo "❌ Unable to resolve running app container for migrations" >&2
-  exit 1
-fi
-
-echo "Running database migrations in container: $APP_CONTAINER"
-if docker exec "$APP_CONTAINER" alembic upgrade head; then
-  echo "✅ Database migrations completed successfully in container: $APP_CONTAINER"
-else
-  migration_exit_code=$?
-  echo "❌ Database migrations failed in container: $APP_CONTAINER (exit code: $migration_exit_code)" >&2
-  echo "Check container logs with: docker logs $APP_CONTAINER" >&2
-  exit "$migration_exit_code"
-fi
 
 echo "Starting caddy after successful migrations..."
 dc build caddy

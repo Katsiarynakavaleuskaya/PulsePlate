@@ -1,6 +1,9 @@
 # Postgres Self-Hosted Droplet Foundation
 
-**Purpose:** Canonical production database baseline for PulsePlate on Droplet. Postgres is the required production/staging DB; SQLite remains for local/dev/test fallback only.
+> Alternate lane only. Canonical production now uses managed PostgreSQL via external `DATABASE_URL`.
+> Keep this document for self-hosted droplet operations, staging experiments, or disaster-recovery drills.
+
+**Purpose:** Self-hosted Postgres reference for PulsePlate on a Droplet. This is no longer the canonical production database baseline.
 
 **Design rationale (architecture):**
 
@@ -8,6 +11,7 @@
 - Production/staging fail closed on primary DB init errors; SQLite is not an accepted canonical runtime baseline there.
 - SQLite fallback remains local/dev/test only.
 - Health checks use `/health/db` for readiness; `DATABASE_URL` is required for production/staging.
+- Managed PostgreSQL with provider snapshots / PITR is the canonical production path; this document remains the self-hosted alternate.
 
 ---
 

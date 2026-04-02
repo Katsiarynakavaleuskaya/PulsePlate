@@ -72,6 +72,7 @@ git push origin main
 
 **Что делаем:**
 - ✅ `docker pull` нового образа
+- ✅ one-shot migrations через release image до рестарта приложения
 - ✅ `docker-compose up -d --force-recreate` (или `docker run`)
 - ✅ Проверка health endpoint
 
@@ -90,13 +91,16 @@ cd /srv/pulseplate-production
 # 1. Подтянуть новый образ
 docker-compose -f docker-compose.production.yaml pull
 
-# 2. Перезапустить сервисы
+# 2. Прогнать миграции через release image
+docker compose --env-file .env -f docker-compose.production.yaml run --rm --no-deps app alembic upgrade head
+
+# 3. Перезапустить сервисы
 docker-compose -f docker-compose.production.yaml up -d --force-recreate
 
-# 3. Проверить статус
+# 4. Проверить статус
 docker-compose -f docker-compose.production.yaml ps
 
-# 4. Проверить health
+# 5. Проверить health
 curl -fsS https://pulseplate.app/health | jq .
 ```
 
@@ -152,8 +156,15 @@ ssh root@pulseplate.app
 # Перейти в deploy директорию
 cd /srv/pulseplate-production
 
-# Обновить образ app из registry (IMAGE_REF), затем пересобрать Caddy из синхронизированного release shell bundle и перезапустить стек
+# Canonical production contract: managed PostgreSQL lives outside compose and is reached via DATABASE_URL
+
+# Обновить образ app из registry (IMAGE_REF)
 docker compose -f docker-compose.production.yaml pull app
+
+# Прогнать миграции через one-shot release container
+docker compose --env-file .env -f docker-compose.production.yaml run --rm --no-deps app alembic upgrade head
+
+# Затем пересобрать Caddy из синхронизированного release shell bundle и перезапустить стек
 docker compose -f docker-compose.production.yaml build caddy
 docker compose -f docker-compose.production.yaml up -d --force-recreate
 
@@ -181,7 +192,7 @@ curl -fsS https://pulseplate.app/health | jq .
 | ------------------ | ---------------------------------------------- | --------------------------------------- |
 | **Cursor**         | Код, фиксы, коммиты, PR                       | Правка на сервере                       |
 | **GitHub Actions** | Автоматическая сборка Docker image             | Ручная сборка                           |
-| **DigitalOcean**   | `docker compose pull app` + `build caddy` + `up` + `diagnose_web.sh` (см. `scripts/redeploy_caddy.sh`) | Правка кода, git clone, изменение файлов |
+| **DigitalOcean**   | `docker compose pull app` + one-shot `alembic upgrade head` + `build caddy` + `up` + `diagnose_web.sh` (см. `scripts/redeploy_caddy.sh`) | Правка кода, git clone, изменение файлов |
 
 ---
 
@@ -365,6 +376,7 @@ docker-compose -f docker-compose.production.yaml exec -T app env | grep -E 'APP_
 3. **Всегда проверяй health endpoint** после деплоя
 4. **Используй pinned digests** для production (не `latest`)
 5. **Делай backup `.env`** перед изменениями
+6. **Используй provider snapshots / PITR** как baseline backup для managed PostgreSQL, а не локальный `pg_dump` в hot path
 
 ---
 

@@ -51,12 +51,12 @@ fi
 echo "📍 Compose file: $COMPOSE_FILE"
 echo ""
 
-# Production deploy contract is Postgres-first and fail-closed.
+# Production deploy contract is managed-Postgres-only and fail-closed.
 if grep -qE "^\s+postgres:" "$COMPOSE_FILE"; then
-    echo "✅ Found postgres service in compose file"
-else
-    echo "❌ Production compose must define a postgres service"
+    echo "❌ Canonical production compose must not define a local postgres service"
     exit 1
+else
+    echo "✅ Production compose uses external managed PostgreSQL only"
 fi
 
 # Check if .env exists
@@ -99,7 +99,7 @@ set_env_var "ALLOW_DEV_API_KEY" "false"
 set_env_var "API_KEY_REQUIRED" "true"
 
 echo ""
-echo "=== Step 2: Validate required Postgres contract ==="
+echo "=== Step 2: Validate managed PostgreSQL contract ==="
 
 require_env_var() {
     local key="$1"
@@ -113,16 +113,22 @@ require_env_var() {
 }
 
 require_env_var "DATABASE_URL"
-require_env_var "POSTGRES_DB"
-require_env_var "POSTGRES_USER"
-require_env_var "POSTGRES_PASSWORD"
-
 DATABASE_URL_VALUE="$(grep -E '^DATABASE_URL=' .env | tail -1 | cut -d'=' -f2- | tr -d '\r\n')"
 case "$DATABASE_URL_VALUE" in
     postgresql+psycopg://*) echo "✅ DATABASE_URL uses Postgres DSN" ;;
     *)
         echo "❌ DATABASE_URL must use canonical Postgres DSN (postgresql+psycopg://...)"
         exit 1
+        ;;
+esac
+
+case "$DATABASE_URL_VALUE" in
+    *@postgres:5432/*)
+        echo "❌ DATABASE_URL must point to managed PostgreSQL, not compose-local @postgres:5432"
+        exit 1
+        ;;
+    *)
+        echo "✅ DATABASE_URL targets external managed PostgreSQL"
         ;;
 esac
 
