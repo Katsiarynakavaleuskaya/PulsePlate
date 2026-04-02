@@ -28,6 +28,18 @@ def test_production_deploy_jobs_use_bridge_job_outputs() -> None:
     assert PROD_DEPLOY_MODE_ENV_FETCH in workflow_text
     assert WEB_IOS_RELEASE_READY_ENV_FETCH in workflow_text
     assert "GH_TOKEN: ${{ github.token }}" in workflow_text
+    assert "PRODUCTION_ENV_READ_TOKEN: ${{ secrets.PRODUCTION_ENV_READ_TOKEN }}" in workflow_text
+    assert 'DEFAULT_GH_TOKEN="${GH_TOKEN}"' in workflow_text
+    assert 'FALLBACK_GH_TOKEN="${PRODUCTION_ENV_READ_TOKEN:-}"' in workflow_text
+    assert (
+        'if response="$(gh_api_value "$DEFAULT_GH_TOKEN" "$scope_path" "$variable_name" 2>&1)"; then'
+        in workflow_text
+    )
+    assert "Resource not accessible by integration" in workflow_text
+    assert (
+        'if response="$(gh_api_value "$FALLBACK_GH_TOKEN" "$scope_path" "$variable_name" 2>&1)"; then'
+        in workflow_text
+    )
     assert "gh auth status >/dev/null" in workflow_text
     assert "needs.production-deploy-config.outputs.should_deploy == 'true'" in workflow_text
     assert "needs.production-deploy-config.outputs.deploy_mode == 'ssh'" in workflow_text
