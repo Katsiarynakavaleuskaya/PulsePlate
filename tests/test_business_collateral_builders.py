@@ -46,6 +46,12 @@ def _run_node_eval(script: str) -> subprocess.CompletedProcess[str]:
     return _run_subprocess([node_binary, "-e", script])
 
 
+def _node_package_or_skip(package_name: str) -> None:
+    result = _run_node_eval(f'require.resolve("{package_name}");')
+    if result.returncode != 0:
+        pytest.skip(f"optional node package '{package_name}' not installed")
+
+
 def _read_office_document_xml(output_path: Path, member_name: str) -> str:
     with zipfile.ZipFile(output_path) as archive:
         return archive.read(member_name).decode("utf-8")
@@ -59,6 +65,7 @@ def _extract_docx_text(document_xml: str) -> str:
 
 
 def test_b2b_proposal_builder_creates_docx(tmp_path: Path) -> None:
+    _node_package_or_skip("docx")
     output_path = tmp_path / "proposal.docx"
     result = _run_builder("scripts/business_collateral/build_b2b_proposal.js", output_path)
 
@@ -99,6 +106,7 @@ process.stdout.write(JSON.stringify(result));
 
 
 def test_b2b_pitch_deck_builder_creates_pptx(tmp_path: Path) -> None:
+    _node_package_or_skip("pptxgenjs")
     output_path = tmp_path / "deck.pptx"
     result = _run_builder("scripts/business_collateral/build_b2b_pitch_deck.js", output_path)
 
