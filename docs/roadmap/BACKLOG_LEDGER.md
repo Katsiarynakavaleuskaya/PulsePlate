@@ -7474,6 +7474,24 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - The mirror helper validates the canonical artifact before rendering a PR-body block
     - CI guidance explicitly distinguishes canonical SoT vs human-readable mirror
 
+<a id="ledger-p2-pr1298-doc-governance-followup"></a>
+- [ ] P2: PR #1298 docs/governance follow-up for audit evidence dedup and PR1-PR4 SoT labeling
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR-TBD-DOCS-GOVERNANCE-PR1298-FOLLOWUP
+  - Area: docs / governance
+  - Reason (EN): Post-open bot review on PR `#1298` surfaced two valid but non-blocking documentation refinements: the PR4 audit packet repeats some `file:line` evidence anchors inline and in evidence lists, and the PR1-PR4 sequencing narrative is mirrored across several docs without one clearly labeled canonical source note. Both improvements are outside the narrow entitlement-routing closeout scope and should land in a separate docs-only follow-up.
+  - Status: Deferred from PR `#1298` on 2 April 2026; current closeout lane keeps the runtime/authz scope narrow and records the follow-up explicitly instead of widening the packet late.
+  - Links:
+    - `docs/audit/PR4_ENTITLEMENT_ROUTING_CLOSEOUT_AUDIT_2026-04-02.md`
+    - `docs/roadmap/BACKLOG_LEDGER.md`
+    - `docs/roadmap/PulsePlate_P0_P1_Execution_Document_2026-03-30.md`
+    - `docs/review/PR_1298_FIXED_MAPPING.md`
+  - DoD:
+    - The follow-up chooses and labels one canonical PR1-PR4 sequence source across the closeout packet docs
+    - Repeated audit evidence anchors are reduced without weakening `file:line` proof requirements
+    - The resulting docs-only change does not alter runtime authz, OpenAPI, or billing behavior
+
 <a id="ledger-p2-clean-clone-dependency-parity"></a>
 - [x] P2: Restore deterministic clean-clone dependency parity for local verify
   - Owner: @katsiaryna_kavaleuskaya

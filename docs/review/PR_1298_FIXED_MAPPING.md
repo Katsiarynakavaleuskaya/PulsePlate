@@ -18,16 +18,20 @@ Disposition: FIXED
 Commit: f0403c72
 Evidence: `docs/review/PR_1298_FIXED_MAPPING.md`
 Reason: Codex connector and cubic identified the same closeout-artifact accounting problem: mixed mapping modes and an internally inconsistent disposition record inside `## Fixed in Commit Mapping`. Commit `f0403c72` normalized the section to structured disposition blocks only.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1298#pullrequestreview-4049529020 -> f0403c72
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1298#discussion_r3026961772 -> f0403c72
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1298#discussion_r3026995833 -> f0403c72
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1298#discussion_r3026995837 -> f0403c72
 
-Mandatory post-open review lane for this packet:
-- `qa-engineer-agent -> bug-hunter`
+Disposition: NOT-A-BUG
+Evidence: `docs/roadmap/BACKLOG_LEDGER.md:53`
+Reason: CodeRabbit's review-level nitpick referenced an earlier diff snapshot. On the current head the ledger already reads `PR #1296 (activation/persistence closeout) -> PR-TBD-BILLING-ENTITLEMENT-ROUTING`, so no further text change is required for this PR.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1298#pullrequestreview-4049505034
 
-Post-open review notes:
-- QA review on the opened PR found no runtime/authz drift beyond the documentation packet itself.
-- Bug-hunter pass on the opened PR found one actionable docs defect: the audit packet used absolute local filesystem links that do not work in GitHub review context. The current branch revision removes those links and keeps repo-portable `file:line` evidence only.
+Disposition: DEFERRED
+Backlog: `docs/roadmap/BACKLOG_LEDGER.md#ledger-p2-pr1298-doc-governance-followup`
+Reason: Sourcery suggested deduplicating repeated evidence anchors in the audit packet and introducing a single clearly labeled PR1-PR4 sequencing SoT across the audit and roadmap docs. Those are valid governance refinements, but they are outside the narrow PR4 entitlement-routing closeout scope and are deferred to a docs/governance follow-up.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1298#pullrequestreview-4049488678
 
 ## Merge Readiness
 - [ ] All required checks pass
