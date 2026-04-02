@@ -54,6 +54,18 @@ Reason: The latest artifact cleanup round tightened the first FIXED block with p
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1301#pullrequestreview-4051959067 -> cfd4b4cd
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1301#discussion_r3029238272 -> cfd4b4cd
 
+Disposition: FIXED
+Commit: 8f2e7685
+Evidence: `docs/review/PR_1301_FIXED_MAPPING.md:23`, `docs/review/PR_1301_FIXED_MAPPING.md:41`
+Reason: The latest CodeRabbit round asked for stronger `file:line` anchors in the FIXED proof records. Commit `8f2e7685` upgrades the previously file-only evidence in the `7bcd28b0` and `3fd28eb6` blocks to precise anchored proof, satisfying the remaining traceability requirement in this review cycle.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1301#pullrequestreview-4052415827 -> 8f2e7685
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1301#discussion_r3029642955 -> 8f2e7685
+
+Disposition: NOT-A-BUG
+Evidence: `docs/review/PR_1301_FIXED_MAPPING.md:29`
+Reason: CodeRabbit review `4052387198` is a duplicate summary of the already-fixed `needed required` wording issue from the prior round. The underlying content has already been normalized in the current artifact lineage, so no new docs/runtime change is required for that duplicate review wrapper.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1301#pullrequestreview-4052387198
+
 ## Merge Readiness
 - [ ] All required checks pass
 - [ ] No unresolved review threads (re-check on current head before merge)
