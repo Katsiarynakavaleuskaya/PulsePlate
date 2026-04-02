@@ -33,6 +33,7 @@ ignore if {
 #   Debian bookworm base image; repo code cannot patch glibc in the upstream image layer
 # Monitor: https://security-tracker.debian.org/tracker/CVE-2026-4046
 # Documented in: docs/security/CVE-2026-4046-glibc.md
+# Removal condition: Remove when Debian bookworm publishes a fixed glibc package line or Trivy metadata includes Fixed Version
 
 cve_2026_4046_version := "2.36-9+deb12u13"
 
