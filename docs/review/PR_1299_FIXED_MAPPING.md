@@ -5,7 +5,13 @@
 - [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
-- No actionable review comments
+Disposition: FIXED
+Commit: 386a4063
+Evidence: `frontend/src/mocks/handlers.ts`, `frontend/src/pages/Pro/__tests__/ProPaywallPage.test.tsx`
+Reason: Sourcery's post-open review surfaced three narrow follow-ups on the current head: explicitly type the shared MSW `handlers` export, clear test mocks between `ProPaywallPage` cases, and add the complementary success-path navigation regression. Commit `386a4063` implements all three without broadening PR scope beyond frontend entitlement-truth hardening.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1299#pullrequestreview-4050554526 -> 386a4063
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1299#discussion_r3027956867 -> 386a4063
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1299#discussion_r3027956873 -> 386a4063
 
 ## Merge Readiness
 - [ ] All required checks pass
