@@ -53,6 +53,9 @@ git push origin main
 - Для semver tag `vX.Y.Z` production deploy запускается только после того, как
   workflow в `production-deploy-config` прочитает `PROD_DEPLOY_MODE` и
   `WEB_IOS_RELEASE_READY` через GitHub Actions variables API и разрешит ровно один deploy lane.
+- Если стандартный `github.token` получает `403` на чтении `production`
+  environment variables, bridge-job должен retry через секрет
+  `PRODUCTION_ENV_READ_TOKEN`; иначе tag lane упадёт ещё до выбора deploy mode.
 - Если эти флаги не выставлены корректно, CD останется в режиме build-only:
   образ будет в GHCR, но live origin не изменится.
 

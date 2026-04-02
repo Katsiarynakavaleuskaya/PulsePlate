@@ -302,26 +302,46 @@ jobs:
         id: resolve
         env:
           GH_TOKEN: ${{ github.token }}
+          PRODUCTION_ENV_READ_TOKEN: ${{ secrets.PRODUCTION_ENV_READ_TOKEN }}
         run: |
           set -euo pipefail
+          DEFAULT_GH_TOKEN="${GH_TOKEN}"
+          FALLBACK_GH_TOKEN="${PRODUCTION_ENV_READ_TOKEN:-}"
           gh auth status >/dev/null
+
+          gh_api_value() {
+            local token="$1"
+            local scope_path="$2"
+            local variable_name="$3"
+
+            GH_TOKEN="$token" gh api \
+              -H "Accept: application/vnd.github+json" \
+              "/repos/${GITHUB_REPOSITORY}/${scope_path}/${variable_name}" \
+              --jq '.value'
+          }
 
           get_actions_variable() {
             local scope_path="$1"
             local variable_name="$2"
             local response
-            if response="$(
-              gh api \
-              -H "Accept: application/vnd.github+json" \
-              "/repos/${GITHUB_REPOSITORY}/${scope_path}/${variable_name}" \
-              --jq '.value' 2>&1
-            )"; then
+            if response="$(gh_api_value "$DEFAULT_GH_TOKEN" "$scope_path" "$variable_name" 2>&1)"; then
               printf '%s\n' "$response"
               return 0
             fi
 
             if printf '%s' "$response" | grep -Eq '(^|[^0-9])404([^0-9]|$)|Not Found'; then
               return 0
+            fi
+
+            if [ -n "$FALLBACK_GH_TOKEN" ] && printf '%s' "$response" | grep -Eq '(^|[^0-9])403([^0-9]|$)|Resource not accessible by integration'; then
+              if response="$(gh_api_value "$FALLBACK_GH_TOKEN" "$scope_path" "$variable_name" 2>&1)"; then
+                printf '%s\n' "$response"
+                return 0
+              fi
+
+              if printf '%s' "$response" | grep -Eq '(^|[^0-9])404([^0-9]|$)|Not Found'; then
+                return 0
+              fi
             fi
 
             echo "❌ Failed to resolve GitHub Actions variable: ${scope_path}/${variable_name}" >&2

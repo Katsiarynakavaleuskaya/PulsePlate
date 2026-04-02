@@ -14,6 +14,12 @@ variables through the GitHub API before deciding which deploy lane can run.
 That keeps build-only tags approval-free while still letting production-specific
 variables override repository defaults:
 
+The bridge job first tries the default workflow integration token for those API
+reads and only falls back to `PRODUCTION_ENV_READ_TOKEN` after a GitHub API
+`403 Resource not accessible by integration` response on `production`
+environment-scoped variables. Store this as a repository or organization secret
+with permission to read Actions environment variables for this repository.
+
 - `ssh`: Deploy from GitHub-hosted runners over SSH (port 22 reachable). SSH key must be full PEM including newlines to avoid "ssh: no key found". Required Environment "production" secrets: `SSH_HOST_PRODUCTION`, `SSH_HOST_PRODUCTION_FINGERPRINT`, `SSH_USER`, `SSH_KEY`, `PRODUCTION_DOMAIN`, `GHCR_READ_TOKEN`. The workflow verifies the scanned host key against the pinned fingerprint before uploading the production shell bundle.  <!-- pragma: allowlist secret -->
 - `self-hosted`: Deploy from a self-hosted runner inside your infrastructure (recommended).
 
