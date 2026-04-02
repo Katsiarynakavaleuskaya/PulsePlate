@@ -2511,7 +2511,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] Triage open Trivy glibc code-scanning alerts (CVE-2026-4046)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-TBD-SECURITY-CVE-2026-4046
+  - Target PR: PR #1305
   - Area: security / base-image / code-scanning
   - Finding Type: container base image vulnerability
   - Reason: GitHub code scanning on `main` currently reports open Trivy alerts `#579` (`libc-bin`) and `#580` (`libc6`) for `CVE-2026-4046` at version `2.36-9+deb12u13` with no fixed version published in Trivy metadata as of 2026-04-02. This CVE must stay on a single canonical tracker and be triaged in a dedicated security lane rather than being absorbed into the billing activation/persistence closeout.
