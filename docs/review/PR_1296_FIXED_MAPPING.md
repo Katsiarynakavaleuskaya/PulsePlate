@@ -41,6 +41,14 @@ Evidence: docs/roadmap/BACKLOG_LEDGER.md:2495, docs/roadmap/BACKLOG_LEDGER.md:24
 Disposition: FIXED
 Commit: 302960b8
 Evidence: docs/roadmap/BACKLOG_LEDGER.md:2502
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1296#discussion_r3026186830 -> e27b20c0
+Disposition: FIXED
+Commit: e27b20c0
+Evidence: docs/roadmap/BACKLOG_LEDGER.md:2485, docs/roadmap/BACKLOG_LEDGER.md:2506
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1296#pullrequestreview-4048658724 -> e27b20c0
+Disposition: FIXED
+Commit: e27b20c0
+Evidence: docs/roadmap/BACKLOG_LEDGER.md:2485, docs/roadmap/BACKLOG_LEDGER.md:2506
 
 ## Merge Readiness
 - [ ] All required checks pass
