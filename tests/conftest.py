@@ -23,6 +23,7 @@ from sqlalchemy.exc import OperationalError, ProgrammingError, UnboundExecutionE
 
 import core.recipe_synth as recipe_synth
 from core.test_guards import EXTERNAL_HTTP_BLOCKED_IN_TESTS_MESSAGE
+from tests._client import disable_rate_limiting_for_test_app
 
 # ============================================================================
 # CI NETWORK GUARD (prevents flaky real external calls)
@@ -459,19 +460,10 @@ def app(app_module: ModuleType) -> FastAPI:
     """
     # Import the canonical entrypoint with observability bootstrap
     import app.main
-    from app.security import rate_limit as rate_limit_mod
 
     app_instance = app.main.app
 
-    # RU: Принудительно выключаем shared limiter для canonical test app.
-    # EN: Force the shared limiter off for the canonical test app.
-    shared_limiter = getattr(rate_limit_mod, "limiter", None)
-    if shared_limiter is not None:
-        shared_limiter.enabled = False
-
-    limiter_on_state = getattr(app_instance.state, "limiter", None)
-    if limiter_on_state is not None:
-        limiter_on_state.enabled = False
+    disable_rate_limiting_for_test_app(app_instance)
 
     # Apply lenient API key mode
     def mock_get_api_key(api_key: str = "") -> str:

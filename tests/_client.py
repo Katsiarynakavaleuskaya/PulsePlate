@@ -8,7 +8,21 @@ from __future__ import annotations
 
 from typing import Any
 
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
+
+
+def disable_rate_limiting_for_test_app(app_instance: FastAPI) -> None:
+    """Force shared and app-bound rate limiters off for test clients."""
+    from app.security import rate_limit as rate_limit_mod
+
+    shared_limiter = getattr(rate_limit_mod, "limiter", None)
+    if shared_limiter is not None:
+        shared_limiter.enabled = False
+
+    limiter_on_state = getattr(app_instance.state, "limiter", None)
+    if limiter_on_state is not None:
+        limiter_on_state.enabled = False
 
 
 def get_client(**kwargs: Any) -> TestClient:
@@ -37,4 +51,5 @@ def get_client(**kwargs: Any) -> TestClient:
     # Import inside function to respect pytest_configure TESTING env setup
     import app.main
 
+    disable_rate_limiting_for_test_app(app.main.app)
     return TestClient(app.main.app, **kwargs)
