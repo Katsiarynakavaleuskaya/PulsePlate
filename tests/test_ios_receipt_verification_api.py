@@ -4,8 +4,11 @@ from typing import Any
 
 from fastapi.testclient import TestClient
 import pytest
+from sqlalchemy import select
 
+from app.models import Subscription, SubscriptionActivationAudit
 from app.schemas.payments import AppleReceiptVerificationRequest
+from core import db as core_db
 from tests.payment_test_utils import json_response_payload as _json
 
 pytestmark = pytest.mark.usefixtures("reset_payments_state")
@@ -54,6 +57,23 @@ def _install_apple_stub(
 
     monkeypatch.setattr(payments_activation, "_call_apple_verify_endpoint", _fake)
     return calls
+
+
+def _activation_row_counts() -> tuple[int, int]:
+    """Return persisted activation row counts for no-side-effect verification checks.
+
+    RU: Apple verify не должен записывать activation/subscription state.
+    EN: Apple verify must not persist activation/subscription state.
+    """
+
+    session_factory = core_db.get_session_factory()
+    session = session_factory()
+    try:
+        subscription_count = len(session.execute(select(Subscription)).scalars().all())
+        audit_count = len(session.execute(select(SubscriptionActivationAudit)).scalars().all())
+        return subscription_count, audit_count
+    finally:
+        session.close()
 
 
 def test_apple_verify_receipt_rejects_oversized_receipt_data(
@@ -119,9 +139,7 @@ def test_apple_verify_receipt_requires_valid_transport_api_key(
     assert payload["error"] is None
     assert calls == [("https://buy.itunes.apple.com/verifyReceipt", "receipt-data-validated-12345")]
 
-    from app.services import payments_activation
-
-    assert payments_activation._ACTIVATIONS == {}
+    assert _activation_row_counts() == (0, 0)
 
 
 def test_apple_verify_receipt_retries_sandbox_when_needed(
