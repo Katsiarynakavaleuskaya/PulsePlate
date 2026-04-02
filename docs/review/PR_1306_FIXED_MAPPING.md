@@ -5,9 +5,17 @@
 - [x] Fixed in commit mapping completed
 
 ### Fixed in Commit Mapping
+Disposition: FIXED
+Commit: 18d4b6ca4a7e6b10f6763294bfc16d4cad36cec4
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1306#discussion_r3030694123 -> 18d4b6ca4a7e6b10f6763294bfc16d4cad36cec4
+
+Disposition: FIXED
+Commit: dc47cd70eee21bbc64fd258554dd995350c1a46f
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1306#discussion_r3030694129 -> dc47cd70eee21bbc64fd258554dd995350c1a46f
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1306#discussion_r3030694132 -> dc47cd70eee21bbc64fd258554dd995350c1a46f
+
+Disposition: FIXED
+Commit: 52490321998c85f253f94f97569b7a21a8ef073f
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1306#discussion_r3030747115 -> 52490321998c85f253f94f97569b7a21a8ef073f
 
 ## Merge Readiness
