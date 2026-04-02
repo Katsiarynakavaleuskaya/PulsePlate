@@ -5,9 +5,8 @@
 - [ ] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
-- Pending current-head actionables before resolution:
-- `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1304#discussion_r3030648709` — pending FIXED (`target="_blank"` legal links should use `rel="noopener noreferrer"`).
-- `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1304#discussion_r3030654644` — pending FIXED (merge-readiness checkboxes must stay unchecked until rerun on current head).
+- `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1304#discussion_r3030648709` -> `603fda1c`
+- `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1304#discussion_r3030654644` -> `603fda1c`
 
 ## Merge Readiness
 - [ ] All required checks pass
