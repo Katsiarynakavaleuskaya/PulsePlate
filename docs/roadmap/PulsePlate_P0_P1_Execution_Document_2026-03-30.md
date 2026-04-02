@@ -44,36 +44,36 @@ Status: operator execution map
 3. `docs/release-env-security-contract` only if it blocks deploy truth on staging/production
 
 ### Wave 2 — Backend monetization follow-through
-4. `feat/billing-activation-and-persistence`
-5. `feat/billing-entitlement-routing`
+1. `feat/billing-activation-and-persistence`
+2. `feat/billing-entitlement-routing`
 
 ### Wave 3 — Web truth
-6. `feat/web-entitlement-truth`
-7. `docs/web-progress-contract-closeout`
+1. `feat/web-entitlement-truth`
+2. `docs/web-progress-contract-closeout`
 
 ### Wave 4 — Legal / release shell
-8. `docs/legal-policy-publish`
-9. `feat/eu-compliance-control-plane-followthrough`
-10. `docs/ios-subscription-offers-governance`
-11. `feat/ios-appstore-assets-rollout`
-12. `feat/ios-appstore-semantic-validators`
-13. `feat/apple-server-api-migration`
+1. `docs/legal-policy-publish`
+2. `feat/eu-compliance-control-plane-followthrough`
+3. `docs/ios-subscription-offers-governance`
+4. `feat/ios-appstore-assets-rollout`
+5. `feat/ios-appstore-semantic-validators`
+6. `feat/apple-server-api-migration`
 
 ### Wave 5 — API / contract truth
-14. `chore/openapi-runtime-sync`
-15. `feat/openapi-decoupling-split`
+1. `chore/openapi-runtime-sync`
+2. `feat/openapi-decoupling-split`
 
 ### Wave 6 — AI follow-through
-16. `feat/insight-fallback-chain`
-17. `feat/rag-hardening-followthrough`
-18. `docs/ai-bounded-context-packet`
-19. `feat/ai-bounded-context-extraction`
-20. `feat/llm-reliability-security-gates`
+1. `feat/insight-fallback-chain`
+2. `feat/rag-hardening-followthrough`
+3. `docs/ai-bounded-context-packet`
+4. `feat/ai-bounded-context-extraction`
+5. `feat/llm-reliability-security-gates`
 
 ### Wave 7 — Design bridge operationalization
-21. `docs/design-agent-runtime-realignment`
-22. `feat/design-bridge-preflight-and-capture`
-23. `feat/design-bridge-first-parity-pack`
+1. `docs/design-agent-runtime-realignment`
+2. `feat/design-bridge-preflight-and-capture`
+3. `feat/design-bridge-first-parity-pack`
 
 ## PR map
 

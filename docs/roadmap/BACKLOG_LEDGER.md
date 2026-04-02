@@ -202,7 +202,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [x] P0: Web progress route must not ship demo-grade health data
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0
-  - Target PR: PR-TBD-WEB-PROGRESS-CONTRACT-CLOSEOUT
+  - Target PR: PR #1299 (runtime truth hardening) -> PR #1301 (docs closeout)
   - Area: frontend / progress UX / trust
   - Finding Type: user-facing data integrity gap
   - Status: ✅ Runtime closeout already landed on `main`; this docs-only lane reconciles roadmap/design/audit truth to the shipped release-safe behavior.

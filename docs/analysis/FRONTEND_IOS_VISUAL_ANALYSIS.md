@@ -319,7 +319,7 @@
 
 ### Соответствие `docs/analysis/*`
 
-#### ✅ Что соответствует:
+#### ✅ Что соответствует
 
 1. **BMI Calculation** — ✅ Работает
    - Frontend: `BMICalculatePage` → `/api/v1/bmi/calculate`
@@ -335,7 +335,7 @@
    - iOS: `WeeklyPlanReaderView` → `/api/v1/pro/meal/weekly`
    - Соответствует: `docs/analysis/DOMAIN_ANALYSIS.md` (Meal Planning Domain)
 
-#### ❌ Что НЕ соответствует:
+#### ❌ Что НЕ соответствует
 
 1. **Sports Nutrition** — ❌ Не реализовано
    - Анализ: `docs/analysis/FINAL_ASSESSMENT_REVIEW.md` — "Sports Nutrition не используется"
@@ -359,7 +359,7 @@
 
 ### Соответствие `docs/audit/*`
 
-#### ✅ Что соответствует:
+#### ✅ Что соответствует
 
 1. **Design Tokens** — ✅ Реализовано
    - Frontend: `styles/tokens.ts`, `styles/tokens.css`
@@ -376,7 +376,7 @@
    - iOS: Использует `APIClient`
    - Соответствует: `docs/audit/PR_586_WEB_THIN_HTTP_ADAPTER_AUDIT.md`
 
-#### ❌ Что НЕ соответствует:
+#### ❌ Что НЕ соответствует
 
 1. **Brand Slogan** — ❌ Не реализовано
    - Аудит: `docs/audit/DESIGN_CONCEPT_IMPLEMENTATION_AUDIT.md` — "Brand Slogan не реализован"
@@ -410,7 +410,7 @@
 
 ### Соответствие `docs/roadmap/BACKLOG_LEDGER.md`
 
-#### ✅ Что соответствует:
+#### ✅ Что соответствует
 
 1. **Thin HTTP Adapter (iOS)** — ✅ Завершено
    - Backlog: `PR-563 Thin HTTP Adapter (iOS) — merged`
@@ -422,7 +422,7 @@
    - Frontend: Использует `api()` из `client.ts`
    - Статус: ✅ Соответствует
 
-#### ❌ Что НЕ соответствует:
+#### ❌ Что НЕ соответствует
 
 1. **Wire soft paywall CTA to real paywall router (iOS)** — ❌ Не реализовано
    - Backlog: `Wire soft paywall CTA to real paywall router (iOS)`
@@ -525,7 +525,7 @@
 | Daily Plate | `/api/v1/pro/nutrition/daily` | ❌ Не используется | ⚠️ Fallback | ⚠️ **ЧАСТИЧНО** |
 | Weekly Plan | `/api/v1/pro/meal/weekly` | ✅ Работает | ✅ Работает | ✅ **ГОТОВО** |
 | Shopping List | `/api/v1/vip/shoplist/*` | ⚠️ Preview | ✅ Работает | ⚠️ **ЧАСТИЧНО** |
-| Progress Tracking | ❌ Нет endpoint | ⚠️ Mock | ❌ Скелет | ❌ **НЕ РЕАЛИЗОВАНО** |
+| Progress Tracking | ❌ Нет endpoint | ⚠️ Trusted empty state | ❌ Скелет | ❌ **НЕ РЕАЛИЗОВАНО** |
 | Sports Nutrition | ❌ Нет endpoint | ❌ Нет | ❌ Нет | ❌ **НЕ РЕАЛИЗОВАНО** |
 | Bayesian Adherence | `/api/v1/pro/nutrition/log` | ❌ Нет UI | ❌ Нет UI | ❌ **НЕ РЕАЛИЗОВАНО** |
 
@@ -562,29 +562,29 @@
 
 ### P1 — High Priority
 
-4. **Реализовать Profile page**
+1. **Реализовать Profile page**
    - Настройки пользователя
    - Статистика
    - Подписка (PRO/VIP)
 
-5. **Подключить Daily Plate**
+2. **Подключить Daily Plate**
    - Использовать `/api/v1/pro/nutrition/daily` в Plate page
    - Убрать PremiumGate заглушку
    - Реальная визуализация тарелки
 
-6. **Реализовать Sports Nutrition UI**
+3. **Реализовать Sports Nutrition UI**
    - Frontend: страница/компонент
    - iOS: экран/компонент
    - Интеграция с `/api/v1/vip/sports/nutrition` (после реализации endpoint)
 
 ### P2 — Medium Priority
 
-7. **Добавить анимации**
+1. **Добавить анимации**
    - Lottie integration во frontend
    - Pulse animations
    - Smooth transitions
 
-8. **Улучшить графику**
+2. **Улучшить графику**
    - Интерактивные tooltips
    - Target range indicators
    - ECG-style visualizations
@@ -596,7 +596,7 @@
 | Категория | Frontend | iOS | Backend | Статус |
 |-----------|----------|-----|---------|--------|
 | **Страницы/Экраны** | 4/8 скелеты | 2/8 скелеты | N/A | ❌ **КРИТИЧНО** |
-| **Графика** | 2 компонента (mock) | 3 компонента | N/A | ⚠️ **ЧАСТИЧНО** |
+| **Графика** | 2 компонента (trusted empty state / partial) | 3 компонента | N/A | ⚠️ **ЧАСТИЧНО** |
 | **Брендинг** | 0% | 30% | N/A | ❌ **КРИТИЧНО** |
 | **Кнопки/Интерактивность** | 3/8 работают | 4/8 работают | N/A | ⚠️ **ЧАСТИЧНО** |
 | **Backend Integration** | 3/8 работают | 4/8 работают | 8/8 endpoints | ⚠️ **ЧАСТИЧНО** |
@@ -630,12 +630,12 @@
 
 ## 📊 Соответствие BACKLOG_LEDGER.md
 
-### ✅ Уже в BACKLOG:
+### ✅ Уже в BACKLOG
 
 1. **Wire soft paywall CTA to real paywall router (iOS)** — ✅ Записано
 2. **Stabilize/restore PlateViewTests in CI (iOS)** — ✅ Записано
 
-### ❌ НЕ в BACKLOG (требует добавления):
+### ❌ НЕ в BACKLOG (требует добавления)
 
 1. **Реализовать Home page (Frontend/iOS)** — ❌ НЕ записано
 2. **Реализовать Progress page (Frontend/iOS)** — ❌ НЕ записано
@@ -652,21 +652,21 @@
 
 ## 🎯 Приоритетные действия
 
-### Immediate Actions (This Week):
+### Immediate Actions (This Week)
 
-1. **P0 CRITICAL:**
+1. **P0 CRITICAL**
    - Реализовать Home page (dashboard)
    - Реализовать Progress page (backend API + графики)
    - Добавить брендинг (FitChef, слоган, ECG)
 
-2. **P1 HIGH:**
+2. **P1 HIGH**
    - Реализовать Profile page
    - Подключить Daily Plate к API
    - Добавить анимации (Lottie, pulse)
 
-### Short-Term (Next Month):
+### Short-Term (Next Month)
 
-3. **P1 MEDIUM:**
+1. **P1 MEDIUM**
    - Реализовать Sports Nutrition UI
    - Создать backend API для progress tracking
    - Улучшить графику (tooltips, indicators)
