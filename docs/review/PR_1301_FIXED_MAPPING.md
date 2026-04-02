@@ -20,7 +20,7 @@ Reason: The Codex connector review on PR `#1301` is informational only and does 
 
 Disposition: FIXED
 Commit: 7bcd28b0
-Evidence: `docs/review/PR_1301_FIXED_MAPPING.md`
+Evidence: `docs/review/PR_1301_FIXED_MAPPING.md:21`, `docs/review/PR_1301_FIXED_MAPPING.md:25`
 Reason: The Codex connector thread at `discussion_r3029094050` flagged that the canonical artifact lacked required thread-marker lines. The follow-up governance commit adds valid review-thread entries plus disposition/proof lines, so the artifact now passes `check_pr_body_phase2_gates.py` on current head.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1301#discussion_r3029094050 -> 7bcd28b0
 
@@ -38,7 +38,7 @@ Reason: The current head already uses post-gate sequencing language in the touch
 
 Disposition: FIXED
 Commit: 3fd28eb6
-Evidence: `docs/analysis/FRONTEND_IOS_VISUAL_ANALYSIS.md`, `docs/review/PR_1301_FIXED_MAPPING.md`
+Evidence: `docs/analysis/FRONTEND_IOS_VISUAL_ANALYSIS.md:655`, `docs/review/PR_1301_FIXED_MAPPING.md:11`
 Reason: The latest CodeRabbit summary review consolidated two real follow-ups from the current head snapshot: the post-gate sequencing language in the analysis packet and the `Markdown` capitalization fix in this artifact. Commit `3fd28eb6` applies those narrow docs-only adjustments.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1301#pullrequestreview-4051920285 -> 3fd28eb6
 
