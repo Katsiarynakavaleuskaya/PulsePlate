@@ -5,11 +5,7 @@
 - [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
-- No current-head review threads or actionable bot review comments were present when checked for PR `#1306` via `gh api repos/Katsiarynakavaleuskaya/PulsePlate/pulls/1306/reviews` and `gh api repos/Katsiarynakavaleuskaya/PulsePlate/pulls/1306/comments`.
-- Current hotfix fix commits on this PR:
-- `43896b08` — disable the canonical app-fixture limiter surfaces
-- `3ef95534` — extend limiter shutdown across shared test-client helper seams
-- `f53e5587` — reset leaked singleton limiter state before each test and strengthen poisoned-state guards
+- No actionable review comments
 
 ## Merge Readiness
 - [ ] All required checks pass
