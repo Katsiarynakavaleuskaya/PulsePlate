@@ -10,12 +10,12 @@ Evidence: `docs/review/PR_1298_FIXED_MAPPING.md`
 Reason: Initial post-open pass found no actionable review comments on PR `#1298` at artifact creation time.
 
 Disposition: FIXED
-Commit: `ed3f121d`
+Commit: ed3f121d
 Evidence: `docs/audit/PR4_ENTITLEMENT_ROUTING_CLOSEOUT_AUDIT_2026-04-02.md`
 Reason: The post-open bug-hunter pass found one actionable docs defect on the opened PR: the audit packet used absolute local filesystem links that do not work in GitHub review context. Commit `ed3f121d` removed those links and kept repo-portable `file:line` evidence only.
 
 Disposition: FIXED
-Commit: `f0403c72`
+Commit: f0403c72
 Evidence: `docs/review/PR_1298_FIXED_MAPPING.md`
 Reason: Codex connector and cubic identified the same closeout-artifact accounting problem: mixed mapping modes and an internally inconsistent disposition record inside `## Fixed in Commit Mapping`. Commit `f0403c72` normalized the section to structured disposition blocks only.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1298#discussion_r3026961772 -> f0403c72
