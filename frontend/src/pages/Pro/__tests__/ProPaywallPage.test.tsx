@@ -6,8 +6,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import ProPaywallPage from "../ProPaywallPage";
 import { WEB_CHECKOUT_UNAVAILABLE_MESSAGE } from "../../../lib/paywallPurchase";
 
-const navigateMock = vi.fn();
-const purchasePremiumMock = vi.fn();
+type PurchasePremium = typeof import("../../../lib/paywallPurchase")["purchasePremium"];
+
+const { navigateMock, purchasePremiumMock } = vi.hoisted(() => ({
+  navigateMock: vi.fn(),
+  purchasePremiumMock: vi.fn<PurchasePremium>(),
+}));
 
 vi.mock("react-router-dom", async () => {
   const actual = await vi.importActual<typeof import("react-router-dom")>("react-router-dom");
@@ -23,7 +27,7 @@ vi.mock("../../../lib/paywallPurchase", async () => {
   );
   return {
     ...actual,
-    purchasePremium: (...args: unknown[]) => purchasePremiumMock(...args),
+    purchasePremium: purchasePremiumMock,
   };
 });
 

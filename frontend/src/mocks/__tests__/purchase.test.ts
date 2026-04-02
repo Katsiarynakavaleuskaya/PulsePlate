@@ -77,6 +77,10 @@ test("msw /api/purchase handles payment error", async () => {
   expect(json.code).toBe("INSUFFICIENT_FUNDS");
 });
 
+test("msw /api/purchase handles network error", async () => {
+  await expect(fetch(`${BASE_URL}/api/purchase?error=network`, { method: "POST" })).rejects.toThrow();
+});
+
 test("msw /api/restore responds ok", async () => {
   const res = await fetch(`${BASE_URL}/api/restore`, { method: "POST" });
   const json = await res.json();
@@ -96,4 +100,8 @@ test("msw /api/restore handles not found error", async () => {
   expect(res.status).toBe(404);
   const json = await res.json();
   expect(json.error).toBe("No purchases found");
+});
+
+test("msw /api/restore handles network error", async () => {
+  await expect(fetch(`${BASE_URL}/api/restore?error=network`, { method: "POST" })).rejects.toThrow();
 });
