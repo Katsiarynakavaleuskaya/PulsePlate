@@ -44,6 +44,14 @@ describe('Profile', () => {
     expect(screen.getByText('Configuration Status')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Configure API Key' })).toHaveAttribute('href', '/enter-key');
     expect(screen.getByRole('link', { name: 'Configure Nutrition Profile' })).toHaveAttribute('href', '/setup');
+    expect(screen.getByRole('link', { name: 'Privacy Policy' })).toHaveAttribute(
+      'href',
+      'https://pulseplate.app/privacy'
+    );
+    expect(screen.getByRole('link', { name: 'Terms of Use' })).toHaveAttribute(
+      'href',
+      'https://pulseplate.app/terms'
+    );
   });
 
   it('shows connected status for authenticated cookie session', () => {

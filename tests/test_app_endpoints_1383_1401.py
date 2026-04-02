@@ -13,6 +13,8 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
+from app.routers.legal import build_terms_endpoint_payload
+
 
 class TestAppEndpoints1383_1401:
     """Tests for app.py endpoints lines 1383-1401."""
@@ -162,3 +164,11 @@ class TestAppEndpoints1383_1401:
         assert "does not provide medical diagnosis" in data["terms_of_use"].lower()
         forbidden = data["acceptable_use"]["forbidden"]
         assert "using the service for medical triage or emergency decisions" in forbidden
+
+    def test_terms_endpoint_matches_canonical_helper(self, client: TestClient) -> None:
+        """/terms must serialize the canonical typed helper payload."""
+        response = client.get("/terms")
+        assert response.status_code == 200
+        assert response.headers["content-type"].lower().startswith("application/json")
+
+        assert response.json() == build_terms_endpoint_payload().model_dump()
