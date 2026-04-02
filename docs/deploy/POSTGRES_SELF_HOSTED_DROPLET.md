@@ -74,4 +74,6 @@ Required for production:
 - **Docker Compose / Droplet:** `@postgres:5432` (service name in compose network)
 - **Native local run:** `@localhost:5432` (Postgres on host)
 
+These environment variables and host modes are specific to the self-hosted alternate lane; canonical production uses only `DATABASE_URL` pointing to an external managed instance.
+
 See `.env.example` for the canonical contract.

@@ -123,8 +123,8 @@ case "$DATABASE_URL_VALUE" in
 esac
 
 case "$DATABASE_URL_VALUE" in
-    *@postgres:5432/*)
-        echo "❌ DATABASE_URL must point to managed PostgreSQL, not compose-local @postgres:5432"
+    *@postgres:*/* | *@postgres/*)
+        echo "❌ DATABASE_URL must point to managed PostgreSQL, not compose-local @postgres"
         exit 1
         ;;
     *)

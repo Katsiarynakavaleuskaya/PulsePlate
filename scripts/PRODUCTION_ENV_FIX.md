@@ -35,10 +35,10 @@ bash scripts/fix_production_env.sh
 
 Скрипт:
 
-1. Требует отсутствие `postgres` service в canonical production compose
+1. Требует отсутствия `postgres` service в canonical production compose
 2. Нормализует `APP_ENV`, `ENVIRONMENT`, `SUBSCRIPTION_DB_ENABLED`, `ALLOW_DEV_API_KEY` и совместимый `API_KEY_REQUIRED`
 3. Проверяет `DATABASE_URL`
-4. Падает, если `DATABASE_URL` не использует `postgresql+psycopg://` или указывает на `@postgres:5432`
+4. Падает, если `DATABASE_URL` не использует `postgresql+psycopg://` или указывает на compose-local host `@postgres`
 5. Валидирует compose и перезапускает сервисы
 
 ## 🔍 Ручная проверка
@@ -58,7 +58,7 @@ curl -fsS "https://${PRODUCTION_DOMAIN}/ready" | jq .
 ## ⚠️ Важные замечания
 
 1. `postgres` не должен появляться даже optional через `profiles` для canonical production.
-2. `DATABASE_URL` не должен указывать на `@postgres:5432` внутри compose network.
+2. `DATABASE_URL` не должен указывать на compose-local host `@postgres` внутри compose network.
 3. SQLite разрешён только для local/dev/test fallback, не для canonical production deploy path.
 4. Backup / PITR для production managed Postgres должны обеспечиваться провайдером, а не hot-path скриптом деплоя.
 
@@ -71,7 +71,7 @@ curl -fsS "https://${PRODUCTION_DOMAIN}/ready" | jq .
 ## 📝 Чеклист
 
 - [ ] В `.env` задан Postgres DSN
-- [ ] DSN указывает на внешний managed Postgres host, не `@postgres:5432`
+- [ ] DSN указывает на внешний managed Postgres host, не compose-local `@postgres`
 - [ ] `SUBSCRIPTION_DB_ENABLED=true`
 - [ ] `ALLOW_DEV_API_KEY=false`
 - [ ] При необходимости для совместимости задан `API_KEY_REQUIRED=true`

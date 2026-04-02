@@ -14,10 +14,18 @@ WORDPROCESSING_ML_NAMESPACE = "{http://schemas.openxmlformats.org/wordprocessing
 SUBPROCESS_TIMEOUT_SECONDS = 120
 
 
+def require_feature(feature_key: str, reason: str) -> None:
+    expected_reason = f"feature_disabled:{feature_key}"
+    if reason != expected_reason:
+        pytest.fail(f"invalid feature skip reason: expected {expected_reason!r}, got {reason!r}")
+    pytest.skip(reason)
+
+
 def _node_binary_or_skip() -> str:
     node_binary = shutil.which("node")
     if node_binary is None:
-        pytest.skip("node executable not found in PATH")
+        require_feature("node_runtime", "feature_disabled:node_runtime")
+        raise AssertionError("require_feature should always raise pytest skip")
     return node_binary
 
 
@@ -48,8 +56,23 @@ def _run_node_eval(script: str) -> subprocess.CompletedProcess[str]:
 
 def _node_package_or_skip(package_name: str) -> None:
     result = _run_node_eval(f'require.resolve("{package_name}");')
-    if result.returncode != 0:
-        pytest.skip(f"optional node package '{package_name}' not installed")
+    if result.returncode == 0:
+        return
+
+    stderr = (result.stderr or "").lower()
+    if "module_not_found" in stderr or "cannot find module" in stderr:
+        require_feature(
+            f"node_package_{package_name}",
+            f"feature_disabled:node_package_{package_name}",
+        )
+
+    pytest.fail(
+        "Node failed while checking for optional package "
+        f"'{package_name}':\n"
+        f"exit code: {result.returncode}\n"
+        f"stdout: {result.stdout}\n"
+        f"stderr: {result.stderr}"
+    )
 
 
 def _read_office_document_xml(output_path: Path, member_name: str) -> str:

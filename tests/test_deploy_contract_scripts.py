@@ -4,6 +4,8 @@ import subprocess
 from collections.abc import Callable
 from pathlib import Path
 
+import pytest
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -462,14 +464,25 @@ printf 'curl %s\\n' "$*" >> "{log_file}"
     ) == "stale-diagnose\n"
 
 
-def test_deploy_production_rejects_compose_local_postgres_dsn(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    "database_url",
+    [
+        "postgresql+psycopg://pulseplate:secret@postgres:5432/pulseplate",  # pragma: allowlist secret
+        "postgresql+psycopg://pulseplate:secret@postgres/pulseplate",  # pragma: allowlist secret
+        "postgresql+psycopg://pulseplate:secret@postgres:6543/pulseplate",  # pragma: allowlist secret
+    ],
+)
+def test_deploy_production_rejects_compose_local_postgres_dsn(
+    tmp_path: Path,
+    database_url: str,
+) -> None:
     project_dir = tmp_path / "production"
     bin_dir = tmp_path / "bin"
     project_dir.mkdir()
     bin_dir.mkdir()
     (project_dir / "docker-compose.production.yaml").write_text("services: {}\n", encoding="utf-8")
     (project_dir / ".env").write_text(
-        "DATABASE_URL=postgresql+psycopg://pulseplate:secret@postgres:5432/pulseplate\n",  # pragma: allowlist secret
+        f"DATABASE_URL={database_url}\n",
         encoding="utf-8",
     )
 

@@ -183,8 +183,8 @@ validate_managed_postgres_contract() {
   esac
 
   case "$DATABASE_URL" in
-    *@postgres:5432/*)
-      echo "❌ Production deploy expects external managed PostgreSQL, not compose-local @postgres:5432" >&2
+    *@postgres:*/* | *@postgres/*)
+      echo "❌ Production deploy expects external managed PostgreSQL, not compose-local @postgres" >&2
       exit 1
       ;;
   esac
