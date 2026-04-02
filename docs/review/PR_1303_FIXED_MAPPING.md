@@ -8,7 +8,7 @@
 - No actionable review comments
 
 ## Merge Readiness
-- [x] Local verification completed
+- [ ] Local verification completed
 - [ ] Current-head CI green
 - [ ] No unresolved review threads
 - [ ] Dedicated security lane merged
