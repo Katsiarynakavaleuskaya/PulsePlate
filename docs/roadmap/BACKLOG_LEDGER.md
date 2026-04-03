@@ -6013,7 +6013,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Errors for 400/401/403 are rendered as user-readable states (not crashes)
     - `make ios-test` passes
 
-
+<a id="ledger-p1-ios-v3-pro-tools-rollout-alignment"></a>
 - [ ] P1: iOS V3 Pro Tools rollout alignment (Weekly Plan Reader + Shopping List)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (Release alignment / docs drift)
