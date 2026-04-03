@@ -26,6 +26,7 @@ Reason: Summary review shells remain informational once the mapped inline discus
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1316#pullrequestreview-4055652452
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1316#pullrequestreview-4055653685
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1316#pullrequestreview-4055659521
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1316#pullrequestreview-4055784204
 
 Disposition: NOT-A-BUG
 Evidence: `scripts/playwright_mcp.py:270`, `docs/dev/PLAYWRIGHT_E2E_RUNBOOK.md:23`, `docs/review/PR_1316_FIXED_MAPPING.md:23`
