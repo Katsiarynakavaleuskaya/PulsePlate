@@ -300,6 +300,15 @@ def _required_snapshot(
     return snapshot
 
 
+def _is_blocking_fallback_advisory(entry: CheckEntry) -> bool:
+    """Return whether fallback merge gating must still block on this advisory entry."""
+    return (
+        entry.source_kind == "check_run"
+        and entry.workflow_name == "CI"
+        and entry.state in {"pending", "failed"}
+    )
+
+
 def _suppress_stale_latest_entries_with_newer_workflow_activity(
     entries: list[CheckEntry],
     latest: dict[str, CheckEntry],
@@ -412,7 +421,8 @@ def main(argv: list[str] | None = None) -> int:
     if not required_metadata_available:
         print(
             "Required check metadata unavailable; merge gating falls back to GitHub "
-            "mergeStateStatus and reports current-head checks as advisory only."
+            "mergeStateStatus. Current-head checks stay advisory unless a canonical "
+            "CI workflow check remains pending or failed."
         )
         _print_entries("Current-head advisory checks:", advisory_entries)
 
@@ -423,8 +433,10 @@ def main(argv: list[str] | None = None) -> int:
             print(_format_entry(entry))
 
     blocking_entries = [entry for entry in current_required if entry.state in {"pending", "failed"}]
+    # RU: В fallback-режиме без metadata блокирует только канонический workflow CI.
+    # EN: In metadata-unavailable fallback, only the canonical CI workflow remains blocking.
     advisory_blocking_entries = [
-        entry for entry in advisory_entries if entry.state in {"pending", "failed"}
+        entry for entry in advisory_entries if _is_blocking_fallback_advisory(entry)
     ]
     merge_state_note_needed = not required_metadata_available and merge_state != "CLEAN"
     if blocking_entries or advisory_blocking_entries:
@@ -434,9 +446,7 @@ def main(argv: list[str] | None = None) -> int:
         if blocking_entries:
             print("- Blocking current-head checks remain pending or failed.")
         if advisory_blocking_entries:
-            # RU: Без branch protection опираемся на актуальные advisory checks.
-            # EN: Without branch protection metadata, the latest advisory checks are the fallback truth.
-            print("- Blocking advisory current-head checks remain pending or failed.")
+            print("- Blocking canonical fallback current-head checks remain pending or failed.")
         return 1
 
     if merge_state_note_needed:

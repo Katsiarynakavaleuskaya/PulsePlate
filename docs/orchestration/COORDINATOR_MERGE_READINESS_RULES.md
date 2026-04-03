@@ -61,6 +61,10 @@ Underlying enforcement scripts remain canonical for their own domains:
 Raw `gh pr checks` output remains diagnostic only because it can include
 superseded historical failures after the latest PR head is already clean. The
 wrapper is the canonical filtered current-head view.
+When branch-protection metadata is unavailable, the current-head filter blocks
+only on canonical `CI` workflow `check_run` entries; specialized lanes such as
+Docker/image, optional CI, iOS, and release-ops workflows remain visible but
+advisory.
 
 ---
 
