@@ -1,11 +1,31 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-: "${IMAGE_REF:?IMAGE_REF is required (ghcr.io/<image>@sha256:...)}"
-: "${TAG:?TAG is required (prod-vX.Y.Z)}"
+MODE="deploy"
+if [ "$#" -gt 1 ]; then
+  echo "❌ Usage: $0 [--preflight-only]" >&2
+  exit 1
+fi
+if [ "$#" -eq 1 ]; then
+  case "$1" in
+    --preflight-only)
+      MODE="preflight-only"
+      ;;
+    *)
+      echo "❌ Unsupported argument: $1" >&2
+      echo "Usage: $0 [--preflight-only]" >&2
+      exit 1
+      ;;
+  esac
+fi
+readonly MODE
 
-DEPLOY_IMAGE_REF="$IMAGE_REF"
-DEPLOY_TAG="$TAG"
+DEPLOY_IMAGE_REF="${IMAGE_REF:-}"
+DEPLOY_TAG="${TAG:-}"
+if [ "$MODE" != "preflight-only" ]; then
+  : "${IMAGE_REF:?IMAGE_REF is required (ghcr.io/<image>@sha256:...)}"
+  : "${TAG:?TAG is required (prod-vX.Y.Z)}"
+fi
 
 # Healthcheck configuration
 HEALTH_MAX_ATTEMPTS="${HEALTH_MAX_ATTEMPTS:-12}"
@@ -270,8 +290,16 @@ validate_managed_postgres_contract() {
   fi
 }
 
-echo "Validating managed PostgreSQL production contract..."
-validate_managed_postgres_contract
+run_preflight() {
+  echo "Validating managed PostgreSQL production contract..."
+  validate_managed_postgres_contract
+  echo "✅ Production deploy preflight passed"
+}
+
+run_preflight
+if [ "$MODE" = "preflight-only" ]; then
+  exit 0
+fi
 
 login_to_ghcr_if_configured
 

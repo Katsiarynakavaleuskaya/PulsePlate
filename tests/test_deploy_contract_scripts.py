@@ -218,6 +218,44 @@ printf 'curl %s\\n' "$*" >> "{log_file}"
     assert all("helper " not in line for line in log_lines)
 
 
+def test_deploy_production_preflight_only_exits_non_zero_when_default_env_file_is_missing(
+    tmp_path: Path,
+) -> None:
+    project_dir = tmp_path / "production"
+    bin_dir = tmp_path / "bin"
+    log_file = tmp_path / "deploy.log"
+    project_dir.mkdir()
+    bin_dir.mkdir()
+    (project_dir / "docker-compose.production.yaml").write_text("services: {}\n", encoding="utf-8")
+
+    docker_stub = f"""#!/usr/bin/env bash
+set -euo pipefail
+printf 'docker %s\\n' "$*" >> "{log_file}"
+"""
+    _write_executable(bin_dir / "docker", docker_stub)
+
+    env = os.environ.copy()
+    env["PATH"] = f"{bin_dir}:{env['PATH']}"
+    env["DOCKER_BIN"] = str(bin_dir / "docker")
+    env["DEPLOY_DIR"] = str(project_dir)
+    env["COMPOSE_FILE"] = "docker-compose.production.yaml"
+
+    completed = subprocess.run(
+        [str(REPO_ROOT / "scripts/deploy_production.sh"), "--preflight-only"],
+        cwd=str(REPO_ROOT),
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert completed.returncode == 1
+    assert f"Missing production env file: {project_dir / '.env'}" in completed.stderr
+    # RU: Неуспешный --preflight-only запуск не должен создавать deploy log.
+    # EN: A failed --preflight-only run must not create a deploy log.
+    assert not log_file.exists()
+
+
 def test_deploy_production_logs_in_to_ghcr_with_resolved_docker_binary(tmp_path: Path) -> None:
     project_dir = tmp_path / "production"
     docker_home = tmp_path / "docker-home"

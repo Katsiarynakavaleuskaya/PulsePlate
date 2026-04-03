@@ -61,6 +61,10 @@ On the production server:
 - A deploy directory containing:
   - a compose file (`docker-compose.yml`, `docker-compose.production.yaml`, etc.)
   - `.env` (application runtime env; not committed)
+    - Tag-based production CD now runs `scripts/deploy_production.sh --preflight-only`
+      before the live deploy and fails fast if the resolved deploy directory is
+      missing `.env` (default path: `$DEPLOY_DIR/.env`, typically
+      `/srv/pulseplate-production/.env`).
   - `Caddyfile.production` (Caddy reverse proxy config; see Caddyfile Configuration below)
 - A managed PostgreSQL instance reachable from the production host via `DATABASE_URL`
 - Managed database backup / PITR handled by the provider; the production deploy script no longer runs local `pg_dump`
@@ -380,6 +384,8 @@ High-level steps (run on the production server):
 2. Ensure the production server deploy directory contains:
    - compose file (`docker-compose.production.yaml`)
    - `.env` (application runtime env)
+     - Required before pushing the release tag: production CD preflights this
+       path and stops immediately if `$DEPLOY_DIR/.env` is missing.
    - `Caddyfile.production` (copied from `deploy/Caddyfile.production`)
    - managed PostgreSQL credentials in `DATABASE_URL`
 3. Ensure the compose file uses `IMAGE_REF` (preferred) or `TAG` (backwards-compatible).
