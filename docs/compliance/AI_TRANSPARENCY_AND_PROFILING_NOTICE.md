@@ -2,6 +2,7 @@
 
 **Status:** Canonical
 **Last updated:** 2026-03-08
+**Policy version:** `2026-03-08.eu-first.v1`
 
 PulsePlate treats health-adjacent AI features as **automated wellness analysis**.
 
@@ -36,6 +37,14 @@ PulsePlate treats health-adjacent AI features as **automated wellness analysis**
 - Boundary: wellness coaching only, not therapy, diagnosis, or clinical decision support
 - Runtime tracing: prompt and completion payloads are fingerprinted with HMAC and exported without raw text in v1
 
+### FitChef structured coaching
+
+- Surface id: `fitchef_structured_v1`
+- Endpoint: `/api/v1/pro/fitchef/explain`
+- Analysis type: automated AI-assisted wellness coaching structure
+- Boundary: wellness coaching only, not therapy, diagnosis, or clinical decision support
+- Runtime tracing: prompt and completion payloads are fingerprinted with HMAC and exported without raw text in v1
+
 ## User Notice Contract
 
 Every covered surface is governed by these baseline statements:
@@ -51,7 +60,7 @@ The following cases are **not allowed** inside the current wellness runtime:
 
 - clinical diagnosis or treatment recommendations
 - crisis or self-harm intervention workflows
-- substance-use-disorder records or 42 CFR Part 2 data
+- substance use disorder records or 42 CFR Part 2 data
 - provider/EHR ingestion and redisclosure workflows
 
 These require a separate regulated lane with:
