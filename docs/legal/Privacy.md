@@ -117,7 +117,7 @@
 
 - We do **not** promise that the entire product is zero-storage or purely local-only
 - We do **not** position the current product as HIPAA-ready, clinical-grade, or 42 CFR Part 2 compliant
-- We do **not** use the current wellness runtime for clinical records, crisis workflows, or substance-use-disorder records
+- We do **not** use the current wellness runtime for clinical records, crisis workflows, or substance use disorder records
 
 ### AI / Automated Analysis
 

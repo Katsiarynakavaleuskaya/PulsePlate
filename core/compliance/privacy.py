@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
+from typing import cast
 
 from core.compliance.dsar import build_dsar_rights_summary, summarize_dsar_support
 from core.compliance.transparency import get_blocked_regulated_lane, get_transparency_registry
@@ -207,7 +208,7 @@ def build_privacy_endpoint_payload() -> dict[str, object]:
         for item in processing_categories
         if item["category_id"] == "ai_generated_wellness_analysis"
     )
-    ai_generated_endpoints = list(ai_generated_disclosure["endpoints"])
+    ai_generated_endpoints = list(cast(list[str], ai_generated_disclosure["endpoints"]))
 
     old_payload: dict[str, object] = {
         "privacy_policy": (
