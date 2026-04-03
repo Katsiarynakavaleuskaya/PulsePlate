@@ -363,7 +363,7 @@ Before changing code:
 - docs / copy changes: follow the relevant docs guidance and keep the PR docs-only
 - frontend-only changes: run the frontend-local checks for `frontend/`
 - iOS-only changes: run the iOS-local checks for `ios/`
-- backend local iteration:
+- backend local iteration (maintainer/proxy-approved path):
   - `make validate-min` for the cheap deterministic guard + smoke bundle
   - `make validate-changed` for diff-based Python test selection on your current branch
   - targeted `pytest` when narrowing a specific backend change
