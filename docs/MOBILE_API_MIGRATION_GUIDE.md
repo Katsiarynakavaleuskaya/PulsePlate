@@ -74,7 +74,8 @@ let request = URLRequest(url: URL(string: "https://api.pulseplate.com/api/v1/foo
 
 ### Tier 2: PRO (API Key Required - Level 1)
 
-**Target Users**: PRO subscribers ($4.99/month)
+**Target Users**: PRO subscribers (current pricing / trial / eligibility must
+resolve from StoreKit / App Store truth)
 
 **Features**:
 
@@ -182,7 +183,8 @@ runtime code.
 
 ### Tier 3: VIP (API Key Required - Level 2)
 
-**Target Users**: VIP subscribers ($9.99/month)
+**Target Users**: VIP subscribers (current pricing / trial / eligibility must
+resolve from StoreKit / App Store truth)
 
 **Features** (All PRO features +):
 

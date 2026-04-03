@@ -136,8 +136,7 @@ Status: operator execution map
 - deferred follow-ups:
   - `ledger-p1-ios-appstore-assets-rollout`
   - `ledger-p1-ios-appstore-semantic-validators`
-  - protected ASC environment activation
-  - Apple receipt verification migration / App Store Server API
+  - `ledger-p1-apple-server-api-migration`
 
 ### 10. feat(ios-release-ops): protected App Store asset rollout
 - closes together:

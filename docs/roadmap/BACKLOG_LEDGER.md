@@ -900,8 +900,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Follow-up lanes kept separate:
     - `ledger-p1-ios-appstore-assets-rollout`
     - `ledger-p1-ios-appstore-semantic-validators`
-    - protected ASC environment activation
-    - Apple receipt verification migration / App Store Server API
+    - `ledger-p1-apple-server-api-migration`
 
 <a id="ledger-p1-ios-appstore-assets-rollout"></a>
 - [ ] P1: iOS App Store assets rollout and protected ASC environment activation
