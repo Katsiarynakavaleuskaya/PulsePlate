@@ -15,6 +15,8 @@ Disposition: FIXED
 Commit: 6cae2892b157ca4435645fb1ac75b7b09f630f79
 Evidence: docs/design/PULSEPLATE_BUTTON_ACTION_PROMPT_MATRIX.md:84
 Reason: Expanded the Weekly Plan Reader evidence anchors to cite both the toolbar share TODO and the VIP CTA TODOs, matching the runtime blockers that cubic flagged.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1319#pullrequestreview-4056166267 -> 6cae2892b157ca4435645fb1ac75b7b09f630f79
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1319#discussion_r3033299260 -> 6cae2892b157ca4435645fb1ac75b7b09f630f79
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1319#pullrequestreview-4056166397 -> 6cae2892b157ca4435645fb1ac75b7b09f630f79
 
 ## Merge Readiness
