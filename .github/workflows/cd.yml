@@ -507,14 +507,21 @@ jobs:
         run: |
           set -euo pipefail
 
+          DOCKER_BIN="$(command -v docker || true)"
+          if [[ -z "$DOCKER_BIN" || "$DOCKER_BIN" != /* || ! -x "$DOCKER_BIN" ]]; then
+            echo "Docker binary not found or not executable on self-hosted runner" >&2
+            exit 1
+          fi
+
           export DEPLOY_DIR='${{ vars.DEPLOY_DIR }}'
           export PRODUCTION_DOMAIN='${{ secrets.PRODUCTION_DOMAIN }}'
           export IMAGE_REF="ghcr.io/${{ needs.build-production.outputs.image_name }}@${{ needs.build-production.outputs.digest }}"
           export TAG="prod-${{ github.ref_name }}"
           export GHCR_USER='${{ github.repository_owner }}'
           export GHCR_TOKEN='${{ secrets.GHCR_READ_TOKEN }}'
+          export DOCKER_BIN
           export SHELL_BUNDLE_DIR="${GITHUB_WORKSPACE}"
           bash scripts/deploy_production.sh
 
           # Clean up dangling Docker images on the self-hosted runner to prevent disk bloat over time.
-          docker image prune -f || true
+          "$DOCKER_BIN" image prune -f || true

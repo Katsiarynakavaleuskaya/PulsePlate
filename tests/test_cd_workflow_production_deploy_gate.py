@@ -95,8 +95,15 @@ def test_production_deploy_jobs_delegate_registry_login_to_deploy_script() -> No
     )
     assert "GHCR_USER: ${{ github.repository_owner }}" in ssh_section
     assert "GHCR_TOKEN: ${{ secrets.GHCR_READ_TOKEN }}" in ssh_section
+    assert 'DOCKER_BIN="$(command -v docker || true)"' in self_hosted_section
+    assert (
+        'if [[ -z "$DOCKER_BIN" || "$DOCKER_BIN" != /* || ! -x "$DOCKER_BIN" ]]; then'
+        in self_hosted_section
+    )
     assert "export GHCR_USER='${{ github.repository_owner }}'" in self_hosted_section
     assert "export GHCR_TOKEN='${{ secrets.GHCR_READ_TOKEN }}'" in self_hosted_section
+    assert "export DOCKER_BIN" in self_hosted_section
+    assert '"$DOCKER_BIN" image prune -f || true' in self_hosted_section
     assert (
         'echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin'
         not in self_hosted_section
