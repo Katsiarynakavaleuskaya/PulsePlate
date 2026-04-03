@@ -255,7 +255,7 @@
 
 ### 📋 PR-C: Shopping List (read-only, за флагом)
 
-- **Цель**: Генерация из плана; группировка по отделам; чекбоксы; offline (localStorage)
+- **Цель**: Генерация из плана; группировка по отделам; чекбоксы; offline/local persistence
 - **Критерии**: offline работает; диф-покрытие ≥90%; CTA к paywall предусмотрен
 
 Текущий статус:
@@ -268,7 +268,7 @@
 - [x] **Shopping List API client** (behind feature flag)
 - [x] **Generate shopping list** из weekly plan (inline `plan_data` path)
 - [x] **Group items** по store departments
-- [ ] **Add offline support** с localStorage
+- [ ] **Add offline support** с platform-appropriate local persistence
 - [x] **Show Shopping List entrypoint** в Home → Pro Tools под feature flag
 - [ ] **Add CTA to paywall** из shopping list
 - [ ] **Wire canonical release source-of-plan path** (`weekly_plan_id` or carried `plan_data`)
