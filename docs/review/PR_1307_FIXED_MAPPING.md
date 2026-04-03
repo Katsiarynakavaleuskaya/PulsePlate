@@ -20,10 +20,10 @@ Reason: The legacy `llm_processing.endpoints` field remains for backward compati
 
 ## Merge Readiness
 - [ ] All required checks pass
-- [ ] No unresolved review threads (re-check on current head before merge)
+- [x] No unresolved review threads (re-checked on current head)
 - [x] No actionable bot comments remain unmapped
 - [ ] Mandatory wait-window completed
 - [x] Pre-commit green
-- [ ] `make verify` green
+- [x] `make verify` green
 - [x] Mandatory post-open bug-hunter pass completed
 Notes: PR `#1307` must remain a narrow EU-first compliance control-plane follow-through. Keep scope bounded to runtime/doc sync and deterministic drift detection for current wellness AI surfaces only.
