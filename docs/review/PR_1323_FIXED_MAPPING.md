@@ -5,7 +5,7 @@
 - [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
-- No actionable review comments at PR open; bot and reviewer dispositions will be added here if new actionable threads appear.
+- No actionable review comments
 
 Disposition: NOT-A-BUG
 Evidence: `.github/workflows/ios-appstore-assets.yml:15`, `.github/workflows/ios-appstore-assets.yml:40`, `.github/workflows/ios-appstore-assets.yml:132`
