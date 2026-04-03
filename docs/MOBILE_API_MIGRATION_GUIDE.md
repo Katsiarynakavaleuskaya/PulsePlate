@@ -10,6 +10,18 @@
 
 PulsePlate API has been consolidated into a clean, tiered structure optimized for mobile app integration with subscription-based access levels.
 
+### StoreKit copy contract for mobile consumers
+
+For iOS subscription surfaces, price / trial duration / eligibility messaging
+must come from StoreKit / App Store truth rather than manual UI copy.
+
+- Canonical governance source:
+  `docs/contracts/IOS_STOREKIT_PRODUCTS_CONTRACT.md`
+- Mobile consumers may render live StoreKit fields when available.
+- If live truth is unavailable, mobile copy must use non-assertive fallback
+  wording rather than numeric price claims, exact trial-length claims, or
+  definite eligibility claims.
+
 ### What Changed
 
 **Before** (Legacy):

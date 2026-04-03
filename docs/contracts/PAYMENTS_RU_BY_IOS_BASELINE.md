@@ -219,3 +219,14 @@ Required runtime PR gates:
 B1 scope: canonical sources, activation contract, reconciliation lifecycle, webhook signature contract, additive billing surface.
 
 **Non-goals (do not mix into B1):** Stripe/PayPal, Android billing, paywall UI redesign, StoreKit product IDs, iOS SubscriptionManager, OpenAPI namespace cleanup, AI/RAG/GTM scope.
+
+## 14. StoreKit offers governance pointer
+
+App Store subscription offers governance is not owned by this payments baseline.
+
+- Canonical source: `docs/contracts/IOS_STOREKIT_PRODUCTS_CONTRACT.md`
+- Governed there: introductory offers, offer codes, promotional offers,
+  win-back pricing, and the copy contract for price / trial duration /
+  eligibility messaging
+- This document remains limited to payment-source normalization, receipt
+  verification, activation routing, and reconciliation truth
