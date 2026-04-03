@@ -639,11 +639,20 @@ docker compose --env-file deploy/.env -f deploy/docker-compose.production.yaml d
 cd /srv/pulseplate-production
 export IMAGE_REF=ghcr.io/katsiarynakavaleuskaya/pulseplate:prod-vX.Y.Z
 export TAG=prod-vX.Y.Z
+# Optional: pin docker explicitly when the host uses a non-standard install path
+export DOCKER_BIN=/usr/bin/docker
+# Optional: provide GHCR read credentials if the host is not already logged in
+export GHCR_USER=your-github-org-or-user
+export GHCR_TOKEN=ghp_read_only_token
 ./deploy_production.sh
 
 # Check readiness
 curl -f https://yourdomain.com/ready
 ```
+
+**RU:** `deploy_production.sh` больше не перестраивает `PATH` и не зависит от `HOME`. Скрипт ищет Docker только в доверенных системных путях (`/usr/bin/docker`, `/usr/local/bin/docker`, `/snap/bin/docker`) или использует явный абсолютный `DOCKER_BIN`.
+
+**EN:** `deploy_production.sh` no longer rewrites `PATH` or depends on `HOME`. The script resolves Docker only from trusted system paths (`/usr/bin/docker`, `/usr/local/bin/docker`, `/snap/bin/docker`) or from an explicit absolute `DOCKER_BIN` override.
 
 ## 📋 Production Checklist
 

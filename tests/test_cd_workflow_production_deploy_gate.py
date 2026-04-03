@@ -93,8 +93,10 @@ def test_production_deploy_jobs_delegate_registry_login_to_deploy_script() -> No
         'echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin'
         not in ssh_section
     )
-    assert "export GHCR_USER=" in self_hosted_section
-    assert "export GHCR_TOKEN=" in self_hosted_section
+    assert "GHCR_USER: ${{ github.repository_owner }}" in ssh_section
+    assert "GHCR_TOKEN: ${{ secrets.GHCR_READ_TOKEN }}" in ssh_section
+    assert "export GHCR_USER='${{ github.repository_owner }}'" in self_hosted_section
+    assert "export GHCR_TOKEN='${{ secrets.GHCR_READ_TOKEN }}'" in self_hosted_section
     assert (
         'echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin'
         not in self_hosted_section

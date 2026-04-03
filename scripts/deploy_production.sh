@@ -17,52 +17,40 @@ DEPLOY_DIR="${DEPLOY_DIR:-}"
 ENV_FILE="${ENV_FILE:-}"
 SHELL_BUNDLE_DIR="${SHELL_BUNDLE_DIR:-}"
 DOCKER_BIN_OVERRIDE="${DOCKER_BIN:-}"
+TRUSTED_DOCKER_CANDIDATES=(
+  "/usr/bin/docker"
+  "/usr/local/bin/docker"
+  "/snap/bin/docker"
+)
+TRUSTED_DOCKER_CANDIDATES_TEXT="/usr/bin/docker, /usr/local/bin/docker, /snap/bin/docker"
 
-bootstrap_command_path() {
-  # RU: SSH/non-login shell может стартовать без стандартных bin-директорий в PATH.
-  # EN: SSH/non-login shells may start without standard bin directories in PATH.
-  local default_path="${PATH:-/usr/bin:/bin}"
-  local candidate_paths=(
-    "$HOME/.local/bin"
-    "$HOME/bin"
-    "/usr/local/sbin"
-    "/usr/local/bin"
-    "/usr/sbin"
-    "/usr/bin"
-    "/sbin"
-    "/bin"
-    "/snap/bin"
-  )
-  local candidate_path
-
-  PATH="$default_path"
-  for candidate_path in "${candidate_paths[@]}"; do
-    if [ -d "$candidate_path" ] && [[ ":$PATH:" != *":$candidate_path:"* ]]; then
-      PATH="${PATH}:$candidate_path"
-    fi
-  done
-  export PATH
-}
+# RU: Сохраняем credentials из workflow/окружения до загрузки .env,
+# чтобы локальный deploy/.env не подменял registry contract из CI.
+# EN: Snapshot caller-provided credentials before sourcing .env so a host-local
+# deploy/.env cannot override the CI-provided registry contract.
+ORIGINAL_GHCR_USER="${GHCR_USER:-}"
+ORIGINAL_GHCR_TOKEN="${GHCR_TOKEN:-}"
 
 resolve_docker_bin() {
   local candidate
-  local candidates=(
-    "/usr/bin/docker"
-    "/usr/local/bin/docker"
-    "/snap/bin/docker"
-  )
 
-  if [ -n "$DOCKER_BIN_OVERRIDE" ] && [ -x "$DOCKER_BIN_OVERRIDE" ]; then
+  if [ -n "$DOCKER_BIN_OVERRIDE" ]; then
+    # RU: Разрешаем только абсолютный путь, чтобы не запускать docker-wrapper из PATH.
+    # EN: Accept only an absolute path to avoid executing a PATH-injected docker wrapper.
+    if [[ "$DOCKER_BIN_OVERRIDE" != /* ]]; then
+      echo "❌ DOCKER_BIN must be an absolute path: $DOCKER_BIN_OVERRIDE" >&2
+      return 1
+    fi
+    if [ ! -x "$DOCKER_BIN_OVERRIDE" ]; then
+      echo "❌ DOCKER_BIN is not executable: $DOCKER_BIN_OVERRIDE" >&2
+      return 1
+    fi
+
     printf '%s\n' "$DOCKER_BIN_OVERRIDE"
     return 0
   fi
 
-  if command -v docker >/dev/null 2>&1; then
-    command -v docker
-    return 0
-  fi
-
-  for candidate in "${candidates[@]}"; do
+  for candidate in "${TRUSTED_DOCKER_CANDIDATES[@]}"; do
     if [ -x "$candidate" ]; then
       printf '%s\n' "$candidate"
       return 0
@@ -72,10 +60,12 @@ resolve_docker_bin() {
   return 1
 }
 
-bootstrap_command_path
-DOCKER_BIN="$(resolve_docker_bin || true)"
-if [ -z "$DOCKER_BIN" ]; then
-  echo "❌ docker binary not found. Checked DOCKER_BIN and PATH=$PATH" >&2
+if ! DOCKER_BIN="$(resolve_docker_bin)"; then
+  if [ -n "$DOCKER_BIN_OVERRIDE" ]; then
+    echo "❌ docker binary not found. DOCKER_BIN override: $DOCKER_BIN_OVERRIDE. Trusted paths: $TRUSTED_DOCKER_CANDIDATES_TEXT" >&2
+  else
+    echo "❌ docker binary not found. Checked trusted paths: $TRUSTED_DOCKER_CANDIDATES_TEXT" >&2
+  fi
   exit 1
 fi
 readonly DOCKER_BIN
@@ -145,6 +135,14 @@ set +a
 
 IMAGE_REF="$DEPLOY_IMAGE_REF"
 TAG="$DEPLOY_TAG"
+
+if [ -n "$ORIGINAL_GHCR_USER" ]; then
+  GHCR_USER="$ORIGINAL_GHCR_USER"
+fi
+if [ -n "$ORIGINAL_GHCR_TOKEN" ]; then
+  GHCR_TOKEN="$ORIGINAL_GHCR_TOKEN"
+fi
+
 export IMAGE_REF TAG
 
 : "${DATABASE_URL:?DATABASE_URL is required}"
