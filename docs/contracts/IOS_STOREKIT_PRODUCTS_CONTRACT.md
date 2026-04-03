@@ -240,6 +240,7 @@ This contract does not govern:
 - semantic App Store metadata/privacy validators,
 - protected ASC environment activation,
 - the actual submission/release decision for a future App Store build,
-- StoreKitManager / SubscriptionManager runtime behavior,
+- StoreKitManager / SubscriptionManager internal implementation details beyond
+  the runtime invariants defined in this contract,
 - backend billing changes, or
 - OpenAPI / API contract changes.

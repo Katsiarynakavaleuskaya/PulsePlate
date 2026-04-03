@@ -883,7 +883,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
   - Target PR: PR #1312
-  - Status: Merged via `#1312`
+  - Status: ✅ Merged via `#1312`; release-governance gap closed (reason below
+    retained as historical context)
   - Area: iOS / billing / App Store / growth
   - Finding Type: release-governance gap
   - Reason (EN): App Store Connect introductory offers, offer codes, promotional offers, and win-back pricing are operationally separate from in-app UI, but the repo does not yet have a canonical contract that says pricing, trial duration, and eligibility copy must be StoreKit-truth rather than manually inferred in product copy.
