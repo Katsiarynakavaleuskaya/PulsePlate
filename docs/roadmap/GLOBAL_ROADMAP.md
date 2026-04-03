@@ -227,38 +227,51 @@
 
 ---
 
-## 📋 ФАЗА 4: Weekly Plan Reader (Week 4) - ПЛАНИРУЕТСЯ
+## 📋 ФАЗА 4: Weekly Plan Reader (Week 4) - ЧАСТИЧНО РЕАЛИЗОВАНО, rollout pending
 
 ### 📋 PR-B: Weekly Plan (reader)
 
 - **Цель**: Генерация плана → просмотр по дням (свайпы/кнопки) → скелетоны
 - **Критерии**: загрузка/ошибка/пусто покрыты; VoiceOver читает корректно; FCP < 1.5s
 
+Текущий статус:
+- Runtime reader screen уже существует и смонтирован через Home → Pro Tools под `FeatureFlags.weeklyPlanReaderEnabled`
+- Release rollout по умолчанию всё ещё выключен
+- Share / VIP follow-up действия пока не доведены
+
 #### Задачи Weekly Plan Reader
 
-- [ ] **Weekly Plan API client** integration
-- [ ] **Create Weekly Plan viewer** с day navigation (swipes/buttons)
-- [ ] **Add loading skeletons** для plan generation
+- [x] **Weekly Plan API client** integration
+- [x] **Create Weekly Plan viewer** с day navigation (swipes/buttons)
+- [x] **Add loading skeletons** для plan generation
 - [ ] **Add VoiceOver compatibility** и keyboard navigation
 - [ ] **Optimize for FCP < 1.5s** на plan screen
+- [ ] **Complete share / VIP follow-up actions**
+- [ ] **Promote controlled release rollout** beyond debug / QA flag path
 
 ---
 
-## 📋 ФАЗА 5: Shopping List (Week 5) - ПЛАНИРУЕТСЯ
+## 📋 ФАЗА 5: Shopping List (Week 5) - ЧАСТИЧНО РЕАЛИЗОВАНО, release path blocked
 
 ### 📋 PR-C: Shopping List (read-only, за флагом)
 
 - **Цель**: Генерация из плана; группировка по отделам; чекбоксы; offline (localStorage)
 - **Критерии**: offline работает; диф-покрытие ≥90%; CTA к paywall предусмотрен
 
+Текущий статус:
+- Runtime screen уже существует и смонтирован через Home → Pro Tools под тем же feature flag
+- `DEBUG` path работает через stub `plan_data`
+- normal release path ещё не готов: iOS не передаёт canonical `weekly_plan_id`, а backend `weekly_plan_id` path всё ещё 501
+
 #### Задачи Shopping List
 
-- [ ] **Shopping List API client** (behind VIP flag)
-- [ ] **Generate shopping list** из weekly plan
-- [ ] **Group items** по store departments
+- [x] **Shopping List API client** (behind feature flag)
+- [x] **Generate shopping list** из weekly plan (inline `plan_data` path)
+- [x] **Group items** по store departments
 - [ ] **Add offline support** с localStorage
-- [ ] **Show Shopping List tab** только при VIP_MODULE_ENABLED=true
+- [x] **Show Shopping List entrypoint** в Home → Pro Tools под feature flag
 - [ ] **Add CTA to paywall** из shopping list
+- [ ] **Wire canonical release source-of-plan path** (`weekly_plan_id` or carried `plan_data`)
 
 ---
 

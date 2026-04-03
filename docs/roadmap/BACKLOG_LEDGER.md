@@ -6014,6 +6014,38 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `make ios-test` passes
 
 
+- [ ] P1: iOS V3 Pro Tools rollout alignment (Weekly Plan Reader + Shopping List)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (Release alignment / docs drift)
+  - Target PR: PR-TBD
+  - Status: Planned
+  - Area: ios / backend / figma / docs
+  - Finding Type: rollout alignment
+  - Locations:
+    - `ios/PulsePlate/Views/HomeView.swift`
+    - `ios/PulsePlate/Utilities/FeatureFlags.swift`
+    - `ios/PulsePlate/Views/WeeklyPlan/WeeklyPlanReaderView.swift`
+    - `ios/PulsePlate/ViewModels/ShoppingListReaderViewModel.swift`
+    - `app/routers/shopping_list_pro.py`
+    - `docs/figma/EXECUTABLE_DESIGN_INDEX.md`
+    - `docs/design/PULSEPLATE_BUTTON_ACTION_PROMPT_MATRIX.md`
+    - `ios/SHOPPING_LIST_SETUP.md`
+  - Reason: Runtime V3 surfaces already exist under Home → Pro Tools, but release rollout is still blocked by feature-flag defaults and unresolved source-of-plan flow. `DEBUG` shopping-list path relies on stub `plan_data`, while iOS has no `weekly_plan_id` handoff and backend `weekly_plan_id` support still returns HTTP 501. Canonical docs also drifted by mixing historical plan state with current runtime state.
+  - Links:
+    - `ios/PulsePlate/Views/HomeView.swift`
+    - `ios/PulsePlate/Utilities/FeatureFlags.swift`
+    - `ios/PulsePlate/Views/WeeklyPlan/WeeklyPlanReaderView.swift`
+    - `app/routers/shopping_list_pro.py`
+    - `docs/design/PULSEPLATE_BUTTON_ACTION_PROMPT_MATRIX.md`
+    - `docs/figma/EXECUTABLE_DESIGN_INDEX.md`
+  - DoD:
+    - Weekly Plan Reader release path is explicitly approved and smoke-tested (not only debug / QA flag usage)
+    - Weekly Plan Reader share + VIP follow-up actions are either implemented or intentionally product-closed with documented rationale
+    - Shopping List opens from a canonical release source-of-plan path (no dependency on debug stub data)
+    - `/api/v1/pro/meal/shopping-list` supports the chosen release contract (`weekly_plan_id` or deterministic carried `plan_data`)
+    - Canonical docs and roadmap entries reflect actual runtime status with no debug-only / planned-only drift
+
+
 - [x] iOS: Plate (PRO) align to canonical backend `GET /api/v1/pro/nutrition/daily` + profile input
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (Feature integration)
