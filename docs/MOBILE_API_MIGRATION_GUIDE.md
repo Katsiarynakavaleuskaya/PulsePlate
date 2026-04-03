@@ -17,10 +17,13 @@ must come from StoreKit / App Store truth rather than manual UI copy.
 
 - Canonical governance source:
   `docs/contracts/IOS_STOREKIT_PRODUCTS_CONTRACT.md`
+- This guide is pointer-only for App Store pricing / offer / eligibility rules.
 - Mobile consumers may render live StoreKit fields when available.
 - If live truth is unavailable, mobile copy must use non-assertive fallback
   wording rather than numeric price claims, exact trial-length claims, or
   definite eligibility claims.
+- Do not treat this guide as a competing canon for introductory offers, offer
+  codes, promotional offers, win-back pricing, or price/trial messaging policy.
 
 ### What Changed
 
