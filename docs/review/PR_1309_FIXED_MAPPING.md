@@ -35,6 +35,26 @@ Commit: 32150b34
 Evidence: docs/deploy/PRODUCTION.md:645; docs/deploy/PRODUCTION.md:646
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1309#pullrequestreview-4054669890 -> 32150b34
 
+Disposition: FIXED
+Commit: 856f489d
+Evidence: .github/workflows/cd.yml:505; .github/workflows/cd.yml:516
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1309#discussion_r3032047342 -> 856f489d
+
+Disposition: FIXED
+Commit: 7aadd68e
+Evidence: .github/workflows/cd.yml:518; .github/workflows/cd.yml:534; tests/test_cd_workflow_production_deploy_gate.py:100; tests/test_cd_workflow_production_deploy_gate.py:106
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1309#discussion_r3032047346 -> 7aadd68e
+
+Disposition: FIXED
+Commit: 7aadd68e
+Evidence: .github/workflows/cd.yml:505; .github/workflows/cd.yml:536; tests/test_cd_workflow_production_deploy_gate.py:100; tests/test_cd_workflow_production_deploy_gate.py:106
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1309#pullrequestreview-4054891291 -> 7aadd68e
+
+Disposition: FIXED
+Commit: 7aadd68e
+Evidence: tests/test_ci_workflow_pr_size_governance_contract.py:11; tests/test_ci_workflow_pr_size_governance_contract.py:16; tests/test_ci_workflow_pr_size_governance_contract.py:48
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1309#pullrequestreview-4054912843 -> 7aadd68e
+
 ## Merge Readiness
 - [x] Local verification completed
 - [ ] Current-head CI green
