@@ -20,7 +20,13 @@ This runbook defines the Step 3 browser E2E extension for the PulsePlate product
 
 ## Prerequisites (local)
 
-1. Run the repo-owned Playwright MCP doctor from repo root:
+1. Export `CODEX_HOME` first when your Codex install is not under the default `~/.codex`:
+
+   ```bash
+   export CODEX_HOME="${CODEX_HOME:-$HOME/.codex}"
+   ```
+
+2. Run the repo-owned Playwright MCP doctor from repo root:
 
    ```bash
    python3 scripts/playwright_mcp.py doctor
@@ -33,7 +39,7 @@ This runbook defines the Step 3 browser E2E extension for the PulsePlate product
    - local Playwright package must exist
    - Codex Playwright wrapper must exist
 
-2. Install frontend dependencies if doctor reports missing packages:
+3. Install frontend dependencies if doctor reports missing packages:
 
    ```bash
    cd frontend
@@ -41,7 +47,7 @@ This runbook defines the Step 3 browser E2E extension for the PulsePlate product
    cd ..
    ```
 
-3. Install the Chromium payload via the repo-owned helper:
+4. Install the Chromium payload via the repo-owned helper:
 
    ```bash
    cd frontend
@@ -49,10 +55,9 @@ This runbook defines the Step 3 browser E2E extension for the PulsePlate product
    cd ..
    ```
 
-4. Resolve Playwright CLI wrapper path only after doctor passes:
+5. Resolve Playwright CLI wrapper path only after doctor passes:
 
    ```bash
-   export CODEX_HOME="${CODEX_HOME:-$HOME/.codex}"
    export PWCLI="$CODEX_HOME/skills/playwright/scripts/playwright_cli.sh"
    "$PWCLI" --help
    ```

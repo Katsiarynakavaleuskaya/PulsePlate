@@ -68,7 +68,7 @@ description: Execute controlled Playwright browser E2E checks for PulsePlate web
 - Do not use Playwright to bypass thin-client policy or API contracts.
 - Keep runs targeted; avoid broad unstable suites without need.
 - Do not claim release readiness solely from E2E; keep hard backend gates mandatory.
-- Treat doctor failures as blocking: do not continue to Playwright MCP runs on a
+- Treat doctor failures as blocking: do not continue with Playwright MCP runs on a
   mismatched Node runtime or missing browser payloads.
 
 ## SoT links

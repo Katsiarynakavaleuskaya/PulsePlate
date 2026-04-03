@@ -15,11 +15,33 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 FRONTEND_DIR = REPO_ROOT / "frontend"
 NVMRC_PATH = REPO_ROOT / ".nvmrc"
-PLAYWRIGHT_CACHE_DIR = Path.home() / "Library" / "Caches" / "ms-playwright"
 CODEX_HOME = Path(os.environ.get("CODEX_HOME", str(Path.home() / ".codex")))
 PLAYWRIGHT_WRAPPER_PATH = CODEX_HOME / "skills" / "playwright" / "scripts" / "playwright_cli.sh"
 PLAYWRIGHT_PACKAGE_PATH = FRONTEND_DIR / "node_modules" / "playwright"
 NODE_MODULES_PATH = FRONTEND_DIR / "node_modules"
+CHROMIUM_BROWSER_PREFIXES = ("chromium-", "chromium_headless_shell-")
+
+
+def _playwright_cache_dir() -> Path:
+    """Return the platform-aware Playwright browser cache directory."""
+    configured_path = os.environ.get("PLAYWRIGHT_BROWSERS_PATH", "").strip()
+    if configured_path and configured_path != "0":
+        return Path(configured_path).expanduser()
+    if sys.platform == "darwin":
+        return Path.home() / "Library" / "Caches" / "ms-playwright"
+    if sys.platform == "win32":
+        local_appdata = os.environ.get(
+            "LOCALAPPDATA",
+            str(Path.home() / "AppData" / "Local"),
+        )
+        return Path(local_appdata).expanduser() / "ms-playwright"
+    xdg_cache_home = os.environ.get("XDG_CACHE_HOME", "").strip()
+    if xdg_cache_home:
+        return Path(xdg_cache_home).expanduser() / "ms-playwright"
+    return Path.home() / ".cache" / "ms-playwright"
+
+
+PLAYWRIGHT_CACHE_DIR = _playwright_cache_dir()
 
 
 @dataclass(frozen=True)
@@ -32,9 +54,12 @@ class CheckResult:
     remediation: str | None = None
 
 
-def _read_expected_node_version() -> str:
-    """Return the repo-canonical Node version from .nvmrc."""
-    return NVMRC_PATH.read_text(encoding="utf-8").strip()
+def _read_expected_node_version() -> str | None:
+    """Return the repo-canonical Node version from .nvmrc, if present."""
+    if not NVMRC_PATH.is_file():
+        return None
+    expected_node_version = NVMRC_PATH.read_text(encoding="utf-8").strip()
+    return expected_node_version or None
 
 
 def _resolve_binary(name: str) -> str | None:
@@ -58,64 +83,98 @@ def _current_node_version(node_bin: str) -> str | None:
 
 
 def _playwright_browser_cache_present() -> bool:
-    """Return True when the Playwright browser cache has at least one browser payload."""
+    """Return True when the Playwright cache contains a Chromium payload."""
     if not PLAYWRIGHT_CACHE_DIR.is_dir():
         return False
-    return any(child.is_dir() for child in PLAYWRIGHT_CACHE_DIR.iterdir())
+    try:
+        return any(
+            child.is_dir() and child.name.startswith(CHROMIUM_BROWSER_PREFIXES)
+            for child in PLAYWRIGHT_CACHE_DIR.iterdir()
+        )
+    except OSError:
+        return False
 
 
 def _build_doctor_report() -> list[CheckResult]:
     """Collect the repo-local MCP/toolchain health checks."""
     results: list[CheckResult] = []
     expected_node_version = _read_expected_node_version()
+    if expected_node_version is None:
+        results.append(
+            CheckResult(
+                name="node-version",
+                ok=False,
+                detail="Repo Node baseline is missing because .nvmrc is absent or empty.",
+                remediation="Restore a non-empty `.nvmrc` with the repo-required Node version.",
+            )
+        )
 
     node_bin = _resolve_binary("node")
     if node_bin is None:
         results.append(
             CheckResult(
-                name="node",
-                ok=False,
-                detail=f"Node {expected_node_version} is required on PATH.",
-                remediation=f"Activate Node {expected_node_version} via your local toolchain.",
-            )
-        )
-        return results
-
-    current_node_version = _current_node_version(node_bin)
-    if current_node_version is None:
-        results.append(
-            CheckResult(
-                name="node-version",
-                ok=False,
-                detail="Unable to resolve the current Node runtime version.",
-                remediation="Verify that `node -p process.versions.node` works in this shell.",
-            )
-        )
-    elif current_node_version != expected_node_version:
-        # RU: Для Codex MCP нужен exact runtime parity, а не только совпадение major.
-        # EN: Codex MCP needs exact runtime parity, not only a matching major version.
-        results.append(
-            CheckResult(
                 name="node-version",
                 ok=False,
                 detail=(
-                    f"Repo baseline is Node {expected_node_version}, current runtime is "
-                    f"{current_node_version}."
+                    f"Node {expected_node_version} is required on PATH."
+                    if expected_node_version is not None
+                    else "Node is missing on PATH and the repo baseline cannot be verified."
                 ),
                 remediation=(
-                    f"Switch the shell/tooling to Node {expected_node_version} before using "
-                    "Playwright MCP."
+                    f"Activate Node {expected_node_version} via your local toolchain."
+                    if expected_node_version is not None
+                    else "Install the repo-required Node runtime and restore `.nvmrc`."
                 ),
             )
         )
     else:
-        results.append(
-            CheckResult(
-                name="node-version",
-                ok=True,
-                detail=f"Node runtime matches repo baseline ({expected_node_version}).",
+        current_node_version = _current_node_version(node_bin)
+        if current_node_version is None:
+            results.append(
+                CheckResult(
+                    name="node-version",
+                    ok=False,
+                    detail="Unable to resolve the current Node runtime version.",
+                    remediation="Verify that `node -p process.versions.node` works in this shell.",
+                )
             )
-        )
+        elif expected_node_version is None:
+            results.append(
+                CheckResult(
+                    name="node-version",
+                    ok=False,
+                    detail=(
+                        f"Current Node runtime is {current_node_version}, but the repo baseline "
+                        "is missing."
+                    ),
+                    remediation="Restore a non-empty `.nvmrc` before using Playwright MCP.",
+                )
+            )
+        elif current_node_version != expected_node_version:
+            # RU: Для Codex MCP нужен exact runtime parity, а не только совпадение major.
+            # EN: Codex MCP needs exact runtime parity, not only a matching major version.
+            results.append(
+                CheckResult(
+                    name="node-version",
+                    ok=False,
+                    detail=(
+                        f"Repo baseline is Node {expected_node_version}, current runtime is "
+                        f"{current_node_version}."
+                    ),
+                    remediation=(
+                        f"Switch the shell/tooling to Node {expected_node_version} before using "
+                        "Playwright MCP."
+                    ),
+                )
+            )
+        else:
+            results.append(
+                CheckResult(
+                    name="node-version",
+                    ok=True,
+                    detail=f"Node runtime matches repo baseline ({expected_node_version}).",
+                )
+            )
 
     for binary_name in ("npm", "npx"):
         resolved = _resolve_binary(binary_name)
@@ -215,7 +274,15 @@ def _run_install_browser() -> int:
     blocking_names = {
         result.name
         for result in results
-        if not result.ok and result.name in {"node-version", "npm", "npx", "frontend-node-modules"}
+        if not result.ok
+        and result.name
+        in {
+            "node-version",
+            "npm",
+            "npx",
+            "frontend-node-modules",
+            "frontend-playwright-package",
+        }
     }
     if blocking_names:
         _print_text_report(results)
@@ -276,7 +343,6 @@ def main(argv: list[str] | None = None) -> int:
         return _run_install_browser()
 
     parser.error(f"Unsupported command: {args.command}")
-    return 2
 
 
 if __name__ == "__main__":
