@@ -110,6 +110,21 @@ def test_doctor_passes_when_repo_prerequisites_are_present(
     assert playwright_mcp._doctor_exit_code(results) == 0
 
 
+def test_doctor_accepts_nvmrc_version_with_v_prefix(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _configure_fake_repo_paths(tmp_path, monkeypatch)
+    playwright_mcp.NVMRC_PATH.write_text("v22.22.1\n", encoding="utf-8")
+    monkeypatch.setattr(playwright_mcp, "_resolve_binary", lambda name: f"/usr/local/bin/{name}")
+    monkeypatch.setattr(playwright_mcp, "_current_node_version", lambda node_bin: "22.22.1")
+
+    results = playwright_mcp._build_doctor_report()
+
+    node_result = next(result for result in results if result.name == "node-version")
+    assert node_result.ok is True
+    assert "22.22.1" in node_result.detail
+
+
 def test_doctor_reports_missing_nvmrc_without_hiding_other_failures(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

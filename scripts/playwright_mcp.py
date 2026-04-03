@@ -63,11 +63,18 @@ class CheckResult:
     remediation: str | None = None
 
 
+def _normalize_node_version(version: str) -> str:
+    """Normalize Node version strings before parity checks."""
+    # RU: `.nvmrc` может хранить версию как `v22.22.1`, а runtime возвращает `22.22.1`.
+    # EN: `.nvmrc` may store `v22.22.1` while the runtime reports `22.22.1`.
+    return version.strip().lstrip("vV")
+
+
 def _read_expected_node_version() -> str | None:
     """Return the repo-canonical Node version from .nvmrc, if present."""
     if not NVMRC_PATH.is_file():
         return None
-    expected_node_version = NVMRC_PATH.read_text(encoding="utf-8").strip()
+    expected_node_version = _normalize_node_version(NVMRC_PATH.read_text(encoding="utf-8"))
     return expected_node_version or None
 
 
@@ -87,7 +94,7 @@ def _current_node_version(node_bin: str) -> str | None:
     )
     if process.returncode != 0:
         return None
-    version = (process.stdout or "").strip()
+    version = _normalize_node_version(process.stdout or "")
     return version or None
 
 
