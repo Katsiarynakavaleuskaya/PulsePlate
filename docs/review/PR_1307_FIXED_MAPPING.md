@@ -6,11 +6,11 @@
 
 ### Fixed in Commit Mapping
 Disposition: FIXED
-Commit: 4ca59bee0544c31d6511b9bf280753d9864b426a
+Commit: 4ca59bee7194921b70bf8a442cf4364c18d71578
 Evidence: core/compliance/transparency.py:97; docs/compliance/AI_TRANSPARENCY_AND_PROFILING_NOTICE.md:63; docs/legal/Privacy.md:120
 Reason: Sourcery asked for the canonical "substance use disorder" phrasing. The blocked regulated-lane example now matches that wording across runtime and synced disclosure docs.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1307#pullrequestreview-4053710418 -> 4ca59bee0544c31d6511b9bf280753d9864b426a
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1307#discussion_r3030876254 -> 4ca59bee0544c31d6511b9bf280753d9864b426a
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1307#pullrequestreview-4053710418 -> 4ca59bee7194921b70bf8a442cf4364c18d71578
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1307#discussion_r3030876254 -> 4ca59bee7194921b70bf8a442cf4364c18d71578
 
 Disposition: FIXED
 Commit: 9b4f01e273172083d4b12b874327d6ef9b650ef8
