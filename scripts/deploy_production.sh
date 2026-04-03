@@ -16,6 +16,59 @@ COMPOSE_FILE="${COMPOSE_FILE:-}"
 DEPLOY_DIR="${DEPLOY_DIR:-}"
 ENV_FILE="${ENV_FILE:-}"
 SHELL_BUNDLE_DIR="${SHELL_BUNDLE_DIR:-}"
+DOCKER_BIN_OVERRIDE="${DOCKER_BIN:-}"
+TRUSTED_DOCKER_CANDIDATES=(
+  "/usr/bin/docker"
+  "/usr/local/bin/docker"
+  "/snap/bin/docker"
+)
+TRUSTED_DOCKER_CANDIDATES_TEXT="/usr/bin/docker, /usr/local/bin/docker, /snap/bin/docker"
+
+# RU: Сохраняем credentials из workflow/окружения до загрузки .env,
+# чтобы локальный deploy/.env не подменял registry contract из CI.
+# EN: Snapshot caller-provided credentials before sourcing .env so a host-local
+# deploy/.env cannot override the CI-provided registry contract.
+ORIGINAL_GHCR_USER="${GHCR_USER:-}"
+ORIGINAL_GHCR_TOKEN="${GHCR_TOKEN:-}"
+
+resolve_docker_bin() {
+  local candidate
+
+  if [ -n "$DOCKER_BIN_OVERRIDE" ]; then
+    # RU: Разрешаем только абсолютный путь, чтобы не запускать docker-wrapper из PATH.
+    # EN: Accept only an absolute path to avoid executing a PATH-injected docker wrapper.
+    if [[ "$DOCKER_BIN_OVERRIDE" != /* ]]; then
+      echo "❌ DOCKER_BIN must be an absolute path: $DOCKER_BIN_OVERRIDE" >&2
+      return 1
+    fi
+    if [ ! -x "$DOCKER_BIN_OVERRIDE" ]; then
+      echo "❌ DOCKER_BIN is not executable: $DOCKER_BIN_OVERRIDE" >&2
+      return 1
+    fi
+
+    printf '%s\n' "$DOCKER_BIN_OVERRIDE"
+    return 0
+  fi
+
+  for candidate in "${TRUSTED_DOCKER_CANDIDATES[@]}"; do
+    if [ -x "$candidate" ]; then
+      printf '%s\n' "$candidate"
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+if ! DOCKER_BIN="$(resolve_docker_bin)"; then
+  if [ -n "$DOCKER_BIN_OVERRIDE" ]; then
+    echo "❌ docker binary not found. DOCKER_BIN override: $DOCKER_BIN_OVERRIDE. Trusted paths: $TRUSTED_DOCKER_CANDIDATES_TEXT" >&2
+  else
+    echo "❌ docker binary not found. Checked trusted paths: $TRUSTED_DOCKER_CANDIDATES_TEXT" >&2
+  fi
+  exit 1
+fi
+readonly DOCKER_BIN
 
 resolve_deploy_dir() {
   if [ -n "$DEPLOY_DIR" ]; then
@@ -82,6 +135,14 @@ set +a
 
 IMAGE_REF="$DEPLOY_IMAGE_REF"
 TAG="$DEPLOY_TAG"
+
+if [ -n "$ORIGINAL_GHCR_USER" ]; then
+  GHCR_USER="$ORIGINAL_GHCR_USER"
+fi
+if [ -n "$ORIGINAL_GHCR_TOKEN" ]; then
+  GHCR_TOKEN="$ORIGINAL_GHCR_TOKEN"
+fi
+
 export IMAGE_REF TAG
 
 : "${DATABASE_URL:?DATABASE_URL is required}"
@@ -100,11 +161,25 @@ echo "IMAGE_REF: $IMAGE_REF"
 echo "ENV_FILE: $ENV_FILE"
 
 dc() {
-  local base=(docker compose --env-file "$ENV_FILE")
+  local base=("$DOCKER_BIN" compose --env-file "$ENV_FILE")
   if [ ${#compose_args[@]} -gt 0 ]; then
     base+=("${compose_args[@]}")
   fi
   "${base[@]}" "$@"
+}
+
+login_to_ghcr_if_configured() {
+  if [ -z "${GHCR_TOKEN:-}" ]; then
+    return 0
+  fi
+
+  if [ -z "${GHCR_USER:-}" ]; then
+    echo "❌ GHCR_USER is required when GHCR_TOKEN is provided" >&2
+    exit 1
+  fi
+
+  echo "Logging in to ghcr.io with deploy credentials..."
+  printf '%s\n' "$GHCR_TOKEN" | "$DOCKER_BIN" login ghcr.io -u "$GHCR_USER" --password-stdin >/dev/null
 }
 
 sync_shell_bundle() {
@@ -153,7 +228,7 @@ wait_for_app_ready() {
   while [ "$wait_count" -lt "$max_wait" ]; do
     local app_container
     app_container="$(dc ps -q app | tr -d '\n\r ')"
-    if [ -n "${app_container:-}" ] && docker exec "$app_container" python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/ready').read()" 2>/dev/null; then
+    if [ -n "${app_container:-}" ] && "$DOCKER_BIN" exec "$app_container" python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/ready').read()" 2>/dev/null; then
       echo "app is ready"
       return 0
     fi
@@ -197,6 +272,8 @@ validate_managed_postgres_contract() {
 
 echo "Validating managed PostgreSQL production contract..."
 validate_managed_postgres_contract
+
+login_to_ghcr_if_configured
 
 echo "Pulling production app image..."
 dc pull app
@@ -252,4 +329,4 @@ done
 
 echo "✅ Healthcheck OK"
 
-docker ps --format "table {{.Names}}\t{{.Image}}\t{{.Status}}" | head -n 20
+"$DOCKER_BIN" ps --format "table {{.Names}}\t{{.Image}}\t{{.Status}}" | head -n 20

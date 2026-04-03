@@ -74,3 +74,41 @@ def test_production_deploy_syncs_shell_bundle_for_caddy_rebuild() -> None:
     assert "DEPLOY_DIR is required for production shell sync" not in workflow_text
     assert "StrictHostKeyChecking=no" not in workflow_text
     assert "group: cd-deploy-production" in workflow_text
+
+
+def test_production_deploy_jobs_delegate_registry_login_to_deploy_script() -> None:
+    """Keep GHCR auth inside deploy_production.sh so SSH shells stay PATH-agnostic."""
+
+    workflow_text = CD_WORKFLOW_PATH.read_text(encoding="utf-8")
+    ssh_section = workflow_text.split("deploy-production:", maxsplit=1)[1].split(
+        "deploy-production-self-hosted:", maxsplit=1
+    )[0]
+    self_hosted_section = workflow_text.split("deploy-production-self-hosted:", maxsplit=1)[1]
+
+    assert (
+        "envs: DEPLOY_SCRIPT_B64,IMAGE_REF,TAG,PRODUCTION_DOMAIN,DEPLOY_DIR,GHCR_USER,GHCR_TOKEN"
+        in ssh_section
+    )
+    assert (
+        'echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin'
+        not in ssh_section
+    )
+    assert "GHCR_USER: ${{ github.repository_owner }}" in ssh_section
+    assert "GHCR_TOKEN: ${{ secrets.GHCR_READ_TOKEN }}" in ssh_section
+    assert "export GHCR_USER='${{ github.repository_owner }}'" in self_hosted_section
+    assert "export GHCR_TOKEN='${{ secrets.GHCR_READ_TOKEN }}'" in self_hosted_section
+    assert "continue-on-error: true" in self_hosted_section
+    assert "for candidate in /usr/bin/docker /usr/local/bin/docker /snap/bin/docker; do" in (
+        self_hosted_section
+    )
+    assert 'if [[ -n "$PRUNE_DOCKER_BIN" ]]; then' in self_hosted_section
+    assert '"$PRUNE_DOCKER_BIN" image prune -f' in self_hosted_section
+    assert '"$PRUNE_DOCKER_BIN" image prune -f || true' not in self_hosted_section
+    assert (
+        "Skipping Docker image prune: trusted docker binary not found on self-hosted runner"
+        in self_hosted_section
+    )
+    assert (
+        'echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin'
+        not in self_hosted_section
+    )

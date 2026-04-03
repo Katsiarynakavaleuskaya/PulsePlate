@@ -466,10 +466,6 @@ jobs:
               exit 1
             fi
 
-            if [ -n "${GHCR_TOKEN:-}" ]; then
-              echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
-            fi
-
             bundle_name="pulseplate-shell-bundle-${{ github.run_id }}-${{ github.run_attempt }}"
             tmp_bundle_dir="/tmp/${bundle_name}"
             rm -rf "$tmp_bundle_dir"
@@ -510,18 +506,32 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          GHCR_USER='${{ github.repository_owner }}'
-          GHCR_TOKEN='${{ secrets.GHCR_READ_TOKEN }}'
-          if [ -n "$GHCR_TOKEN" ]; then
-            echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
-          fi
-
           export DEPLOY_DIR='${{ vars.DEPLOY_DIR }}'
           export PRODUCTION_DOMAIN='${{ secrets.PRODUCTION_DOMAIN }}'
           export IMAGE_REF="ghcr.io/${{ needs.build-production.outputs.image_name }}@${{ needs.build-production.outputs.digest }}"
           export TAG="prod-${{ github.ref_name }}"
+          export GHCR_USER='${{ github.repository_owner }}'
+          export GHCR_TOKEN='${{ secrets.GHCR_READ_TOKEN }}'
           export SHELL_BUNDLE_DIR="${GITHUB_WORKSPACE}"
           bash scripts/deploy_production.sh
 
+      - name: Best-effort self-hosted Docker image prune
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          PRUNE_DOCKER_BIN=''
+
           # Clean up dangling Docker images on the self-hosted runner to prevent disk bloat over time.
-          docker image prune -f || true
+          for candidate in /usr/bin/docker /usr/local/bin/docker /snap/bin/docker; do
+            if [[ -x "$candidate" ]]; then
+              PRUNE_DOCKER_BIN="$candidate"
+              break
+            fi
+          done
+
+          if [[ -n "$PRUNE_DOCKER_BIN" ]]; then
+            "$PRUNE_DOCKER_BIN" image prune -f
+          else
+            echo "Skipping Docker image prune: trusted docker binary not found on self-hosted runner" >&2
+          fi
