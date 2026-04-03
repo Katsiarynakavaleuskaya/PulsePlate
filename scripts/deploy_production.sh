@@ -16,6 +16,69 @@ COMPOSE_FILE="${COMPOSE_FILE:-}"
 DEPLOY_DIR="${DEPLOY_DIR:-}"
 ENV_FILE="${ENV_FILE:-}"
 SHELL_BUNDLE_DIR="${SHELL_BUNDLE_DIR:-}"
+DOCKER_BIN_OVERRIDE="${DOCKER_BIN:-}"
+
+bootstrap_command_path() {
+  # RU: SSH/non-login shell может стартовать без стандартных bin-директорий в PATH.
+  # EN: SSH/non-login shells may start without standard bin directories in PATH.
+  local default_path="${PATH:-/usr/bin:/bin}"
+  local candidate_paths=(
+    "$HOME/.local/bin"
+    "$HOME/bin"
+    "/usr/local/sbin"
+    "/usr/local/bin"
+    "/usr/sbin"
+    "/usr/bin"
+    "/sbin"
+    "/bin"
+    "/snap/bin"
+  )
+  local candidate_path
+
+  PATH="$default_path"
+  for candidate_path in "${candidate_paths[@]}"; do
+    if [ -d "$candidate_path" ] && [[ ":$PATH:" != *":$candidate_path:"* ]]; then
+      PATH="${PATH}:$candidate_path"
+    fi
+  done
+  export PATH
+}
+
+resolve_docker_bin() {
+  local candidate
+  local candidates=(
+    "/usr/bin/docker"
+    "/usr/local/bin/docker"
+    "/snap/bin/docker"
+  )
+
+  if [ -n "$DOCKER_BIN_OVERRIDE" ] && [ -x "$DOCKER_BIN_OVERRIDE" ]; then
+    printf '%s\n' "$DOCKER_BIN_OVERRIDE"
+    return 0
+  fi
+
+  if command -v docker >/dev/null 2>&1; then
+    command -v docker
+    return 0
+  fi
+
+  for candidate in "${candidates[@]}"; do
+    if [ -x "$candidate" ]; then
+      printf '%s\n' "$candidate"
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+bootstrap_command_path
+DOCKER_BIN="$(resolve_docker_bin || true)"
+if [ -z "$DOCKER_BIN" ]; then
+  echo "❌ docker binary not found. Checked DOCKER_BIN and PATH=$PATH" >&2
+  exit 1
+fi
+readonly DOCKER_BIN
 
 resolve_deploy_dir() {
   if [ -n "$DEPLOY_DIR" ]; then
@@ -100,11 +163,25 @@ echo "IMAGE_REF: $IMAGE_REF"
 echo "ENV_FILE: $ENV_FILE"
 
 dc() {
-  local base=(docker compose --env-file "$ENV_FILE")
+  local base=("$DOCKER_BIN" compose --env-file "$ENV_FILE")
   if [ ${#compose_args[@]} -gt 0 ]; then
     base+=("${compose_args[@]}")
   fi
   "${base[@]}" "$@"
+}
+
+login_to_ghcr_if_configured() {
+  if [ -z "${GHCR_TOKEN:-}" ]; then
+    return 0
+  fi
+
+  if [ -z "${GHCR_USER:-}" ]; then
+    echo "❌ GHCR_USER is required when GHCR_TOKEN is provided" >&2
+    exit 1
+  fi
+
+  echo "Logging in to ghcr.io with deploy credentials..."
+  printf '%s\n' "$GHCR_TOKEN" | "$DOCKER_BIN" login ghcr.io -u "$GHCR_USER" --password-stdin >/dev/null
 }
 
 sync_shell_bundle() {
@@ -153,7 +230,7 @@ wait_for_app_ready() {
   while [ "$wait_count" -lt "$max_wait" ]; do
     local app_container
     app_container="$(dc ps -q app | tr -d '\n\r ')"
-    if [ -n "${app_container:-}" ] && docker exec "$app_container" python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/ready').read()" 2>/dev/null; then
+    if [ -n "${app_container:-}" ] && "$DOCKER_BIN" exec "$app_container" python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/ready').read()" 2>/dev/null; then
       echo "app is ready"
       return 0
     fi
@@ -197,6 +274,8 @@ validate_managed_postgres_contract() {
 
 echo "Validating managed PostgreSQL production contract..."
 validate_managed_postgres_contract
+
+login_to_ghcr_if_configured
 
 echo "Pulling production app image..."
 dc pull app
@@ -252,4 +331,4 @@ done
 
 echo "✅ Healthcheck OK"
 
-docker ps --format "table {{.Names}}\t{{.Image}}\t{{.Status}}" | head -n 20
+"$DOCKER_BIN" ps --format "table {{.Names}}\t{{.Image}}\t{{.Status}}" | head -n 20

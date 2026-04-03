@@ -217,6 +217,84 @@ printf 'curl %s\\n' "$*" >> "{log_file}"
     assert all("helper " not in line for line in log_lines)
 
 
+def test_deploy_production_logs_in_to_ghcr_with_resolved_docker_binary(tmp_path: Path) -> None:
+    project_dir = tmp_path / "production"
+    docker_home = tmp_path / "docker-home"
+    docker_dir = docker_home / "bin"
+    bin_dir = tmp_path / "bin"
+    log_file = tmp_path / "deploy.log"
+    project_dir.mkdir()
+    docker_dir.mkdir(parents=True)
+    bin_dir.mkdir()
+    (project_dir / "docker-compose.production.yaml").write_text("services: {}\n", encoding="utf-8")
+    (project_dir / ".env").write_text(
+        "DATABASE_URL=postgresql+psycopg://pulseplate:secret@db.example.com:25060/pulseplate\n",  # pragma: allowlist secret
+        encoding="utf-8",
+    )
+
+    docker_stub = f"""#!/usr/bin/env bash
+set -euo pipefail
+printf 'docker %s\\n' "$*" >> "{log_file}"
+case "$*" in
+  "login ghcr.io -u deploy-bot --password-stdin")
+    cat >/dev/null
+    ;;
+  *"compose --env-file "*"-f docker-compose.production.yaml ps -q app"*)
+    printf 'app-id\\n'
+    ;;
+  *"inspect --format "*)
+    printf 'healthy\\n'
+    ;;
+  *"ps --format "*)
+    printf 'CONTAINER ID\\n'
+    ;;
+esac
+"""
+    curl_stub = f"""#!/usr/bin/env bash
+set -euo pipefail
+printf 'curl %s\\n' "$*" >> "{log_file}"
+"""
+    sleep_stub = "#!/usr/bin/env bash\nset -euo pipefail\n"
+    _write_executable(docker_dir / "docker", docker_stub)
+    _write_executable(bin_dir / "curl", curl_stub)
+    _write_executable(bin_dir / "sleep", sleep_stub)
+
+    env = os.environ.copy()
+    env["PATH"] = f"{bin_dir}:{env['PATH']}"
+    env["DOCKER_BIN"] = str(docker_dir / "docker")
+    env["DEPLOY_DIR"] = str(project_dir)
+    env["ENV_FILE"] = str(project_dir / ".env")
+    env["COMPOSE_FILE"] = "docker-compose.production.yaml"
+    env["IMAGE_REF"] = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:test"
+    env["TAG"] = "prod-vtest"
+    env["PRODUCTION_DOMAIN"] = "pulseplate.test"
+    env["GHCR_USER"] = "deploy-bot"
+    env["GHCR_TOKEN"] = "read-token"
+
+    subprocess.run(
+        [str(REPO_ROOT / "scripts/deploy_production.sh")],
+        cwd=str(REPO_ROOT),
+        env=env,
+        text=True,
+        capture_output=True,
+        check=True,
+    )
+
+    log_lines = log_file.read_text(encoding="utf-8").splitlines()
+    login_index = _assert_log_index(
+        log_lines,
+        predicate=lambda line: line == "docker login ghcr.io -u deploy-bot --password-stdin",
+        message="Expected deploy script to log in to GHCR via resolved docker binary",
+    )
+    pull_index = _assert_log_index(
+        log_lines,
+        predicate=lambda line: "compose --env-file" in line and "pull app" in line,
+        message="Expected deploy script to pull the production app image",
+    )
+
+    assert login_index < pull_index
+
+
 def test_deploy_production_syncs_shell_bundle_and_prunes_stale_shell_files(tmp_path: Path) -> None:
     project_dir = tmp_path / "production"
     shell_root = project_dir.parent
