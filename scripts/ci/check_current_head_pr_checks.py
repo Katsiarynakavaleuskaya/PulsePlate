@@ -33,7 +33,6 @@ CANONICAL_FALLBACK_STATUS_CONTEXT_NAMES = {"CI"}
 CANONICAL_FALLBACK_CI_CHECK_NAMES = {
     "Determine changed paths (for conditional jobs)",
     "pr_scope_guard",
-    "build-and-test",
     "Trivy ignore-policy expiry",
     "Pygments exception seam guard",
     "Docs Phase1 gates",
@@ -42,7 +41,6 @@ CANONICAL_FALLBACK_CI_CHECK_NAMES = {
     "lint",
     "security",
     "OpenAPI sync (backend -> frontend artifacts)",
-    "test-pr",
     "test-pr (3.13)",
     "coverage-pr",
     "diff-coverage",
@@ -331,6 +329,25 @@ def _is_blocking_fallback_advisory(entry: CheckEntry) -> bool:
     )
 
 
+def _partition_fallback_advisory_entries(
+    entries: list[CheckEntry],
+) -> tuple[list[CheckEntry], list[CheckEntry]]:
+    """Split fallback-blocking entries from advisory-only entries.
+
+    RU: В fallback-режиме часть advisory-проверок все еще блокирует merge.
+    EN: In fallback mode, some advisory checks still remain merge-blocking.
+    """
+
+    blocking_entries: list[CheckEntry] = []
+    advisory_only_entries: list[CheckEntry] = []
+    for entry in entries:
+        if _is_blocking_fallback_advisory(entry):
+            blocking_entries.append(entry)
+        else:
+            advisory_only_entries.append(entry)
+    return blocking_entries, advisory_only_entries
+
+
 def _suppress_stale_latest_entries_with_newer_workflow_activity(
     entries: list[CheckEntry],
     latest: dict[str, CheckEntry],
@@ -438,15 +455,22 @@ def main(argv: list[str] | None = None) -> int:
         _required_snapshot(latest, required_names) if required_metadata_available else []
     )
     advisory_entries = list(latest.values()) if not required_metadata_available else []
+    advisory_blocking_entries: list[CheckEntry] = []
     _print_entries("Current-head required checks:", current_required)
 
     if not required_metadata_available:
+        advisory_blocking_entries, advisory_entries = _partition_fallback_advisory_entries(
+            advisory_entries
+        )
         print(
             "Required check metadata unavailable; merge gating falls back to GitHub "
             "mergeStateStatus. Current-head checks stay advisory unless a canonical "
             "ordinary-PR CI signal remains pending or failed."
         )
-        _print_entries("Current-head advisory checks:", advisory_entries)
+        if advisory_blocking_entries:
+            _print_entries("Current-head blocking fallback checks:", advisory_blocking_entries)
+        if advisory_entries:
+            _print_entries("Current-head advisory checks:", advisory_entries)
 
     noisy_superseded = [entry for entry in superseded if entry.state != "passed"]
     if noisy_superseded:
@@ -457,9 +481,6 @@ def main(argv: list[str] | None = None) -> int:
     blocking_entries = [entry for entry in current_required if entry.state in {"pending", "failed"}]
     # RU: В fallback-режиме без metadata блокирует только канонический workflow CI.
     # EN: In metadata-unavailable fallback, only the canonical CI workflow remains blocking.
-    advisory_blocking_entries = [
-        entry for entry in advisory_entries if _is_blocking_fallback_advisory(entry)
-    ]
     merge_state_note_needed = not required_metadata_available and merge_state != "CLEAN"
     if blocking_entries or advisory_blocking_entries:
         print("ERROR: current-head check filter failed.")

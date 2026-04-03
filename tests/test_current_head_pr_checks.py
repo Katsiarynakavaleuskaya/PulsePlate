@@ -1,8 +1,65 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 from scripts.ci import check_current_head_pr_checks as current_head_checks
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+CANONICAL_FALLBACK_JOB_IDS = {
+    "changes",
+    "pr_scope_guard",
+    "trivy_ignore_policy_expiry",
+    "pygments_exception_guard",
+    "docs_phase1_gates",
+    "pr_body_phase2_gates",
+    "merge_readiness_gate",
+    "lint",
+    "security",
+    "openapi-sync",
+    "test-pr",
+    "coverage-pr",
+    "diff-coverage",
+}
+ADVISORY_PULL_REQUEST_JOB_IDS = {
+    "test-main",
+    "test-feature",
+    "coverage-feature",
+    "coverage-main",
+    "ios-tests",
+    "ios-ui-smoke",
+}
+
+
+def _load_ci_workflow_jobs() -> dict[str, dict[str, object]]:
+    import yaml
+
+    workflow = yaml.safe_load((REPO_ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8"))
+    jobs = workflow.get("jobs")
+    assert isinstance(jobs, dict)
+    return jobs
+
+
+def _job_display_name(job_id: str, definition: dict[str, object]) -> str:
+    name = str(definition.get("name") or job_id)
+    matrix = (definition.get("strategy") or {}).get("matrix") or {}
+    python_versions = matrix.get("python-version")
+    if job_id == "test-pr" and python_versions == ["3.13"]:
+        return f"{name} (3.13)"
+    return name
+
+
+def test_fallback_ci_allowlist_matches_ci_workflow() -> None:
+    jobs = _load_ci_workflow_jobs()
+    classified_job_ids = CANONICAL_FALLBACK_JOB_IDS | ADVISORY_PULL_REQUEST_JOB_IDS
+
+    assert set(jobs) == classified_job_ids
+    expected_display_names = {
+        _job_display_name(job_id, jobs[job_id]) for job_id in CANONICAL_FALLBACK_JOB_IDS
+    }
+
+    assert current_head_checks.CANONICAL_FALLBACK_CI_CHECK_NAMES == expected_display_names
 
 
 @pytest.mark.parametrize(
@@ -22,7 +79,7 @@ from scripts.ci import check_current_head_pr_checks as current_head_checks
         ),
         (
             current_head_checks.CheckEntry(
-                name="build-and-test",
+                name="coverage-pr",
                 source_kind="check_run",
                 state="failed",
                 timestamp="2026-03-12T08:36:42Z",
@@ -406,6 +463,7 @@ def test_main_passes_when_merge_state_is_not_clean_and_specialized_advisory_chec
     assert "Required check metadata unavailable" in captured.out
     assert "Current-head advisory checks:" in captured.out
     assert "- security-scan: pending [Docker Build and Push]" in captured.out
+    assert "Current-head blocking fallback checks:" not in captured.out
     assert "NOTE: GitHub mergeStateStatus=UNSTABLE is stale/non-blocking" in captured.out
 
 
@@ -445,6 +503,7 @@ def test_main_passes_when_specialized_ci_job_is_pending_in_fallback_mode(
     captured = capsys.readouterr()
     assert exit_code == 0
     assert "- iOS unit tests (xcodebuild): pending [CI]" in captured.out
+    assert "Current-head blocking fallback checks:" not in captured.out
     assert "current-head-checks: passed." in captured.out
 
 
@@ -484,6 +543,8 @@ def test_main_fails_when_merge_state_is_not_clean_and_canonical_fallback_check_i
     captured = capsys.readouterr()
     assert exit_code == 1
     assert "GitHub mergeStateStatus=UNSTABLE" in captured.out
+    assert "Current-head blocking fallback checks:" in captured.out
+    assert "- Docs Phase1 gates: pending [CI]" in captured.out
     assert (
         "Blocking canonical fallback current-head checks remain pending or failed." in captured.out
     )
@@ -525,6 +586,8 @@ def test_main_fails_when_merge_state_is_clean_and_canonical_fallback_check_is_pe
     captured = capsys.readouterr()
     assert exit_code == 1
     assert "GitHub mergeStateStatus=CLEAN" not in captured.out
+    assert "Current-head blocking fallback checks:" in captured.out
+    assert "- Docs Phase1 gates: pending [CI]" in captured.out
     assert (
         "Blocking canonical fallback current-head checks remain pending or failed." in captured.out
     )
