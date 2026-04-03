@@ -5,7 +5,11 @@
 - [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
-- No actionable review comments
+Disposition: FIXED
+Commit: 9eb34174
+Evidence: tests/test_deploy_contract_scripts.py:256
+Reason: Tightened the missing-`.env` preflight regression to require a single no-side-effect outcome (`deploy.log` must not be created), which closes the actionable Sourcery review on the new deploy contract test.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1317#pullrequestreview-4055721831 -> 9eb34174
 
 ## Merge Readiness
 - [ ] All required checks pass
