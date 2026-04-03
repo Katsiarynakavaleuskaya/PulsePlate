@@ -151,6 +151,26 @@ jobs:
           echo "::error::Privileged App Store uploads may run only from main or release refs. Got ${GITHUB_REF}"
           exit 1
 
+      - name: Preflight protected App Store upload secrets
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_P8_BASE64: ${{ secrets.ASC_KEY_P8_BASE64 }}
+          APP_STORE_BUNDLE_IDENTIFIER: ${{ secrets.APP_STORE_BUNDLE_IDENTIFIER }}
+        run: |
+          set -euo pipefail
+          missing=()
+          for name in ASC_KEY_ID ASC_ISSUER_ID ASC_KEY_P8_BASE64 APP_STORE_BUNDLE_IDENTIFIER; do
+            if [[ -z "${!name:-}" ]]; then
+              missing+=("$name")
+            fi
+          done
+
+          if (( ${#missing[@]} > 0 )); then
+            echo "::error::Missing protected App Store upload secret(s): ${missing[*]}. See docs/runbooks/IOS_APPSTORE_ASSETS_ROLLOUT.md"
+            exit 1
+          fi
+
       - name: Upload metadata and screenshots
         working-directory: ios
         env:
@@ -194,6 +214,27 @@ jobs:
 
           echo "::error::Privileged App Store uploads may run only from main or release refs. Got ${GITHUB_REF}"
           exit 1
+
+      - name: Preflight protected App Privacy secrets
+        env:
+          FASTLANE_USER: ${{ secrets.FASTLANE_USER }}
+          FASTLANE_SESSION: ${{ secrets.FASTLANE_SESSION }}
+          FASTLANE_TEAM_ID: ${{ secrets.FASTLANE_TEAM_ID }}
+          FASTLANE_TEAM_NAME: ${{ secrets.FASTLANE_TEAM_NAME }}
+          APP_STORE_BUNDLE_IDENTIFIER: ${{ secrets.APP_STORE_BUNDLE_IDENTIFIER }}
+        run: |
+          set -euo pipefail
+          missing=()
+          for name in FASTLANE_USER FASTLANE_SESSION FASTLANE_TEAM_ID FASTLANE_TEAM_NAME APP_STORE_BUNDLE_IDENTIFIER; do
+            if [[ -z "${!name:-}" ]]; then
+              missing+=("$name")
+            fi
+          done
+
+          if (( ${#missing[@]} > 0 )); then
+            echo "::error::Missing protected App Privacy secret(s): ${missing[*]}. See docs/runbooks/IOS_APPSTORE_ASSETS_ROLLOUT.md"
+            exit 1
+          fi
 
       - name: Upload App Privacy
         working-directory: ios

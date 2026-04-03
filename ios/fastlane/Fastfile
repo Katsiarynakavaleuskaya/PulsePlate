@@ -3,6 +3,7 @@ require "shellwords"
 default_platform(:ios)
 
 APP_STORE_LOCALES = %w[ru-RU en-US es-ES].freeze
+IOS_APPSTORE_ASSETS_RUNBOOK = "docs/runbooks/IOS_APPSTORE_ASSETS_ROLLOUT.md".freeze
 IPHONE_DEVICE_CANDIDATES = [
   # Prefer stable 18.5/18.6 runtimes on CI before falling back to 26.x simulators.
   "iPhone 16 Pro Max",
@@ -52,18 +53,26 @@ def app_store_bundle_identifier
   bundle_id = ENV["APP_STORE_BUNDLE_IDENTIFIER"]&.strip
   return bundle_id unless bundle_id.to_s.empty?
 
-  UI.user_error!("APP_STORE_BUNDLE_IDENTIFIER is required for App Store upload lanes")
+  UI.user_error!(
+    "APP_STORE_BUNDLE_IDENTIFIER is required for App Store upload lanes. See #{IOS_APPSTORE_ASSETS_RUNBOOK}"
+  )
 end
 
-def require_env_vars!(names)
+def require_env_vars!(names, context: nil)
   missing = names.select { |name| ENV[name].to_s.strip.empty? }
   return if missing.empty?
 
-  UI.user_error!("Missing required environment variables: #{missing.join(', ')}")
+  details = ["Missing required environment variables: #{missing.join(', ')}"]
+  details << "Context: #{context}" if context
+  details << "See #{IOS_APPSTORE_ASSETS_RUNBOOK}"
+  UI.user_error!(details.join(". "))
 end
 
 def asc_api_key
-  require_env_vars!(%w[APP_STORE_CONNECT_API_KEY_ID APP_STORE_CONNECT_API_ISSUER_ID APP_STORE_CONNECT_API_KEY])
+  require_env_vars!(
+    %w[APP_STORE_CONNECT_API_KEY_ID APP_STORE_CONNECT_API_ISSUER_ID APP_STORE_CONNECT_API_KEY],
+    context: "App Store Connect API key preflight"
+  )
 
   app_store_connect_api_key(
     key_id: ENV["APP_STORE_CONNECT_API_KEY_ID"],
@@ -75,6 +84,25 @@ end
 
 def fastlane_path(*parts)
   File.expand_path(File.join(*parts), __dir__)
+end
+
+def require_existing_directory!(path, description)
+  return if File.directory?(path)
+
+  UI.user_error!("Missing #{description} at #{path}. See #{IOS_APPSTORE_ASSETS_RUNBOOK}")
+end
+
+def require_existing_file!(path, description)
+  return if File.file?(path)
+
+  UI.user_error!("Missing #{description} at #{path}. See #{IOS_APPSTORE_ASSETS_RUNBOOK}")
+end
+
+def require_non_empty_directory!(path, description)
+  require_existing_directory!(path, description)
+  return unless Dir.children(path).empty?
+
+  UI.user_error!("Expected non-empty #{description} at #{path}. See #{IOS_APPSTORE_ASSETS_RUNBOOK}")
 end
 
 platform :ios do
@@ -123,7 +151,9 @@ platform :ios do
 
   desc "Upload localized metadata and screenshots to App Store Connect draft"
   lane :upload_metadata_and_screenshots do
-    require_env_vars!(%w[APP_STORE_BUNDLE_IDENTIFIER])
+    require_env_vars!(%w[APP_STORE_BUNDLE_IDENTIFIER], context: "App Store metadata/screenshots upload")
+    require_existing_directory!(fastlane_path("metadata"), "App Store metadata directory")
+    require_non_empty_directory!(fastlane_path("screenshots"), "App Store screenshots directory")
 
     deliver(
       api_key: asc_api_key,
@@ -142,7 +172,17 @@ platform :ios do
 
   desc "Upload App Privacy questionnaire answers using Apple ID session auth"
   lane :upload_app_privacy do
-    require_env_vars!(%w[FASTLANE_USER FASTLANE_SESSION APP_STORE_BUNDLE_IDENTIFIER])
+    require_env_vars!(
+      %w[
+        FASTLANE_USER
+        FASTLANE_SESSION
+        FASTLANE_TEAM_ID
+        FASTLANE_TEAM_NAME
+        APP_STORE_BUNDLE_IDENTIFIER
+      ],
+      context: "App Privacy protected upload"
+    )
+    require_existing_file!(fastlane_path("app_privacy_details.json"), "App Privacy JSON package")
 
     upload_app_privacy_details_to_app_store(
       username: ENV["FASTLANE_USER"],
