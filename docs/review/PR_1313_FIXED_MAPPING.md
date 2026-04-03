@@ -35,11 +35,11 @@ Reason: The follow-up README thread re-reported the dedicated docs(agents) commi
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1313#discussion_r3032183185
 
 Disposition: FIXED
-Commit: PENDING_COMMIT
+Commit: 0b8d88d4
 Evidence: scripts/quick_check.sh:23
 Reason: Switched staged Python file discovery to a NUL-safe `git diff --name-only -z --diff-filter=ACMR` loop so filenames with spaces/newlines and renamed files are handled correctly.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1313#discussion_r3032183188 -> PENDING_COMMIT
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1313#pullrequestreview-4055021657 -> PENDING_COMMIT
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1313#discussion_r3032183188 -> 0b8d88d4
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1313#pullrequestreview-4055021657 -> 0b8d88d4
 
 ## Merge Readiness
 - [ ] All required checks pass
