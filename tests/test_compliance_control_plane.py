@@ -83,6 +83,7 @@ def test_privacy_metadata_stays_in_sync_with_canonical_docs() -> None:
 
     assert f"**Policy version:** `{expected_policy_version}`" in legal_privacy_doc
     assert f"**Policy version:** `{expected_policy_version}`" in data_matrix_doc
+    assert f"**Policy version:** `{expected_policy_version}`" in ai_notice_doc
     assert f"**Last updated:** {expected_last_updated}" in legal_privacy_doc
     assert f"**Last updated:** {expected_last_updated}" in data_matrix_doc
     assert f"**Last updated:** {expected_last_updated}" in ai_notice_doc
@@ -101,14 +102,18 @@ def test_privacy_metadata_stays_in_sync_with_canonical_docs() -> None:
         assert blocked_example in ai_notice_doc
     assert "separate regulated lane" in ai_notice_doc
 
-    for provider_name in (
-        "Ollama-compatible",
-        "xAI/Grok",
-        "OpenAI-compatible",
-        "Anthropic-compatible",
-        "Pico",
-    ):
-        assert provider_name in legal_privacy_doc
+    provider_doc_markers = {
+        "xai_grok": "xAI/Grok",
+        "openai_compatible": "OpenAI-compatible",
+        "anthropic_compatible": "Anthropic-compatible",
+        "ollama_self_hosted": "Ollama-compatible",
+        "pico": "Pico",
+    }
+    providers = cast(list[dict[str, object]], payload["providers"])
+    provider_ids = {cast(str, provider["provider_id"]) for provider in providers}
+    for provider_id, doc_marker in provider_doc_markers.items():
+        assert provider_id in provider_ids
+        assert doc_marker in legal_privacy_doc
 
     ai_generated_endpoints = cast(list[str], ai_generated_surface["endpoints"])
     assert "/api/v1/pro/fitchef/explain" in ai_generated_endpoints
@@ -176,12 +181,15 @@ def test_sensitive_field_taxonomy_and_minimization_rules() -> None:
     assert taxonomy["health_profile"].persistence_rule == "hash_only"
     assert minimized_response is not None
     assert "[EMAIL_REDACTED]" in minimized_response
+    assert "member@example.com" not in minimized_response
     assert len(minimized_response) <= 4000
     assert minimized_correction is not None
     assert "[EMAIL_REDACTED]" in minimized_correction
+    assert "member@example.com" not in minimized_correction
     assert len(minimized_correction) <= 4000
     assert minimized_source_content is not None
     assert "[EMAIL_REDACTED]" in minimized_source_content
+    assert "member@example.com" not in minimized_source_content
     assert len(minimized_source_content) <= 240
     assert hashed_provider_trace is not None
     assert len(hashed_provider_trace) == 64
