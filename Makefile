@@ -129,7 +129,7 @@ validate-min: ## Run the cheap deterministic local validation bundle
 validate-changed: ## Run tests inferred from changed Python files
 	@echo "$(YELLOW)🧪 Running diff-based validation for changed Python files...$(NC)"
 	@test -x $(VENV_PYTHON) || (echo "$(RED)❌ VENV_PYTHON missing. Run 'make venv' or override VENV_PYTHON first.$(NC)" && exit 1)
-	PATH="$(dir $(VENV_PYTHON)):$$PATH" bash scripts/run-backend-tests-pre-commit.sh
+	PATH="$(dir $(VENV_PYTHON)):$$PATH" BRANCH_DIFF_MODE=1 bash scripts/run-backend-tests-pre-commit.sh
 	@echo "$(GREEN)✅ Diff-based validation completed$(NC)"
 
 ## Coverage in terminal + XML (uses .coveragerc)
