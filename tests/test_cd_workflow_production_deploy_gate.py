@@ -112,3 +112,29 @@ def test_production_deploy_jobs_delegate_registry_login_to_deploy_script() -> No
         'echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin'
         not in self_hosted_section
     )
+
+
+def test_production_deploy_jobs_run_preflight_before_live_deploy() -> None:
+    """Fail fast on missing remote env files before bundle extraction or deploy."""
+
+    workflow_text = CD_WORKFLOW_PATH.read_text(encoding="utf-8")
+    ssh_section = workflow_text.split("deploy-production:", maxsplit=1)[1].split(
+        "deploy-production-self-hosted:", maxsplit=1
+    )[0]
+    self_hosted_section = workflow_text.split("deploy-production-self-hosted:", maxsplit=1)[1]
+    ssh_lines = ssh_section.splitlines()
+    self_hosted_lines = self_hosted_section.splitlines()
+
+    assert '"$tmp_script" --preflight-only' in ssh_section
+    assert ssh_lines.index('            "$tmp_script" --preflight-only') < ssh_lines.index(
+        '            tar -xzf "/tmp/${bundle_name}.tgz" -C "$tmp_bundle_dir"'
+    )
+    assert ssh_lines.index('            "$tmp_script" --preflight-only') < ssh_lines.index(
+        '            "$tmp_script"'
+    )
+
+    assert "Preflight production deploy on self-hosted runner" in self_hosted_section
+    assert "bash scripts/deploy_production.sh --preflight-only" in self_hosted_section
+    assert self_hosted_lines.index(
+        "          bash scripts/deploy_production.sh --preflight-only"
+    ) < self_hosted_lines.index("          bash scripts/deploy_production.sh")

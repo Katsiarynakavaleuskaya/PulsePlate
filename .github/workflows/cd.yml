@@ -466,16 +466,17 @@ jobs:
               exit 1
             fi
 
+            tmp_script="/tmp/pulseplate_deploy_production.sh"
+            echo "$DEPLOY_SCRIPT_B64" | base64 -d > "$tmp_script"
+            chmod +x "$tmp_script"
+            "$tmp_script" --preflight-only
+
             bundle_name="pulseplate-shell-bundle-${{ github.run_id }}-${{ github.run_attempt }}"
             tmp_bundle_dir="/tmp/${bundle_name}"
             rm -rf "$tmp_bundle_dir"
             mkdir -p "$tmp_bundle_dir"
             tar -xzf "/tmp/${bundle_name}.tgz" -C "$tmp_bundle_dir"
             export SHELL_BUNDLE_DIR="$tmp_bundle_dir"
-
-            tmp_script="/tmp/pulseplate_deploy_production.sh"
-            echo "$DEPLOY_SCRIPT_B64" | base64 -d > "$tmp_script"
-            chmod +x "$tmp_script"
             "$tmp_script"
             rm -f "/tmp/${bundle_name}.tgz"
             rm -rf "$tmp_bundle_dir"
@@ -501,6 +502,14 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Preflight production deploy on self-hosted runner
+        shell: bash
+        run: |
+          set -euo pipefail
+          export DEPLOY_DIR='${{ vars.DEPLOY_DIR }}'
+          export PRODUCTION_DOMAIN='${{ secrets.PRODUCTION_DOMAIN }}'
+          bash scripts/deploy_production.sh --preflight-only
 
       - name: Deploy on self-hosted runner (pinned digest)
         shell: bash
