@@ -132,13 +132,17 @@ If you are here primarily as a contributor, reviewer, or integration partner, us
 
 ### Fastest first-success path
 
-If you do not have access to the approved Python package proxy, the safest newcomer path today is:
+Most new contributors should start here first.
+
+If you do not already have access to the approved Python package proxy, treat the backend bootstrap as maintainer-only for now and use this newcomer path:
 
 - docs-only contributions
 - frontend work in `frontend/`
 - iOS exploration in `ios/`
 
-That lets you get productive without depending on full maintainer-only backend bootstrap.
+That path gets you to a first successful contribution without depending on the full backend bootstrap.
+
+Move to the maintainer setup below only when you explicitly need backend access and the approved proxy path.
 
 ## Maintainer Setup
 
@@ -166,6 +170,18 @@ For local contributor setup, make sure `.env` contains at least:
 - `PULSEPLATE_PYTHON_INDEX_URL` for `make`-driven bootstrap targets
 - `SERVER_SALT` for app startup validation; replace the `.env.example` placeholder with a strong local value before boot
 
+Important:
+
+- the copied `.env.example` default `DATABASE_URL=...@postgres:5432/...` is compose-network only
+- it does **not** work unchanged for a host-native `alembic upgrade head` or `make dev` flow on your laptop
+
+Before running `alembic upgrade head`, choose the right database host for your local path:
+
+- Docker Compose / shared container path: keep `postgres` in `DATABASE_URL`
+- Native local Postgres path: switch `DATABASE_URL` to `localhost`
+- Local-only SQLite fallback: use the commented SQLite example for dev/test-only work
+- Hybrid path warning: this repo does not publish the compose Postgres port to the host by default, so "Postgres in Compose + app on the Mac" is not a ready-made path unless you add your own port mapping or run a separate local Postgres
+
 Additional secrets are only required for specific features or production-like environments:
 
 - `APPLE_SHARED_SECRET` for Apple receipt verification in production/staging-like setups
@@ -188,6 +204,16 @@ Verify the API from another terminal:
 ```bash
 curl http://127.0.0.1:8001/health
 ```
+
+Preferred health surface:
+
+- use `/health` for the canonical liveness check
+- `/api/v1/health` remains a compatibility alias used by some scripts/tests
+
+Port note:
+
+- Native local development uses `make dev` on `http://127.0.0.1:8001`
+- Raw `uvicorn` is only equivalent when you also pass `--host 0.0.0.0 --port 8001`
 
 ### 2. Web app
 
@@ -214,6 +240,19 @@ make docker-build
 docker compose up -d
 curl http://localhost:8000/health
 ```
+
+Docker port note:
+
+- The container listens on `8000`
+- If you use `docker compose`, verify the published host port from `docker-compose.yaml` before reusing the native-local `8001` curl example
+
+Quick mode matrix:
+
+| Mode | Host port | Preferred health URL |
+| --- | --- | --- |
+| Native `make dev` | `8001` | `http://127.0.0.1:8001/health` |
+| Raw `uvicorn ... --port 8001` | `8001` | `http://127.0.0.1:8001/health` |
+| Default `docker compose up` | `8000` | `http://127.0.0.1:8000/health` |
 
 ## Architecture At A Glance
 
@@ -323,6 +362,10 @@ Before changing code:
 - docs / copy changes: follow the relevant docs guidance and keep the PR docs-only
 - frontend-only changes: run the frontend-local checks for `frontend/`
 - iOS-only changes: run the iOS-local checks for `ios/`
+- backend local iteration:
+  - `make validate-min` for the cheap deterministic guard + smoke bundle
+  - `make validate-changed` for diff-based Python test selection on your current branch
+  - targeted `pytest` when narrowing a specific backend change
 - maintainer full-stack/backend changes: run:
 
 ```bash

@@ -1,10 +1,12 @@
 # Agent instructions (scope: scripts/ and subdirectories)
 
 ## Scope and layout
+
 - This AGENTS.md applies to: `scripts/` and below.
 - Scripts are repo automation utilities; run from repo root.
 
 ## Conventions
+
 - Treat scripts as production automation: avoid breaking flags or outputs.
 - Prefer small, focused edits; update any dependent docs or Make targets if needed.
 - Avoid adding network calls to scripts used in CI unless explicitly required.
@@ -22,14 +24,22 @@
 
 The `run-backend-tests-pre-commit.sh` script is used by pre-commit framework to run backend pytest only when Python files changed.
 
+First-class repo wrappers:
+
+- `make validate-changed` is the supported repo-root command for this diff-based path and runs the script with the repo `.venv` on `PATH`.
+- `scripts/quick_check.sh` is a separate convenience helper: it runs `make validate-min` first, then staged-file format/import/syntax checks.
+
 **Change detection order:**
+
 1. If upstream exists: diff `upstream..HEAD`
 2. Else: diff from merge-base against (origin/main|origin/master|main|master)
 3. If base cannot be resolved: fallback to last N commits (diagnostic mode)
 
 **Debug mode:**
+
 - Set `PREPUSH_DEBUG=1` to print resolved upstream/base and file list
 - Example: `PREPUSH_DEBUG=1 git push` will show detailed change detection info
 
 **Skip tests:**
+
 - Set `SKIP_TESTS=1` to bypass backend tests (useful for documentation-only commits)

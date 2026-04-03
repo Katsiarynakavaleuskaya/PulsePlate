@@ -5,20 +5,22 @@
 An agent MUST NOT claim a PR is "green", "ready", or "mergeable" unless ALL pass locally:
 
 ```bash
-make verify   # runs: lint → typecheck → test-fast → diff-cov (≥97%)
+make verify   # runs: verify-env → lint → typecheck → test-fast → diff-cov (≥97%)
 ```
 
 Or individually:
 
-- `make lint` — ruff/flake8 checks
+- `make lint` — flake8 checks
 - `make typecheck` — mypy with no cache (`--no-incremental --cache-dir=/dev/null`)
 - `make test-fast` — deterministic smoke subset (`tests/edges` + `tests/test_remaining_modules.py`)
 - `make diff-cov` — diff-cover ≥97% against origin/main
 
-**Tooling behavior contract (test-fast / quick-check):**
+**Tooling behavior contract (validation helpers):**
 
 - `test-fast` is deterministic and does not use `.pytest_cache`/`--lf`.
-- `scripts/quick_check.sh` runs the same deterministic smoke subset as `make test-fast`.
+- `make validate-min` is the cheap deterministic local bundle: repo-policy guards + `make test-fast`.
+- `make validate-changed` runs diff-based Python test selection for the current branch through the repo `.venv`.
+- `scripts/quick_check.sh` delegates to `make validate-min`, then adds staged-file format/import/syntax checks.
 - Use `. .venv/bin/activate` before direct local `pytest` runs outside Make targets.
 
 **If ANY command fails:**
