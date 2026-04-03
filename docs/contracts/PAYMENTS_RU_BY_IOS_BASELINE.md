@@ -228,5 +228,8 @@ App Store subscription offers governance is not owned by this payments baseline.
 - Governed there: introductory offers, offer codes, promotional offers,
   win-back pricing, and the copy contract for price / trial duration /
   eligibility messaging
+- This payments baseline must remain in pointer mode for those App Store-facing
+  copy rules and must not assert pricing, trial, or eligibility canon on its
+  own.
 - This document remains limited to payment-source normalization, receipt
   verification, activation routing, and reconciliation truth

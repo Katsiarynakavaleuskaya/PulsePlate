@@ -91,6 +91,9 @@ Governance rules:
    own screenshots, metadata packaging, and submission execution.
 5. Future App Store submission, TestFlight, and billing follow-through docs must
    link back to this contract instead of redefining offer governance elsewhere.
+6. Consumer docs may summarize this governance briefly, but they must stay in
+   pointer mode and must not become a competing canon for price, trial, or
+   eligibility truth.
 
 ## Copy fallback rules
 
@@ -114,6 +117,27 @@ When live StoreKit / App Store truth is unavailable:
    - numeric price claims
    - exact trial-length claims
    - definite eligibility claims
+
+## Consumer-doc pointer mode
+
+The following documents are consumers of this contract and must stay in pointer
+mode for App Store offers / pricing copy policy:
+
+- `docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md`
+- `docs/MOBILE_API_MIGRATION_GUIDE.md`
+- `docs/roadmap/IOS_BACKEND_REALIZATION_ROADMAP.md`
+- `docs/roadmap/PulsePlate_P0_P1_Execution_Document_2026-03-30.md`
+- `docs/roadmap/BACKLOG_LEDGER.md`
+
+Pointer mode means:
+
+1. They may reference this contract and summarize scope in one or two lines.
+2. They must not redefine canonical pricing, trial-duration, eligibility, or
+   offer-governance rules.
+3. If StoreKit / App Store truth is unavailable, they must defer to the same
+   non-assertive fallback wording policy defined here.
+4. Follow-up release lanes must remain explicit and separate rather than being
+   folded back into this governance contract.
 
 ## Setup baseline
 
@@ -213,4 +237,10 @@ This contract does not govern:
 - receipt verification or activation routing,
 - Keychain or mobile secret storage,
 - App Store screenshots, metadata, or asset rollout,
-- the actual submission/release decision for a future App Store build.
+- semantic App Store metadata/privacy validators,
+- protected ASC environment activation,
+- the actual submission/release decision for a future App Store build,
+- StoreKitManager / SubscriptionManager internal implementation details beyond
+  the runtime invariants defined in this contract,
+- backend billing changes, or
+- OpenAPI / API contract changes.
