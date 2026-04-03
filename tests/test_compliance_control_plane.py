@@ -49,9 +49,19 @@ def test_privacy_payload_contains_additive_control_plane_fields() -> None:
     wellness_inputs = next(
         item for item in processing_categories if item["category_id"] == "wellness_profile_inputs"
     )
+    ai_generated_analysis = next(
+        item
+        for item in processing_categories
+        if item["category_id"] == "ai_generated_wellness_analysis"
+    )
     endpoints = cast(list[str], wellness_inputs["endpoints"])
+    ai_generated_endpoints = list(cast(list[str], ai_generated_analysis["endpoints"]))
+    llm_processing = cast(dict[str, object], payload["llm_processing"])
+    llm_processing_endpoints = cast(list[str], llm_processing["endpoints"])
     assert "/api/v1/pro/meal/weekly" in endpoints
     assert "/api/v1/premium/plate" in endpoints
+    assert "/api/v1/pro/fitchef/explain" in llm_processing_endpoints
+    assert llm_processing_endpoints == ai_generated_endpoints
 
 
 def test_privacy_metadata_stays_in_sync_with_canonical_docs() -> None:
