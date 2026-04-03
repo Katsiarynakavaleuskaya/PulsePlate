@@ -20,15 +20,36 @@ This runbook defines the Step 3 browser E2E extension for the PulsePlate product
 
 ## Prerequisites (local)
 
-1. Ensure Node toolchain is available:
+1. Run the repo-owned Playwright MCP doctor from repo root:
 
    ```bash
-   command -v npx >/dev/null 2>&1
-   node --version
-   npm --version
+   python3 scripts/playwright_mcp.py doctor
    ```
 
-2. Resolve Playwright CLI wrapper path:
+   This is a hard preflight for local MCP/browser work:
+   - exact Node parity with `.nvmrc` is required
+   - `npm` / `npx` must be present
+   - `frontend/node_modules` must exist
+   - local Playwright package must exist
+   - Codex Playwright wrapper must exist
+
+2. Install frontend dependencies if doctor reports missing packages:
+
+   ```bash
+   cd frontend
+   npm ci
+   cd ..
+   ```
+
+3. Install the Chromium payload via the repo-owned helper:
+
+   ```bash
+   cd frontend
+   npm run test:e2e:install
+   cd ..
+   ```
+
+4. Resolve Playwright CLI wrapper path only after doctor passes:
 
    ```bash
    export CODEX_HOME="${CODEX_HOME:-$HOME/.codex}"
@@ -36,13 +57,14 @@ This runbook defines the Step 3 browser E2E extension for the PulsePlate product
    "$PWCLI" --help
    ```
 
-3. Prepare frontend dependencies:
+### Tooling contract
 
-   ```bash
-   cd frontend
-   npm ci
-   cd ..
-   ```
+- Repo-local Playwright runtime comes from `frontend/node_modules/playwright`.
+- Repo-local diagnostics/bootstrap come from `scripts/playwright_mcp.py`.
+- Codex browser automation still enters through the wrapper at
+  `$CODEX_HOME/skills/playwright/scripts/playwright_cli.sh`.
+- Do not treat a globally available `node` or `npx` as sufficient unless the
+  doctor confirms exact `.nvmrc` parity and local browser payload presence.
 
 ## Local execution profile
 
@@ -61,6 +83,8 @@ This runbook defines the Step 3 browser E2E extension for the PulsePlate product
 From `frontend/`:
 
 ```bash
+npm run test:e2e:doctor
+npm run test:e2e:install
 npm run test:e2e
 ```
 
@@ -90,6 +114,7 @@ npm run storybook
 Use element references from the latest snapshot only. Do not hardcode `e*` ids.
 
 ```bash
+python3 scripts/playwright_mcp.py doctor
 "$PWCLI" open http://127.0.0.1:4173/plate --headed
 "$PWCLI" snapshot
 "$PWCLI" click eX

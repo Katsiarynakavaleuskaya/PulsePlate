@@ -31,13 +31,27 @@ description: Execute controlled Playwright browser E2E checks for PulsePlate web
    cd ..
    ```
 
-2. Use Playwright skill/tooling to run browser automation against selected flows.
-3. Capture deterministic artifacts:
+2. Run the repo-owned Playwright MCP doctor before any browser flow:
+
+   ```bash
+   python3 scripts/playwright_mcp.py doctor
+   ```
+
+3. Install the local Chromium payload via the repo-owned helper:
+
+   ```bash
+   cd frontend
+   npm run test:e2e:install
+   cd ..
+   ```
+
+4. Use Playwright skill/tooling to run browser automation against selected flows.
+5. Capture deterministic artifacts:
    - command and config used
    - failing step and selector/action
    - screenshot path or trace path when available
-4. Re-run only failing flow after fix.
-5. Follow the runbook evidence contract for every flow.
+6. Re-run only failing flow after fix.
+7. Follow the runbook evidence contract for every flow.
 
 ## Output format
 
@@ -54,6 +68,8 @@ description: Execute controlled Playwright browser E2E checks for PulsePlate web
 - Do not use Playwright to bypass thin-client policy or API contracts.
 - Keep runs targeted; avoid broad unstable suites without need.
 - Do not claim release readiness solely from E2E; keep hard backend gates mandatory.
+- Treat doctor failures as blocking: do not continue to Playwright MCP runs on a
+  mismatched Node runtime or missing browser payloads.
 
 ## SoT links
 
