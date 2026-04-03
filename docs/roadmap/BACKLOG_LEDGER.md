@@ -907,17 +907,26 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: iOS App Store assets rollout and protected ASC environment activation
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-TBD-IOS-APPSTORE-ASSETS-ROLLOUT
-  - Status: 📋 Planned
+  - Target PR: PR-TBD-IOS-APPSTORE-ASSETS-ROLLOUT-EVIDENCE-GAP
+  - Status: 🚧 In progress (protected `main` evidence attempted on 2026-04-03; rollout remains blocked by missing protected environment secrets in `appstore-assets` and `appstore-privacy`)
   - Area: iOS / release-ops / App Store Connect / compliance
   - Finding Type: release-ops activation follow-up
-  - Reason (EN): Fastlane lanes, localized metadata, screenshot validators, and manual GitHub Actions workflows can now be versioned and validated in-repo, but the protected App Store Connect rollout remains intentionally deferred until environment secrets, Apple session auth, and the first draft upload/review cycle are exercised in a controlled release-ops PR.
+  - Reason (EN): Fastlane lanes, localized metadata, screenshot validators, and manual GitHub Actions workflows can now be versioned and validated in-repo, but the protected App Store Connect rollout remains incomplete until protected GitHub environments contain the required secrets and the draft upload/review cycle succeeds on `main`. Two protected `workflow_dispatch` runs were executed on 2026-04-03 and both failed closed at secret preflight, which confirms the remaining gap is environment activation rather than repo workflow correctness.
   - Links:
     - `ios/fastlane/Fastfile`
     - `ios/fastlane/app_privacy_details.json`
     - `ios/fastlane/metadata/review_information/notes.txt`
     - `.github/workflows/ios-appstore-assets.yml`
+    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/23961157581`
+    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/23963491232`
     - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-app-store-subscription-offers-governance`
+  - Evidence:
+    - `workflow_dispatch` run `23961157581` on `main` SHA `f7419179b305b4c997644ebd4b1cc030a2b6e0ab` completed `validate-assets` successfully, uploaded the `ios-appstore-screenshots` artifact, then failed in `upload-assets` at `Preflight protected App Store upload secrets` because `ASC_KEY_ID`, `ASC_ISSUER_ID`, `ASC_KEY_P8_BASE64`, and `APP_STORE_BUNDLE_IDENTIFIER` were empty in the protected environment.
+    - `workflow_dispatch` run `23963491232` on `main` SHA `75830c29614fb6b0e9bc762742a91ac7c172b10d` completed `Validate metadata and privacy package` and `Guard privileged upload ref`, then failed in `upload-app-privacy` at `Preflight protected App Privacy secrets` because `FASTLANE_USER`, `FASTLANE_SESSION`, `FASTLANE_TEAM_ID`, `FASTLANE_TEAM_NAME`, and `APP_STORE_BUNDLE_IDENTIFIER` were empty in the protected environment.
+  - Blockers:
+    - Populate protected environment secrets for `appstore-assets`
+    - Populate protected environment secrets for `appstore-privacy`
+    - Re-run both protected `workflow_dispatch` lanes on `main` after environment activation
   - DoD:
     - Protected GitHub environments contain the required ASC API key, bundle identifier, and Apple session secrets
     - `workflow_dispatch` upload of localized metadata and screenshots completes against App Store Connect draft state
