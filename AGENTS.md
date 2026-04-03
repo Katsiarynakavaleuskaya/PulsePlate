@@ -19,7 +19,7 @@ Or individually:
 
 - `test-fast` is deterministic and does not use `.pytest_cache`/`--lf`.
 - `make validate-min` is the cheap deterministic local bundle: repo-policy guards + `make test-fast`.
-- `make validate-changed` runs diff-based Python test selection for the current branch through the repo `.venv`.
+- `make validate-changed` runs branch-scoped Python test selection from the current branch merge-base through the repo `.venv`.
 - `scripts/quick_check.sh` delegates to `make validate-min`, then adds staged-file format/import/syntax checks.
 - Use `. .venv/bin/activate` before direct local `pytest` runs outside Make targets.
 
