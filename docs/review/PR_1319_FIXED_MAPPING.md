@@ -11,6 +11,12 @@ Evidence: docs/roadmap/BACKLOG_LEDGER.md:6017
 Reason: Added a stable HTML anchor above the new backlog ledger item so PR follow-up links can target the deferred rollout work deterministically.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1319#pullrequestreview-4056159349 -> f51c29e6f0e7439efba9f9f7344b910ab8d9a7a5
 
+Disposition: FIXED
+Commit: 6cae2892b157ca4435645fb1ac75b7b09f630f79
+Evidence: docs/design/PULSEPLATE_BUTTON_ACTION_PROMPT_MATRIX.md:84
+Reason: Expanded the Weekly Plan Reader evidence anchors to cite both the toolbar share TODO and the VIP CTA TODOs, matching the runtime blockers that cubic flagged.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1319#pullrequestreview-4056166397 -> 6cae2892b157ca4435645fb1ac75b7b09f630f79
+
 ## Merge Readiness
 - [ ] All required checks pass
 - [ ] No unresolved review threads (re-check on current head before merge)
