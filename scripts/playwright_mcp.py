@@ -22,10 +22,19 @@ NODE_MODULES_PATH = FRONTEND_DIR / "node_modules"
 CHROMIUM_BROWSER_PREFIXES = ("chromium-", "chromium_headless_shell-")
 
 
+def _playwright_hermetic_browser_dir() -> Path:
+    """Return the repo-local Playwright browser path used for hermetic installs."""
+    return FRONTEND_DIR / "node_modules" / "playwright-core" / ".local-browsers"
+
+
 def _playwright_cache_dir() -> Path:
     """Return the platform-aware Playwright browser cache directory."""
     configured_path = os.environ.get("PLAYWRIGHT_BROWSERS_PATH", "").strip()
-    if configured_path and configured_path != "0":
+    if configured_path == "0":
+        # RU: `0` в Playwright означает hermetic install рядом с пакетом, а не global cache.
+        # EN: `0` means Playwright's package-local hermetic browser directory, not the global cache.
+        return _playwright_hermetic_browser_dir()
+    if configured_path:
         return Path(configured_path).expanduser()
     if sys.platform == "darwin":
         return Path.home() / "Library" / "Caches" / "ms-playwright"

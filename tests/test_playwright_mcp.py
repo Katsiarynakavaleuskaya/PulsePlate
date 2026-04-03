@@ -69,6 +69,19 @@ def test_playwright_cache_dir_prefers_env_override(monkeypatch: pytest.MonkeyPat
     assert playwright_mcp._playwright_cache_dir() == Path("~/custom-cache").expanduser()
 
 
+def test_playwright_cache_dir_uses_repo_local_browsers_when_env_is_zero(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    frontend_dir = tmp_path / "frontend"
+    monkeypatch.setattr(playwright_mcp, "FRONTEND_DIR", frontend_dir)
+    monkeypatch.setenv("PLAYWRIGHT_BROWSERS_PATH", "0")
+
+    assert (
+        playwright_mcp._playwright_cache_dir()
+        == frontend_dir / "node_modules" / "playwright-core" / ".local-browsers"
+    )
+
+
 def test_doctor_fails_on_exact_node_version_mismatch(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
