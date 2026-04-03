@@ -16,6 +16,7 @@ Evidence: `docs/roadmap/BACKLOG_LEDGER.md:227`
 Reason: CodeRabbit and cubic both identified the real governance defect: the open backlog epic pointed only to merged PR `#1307`, which broke the forward-looking `Target PR` contract for an unfinished item. Commit `9198b536` restored an actionable PR chain: `PR #1046 -> PR #1307 -> PR-TBD-EU-COMPLIANCE-FOLLOW-THROUGH`.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1308#pullrequestreview-4054434526 -> 9198b536
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1308#pullrequestreview-4054440279 -> 9198b536
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1308#issuecomment-4182068910 -> 9198b536
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1308#discussion_r3031601984 -> 9198b536
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1308#discussion_r3031608388 -> 9198b536
 
