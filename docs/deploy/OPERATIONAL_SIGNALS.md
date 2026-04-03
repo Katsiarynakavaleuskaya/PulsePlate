@@ -10,7 +10,7 @@ Operator-facing index for the runtime signals that already exist in PulsePlate t
 | `/health/db` | DB readiness | `200` when DB is reachable, `503` otherwise | `legacy_app.py`, `app/AGENTS.md` |
 | `/ready` | Readiness alias | Same behavior as `/health/db`; hidden from OpenAPI | `legacy_app.py`, `app/AGENTS.md` |
 | `/api/v1/health` | Compatibility alias | Mirrors `/health` payload | `legacy_app.py` |
-| `/debug_env` | Local/operator debug surface | Gated to avoid production env leakage | `legacy_app.py` |
+| `/debug_env` | Local/operator debug surface | Returns a gated env dump when debug/operator access is enabled; otherwise stays unavailable to avoid production leakage | `legacy_app.py` |
 
 Use `/health` for liveness checks and `/ready` or `/health/db` for dependency-aware readiness checks.
 
@@ -19,7 +19,7 @@ Use `/health` for liveness checks and `/ready` or `/health/db` for dependency-aw
 - Surface: `/metrics`
 - Registration path: `app.main` calls `register_metrics(app)`
 - Format:
-  - happy path: Prometheus exposition (`text/plain*`)
+  - happy path: Prometheus text format (`text/plain; version=0.0.4`)
   - fallback: JSON error envelope if exporter fails
 - Current scope:
   - HTTP request count
@@ -59,10 +59,19 @@ The current missing piece is a clearly documented, centralized error-reporting s
 
 Keep that distinction explicit so compatibility reviews do not imply that metrics or tracing are absent when they are already present in code.
 
+If the probe paths, metrics surface, or bootstrap registration points move,
+update this file in the same PR so the operator-facing index stays aligned with
+runtime truth.
+
 ## Quick verification
 
 Use these commands when you need lightweight operator proof that the documented
 surfaces still exist:
+
+Run these from the repository root in a local development shell with project
+dependencies available. The first snippet imports `app.main`, so keep
+`TESTING=true` as shown and prefer a local virtualenv rather than a production
+runtime shell.
 
 ```bash
 python - <<'PY'

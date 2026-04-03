@@ -6,7 +6,7 @@ This document explains how PulsePlate skills are installed and how they plug int
 repository's coordinator-first bootstrap flow.
 
 For the wider agent startup path across Cursor, Codex, and Claude, start with
-`docs/dev/AGENT_COMPATIBILITY_ONBOARDING.md`.
+[`docs/dev/AGENT_COMPATIBILITY_ONBOARDING.md`](./AGENT_COMPATIBILITY_ONBOARDING.md).
 
 ## Install
 
@@ -33,9 +33,9 @@ After installation or updates, restart Codex so newly installed skills are loade
 
 Use the repo bridge documents together:
 
-- `docs/dev/AGENT_COMPATIBILITY_ONBOARDING.md`
-- `CLAUDE.md`
-- `.cursor/commands/init.md`
+- [`docs/dev/AGENT_COMPATIBILITY_ONBOARDING.md`](./AGENT_COMPATIBILITY_ONBOARDING.md)
+- [`CLAUDE.md`](../../CLAUDE.md)
+- [`.cursor/commands/init.md`](../../.cursor/commands/init.md)
 
 ## Coordinator-first auto-selection
 
@@ -46,11 +46,11 @@ this document by itself.
 Canonical selection order after bootstrap:
 
 1. `pulseplate-workflow`
-2. Domain routing via `docs/orchestration/AGENT_ROUTING_GRAPH.md`
-3. Skill policy via `docs/orchestration/AGENT_SKILL_ROUTING_POLICY.md`
-4. Deterministic bootstrap via `scripts/orchestration/task_bootstrap.py`
+2. Domain routing via [`docs/orchestration/AGENT_ROUTING_GRAPH.md`](../orchestration/AGENT_ROUTING_GRAPH.md)
+3. Skill policy via [`docs/orchestration/AGENT_SKILL_ROUTING_POLICY.md`](../orchestration/AGENT_SKILL_ROUTING_POLICY.md)
+4. Deterministic bootstrap via [`scripts/orchestration/task_bootstrap.py`](../../scripts/orchestration/task_bootstrap.py)
 
-When `scripts/orchestration/task_bootstrap.py` produces a task packet, it carries
+When [`scripts/orchestration/task_bootstrap.py`](../../scripts/orchestration/task_bootstrap.py) produces a task packet, it carries
 `recommended_skills`, so coordinator and domain agents can invoke fitting
 skills as part of the workflow.
 For explainability, the packet also carries `skill_routing` metadata with weighted evidence and blocked-pattern notes.
