@@ -15,6 +15,12 @@ Evidence: `docs/orchestration/COORDINATOR_MERGE_READINESS_RULES.md:15`, `docs/or
 Reason: The Sourcery issue comment is an auto-generated reviewer guide that summarizes the change surface, but it does not raise a concrete actionable defect. Governance blocks actionable bot findings, not descriptive review-guide output.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1315#issuecomment-4183258209
 
+Disposition: FIXED
+Commit: `1942e483`
+Evidence: `scripts/ci/check_current_head_pr_checks.py:32`, `scripts/ci/check_current_head_pr_checks.py:326`, `tests/test_current_head_pr_checks.py:492`
+Reason: The actionable testing gap from Sourcery is fixed by adding the missing `mergeStateStatus="CLEAN"` fallback failure coverage, and the hard-coded aggregate status-context literal is now centralized behind a named fallback constant to reduce local drift in the same lane.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1315#pullrequestreview-4055620911
+
 ## Merge Readiness
 - [ ] All required checks pass
 - [ ] No unresolved review threads (re-check on current head before merge)
