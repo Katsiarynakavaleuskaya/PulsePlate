@@ -44,6 +44,23 @@ Canonical policy:
   to keep staging HTTPS alive and avoid TLS handshake failures.
 - Enable real production deploy only after release readiness is explicitly confirmed.
 
+## Production host bootstrap lock (required)
+
+Production auto-deploy is also gated by:
+
+- `PRODUCTION_ENV_READY=true`
+
+Canonical policy:
+
+- Keep `PRODUCTION_ENV_READY` unset or `false` until the production host bootstrap is complete.
+- The owner of this flag is the infra/release operator who bootstraps the target host, not the application PR author.
+- Host bootstrap is complete only after the target deploy directory already contains the server-local runtime env file
+  (`$DEPLOY_DIR/.env`, typically `/srv/pulseplate-production/.env`) plus the required compose/Caddy inputs.
+- GitHub Actions does **not** create `/srv/pulseplate-production/.env`; the workflow only consumes it and keeps the
+  final deploy fail-closed if it disappears later.
+- If `WEB_IOS_RELEASE_READY=true` but `PRODUCTION_ENV_READY!=true`, semver tags stay in build-only mode instead of
+  entering the live production deploy lane.
+
 ## Source of truth: production image
 
 For any tag `vX.Y.Z`, the production build publishes:
@@ -60,7 +77,7 @@ On the production server:
 - Docker + Docker Compose v2 installed (`docker compose version`)
 - A deploy directory containing:
   - a compose file (`docker-compose.yml`, `docker-compose.production.yaml`, etc.)
-  - `.env` (application runtime env; not committed)
+  - `.env` (application runtime env; not committed, created on the server by the infra/release operator)
     - Tag-based production CD now runs `scripts/deploy_production.sh --preflight-only`
       before the live deploy and fails fast if the resolved deploy directory is
       missing `.env` (default path: `$DEPLOY_DIR/.env`, typically
@@ -386,16 +403,20 @@ High-level steps (run on the production server):
    - `.env` (application runtime env)
      - Required before pushing the release tag: production CD preflights this
        path and stops immediately if `$DEPLOY_DIR/.env` is missing.
+     - This file is a server-local bootstrap artifact. GitHub Actions does not
+       provision it for you.
    - `Caddyfile.production` (copied from `deploy/Caddyfile.production`)
    - managed PostgreSQL credentials in `DATABASE_URL`
 3. Ensure the compose file uses `IMAGE_REF` (preferred) or `TAG` (backwards-compatible).
    - Production CD now also stages the current `frontend/`, `deploy/Caddyfile.production`,
      and `scripts/diagnose_web.sh` bundle before `scripts/deploy_production.sh` runs so the
      public shell can be rebuilt from the same release tree as the backend image.
-4. Wait for a successful Nightly run on `main`, then create and push a new semver tag (e.g. `v0.2.2`).
-5. Ensure `PROD_DEPLOY_MODE` is set (`self-hosted` recommended).
-6. Approve the deploy job in the GitHub `production` environment prompt.
-7. **Verify deployment**:
+4. Wait for a successful Nightly run on `main`, then set `PRODUCTION_ENV_READY=true`
+   only after the host bootstrap is complete.
+5. Create and push a new semver tag (e.g. `v0.2.2`).
+6. Ensure `PROD_DEPLOY_MODE` is set (`self-hosted` recommended).
+7. Approve the deploy job in the GitHub `production` environment prompt.
+8. **Verify deployment**:
    - Check Caddy container: `docker compose ps caddy`
    - Check ports: `sudo ss -tlnp | grep -E ':(80|443)'`
    - Verify health: `curl -I https://$PRODUCTION_DOMAIN/health`

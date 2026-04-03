@@ -4,6 +4,10 @@
 
 This guide covers setting up a production server for PulsePlate with automated deployments via GitHub Actions.
 
+> Canonical note: `deploy/PRODUCTION.md` is the source of truth for the live production deploy contract.
+> In particular, `/srv/pulseplate-production/.env` is a server-local bootstrap artifact created on the host by the
+> infra/release owner before production auto-deploy is enabled. GitHub Actions does not create that file.
+
 ## Optional Cloudflare Worker Edge Proxy
 
 The Cloudflare Worker runtime is supported only as a bounded first-party proxy in front of the API.

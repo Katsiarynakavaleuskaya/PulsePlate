@@ -17,6 +17,9 @@
 # Actions variables via the GitHub API, then the actual deploy jobs gate on those resolved
 # outputs. This avoids both the GitHub Actions footgun where job-level `if:` cannot reliably
 # see environment-scoped vars and the accidental approval gate on build-only tags.
+# Production host bootstrap lock: set PRODUCTION_ENV_READY=true only after the target host
+# already contains the server-local runtime env file ($DEPLOY_DIR/.env, usually
+# /srv/pulseplate-production/.env). GitHub Actions does not create this file.
 # For PROD_DEPLOY_MODE=ssh configure Environment "production" secrets: SSH_HOST_PRODUCTION,
 # SSH_HOST_PRODUCTION_FINGERPRINT, SSH_USER, SSH_KEY, PRODUCTION_DOMAIN, GHCR_READ_TOKEN.
 # See deploy/PRODUCTION.md.
@@ -360,6 +363,12 @@ jobs:
           fi
           release_ready="${release_ready:-false}"
 
+          env_ready="$(get_actions_variable "environments/production/variables" "PRODUCTION_ENV_READY")"
+          if [ -z "$env_ready" ]; then
+            env_ready="$(get_actions_variable "actions/variables" "PRODUCTION_ENV_READY")"
+          fi
+          env_ready="${env_ready:-false}"
+
           case "$deploy_mode" in
             "")
               ;;
@@ -378,15 +387,20 @@ jobs:
               echo "❌ WEB_IOS_RELEASE_READY=true but PROD_DEPLOY_MODE is unset"
               exit 1
             fi
-            should_deploy=true
+            if [ "$env_ready" = "true" ]; then
+              should_deploy=true
+            else
+              echo "Production deploy remains build-only: PRODUCTION_ENV_READY=true is required after host bootstrap confirms \$DEPLOY_DIR/.env exists."
+            fi
           fi
 
           {
             echo "deploy_mode=$deploy_mode"
             echo "release_ready=$release_ready"
+            echo "env_ready=$env_ready"
             echo "should_deploy=$should_deploy"
           } >> "$GITHUB_OUTPUT"
-          echo "Resolved production deploy config: release_ready=$release_ready deploy_mode=${deploy_mode:-unset} should_deploy=$should_deploy"
+          echo "Resolved production deploy config: release_ready=$release_ready env_ready=$env_ready deploy_mode=${deploy_mode:-unset} should_deploy=$should_deploy"
 
   deploy-production:
     # Run only when PROD_DEPLOY_MODE is explicitly 'ssh' (SSH from GitHub-hosted runners).

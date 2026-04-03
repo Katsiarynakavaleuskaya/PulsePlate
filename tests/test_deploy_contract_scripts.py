@@ -251,6 +251,8 @@ printf 'docker %s\\n' "$*" >> "{log_file}"
 
     assert completed.returncode == 1
     assert f"Missing production env file: {project_dir / '.env'}" in completed.stderr
+    assert "GitHub Actions does not provision it." in completed.stderr
+    assert "See deploy/PRODUCTION.md for the canonical bootstrap contract." in completed.stderr
     # RU: Неуспешный --preflight-only запуск не должен создавать deploy log.
     # EN: A failed --preflight-only run must not create a deploy log.
     assert not log_file.exists()
