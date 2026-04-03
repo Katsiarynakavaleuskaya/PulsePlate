@@ -20,13 +20,19 @@ Evidence: `scripts/playwright_mcp.py:22`, `scripts/playwright_mcp.py:25`, `scrip
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1316#discussion_r3032824973 -> a2669244
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1316#discussion_r3032824976 -> a2669244
 
+Disposition: FIXED
+Commit: 6b246d26
+Evidence: `scripts/playwright_mcp.py:25`, `scripts/playwright_mcp.py:30`, `scripts/playwright_mcp.py:33`, `tests/test_playwright_mcp.py:72`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1316#discussion_r3032939364 -> 6b246d26
+
 Disposition: NOT-A-BUG
-Evidence: This artifact maps every actionable inline thread to `a2669244`; the review shells only aggregate those child findings and do not require separate code changes.
-Reason: Summary review shells remain informational once the mapped inline discussion URLs above are fixed on the current head.
+Evidence: This artifact maps review-shell children to post-comment fix commits `a2669244` and `6b246d26`; the review shells only aggregate those child findings and do not require separate code changes.
+Reason: Summary review shells remain informational once the mapped inline discussion URLs above are fixed on the current head, including the final hermetic-path finding identified by cubic.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1316#pullrequestreview-4055652452
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1316#pullrequestreview-4055653685
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1316#pullrequestreview-4055659521
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1316#pullrequestreview-4055784204
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1316#pullrequestreview-4055792680
 
 Disposition: NOT-A-BUG
 Evidence: `scripts/playwright_mcp.py:270`, `docs/dev/PLAYWRIGHT_E2E_RUNBOOK.md:23`, `docs/review/PR_1316_FIXED_MAPPING.md:23`
