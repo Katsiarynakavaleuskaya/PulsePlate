@@ -18,6 +18,8 @@
     "test:precommit": "vitest run --environment jsdom --testTimeout=30000 --reporter=verbose",
     "test:coverage": "vitest run --coverage",
     "test:accessibility": "vitest run --environment jsdom --testTimeout=30000 --reporter=verbose src/**/__tests__/*Accessibility.test.tsx",
+    "test:e2e:doctor": "python3 ../scripts/playwright_mcp.py doctor",
+    "test:e2e:install": "python3 ../scripts/playwright_mcp.py install-browser",
     "test:e2e": "playwright test",
     "test:e2e:headed": "playwright test --headed",
     "generate-types": "openapi-typescript src/api/openapi.json --output src/api/schema.ts --alphabetize"
