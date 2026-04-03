@@ -19,6 +19,27 @@ It defines:
 - the validation rules that prevent client-side drift,
 - the copy contract for price / trial duration / eligibility messaging.
 
+## Definition: StoreKit / App Store truth
+
+For this contract, `StoreKit / App Store truth` means the currently effective
+subscription product and offer information exposed by Apple's App Store Connect
+configuration and the corresponding StoreKit runtime surface available to the
+app for the current storefront, region, and account context.
+
+In-scope truth sources:
+
+- canonical product and offer configuration maintained in App Store Connect
+- StoreKit-returned product, subscription, and offer fields visible to runtime
+- storefront- or region-specific availability and pricing exposed by that live
+  Apple surface
+
+Out-of-scope substitutes:
+
+- manually authored UI copy
+- cached or stale screenshots used as pricing evidence
+- product-marketing text that asserts price, trial, or eligibility without
+  current StoreKit / App Store confirmation
+
 ## Canonical products
 
 | product_id | tier | billing_interval | product_family | status | notes |
@@ -86,7 +107,10 @@ When live StoreKit / App Store truth is unavailable:
    - `See the App Store for current pricing`
    - `Trial availability may vary`
    - `Eligibility is determined by Apple / the App Store`
-3. Forbidden claims while live truth is unavailable:
+3. Localized currencies, regional offer differences, and country-specific
+   availability must not be restated as manual assertions when live truth is
+   unavailable; those surfaces must defer to the App Store.
+4. Forbidden claims while live truth is unavailable:
    - numeric price claims
    - exact trial-length claims
    - definite eligibility claims
