@@ -62,6 +62,14 @@ def test_fallback_ci_allowlist_matches_ci_workflow() -> None:
     assert current_head_checks.CANONICAL_FALLBACK_CI_CHECK_NAMES == expected_display_names
 
 
+def test_ci_workflow_matrix_display_name_stays_in_sync() -> None:
+    jobs = _load_ci_workflow_jobs()
+
+    assert _job_display_name("test-pr", jobs["test-pr"]) == "test-pr (3.13)"
+    assert "build-and-test" not in jobs
+    assert "build-and-test" not in current_head_checks.CANONICAL_FALLBACK_CI_CHECK_NAMES
+
+
 @pytest.mark.parametrize(
     ("entry", "expected"),
     [

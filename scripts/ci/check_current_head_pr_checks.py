@@ -30,6 +30,8 @@ class CheckEntry:
 REPO_ROOT = Path(__file__).resolve().parents[2]
 PENDING_STATUS_CONTEXT_STATES = {"EXPECTED", "PENDING"}
 CANONICAL_FALLBACK_STATUS_CONTEXT_NAMES = {"CI"}
+# Keep this list aligned to the GitHub check-run display names emitted by the
+# canonical `.github/workflows/ci.yml` workflow, including matrix suffixes.
 CANONICAL_FALLBACK_CI_CHECK_NAMES = {
     "Determine changed paths (for conditional jobs)",
     "pr_scope_guard",
