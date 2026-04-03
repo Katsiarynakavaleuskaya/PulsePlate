@@ -882,7 +882,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: App Store subscription offers governance and StoreKit-truth pricing contract
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-TBD-IOS-SUBSCRIPTION-OFFERS-GOVERNANCE
+  - Target PR: PR #1312
   - Status: 📋 Planned
   - Area: iOS / billing / App Store / growth
   - Finding Type: release-governance gap
