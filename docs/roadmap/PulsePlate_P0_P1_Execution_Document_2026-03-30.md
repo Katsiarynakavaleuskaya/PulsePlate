@@ -127,8 +127,16 @@ Status: operator execution map
 - goal: keep `/privacy`, docs/legal, and compliance runtime synchronized for AI/health surfaces
 
 ### 9. docs/ios: subscription offers governance and StoreKit-truth pricing contract
+- status: merged as `#1312`
 - closes: `ledger-p1-app-store-subscription-offers-governance`
 - goal: UI pricing/trial/eligibility copy must come from StoreKit/App Store truth
+- canon: `docs/contracts/IOS_STOREKIT_PRODUCTS_CONTRACT.md` is the only SoT for
+  App Store offers governance and StoreKit-truth pricing / trial / eligibility
+  copy; roadmap consumers stay pointer-only
+- deferred follow-ups:
+  - `ledger-p1-ios-appstore-assets-rollout`
+  - `ledger-p1-ios-appstore-semantic-validators`
+  - `ledger-p1-apple-server-api-migration`
 
 ### 10. feat(ios-release-ops): protected App Store asset rollout
 - closes together:

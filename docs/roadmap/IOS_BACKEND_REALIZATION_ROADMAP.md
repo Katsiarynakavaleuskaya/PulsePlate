@@ -107,6 +107,8 @@ This is the canonical mapping format for turning backend capability into a **shi
 - **Canonical SoT:** `docs/contracts/IOS_STOREKIT_PRODUCTS_CONTRACT.md`
 - **Goal:** keep App Store Connect / StoreKit offer surfaces plus price / trial /
   eligibility copy under one repository-owned governance source.
+- **Consumer-doc mode:** this roadmap stays pointer-only for App Store pricing /
+  trial / eligibility rules and must not restate a competing canon.
 - **Release follow-through rule:** future iOS / TestFlight / App Store release
   lanes must reference that StoreKit contract instead of redefining pricing,
   offer, or eligibility policy in parallel docs.

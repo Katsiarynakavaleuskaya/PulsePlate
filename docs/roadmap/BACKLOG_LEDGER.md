@@ -879,11 +879,12 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - No client-side billing logic duplicates backend activation policy
 
 <a id="ledger-p1-app-store-subscription-offers-governance"></a>
-- [ ] P1: App Store subscription offers governance and StoreKit-truth pricing contract
+- [x] P1: App Store subscription offers governance and StoreKit-truth pricing contract
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
   - Target PR: PR #1312
-  - Status: 📋 Planned
+  - Status: ✅ Merged via `#1312`; release-governance gap closed (reason below
+    retained as historical context)
   - Area: iOS / billing / App Store / growth
   - Finding Type: release-governance gap
   - Reason (EN): App Store Connect introductory offers, offer codes, promotional offers, and win-back pricing are operationally separate from in-app UI, but the repo does not yet have a canonical contract that says pricing, trial duration, and eligibility copy must be StoreKit-truth rather than manually inferred in product copy.
@@ -892,10 +893,15 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md`
     - `docs/roadmap/IOS_BACKEND_REALIZATION_ROADMAP.md`
     - `docs/MOBILE_API_MIGRATION_GUIDE.md`
+    - `docs/review/PR_1312_FIXED_MAPPING.md`
   - DoD:
     - Canonical billing/release doc defines how introductory offers, offer codes, and promotional offers are configured and reviewed
     - UI copy contract says prices, trial duration, and eligibility messaging must come from StoreKit/App Store truth rather than manual hardcoding
     - App Store release-ops and compliance docs link back to the same monetization governance source
+  - Follow-up lanes kept separate:
+    - `ledger-p1-ios-appstore-assets-rollout`
+    - `ledger-p1-ios-appstore-semantic-validators`
+    - `ledger-p1-apple-server-api-migration`
 
 <a id="ledger-p1-ios-appstore-assets-rollout"></a>
 - [ ] P1: iOS App Store assets rollout and protected ASC environment activation
