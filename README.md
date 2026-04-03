@@ -253,6 +253,7 @@ Quick mode matrix:
 | Native `make dev` | `8001` | `http://127.0.0.1:8001/health` |
 | Raw `uvicorn ... --port 8001` | `8001` | `http://127.0.0.1:8001/health` |
 | Default `docker compose up` | `8000` | `http://127.0.0.1:8000/health` |
+| `docker compose --profile dev up` | `8001` | verify the published host port in `docker-compose.yaml` before curling |
 
 ## Architecture At A Glance
 

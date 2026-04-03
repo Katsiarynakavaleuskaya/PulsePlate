@@ -402,19 +402,27 @@ git status
 git log -1 --oneline
 ```
 
-### 1) Guard policies (import hygiene)
+### 1) Cheap local validation bundle
+
+```bash
+make validate-min
+```
+
+Equivalent manual pieces when you need narrower triage:
+
+### 2) Guard policies (import hygiene)
 
 ```bash
 pytest -q tests/test_repo_policy_guards.py
 ```
 
-### 2) Fast tests (cheap signal)
+### 3) Fast tests (cheap signal)
 
 ```bash
 make test-fast
 ```
 
-### 3) Coverage gate (only when preparing merge)
+### 4) Coverage gate (only when preparing merge)
 
 ```bash
 make cov-check  # Total coverage ≥97%
@@ -669,6 +677,7 @@ A repository-wide guard that runs early in CI to prevent PR bloat and mixed conc
 - **`/health`** = liveness probe: **always returns 200**, no DB dependencies. Used by orchestrators to determine if container should be restarted.
 - **`/ready`** = readiness probe: **may return 503 if DB unavailable**. Used by orchestrators to determine if container should receive traffic.
 - **`/health/db`** = explicit DB health check: returns 503 if DB unavailable.
+- **`/api/v1/health`** = compatibility alias that mirrors `/health`.
 
 **Rules:**
 
