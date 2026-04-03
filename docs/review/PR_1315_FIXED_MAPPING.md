@@ -16,10 +16,16 @@ Reason: The Sourcery issue comment is an auto-generated reviewer guide that summ
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1315#issuecomment-4183258209
 
 Disposition: FIXED
-Commit: `1942e483`
+Commit: 1942e483
 Evidence: `scripts/ci/check_current_head_pr_checks.py:32`, `scripts/ci/check_current_head_pr_checks.py:326`, `tests/test_current_head_pr_checks.py:492`
 Reason: The actionable testing gap from Sourcery is fixed by adding the missing `mergeStateStatus="CLEAN"` fallback failure coverage, and the hard-coded aggregate status-context literal is now centralized behind a named fallback constant to reduce local drift in the same lane.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1315#pullrequestreview-4055620911
+
+Disposition: FIXED
+Commit: 1beb3d55
+Evidence: `scripts/ci/check_current_head_pr_checks.py:334`, `scripts/ci/check_current_head_pr_checks.py:446`, `tests/test_current_head_pr_checks.py:42`, `tests/test_current_head_pr_checks.py:429`
+Reason: The latest CodeRabbit review is addressed by adding a workflow drift-guard test for the canonical fallback allowlist and by splitting fallback-blocking output from purely advisory output so merge triage text is no longer contradictory.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1315#pullrequestreview-4055652830
 
 ## Merge Readiness
 - [ ] All required checks pass
