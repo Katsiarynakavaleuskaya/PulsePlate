@@ -489,6 +489,47 @@ def test_main_fails_when_merge_state_is_not_clean_and_canonical_fallback_check_i
     )
 
 
+def test_main_fails_when_merge_state_is_clean_and_canonical_fallback_check_is_pending(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setattr(current_head_checks, "_github_token", lambda: "token")
+    monkeypatch.setattr(
+        current_head_checks,
+        "_fetch_pr_metadata",
+        lambda *args: (
+            False,
+            "CLEAN",
+            "main",
+            [
+                {
+                    "__typename": "CheckRun",
+                    "name": "Docs Phase1 gates",
+                    "status": "IN_PROGRESS",
+                    "conclusion": None,
+                    "startedAt": "2026-03-12T05:05:00Z",
+                    "completedAt": None,
+                    "detailsUrl": "https://example.invalid/pending-ci-docs-clean",
+                    "checkSuite": {"workflowRun": {"workflow": {"name": "CI"}}},
+                }
+            ],
+        ),
+    )
+    monkeypatch.setattr(
+        current_head_checks, "_fetch_required_check_names", lambda *args: (set(), False)
+    )
+
+    exit_code = current_head_checks.main(
+        ["--pr-number", "1127", "--repo", "Katsiarynakavaleuskaya/PulsePlate"]
+    )
+
+    captured = capsys.readouterr()
+    assert exit_code == 1
+    assert "GitHub mergeStateStatus=CLEAN" not in captured.out
+    assert (
+        "Blocking canonical fallback current-head checks remain pending or failed." in captured.out
+    )
+
+
 def test_main_passes_when_required_check_set_is_empty_but_available(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:

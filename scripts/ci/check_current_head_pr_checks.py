@@ -29,6 +29,7 @@ class CheckEntry:
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 PENDING_STATUS_CONTEXT_STATES = {"EXPECTED", "PENDING"}
+CANONICAL_FALLBACK_STATUS_CONTEXT_NAMES = {"CI"}
 CANONICAL_FALLBACK_CI_CHECK_NAMES = {
     "Determine changed paths (for conditional jobs)",
     "pr_scope_guard",
@@ -322,7 +323,7 @@ def _is_blocking_fallback_advisory(entry: CheckEntry) -> bool:
     if entry.state not in {"pending", "failed"}:
         return False
     if entry.source_kind == "status_context":
-        return entry.name == "CI"
+        return entry.name in CANONICAL_FALLBACK_STATUS_CONTEXT_NAMES
     return (
         entry.source_kind == "check_run"
         and entry.workflow_name == "CI"
