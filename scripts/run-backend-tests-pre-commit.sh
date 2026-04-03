@@ -60,8 +60,8 @@ resolve_branch_diff_from_base() {
             )
             if [ -n "$PYTHON_CHANGES" ]; then
                 log_debug "Python changes (via branch diff $base_branch): $PYTHON_CHANGES"
-                return 0
             fi
+            return 0
         fi
     done
 

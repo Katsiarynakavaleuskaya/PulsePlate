@@ -12,6 +12,14 @@ NC='\033[0m'
 
 echo -e "${BLUE}⚡ Быстрая проверка PulsePlate${NC}"
 
+PY_COMPILE_BIN="${VENV_PYTHON:-}"
+if [ -z "$PY_COMPILE_BIN" ] && [ -n "${VIRTUAL_ENV:-}" ] && [ -x "$VIRTUAL_ENV/bin/python" ]; then
+    PY_COMPILE_BIN="$VIRTUAL_ENV/bin/python"
+fi
+if [ -z "$PY_COMPILE_BIN" ]; then
+    PY_COMPILE_BIN="$(command -v python3 || command -v python)"
+fi
+
 collect_staged_python_files() {
     STAGED_PY_FILES=()
 
@@ -68,7 +76,7 @@ run_on_staged_python_files \
     "🔍 Быстрая проверка ошибок..." \
     "✅ Синтаксис корректен" \
     "❌ Синтаксические ошибки" \
-    python -m py_compile
+    "$PY_COMPILE_BIN" -m py_compile
 
 echo -e "${GREEN}⚡ Быстрая проверка завершена успешно!${NC}"
 echo -e "${BLUE}💡 Для diff-based проверки используйте: make validate-changed${NC}"
