@@ -22,6 +22,13 @@ Evidence: docs/review/PR_1313_FIXED_MAPPING.md:14
 Reason: Reset the merge-readiness checklist so those items stay unchecked until the final merge pass.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1313#discussion_r3032097017 -> 832f662f
 
+Disposition: FIXED
+Commit: d6b1db1b
+Evidence: README.md:256; scripts/quick_check.sh:13; scripts/run-backend-tests-pre-commit.sh:53
+Reason: Closed the remaining CodeRabbit review-level follow-ups by preferring the active virtualenv for syntax checks, removing the contradictory dev-compose port literal, and stopping branch-diff resolution at the first merge-base candidate.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1313#pullrequestreview-4054939041 -> d6b1db1b
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1313#pullrequestreview-4054961272 -> d6b1db1b
+
 ## Merge Readiness
 - [ ] All required checks pass
 - [ ] No unresolved review threads (re-check on current head before merge)
