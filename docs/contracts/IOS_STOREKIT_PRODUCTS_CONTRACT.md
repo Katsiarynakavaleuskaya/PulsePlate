@@ -12,9 +12,33 @@ canonical product IDs.
 It defines:
 
 - the exact StoreKit / App Store Connect `product_id` values allowed in runtime,
+- the canonical App Store subscription offer surfaces governed by the same
+  StoreKit / App Store truth,
 - the backend entitlement tier mapping associated with each product,
 - the setup baseline for App Store Connect, sandbox, and TestFlight checks,
-- the validation rules that prevent client-side drift.
+- the validation rules that prevent client-side drift,
+- the copy contract for price / trial duration / eligibility messaging.
+
+## Definition: StoreKit / App Store truth
+
+For this contract, `StoreKit / App Store truth` means the currently effective
+subscription product and offer information exposed by Apple's App Store Connect
+configuration and the corresponding StoreKit runtime surface available to the
+app for the current storefront, region, and account context.
+
+In-scope truth sources:
+
+- canonical product and offer configuration maintained in App Store Connect
+- StoreKit-returned product, subscription, and offer fields visible to runtime
+- storefront- or region-specific availability and pricing exposed by that live
+  Apple surface
+
+Out-of-scope substitutes:
+
+- manually authored UI copy
+- cached or stale screenshots used as pricing evidence
+- product-marketing text that asserts price, trial, or eligibility without
+  current StoreKit / App Store confirmation
 
 ## Canonical products
 
@@ -41,6 +65,55 @@ It defines:
 7. If StoreKit returns a subset of canonical products, paywall may render only
    that approved subset and must not invent placeholders or fallback plans.
 8. Unknown StoreKit products must be ignored by runtime.
+
+## App Store subscription offers governance
+
+This document is also the canonical repository-owned source of truth for the
+subscription-offer surfaces tied to the canonical StoreKit catalog.
+
+Governed offer surfaces:
+
+- introductory offers
+- offer codes
+- promotional offers
+- win-back pricing
+
+Governance rules:
+
+1. These offer surfaces are governed by App Store Connect configuration plus
+   StoreKit runtime truth; they are not governed by ad hoc marketing copy.
+2. UI and release copy must not hardcode subscription price, trial duration, or
+   eligibility assertions outside StoreKit / App Store truth.
+3. Runtime and release-facing copy may only describe an offer when the current
+   StoreKit / App Store surface supports that description.
+4. Ownership boundary: this contract owns StoreKit/App Store offers governance;
+   payments contracts own receipt/activation routing, and asset/release lanes
+   own screenshots, metadata packaging, and submission execution.
+5. Future App Store submission, TestFlight, and billing follow-through docs must
+   link back to this contract instead of redefining offer governance elsewhere.
+
+## Copy fallback rules
+
+When live StoreKit / App Store truth is available:
+
+1. UI and release copy must reflect that truth and must not contradict it.
+2. Price, trial duration, and eligibility messaging must be derived from the
+   live StoreKit / App Store surface rather than manually asserted text.
+
+When live StoreKit / App Store truth is unavailable:
+
+1. Only non-assertive fallback wording is allowed.
+2. Approved examples:
+   - `See the App Store for current pricing`
+   - `Trial availability may vary`
+   - `Eligibility is determined by Apple / the App Store`
+3. Localized currencies, regional offer differences, and country-specific
+   availability must not be restated as manual assertions when live truth is
+   unavailable; those surfaces must defer to the App Store.
+4. Forbidden claims while live truth is unavailable:
+   - numeric price claims
+   - exact trial-length claims
+   - definite eligibility claims
 
 ## Setup baseline
 
@@ -104,6 +177,10 @@ instead of creating a parallel setup document.
   `ios/PulsePlate/Models/StoreKitProductCatalog.swift`.
 - `docs/IOS_API_INTEGRATION.md` points future operational/setup work back to
   this checklist instead of duplicating StoreKit setup truth elsewhere.
+- `docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md`,
+  `docs/MOBILE_API_MIGRATION_GUIDE.md`, and
+  `docs/roadmap/IOS_BACKEND_REALIZATION_ROADMAP.md` must treat this file as the
+  canonical offers-governance source for price / trial / eligibility copy.
 - Batch-B planning docs (`docs/roadmap/BACKLOG_LEDGER.md`,
   `docs/roadmap/PulsePlate_Master_Index_A-E.md`) treat the baseline as closed
   and point future release/setup work to this contract.
@@ -135,6 +212,5 @@ This contract does not govern:
 - backend entitlement truth,
 - receipt verification or activation routing,
 - Keychain or mobile secret storage,
-- pricing / trial / eligibility governance,
 - App Store screenshots, metadata, or asset rollout,
 - the actual submission/release decision for a future App Store build.

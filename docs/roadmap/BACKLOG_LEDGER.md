@@ -882,12 +882,13 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: App Store subscription offers governance and StoreKit-truth pricing contract
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-TBD-IOS-SUBSCRIPTION-OFFERS-GOVERNANCE
+  - Target PR: PR #1312
   - Status: 📋 Planned
   - Area: iOS / billing / App Store / growth
   - Finding Type: release-governance gap
   - Reason (EN): App Store Connect introductory offers, offer codes, promotional offers, and win-back pricing are operationally separate from in-app UI, but the repo does not yet have a canonical contract that says pricing, trial duration, and eligibility copy must be StoreKit-truth rather than manually inferred in product copy.
   - Links:
+    - `docs/contracts/IOS_STOREKIT_PRODUCTS_CONTRACT.md`
     - `docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md`
     - `docs/roadmap/IOS_BACKEND_REALIZATION_ROADMAP.md`
     - `docs/MOBILE_API_MIGRATION_GUIDE.md`
