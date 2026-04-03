@@ -5,20 +5,22 @@
 An agent MUST NOT claim a PR is "green", "ready", or "mergeable" unless ALL pass locally:
 
 ```bash
-make verify   # runs: lint → typecheck → test-fast → diff-cov (≥97%)
+make verify   # runs: verify-env → lint → typecheck → test-fast → diff-cov (≥97%)
 ```
 
 Or individually:
 
-- `make lint` — ruff/flake8 checks
+- `make lint` — flake8 checks
 - `make typecheck` — mypy with no cache (`--no-incremental --cache-dir=/dev/null`)
 - `make test-fast` — deterministic smoke subset (`tests/edges` + `tests/test_remaining_modules.py`)
 - `make diff-cov` — diff-cover ≥97% against origin/main
 
-**Tooling behavior contract (test-fast / quick-check):**
+**Tooling behavior contract (validation helpers):**
 
 - `test-fast` is deterministic and does not use `.pytest_cache`/`--lf`.
-- `scripts/quick_check.sh` runs the same deterministic smoke subset as `make test-fast`.
+- `make validate-min` is the cheap deterministic local bundle: repo-policy guards + `make test-fast`.
+- `make validate-changed` runs branch-scoped Python test selection from the current branch merge-base through the repo `.venv`.
+- `scripts/quick_check.sh` delegates to `make validate-min`, then adds staged-file format/import/syntax checks.
 - Use `. .venv/bin/activate` before direct local `pytest` runs outside Make targets.
 
 **If ANY command fails:**
@@ -400,19 +402,27 @@ git status
 git log -1 --oneline
 ```
 
-### 1) Guard policies (import hygiene)
+### 1) Cheap local validation bundle
+
+```bash
+make validate-min
+```
+
+Equivalent manual pieces when you need narrower triage:
+
+### 2) Guard policies (import hygiene)
 
 ```bash
 pytest -q tests/test_repo_policy_guards.py
 ```
 
-### 2) Fast tests (cheap signal)
+### 3) Fast tests (cheap signal)
 
 ```bash
 make test-fast
 ```
 
-### 3) Coverage gate (only when preparing merge)
+### 4) Coverage gate (only when preparing merge)
 
 ```bash
 make cov-check  # Total coverage ≥97%
@@ -667,6 +677,7 @@ A repository-wide guard that runs early in CI to prevent PR bloat and mixed conc
 - **`/health`** = liveness probe: **always returns 200**, no DB dependencies. Used by orchestrators to determine if container should be restarted.
 - **`/ready`** = readiness probe: **may return 503 if DB unavailable**. Used by orchestrators to determine if container should receive traffic.
 - **`/health/db`** = explicit DB health check: returns 503 if DB unavailable.
+- **`/api/v1/health`** = compatibility alias that mirrors `/health`.
 
 **Rules:**
 

@@ -540,9 +540,9 @@ Before editing imports / `__init__` / sys.path / sys.modules:
 ## 1) Fast Local Triage (run from repo root)
 
 ```bash
+make validate-min
+make validate-changed
 make lint
-make test-fast
-pytest -q tests/test_repo_policy_guards.py
 ```
 
 ## 2) PR #403 Specific Checks (Import Hygiene)

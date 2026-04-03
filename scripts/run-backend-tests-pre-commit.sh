@@ -36,10 +36,44 @@ fi
 # Get changed Python files
 # For pre-commit: check staged files
 # For pre-push: check files in commits that will be pushed
+# For ad-hoc local validation (`make validate-changed`): prefer current branch diff
+# against the nearest main/master merge-base instead of the pushed/unpushed delta.
 PYTHON_CHANGES=""
+BRANCH_DIFF_MODE="${BRANCH_DIFF_MODE:-0}"
+BRANCH_DIFF_BASE_RESOLVED=0
+
+resolve_branch_diff_from_base() {
+    local base_branch
+    local base_sha=""
+
+    log_debug "Trying merge-base branch diff against main/master candidates..."
+    for base_branch in origin/main origin/master main master; do
+        base_sha=$(git merge-base HEAD "$base_branch" 2>/dev/null || echo "")
+        if [ -n "$base_sha" ]; then
+            BRANCH_DIFF_BASE_RESOLVED=1
+            log_debug "Merge-base with $base_branch: $base_sha"
+            PYTHON_CHANGES=$(
+                git diff --name-only --diff-filter=ACM "$base_sha" HEAD \
+                    | grep "\.py$" \
+                    | grep -v "^\.claude/" \
+                    || true
+            )
+            if [ -n "$PYTHON_CHANGES" ]; then
+                log_debug "Python changes (via branch diff $base_branch): $PYTHON_CHANGES"
+            fi
+            return 0
+        fi
+    done
+
+    return 1
+}
+
 if [ -n "${PRE_COMMIT:-}" ]; then
     # Pre-commit hook: check staged files
     PYTHON_CHANGES=$(git diff --cached --name-only --diff-filter=ACM | grep "\.py$" | grep -v "^\.claude/" || true)
+elif [ "$BRANCH_DIFF_MODE" = "1" ]; then
+    # Local validation command: diff the current branch against main/master merge-base.
+    resolve_branch_diff_from_base || true
 else
     # Pre-push hook: check files in commits that will be pushed
     # In pre-push, we need to compare what's being pushed with what's already on remote
@@ -74,25 +108,18 @@ else
         fi
     fi
 
-    # Last resort: compare with main/master using merge-base (better than fixed commit count)
+    # Last resort: compare branch diff against main/master using merge-base
     if [ -z "$PYTHON_CHANGES" ]; then
-        log_debug "Trying merge-base with main/master branches..."
-        # Try origin/main first, then origin/master, then local main/master
-        for base_branch in origin/main origin/master main master; do
-            BASE=$(git merge-base HEAD "$base_branch" 2>/dev/null || echo "")
-            if [ -n "$BASE" ]; then
-                log_debug "Merge-base with $base_branch: $BASE"
-                PYTHON_CHANGES=$(git diff --name-only --diff-filter=ACM "$BASE" HEAD | grep "\.py$" | grep -v "^\.claude/" || true)
-                if [ -n "$PYTHON_CHANGES" ]; then
-                    log_debug "Python changes (via merge-base $base_branch): $PYTHON_CHANGES"
-                    break
-                fi
-            fi
-        done
+        resolve_branch_diff_from_base || true
     fi
 fi
 
 if [ -z "$PYTHON_CHANGES" ]; then
+    if [ "$BRANCH_DIFF_MODE" = "1" ] && [ "$BRANCH_DIFF_BASE_RESOLVED" = "1" ]; then
+        echo "ℹ️  No Python files changed on the current branch"
+        exit 0
+    fi
+
     # In pre-push, if no Python changes detected, it might mean:
     # 1. No Python files were changed (legitimate skip)
     # 2. We couldn't determine base for comparison (should still check recent commits as safety)

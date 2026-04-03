@@ -117,6 +117,21 @@ test-fast: ## Run smoke tests (deterministic subset)
 	@echo "$(YELLOW)⚡ Smoke tests...$(NC)"
 	$(VENV_PYTHON) -m pytest -q tests/edges tests/test_remaining_modules.py --maxfail=3
 
+## Cheap deterministic local validation (guards + smoke)
+validate-min: ## Run the cheap deterministic local validation bundle
+	@echo "$(YELLOW)🧭 Running cheap local validation bundle...$(NC)"
+	@test -x $(VENV_PYTHON) || (echo "$(RED)❌ VENV_PYTHON missing. Run 'make venv' or override VENV_PYTHON first.$(NC)" && exit 1)
+	$(VENV_PYTHON) -m pytest -q tests/test_repo_policy_guards.py
+	$(MAKE) --no-print-directory test-fast
+	@echo "$(GREEN)✅ Cheap local validation bundle passed$(NC)"
+
+## Diff-based validation for changed Python files
+validate-changed: ## Run tests inferred from changed Python files
+	@echo "$(YELLOW)🧪 Running diff-based validation for changed Python files...$(NC)"
+	@test -x $(VENV_PYTHON) || (echo "$(RED)❌ VENV_PYTHON missing. Run 'make venv' or override VENV_PYTHON first.$(NC)" && exit 1)
+	PATH="$(dir $(VENV_PYTHON)):$$PATH" BRANCH_DIFF_MODE=1 bash scripts/run-backend-tests-pre-commit.sh
+	@echo "$(GREEN)✅ Diff-based validation completed$(NC)"
+
 ## Coverage in terminal + XML (uses .coveragerc)
 cov: ## Run coverage with pytest (term + XML)
 	@echo "$(YELLOW)📊 Анализ покрытия...$(NC)"
@@ -511,4 +526,4 @@ ios-appstore-upload-privacy: ## Upload App Privacy answers (requires Apple ID se
 	@echo "$(YELLOW)🔐 Uploading iOS App Privacy answers...$(NC)"
 	@$(IOS_FASTLANE) upload_app_privacy
 
-.PHONY: all help venv venv-sync setup-automation dev test test-fast cov cov-check cov-html lint fmt fmt-check security pre-commit quick-check auto-push safe-push feature sync-main status clean check-all fix-all ci smoke-auto smoke-8000 smoke-8001 docker-build docker-build-dev docker-run docker-run-dev docker-stop docker-clean docker-logs docker-shell bandit-full diff-cov typecheck verify verify-env openapi frontend-install openapi-check ios-test ios-snapshot ios-appstore-validate ios-appstore-upload ios-appstore-upload-privacy icon-silhouette-lock icon-silhouette-check icon-core-validate design-guard tokens-build tokens-check design-validate design-execute design-verify design-list
+.PHONY: all help venv venv-sync setup-automation dev test test-fast validate-min validate-changed cov cov-check cov-html lint fmt fmt-check security pre-commit quick-check auto-push safe-push feature sync-main status clean check-all fix-all ci smoke-auto smoke-8000 smoke-8001 docker-build docker-build-dev docker-run docker-run-dev docker-stop docker-clean docker-logs docker-shell bandit-full diff-cov typecheck verify verify-env openapi frontend-install openapi-check ios-test ios-snapshot ios-appstore-validate ios-appstore-upload ios-appstore-upload-privacy icon-silhouette-lock icon-silhouette-check icon-core-validate design-guard tokens-build tokens-check design-validate design-execute design-verify design-list

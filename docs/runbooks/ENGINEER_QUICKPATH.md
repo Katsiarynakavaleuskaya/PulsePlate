@@ -9,18 +9,38 @@ Keep links in this runbook repository-relative so they work in every clone and r
 1. `git status --short`
 2. `git log -1 --oneline`
 3. `python3 scripts/orchestration/check_preflight.py`
-4. For local API startup, use `uvicorn app.main:app --reload` as the canonical ASGI entrypoint.
+4. For local API startup, use `make dev` as the canonical native run path (`app.main:app` on `0.0.0.0:8001`).
 
 If preflight fails, stop and fix that first.
+
+Equivalent raw command when you need it:
+
+- `uvicorn app.main:app --reload --host 0.0.0.0 --port 8001`
 
 ## Daily path
 
 1. Read the root [`AGENTS.md`](../../AGENTS.md), [`RUNBOOK_AGENT.md`](../../RUNBOOK_AGENT.md), and the nearest scoped `AGENTS.md` for the files you will touch.
 2. Make the smallest scoped change that satisfies the task.
 3. Run the cheapest relevant check first:
+   - `make validate-min` for the cheap deterministic backend bundle
+   - `make validate-changed` for diff-based Python test selection on the current branch
    - `pytest -q tests/test_repo_policy_guards.py` for guard-sensitive work
-   - `make test-fast` for backend signal
    - targeted `pytest` for changed modules when narrowing a failure
+
+## Validation loops
+
+Use these loops consistently instead of guessing between hidden scripts.
+
+### Cheap local iteration
+
+1. `make validate-min`
+2. `make validate-changed` when you want branch-diff coverage for touched Python files
+3. targeted `pytest` only after you have narrowed the affected module
+
+### Full PR gate
+
+1. `pre-commit run --all-files`
+2. `make verify`
 
 ## API / contract path
 
@@ -45,11 +65,12 @@ Do not claim green or merge-ready without local evidence.
 ## Red CI triage
 
 1. `pytest -q tests/test_repo_policy_guards.py`
-2. `make test-fast`
+2. `make validate-min`
 3. `make lint`
 4. Use [`RUNBOOK_AGENT.md`](../../RUNBOOK_AGENT.md) for deeper CI/debug procedures
 
 ## Deployment note
 
 - Prefer `docker compose` in new or edited commands.
+
 - Existing `docker-compose` references in repo command surfaces are a tracked migration seam, not the canonical target state. See `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-compose-v2-migration`.
