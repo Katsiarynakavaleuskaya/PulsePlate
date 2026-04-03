@@ -4,7 +4,7 @@ This document is retained only as a compatibility stub.
 
 ## Canonical Source
 
-Use `deploy/PRODUCTION.md` for the live production contract.
+Use [`../../deploy/PRODUCTION.md`](../../deploy/PRODUCTION.md) for the live production contract.
 
 That file is the source of truth for:
 
@@ -22,8 +22,8 @@ In particular:
 
 - GitHub Actions does **not** create `/srv/pulseplate-production/.env`.
 - `/srv/pulseplate-production/.env` is a server-local bootstrap artifact created on the host by the infra/release owner.
-- Canonical production uses the current contract documented in `deploy/PRODUCTION.md`, not legacy snippets that may reference outdated compose, Caddy, or database topology.
+- Canonical production uses the current contract documented in [`../../deploy/PRODUCTION.md`](../../deploy/PRODUCTION.md), not legacy snippets that may reference outdated compose, Caddy, or database topology.
 
 ## Next Step
 
-Open `deploy/PRODUCTION.md` and follow that document only.
+Open [`../../deploy/PRODUCTION.md`](../../deploy/PRODUCTION.md) and follow that document only.

@@ -61,7 +61,7 @@ git push origin main
   образ будет в GHCR, но live origin не изменится.
 - `PRODUCTION_ENV_READY=true` можно выставлять только после того, как infra/release
   owner уже создал серверный `/srv/pulseplate-production/.env` (или `$DEPLOY_DIR/.env`)
-  и подтвердил, что host bootstrap complete. GitHub Actions этот файл не создаёт.
+  и подтвердил, что host bootstrap is complete. GitHub Actions этот файл не создаёт.
 
 **Проверка:**
 - Зайди в GitHub → Actions → проверь, что workflow зелёный
