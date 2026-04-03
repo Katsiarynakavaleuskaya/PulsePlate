@@ -7,7 +7,7 @@
 ## Fixed in Commit Mapping
 Disposition: NOT-A-BUG
 Evidence: `docs/orchestration/COORDINATOR_MERGE_READINESS_RULES.md:84`, `docs/orchestration/COORDINATOR_MERGE_READINESS_RULES.md:86`, `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md:204`, `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md:205`
-Reason: PR `#1315` intentionally stays in draft while the coordinator cycle is still reconciling artifact, review, and local-gate state. The CodeRabbit skip note is an expected draft-phase automation status, not a code or governance defect in this lane.
+Reason: The CodeRabbit skip note was emitted during the earlier draft-phase review cycle and is a historical automation status, not a code or governance defect in this lane.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1315#issuecomment-4183256082
 
 Disposition: NOT-A-BUG
