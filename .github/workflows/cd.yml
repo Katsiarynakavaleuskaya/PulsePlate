@@ -506,12 +506,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-
-          DOCKER_BIN="$(command -v docker || true)"
-          if [[ -z "$DOCKER_BIN" || "$DOCKER_BIN" != /* || ! -x "$DOCKER_BIN" ]]; then
-            echo "Docker binary not found or not executable on self-hosted runner" >&2
-            exit 1
-          fi
+          PRUNE_DOCKER_BIN=''
 
           export DEPLOY_DIR='${{ vars.DEPLOY_DIR }}'
           export PRODUCTION_DOMAIN='${{ secrets.PRODUCTION_DOMAIN }}'
@@ -519,9 +514,19 @@ jobs:
           export TAG="prod-${{ github.ref_name }}"
           export GHCR_USER='${{ github.repository_owner }}'
           export GHCR_TOKEN='${{ secrets.GHCR_READ_TOKEN }}'
-          export DOCKER_BIN
           export SHELL_BUNDLE_DIR="${GITHUB_WORKSPACE}"
           bash scripts/deploy_production.sh
 
           # Clean up dangling Docker images on the self-hosted runner to prevent disk bloat over time.
-          "$DOCKER_BIN" image prune -f || true
+          for candidate in /usr/bin/docker /usr/local/bin/docker /snap/bin/docker; do
+            if [[ -x "$candidate" ]]; then
+              PRUNE_DOCKER_BIN="$candidate"
+              break
+            fi
+          done
+
+          if [[ -n "$PRUNE_DOCKER_BIN" ]]; then
+            "$PRUNE_DOCKER_BIN" image prune -f || true
+          else
+            echo "Skipping Docker image prune: trusted docker binary not found on self-hosted runner" >&2
+          fi
