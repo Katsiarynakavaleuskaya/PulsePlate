@@ -97,11 +97,13 @@ def test_production_deploy_jobs_delegate_registry_login_to_deploy_script() -> No
     assert "GHCR_TOKEN: ${{ secrets.GHCR_READ_TOKEN }}" in ssh_section
     assert "export GHCR_USER='${{ github.repository_owner }}'" in self_hosted_section
     assert "export GHCR_TOKEN='${{ secrets.GHCR_READ_TOKEN }}'" in self_hosted_section
+    assert "continue-on-error: true" in self_hosted_section
     assert "for candidate in /usr/bin/docker /usr/local/bin/docker /snap/bin/docker; do" in (
         self_hosted_section
     )
     assert 'if [[ -n "$PRUNE_DOCKER_BIN" ]]; then' in self_hosted_section
-    assert '"$PRUNE_DOCKER_BIN" image prune -f || true' in self_hosted_section
+    assert '"$PRUNE_DOCKER_BIN" image prune -f' in self_hosted_section
+    assert '"$PRUNE_DOCKER_BIN" image prune -f || true' not in self_hosted_section
     assert (
         "Skipping Docker image prune: trusted docker binary not found on self-hosted runner"
         in self_hosted_section

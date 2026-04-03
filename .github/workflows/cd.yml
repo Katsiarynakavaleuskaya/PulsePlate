@@ -506,8 +506,6 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          PRUNE_DOCKER_BIN=''
-
           export DEPLOY_DIR='${{ vars.DEPLOY_DIR }}'
           export PRODUCTION_DOMAIN='${{ secrets.PRODUCTION_DOMAIN }}'
           export IMAGE_REF="ghcr.io/${{ needs.build-production.outputs.image_name }}@${{ needs.build-production.outputs.digest }}"
@@ -516,6 +514,13 @@ jobs:
           export GHCR_TOKEN='${{ secrets.GHCR_READ_TOKEN }}'
           export SHELL_BUNDLE_DIR="${GITHUB_WORKSPACE}"
           bash scripts/deploy_production.sh
+
+      - name: Best-effort self-hosted Docker image prune
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          PRUNE_DOCKER_BIN=''
 
           # Clean up dangling Docker images on the self-hosted runner to prevent disk bloat over time.
           for candidate in /usr/bin/docker /usr/local/bin/docker /snap/bin/docker; do
@@ -526,7 +531,7 @@ jobs:
           done
 
           if [[ -n "$PRUNE_DOCKER_BIN" ]]; then
-            "$PRUNE_DOCKER_BIN" image prune -f || true
+            "$PRUNE_DOCKER_BIN" image prune -f
           else
             echo "Skipping Docker image prune: trusted docker binary not found on self-hosted runner" >&2
           fi
