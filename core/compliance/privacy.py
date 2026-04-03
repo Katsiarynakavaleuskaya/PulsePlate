@@ -201,6 +201,13 @@ def build_privacy_endpoint_payload() -> dict[str, object]:
     retention_manager = get_retention_manager()
     pseudonymous_retention_days = getattr(retention_manager, "pseudonymous_retention_days", 0)
     transparency_registry = get_transparency_registry()
+    processing_categories = get_processing_categories()
+    ai_generated_disclosure = next(
+        item
+        for item in processing_categories
+        if item["category_id"] == "ai_generated_wellness_analysis"
+    )
+    ai_generated_endpoints = list(ai_generated_disclosure["endpoints"])
 
     old_payload: dict[str, object] = {
         "privacy_policy": (
@@ -226,7 +233,7 @@ def build_privacy_endpoint_payload() -> dict[str, object]:
             },
         },
         "llm_processing": {
-            "endpoints": ["/insight", "/api/v1/insight", "/api/v1/pro/cbt/insight"],
+            "endpoints": ai_generated_endpoints,
             "purpose": "Generate wellness-oriented insights using configured AI providers or self-hosted runtimes",
             "data_transmitted": (
                 "User-provided text queries and derived prompts for enabled AI surfaces; "
@@ -260,7 +267,7 @@ def build_privacy_endpoint_payload() -> dict[str, object]:
         {
             "policy_version": PRIVACY_POLICY_VERSION,
             "last_updated": PRIVACY_POLICY_LAST_UPDATED,
-            "processing_categories": get_processing_categories(),
+            "processing_categories": processing_categories,
             "providers": get_provider_inventory(),
             "rights": build_dsar_rights_summary(),
             "automated_analysis": list(transparency_registry.values()),
