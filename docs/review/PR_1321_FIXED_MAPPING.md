@@ -7,7 +7,12 @@
 
 ### Fixed in Commit Mapping
 
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1321#discussion_r3034293061 -> 22e0d29d
+  Disposition: FIXED
+  Evidence: `deploy/WORKFLOW.md`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1321#discussion_r3034294370 -> 22e0d29d
+  Disposition: FIXED
+  Evidence: `docs/deploy/PRODUCTION.md`
 
 ## Merge Readiness
 
