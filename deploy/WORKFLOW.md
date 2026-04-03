@@ -202,7 +202,7 @@ curl -fsS https://pulseplate.app/health | jq .
 
 ## ⚠️ Важные правила
 
-### ❌ Никогда не делай на сервере:
+### ❌ Никогда не делай на сервере
 
 1. **Правка кода приложения:**
    ```bash
@@ -224,7 +224,7 @@ curl -fsS https://pulseplate.app/health | jq .
    docker exec -it app vim /app/legacy_app.py
    ```
 
-### ✅ Правильно:
+### ✅ Правильно
 
 1. **Изменить код локально → commit → push → pull image на сервере**
 
@@ -248,14 +248,14 @@ curl -fsS https://pulseplate.app/health | jq .
 
 ## 🔍 Проверка после деплоя
 
-### 1. Проверить, что новый образ подтянут:
+### 1. Проверить, что новый образ подтянут
 
 ```bash
 docker images | grep pulseplate
 # Должен быть свежий image с актуальным timestamp
 ```
 
-### 2. Проверить, что контейнер использует новый образ:
+### 2. Проверить, что контейнер использует новый образ
 
 ```bash
 # Получить container id сервиса app и посмотреть image
@@ -264,7 +264,7 @@ docker inspect "$APP_CID" --format '{{.Config.Image}}'
 # Должен показывать актуальный image ID
 ```
 
-### 3. Проверить health endpoint:
+### 3. Проверить health endpoint
 
 ```bash
 curl -fsS https://pulseplate.app/health | jq .
@@ -298,7 +298,7 @@ curl -fsS https://pulseplate.app/health | jq .
   treat that as edge/shell parity drift and run `BASE_URL=https://$PRODUCTION_DOMAIN bash scripts/diagnose_web.sh`
   before assuming an application bug.
 
-### 4. Проверить логи:
+### 4. Проверить логи
 
 ```bash
 docker-compose -f docker-compose.production.yaml logs app --tail=50
