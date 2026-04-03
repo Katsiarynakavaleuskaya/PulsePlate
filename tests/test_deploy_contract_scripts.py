@@ -251,7 +251,9 @@ printf 'docker %s\\n' "$*" >> "{log_file}"
 
     assert completed.returncode == 1
     assert f"Missing production env file: {project_dir / '.env'}" in completed.stderr
-    assert not log_file.exists() or log_file.read_text(encoding="utf-8") == ""
+    # RU: Неуспешный --preflight-only запуск не должен создавать deploy log.
+    # EN: A failed --preflight-only run must not create a deploy log.
+    assert not log_file.exists()
 
 
 def test_deploy_production_logs_in_to_ghcr_with_resolved_docker_binary(tmp_path: Path) -> None:
