@@ -643,7 +643,8 @@ export TAG=prod-vX.Y.Z
 export DOCKER_BIN=/usr/bin/docker
 # Optional: provide GHCR read credentials if the host is not already logged in
 export GHCR_USER=your-github-org-or-user
-export GHCR_TOKEN=ghp_read_only_token
+read -rsp "GHCR token: " GHCR_TOKEN; echo
+export GHCR_TOKEN
 ./deploy_production.sh
 
 # Check readiness
