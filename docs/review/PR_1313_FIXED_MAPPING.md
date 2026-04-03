@@ -29,6 +29,18 @@ Reason: Closed the remaining CodeRabbit review-level follow-ups by preferring th
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1313#pullrequestreview-4054939041 -> d6b1db1b
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1313#pullrequestreview-4054961272 -> d6b1db1b
 
+Disposition: NOT-A-BUG
+Evidence: git log --oneline origin/main..HEAD includes `61dc2f4b docs(agents): update instructions`
+Reason: The follow-up README thread re-reported the dedicated docs(agents) commit requirement after that exact commit was already present on the branch, so no new code change was required.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1313#discussion_r3032183185
+
+Disposition: FIXED
+Commit: PENDING_COMMIT
+Evidence: scripts/quick_check.sh:23
+Reason: Switched staged Python file discovery to a NUL-safe `git diff --name-only -z --diff-filter=ACMR` loop so filenames with spaces/newlines and renamed files are handled correctly.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1313#discussion_r3032183188 -> PENDING_COMMIT
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1313#pullrequestreview-4055021657 -> PENDING_COMMIT
+
 ## Merge Readiness
 - [ ] All required checks pass
 - [ ] No unresolved review threads (re-check on current head before merge)

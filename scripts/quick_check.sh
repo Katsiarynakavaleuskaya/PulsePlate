@@ -23,11 +23,11 @@ fi
 collect_staged_python_files() {
     STAGED_PY_FILES=()
 
-    while IFS= read -r file; do
+    while IFS= read -r -d '' file; do
         if [ -n "$file" ]; then
             STAGED_PY_FILES+=("$file")
         fi
-    done < <(git diff --cached --name-only --diff-filter=ACM -- '*.py')
+    done < <(git diff --cached --name-only -z --diff-filter=ACMR -- '*.py')
 }
 
 run_on_staged_python_files() {
