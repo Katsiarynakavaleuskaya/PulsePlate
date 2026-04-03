@@ -249,11 +249,11 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Future public DSAR/export/delete endpoints are blocked until auth/ownership contract is explicit
 
 <a id="ledger-p0-legal-policy-publish"></a>
-- [ ] P0: Legal policy publish and client-link alignment
+- [x] P0: Legal policy publish and client-link alignment
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0
   - Target PR: PR-1304
-  - Status: 🟡 In progress (PR-1304)
+  - Status: ✅ Merged (PR #1304, 2026-04-02)
   - Area: docs / legal / release readiness
   - Finding Type: policy publication gap
   - Reason (EN): Privacy and Terms posture has been materially clarified in runtime and compliance docs, but canonical published policy paths and client references still need one explicit release-blocker item.

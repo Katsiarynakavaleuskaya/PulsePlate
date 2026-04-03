@@ -9,15 +9,16 @@ Status: operator execution map
 - The active critical path is now: deploy/runtime closure -> backend monetization follow-through -> web truth -> legal/release shell -> App Store closeout -> AI hardening follow-through.
 - Do not reopen B1-B4 baseline work. Use explicit follow-up items already open in the canonical ledger.
 
-## Status update — 2026-04-02
+## Status update — 2026-04-03
 
 - PR1 Postgres foundation is already merged; do not reopen it inside the authz closeout lane.
 - PR2 deploy shell lane materially landed via `#1293`, with the extra CD env-token follow-up in `#1297`.
 - PR3 activation + persistence truth merged as `#1296`; shadow runtime truth is removed from the active monetization critical path.
 - PR4 is no longer pending implementation; that closeout merged as `#1298`.
 - PR4 closeout landed as docs/authz packet `#1298`, and web entitlement truth hardening landed via `#1299`.
-- Web progress no longer ships fabricated charts on the release path; the current lane is a docs-only closeout that reconciles stale narrative to the trusted empty-state runtime truth.
-- After this closeout, the next active lane moves to `docs/legal-policy-publish`, then App Store/provider modernization, and only then the remaining AI waves.
+- Web progress no longer ships fabricated charts on the release path; that docs-only closeout merged as `#1308`.
+- `docs/legal-policy-publish` already merged as `#1304`, and the current Wave 4 compliance closeout merged as `#1307`.
+- The next active new Wave 4 lane is now `docs/ios-subscription-offers-governance`, followed by the remaining iOS/App Store modernization items.
 - WebSocket foundation is no longer a stub-only surface; it is sufficiently wired for foundation scope, but it is not the current release priority.
 
 ## Source of truth order
@@ -52,9 +53,9 @@ Status: operator execution map
 2. `docs/web-progress-contract-closeout`
 
 ### Wave 4 — Legal / release shell
-1. `docs/legal-policy-publish`
-2. `feat/eu-compliance-control-plane-followthrough`
-3. `docs/ios-subscription-offers-governance`
+1. `docs/legal-policy-publish` — merged via `#1304`
+2. `feat/eu-compliance-control-plane-followthrough` — Wave 4 closeout merged via `#1307`
+3. `docs/ios-subscription-offers-governance` — next active new lane
 4. `feat/ios-appstore-assets-rollout`
 5. `feat/ios-appstore-semantic-validators`
 6. `feat/apple-server-api-migration`
@@ -116,10 +117,12 @@ Status: operator execution map
 - do not include: backend progress API, chart-history implementation, or new frontend runtime data contracts
 
 ### 7. docs(release): publish legal policy paths and align client links
+- status: merged as `#1304`
 - closes: `ledger-p0-legal-policy-publish`
 - goal: canonical privacy/terms paths live in repo and are linked from web/iOS
 
 ### 8. feat(compliance): EU-first compliance control plane follow-through
+- status: Wave 4 closeout merged as `#1307`; any remaining program-level DSAR/public-surface work stays tracked in the ledger epic and is not the next active implementation lane
 - closes: `ledger-p0-eu-compliance-control-plane-follow-through`
 - goal: keep `/privacy`, docs/legal, and compliance runtime synchronized for AI/health surfaces
 
