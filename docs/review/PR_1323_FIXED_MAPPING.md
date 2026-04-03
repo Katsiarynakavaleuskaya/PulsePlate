@@ -5,6 +5,8 @@
 - [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
+- No actionable review comments at PR open; bot and reviewer dispositions will be added here if new actionable threads appear.
+
 Disposition: NOT-A-BUG
 Evidence: `.github/workflows/ios-appstore-assets.yml:15`, `.github/workflows/ios-appstore-assets.yml:40`, `.github/workflows/ios-appstore-assets.yml:132`
 Reason: Docker/CD failures on `main` were classified before protected rollout execution and were treated as non-blocking for this lane because `ios-appstore-assets` is a separate manual protected workflow with its own ref and secret guards. The evidence attempts on `main` confirmed the actual blocker is protected environment activation, not the unrelated Docker/CD surface.
