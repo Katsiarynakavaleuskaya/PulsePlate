@@ -25,14 +25,20 @@ Commit: 6b246d26
 Evidence: `scripts/playwright_mcp.py:25`, `scripts/playwright_mcp.py:30`, `scripts/playwright_mcp.py:33`, `tests/test_playwright_mcp.py:72`
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1316#discussion_r3032939364 -> 6b246d26
 
+Disposition: FIXED
+Commit: ae77d79c
+Evidence: `scripts/playwright_mcp.py:66`, `scripts/playwright_mcp.py:77`, `scripts/playwright_mcp.py:97`, `tests/test_playwright_mcp.py:113`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1316#discussion_r3033006303 -> ae77d79c
+
 Disposition: NOT-A-BUG
-Evidence: This artifact maps review-shell children to post-comment fix commits `a2669244` and `6b246d26`; the review shells only aggregate those child findings and do not require separate code changes.
-Reason: Summary review shells remain informational once the mapped inline discussion URLs above are fixed on the current head, including the final hermetic-path finding identified by cubic.
+Evidence: This artifact maps review-shell children to post-comment fix commits `a2669244`, `6b246d26`, and `ae77d79c`; the review shells only aggregate those child findings and do not require separate code changes.
+Reason: Summary review shells remain informational once the mapped inline discussion URLs above are fixed on the current head, including the final hermetic-path finding identified by cubic and the final `.nvmrc` normalization finding identified by CodeRabbit.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1316#pullrequestreview-4055652452
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1316#pullrequestreview-4055653685
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1316#pullrequestreview-4055659521
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1316#pullrequestreview-4055784204
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1316#pullrequestreview-4055792680
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1316#pullrequestreview-4055864005
 
 Disposition: NOT-A-BUG
 Evidence: `scripts/playwright_mcp.py:270`, `docs/dev/PLAYWRIGHT_E2E_RUNBOOK.md:23`, `docs/review/PR_1316_FIXED_MAPPING.md:23`
