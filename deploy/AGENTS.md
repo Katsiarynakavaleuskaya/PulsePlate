@@ -40,6 +40,14 @@ PRODUCTION_DOMAIN=example.com STAGING_FALLBACK_DOMAIN=staging.example.com \
 - Keep staging and production configs in sync with documented env vars.
 - Avoid changes that alter runtime ports without updating clients and docs.
 
+## Production tag gate
+- Semver production tags stay build-only until all three deploy inputs agree: `PROD_DEPLOY_MODE`,
+  `WEB_IOS_RELEASE_READY=true`, and `PRODUCTION_ENV_READY=true`.
+- `PRODUCTION_ENV_READY=true` is infra-owned and can be set only after the target host already has
+  the server-local runtime env file (`/srv/pulseplate-production/.env` or `$DEPLOY_DIR/.env`).
+- If the default `github.token` cannot read production-scoped Actions variables, the bridge job may
+  retry through `PRODUCTION_ENV_READ_TOKEN`; keep that secret aligned with the deploy runbook.
+
 ## Docker entrypoint invariants
 Docker must run FastAPI as:
 - `app.main:app`
