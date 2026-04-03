@@ -224,7 +224,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P0: EU-first compliance control plane follow-through
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0
-  - Target PR: PR #1307
+  - Target PR: PR #1046 -> PR #1307 -> PR-TBD-EU-COMPLIANCE-FOLLOW-THROUGH
   - Status: 🟡 In progress (baseline control-plane foundation merged in PR #1046; runtime/doc sync follow-through, legacy `/privacy` disclosure alignment, and deterministic drift-hardening merged in PR #1307 on 2026-04-03; program-level DSAR/public-surface and regulated-lane follow-through remain open)
   - Area: backend / privacy / legal docs / AI governance
   - Finding Type: compliance program hardening
