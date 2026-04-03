@@ -49,6 +49,18 @@ Required secrets:
 - `ASC_KEY_P8_BASE64`
 - `APP_STORE_BUNDLE_IDENTIFIER`
 
+Workflow / Fastlane env mapping:
+
+| GitHub protected secret | Workflow / Fastlane env var |
+| --- | --- |
+| `ASC_KEY_ID` | `APP_STORE_CONNECT_API_KEY_ID` |
+| `ASC_ISSUER_ID` | `APP_STORE_CONNECT_API_ISSUER_ID` |
+| `ASC_KEY_P8_BASE64` | `APP_STORE_CONNECT_API_KEY` |
+| `APP_STORE_BUNDLE_IDENTIFIER` | `APP_STORE_BUNDLE_IDENTIFIER` |
+
+The GitHub secret names above are mapped by the workflow into the env vars used
+by Fastlane preflight checks and upload logs.
+
 Purpose:
 
 - unlock `upload_to_asc=true` manual dispatch
