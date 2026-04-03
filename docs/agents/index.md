@@ -58,6 +58,11 @@ All agents default to `auto`; see `docs/agents/model_policy.md`.
 3. **Check model rationale:** Each agent file contains "Model Selection Rationale" section
 4. **Start task:** Use coordinator-first rule (see `AGENTS.md`)
 
+## Compatibility onboarding
+
+For the short repo startup path across Cursor, Codex, and Claude, use
+`docs/dev/AGENT_COMPATIBILITY_ONBOARDING.md`.
+
 ---
 
 ## Sync Rule
