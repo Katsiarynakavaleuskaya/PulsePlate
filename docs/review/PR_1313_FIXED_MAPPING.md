@@ -5,7 +5,22 @@
 - [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
-- No actionable review comments
+Disposition: FIXED
+Commit: 61dc2f4b
+Evidence: AGENTS.md:22
+Reason: Added the required `docs(agents): update instructions` commit and aligned the validation-helper wording to the branch-scoped merge-base behavior implemented in this PR.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1313#discussion_r3032097012 -> 61dc2f4b
+
+Disposition: NOT-A-BUG
+Evidence: legacy_app.py:1513
+Reason: `/api/v1/health` is an implemented compatibility alias that delegates to `/health`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1313#discussion_r3032097015
+
+Disposition: FIXED
+Commit: 832f662f
+Evidence: docs/review/PR_1313_FIXED_MAPPING.md:14
+Reason: Reset the merge-readiness checklist so those items stay unchecked until the final merge pass.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1313#discussion_r3032097017 -> 832f662f
 
 ## Merge Readiness
 - [ ] All required checks pass
