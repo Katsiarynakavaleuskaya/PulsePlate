@@ -20,12 +20,19 @@ Evidence: identified by CodeRabbit. `docs/runbooks/IOS_APPSTORE_ASSETS_ROLLOUT.m
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1318#discussion_r3033118348 -> 356a2083
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1318#discussion_r3033118351 -> 356a2083
 
+## Post-Merge State
+
+- GitHub PR status: `merged=true`
+- Merge commit: `52053dd8953fd48bcac98e1754ee4104d33b9ea6`
+- Merged at: `2026-04-03T15:08:49Z`
+
 ## Merge Readiness
-- [ ] Local hard gate passed (`make verify`)
-- [ ] Required checks PASS with no pending required jobs
-- [ ] No unresolved review threads
-- [ ] No actionable bot comments
-- [ ] Final post-bot wait cycle completed
-Notes: Implementation-only App Store assets activation-prep PR. This PR does not
-claim rollout closeout; protected post-merge evidence on `main` and a separate
-docs-only follow-up PR are still required.
+- [x] Discussion-thread mapping preserved after merge
+- [x] Merge commit and merged timestamp recorded
+- [ ] Protected `main` dispatch evidence collected
+- [ ] Rollout closeout follow-up completed
+Notes: PR 1318 merged as the implementation-only App Store assets
+activation-prep change. Rollout closeout is still deferred until protected
+`upload_to_asc=true` and `upload_app_privacy=true` evidence is collected on
+`main`, after which a separate docs-only closeout PR should update the ledger
+and evidence references.
