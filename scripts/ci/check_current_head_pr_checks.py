@@ -29,6 +29,23 @@ class CheckEntry:
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 PENDING_STATUS_CONTEXT_STATES = {"EXPECTED", "PENDING"}
+CANONICAL_FALLBACK_CI_CHECK_NAMES = {
+    "Determine changed paths (for conditional jobs)",
+    "pr_scope_guard",
+    "build-and-test",
+    "Trivy ignore-policy expiry",
+    "Pygments exception seam guard",
+    "Docs Phase1 gates",
+    "PR Body Phase2 gates",
+    "Merge readiness gate",
+    "lint",
+    "security",
+    "OpenAPI sync (backend -> frontend artifacts)",
+    "test-pr",
+    "test-pr (3.13)",
+    "coverage-pr",
+    "diff-coverage",
+}
 
 
 def _github_token() -> str:
@@ -302,10 +319,14 @@ def _required_snapshot(
 
 def _is_blocking_fallback_advisory(entry: CheckEntry) -> bool:
     """Return whether fallback merge gating must still block on this advisory entry."""
+    if entry.state not in {"pending", "failed"}:
+        return False
+    if entry.source_kind == "status_context":
+        return entry.name == "CI"
     return (
         entry.source_kind == "check_run"
         and entry.workflow_name == "CI"
-        and entry.state in {"pending", "failed"}
+        and entry.name in CANONICAL_FALLBACK_CI_CHECK_NAMES
     )
 
 
@@ -422,7 +443,7 @@ def main(argv: list[str] | None = None) -> int:
         print(
             "Required check metadata unavailable; merge gating falls back to GitHub "
             "mergeStateStatus. Current-head checks stay advisory unless a canonical "
-            "CI workflow check remains pending or failed."
+            "ordinary-PR CI signal remains pending or failed."
         )
         _print_entries("Current-head advisory checks:", advisory_entries)
 

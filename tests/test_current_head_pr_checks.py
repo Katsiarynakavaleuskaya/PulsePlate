@@ -66,6 +66,18 @@ from scripts.ci import check_current_head_pr_checks as current_head_checks
                 workflow_name="",
                 conclusion="",
             ),
+            True,
+        ),
+        (
+            current_head_checks.CheckEntry(
+                name="iOS unit tests (xcodebuild)",
+                source_kind="check_run",
+                state="pending",
+                timestamp="2026-03-12T08:36:42Z",
+                details_url="https://example.invalid/ios-pending",
+                workflow_name="CI",
+                conclusion="",
+            ),
             False,
         ),
     ],
@@ -395,6 +407,45 @@ def test_main_passes_when_merge_state_is_not_clean_and_specialized_advisory_chec
     assert "Current-head advisory checks:" in captured.out
     assert "- security-scan: pending [Docker Build and Push]" in captured.out
     assert "NOTE: GitHub mergeStateStatus=UNSTABLE is stale/non-blocking" in captured.out
+
+
+def test_main_passes_when_specialized_ci_job_is_pending_in_fallback_mode(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setattr(current_head_checks, "_github_token", lambda: "token")
+    monkeypatch.setattr(
+        current_head_checks,
+        "_fetch_pr_metadata",
+        lambda *args: (
+            False,
+            "UNSTABLE",
+            "main",
+            [
+                {
+                    "__typename": "CheckRun",
+                    "name": "iOS unit tests (xcodebuild)",
+                    "status": "IN_PROGRESS",
+                    "conclusion": None,
+                    "startedAt": "2026-03-12T05:05:00Z",
+                    "completedAt": None,
+                    "detailsUrl": "https://example.invalid/pending-ios-unit",
+                    "checkSuite": {"workflowRun": {"workflow": {"name": "CI"}}},
+                }
+            ],
+        ),
+    )
+    monkeypatch.setattr(
+        current_head_checks, "_fetch_required_check_names", lambda *args: (set(), False)
+    )
+
+    exit_code = current_head_checks.main(
+        ["--pr-number", "1127", "--repo", "Katsiarynakavaleuskaya/PulsePlate"]
+    )
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert "- iOS unit tests (xcodebuild): pending [CI]" in captured.out
+    assert "current-head-checks: passed." in captured.out
 
 
 def test_main_fails_when_merge_state_is_not_clean_and_canonical_fallback_check_is_pending(
