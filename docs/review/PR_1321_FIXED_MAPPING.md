@@ -10,6 +10,9 @@
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1321#pullrequestreview-4057200962 -> 22e0d29d
   Disposition: FIXED
   Evidence: `deploy/WORKFLOW.md`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1321#pullrequestreview-4057235624 -> 2e3c8933
+  Disposition: FIXED
+  Evidence: `deploy/WORKFLOW.md`
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1321#discussion_r3034293061 -> 22e0d29d
   Disposition: FIXED
   Evidence: `deploy/WORKFLOW.md`
