@@ -888,6 +888,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Finding Type: release-governance gap
   - Reason (EN): App Store Connect introductory offers, offer codes, promotional offers, and win-back pricing are operationally separate from in-app UI, but the repo does not yet have a canonical contract that says pricing, trial duration, and eligibility copy must be StoreKit-truth rather than manually inferred in product copy.
   - Links:
+    - `docs/contracts/IOS_STOREKIT_PRODUCTS_CONTRACT.md`
     - `docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md`
     - `docs/roadmap/IOS_BACKEND_REALIZATION_ROADMAP.md`
     - `docs/MOBILE_API_MIGRATION_GUIDE.md`
