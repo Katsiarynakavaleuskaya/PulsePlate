@@ -29,6 +29,24 @@ class CheckEntry:
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 PENDING_STATUS_CONTEXT_STATES = {"EXPECTED", "PENDING"}
+CANONICAL_FALLBACK_STATUS_CONTEXT_NAMES = {"CI"}
+# Keep this list aligned to the GitHub check-run display names emitted by the
+# canonical `.github/workflows/ci.yml` workflow, including matrix suffixes.
+CANONICAL_FALLBACK_CI_CHECK_NAMES = {
+    "Determine changed paths (for conditional jobs)",
+    "pr_scope_guard",
+    "Trivy ignore-policy expiry",
+    "Pygments exception seam guard",
+    "Docs Phase1 gates",
+    "PR Body Phase2 gates",
+    "Merge readiness gate",
+    "lint",
+    "security",
+    "OpenAPI sync (backend -> frontend artifacts)",
+    "test-pr (3.13)",
+    "coverage-pr",
+    "diff-coverage",
+}
 
 
 def _github_token() -> str:
@@ -300,6 +318,38 @@ def _required_snapshot(
     return snapshot
 
 
+def _is_blocking_fallback_advisory(entry: CheckEntry) -> bool:
+    """Return whether fallback merge gating must still block on this advisory entry."""
+    if entry.state not in {"pending", "failed"}:
+        return False
+    if entry.source_kind == "status_context":
+        return entry.name in CANONICAL_FALLBACK_STATUS_CONTEXT_NAMES
+    return (
+        entry.source_kind == "check_run"
+        and entry.workflow_name == "CI"
+        and entry.name in CANONICAL_FALLBACK_CI_CHECK_NAMES
+    )
+
+
+def _partition_fallback_advisory_entries(
+    entries: list[CheckEntry],
+) -> tuple[list[CheckEntry], list[CheckEntry]]:
+    """Split fallback-blocking entries from advisory-only entries.
+
+    RU: В fallback-режиме часть advisory-проверок все еще блокирует merge.
+    EN: In fallback mode, some advisory checks still remain merge-blocking.
+    """
+
+    blocking_entries: list[CheckEntry] = []
+    advisory_only_entries: list[CheckEntry] = []
+    for entry in entries:
+        if _is_blocking_fallback_advisory(entry):
+            blocking_entries.append(entry)
+        else:
+            advisory_only_entries.append(entry)
+    return blocking_entries, advisory_only_entries
+
+
 def _suppress_stale_latest_entries_with_newer_workflow_activity(
     entries: list[CheckEntry],
     latest: dict[str, CheckEntry],
@@ -407,14 +457,22 @@ def main(argv: list[str] | None = None) -> int:
         _required_snapshot(latest, required_names) if required_metadata_available else []
     )
     advisory_entries = list(latest.values()) if not required_metadata_available else []
+    advisory_blocking_entries: list[CheckEntry] = []
     _print_entries("Current-head required checks:", current_required)
 
     if not required_metadata_available:
+        advisory_blocking_entries, advisory_entries = _partition_fallback_advisory_entries(
+            advisory_entries
+        )
         print(
             "Required check metadata unavailable; merge gating falls back to GitHub "
-            "mergeStateStatus and reports current-head checks as advisory only."
+            "mergeStateStatus. Current-head checks stay advisory unless a canonical "
+            "ordinary-PR CI signal remains pending or failed."
         )
-        _print_entries("Current-head advisory checks:", advisory_entries)
+        if advisory_blocking_entries:
+            _print_entries("Current-head blocking fallback checks:", advisory_blocking_entries)
+        if advisory_entries:
+            _print_entries("Current-head advisory checks:", advisory_entries)
 
     noisy_superseded = [entry for entry in superseded if entry.state != "passed"]
     if noisy_superseded:
@@ -423,9 +481,8 @@ def main(argv: list[str] | None = None) -> int:
             print(_format_entry(entry))
 
     blocking_entries = [entry for entry in current_required if entry.state in {"pending", "failed"}]
-    advisory_blocking_entries = [
-        entry for entry in advisory_entries if entry.state in {"pending", "failed"}
-    ]
+    # RU: В fallback-режиме без metadata блокирует только канонический workflow CI.
+    # EN: In metadata-unavailable fallback, only the canonical CI workflow remains blocking.
     merge_state_note_needed = not required_metadata_available and merge_state != "CLEAN"
     if blocking_entries or advisory_blocking_entries:
         print("ERROR: current-head check filter failed.")
@@ -434,9 +491,7 @@ def main(argv: list[str] | None = None) -> int:
         if blocking_entries:
             print("- Blocking current-head checks remain pending or failed.")
         if advisory_blocking_entries:
-            # RU: Без branch protection опираемся на актуальные advisory checks.
-            # EN: Without branch protection metadata, the latest advisory checks are the fallback truth.
-            print("- Blocking advisory current-head checks remain pending or failed.")
+            print("- Blocking canonical fallback current-head checks remain pending or failed.")
         return 1
 
     if merge_state_note_needed:
