@@ -2,6 +2,8 @@
 
 **Canonical rules:** See root `AGENTS.md` for project-wide policies (coordinator-first rule, quality gates, process).
 
+**Short startup path:** `docs/dev/AGENT_COMPATIBILITY_ONBOARDING.md`
+
 This document defines **scoped rules** specific to Cursor agents in `.cursor/agents/`.
 
 ---
@@ -17,6 +19,7 @@ This document defines **scoped rules** specific to Cursor agents in `.cursor/age
 ## Required pre-flight (SoT)
 
 Before doing any work:
+
 - Follow `docs/orchestration/workflow.md` → “Canonical Pre-flight Checklist (SoT)”.
 - Load required context for the invoked role from `docs/orchestration/AGENT_CONTEXT_MAP.md`.
 - Load `docs/orchestration/AGENT_SKILL_ROUTING_POLICY.md` when installed skills may materially improve the task or when changing orchestration/agent workflow docs.
@@ -31,6 +34,7 @@ Before doing any work:
 **Message protocol compliance (SoT):** `docs/orchestration/AGENT_MESSAGE_PROTOCOL.md`
 
 **Templates:**
+
 - Task Analysis: `docs/orchestration/task_analysis.template.md`
 - Work Review: `docs/orchestration/work_review.template.md`
 - Synthesis: `docs/orchestration/synthesis.template.md`
@@ -45,6 +49,7 @@ Before doing any work:
 ### Agent File Structure
 
 Each agent file (`.cursor/agents/*.md`) must:
+
 - Have frontmatter with `name`, `model`, `description`
 - Include "Model Selection Rationale" section (2-5 bullets) - see `docs/agents/model_policy.md`
 - Document capabilities and when to use
@@ -53,6 +58,7 @@ Each agent file (`.cursor/agents/*.md`) must:
 ### Coordinator Role
 
 `agent-coordinator.md` is **router-only**:
+
 - Routes tasks to appropriate agents
 - Synthesizes multi-agent work
 - Enforces quality gates
@@ -111,6 +117,7 @@ Use bootstrap when:
 Coordinator enforces project quality gates; see root `AGENTS.md` (policy) and `RUNBOOK_AGENT.md` (how-to).
 
 **Summary (authoritative source: root `AGENTS.md`):**
+
 - `make verify` (lint → typecheck → test-fast → diff-cov ≥97%)
 - Guard tests pass (architectural invariants)
 - Coverage ≥97% (total + diff-coverage)
@@ -121,6 +128,7 @@ Coordinator enforces project quality gates; see root `AGENTS.md` (policy) and `R
 ## Integration with Project Workflow
 
 **Process rules:**
+
 - Coordinator-first rule: Root `AGENTS.md` (Agent Coordination section)
 - Runbook procedures: `RUNBOOK_AGENT.md` (Agent Coordination section)
 

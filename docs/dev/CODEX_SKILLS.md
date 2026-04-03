@@ -2,7 +2,11 @@
 
 <!-- markdownlint-disable MD013 -->
 
-This document explains how PulsePlate skills are installed and how the coordinator should use them automatically.
+This document explains how PulsePlate skills are installed and how they plug into the
+repository's coordinator-first bootstrap flow.
+
+For the wider agent startup path across Cursor, Codex, and Claude, start with
+`docs/dev/AGENT_COMPATIBILITY_ONBOARDING.md`.
 
 ## Install
 
@@ -25,18 +29,30 @@ scripts/install_codex_skills.sh --dest /tmp/codex-skills
 
 After installation or updates, restart Codex so newly installed skills are loaded.
 
+## Repo compatibility bridge
+
+Use the repo bridge documents together:
+
+- `docs/dev/AGENT_COMPATIBILITY_ONBOARDING.md`
+- `CLAUDE.md`
+- `.cursor/commands/init.md`
+
 ## Coordinator-first auto-selection
 
-The user should not have to name skills manually for normal project work.
+The user should not have to name skills manually for normal project work, but
+that routing comes from the canonical bootstrap/orchestration path, not from
+this document by itself.
 
-Selection order:
+Canonical selection order after bootstrap:
 
 1. `pulseplate-workflow`
 2. Domain routing via `docs/orchestration/AGENT_ROUTING_GRAPH.md`
 3. Skill policy via `docs/orchestration/AGENT_SKILL_ROUTING_POLICY.md`
 4. Deterministic bootstrap via `scripts/orchestration/task_bootstrap.py`
 
-The bootstrap task packet now carries `recommended_skills`, so coordinator and domain agents can invoke fitting skills as part of the workflow.
+When `scripts/orchestration/task_bootstrap.py` produces a task packet, it carries
+`recommended_skills`, so coordinator and domain agents can invoke fitting
+skills as part of the workflow.
 For explainability, the packet also carries `skill_routing` metadata with weighted evidence and blocked-pattern notes.
 
 ## Skill map (task to skill)

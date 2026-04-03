@@ -9,6 +9,9 @@ Operational signals:
 - `CI` shows the main backend/shared validation lane.
 - `Codecov Upload` shows the artifact upload job that publishes coverage results.
 - `codecov` shows the latest published repository coverage snapshot.
+- Runtime probes live at `/health`, `/ready`, and `/metrics`; see `docs/deploy/OPERATIONAL_SIGNALS.md`.
+- OpenTelemetry tracing is bootstrap-gated by `OTEL_*` env vars plus `PULSE_OBS_HMAC_KEY`.
+- In-process request telemetry exists for local/runtime diagnostics; centralized error reporting is still a follow-up gap.
 
 > **PulsePlate turns body-metric check-ins into practical meal decisions.**
 >
@@ -26,7 +29,9 @@ If you are here to build, review, or deploy rather than evaluate the product sto
 
 - `AGENTS.md` for repository-wide engineering rules and merge-governance policy
 - `RUNBOOK_AGENT.md` for CI triage, merge-readiness, and post-merge cleanup flow
+- `docs/dev/AGENT_COMPATIBILITY_ONBOARDING.md` for Cursor / Codex / Claude startup guidance
 - `docs/deploy/README.md` for deployment navigation
+- `docs/deploy/OPERATIONAL_SIGNALS.md` for runtime probes, metrics, tracing, and current gaps
 - `docs/contracts/API_CANONICAL_MAP.md` for the canonical public API surface
 
 If you need the shortest docs-only path first, you can contribute safely in Markdown without depending on the full maintainer-only backend bootstrap.
