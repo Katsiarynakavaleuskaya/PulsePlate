@@ -54,6 +54,9 @@ Canonical policy:
 
 - Keep `PRODUCTION_ENV_READY` unset or `false` until the production host bootstrap is complete.
 - The owner of this flag is the infra/release operator who bootstraps the target host, not the application PR author.
+- `PRODUCTION_ENV_READY` follows the same bridge lookup as the other deploy toggles: the workflow checks the
+  `production` environment variable first and only falls back to a repository-level Actions variable when the
+  environment-scoped value is absent. Prefer the `production` environment variable so the approval boundary stays explicit.
 - Host bootstrap is complete only after the target deploy directory already contains the server-local runtime env file
   (`$DEPLOY_DIR/.env`, typically `/srv/pulseplate-production/.env`) plus the required compose/Caddy inputs.
 - GitHub Actions does **not** create `/srv/pulseplate-production/.env`; the workflow only consumes it and keeps the
@@ -369,11 +372,19 @@ Secrets (store in the `production` environment):
 - `GHCR_READ_TOKEN` (PAT with `read:packages`, if the image is private)
 - `PRODUCTION_DOMAIN` (public domain used for post-deploy healthcheck)
 
+Repository or organization secrets:
+
+- `PRODUCTION_ENV_READ_TOKEN` (optional fallback): token used only when GitHub denies the default workflow token
+  from reading `production` environment variables via the Actions Variables API.
+
 Variables (store in the `production` environment):
 
 - `DEPLOY_DIR` (optional): absolute path to the deploy directory on the production machine.
   If unset, the workflow auto-detects `/opt/pulseplate` then `/srv/pulseplate-production`.
 - `WEB_IOS_RELEASE_READY` (required for deploy): set to `true` only when web+iOS release readiness is approved.
+- `PRODUCTION_ENV_READY` (required for live semver deploy): set to `true` only after the host bootstrap is complete
+  and `$DEPLOY_DIR/.env` already exists on the server. Repository-level fallback is supported but should stay under
+  the same infra/release-owner control.
 
 ## Self-hosted runner (recommended)
 
@@ -394,6 +405,7 @@ High-level steps (run on the production server):
 2. Install and configure the GitHub Actions runner (use repo settings UI to generate the config token).
 3. Add the runner label `pulseplate-prod`.
 4. Set repository variable `PROD_DEPLOY_MODE=self-hosted`.
+5. Keep `PRODUCTION_ENV_READY=false` until the server-local `.env` and compose inputs are already in place.
 
 ## Post-merge checklist (first production auto-deploy)
 
