@@ -18,9 +18,18 @@ Evidence: core/compliance/privacy.py:236; tests/test_compliance_control_plane.py
 Reason: The legacy `llm_processing.endpoints` field remains for backward compatibility, but it now derives from the canonical `ai_generated_wellness_analysis` disclosure so `/api/v1/pro/fitchef/explain` cannot drift out of sync again. The matrix/notice policy date and version stay unchanged because this lane hardens the existing contract rather than publishing a new legal-policy revision.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1307#pullrequestreview-4053717254 -> 9b4f01e273172083d4b12b874327d6ef9b650ef8
 
+Disposition: FIXED
+Commit: 530181922edf78c3b1cd5f6621850e510fc3a526
+Evidence: tests/test_compliance_control_plane.py:86; tests/test_compliance_control_plane.py:105; tests/test_compliance_control_plane.py:184
+Reason: CodeRabbit flagged three real blind spots in the sync/minimization tests. The suite now guards the AI notice policy-version banner, derives provider-family coverage from the runtime payload via stable provider IDs, and asserts that the raw email is removed from all newly covered minimized fields.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1307#pullrequestreview-4054311508 -> 530181922edf78c3b1cd5f6621850e510fc3a526
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1307#discussion_r3031480190 -> 530181922edf78c3b1cd5f6621850e510fc3a526
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1307#discussion_r3031480194 -> 530181922edf78c3b1cd5f6621850e510fc3a526
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1307#discussion_r3031480197 -> 530181922edf78c3b1cd5f6621850e510fc3a526
+
 ## Merge Readiness
 - [ ] All required checks pass
-- [x] No unresolved review threads (re-checked on current head)
+- [ ] No unresolved review threads (re-check on current head before merge)
 - [x] No actionable bot comments remain unmapped
 - [ ] Mandatory wait-window completed
 - [x] Pre-commit green
