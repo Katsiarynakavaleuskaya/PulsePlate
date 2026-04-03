@@ -13,6 +13,13 @@ Evidence: identified by cubic in `https://github.com/Katsiarynakavaleuskaya/Puls
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1318#discussion_r3033101077 -> b5984f92
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1318#discussion_r3033101084 -> b5984f92
 
+Disposition: FIXED
+Commit: 356a2083
+Evidence: identified by CodeRabbit. `docs/runbooks/IOS_APPSTORE_ASSETS_ROLLOUT.md:83` now includes `python3 scripts/orchestration/check_preflight.py` and `python3 scripts/orchestration/check_agent_consistency.py` in the validation-only checklist, while `ios/fastlane/Fastfile:176` now requires `FASTLANE_TEAM_ID` and `FASTLANE_TEAM_NAME` before App Privacy upload and `tests/test_ios_appstore_assets_workflow_contract.py:153` locks the expanded fail-closed env contract.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1318#pullrequestreview-4055985256 -> 356a2083
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1318#discussion_r3033118348 -> 356a2083
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1318#discussion_r3033118351 -> 356a2083
+
 ## Merge Readiness
 - [ ] Local hard gate passed (`make verify`)
 - [ ] Required checks PASS with no pending required jobs
