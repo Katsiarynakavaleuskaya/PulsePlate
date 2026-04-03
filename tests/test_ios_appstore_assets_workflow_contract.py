@@ -151,6 +151,13 @@ def test_fastlane_upload_lanes_stay_fail_closed() -> None:
     assert 'context: "App Store metadata/screenshots upload"' in fastfile_text
     assert 'context: "App Privacy protected upload"' in fastfile_text
     assert (
+        "FASTLANE_USER\n"
+        "        FASTLANE_SESSION\n"
+        "        FASTLANE_TEAM_ID\n"
+        "        FASTLANE_TEAM_NAME\n"
+        "        APP_STORE_BUNDLE_IDENTIFIER"
+    ) in fastfile_text
+    assert (
         'require_existing_directory!(fastlane_path("metadata"), "App Store metadata directory")'
         in fastfile_text
     )

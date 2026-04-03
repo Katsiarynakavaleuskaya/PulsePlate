@@ -80,6 +80,8 @@ Purpose:
 Use validation-only flow before any protected upload:
 
 1. Run implementation PR checks locally:
+   - `python3 scripts/orchestration/check_preflight.py`
+   - `python3 scripts/orchestration/check_agent_consistency.py`
    - `pytest -q tests/test_ios_appstore_assets_workflow_contract.py`
    - `pytest -q tests/test_ios_appstore_asset_validators.py`
    - `pre-commit run --all-files`
