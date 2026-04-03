@@ -224,7 +224,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P0: EU-first compliance control plane follow-through
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0
-  - Target PR: PR-TBD-EU-COMPLIANCE-CONTROL-PLANE-FOLLOWTHROUGH
+  - Target PR: PR #1307
+  - Status: 🟡 In progress (baseline control-plane foundation merged in PR #1046; runtime/doc sync follow-through, legacy `/privacy` disclosure alignment, and deterministic drift-hardening merged in PR #1307 on 2026-04-03; program-level DSAR/public-surface and regulated-lane follow-through remain open)
   - Area: backend / privacy / legal docs / AI governance
   - Finding Type: compliance program hardening
   - Reason: Foundation runtime/docs work now establishes a canonical compliance control plane (`docs/compliance/*`, `core/compliance/*`, additive `/privacy` sync), but rollout still needs one program-level epic so future privacy, transparency, DSAR, and regulated-lane work does not drift into isolated follow-ups. This epic supersedes fragmented treatment of the same theme.
@@ -234,8 +235,12 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `docs/compliance/AI_TRANSPARENCY_AND_PROFILING_NOTICE.md`
     - `docs/compliance/DSAR_AND_DELETION_MAP.md`
     - `docs/compliance/US_REGULATED_LANE_RFC_42_CFR_PART_2.md`
+    - `docs/legal/Privacy.md`
+    - `docs/review/PR_1307_FIXED_MAPPING.md`
     - `core/compliance/privacy.py`
+    - `core/compliance/transparency.py`
     - `legacy_app.py`
+    - `tests/test_compliance_control_plane.py`
   - DoD:
     - `/privacy`, `docs/legal/Privacy.md`, and `core/compliance/*` remain synchronized for every new health-ish or AI surface
     - New AI or health-adjacent surfaces add transparency + minimization entries before release
