@@ -86,17 +86,20 @@ def fastlane_path(*parts)
   File.expand_path(File.join(*parts), __dir__)
 end
 
-def require_existing_path!(path, description)
-  return if File.exist?(path)
+def require_existing_directory!(path, description)
+  return if File.directory?(path)
+
+  UI.user_error!("Missing #{description} at #{path}. See #{IOS_APPSTORE_ASSETS_RUNBOOK}")
+end
+
+def require_existing_file!(path, description)
+  return if File.file?(path)
 
   UI.user_error!("Missing #{description} at #{path}. See #{IOS_APPSTORE_ASSETS_RUNBOOK}")
 end
 
 def require_non_empty_directory!(path, description)
-  require_existing_path!(path, description)
-  unless File.directory?(path)
-    UI.user_error!("Expected #{description} to be a directory at #{path}. See #{IOS_APPSTORE_ASSETS_RUNBOOK}")
-  end
+  require_existing_directory!(path, description)
   return unless Dir.children(path).empty?
 
   UI.user_error!("Expected non-empty #{description} at #{path}. See #{IOS_APPSTORE_ASSETS_RUNBOOK}")
@@ -149,7 +152,7 @@ platform :ios do
   desc "Upload localized metadata and screenshots to App Store Connect draft"
   lane :upload_metadata_and_screenshots do
     require_env_vars!(%w[APP_STORE_BUNDLE_IDENTIFIER], context: "App Store metadata/screenshots upload")
-    require_existing_path!(fastlane_path("metadata"), "App Store metadata directory")
+    require_existing_directory!(fastlane_path("metadata"), "App Store metadata directory")
     require_non_empty_directory!(fastlane_path("screenshots"), "App Store screenshots directory")
 
     deliver(
@@ -173,7 +176,7 @@ platform :ios do
       %w[FASTLANE_USER FASTLANE_SESSION APP_STORE_BUNDLE_IDENTIFIER],
       context: "App Privacy protected upload"
     )
-    require_existing_path!(fastlane_path("app_privacy_details.json"), "App Privacy JSON package")
+    require_existing_file!(fastlane_path("app_privacy_details.json"), "App Privacy JSON package")
 
     upload_app_privacy_details_to_app_store(
       username: ENV["FASTLANE_USER"],

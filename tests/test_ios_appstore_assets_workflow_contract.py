@@ -145,11 +145,13 @@ def test_fastlane_upload_lanes_stay_fail_closed() -> None:
         in fastfile_text
     )
     assert "def require_env_vars!(names, context: nil)" in fastfile_text
+    assert "def require_existing_directory!(path, description)" in fastfile_text
+    assert "def require_existing_file!(path, description)" in fastfile_text
     assert 'context: "App Store Connect API key preflight"' in fastfile_text
     assert 'context: "App Store metadata/screenshots upload"' in fastfile_text
     assert 'context: "App Privacy protected upload"' in fastfile_text
     assert (
-        'require_existing_path!(fastlane_path("metadata"), "App Store metadata directory")'
+        'require_existing_directory!(fastlane_path("metadata"), "App Store metadata directory")'
         in fastfile_text
     )
     assert (
@@ -157,7 +159,7 @@ def test_fastlane_upload_lanes_stay_fail_closed() -> None:
         in fastfile_text
     )
     assert (
-        'require_existing_path!(fastlane_path("app_privacy_details.json"), "App Privacy JSON package")'
+        'require_existing_file!(fastlane_path("app_privacy_details.json"), "App Privacy JSON package")'
         in fastfile_text
     )
     assert "See #{IOS_APPSTORE_ASSETS_RUNBOOK}" in fastfile_text
