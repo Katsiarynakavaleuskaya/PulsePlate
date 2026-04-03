@@ -907,7 +907,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: iOS App Store assets rollout and protected ASC environment activation
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-TBD-IOS-APPSTORE-ASSETS-ROLLOUT-EVIDENCE-GAP
+  - Target PR: PR #1323
   - Status: 🚧 In progress (protected `main` evidence attempted on 2026-04-03; rollout remains blocked by missing protected environment secrets in `appstore-assets` and `appstore-privacy`)
   - Area: iOS / release-ops / App Store Connect / compliance
   - Finding Type: release-ops activation follow-up
