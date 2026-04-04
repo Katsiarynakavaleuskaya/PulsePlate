@@ -5,13 +5,15 @@
 - [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1329#pullrequestreview-4058881241 -> DEFERRED (high-level naming and transport-string consolidation suggestion; safe follow-up refactor outside this narrow bootstrap seam fix)
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1329#pullrequestreview-4058883054 -> 6d6ae9b73c16b0e7de1f4b79ed84d47483aec298
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1329#discussion_r3036100150 -> 6d6ae9b73c16b0e7de1f4b79ed84d47483aec298
 
 ## Merge Readiness
 - [ ] All required checks pass
 - [ ] No unresolved review threads (re-check on current head before merge)
 - [ ] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
-- [ ] Pre-commit green
+- [x] Pre-commit green
 - [ ] `make verify` green
 - [ ] Mandatory post-open bug-hunter pass completed
 - [ ] Security review completed for privileged orchestration surfaces
