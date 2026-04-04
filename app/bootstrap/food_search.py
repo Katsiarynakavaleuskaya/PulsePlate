@@ -38,7 +38,8 @@ def _safe_index_name(raw_value: str | None) -> str:
 def _safe_show_performance_details(raw_value: str | None) -> bool:
     """Return validated Meili performance-details flag with safe default."""
 
-    return _is_truthy(raw_value)
+    enabled = _is_truthy(raw_value)
+    return bool(enabled)
 
 
 def register_food_search_backend(app: FastAPI) -> None:
