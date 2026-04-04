@@ -3,14 +3,15 @@
 ## Summary
 - Docs-only planning slice for the Local Workforce PR-A follow-on lane.
 - Current head adds the canonical planning packet and wires it into the RFC decomposition note and backlog ledger.
-- The PR remains draft while post-open review and final current-head merge checks are still pending.
+- The PR remains in post-open review while current-head governance and CI checks are verified on the latest head.
 
 ## Discussion Thread Pass
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1330#discussion_r3036114895 -> e169e93f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1330#pullrequestreview-4058893402 -> e169e93f
 
 ## Merge Readiness
 - [ ] All required checks pass
@@ -23,4 +24,5 @@
 
 ## Notes
 - Canonical artifact created during the draft post-open review cycle so artifact-first governance can run before the PR leaves draft state.
+- Commit `e169e93f` clarifies the PR-A packet date fields and disambiguates the `TASK_PACKET_V1` protocol seam from the bootstrap packet `schema_version` field in `scripts/orchestration/task_bootstrap.py`.
 - Runtime, schema, workflow, and bootstrap behavior remain unchanged in this PR.
