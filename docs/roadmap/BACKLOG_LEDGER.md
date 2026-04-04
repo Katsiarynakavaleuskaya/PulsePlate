@@ -5290,6 +5290,20 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Target local-first search latency budget (<50ms p50) is measured and reported
 
 
+<a id="ledger-p2-meili-client-maintainability-followup-pr1333"></a>
+- [ ] P2: Meilisearch client shared-helper / config refactors (deferred from PR #1333)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: TBD
+  - Reason (EN): PR #1333 intentionally limits scope to env-gated Meilisearch performance telemetry and Prometheus metrics; maintainability refactors noted in review stay out of the telemetry slice.
+  - Links:
+    - `app/services/search_meili.py`
+    - `app/metrics.py`
+  - DoD:
+    - Duplicated Meili request configuration is consolidated where safe without changing `/api/v1/foods*` response contracts.
+    - `make verify` passes on the follow-up PR.
+
+
 - [x] P1: Execution Wave 3 — Restaurant menus + controlled user submissions
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
