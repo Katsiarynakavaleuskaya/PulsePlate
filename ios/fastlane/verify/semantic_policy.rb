@@ -13,7 +13,7 @@ module SemanticPolicy
   ].freeze
 
   METADATA_MEDICAL_CLAIMS = /
-    \b(?:BMI|IMC|medical|doctor(?:s|led)?|diagnos(?:e|es|ed|ing|is|tic)?|patient(?:s)?|prescription(?:s)?|therapy|therapeutic)\b|
+    \b(?:BMI|IMC|medical|doctor(?:s|(?:[-\s]+led))?|diagnos(?:e|es|ed|ing|is|tic)?|patient(?:s)?|prescription(?:s)?|therapy|therapeutic)\b|
     \b(?:ИМТ|медицин(?:а|ский|ская|ские|ских)|врач(?:а|ей|ом)?|диагноз(?:а|ом|е|ы)?|пациент(?:а|ов)?|рецепт(?:а|ов)?|терап(?:ия|ии|ию|ией))\b|
     \b(?:m[eé]dic(?:o|a|os|as|al|amente)?|doctor(?:es)?|diagn[oó]stic(?:o|a|os|as)?|paciente(?:s)?|receta(?:s)?|terapia)\b
   /ix.freeze
@@ -62,7 +62,7 @@ module SemanticPolicy
 
   REVIEW_NOTE_PRIVACY_CONTRADICTIONS = [
     {
-      pattern: /\b(?:write(?:s|back)?\s+to\s+Health|save(?:s)?\s+to\s+Health|sync(?:s)?\s+back\s+to\s+Health|updates?\s+Health\s+data|записыва(?:ет|ют)\s+в\s+Health|сохраня(?:ет|ют)\s+в\s+Health|sincroniza(?:n|r)?\s+de\s+vuelta\s+con\s+Health)\b/i,
+      pattern: /\b(?:write(?:s)?(?:\s+back)?\s+to\s+Health|save(?:s)?\s+to\s+Health|sync(?:s)?\s+back\s+to\s+Health|updates?\s+Health\s+data|записыва(?:ет|ют)\s+в\s+Health|сохраня(?:ет|ют)\s+в\s+Health|sincroniza(?:n|r)?\s+de\s+vuelta\s+con\s+Health)\b/i,
       message: "Reviewer notes contradict read-only HealthKit posture"
     },
     {
@@ -141,7 +141,9 @@ module SemanticPolicy
   end
 
   def negated_review_note_prefix?(prefix)
-    recent_prefix = prefix.downcase[-32..] || prefix.downcase
-    recent_prefix.match?(/(?:do\s+not|does\s+not|did\s+not|don't|doesn't|never|не|no)\s+\z/i)
+    recent_prefix = prefix.downcase[-96..] || prefix.downcase
+    recent_prefix.match?(
+      /\b(?:do\s+not|does\s+not|did\s+not|don't|doesn't|never|no\s+longer|не|никогда|no|nunca)\b(?:\W+[[:word:]]+){0,3}\W*\z/i,
+    )
   end
 end

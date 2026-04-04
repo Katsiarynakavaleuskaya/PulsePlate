@@ -389,6 +389,32 @@ def test_validate_metadata_rejects_wellness_only_contradiction_wording(tmp_path:
     assert f"Blocked medical wording found in {subtitle_path}" in result.stderr
 
 
+@pytest.mark.parametrize(
+    "content",
+    [
+        "Doctor-led wellness guidance for better habits.",
+        "Doctor led wellness guidance for better habits.",
+    ],
+)
+def test_validate_metadata_rejects_doctor_led_variants_without_other_medical_tokens(
+    tmp_path: Path, content: str
+) -> None:
+    metadata_root = tmp_path / "metadata"
+    review_notes, privacy_json = _prepare_metadata(metadata_root)
+    subtitle_path = metadata_root / "en-US" / "subtitle.txt"
+    subtitle_path.write_text(content, encoding="utf-8")
+
+    result = _run_ruby(
+        REPO_ROOT / "ios/fastlane/verify/validate_metadata.rb",
+        str(metadata_root),
+        str(review_notes),
+        str(privacy_json),
+    )
+
+    assert result.returncode == 1
+    assert f"Blocked medical wording found in {subtitle_path}" in result.stderr
+
+
 def test_validate_metadata_rejects_store_truth_claims(tmp_path: Path) -> None:
     metadata_root = tmp_path / "metadata"
     review_notes, privacy_json = _prepare_metadata(metadata_root)
@@ -610,7 +636,7 @@ def test_validate_healthkit_copy_rejects_read_only_and_data_collection_contradic
                 "This flow is wellness-only.",
                 "Users provide consent before enabling access.",
                 "The HealthKit integration is read-only.",
-                "The app writes to Health and collects Health data on our servers.",
+                "The app writes back to Health and collects Health data on our servers.",
             ]
         ),
         encoding="utf-8",
@@ -660,7 +686,7 @@ def test_validate_healthkit_copy_uses_actual_privacy_posture_for_contradictions(
                 "This flow is wellness-only.",
                 "Users provide consent before enabling access.",
                 "The HealthKit integration is read-only.",
-                "The app writes to Health and collects Health data on our servers.",
+                "The app writes back to Health and collects Health data on our servers.",
             ]
         ),
         encoding="utf-8",
@@ -772,7 +798,7 @@ def test_validate_healthkit_copy_ignores_negated_privacy_contradictions(tmp_path
                 "This flow is wellness-only.",
                 "Users provide consent before enabling access.",
                 "The HealthKit integration is read-only.",
-                "The app does not write to Health and does not collect Health data on our servers.",
+                "The app no longer writes back to Health and does not currently collect Health data on our servers.",
             ]
         ),
         encoding="utf-8",
