@@ -1167,12 +1167,14 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Priority: P1
   - Target PR: PR-TBD-APPLE-SERVER-API-MIGRATION
   - Status: Prepared follow-on only; must not overtake still-open P0 release-truth items
+  - Canonical contract note: This ledger entry owns the full precondition, wire-compatibility, and temporary-fallback contract for the lane. Sequencing packets and execution docs should point here rather than redefine the complete contract list.
   - Area: backend / payments / provider integration
   - Finding Type: provider modernization
   - Reason: The current PR uses classic `verifyReceipt` only as a transitional compatibility path; Apple-recommended signed transaction / App Store Server API validation remains mandatory follow-up work. This lane is P1 provider modernization and must not overtake still-open P0 release-truth work.
   - Links:
     - `docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md`
     - `app/services/payments_activation.py`
+    - `docs/roadmap/PulsePlate_P0_P1_Execution_Document_2026-03-30.md#12-featbilling-migrate-apple-verification-to-app-store-server-api`
     - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p0-billing-apple-verify`
     - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p0-billing-entitlement-routing`
     - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p0-web-entitlement-truth`

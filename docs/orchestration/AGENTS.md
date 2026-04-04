@@ -35,7 +35,10 @@ Scope: `docs/orchestration/**`
     - `bug-hunter`
     - `app-store-release-agent`
   - mandatory post-open lane: `qa-engineer-agent -> bug-hunter`
-  - invariant: preserve the public endpoint, DTO, and client transport contract unless a versioned migration packet explicitly changes them
+  - invariant: preserve the public endpoint, DTO/wire schema, and client transport contract unless a versioned migration packet explicitly changes them
+  - canonical references:
+    - root `AGENTS.md` provider migration wire-compatibility rule is the repo-global invariant
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-apple-server-api-migration` owns the lane-specific precondition and temporary-fallback contract
 - Any PR that updates `docs/review/PR_<N>_FIXED_MAPPING.md` in this scope must refresh the PR body mirror after the canonical artifact changes.
 - Detailed governance procedure lives in:
   - [`docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md`](./PR_ORCHESTRATION_CONTRACT_MATRIX.md)

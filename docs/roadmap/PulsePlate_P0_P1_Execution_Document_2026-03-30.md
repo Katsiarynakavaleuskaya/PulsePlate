@@ -154,6 +154,7 @@ Status: operator execution map
 ### 12. feat(billing): migrate Apple verification to App Store Server API
 - status: prepared follow-on only; do not open this lane ahead of still-open P0 release-truth work
 - closes: `ledger-p1-apple-server-api-migration`
+- canonical contract anchor: `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-apple-server-api-migration` owns the full precondition, wire-compatibility, and temporary-fallback list for this lane; this execution document keeps only the sequencing pointer
 - preconditions:
   - `ledger-p0-billing-entitlement-routing` is closed in the canonical ledger
   - `ledger-p0-web-entitlement-truth` is closed in the canonical ledger
