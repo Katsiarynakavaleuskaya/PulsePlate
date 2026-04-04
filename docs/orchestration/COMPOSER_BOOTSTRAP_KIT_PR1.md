@@ -1,79 +1,70 @@
-# PulsePlate Composer Implementation Kit — PR-1 Bootstrap
+# PulsePlate Local Workforce RFC Packet — PR-1 Reclassification Note
 
 ## Goal
 
-Enable Composer to start operating inside the PulsePlate workforce track safely and consistently.
+Reclassify PR `#1325` from a mistaken bootstrap implementation lane into a docs-only RFC/reference lane.
 
-This first PR is intentionally **narrow**:
-
-- Cursor bootstrap rules
-- slash-command task bootstrap
-- action packet schema
-- event log schema
-- memory capsule schema
-- local SQLite starter schema
+This PR should describe the proposed local workforce platform shape, evidence baseline, and rollout decomposition only. It should not introduce executable or policy-shaping surfaces into the repository.
 
 ## Branch
 
 `docs/composer-bootstrap-kit`
 
-## PR title
+## Recommended PR title
 
-`docs(orchestration): add Composer bootstrap kit for local workforce track`
+`docs(orchestration): add local workforce platform RFC packet`
 
-## In scope
+## Keep in scope
+
+- [PulsePlate_Local_Agent_Workforce_System_Design_Packet_v1_2.md](./PulsePlate_Local_Agent_Workforce_System_Design_Packet_v1_2.md)
+- [CURSOR_COMPOSER_PLATFORM_FACTS_VERIFIED.md](./CURSOR_COMPOSER_PLATFORM_FACTS_VERIFIED.md)
+- this decomposition note
+
+## Remove from scope
 
 - `.cursor/rules/*`
 - `.cursor/commands/*`
+- `docs/orchestration/LOCAL_AGENT_*`
 - `docs/orchestration/schemas/*`
 - `docs/orchestration/sql/local_agent_control_plane.sql`
-- one short docs update linking to the kit
 
-## Out of scope
+## Why reclassification is necessary
 
-- production runtime code
-- deployment automation
-- cloud agents
-- secret handling
-- autonomous execution beyond docs/tooling bootstrap
+The repo already contains canonical seams for the workflows that this PR originally tried to introduce again:
 
-## Why first
+- task bootstrap/coordinator flow already exists and should be extended rather than paralleled
+- reflection flow already has a canonical protocol and should be extended there first
+- repo-global workflow and merge governance are owned by root policy, not by a docs-only bootstrap slice
+- the platform facts note still contains `[VERIFY]` items and cannot safely sit behind always-on rules
 
-Composer needs strict entry behavior before it can safely participate in a CAID-style local workforce system.
+## Required file posture
 
-## DoD
+### Design packet
 
-- Composer has a repo-local bootstrap rule set
-- Composer has a task bootstrap command
-- action packet schema exists
-- event log schema exists
-- memory capsule schema exists
-- local control-plane SQLite starter schema exists
-- no product runtime behavior changes are introduced
+Treat the design packet as RFC/reference architecture only.
 
-## Review follow-up
+### Platform facts note
 
-This follow-up keeps the PR narrow and closes merge-readiness review items without widening scope:
+Treat the facts file as evidence/reference only, not canonical policy.
 
-- make SQLite child-table foreign-key behavior explicit
-- add explicit human approval signaling to the action packet schema for high-risk work
-- allow clean reflection packets without mandatory failure entries
+### This document
 
-## Next PRs
+Treat this file as a rollout/decomposition note for future follow-on PRs, not as proof that a bootstrap kit is already implemented.
 
-1. `chore(orchestration): add local workforce control-plane SQLite adapter`
-2. `chore(cursor): add first 5 custom role modes`
-3. `chore(mcp): add safe local adapters for repo/search/log triage`
-4. `docs(orchestration): add director and memory librarian operating packets`
+## Follow-on PRs
 
-## Repo layout (this slice)
+1. `PR-A` — extend the canonical coordinator bootstrap seam instead of adding a second packet system
+2. `PR-B` — extend the canonical reflection protocol before deriving helper/schema material
+3. `PR-C` — add experimental local control-plane storage as a non-canonical support plane
 
-| Area | Paths |
-|------|--------|
-| Root bootstrap + role modes | `.cursor/rules/00_root_bootstrap.mdc` … `50_memory_librarian.mdc` |
-| Commands | `.cursor/commands/create_action_packet.md`, `create_reflection_packet.md` |
-| Control plane docs | `docs/orchestration/LOCAL_AGENT_*.md` |
-| JSON Schema | `docs/orchestration/schemas/*.schema.json` |
-| SQLite starter | `docs/orchestration/sql/local_agent_control_plane.sql` |
+## Worktree promotion
 
-Install order matches [PulsePlate_Local_Agent_Workforce_System_Design_Packet_v1_2.md](./PulsePlate_Local_Agent_Workforce_System_Design_Packet_v1_2.md) §18 (Immediate implementation kit).
+Safe path remains standard git flow:
+
+1. update the branch in the worktree
+2. push the branch
+3. merge only the docs-only RFC lane
+4. fetch or pull `main`
+5. rebase or restack follow-on PRs onto the updated `main`
+
+Do not manually copy files from the worktree into `main`.

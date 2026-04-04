@@ -1,4 +1,9 @@
-# Cursor / Composer / local agent — проверенные факты (источники)
+# Cursor / Composer / local agent — verified + pending verification
+
+Статус документа: часть пунктов подтверждена официальными источниками, а элементы с пометкой `[VERIFY]` остаются открытыми до ручной цитаты из Cursor Docs.
+
+Этот файл является reference/evidence note, а не канонической policy-спецификацией репозитория.
+Пока в документе остаются элементы `[VERIFY]`, он не должен использоваться как обязательный источник для always-on bootstrap rules.
 
 **Назначение:** заменить маркеры `[VERIFY]` в опроснике по локальной агентной среде PulsePlate там, где есть **официальный текст**, доступный без авторизации.
 
@@ -10,7 +15,7 @@
 
 **Связанный архитектурный пакет (репо):** [PulsePlate_Local_Agent_Workforce_System_Design_Packet_v1_2.md](./PulsePlate_Local_Agent_Workforce_System_Design_Packet_v1_2.md) — CAID-style оркестрация, две дорожки (delivery / workforce platform), память и rollout.
 
-**Bootstrap kit (workforce track, репо):** [COMPOSER_BOOTSTRAP_KIT_PR1.md](./COMPOSER_BOOTSTRAP_KIT_PR1.md) — узкий PR-1: `.cursor/rules`, `.cursor/commands`, локальные схемы (`LOCAL_AGENT_*`, `schemas/*.json`, `sql/local_agent_control_plane.sql`).
+**Rollout note (workforce track, репо):** [COMPOSER_BOOTSTRAP_KIT_PR1.md](./COMPOSER_BOOTSTRAP_KIT_PR1.md) — decomposition note для будущих bootstrap slices и follow-on PR.
 
 ---
 
@@ -26,7 +31,7 @@
 | **MCP** | Подключение внешних инструментов через **Model Context Protocol**; вход с маркетплейса: `https://cursor.com/marketplace`. | Там же, «Extending the agent» (абзац про MCP) |
 | **Браузер** | Агент может работать с браузером (скриншоты, проверка UI). Док: `https://cursor.com/docs/agent/browser`. | Там же, «Including images» / browser |
 | **Контекст и чаты** | Не обязательно тегать все файлы — агент использует поиск; **`@Past Chats`** для ссылки на прошлые диалоги. **`@Branch`** для контекста ветки. | Там же, «Managing context» |
-| **Команды `/`** | Переиспользуемые сценарии в **`.cursor/commands/`** (markdown), вызов через `/` в вводе агента. | Там же, «Git workflows» / commands |
+| **Команды `/`** | Переиспользуемые сценарии в **`.cursor/commands/`** (markdown), вызов через `/` во вводе агента. | Там же, «Git workflows» / commands |
 | **Параллельные агенты** | Нативная поддержка **git worktrees**; док: `https://www.cursor.com/docs/configuration/worktrees`. Несколько моделей из dropdown, сравнение результатов. | Там же, «Running agents in parallel» |
 | **Облачные агенты** | Запуск с `https://cursor.com/agents`, из редактора или телефона; **удалённая песочница**; клон репозитория, ветка, автономная работа, **PR по завершении**; уведомления (Slack, email, web); триггер из Slack: **@Cursor** — `https://cursor.com/docs/integrations/slack`. | Там же, «Delegating to cloud agents» |
 | **Ревью** | Во время работы — diff, Stop; после — **Review → Find Issues**; для локальных изменений — Agent Review относительно main; **Bugbot** на PR: `https://cursor.com/docs/bugbot`. | Там же, «Reviewing code» |

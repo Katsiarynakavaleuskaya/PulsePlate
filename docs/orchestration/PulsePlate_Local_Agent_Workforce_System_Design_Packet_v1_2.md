@@ -2,8 +2,10 @@
 
 **Version:** 1.2
 **Date:** 2026-04-04
-**Status:** implementation-ready architecture
-**Focus:** local-first workforce + CAID-style orchestration
+**Status:** RFC / reference-only architecture
+**Focus:** proposed local-first workforce + CAID-style orchestration
+
+> This document is architecture RFC material, not canonical repo policy and not proof that the rollout is already implemented. Any implementation must land later through follow-on PRs against existing canonical seams.
 
 **Related repo docs:** [CURSOR_COMPOSER_PLATFORM_FACTS_VERIFIED.md](./CURSOR_COMPOSER_PLATFORM_FACTS_VERIFIED.md), [COORDINATOR_MERGE_READINESS_RULES.md](./COORDINATOR_MERGE_READINESS_RULES.md), root [`AGENTS.md`](../../AGENTS.md), [AGENT_KNOWLEDGE_LIBRARY_WORKTREE_RUNBOOK.md](./AGENT_KNOWLEDGE_LIBRARY_WORKTREE_RUNBOOK.md), [LOCAL_EXECUTION_SANDBOX_RUNBOOK.md](./LOCAL_EXECUTION_SANDBOX_RUNBOOK.md).
 
@@ -68,11 +70,11 @@ It must **not**:
 
 ---
 
-## 4. Platform facts already validated
+## 4. Platform facts reference baseline
 
-Canonical baseline for Cursor / Composer / Ollama / MCP in this repo: **[CURSOR_COMPOSER_PLATFORM_FACTS_VERIFIED.md](./CURSOR_COMPOSER_PLATFORM_FACTS_VERIFIED.md)**.
+Reference baseline for Cursor / Composer / Ollama / MCP in this repo: **[CURSOR_COMPOSER_PLATFORM_FACTS_VERIFIED.md](./CURSOR_COMPOSER_PLATFORM_FACTS_VERIFIED.md)**.
 
-**Summary (see verified doc for links and `[VERIFY]` gaps):**
+**Summary (see reference doc for links and `[VERIFY]` gaps):**
 
 ### Cursor
 
@@ -493,26 +495,16 @@ Start with only:
 
 ---
 
-## 18. Immediate implementation kit
+## 18. Proposed rollout slices
 
-Turn this packet into repo-ready assets:
+If this RFC is approved, implement it through follow-on PRs over canonical repo seams:
 
-1. `.cursor/rules/00_root_bootstrap.mdc`
-2. `.cursor/rules/10_director_mode.mdc`
-3. `.cursor/rules/20_bug_hunter.mdc`
-4. `.cursor/rules/30_security_review.mdc`
-5. `.cursor/rules/40_deploy_sre.mdc`
-6. `.cursor/rules/50_memory_librarian.mdc`
-7. `.cursor/commands/create_action_packet.md`
-8. `.cursor/commands/create_reflection_packet.md`
-9. `docs/orchestration/LOCAL_AGENT_CONTROL_PLANE.md`
-10. `docs/orchestration/LOCAL_AGENT_EVENT_LOG_SCHEMA.md`
-11. `docs/orchestration/LOCAL_AGENT_ACTION_PACKET_SCHEMA.md`
-12. local control-plane DB schema (`sqlite` first) — `docs/orchestration/sql/local_agent_control_plane.sql`
-13. JSON schemas — `docs/orchestration/schemas/` (`action_packet`, `event_log`, `memory_capsule`, `reflection_packet`)
-14. PR-1 scope / DoD / next PRs — [COMPOSER_BOOTSTRAP_KIT_PR1.md](./COMPOSER_BOOTSTRAP_KIT_PR1.md)
+1. Extend the canonical coordinator bootstrap seam rather than introducing a second packet system.
+2. Extend the canonical reflection protocol before deriving any helper/schema layer.
+3. Add any local control-plane storage as experimental support infrastructure, not orchestration SoT.
+4. Keep rollout/decomposition notes in [COMPOSER_BOOTSTRAP_KIT_PR1.md](./COMPOSER_BOOTSTRAP_KIT_PR1.md).
 
-**Repo status:** the paths above are implemented in this repository as the Phase 0 foundation slice (docs/tooling only; no production runtime).
+**Implementation note:** this PR does not claim the slices above are already implemented. They remain proposed until follow-on PRs land on top of accepted canonical contracts.
 
 ---
 
