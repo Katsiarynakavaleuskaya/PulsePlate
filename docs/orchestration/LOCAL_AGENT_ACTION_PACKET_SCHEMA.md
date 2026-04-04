@@ -18,6 +18,7 @@ This document describes the canonical packet shape for local workforce tasks.
 
 ## Optional fields
 
+- `human_approval_required` (required and must be `true` when `risk_class = high`)
 - `requested_agents`
 - `notes`
 
@@ -41,6 +42,19 @@ This document describes the canonical packet shape for local workforce tasks.
 promotion_target:
   type: docs|rules|schema|tooling|pr|artifact
   path: ...
+```
+
+## Approval signaling
+
+```yaml
+human_approval_required: false
+```
+
+For high-risk packets:
+
+```yaml
+risk_class: high
+human_approval_required: true
 ```
 
 ## Hard rules

@@ -29,10 +29,8 @@ owner: ...
 context: ...
 what_worked:
   - ...
-what_failed:
-  - ...
-root_cause:
-  - ...
+what_failed: []
+root_cause: []
 repeat_risk: low|medium|high
 proposed_improvement:
   kind: docs|rule|schema|tooling|process
@@ -43,6 +41,8 @@ human_review_required: true
 notes:
   - ...
 ```
+
+For incident or failure-driven reflections, populate `what_failed` and `root_cause`.
 
 ## Hard rule
 

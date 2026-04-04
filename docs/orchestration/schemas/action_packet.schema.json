@@ -78,6 +78,10 @@
         "high"
       ]
     },
+    "human_approval_required": {
+      "type": "boolean",
+      "default": false
+    },
     "verification": {
       "type": "array",
       "items": {
@@ -118,5 +122,29 @@
       "default": []
     }
   },
-  "additionalProperties": false
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "risk_class": {
+            "const": "high"
+          }
+        },
+        "required": [
+          "risk_class"
+        ]
+      },
+      "then": {
+        "required": [
+          "human_approval_required"
+        ],
+        "properties": {
+          "human_approval_required": {
+            "const": true
+          }
+        }
+      }
+    }
+  ]
 }

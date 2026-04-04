@@ -16,6 +16,8 @@ CREATE TABLE IF NOT EXISTS action_packets (
   packet_json TEXT NOT NULL,
   created_at TEXT NOT NULL,
   FOREIGN KEY(task_id) REFERENCES tasks(task_id)
+    ON UPDATE CASCADE
+    ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS agent_events (
@@ -27,6 +29,8 @@ CREATE TABLE IF NOT EXISTS agent_events (
   timestamp TEXT NOT NULL,
   event_json TEXT NOT NULL,
   FOREIGN KEY(task_id) REFERENCES tasks(task_id)
+    ON UPDATE CASCADE
+    ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS memory_capsules (
@@ -51,6 +55,8 @@ CREATE TABLE IF NOT EXISTS approvals (
   rationale TEXT,
   created_at TEXT NOT NULL,
   FOREIGN KEY(task_id) REFERENCES tasks(task_id)
+    ON UPDATE CASCADE
+    ON DELETE CASCADE
 );
 
 CREATE INDEX IF NOT EXISTS idx_agent_events_task_id ON agent_events(task_id);

@@ -51,6 +51,14 @@ Composer needs strict entry behavior before it can safely participate in a CAID-
 - local control-plane SQLite starter schema exists
 - no product runtime behavior changes are introduced
 
+## Review follow-up
+
+This follow-up keeps the PR narrow and closes merge-readiness review items without widening scope:
+
+- make SQLite child-table foreign-key behavior explicit
+- add explicit human approval signaling to the action packet schema for high-risk work
+- allow clean reflection packets without mandatory failure entries
+
 ## Next PRs
 
 1. `chore(orchestration): add local workforce control-plane SQLite adapter`

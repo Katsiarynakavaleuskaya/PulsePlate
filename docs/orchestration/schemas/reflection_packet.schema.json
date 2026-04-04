@@ -44,14 +44,14 @@
       "items": {
         "type": "string"
       },
-      "minItems": 1
+      "default": []
     },
     "root_cause": {
       "type": "array",
       "items": {
         "type": "string"
       },
-      "minItems": 1
+      "default": []
     },
     "repeat_risk": {
       "type": "string",

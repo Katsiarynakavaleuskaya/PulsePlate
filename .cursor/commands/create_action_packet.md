@@ -20,6 +20,11 @@ Emit one narrow execution packet using the canonical fields below.
 - `risk_class`
 - `verification`
 - `promotion_target`
+
+## Optional fields
+
+- `human_approval_required` (required and must be `true` when `risk_class = high`)
+- `requested_agents`
 - `notes`
 
 ## Output format
@@ -38,6 +43,7 @@ scope_out:
 constraints:
   - ...
 risk_class: low|medium|high
+human_approval_required: false
 verification:
   - ...
 promotion_target:
@@ -45,6 +51,13 @@ promotion_target:
   path: ...
 notes:
   - ...
+```
+
+For high-risk packets, set:
+
+```yaml
+risk_class: high
+human_approval_required: true
 ```
 
 Keep packets narrow, reviewable, and rollback-safe.
