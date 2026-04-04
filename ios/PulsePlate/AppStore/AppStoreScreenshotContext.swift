@@ -68,7 +68,6 @@ enum AppStoreScreenshotContext {
         guard isEnabled else { return }
 
         let userDefaults = UserDefaults.standard
-        let scenario = currentScenario ?? .coreValue
 
         // RU: Для App Store automation фиксируем детерминированное состояние без реальных данных.
         // EN: App Store automation always runs against deterministic seeded state only.
