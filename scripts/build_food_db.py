@@ -178,6 +178,9 @@ class FoodDatabaseBuilder:
                     version_date=record.get("version_date", datetime.now().isoformat()),
                     # Accept either key to avoid losing OFF/merge price
                     price_per_100g=record.get("price_per_100g", record.get("price", 0.0)),
+                    nutrition_inputs=record.get("nutrition_inputs", []),
+                    nutrition_provenance=record.get("nutrition_provenance", {}),
+                    nutrition_confidence=record.get("nutrition_confidence", 0.0),
                 )
                 validated_foods.append(food_item)
 
@@ -266,7 +269,10 @@ class FoodDatabaseBuilder:
                 source TEXT,
                 source_priority INTEGER,
                 version_date TEXT,
-                price_per_100g REAL
+                price_per_100g REAL,
+                nutrition_inputs_json TEXT,
+                nutrition_provenance_json TEXT,
+                nutrition_confidence REAL
             )
         """)
 
@@ -312,10 +318,13 @@ class FoodDatabaseBuilder:
                         food.source_priority,
                         food.version_date,
                         food.price_per_100g,
+                        json.dumps(food.nutrition_inputs, ensure_ascii=False),
+                        json.dumps(food.nutrition_provenance, ensure_ascii=False),
+                        food.nutrition_confidence,
                     ),
                 )
             cursor.executemany(
-                "INSERT INTO foods VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                "INSERT INTO foods VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 rows,
             )
 

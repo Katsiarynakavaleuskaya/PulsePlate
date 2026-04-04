@@ -163,6 +163,50 @@ def test_search_foods_parameter_normalization(monkeypatch: pytest.MonkeyPatch) -
     assert dummy.last_params[-2:] == [5, 1]
 
 
+def test_normalize_food_row_parses_additive_nutrition_metadata() -> None:
+    row = {
+        "id": "food-1",
+        "canonical_name": "apple",
+        "nutrition_inputs_json": '[{"source":"estimate","record_id":"off-1"}]',
+        "nutrition_provenance_json": '{"protein_g":"estimate"}',
+        "nutrition_confidence": 0.4,
+    }
+
+    normalized = food_store._normalize_food_row(row)
+
+    assert normalized["nutrition_inputs"][0]["source"] == "estimate"
+    assert normalized["nutrition_provenance"]["protein_g"] == "estimate"
+    assert normalized["nutrition_confidence"] == 0.4
+
+
+def test_normalize_food_row_handles_invalid_json_and_none_confidence() -> None:
+    row = {
+        "id": "food-2",
+        "nutrition_inputs_json": "not-json",
+        "nutrition_provenance_json": "not-json",
+        "nutrition_confidence": None,
+    }
+
+    normalized = food_store._normalize_food_row(row)
+
+    assert normalized["nutrition_inputs"] == []
+    assert normalized["nutrition_provenance"] == {}
+    assert normalized["nutrition_confidence"] == 0.0
+
+
+def test_normalize_food_row_ignores_non_list_or_non_dict_payloads() -> None:
+    row = {
+        "id": "food-3",
+        "nutrition_inputs_json": '{"source":"estimate"}',
+        "nutrition_provenance_json": '["bad"]',
+    }
+
+    normalized = food_store._normalize_food_row(row)
+
+    assert normalized["nutrition_inputs"] == []
+    assert normalized["nutrition_provenance"] == {}
+
+
 def test_get_food_by_barcode_returns_row_with_normalized_input(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

@@ -7,6 +7,7 @@ EN: Access to FoodDB (SQLite) with FTS and alias expansion.
 
 from contextlib import contextmanager
 import csv
+import json
 import sqlite3
 from pathlib import Path
 import logging
@@ -407,7 +408,7 @@ class FoodRepository:
     def get_by_id(food_id: str) -> Optional[Dict[str, Any]]:
         with _connect() as con:
             row = con.execute("SELECT * FROM foods WHERE id = ?", (food_id,)).fetchone()
-        return dict(row) if row else None
+        return _normalize_food_row(dict(row)) if row else None
 
     @staticmethod
     def get_by_gtin(gtin: str) -> Optional[Dict[str, Any]]:
@@ -415,7 +416,35 @@ class FoodRepository:
             row = con.execute(
                 "SELECT * FROM foods WHERE gtin = ? ORDER BY id ASC LIMIT 1", (gtin,)
             ).fetchone()
-        return dict(row) if row else None
+        return _normalize_food_row(dict(row)) if row else None
+
+
+def _normalize_food_row(row: Dict[str, Any]) -> Dict[str, Any]:
+    """Parse additive JSON fields from SQLite rows when present."""
+
+    normalized = dict(row)
+    raw_inputs = normalized.get("nutrition_inputs_json")
+    if isinstance(raw_inputs, str):
+        try:
+            parsed_inputs = json.loads(raw_inputs)
+        except (TypeError, ValueError):
+            parsed_inputs = []
+        normalized["nutrition_inputs"] = parsed_inputs if isinstance(parsed_inputs, list) else []
+
+    raw_provenance = normalized.get("nutrition_provenance_json")
+    if isinstance(raw_provenance, str):
+        try:
+            parsed_provenance = json.loads(raw_provenance)
+        except (TypeError, ValueError):
+            parsed_provenance = {}
+        normalized["nutrition_provenance"] = (
+            parsed_provenance if isinstance(parsed_provenance, dict) else {}
+        )
+
+    if "nutrition_confidence" in normalized and normalized["nutrition_confidence"] is None:
+        normalized["nutrition_confidence"] = 0.0
+
+    return normalized
 
 
 def _is_truthy_env(value: str | None) -> bool:
