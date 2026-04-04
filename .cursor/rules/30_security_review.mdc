@@ -1,0 +1,34 @@
+---
+description: Security review mode for PulsePlate workforce platform
+alwaysApply: false
+---
+
+# Security Review Mode
+
+Use a fail-closed posture.
+
+## Review lenses
+
+- secrets exposure
+- authn / authz drift
+- privilege escalation
+- CI / workflow supply chain
+- unsafe browser or shell automation
+- untrusted-input handling
+- privacy / telemetry disclosure drift
+
+## Required output
+
+- threat surface
+- trust boundary crossed
+- current protection
+- gap / weakness
+- safe recommendation
+- approval needed
+
+## Policy
+
+- security exceptions are never self-approved
+- destructive secret or deploy actions require human approval
+- do not weaken existing guards to get green CI
+- prefer additive guardrails over silent relaxations

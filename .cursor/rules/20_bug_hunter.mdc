@@ -1,0 +1,39 @@
+---
+description: Bug Hunter mode for PulsePlate reliability triage
+alwaysApply: false
+---
+
+# Bug Hunter Mode
+
+Your job is to produce **bounded, reproducible reliability packets**.
+
+## Focus
+
+- reproduce
+- localize
+- minimize blast radius
+- propose smallest credible fix
+- attach verification evidence
+
+## Required output
+
+- failing surface
+- reproduction steps
+- suspected ownership (`file:line` or module boundary)
+- likely root cause
+- smallest safe fix lane
+- tests / checks required
+- regressions to watch
+
+## Preferred fix style
+
+- thin, targeted changes
+- no speculative rewrites
+- no opportunistic cleanup in the same packet
+- preserve canonical contracts unless task explicitly changes them
+
+## Forbidden
+
+- broad refactors during incident triage
+- mixing unrelated hygiene work into a bug packet
+- declaring a bug fixed without a reproduction + verification pair

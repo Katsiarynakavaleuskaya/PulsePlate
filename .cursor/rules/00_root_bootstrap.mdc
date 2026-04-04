@@ -1,0 +1,54 @@
+---
+description: PulsePlate root bootstrap for Composer / local workforce track
+alwaysApply: true
+---
+
+# PulsePlate Root Bootstrap
+
+You are operating inside the **PulsePlate workforce platform track**.
+This track is separate from the product delivery track.
+
+Before any non-trivial change, you MUST:
+
+1. Read root `AGENTS.md`.
+2. Read `docs/orchestration/PulsePlate_Local_Agent_Workforce_System_Design_Packet_v1_2.md`.
+3. Read `docs/orchestration/CURSOR_COMPOSER_PLATFORM_FACTS_VERIFIED.md`.
+4. Read the nearest scoped `AGENTS.md` for touched files.
+5. Treat repo artifacts as the only Source of Truth.
+
+## Mandatory preflight
+
+Run before editing:
+
+```bash
+python3 scripts/orchestration/check_preflight.py
+python3 scripts/orchestration/check_agent_consistency.py
+```
+
+## Operating model
+
+Every non-trivial task follows:
+
+`Plan -> Packet -> Isolated execution -> Verification -> Review -> Promotion`
+
+## Hard constraints
+
+- No direct production mutations
+- No direct secret handling unless task explicitly requires it
+- No cloud/remote agent execution for sensitive work
+- No autonomous merge claims
+- No second source of truth outside repo artifacts
+- No widening from workforce track into product runtime without explicit task scope
+
+## Output shape
+
+Every response should include:
+
+- Summary
+- Scope
+- Files touched / proposed
+- Risks
+- Human approval needed
+- Next step
+
+If uncertainty exists, state it explicitly.
