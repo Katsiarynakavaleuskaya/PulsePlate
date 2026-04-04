@@ -2168,12 +2168,13 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Merge-readiness docs explain that this is a default requirement, not optional reviewer theater
 
 <a id="ledger-p1-classify-ci-checks-as-hard-soft-external"></a>
-- [ ] P1: Coordinator automation PR2 — bootstrap engine hardening
+- [x] P1: Coordinator automation PR2 — bootstrap engine hardening
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-1254
+  - Target PR: PR #1254
   - Area: orchestration / task bootstrap / packet schema
   - Finding Type: automation rollout slice
+  - Status: Materially completed via merged PR `#1254` on March 27, 2026; this slice is the landed bootstrap baseline for the later coordinator automation wave.
   - Reason: PR1 locks the governance boundary, but coordinator-first still remains policy-required rather than reliably packet-driven for every non-trivial task. The next slice must harden `task_bootstrap` and related bridge contracts without mixing in PR lifecycle or design-lane behavior.
   - Dependencies:
     - `PR-1252`
@@ -2190,12 +2191,13 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Deterministic tests cover coordinator-first packet stability and new schema invariants
     - No PR-open automation, Figma trigger logic, or local launcher changes are included
 
-- [ ] P2: Centralize bootstrap sync-policy constants for task packet derivation
+- [x] P2: Centralize bootstrap sync-policy constants for task packet derivation
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2
-  - Target PR: PR-TBD-AUTOMATION-BOOTSTRAP-SYNC-POLICY
+  - Target PR: PR #1327 (`refactor(orchestration): centralize bootstrap sync policy`)
   - Area: orchestration / task bootstrap / policy constants
   - Finding Type: follow-up hardening
+  - Status: Materially completed via merged PR `#1327` (`7df804cf`) on April 4, 2026; this hardening is now part of the landed bootstrap baseline and should not remain an open prerequisite.
   - Reason: PR2 intentionally keeps sync heuristics local to `task_bootstrap.py`, but review feedback highlighted that implementation roots and sync-signal markers should eventually move into a shared policy surface so future automation slices can evolve them without editing bootstrap logic directly.
   - Dependencies:
     - `PR-1254`
@@ -2209,15 +2211,16 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `task_bootstrap.py` consumes the shared policy source instead of duplicating constants inline
     - Deterministic tests cover the shared policy contract and bootstrap integration
 
-- [ ] P1: Coordinator automation PR3 — skill routing and intent classifier
+- [x] P1: Coordinator automation PR3 — skill routing and intent classifier
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-TBD-AUTOMATION-PR3-SKILL-INTENT
+  - Target PR: PR #1265
   - Area: orchestration / skills / intent classification
   - Finding Type: automation rollout slice
+  - Status: Materially completed via merged PR `#1265` on March 28, 2026; baseline routing landed in commit `5bc96098` and the governance-lane preservation fix landed in `d3c3a9d1`, so this slice is no longer a `PR-TBD` dependency.
   - Reason: After bootstrap hardening, the next failure mode is still over- or under-selecting skills and treating unlike tasks as the same class. The routing layer needs a deterministic classifier and explicit required/recommended/conditional/blocked outputs before any lifecycle or design automation is added.
   - Dependencies:
-    - `PR-1254`
+    - `PR #1254`
   - Lifecycle: Start → Open → Push → Review → Merge
   - Links:
     - `docs/orchestration/AUTOMATION_READINESS_MATRIX.md`
@@ -2239,7 +2242,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Status: Materially completed via merged PR `#1266` (`5dfa055d`) on March 28, 2026; this slice now serves as the landed baseline input for PR5.
   - Reason: The canonical docs already require a post-open `qa-engineer-agent -> bug-hunter` loop, but the behavior is still policy-only and easy to forget. The PR lifecycle slice must turn that requirement into deterministic PR-phase automation without widening into design or brainstorming lanes.
   - Dependencies:
-    - `PR-TBD-AUTOMATION-PR3-SKILL-INTENT`
+    - `PR #1265`
   - Lifecycle: Start → Open → Push → Review → Merge
   - Links:
     - `docs/orchestration/AUTOMATION_READINESS_MATRIX.md`
@@ -2259,7 +2262,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Target PR: PR #1268 (`feat(orchestration): gate design lanes`)
   - Area: orchestration / research / design tooling
   - Finding Type: automation rollout slice
-  - Status: Materially completed via merged PR `#1268` (`ef7ac2fe`) on March 28, 2026; this slice now serves as the landed baseline input for the security-first remediation PR.
+  - Status: Materially completed via merged PR `#1268` (`ef7ac2fe`) on March 28, 2026; for the orchestration continuation track, this slice is now baseline and the next non-duplicate repo lane moves to the local workforce follow-on PRs below.
   - Reason: Creative research and design lanes are the broadest automation surface and must come after bootstrap and skill routing stabilize. This slice should add explicit trigger rules and safe activation boundaries instead of letting design/Figma behavior emerge implicitly.
   - Dependencies:
     - `PR #1266`
@@ -2276,10 +2279,85 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Safe source-precedence and blocker rules are documented
     - No broad PR-governance refactor or merge-readiness semantic change is included
 
+<a id="ledger-p1-local-workforce-pr-a-bootstrap-seam"></a>
+- [ ] P1: Local workforce PR-A — extend the canonical coordinator bootstrap seam
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-LOCAL-WORKFORCE-PR-A-BOOTSTRAP-SEAM
+  - Area: orchestration / task bootstrap / skill routing / local workforce
+  - Finding Type: RFC follow-on slice
+  - Status: Planned as the next non-duplicate repo lane after the docs-only RFC and automation-status reconciliation.
+  - Reason: `docs/orchestration/COMPOSER_BOOTSTRAP_KIT_PR1.md` explicitly requires extending the existing coordinator bootstrap seam instead of introducing a second packet system. Coordinator automation PR2-PR5 plus the sync-policy extraction are already landed, so the next repo lane must add any local-workforce semantics additively on top of `task_bootstrap.py`, `skill_router.py`, and `bootstrap_sync_policy.py`.
+  - Dependencies:
+    - `PR #1325`
+    - `PR #1327`
+    - `PR #1328`
+  - Lifecycle: Start → Open → Push → Review → Merge
+  - Links:
+    - `docs/orchestration/COMPOSER_BOOTSTRAP_KIT_PR1.md`
+    - `docs/orchestration/PulsePlate_Local_Agent_Workforce_System_Design_Packet_v1_2.md`
+    - `scripts/orchestration/task_bootstrap.py`
+    - `scripts/orchestration/skill_router.py`
+    - `scripts/orchestration/bootstrap_sync_policy.py`
+    - `tests/test_task_bootstrap.py`
+    - `tests/test_skill_router.py`
+    - `tests/test_bootstrap_sync_policy.py`
+  - DoD:
+    - Any new local-workforce semantics land additively on the canonical bootstrap/routing surfaces
+    - Docs parity stays in sync across `AGENT_SKILL_ROUTING_POLICY.md`, `AGENT_MESSAGE_PROTOCOL.md`, and workflow docs where required
+    - Deterministic tests cover the updated packet and routing contracts
+    - No standalone action-packet or parallel bootstrap schema system is introduced
+    - No launcher/runtime auto-start claims are added to repo docs
+
+<a id="ledger-p1-local-workforce-pr-b-reflection-protocol"></a>
+- [ ] P1: Local workforce PR-B — extend the canonical reflection protocol first
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-LOCAL-WORKFORCE-PR-B-REFLECTION-PROTOCOL
+  - Area: orchestration / reflection / knowledge promotion
+  - Finding Type: RFC follow-on slice
+  - Status: Planned
+  - Reason: The local workforce RFC requires reflection changes to land through the canonical reflection protocol before any helper or schema material is promoted. This keeps knowledge-promotion semantics inside the existing repo SoT instead of creating a second reflection contract.
+  - Dependencies:
+    - `PR-TBD-LOCAL-WORKFORCE-PR-A-BOOTSTRAP-SEAM`
+  - Lifecycle: Start → Open → Push → Review → Merge
+  - Links:
+    - `docs/orchestration/COMPOSER_BOOTSTRAP_KIT_PR1.md`
+    - `docs/orchestration/AGENT_REFLECTION_PROTOCOL.md`
+    - `docs/orchestration/AGENT_MESSAGE_PROTOCOL.md`
+  - DoD:
+    - Reflection changes land in the canonical protocol before any derived helper/schema material
+    - No parallel reflection contract is introduced beside `AGENT_REFLECTION_PROTOCOL.md`
+    - Protocol wording remains explicit about canonical repo truth versus advisory/support surfaces
+
+<a id="ledger-p2-local-workforce-pr-c-support-plane"></a>
+- [ ] P2: Local workforce PR-C — add experimental local support-plane storage
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR-TBD-LOCAL-WORKFORCE-PR-C-SUPPORT-PLANE
+  - Area: orchestration / security / local support plane
+  - Finding Type: RFC follow-on slice
+  - Status: Planned
+  - Reason: The RFC allows an experimental local control-plane/storage layer only as a non-canonical support plane. If promoted, it must reuse existing security/control-plane primitives where possible and must not become a second orchestration source of truth.
+  - Dependencies:
+    - `PR-TBD-LOCAL-WORKFORCE-PR-B-REFLECTION-PROTOCOL`
+  - Lifecycle: Start → Open → Push → Review → Merge
+  - Links:
+    - `docs/orchestration/COMPOSER_BOOTSTRAP_KIT_PR1.md`
+    - `docs/orchestration/PulsePlate_Local_Agent_Workforce_System_Design_Packet_v1_2.md`
+    - `docs/security/AGENT_CONTROL_PLANE_SECURITY_BASELINE.md`
+    - `docs/architecture/ADR-003-agent-control-plane-mvp.md`
+    - `app/security/agent_control_plane.py`
+  - DoD:
+    - Experimental local support-plane storage/runtime remains explicitly non-canonical
+    - Existing security/control-plane primitives are reused where possible
+    - Launcher/runtime behavior stays outside repo SoT unless separately promoted by the automation readiness matrix
+    - No duplicate orchestration source of truth is introduced
+
 - [ ] P2: Local launcher rollout for coordinator-first automation
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2
-  - Target PR: PR-TBD-LOCAL-LAUNCHER-ROLLOUT (after PR2 minimum; preferred after PR5)
+  - Target PR: PR-TBD-LOCAL-LAUNCHER-ROLLOUT (outside repo PR chain; after PR2 minimum, preferred after PR5, and after any repo follow-on PR-A/B/C for the local workforce track)
   - Area: local tooling / launcher / Codex runtime
   - Finding Type: non-repo rollout follow-up
   - Reason: Repo docs and deterministic engines alone cannot force raw session auto-start. A machine-local launcher or wrapper must wire preflight, bootstrap, and compatible runtime settings without pretending that `~/.codex/config.toml` is repo source of truth.
