@@ -52,12 +52,16 @@ git push origin main
 - `build-production` сам по себе **не означает**, что production origin обновлён.
 - Для semver tag `vX.Y.Z` production deploy запускается только после того, как
   workflow в `production-deploy-config` прочитает `PROD_DEPLOY_MODE` и
-  `WEB_IOS_RELEASE_READY` через GitHub Actions variables API и разрешит ровно один deploy lane.
+  `WEB_IOS_RELEASE_READY`, а также `PRODUCTION_ENV_READY`, через GitHub Actions variables API
+  и разрешит ровно один deploy lane.
 - Если стандартный `github.token` получает `403` на чтении `production`
   environment variables, bridge-job должен retry через секрет
   `PRODUCTION_ENV_READ_TOKEN`; иначе tag lane упадёт ещё до выбора deploy mode.
 - Если эти флаги не выставлены корректно, CD останется в режиме build-only:
   образ будет в GHCR, но live origin не изменится.
+- `PRODUCTION_ENV_READY=true` можно выставлять только после того, как infra/release
+  owner уже создал серверный `/srv/pulseplate-production/.env` (или `$DEPLOY_DIR/.env`)
+  и подтвердил, что host bootstrap is complete. GitHub Actions этот файл не создаёт.
 
 **Проверка:**
 - Зайди в GitHub → Actions → проверь, что workflow зелёный
@@ -198,7 +202,7 @@ curl -fsS https://pulseplate.app/health | jq .
 
 ## ⚠️ Важные правила
 
-### ❌ Никогда не делай на сервере:
+### ❌ Никогда не делай на сервере
 
 1. **Правка кода приложения:**
    ```bash
@@ -220,7 +224,7 @@ curl -fsS https://pulseplate.app/health | jq .
    docker exec -it app vim /app/legacy_app.py
    ```
 
-### ✅ Правильно:
+### ✅ Правильно
 
 1. **Изменить код локально → commit → push → pull image на сервере**
 
@@ -244,14 +248,14 @@ curl -fsS https://pulseplate.app/health | jq .
 
 ## 🔍 Проверка после деплоя
 
-### 1. Проверить, что новый образ подтянут:
+### 1. Проверить, что новый образ подтянут
 
 ```bash
 docker images | grep pulseplate
 # Должен быть свежий image с актуальным timestamp
 ```
 
-### 2. Проверить, что контейнер использует новый образ:
+### 2. Проверить, что контейнер использует новый образ
 
 ```bash
 # Получить container id сервиса app и посмотреть image
@@ -260,7 +264,7 @@ docker inspect "$APP_CID" --format '{{.Config.Image}}'
 # Должен показывать актуальный image ID
 ```
 
-### 3. Проверить health endpoint:
+### 3. Проверить health endpoint
 
 ```bash
 curl -fsS https://pulseplate.app/health | jq .
@@ -294,7 +298,7 @@ curl -fsS https://pulseplate.app/health | jq .
   treat that as edge/shell parity drift and run `BASE_URL=https://$PRODUCTION_DOMAIN bash scripts/diagnose_web.sh`
   before assuming an application bug.
 
-### 4. Проверить логи:
+### 4. Проверить логи
 
 ```bash
 docker-compose -f docker-compose.production.yaml logs app --tail=50

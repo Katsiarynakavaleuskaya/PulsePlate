@@ -145,6 +145,8 @@ fi
 
 if [ ! -f "$ENV_FILE" ]; then
   echo "❌ Missing production env file: $ENV_FILE" >&2
+  echo "Create this server-local runtime file before deploy; GitHub Actions does not provision it." >&2
+  echo "See deploy/PRODUCTION.md for the canonical bootstrap contract." >&2
   exit 1
 fi
 

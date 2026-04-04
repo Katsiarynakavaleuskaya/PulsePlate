@@ -12,6 +12,9 @@ PROD_DEPLOY_MODE_ENV_FETCH = (
 WEB_IOS_RELEASE_READY_ENV_FETCH = (
     'get_actions_variable "environments/production/variables" "WEB_IOS_RELEASE_READY"'
 )
+PRODUCTION_ENV_READY_ENV_FETCH = (
+    'get_actions_variable "environments/production/variables" "PRODUCTION_ENV_READY"'
+)
 
 
 def test_production_deploy_jobs_use_bridge_job_outputs() -> None:
@@ -27,6 +30,7 @@ def test_production_deploy_jobs_use_bridge_job_outputs() -> None:
     assert "Resolve production deploy configuration" in workflow_text
     assert PROD_DEPLOY_MODE_ENV_FETCH in workflow_text
     assert WEB_IOS_RELEASE_READY_ENV_FETCH in workflow_text
+    assert PRODUCTION_ENV_READY_ENV_FETCH in workflow_text
     assert "GH_TOKEN: ${{ github.token }}" in workflow_text
     assert "PRODUCTION_ENV_READ_TOKEN: ${{ secrets.PRODUCTION_ENV_READ_TOKEN }}" in workflow_text
     assert 'DEFAULT_GH_TOKEN="${GH_TOKEN}"' in workflow_text
@@ -44,6 +48,13 @@ def test_production_deploy_jobs_use_bridge_job_outputs() -> None:
     assert "needs.production-deploy-config.outputs.should_deploy == 'true'" in workflow_text
     assert "needs.production-deploy-config.outputs.deploy_mode == 'ssh'" in workflow_text
     assert "needs.production-deploy-config.outputs.deploy_mode == 'self-hosted'" in workflow_text
+    assert 'env_ready="${env_ready:-false}"' in workflow_text
+    assert 'if [ "$env_ready" = "true" ]; then' in workflow_text
+    assert (
+        "Production deploy remains build-only: PRODUCTION_ENV_READY=true is required after host bootstrap confirms"
+        in workflow_text
+    )
+    assert 'echo "env_ready=$env_ready"' in workflow_text
     assert "environment:" not in bridge_section
     assert "vars.PROD_DEPLOY_MODE == 'ssh'" not in workflow_text
     assert "vars.PROD_DEPLOY_MODE == 'self-hosted'" not in workflow_text
