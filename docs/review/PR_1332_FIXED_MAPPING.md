@@ -7,12 +7,17 @@
 ## Fixed in Commit Mapping
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1332#discussion_r3036116764 -> 48f0022b
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1332#discussion_r3036117132 -> 48f0022b
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1332#discussion_r3036119278 -> 48f0022b
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1332#discussion_r3036119281 -> 48f0022b
 Disposition: FIXED
 Commit: 48f0022b
 Evidence: `docs/review/PR_1332_FIXED_MAPPING.md:4`, `docs/review/PR_1332_FIXED_MAPPING.md:5`, `docs/review/PR_1332_FIXED_MAPPING.md:8`
-Reason: The artifact now uses the canonical `[x]` discussion checkboxes and the exact no-actionable bullet required by the Phase2 mapping guard for the original no-comment state.
+Reason: The first artifact-fix commit flipped the required discussion checkboxes and restored the canonical no-actionable bullet format expected by the Phase2 guard.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1332#discussion_r3036119278 -> da49f82f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1332#discussion_r3036119281 -> da49f82f
+Disposition: FIXED
+Commit: da49f82f
+Evidence: `docs/review/PR_1332_FIXED_MAPPING.md:4`, `docs/review/PR_1332_FIXED_MAPPING.md:5`, `docs/review/PR_1332_FIXED_MAPPING.md:8`
+Reason: The later artifact-normalization commit recorded the disposition blocks required by the Phase2 mapping guard, giving these cubic threads a valid post-comment proof commit.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1332#discussion_r3036117134
 Disposition: NOT-A-BUG
