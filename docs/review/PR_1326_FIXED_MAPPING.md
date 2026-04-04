@@ -25,8 +25,8 @@ Evidence: docs/orchestration/AGENTS.md:5; docs/orchestration/AGENTS.md:40; AGENT
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1326#pullrequestreview-4058837580
 
 ## Merge Readiness
-- [x] All required checks pass
+- [ ] All required checks pass
 - [x] No unresolved review threads (re-check on current head before merge)
-- [x] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
+- [ ] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
 - [x] Pre-commit green
 - [x] `make verify` green
