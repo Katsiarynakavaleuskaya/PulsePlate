@@ -9,9 +9,11 @@ from fastapi import FastAPI
 
 from app.services import food_store
 from app.services.search_meili import MeiliSearchBackend, ShadowSearchBackend
+from app.utils.feature_flags import _is_truthy
 
 DEFAULT_MEILI_TIMEOUT_SECONDS = 2.0
 DEFAULT_MEILI_INDEX_NAME = "foods"
+MEILI_SHOW_PERFORMANCE_DETAILS_ENV = "MEILI_SHOW_PERFORMANCE_DETAILS"
 
 
 def _safe_timeout_seconds(raw_value: str | None) -> float:
@@ -31,6 +33,12 @@ def _safe_index_name(raw_value: str | None) -> str:
 
     normalized = (raw_value or "").strip()
     return normalized or DEFAULT_MEILI_INDEX_NAME
+
+
+def _safe_show_performance_details(raw_value: str | None) -> bool:
+    """Return validated Meili performance-details flag with safe default."""
+
+    return _is_truthy(raw_value)
 
 
 def register_food_search_backend(app: FastAPI) -> None:
@@ -53,6 +61,10 @@ def register_food_search_backend(app: FastAPI) -> None:
         index_name=_safe_index_name(os.getenv("MEILI_FOODS_INDEX")),
         api_key=(os.getenv("MEILI_KEY") or "").strip() or None,
         timeout_seconds=_safe_timeout_seconds(os.getenv("MEILI_TIMEOUT_SECONDS")),
+        show_performance_details=_safe_show_performance_details(
+            os.getenv(MEILI_SHOW_PERFORMANCE_DETAILS_ENV)
+        ),
+        search_strategy_label=strategy,
         fallback_backend=food_store.get_legacy_search_backend(),
     )
     adapter: food_store.FoodSearchBackend

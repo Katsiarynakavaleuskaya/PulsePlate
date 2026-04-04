@@ -6,8 +6,10 @@ import httpx
 import pytest
 from typing import Literal
 
+import app.metrics as app_metrics
 from app.bootstrap.food_search import (
     _safe_index_name,
+    _safe_show_performance_details,
     _safe_timeout_seconds,
     register_food_search_backend,
 )
@@ -163,6 +165,248 @@ def test_meili_backend_passes_authorization_header_to_transport() -> None:
 
     assert backend.search_foods("apple") == []
     assert captured_headers == [{"Authorization": "Bearer x"}]
+
+
+def test_meili_backend_omits_show_performance_details_when_disabled() -> None:
+    captured_payloads: list[dict[str, object]] = []
+
+    def _transport(
+        url: str,
+        payload: dict[str, object | int | str],
+        headers: dict[str, str] | Mapping[str, str],
+        timeout_seconds: float,
+    ) -> dict[str, object]:
+        captured_payloads.append(dict(payload))
+        return {"hits": []}
+
+    backend = MeiliSearchBackend(
+        base_url="https://meili.example",
+        index_name="foods",
+        transport=_transport,
+    )
+
+    assert backend.search_foods("apple") == []
+    assert "showPerformanceDetails" not in captured_payloads[0]
+
+
+def test_meili_backend_includes_show_performance_details_when_enabled() -> None:
+    captured_payloads: list[dict[str, object]] = []
+
+    def _transport(
+        url: str,
+        payload: dict[str, object | int | str],
+        headers: dict[str, str] | Mapping[str, str],
+        timeout_seconds: float,
+    ) -> dict[str, object]:
+        captured_payloads.append(dict(payload))
+        return {"hits": []}
+
+    backend = MeiliSearchBackend(
+        base_url="https://meili.example",
+        index_name="foods",
+        show_performance_details=True,
+        transport=_transport,
+    )
+
+    assert backend.search_foods("apple") == []
+    assert captured_payloads[0]["showPerformanceDetails"] is True
+
+
+def test_meili_backend_records_captured_performance_details(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured_summaries: list[dict[str, object]] = []
+    captured_stages: list[dict[str, object]] = []
+
+    monkeypatch.setattr(
+        search_meili_module,
+        "record_food_search_meili_performance",
+        lambda **kwargs: captured_summaries.append(kwargs),
+    )
+    monkeypatch.setattr(
+        search_meili_module,
+        "record_food_search_meili_stage_timing",
+        lambda **kwargs: captured_stages.append(kwargs),
+    )
+
+    backend = MeiliSearchBackend(
+        base_url="https://meili.example",
+        index_name="foods",
+        show_performance_details=True,
+        search_strategy_label="hybrid_shadow",
+        transport=lambda *_args: {
+            "hits": [
+                {
+                    "id": "1",
+                    "name": "Apple",
+                    "kcal": 52,
+                    "protein_g": 0.3,
+                    "fat_g": 0.2,
+                    "carbs_g": 14,
+                }
+            ],
+            "processingTimeMs": 42,
+            "performanceDetails": {
+                "authorization": {"durationMs": 1},
+                "tokenization": {"durationMs": 2},
+                "keywordSearch": {"durationMs": 15},
+                "formatting": {"durationMs": 4},
+                "degraded": False,
+            },
+        },
+    )
+
+    rows = backend.search_foods("apple")
+
+    assert rows[0]["id"] == "1"
+    assert captured_summaries == [
+        {
+            "strategy": "hybrid_shadow",
+            "perf_state": "captured",
+            "degraded": "false",
+            "processing_time_ms": 42.0,
+        }
+    ]
+    assert captured_stages == [
+        {"strategy": "hybrid_shadow", "stage": "authorization", "duration_ms": 1.0},
+        {"strategy": "hybrid_shadow", "stage": "tokenization", "duration_ms": 2.0},
+        {"strategy": "hybrid_shadow", "stage": "keyword_search", "duration_ms": 15.0},
+        {"strategy": "hybrid_shadow", "stage": "formatting", "duration_ms": 4.0},
+    ]
+
+
+def test_meili_backend_treats_invalid_perf_details_as_observability_only(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured_summaries: list[dict[str, object]] = []
+
+    monkeypatch.setattr(
+        search_meili_module,
+        "record_food_search_meili_performance",
+        lambda **kwargs: captured_summaries.append(kwargs),
+    )
+    monkeypatch.setattr(
+        search_meili_module,
+        "record_food_search_meili_stage_timing",
+        lambda **kwargs: None,
+    )
+
+    backend = MeiliSearchBackend(
+        base_url="https://meili.example",
+        index_name="foods",
+        show_performance_details=True,
+        transport=lambda *_args: {
+            "hits": [{"id": "1", "name": "Apple"}],
+            "processingTimeMs": 18,
+            "performanceDetails": "bad-shape",
+        },
+    )
+
+    rows = backend.search_foods("apple")
+
+    assert rows == [
+        {
+            "id": "1",
+            "canonical_name": "Apple",
+            "kcal": 0,
+            "protein_g": 0,
+            "fat_g": 0,
+            "carbs_g": 0,
+            "source": None,
+            "content_hash": None,
+        }
+    ]
+    assert captured_summaries == [
+        {
+            "strategy": "meili",
+            "perf_state": "invalid",
+            "degraded": "unknown",
+            "processing_time_ms": 18.0,
+        }
+    ]
+
+
+def test_meili_backend_records_missing_perf_details_when_omitted(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured_summaries: list[dict[str, object]] = []
+
+    monkeypatch.setattr(
+        search_meili_module,
+        "record_food_search_meili_performance",
+        lambda **kwargs: captured_summaries.append(kwargs),
+    )
+    monkeypatch.setattr(
+        search_meili_module,
+        "record_food_search_meili_stage_timing",
+        lambda **kwargs: None,
+    )
+
+    backend = MeiliSearchBackend(
+        base_url="https://meili.example",
+        index_name="foods",
+        show_performance_details=True,
+        transport=lambda *_args: {
+            "hits": [{"id": "1", "name": "Apple"}],
+            "processingTimeMs": 12,
+        },
+    )
+
+    rows = backend.search_foods("apple")
+
+    assert rows[0]["canonical_name"] == "Apple"
+    assert captured_summaries == [
+        {
+            "strategy": "meili",
+            "perf_state": "missing",
+            "degraded": "unknown",
+            "processing_time_ms": 12.0,
+        }
+    ]
+
+
+def test_meili_backend_records_fallback_perf_state_on_transport_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured_summaries: list[dict[str, object]] = []
+
+    monkeypatch.setattr(
+        search_meili_module,
+        "record_food_search_meili_performance",
+        lambda **kwargs: captured_summaries.append(kwargs),
+    )
+    monkeypatch.setattr(
+        search_meili_module,
+        "record_food_search_meili_stage_timing",
+        lambda **kwargs: None,
+    )
+
+    class _FallbackBackend:
+        def search_foods(
+            self,
+            query: str,
+            limit: int | str = 20,
+            offset: int | str = 0,
+        ) -> list[dict[str, str]]:
+            return [{"id": "legacy"}]
+
+    backend = MeiliSearchBackend(
+        base_url="https://meili.example",
+        index_name="foods",
+        show_performance_details=True,
+        transport=lambda *_args: (_ for _ in ()).throw(TimeoutError("boom")),
+        fallback_backend=_FallbackBackend(),
+    )
+
+    assert backend.search_foods("apple") == [{"id": "legacy"}]
+    assert captured_summaries == [
+        {
+            "strategy": "meili",
+            "perf_state": "fallback",
+            "degraded": "unknown",
+            "processing_time_ms": None,
+        }
+    ]
 
 
 def test_shadow_backend_returns_baseline_when_shadow_diverges() -> None:
@@ -405,6 +649,7 @@ def test_register_food_search_backend_registers_meili_strategy(
     monkeypatch.setenv("MEILI_URL", "https://meili.example")
     monkeypatch.setenv("MEILI_FOODS_INDEX", "   ")
     monkeypatch.setenv("MEILI_TIMEOUT_SECONDS", "bad-timeout")
+    monkeypatch.setenv("MEILI_SHOW_PERFORMANCE_DETAILS", "true")
     try:
         register_food_search_backend(app)
         assert app.state.food_search_strategy == "meili"
@@ -412,6 +657,7 @@ def test_register_food_search_backend_registers_meili_strategy(
         assert isinstance(backend, MeiliSearchBackend)
         assert backend._index_name == "foods"
         assert backend._timeout_seconds == 2.0
+        assert backend._show_performance_details is True
     finally:
         food_store.reset_strategy_search_backend_adapter()
 
@@ -438,6 +684,9 @@ def test_safe_timeout_and_index_helpers_use_fallbacks() -> None:
     assert _safe_index_name(None) == "foods"
     assert _safe_index_name("   ") == "foods"
     assert _safe_index_name("foods_v2") == "foods_v2"
+    assert _safe_show_performance_details(None) is False
+    assert _safe_show_performance_details("false") is False
+    assert _safe_show_performance_details("true") is True
 
 
 def test_default_transport_posts_json(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -560,3 +809,284 @@ def test_numeric_field_or_default_returns_zero_for_missing_values() -> None:
     assert _numeric_field_or_default(hit, "fat_g") == 0
     assert _numeric_field_or_default(hit, "carbs_g") == 3
     assert _numeric_field_or_default(hit, "kcal") == 0
+
+
+def test_coerce_non_negative_ms_rejects_nan() -> None:
+    assert search_meili_module._coerce_non_negative_ms(float("nan")) is None
+
+
+def test_search_meili_helper_sanitizers_cover_edge_branches() -> None:
+    assert search_meili_module._normalize_degraded_flag(True) == "true"
+    assert search_meili_module._normalize_degraded_flag("false") == "false"
+    assert search_meili_module._normalize_degraded_flag("maybe") == "unknown"
+    assert search_meili_module._coerce_non_negative_ms(True) is None
+    assert search_meili_module._coerce_non_negative_ms("5") is None
+    assert search_meili_module._coerce_non_negative_ms(-1) is None
+    assert search_meili_module._coerce_non_negative_ms(700_000) is None
+    assert search_meili_module._normalize_stage_name("keywordSearch") == "keyword_search"
+    assert search_meili_module._normalize_stage_name("unknown-stage") is None
+    assert search_meili_module._duration_from_candidate(7) == 7.0
+    assert search_meili_module._duration_from_candidate({"durationMs": 9}) == 9.0
+    assert search_meili_module._duration_from_candidate({"durationMs": "bad"}) is None
+    assert search_meili_module._duration_from_candidate("bad") is None
+
+
+def test_extract_processing_time_ms_uses_details_or_stage_sum() -> None:
+    assert (
+        search_meili_module._extract_processing_time_ms(
+            {},
+            {"totalProcessingTimeMs": 23},
+            {},
+        )
+        == 23.0
+    )
+    assert (
+        search_meili_module._extract_processing_time_ms(
+            {},
+            None,
+            {"tokenization": 2.0, "ranking": 4.0},
+        )
+        == 6.0
+    )
+
+
+def test_normalize_performance_details_marks_invalid_when_payload_has_no_safe_fields() -> None:
+    summary = search_meili_module._normalize_performance_details(
+        {"performanceDetails": {"unknown": {"durationMs": "bad"}}},
+        enabled=True,
+    )
+
+    assert summary.state == "invalid"
+    assert summary.processing_time_ms is None
+    assert summary.stage_timings_ms == {}
+
+
+def test_app_metrics_build_food_search_meili_perf_events_total_returns_none_on_importerror(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        app_metrics,
+        "_import_prometheus",
+        lambda: (_ for _ in ()).throw(ImportError("boom")),
+    )
+    assert app_metrics._build_food_search_meili_perf_events_total() is None
+
+
+def test_app_metrics_build_food_search_meili_processing_time_ms_returns_none_on_importerror(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        app_metrics,
+        "_import_prometheus_histogram",
+        lambda: (_ for _ in ()).throw(ImportError("boom")),
+    )
+    assert app_metrics._build_food_search_meili_processing_time_ms() is None
+    assert app_metrics._build_food_search_meili_stage_processing_time_ms() is None
+
+
+def test_app_metrics_build_food_search_meili_metrics_return_none_on_duplicate_registration(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def _bad_counter(*_args: object, **_kwargs: object) -> object:
+        raise ValueError("duplicate metric name")
+
+    def _bad_histogram(*_args: object, **_kwargs: object) -> object:
+        raise ValueError("duplicate metric name")
+
+    monkeypatch.setattr(app_metrics, "_import_prometheus", lambda: _bad_counter)
+    monkeypatch.setattr(app_metrics, "_import_prometheus_histogram", lambda: _bad_histogram)
+
+    assert app_metrics._build_food_search_meili_perf_events_total() is None
+    assert app_metrics._build_food_search_meili_processing_time_ms() is None
+    assert app_metrics._build_food_search_meili_stage_processing_time_ms() is None
+
+
+def test_record_food_search_meili_performance_normalizes_labels_and_observes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured_labels: list[dict[str, str]] = []
+    captured_observations: list[float] = []
+
+    class _CounterChild:
+        def inc(self, amount: float = 1.0) -> None:
+            captured_observations.append(amount)
+
+    class _Counter:
+        def labels(self, *, strategy: str, perf_state: str, degraded: str) -> _CounterChild:
+            captured_labels.append(
+                {
+                    "strategy": strategy,
+                    "perf_state": perf_state,
+                    "degraded": degraded,
+                }
+            )
+            return _CounterChild()
+
+    class _HistogramChild:
+        def observe(self, amount: float) -> None:
+            captured_observations.append(amount)
+
+    class _Histogram:
+        def labels(self, *, strategy: str, perf_state: str, degraded: str) -> _HistogramChild:
+            captured_labels.append(
+                {
+                    "strategy": strategy,
+                    "perf_state": perf_state,
+                    "degraded": degraded,
+                }
+            )
+            return _HistogramChild()
+
+    monkeypatch.setattr(app_metrics, "FOOD_SEARCH_MEILI_PERF_EVENTS_TOTAL", _Counter())
+    monkeypatch.setattr(app_metrics, "FOOD_SEARCH_MEILI_PROCESSING_TIME_MS", _Histogram())
+
+    app_metrics.record_food_search_meili_performance(
+        strategy="unexpected",
+        perf_state="captured",
+        degraded="maybe",
+        processing_time_ms=33.0,
+    )
+
+    assert captured_labels == [
+        {"strategy": "unknown", "perf_state": "captured", "degraded": "unknown"},
+        {"strategy": "unknown", "perf_state": "captured", "degraded": "unknown"},
+    ]
+    assert captured_observations == [1.0, 33.0]
+
+
+def test_record_food_search_meili_performance_handles_non_string_labels(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured_labels: list[dict[str, str]] = []
+
+    class _CounterChild:
+        def inc(self, amount: float = 1.0) -> None:
+            return None
+
+    class _Counter:
+        def labels(self, *, strategy: str, perf_state: str, degraded: str) -> _CounterChild:
+            captured_labels.append(
+                {
+                    "strategy": strategy,
+                    "perf_state": perf_state,
+                    "degraded": degraded,
+                }
+            )
+            return _CounterChild()
+
+    monkeypatch.setattr(app_metrics, "FOOD_SEARCH_MEILI_PERF_EVENTS_TOTAL", _Counter())
+    monkeypatch.setattr(app_metrics, "FOOD_SEARCH_MEILI_PROCESSING_TIME_MS", None)
+
+    app_metrics.record_food_search_meili_performance(
+        strategy=None,
+        perf_state=None,
+        degraded=None,
+        processing_time_ms=None,
+    )
+
+    assert captured_labels == [
+        {"strategy": "unknown", "perf_state": "invalid", "degraded": "unknown"}
+    ]
+
+
+def test_record_food_search_meili_performance_swallows_counter_and_histogram_errors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class _BadCounterChild:
+        def inc(self, amount: float = 1.0) -> None:
+            raise RuntimeError("boom")
+
+    class _BadCounter:
+        def labels(self, *, strategy: str, perf_state: str, degraded: str) -> _BadCounterChild:
+            return _BadCounterChild()
+
+    class _BadHistogramChild:
+        def observe(self, amount: float) -> None:
+            raise RuntimeError("boom")
+
+    class _BadHistogram:
+        def labels(self, *, strategy: str, perf_state: str, degraded: str) -> _BadHistogramChild:
+            return _BadHistogramChild()
+
+    monkeypatch.setattr(app_metrics, "FOOD_SEARCH_MEILI_PERF_EVENTS_TOTAL", _BadCounter())
+    monkeypatch.setattr(app_metrics, "FOOD_SEARCH_MEILI_PROCESSING_TIME_MS", _BadHistogram())
+
+    app_metrics.record_food_search_meili_performance(
+        strategy="meili",
+        perf_state="captured",
+        degraded="false",
+        processing_time_ms=10.0,
+    )
+
+
+def test_record_food_search_meili_performance_noops_when_histogram_disabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(app_metrics, "FOOD_SEARCH_MEILI_PERF_EVENTS_TOTAL", None)
+    monkeypatch.setattr(app_metrics, "FOOD_SEARCH_MEILI_PROCESSING_TIME_MS", None)
+
+    app_metrics.record_food_search_meili_performance(
+        strategy="meili",
+        perf_state="weird-state",
+        degraded="false",
+        processing_time_ms=10.0,
+    )
+
+
+def test_record_food_search_meili_stage_timing_filters_unknown_stage(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[dict[str, object]] = []
+
+    class _HistogramChild:
+        def observe(self, amount: float) -> None:
+            calls.append({"kind": "observe", "amount": amount})
+
+    class _Histogram:
+        def labels(self, *, strategy: str, stage: str) -> _HistogramChild:
+            calls.append({"kind": "labels", "strategy": strategy, "stage": stage})
+            return _HistogramChild()
+
+    monkeypatch.setattr(app_metrics, "FOOD_SEARCH_MEILI_STAGE_PROCESSING_TIME_MS", _Histogram())
+
+    app_metrics.record_food_search_meili_stage_timing(
+        strategy="hybrid_shadow",
+        stage="authorization",
+        duration_ms=5.0,
+    )
+    app_metrics.record_food_search_meili_stage_timing(
+        strategy="hybrid_shadow",
+        stage="unbounded-stage",
+        duration_ms=9.0,
+    )
+
+    assert calls == [
+        {"kind": "labels", "strategy": "hybrid_shadow", "stage": "authorization"},
+        {"kind": "observe", "amount": 5.0},
+    ]
+
+
+def test_record_food_search_meili_stage_timing_noops_and_swallows_errors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class _BadHistogramChild:
+        def observe(self, amount: float) -> None:
+            raise RuntimeError("boom")
+
+    class _BadHistogram:
+        def labels(self, *, strategy: str, stage: str) -> _BadHistogramChild:
+            return _BadHistogramChild()
+
+    monkeypatch.setattr(app_metrics, "FOOD_SEARCH_MEILI_STAGE_PROCESSING_TIME_MS", None)
+    app_metrics.record_food_search_meili_stage_timing(
+        strategy="meili",
+        stage="authorization",
+        duration_ms=5.0,
+    )
+
+    monkeypatch.setattr(app_metrics, "FOOD_SEARCH_MEILI_STAGE_PROCESSING_TIME_MS", _BadHistogram())
+    app_metrics.record_food_search_meili_stage_timing(
+        strategy="meili",
+        stage="authorization",
+        duration_ms=5.0,
+    )
