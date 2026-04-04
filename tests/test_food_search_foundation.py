@@ -826,12 +826,17 @@ def test_coerce_non_negative_ms_rejects_nan() -> None:
 
 def test_search_meili_helper_sanitizers_cover_edge_branches() -> None:
     assert search_meili_module._normalize_degraded_flag(True) == "true"
+    assert search_meili_module._normalize_degraded_flag("true") == "true"
     assert search_meili_module._normalize_degraded_flag("false") == "false"
     assert search_meili_module._normalize_degraded_flag("maybe") == "unknown"
     assert search_meili_module._coerce_non_negative_ms(True) is None
     assert search_meili_module._coerce_non_negative_ms("5") is None
+    assert search_meili_module._coerce_non_negative_ms("12ns") == 12e-6
     assert search_meili_module._coerce_non_negative_ms("250us") == 0.25
+    assert search_meili_module._coerce_non_negative_ms("7ms") == 7.0
     assert search_meili_module._coerce_non_negative_ms("2s") == 2000.0
+    assert search_meili_module._coerce_non_negative_ms("700000ms") is None
+    assert search_meili_module._coerce_non_negative_ms("9" * 400 + "ms") is None
     assert search_meili_module._coerce_non_negative_ms(-1) is None
     assert search_meili_module._coerce_non_negative_ms(700_000) is None
     assert search_meili_module._normalize_stage_name("keywordSearch") == "keyword_search"
@@ -1077,6 +1082,31 @@ def test_record_food_search_meili_stage_timing_filters_unknown_stage(
         {"kind": "labels", "strategy": "hybrid_shadow", "stage": "authorization"},
         {"kind": "observe", "amount": 5.0},
     ]
+
+
+def test_record_food_search_meili_stage_timing_noops_when_stage_not_normalizable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[dict[str, object]] = []
+
+    class _HistogramChild:
+        def observe(self, amount: float) -> None:
+            calls.append({"kind": "observe", "amount": amount})
+
+    class _Histogram:
+        def labels(self, *, strategy: str, stage: str) -> _HistogramChild:
+            calls.append({"kind": "labels", "strategy": strategy, "stage": stage})
+            return _HistogramChild()
+
+    monkeypatch.setattr(app_metrics, "FOOD_SEARCH_MEILI_STAGE_PROCESSING_TIME_MS", _Histogram())
+
+    app_metrics.record_food_search_meili_stage_timing(
+        strategy="meili",
+        stage=42,
+        duration_ms=1.0,
+    )
+
+    assert calls == []
 
 
 def test_record_food_search_meili_stage_timing_noops_and_swallows_errors(
