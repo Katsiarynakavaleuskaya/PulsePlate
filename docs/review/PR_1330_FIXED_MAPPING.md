@@ -23,6 +23,13 @@ Evidence: docs/orchestration/LOCAL_WORKFORCE_PR_A_TASK_PACKET_2026-04-05.md:105;
 Reason: Addressed the follow-up CodeRabbit nit review by tightening the acceptance-criteria phrasing and documenting why `nonisolated(unsafe)` is safe for `previewProKey`.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1330#pullrequestreview-4058906773 -> 3d723f8f
 
+Disposition: FIXED
+Commit: fbbf31ff
+Evidence: ios/PulsePlate/Assets.xcassets/AppIcon.appiconset/Contents.json:105
+Reason: Removed the extra unassigned `ios-marketing` 1024x1024 slot identified by cubic so the asset catalog keeps only the populated App Store marketing icon entry.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1330#discussion_r3036136674 -> fbbf31ff
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1330#pullrequestreview-4058908503 -> fbbf31ff
+
 ## Merge Readiness
 - [ ] All required checks pass
 - [ ] No unresolved review threads (re-check on current head before merge)
