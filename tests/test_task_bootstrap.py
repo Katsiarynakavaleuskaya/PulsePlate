@@ -122,6 +122,14 @@ def test_task_bootstrap_adds_automation_metadata_defaults() -> None:
         "code_native_design_brief_path": "",
         "explicit_creation_mode": False,
     }
+    assert packet["message_envelope"] == {
+        "protocol_version": "1.0",
+        "derived_view": "TASK_PACKET_V1",
+        "mode": "docs-only",
+        "output_requirements": {
+            "must_return": ["AGENT_RESULT_V1 envelope only (no preamble)"],
+        },
+    }
     assert packet["needs_backlog_update"] is False
     assert packet["needs_docs_sync"] is False
     assert packet["needs_agents_sync"] is False
@@ -259,6 +267,41 @@ def test_task_bootstrap_enables_post_open_review_lane_for_pr_phase() -> None:
     assert "bug-hunter" in {
         binding["repo_agent_slug"] for binding in packet["native_subagent_bridge"]["secondary"]
     }
+
+
+def test_task_bootstrap_fails_closed_to_analysis_envelope_for_mixed_scope() -> None:
+    """Mixed runtime plus docs scope must not downshift to docs-only envelope mode."""
+
+    packet = build_task_packet(
+        goal="Reconcile bootstrap seam and protocol docs",
+        task_class="Orchestration",
+        candidate_paths=[
+            "scripts/orchestration/task_bootstrap.py",
+            "docs/orchestration/AGENT_MESSAGE_PROTOCOL.md",
+        ],
+    )
+
+    assert packet["message_envelope"] == {
+        "protocol_version": "1.0",
+        "derived_view": "TASK_PACKET_V1",
+        "mode": "analysis",
+        "output_requirements": {
+            "must_return": ["AGENT_RESULT_V1 envelope only (no preamble)"],
+        },
+    }
+
+
+def test_task_bootstrap_keeps_privileged_docs_in_docs_only_envelope_mode() -> None:
+    """Privileged orchestration docs remain docs-only while still forcing security review."""
+
+    packet = build_task_packet(
+        goal="Tighten agent message protocol wording",
+        task_class="Documentation",
+        candidate_paths=["docs/orchestration/AGENT_MESSAGE_PROTOCOL.md"],
+    )
+
+    assert packet["message_envelope"]["mode"] == "docs-only"
+    assert packet["automation_flags"]["security_review_required"] is True
 
 
 def test_task_bootstrap_keeps_requested_bug_hunter_executable_in_post_open_lane() -> None:
@@ -1051,6 +1094,7 @@ def test_task_bootstrap_keeps_packet_id_stable_for_identical_inputs() -> None:
     assert first_packet["pr_phase"] == second_packet["pr_phase"]
     assert first_packet["design_lane_mode"] == second_packet["design_lane_mode"]
     assert first_packet["design_lane_contract"] == second_packet["design_lane_contract"]
+    assert first_packet["message_envelope"] == second_packet["message_envelope"]
     assert first_packet["needs_backlog_update"] == second_packet["needs_backlog_update"]
     assert first_packet["needs_docs_sync"] == second_packet["needs_docs_sync"]
     assert first_packet["needs_agents_sync"] == second_packet["needs_agents_sync"]

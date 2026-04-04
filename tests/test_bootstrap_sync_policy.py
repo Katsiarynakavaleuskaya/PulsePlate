@@ -6,15 +6,20 @@ from scripts.orchestration.bootstrap_sync_policy import (
     AGENT_CONTRACT_PATH_MARKERS,
     AGENTS_CONTRACT_FILE,
     AGENTS_CURSOR_PREFIX,
+    ANALYSIS_ENVELOPE_MODE,
     BACKLOG_SIGNAL_TERMS,
+    DOCS_ONLY_ENVELOPE_MODE,
+    DOCS_ONLY_ROOT_FILES,
     IMPLEMENTATION_PATH_PREFIXES,
     PRIVILEGED_REVIEW_PREFIXES,
     SKILL_CONTRACT_FILE,
+    is_docs_only_contract_path,
     matches_any_prefix,
     needs_agents_sync,
     needs_backlog_update,
     needs_docs_sync,
     requires_security_review,
+    resolve_analysis_envelope_mode,
 )
 
 
@@ -114,6 +119,57 @@ def test_bootstrap_sync_policy_detects_docs_and_agents_sync_signals() -> None:
     assert needs_agents_sync(["docs/orchestration/workflow.md"]) is False
 
 
+def test_bootstrap_sync_policy_freezes_docs_only_roots() -> None:
+    """Docs-only roots must remain explicit until widened in a dedicated PR."""
+
+    assert DOCS_ONLY_ROOT_FILES == (
+        "AGENTS.md",
+        "RUNBOOK_AGENT.md",
+        "README.md",
+        "CLAUDE.md",
+    )
+
+
+def test_bootstrap_sync_policy_detects_docs_only_contract_paths() -> None:
+    """Docs-only detection should stay limited to canonical markdown/contract files."""
+
+    assert is_docs_only_contract_path("docs/orchestration/AGENT_MESSAGE_PROTOCOL.md") is True
+    assert is_docs_only_contract_path(".github/PULL_REQUEST_TEMPLATE.md") is True
+    assert is_docs_only_contract_path("frontend/AGENTS.md") is True
+    assert is_docs_only_contract_path("skills/bootstrap/SKILL.md") is True
+    assert is_docs_only_contract_path("docs/orchestration/schema.json") is False
+    assert is_docs_only_contract_path("scripts/orchestration/task_bootstrap.py") is False
+
+
+def test_bootstrap_sync_policy_derives_docs_only_envelope_mode_for_contract_scope() -> None:
+    """Pure docs/contract scopes may downshift to docs-only envelope mode."""
+
+    assert (
+        resolve_analysis_envelope_mode(
+            [
+                "docs/orchestration/AGENT_MESSAGE_PROTOCOL.md",
+                "frontend/AGENTS.md",
+            ]
+        )
+        == DOCS_ONLY_ENVELOPE_MODE
+    )
+
+
+def test_bootstrap_sync_policy_fails_closed_to_analysis_for_mixed_scope() -> None:
+    """Mixed or runtime scopes must resolve to analysis mode."""
+
+    assert resolve_analysis_envelope_mode([]) == ANALYSIS_ENVELOPE_MODE
+    assert (
+        resolve_analysis_envelope_mode(
+            [
+                "docs/orchestration/AGENT_MESSAGE_PROTOCOL.md",
+                "scripts/orchestration/task_bootstrap.py",
+            ]
+        )
+        == ANALYSIS_ENVELOPE_MODE
+    )
+
+
 def test_bootstrap_sync_policy_detects_privileged_review_surfaces() -> None:
     """Privileged review detection should stay aligned with the canonical prefix set."""
 
@@ -123,3 +179,12 @@ def test_bootstrap_sync_policy_detects_privileged_review_surfaces() -> None:
     assert requires_security_review(["docs/review/PR_1325_FIXED_MAPPING.md"]) is True
     assert requires_security_review(["script/orchestration/config.yml"]) is False
     assert requires_security_review(["tests/test_task_bootstrap.py"]) is False
+
+
+def test_bootstrap_sync_policy_keeps_privileged_docs_in_docs_only_mode() -> None:
+    """Privileged orchestration docs still remain docs-only while requiring review."""
+
+    candidate_paths = ["docs/orchestration/AGENT_MESSAGE_PROTOCOL.md"]
+
+    assert resolve_analysis_envelope_mode(candidate_paths) == DOCS_ONLY_ENVELOPE_MODE
+    assert requires_security_review(candidate_paths) is True
