@@ -38,6 +38,12 @@ from scripts.orchestration.agent_consistency_loader import (
     load_inventory_agents,
     load_non_routable_agents,
 )
+from scripts.orchestration.bootstrap_sync_policy import (
+    needs_agents_sync as bootstrap_needs_agents_sync,
+    needs_backlog_update as bootstrap_needs_backlog_update,
+    needs_docs_sync as bootstrap_needs_docs_sync,
+    requires_security_review as bootstrap_requires_security_review,
+)
 from scripts.orchestration.design_lane_contract import (
     DESIGN_BLOCKERS,
     DESIGN_SOURCE_CODE_NATIVE_BRIEF,
@@ -74,30 +80,6 @@ REQUESTED_AGENT_STATUS_HONORED_REVIEWER = "honored_reviewer"
 REQUESTED_AGENT_STATUS_ADVISORY_NON_ROUTABLE = "advisory_non_routable"
 REQUESTED_AGENT_STATUS_PROMOTED = "promoted_requested_agent"
 REQUESTED_AGENT_STATUS_ADVISORY_DOMAIN_MISMATCH = "advisory_domain_mismatch"
-BACKLOG_SIGNAL_TERMS: tuple[str, ...] = (
-    "backlog",
-    "ledger",
-    "roadmap",
-    "defer",
-    "deferred",
-    "follow-up",
-    "follow up",
-)
-IMPLEMENTATION_PATH_PREFIXES: tuple[str, ...] = (
-    "app/",
-    "core/",
-    "scripts/",
-    "frontend/",
-    "ios/",
-)
-PRIVILEGED_REVIEW_PREFIXES: tuple[str, ...] = (
-    ".github/workflows/",
-    "ios/fastlane/",
-    "scripts/orchestration/",
-    "scripts/ci/",
-    "docs/orchestration/",
-    "docs/review/",
-)
 JUDGMENT_REQUIRED_CONTEXT_FILES: tuple[str, ...] = (
     *ORCHESTRATION_CONTEXT_FILES,
     "docs/orchestration/JUDGMENT_ADJUDICATION_SUBLANE_PROTOCOL.md",
@@ -296,61 +278,6 @@ def _select_independent_reviewer(
     if reviewer_candidate is not None:
         return reviewer_candidate
     return "qa-engineer-agent"
-
-
-def _requires_security_review(candidate_paths: list[str] | tuple[str, ...]) -> bool:
-    """Return True when the task touches privileged surfaces that require security review."""
-
-    return any(_matches_any_prefix(path, PRIVILEGED_REVIEW_PREFIXES) for path in candidate_paths)
-
-
-def _matches_any_prefix(path: str, prefixes: tuple[str, ...]) -> bool:
-    """Return True when a path matches a canonical prefix exactly or by subtree."""
-
-    return any(path == prefix.rstrip("/") or path.startswith(prefix) for prefix in prefixes)
-
-
-def _needs_backlog_update(
-    *,
-    goal: str,
-    task_class: str,
-    candidate_paths: list[str] | tuple[str, ...],
-) -> bool:
-    """Return True when PR2 backlog/roadmap bookkeeping markers are present."""
-
-    haystack = " ".join(
-        [
-            goal.strip().lower(),
-            task_class.strip().lower(),
-            *(path.lower() for path in candidate_paths),
-        ]
-    )
-    if any(term in haystack for term in BACKLOG_SIGNAL_TERMS):
-        return True
-    return any("docs/roadmap/backlog_ledger.md" in path.lower() for path in candidate_paths)
-
-
-def _needs_docs_sync(candidate_paths: list[str] | tuple[str, ...]) -> bool:
-    """Return True when implementation paths changed without an accompanying docs path."""
-
-    has_implementation_path = any(
-        _matches_any_prefix(path, IMPLEMENTATION_PATH_PREFIXES) for path in candidate_paths
-    )
-    has_docs_path = any(path == "docs" or path.startswith("docs/") for path in candidate_paths)
-    return has_implementation_path and not has_docs_path
-
-
-def _needs_agents_sync(candidate_paths: list[str] | tuple[str, ...]) -> bool:
-    """Return True when AGENTS or SKILL contract files are part of the task surface."""
-
-    return any(
-        path == "AGENTS.md"
-        or path.endswith("/AGENTS.md")
-        or path.startswith(".cursor/agents/")
-        or path == "SKILL.md"
-        or path.endswith("/SKILL.md")
-        for path in candidate_paths
-    )
 
 
 def _judgment_lane_enabled(
@@ -786,7 +713,7 @@ def build_task_packet(
         requested_agents=normalized_requested_agents,
         routing=routing,
     )
-    security_review_required = _requires_security_review(normalized_paths)
+    security_review_required = bootstrap_requires_security_review(normalized_paths)
     if security_review_required:
         secondary_agents = list(requested_agent_resolution["secondary_agents"])
         security_in_review_path = "security-auditor" in {
@@ -870,13 +797,13 @@ def build_task_packet(
         candidate_paths=normalized_paths,
         activation=judgment_activation,
     )
-    needs_backlog_update = _needs_backlog_update(
+    needs_backlog_update = bootstrap_needs_backlog_update(
         goal=goal,
         task_class=task_class,
         candidate_paths=normalized_paths,
     )
-    needs_docs_sync = _needs_docs_sync(normalized_paths)
-    needs_agents_sync = _needs_agents_sync(normalized_paths)
+    needs_docs_sync = bootstrap_needs_docs_sync(normalized_paths)
+    needs_agents_sync = bootstrap_needs_agents_sync(normalized_paths)
     pr_lifecycle_contract = _build_pr_lifecycle_contract(normalized_pr_phase)
     if judgment_enabled:
         context_pack = sorted(set(context_pack).union(JUDGMENT_REQUIRED_CONTEXT_FILES))
