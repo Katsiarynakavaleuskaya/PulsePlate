@@ -80,6 +80,36 @@ Disposition: FIXED
 Commit: 54f697df
 Evidence: `ios/fastlane/verify/semantic_policy.rb`, `tests/test_ios_appstore_asset_validators.py`
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1324#pullrequestreview-4058416210 -> 280ce96c
+Disposition: FIXED
+Commit: 280ce96c
+Evidence: `ios/fastlane/verify/semantic_policy.rb`, `tests/test_ios_appstore_asset_validators.py`
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1324#pullrequestreview-4058417482 -> 280ce96c
+Disposition: FIXED
+Commit: 280ce96c
+Evidence: `ios/fastlane/verify/semantic_policy.rb`, `tests/test_ios_appstore_asset_validators.py`
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1324#discussion_r3035447792 -> 280ce96c
+Disposition: FIXED
+Commit: 280ce96c
+Evidence: `ios/fastlane/verify/semantic_policy.rb`, `tests/test_ios_appstore_asset_validators.py`
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1324#discussion_r3035449485 -> 280ce96c
+Disposition: FIXED
+Commit: 280ce96c
+Evidence: `ios/fastlane/verify/semantic_policy.rb`, `tests/test_ios_appstore_asset_validators.py`
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1324#discussion_r3035449487 -> 280ce96c
+Disposition: FIXED
+Commit: 280ce96c
+Evidence: `ios/fastlane/verify/semantic_policy.rb`, `tests/test_ios_appstore_asset_validators.py`
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1324#discussion_r3035449490 -> 280ce96c
+Disposition: FIXED
+Commit: 280ce96c
+Evidence: `ios/fastlane/verify/semantic_policy.rb`, `tests/test_ios_appstore_asset_validators.py`
+
 ## Notes
 - Scope is limited to the repo-local semantic validator lane for App Store metadata and narrow privacy drift checks.
 - Existing validator seams remain canonical:
