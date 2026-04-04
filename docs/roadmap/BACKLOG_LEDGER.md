@@ -2290,6 +2290,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Dependencies:
     - `PR #1325`
     - `PR #1327`
+    - `PR #1328`
   - Lifecycle: Start → Open → Push → Review → Merge
   - Links:
     - `docs/orchestration/COMPOSER_BOOTSTRAP_KIT_PR1.md`
