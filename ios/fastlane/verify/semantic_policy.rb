@@ -21,7 +21,7 @@ module SemanticPolicy
   METADATA_TREATMENT_CLAIMS = /
     \b(?:treat(?:ment|ments|s|ed|ing)?|cure(?:s|d|ing)?|heal(?:s|ed|ing)?|prevent(?:s|ed|ing)?)\b|
     \b(?:леч(?:ит|ить|ен|ени(?:е|я))|исцел(?:яет|ение)|профилакт(?:ика|ирует))\b|
-    \b(?:tratamient(?:o|os)?|trat(?:a|ar|ado|ando)|cura(?:r|ción|ciones|s)?|san(?:a|ar|ado|ando)|prev(?:iene|enir|ención))\b
+    \b(?:tratamient(?:o|os)?|trat(?:a|ar|ado|ando)|cura(?:r|ción|ciones|s)?|san(?:ar|ado|ando)|prev(?:iene|enir|ención))\b
   /ix.freeze
 
   PROMISSORY_CLAIMS = /
@@ -33,11 +33,11 @@ module SemanticPolicy
   STORE_TRUTH_CLAIMS = [
     /(?:[$€£¥₽]\s*\d)|(?:\d+\s*(?:USD|EUR|GBP|JPY|RUB))/i,
     /\b(?:free\s+trial|trial\s+period|introductory\s+offer|subscribe\s+now|subscription\s+for\s+\$?\d+|auto-?renew(?:ing|al)?)\b/i,
-    /\b(?:per\s+month|per\s+year|monthly\s+subscription|yearly\s+subscription)\b/i,
+    /\b(?:monthly\s+subscription|yearly\s+subscription)\b/i,
     /\b(?:пробн(?:ый|ая)\s+период|вводн(?:ое|ая)\s+предложение|подпиш(?:итесь|ись)\s+сейчас|автопродлен(?:ие|ием))\b/i,
-    /\b(?:ежемесячн(?:ая|ый)\s+подписка|ежегодн(?:ая|ый)\s+подписка|в\s+месяц|в\s+год)\b/i,
+    /\b(?:ежемесячн(?:ая|ый)\s+подписка|ежегодн(?:ая|ый)\s+подписка)\b/i,
     /\b(?:prueba\s+gratuita|per[ií]odo\s+de\s+prueba|oferta\s+introductoria|suscr[ií]bete\s+ahora|renovaci[oó]n\s+autom[aá]tica)\b/i,
-    /\b(?:suscripci[oó]n\s+mensual|suscripci[oó]n\s+anual|por\s+mes|por\s+a[nñ]o)\b/i
+    /\b(?:suscripci[oó]n\s+mensual|suscripci[oó]n\s+anual)\b/i
   ].freeze
 
   PRIVACY_ADVISORY_HINTS = [
@@ -101,10 +101,14 @@ module SemanticPolicy
     failures
   end
 
-  def review_notes_hard_failures(pathname, content)
+  def review_notes_hard_failures(pathname, content, read_only:, data_not_collected:)
     REVIEW_NOTE_PRIVACY_CONTRADICTIONS.filter_map do |rule|
-      rule[:message] if content.match?(rule[:pattern])
-    end.map { |message| "#{message}: #{pathname}" }
+      next if rule[:message].include?("read-only") && !read_only
+      next if rule[:message].include?("DATA_NOT_COLLECTED") && !data_not_collected
+      next unless review_note_match_without_negation?(content, rule[:pattern])
+
+      "#{rule[:message]}: #{pathname}"
+    end
   end
 
   def review_notes_advisories(pathname, content)
@@ -127,5 +131,17 @@ module SemanticPolicy
 
   def store_truth_claim?(content)
     STORE_TRUTH_CLAIMS.any? { |pattern| content.match?(pattern) }
+  end
+
+  def review_note_match_without_negation?(content, pattern)
+    content.to_enum(:scan, pattern).any? do
+      match = Regexp.last_match
+      !negated_review_note_prefix?(content[0...match.begin(0)])
+    end
+  end
+
+  def negated_review_note_prefix?(prefix)
+    recent_prefix = prefix.downcase[-32..] || prefix.downcase
+    recent_prefix.match?(/(?:do\s+not|does\s+not|did\s+not|don't|doesn't|never|не|no)\s+\z/i)
   end
 end

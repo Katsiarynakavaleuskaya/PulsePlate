@@ -62,12 +62,12 @@ REQUIRED_LOCALES.each do |locale|
       next
     end
 
-    if read_text(file_path).empty?
+    content = read_text(file_path)
+    if content.empty?
       errors << "Metadata file is empty: #{file_path}"
       next
     end
 
-    content = read_text(file_path)
     errors.concat(SemanticPolicy.metadata_hard_failures(file_path, content))
   end
 

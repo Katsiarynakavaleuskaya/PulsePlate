@@ -32,6 +32,8 @@ privacy_json_path = Pathname(ARGV[2])
 
 errors = []
 advisories = []
+read_only_healthkit = true
+data_not_collected_healthkit = false
 
 INFO_PLIST_LOCALES.each_value do |folder_name|
   strings_path = app_root.join(folder_name, "InfoPlist.strings")
@@ -49,7 +51,12 @@ INFO_PLIST_LOCALES.each_value do |folder_name|
     next
   end
 
-  errors << "NSHealthUpdateUsageDescription must be absent for read-only HealthKit in #{strings_path}" unless update_copy.to_s.empty?
+  if update_copy.to_s.empty?
+    read_only_healthkit &&= true
+  else
+    read_only_healthkit = false
+    errors << "NSHealthUpdateUsageDescription must be absent for read-only HealthKit in #{strings_path}"
+  end
   errors.concat(SemanticPolicy.healthkit_copy_hard_failures(strings_path, share_copy.to_s))
 end
 
@@ -63,7 +70,6 @@ end
 
 if review_notes_path.file?
   notes = review_notes_path.read
-  errors.concat(SemanticPolicy.review_notes_hard_failures(review_notes_path, notes))
   advisories.concat(SemanticPolicy.review_notes_advisories(review_notes_path, notes))
   %w[HealthKit wellness consent read-only].each do |required_phrase|
     next if notes.downcase.include?(required_phrase.downcase)
@@ -79,12 +85,30 @@ if privacy_json_path.file?
       errors << "App privacy JSON must be a non-empty array"
     end
 
-    if privacy_entries.is_a?(Array) && !privacy_entries.any? { |entry| entry.is_a?(Hash) && Array(entry["data_protections"]).include?("DATA_NOT_COLLECTED") }
+    if privacy_entries.is_a?(Array)
+      data_not_collected_healthkit = privacy_entries.any? do |entry|
+        entry.is_a?(Hash) && Array(entry["data_protections"]).include?("DATA_NOT_COLLECTED")
+      end
+    end
+
+    unless data_not_collected_healthkit
       errors << "App privacy JSON must declare on-device HealthKit data as DATA_NOT_COLLECTED"
     end
   rescue JSON::ParserError
     errors << "Invalid JSON in #{privacy_json_path}"
   end
+end
+
+if review_notes_path.file?
+  notes = review_notes_path.read
+  errors.concat(
+    SemanticPolicy.review_notes_hard_failures(
+      review_notes_path,
+      notes,
+      read_only: read_only_healthkit,
+      data_not_collected: data_not_collected_healthkit,
+    ),
+  )
 end
 
 advisories.sort.each { |advisory| puts advisory }

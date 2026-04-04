@@ -449,6 +449,44 @@ def test_validate_metadata_allows_non_pricing_subscription_terms(tmp_path: Path)
     assert result.returncode == 0, result.stderr
 
 
+def test_validate_metadata_allows_non_pricing_cadence_wording(tmp_path: Path) -> None:
+    metadata_root = tmp_path / "metadata"
+    review_notes, privacy_json = _prepare_metadata(metadata_root)
+    release_notes_path = metadata_root / "en-US" / "release_notes.txt"
+    release_notes_path.write_text(
+        "Get 10 wellness tips per month and seasonal planning refreshes each year.",
+        encoding="utf-8",
+    )
+
+    result = _run_ruby(
+        REPO_ROOT / "ios/fastlane/verify/validate_metadata.rb",
+        str(metadata_root),
+        str(review_notes),
+        str(privacy_json),
+    )
+
+    assert result.returncode == 0, result.stderr
+
+
+def test_validate_metadata_allows_spanish_healthy_adjective(tmp_path: Path) -> None:
+    metadata_root = tmp_path / "metadata"
+    review_notes, privacy_json = _prepare_metadata(metadata_root)
+    description_path = metadata_root / "es-ES" / "description.txt"
+    description_path.write_text(
+        "Comida sana y planificación wellness para hábitos más consistentes.",
+        encoding="utf-8",
+    )
+
+    result = _run_ruby(
+        REPO_ROOT / "ios/fastlane/verify/validate_metadata.rb",
+        str(metadata_root),
+        str(review_notes),
+        str(privacy_json),
+    )
+
+    assert result.returncode == 0, result.stderr
+
+
 def test_validate_metadata_rejects_medical_app_name(tmp_path: Path) -> None:
     metadata_root = tmp_path / "metadata"
     review_notes, privacy_json = _prepare_metadata(metadata_root)
@@ -589,6 +627,69 @@ def test_validate_healthkit_copy_rejects_read_only_and_data_collection_contradic
     )
 
 
+def test_validate_healthkit_copy_uses_actual_privacy_posture_for_contradictions(
+    tmp_path: Path,
+) -> None:
+    metadata_root = tmp_path / "metadata"
+    _review_notes, _privacy_json = _prepare_metadata(metadata_root)
+    review_notes = tmp_path / "review_information" / "notes.txt"
+    review_notes.parent.mkdir(parents=True, exist_ok=True)
+    review_notes.write_text(
+        "\n".join(
+            [
+                "HealthKit review summary",
+                "This flow is wellness-only.",
+                "Users provide consent before enabling access.",
+                "The HealthKit integration is read-only.",
+                "The app writes to Health and collects Health data on our servers.",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    privacy_json = tmp_path / "app_privacy_details.json"
+    privacy_json.write_text(
+        json.dumps([{"data_protections": ["DATA_USED_TO_TRACK_YOU"]}]),
+        encoding="utf-8",
+    )
+
+    pulseplate_root = tmp_path / "PulsePlate"
+    for folder in ("en.lproj", "ru.lproj", "es.lproj"):
+        locale_dir = pulseplate_root / folder
+        locale_dir.mkdir(parents=True, exist_ok=True)
+        (locale_dir / "InfoPlist.strings").write_text(
+            "\n".join(
+                [
+                    '"NSHealthShareUsageDescription" = "PulsePlate reads Health data with consent for wellness progress.";',
+                    '"NSHealthUpdateUsageDescription" = "PulsePlate can write updates back to Health.";',
+                ]
+            ),
+            encoding="utf-8",
+        )
+
+    result = _run_ruby(
+        REPO_ROOT / "ios/fastlane/verify/validate_healthkit_copy.rb",
+        str(pulseplate_root),
+        str(review_notes),
+        str(privacy_json),
+    )
+
+    assert result.returncode == 1
+    assert "NSHealthUpdateUsageDescription must be absent for read-only HealthKit" in result.stderr
+    assert (
+        "App privacy JSON must declare on-device HealthKit data as DATA_NOT_COLLECTED"
+        in result.stderr
+    )
+    assert (
+        f"Reviewer notes contradict read-only HealthKit posture: {review_notes}"
+        not in result.stderr
+    )
+    assert (
+        f"Reviewer notes contradict DATA_NOT_COLLECTED Health posture: {review_notes}"
+        not in result.stderr
+    )
+
+
 def test_validate_healthkit_copy_emits_sorted_advisory_lines_without_failing(
     tmp_path: Path,
 ) -> None:
@@ -638,6 +739,50 @@ def test_validate_healthkit_copy_emits_sorted_advisory_lines_without_failing(
         f"ADVISORY: {review_notes} :: review whether App Privacy answers need updating for personalization/data-sharing language",
     ]
     assert "validate_healthkit_copy: OK" in result.stdout
+
+
+def test_validate_healthkit_copy_ignores_negated_privacy_contradictions(tmp_path: Path) -> None:
+    metadata_root = tmp_path / "metadata"
+    _review_notes, _privacy_json = _prepare_metadata(metadata_root)
+    review_notes = tmp_path / "review_information" / "notes.txt"
+    review_notes.parent.mkdir(parents=True, exist_ok=True)
+    review_notes.write_text(
+        "\n".join(
+            [
+                "HealthKit review summary",
+                "This flow is wellness-only.",
+                "Users provide consent before enabling access.",
+                "The HealthKit integration is read-only.",
+                "The app does not write to Health and does not collect Health data.",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    privacy_json = tmp_path / "app_privacy_details.json"
+    privacy_json.write_text(
+        json.dumps([{"data_protections": ["DATA_NOT_COLLECTED"]}]),
+        encoding="utf-8",
+    )
+
+    pulseplate_root = tmp_path / "PulsePlate"
+    for folder in ("en.lproj", "ru.lproj", "es.lproj"):
+        locale_dir = pulseplate_root / folder
+        locale_dir.mkdir(parents=True, exist_ok=True)
+        (locale_dir / "InfoPlist.strings").write_text(
+            '"NSHealthShareUsageDescription" = "PulsePlate reads Health data with consent for wellness progress.";',
+            encoding="utf-8",
+        )
+
+    result = _run_ruby(
+        REPO_ROOT / "ios/fastlane/verify/validate_healthkit_copy.rb",
+        str(pulseplate_root),
+        str(review_notes),
+        str(privacy_json),
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "Reviewer notes contradict" not in result.stderr
 
 
 def test_validate_healthkit_copy_allows_wellness_disclaimer_variant(tmp_path: Path) -> None:
