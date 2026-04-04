@@ -21,6 +21,10 @@ Evidence: the merge-readiness lifecycle boxes for bug-hunter and privileged-surf
 Disposition: FIXED
 Commit: d1b8a48b
 Evidence: the merge-readiness lifecycle boxes are now pending rather than overstated, so the canonical artifact no longer claims bug-hunter/security completion before the final current-head pass
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1328#pullrequestreview-4058847204 -> d1b8a48b
+Disposition: FIXED
+Commit: d1b8a48b
+Evidence: the cubic review summary flagged the same premature lifecycle checkbox state; the current artifact now keeps those boxes pending until the final current-head pass
 
 ## Merge Readiness
 - [ ] All required checks pass
