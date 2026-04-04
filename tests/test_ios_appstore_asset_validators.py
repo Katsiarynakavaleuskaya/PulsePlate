@@ -487,6 +487,25 @@ def test_validate_metadata_allows_spanish_healthy_adjective(tmp_path: Path) -> N
     assert result.returncode == 0, result.stderr
 
 
+def test_validate_metadata_allows_neutral_quick_logging_copy(tmp_path: Path) -> None:
+    metadata_root = tmp_path / "metadata"
+    review_notes, privacy_json = _prepare_metadata(metadata_root)
+    promotional_text_path = metadata_root / "en-US" / "promotional_text.txt"
+    promotional_text_path.write_text(
+        "Quickly log meals and review wellness history without extra steps.",
+        encoding="utf-8",
+    )
+
+    result = _run_ruby(
+        REPO_ROOT / "ios/fastlane/verify/validate_metadata.rb",
+        str(metadata_root),
+        str(review_notes),
+        str(privacy_json),
+    )
+
+    assert result.returncode == 0, result.stderr
+
+
 def test_validate_metadata_rejects_medical_app_name(tmp_path: Path) -> None:
     metadata_root = tmp_path / "metadata"
     review_notes, privacy_json = _prepare_metadata(metadata_root)
@@ -753,7 +772,7 @@ def test_validate_healthkit_copy_ignores_negated_privacy_contradictions(tmp_path
                 "This flow is wellness-only.",
                 "Users provide consent before enabling access.",
                 "The HealthKit integration is read-only.",
-                "The app does not write to Health and does not collect Health data.",
+                "The app does not write to Health and does not collect Health data on our servers.",
             ]
         ),
         encoding="utf-8",

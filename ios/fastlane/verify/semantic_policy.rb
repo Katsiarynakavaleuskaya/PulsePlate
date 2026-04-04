@@ -25,9 +25,9 @@ module SemanticPolicy
   /ix.freeze
 
   PROMISSORY_CLAIMS = /
-    \b(?:guarantee(?:d|s)?|guaranteed|instant(?:ly)?|rapid(?:ly)?|quick(?:ly)?|clinically\s+proven|proven\s+results?)\b|
-    \b(?:гарантир(?:ует|уют|ованный|ованные)|мгновенн(?:о|ый)|быстр(?:ый|о)|доказанн(?:ый|о))\b|
-    \b(?:garantiza(?:do|dos|da|das)?|instant[aá]neo(?:s|as)?|r[aá]pid(?:o|a|os|as|amente)|resultados?\s+comprobados)\b
+    \b(?:guarantee(?:d|s)?(?:\s+results?)?|instant(?:\s+(?:results?|weight\s+loss|improvement))|rapid(?:\s+(?:results?|weight\s+loss|improvement))|quick(?:\s+(?:results?|weight\s+loss|improvement))|clinically\s+proven(?:\s+results?)?|proven\s+results?)\b|
+    \b(?:гарантир(?:ует|уют|ованный|ованные)(?:\s+результат(?:ы|ом)?)?|мгновенн(?:ый|ые|о)\s+результат(?:ы|ом)?|быстр(?:ый|ые|о)\s+результат(?:ы|ом)?|доказанн(?:ый|ые|о)\s+результат(?:ы|ом)?)\b|
+    \b(?:garantiza(?:do|dos|da|das)?(?:\s+resultados?)?|resultados?\s+comprobados|resultados?\s+instant[aá]neos?|resultados?\s+r[aá]pidos?)\b
   /ix.freeze
 
   STORE_TRUTH_CLAIMS = [
