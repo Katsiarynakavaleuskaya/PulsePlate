@@ -2,14 +2,18 @@
 
 ## Summary
 - Docs-only sequencing/orchestration alignment PR for Apple provider-lane reclassification.
-- No review threads are mapped yet; this artifact establishes the canonical Phase 2 contract for the PR.
+- Canonical anti-drift follow-up for the Apple provider-lane packet is mapped below.
 
 ## Discussion Thread Pass
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
-- No actionable review comments
+- FIXED: `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1326#pullrequestreview-4058792266` -> `76adfb35`
+  - Evidence:
+    - `docs/roadmap/BACKLOG_LEDGER.md:1170`
+    - `docs/roadmap/PulsePlate_P0_P1_Execution_Document_2026-03-30.md:157`
+    - `docs/orchestration/AGENTS.md:38`
 
 ## Merge Readiness
 - [ ] All required checks pass
