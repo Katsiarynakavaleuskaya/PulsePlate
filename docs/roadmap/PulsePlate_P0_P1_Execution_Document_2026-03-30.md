@@ -18,7 +18,8 @@ Status: operator execution map
 - PR4 closeout landed as docs/authz packet `#1298`, and web entitlement truth hardening landed via `#1299`.
 - Web progress no longer ships fabricated charts on the release path; that docs-only closeout merged as `#1308`.
 - `docs/legal-policy-publish` already merged as `#1304`, and the current Wave 4 compliance closeout merged as `#1307`.
-- The next active new Wave 4 lane is now `docs/ios-subscription-offers-governance`, followed by the remaining iOS/App Store modernization items.
+- Wave 4 iOS/App Store release-ops closeout is already represented by merged `#1312`, `#1323`, and `#1324`; do not recast those slices as remaining P0 release-truth work.
+- `feat/apple-server-api-migration` remains a prepared P1 provider-modernization follow-on and must not overtake still-open P0 release-truth items in the ledger, especially `ledger-p0-eu-compliance-control-plane-follow-through`.
 - WebSocket foundation is no longer a stub-only surface; it is sufficiently wired for foundation scope, but it is not the current release priority.
 
 ## Source of truth order
@@ -36,6 +37,7 @@ Status: operator execution map
 - Do not reopen StoreKit baseline / thin SubscriptionManager baseline.
 - Treat remaining monetization work as follow-up ledger items.
 - Put infra/runtime closure before AI/design expansion.
+- Treat Apple provider modernization as a prepared follow-on lane, not the immediate next lane, until remaining P0 release-truth follow-through is cleared.
 
 ## Execution order
 
@@ -54,11 +56,11 @@ Status: operator execution map
 
 ### Wave 4 — Legal / release shell
 1. `docs/legal-policy-publish` — merged via `#1304`
-2. `feat/eu-compliance-control-plane-followthrough` — Wave 4 closeout merged via `#1307`
-3. `docs/ios-subscription-offers-governance` — next active new lane
-4. `feat/ios-appstore-assets-rollout`
-5. `feat/ios-appstore-semantic-validators`
-6. `feat/apple-server-api-migration`
+2. `feat/eu-compliance-control-plane-followthrough` — Wave 4 closeout merged via `#1307`; any remaining program-level follow-through stays tracked in the open ledger epic
+3. `docs/ios-subscription-offers-governance` — merged via `#1312`
+4. `feat/ios-appstore-assets-rollout` — merged via `#1323`
+5. `feat/ios-appstore-semantic-validators` — merged via `#1324`
+6. `feat/apple-server-api-migration` — prepared follow-on only after remaining P0 release-truth follow-through is cleared
 
 ### Wave 5 — API / contract truth
 1. `chore/openapi-runtime-sync`
@@ -149,8 +151,14 @@ Status: operator execution map
 - goal: block medical/promissory copy drift and privacy-package mismatches
 
 ### 12. feat(billing): migrate Apple verification to App Store Server API
+- status: prepared follow-on only; do not open this lane ahead of still-open P0 release-truth work
 - closes: `ledger-p1-apple-server-api-migration`
-- goal: move off classic `verifyReceipt` while keeping downstream activation contract stable
+- preconditions:
+  - `ledger-p0-billing-entitlement-routing` is merged
+  - `ledger-p0-web-entitlement-truth` is merged
+  - release-shell / compliance follow-through no longer blocks release truth; map this to still-open P0 items, especially `ledger-p0-eu-compliance-control-plane-follow-through`, not by reopening `ledger-p0-legal-policy-publish`
+- goal: move off classic `verifyReceipt` while keeping downstream activation contract stable and preserving the public/iOS transport contract
+- implementation note: deriving the App Store Server API identifier from the existing server-side receipt path is a feasibility checkpoint inside the lane; if it is not reliable, keep the legacy path as an explicit temporary fallback and do not force an iOS transport change in the same PR
 
 ### 13. chore(contracts): public OpenAPI/runtime/docs sync
 - goal: keep public schema restricted to bmi/pro/vip, mark premium as compat-only, regenerate FE artifacts

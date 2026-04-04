@@ -1166,17 +1166,24 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
   - Target PR: PR-TBD-APPLE-SERVER-API-MIGRATION
+  - Status: Prepared follow-on only; must not overtake still-open P0 release-truth items
   - Area: backend / payments / provider integration
   - Finding Type: provider modernization
-  - Reason: The current PR uses classic `verifyReceipt` only as a transitional compatibility path; Apple-recommended signed transaction / App Store Server API validation remains mandatory follow-up work.
+  - Reason: The current PR uses classic `verifyReceipt` only as a transitional compatibility path; Apple-recommended signed transaction / App Store Server API validation remains mandatory follow-up work. This lane is P1 provider modernization and must not overtake still-open P0 release-truth work.
   - Links:
     - `docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md`
     - `app/services/payments_activation.py`
     - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p0-billing-apple-verify`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p0-billing-entitlement-routing`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p0-web-entitlement-truth`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p0-eu-compliance-control-plane-follow-through`
   - DoD:
     - Apple verification moves off classic `verifyReceipt` onto the approved server-side successor flow
     - Existing verification contract remains backward-compatible for downstream activation
     - Provider migration paths are covered with deterministic tests and rollout notes
+    - Public endpoint `/api/v1/billing/apple/verify-receipt`, existing DTOs, and iOS transport contract remain unchanged unless a separate versioned migration explicitly says otherwise
+    - Server-side identifier derivation from the current receipt path is proven, or the legacy path remains available as an explicit temporary fallback without forcing client payload changes in the same PR
+    - Any temporary legacy fallback includes rollback notes, exit criteria, backlog link, and a remove-by date
 
 <a id="ledger-p1-ios-subscription-orchestration"></a>
 - [ ] P1: iOS SubscriptionManager orchestration follow-through
