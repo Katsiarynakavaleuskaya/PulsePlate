@@ -112,6 +112,9 @@ Optional packet-level automation metadata (PR2 bootstrap hardening):
 - `inputs.needs_docs_sync` (boolean; deterministic sync signal)
 - `inputs.needs_agents_sync` (boolean; deterministic sync signal)
 
+Canonical derivation for the sync signals above lives in
+`scripts/orchestration/bootstrap_sync_policy.py`.
+
 ### 2) `<AGENT_RESULT_V1>` (Agent → coordinator)
 
 Minimum required keys:
