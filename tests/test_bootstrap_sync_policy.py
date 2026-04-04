@@ -4,9 +4,12 @@ from __future__ import annotations
 
 from scripts.orchestration.bootstrap_sync_policy import (
     AGENT_CONTRACT_PATH_MARKERS,
+    AGENTS_CONTRACT_FILE,
+    AGENTS_CURSOR_PREFIX,
     BACKLOG_SIGNAL_TERMS,
     IMPLEMENTATION_PATH_PREFIXES,
     PRIVILEGED_REVIEW_PREFIXES,
+    SKILL_CONTRACT_FILE,
     matches_any_prefix,
     needs_agents_sync,
     needs_backlog_update,
@@ -84,22 +87,39 @@ def test_bootstrap_sync_policy_detects_backlog_update_markers() -> None:
         )
         is True
     )
+    assert (
+        needs_backlog_update(
+            goal="Implement feature X in core service",
+            task_class="Engineering",
+            candidate_paths=["src/core/service.py"],
+        )
+        is False
+    )
 
 
 def test_bootstrap_sync_policy_detects_docs_and_agents_sync_signals() -> None:
     """Docs and agent sync signals should remain narrowly scoped and deterministic."""
 
+    assert AGENT_CONTRACT_PATH_MARKERS == (
+        AGENTS_CONTRACT_FILE,
+        AGENTS_CURSOR_PREFIX,
+        SKILL_CONTRACT_FILE,
+    )
     assert needs_docs_sync(["app/security/auth.py"]) is True
     assert needs_docs_sync(["app/security/auth.py", "docs/security/AUTH.md"]) is False
-    assert needs_agents_sync([AGENT_CONTRACT_PATH_MARKERS[0]]) is True
+    assert needs_agents_sync([AGENTS_CONTRACT_FILE]) is True
+    assert needs_agents_sync([AGENTS_CURSOR_PREFIX]) is True
     assert needs_agents_sync(["frontend/AGENTS.md"]) is True
-    assert needs_agents_sync([f"skills/bootstrap/{AGENT_CONTRACT_PATH_MARKERS[2]}"]) is True
+    assert needs_agents_sync([f"skills/bootstrap/{SKILL_CONTRACT_FILE}"]) is True
     assert needs_agents_sync(["docs/orchestration/workflow.md"]) is False
 
 
 def test_bootstrap_sync_policy_detects_privileged_review_surfaces() -> None:
     """Privileged review detection should stay aligned with the canonical prefix set."""
 
+    assert requires_security_review([".github/workflows"]) is True
+    assert requires_security_review(["scripts/ci"]) is True
     assert requires_security_review(["scripts/orchestration/task_bootstrap.py"]) is True
     assert requires_security_review(["docs/review/PR_1325_FIXED_MAPPING.md"]) is True
+    assert requires_security_review(["script/orchestration/config.yml"]) is False
     assert requires_security_review(["tests/test_task_bootstrap.py"]) is False

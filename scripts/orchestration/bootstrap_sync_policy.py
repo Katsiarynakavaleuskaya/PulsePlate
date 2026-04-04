@@ -6,6 +6,8 @@ EN: Centralizes sync-policy constants and matcher rules for the bootstrap packet
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+
 BACKLOG_SIGNAL_TERMS: tuple[str, ...] = (
     "backlog",
     "ledger",
@@ -33,10 +35,13 @@ PRIVILEGED_REVIEW_PREFIXES: tuple[str, ...] = (
     "docs/review/",
 )
 
+AGENTS_CONTRACT_FILE = "AGENTS.md"
+AGENTS_CURSOR_PREFIX = ".cursor/agents/"
+SKILL_CONTRACT_FILE = "SKILL.md"
 AGENT_CONTRACT_PATH_MARKERS: tuple[str, ...] = (
-    "AGENTS.md",
-    ".cursor/agents/",
-    "SKILL.md",
+    AGENTS_CONTRACT_FILE,
+    AGENTS_CURSOR_PREFIX,
+    SKILL_CONTRACT_FILE,
 )
 
 BACKLOG_LEDGER_PATH = "docs/roadmap/backlog_ledger.md"
@@ -53,7 +58,7 @@ def matches_any_prefix(path: str, prefixes: tuple[str, ...]) -> bool:
     return any(path == prefix.rstrip("/") or path.startswith(prefix) for prefix in prefixes)
 
 
-def requires_security_review(candidate_paths: list[str] | tuple[str, ...]) -> bool:
+def requires_security_review(candidate_paths: Sequence[str]) -> bool:
     """Return True when the task touches privileged review surfaces.
 
     RU: Привилегированные поверхности всегда тянут security-review path.
@@ -67,7 +72,7 @@ def needs_backlog_update(
     *,
     goal: str,
     task_class: str,
-    candidate_paths: list[str] | tuple[str, ...],
+    candidate_paths: Sequence[str],
 ) -> bool:
     """Return True when backlog bookkeeping markers are present.
 
@@ -87,7 +92,7 @@ def needs_backlog_update(
     return any(BACKLOG_LEDGER_PATH in path.lower() for path in candidate_paths)
 
 
-def needs_docs_sync(candidate_paths: list[str] | tuple[str, ...]) -> bool:
+def needs_docs_sync(candidate_paths: Sequence[str]) -> bool:
     """Return True when implementation paths changed without a docs path.
 
     RU: Кодовые изменения без docs-path должны поднять deterministic docs sync flag.
@@ -103,7 +108,7 @@ def needs_docs_sync(candidate_paths: list[str] | tuple[str, ...]) -> bool:
     return has_implementation_path and not has_docs_path
 
 
-def needs_agents_sync(candidate_paths: list[str] | tuple[str, ...]) -> bool:
+def needs_agents_sync(candidate_paths: Sequence[str]) -> bool:
     """Return True when AGENTS or SKILL contract files are in scope.
 
     RU: Сигнал ограничен каноническими agent-contract путями и не шире.
@@ -111,10 +116,10 @@ def needs_agents_sync(candidate_paths: list[str] | tuple[str, ...]) -> bool:
     """
 
     return any(
-        path == AGENT_CONTRACT_PATH_MARKERS[0]
-        or path.endswith(f"/{AGENT_CONTRACT_PATH_MARKERS[0]}")
-        or path.startswith(AGENT_CONTRACT_PATH_MARKERS[1])
-        or path == AGENT_CONTRACT_PATH_MARKERS[2]
-        or path.endswith(f"/{AGENT_CONTRACT_PATH_MARKERS[2]}")
+        path == AGENTS_CONTRACT_FILE
+        or path.endswith(f"/{AGENTS_CONTRACT_FILE}")
+        or path.startswith(AGENTS_CURSOR_PREFIX)
+        or path == SKILL_CONTRACT_FILE
+        or path.endswith(f"/{SKILL_CONTRACT_FILE}")
         for path in candidate_paths
     )
