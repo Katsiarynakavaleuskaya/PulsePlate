@@ -58,7 +58,7 @@ enum AppStoreScreenshotContext {
         return nil
     }
 
-    static var previewProKey: String? {
+    nonisolated(unsafe) static var previewProKey: String? {
         guard isEnabled else { return nil }
 
         return "appstore-preview-key"
@@ -105,7 +105,7 @@ enum AppStoreScreenshotContext {
                     WeeklyPlanReaderView(
                         vm: WeeklyPlanReaderViewModel(
                             service: DefaultWeeklyPlanService(apiClient: APIClient(baseURL: AppConfig.baseURL())),
-                            apiKeyProvider: { AppStoreScreenshotContext.previewProKey }
+                            apiKeyProvider: { [key = AppStoreScreenshotContext.previewProKey] in key }
                         )
                     )
                 }
@@ -119,7 +119,7 @@ enum AppStoreScreenshotContext {
                             service: DefaultShoppingListService(
                                 apiClient: APIClient(baseURL: AppConfig.baseURL())
                             ),
-                            apiKeyProvider: { AppStoreScreenshotContext.previewProKey }
+                            apiKeyProvider: { [key = AppStoreScreenshotContext.previewProKey] in key }
                         ),
                         planData: ShoppingListStubPlan.minimal()
                     )
@@ -144,7 +144,7 @@ enum AppStoreScreenshotContext {
                             service: DefaultCBTInsightService(
                                 apiClient: APIClient(baseURL: AppConfig.baseURL())
                             ),
-                            apiKeyProvider: { AppStoreScreenshotContext.previewProKey }
+                            apiKeyProvider: { [key = AppStoreScreenshotContext.previewProKey] in key }
                         )
                     )
                 }
