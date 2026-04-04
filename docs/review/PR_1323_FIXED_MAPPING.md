@@ -5,7 +5,10 @@
 - [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1323#pullrequestreview-4058389792
+Disposition: NOT-A-BUG
+Evidence: docs/roadmap/BACKLOG_LEDGER.md:907; .github/workflows/ios-appstore-assets.yml:15; .github/workflows/ios-appstore-assets.yml:40; .github/workflows/ios-appstore-assets.yml:132
+Reason: This Sourcery summary contains two high-level suggestions, not a correctness bug. The PR already uses relative repo paths for in-repo evidence anchors, while GitHub URLs are intentionally kept only for workflow run evidence. Keeping the rollout evidence in the canonical backlog entry is acceptable for this docs-only blocker snapshot and does not require a follow-up code or docs fix before merge.
 
 ## Notes
 - Docker/CD failures on `main` were classified before protected rollout execution and were treated as non-blocking for this lane because `ios-appstore-assets` is a separate manual protected workflow with its own ref and secret guards.
