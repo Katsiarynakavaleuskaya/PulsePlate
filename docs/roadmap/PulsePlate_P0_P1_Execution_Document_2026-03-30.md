@@ -55,7 +55,7 @@ Status: operator execution map
 
 ### Wave 4 — Legal / release shell
 1. `docs/legal-policy-publish` — merged via `#1304`
-2. `feat/eu-compliance-control-plane-followthrough` — Wave 4 closeout merged via `#1307`; any remaining program-level follow-through stays tracked in the open ledger epic
+2. `feat/eu-compliance-control-plane-follow-through` — Wave 4 closeout merged via `#1307`; any remaining program-level follow-through stays tracked in the open ledger epic
 3. `docs/ios-subscription-offers-governance` — merged via `#1312`
 4. `feat/ios-appstore-assets-rollout` — merged via `#1323`
 5. `feat/ios-appstore-semantic-validators` — merged via `#1324`
@@ -161,7 +161,7 @@ Status: operator execution map
   - release-shell / compliance follow-through no longer blocks release truth; map this to still-open P0 items, especially `ledger-p0-eu-compliance-control-plane-follow-through`, not by reopening `ledger-p0-legal-policy-publish`
   - no newly open P0 release-truth blocker is allowed to be overtaken unless an explicit decision log says otherwise
 - goal: move off classic `verifyReceipt` while keeping downstream activation contract stable and preserving the public/iOS transport contract
-- implementation note: deriving the App Store Server API identifier from the existing server-side receipt path is a feasibility checkpoint inside the lane; if it is not reliable, keep the legacy path as an explicit temporary fallback and do not force an iOS transport change in the same PR
+- implementation note: deriving the App Store Server API identifier from the existing server-side receipt path is a feasibility checkpoint inside the lane; if it is not reliable, keep the legacy path as an explicit temporary fallback (owner: billing/provider lane owner; review date: 2026-07-03; exit via `ledger-p1-apple-server-api-migration` DoD closure) and do not force an iOS transport change in the same PR
 
 ### 13. chore(contracts): public OpenAPI/runtime/docs sync
 - goal: keep public schema restricted to bmi/pro/vip, mark premium as compat-only, regenerate FE artifacts
