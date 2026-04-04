@@ -17,6 +17,12 @@ Reason: Clarified effective-vs-creation timestamps and explicitly disambiguated 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1330#discussion_r3036114895 -> e169e93f
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1330#pullrequestreview-4058893402 -> e169e93f
 
+Disposition: FIXED
+Commit: 3d723f8f
+Evidence: docs/orchestration/LOCAL_WORKFORCE_PR_A_TASK_PACKET_2026-04-05.md:105; ios/PulsePlate/AppStore/AppStoreScreenshotContext.swift:61; ios/PulsePlate/AppStore/AppStoreScreenshotContext.swift:62; ios/PulsePlate/AppStore/AppStoreScreenshotContext.swift:63
+Reason: Addressed the follow-up CodeRabbit nit review by tightening the acceptance-criteria phrasing and documenting why `nonisolated(unsafe)` is safe for `previewProKey`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1330#pullrequestreview-4058906773 -> 3d723f8f
+
 ## Merge Readiness
 - [ ] All required checks pass
 - [ ] No unresolved review threads (re-check on current head before merge)
