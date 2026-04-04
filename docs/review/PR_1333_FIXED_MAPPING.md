@@ -1,7 +1,7 @@
 # PR 1333 — Fixed in Commit Mapping
 
 ## Discussion Thread Pass
-- [x] Review-comment pass completed
+- [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
