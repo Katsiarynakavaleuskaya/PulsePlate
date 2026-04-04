@@ -5,18 +5,22 @@
 - [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1328#pullrequestreview-4058845461 -> 7981c185
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1328#pullrequestreview-4058845461 -> d1b8a48b
 Disposition: FIXED
-Commit: 7981c185
-Evidence: the CodeRabbit review summary requested deterministic backlog anchors and stronger PR-C reuse wording; `docs/roadmap/BACKLOG_LEDGER.md` now defines stable anchor ids for PR-A/PR-B/PR-C and `docs/orchestration/COMPOSER_BOOTSTRAP_KIT_PR1.md` now requires PR-C to reuse existing security/control-plane primitives unless coordinator review records an explicit exception
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1328#discussion_r3036045392 -> 7981c185
+Commit: d1b8a48b
+Evidence: the current head now includes deterministic backlog anchors for PR-A/PR-B/PR-C, mandatory PR-C reuse wording, explicit bot-comment mappings, and pending lifecycle checkboxes until the final current-head pass
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1328#discussion_r3036045392 -> d42ab061
 Disposition: FIXED
-Commit: 7981c185
-Evidence: the draft-only `No actionable review comments` placeholder is gone; actionable CodeRabbit findings are now explicitly mapped in this canonical artifact
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1328#discussion_r3036045394 -> 7981c185
+Commit: d42ab061
+Evidence: the draft-only `No actionable review comments` claim is gone; actionable CodeRabbit findings are now explicitly mapped in this canonical artifact
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1328#discussion_r3036045394 -> d1b8a48b
 Disposition: FIXED
-Commit: 7981c185
-Evidence: the artifact now records the live CodeRabbit review mappings instead of a premature final-state claim, so merge-readiness state no longer conflicts with active review lanes
+Commit: d1b8a48b
+Evidence: the merge-readiness lifecycle boxes for bug-hunter and privileged-surface security review are now pending until the final current-head pass instead of being pre-checked
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1328#discussion_r3036047809 -> d1b8a48b
+Disposition: FIXED
+Commit: d1b8a48b
+Evidence: the merge-readiness lifecycle boxes are now pending rather than overstated, so the canonical artifact no longer claims bug-hunter/security completion before the final current-head pass
 
 ## Merge Readiness
 - [ ] All required checks pass
