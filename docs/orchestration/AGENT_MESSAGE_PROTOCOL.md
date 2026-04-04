@@ -6,7 +6,7 @@
 - agent results (agent → coordinator)
 - repair requests (coordinator → agent)
 
-**Status:** Canonical (dev-only). This protocol defines **format**, not runtime behavior.
+**Status:** Canonical (dev-only). This protocol defines **format**, not runtime behavior, and it describes a derived transport view over the canonical bootstrap packet rather than a second source of truth.
 
 **Anti-drift rule:** do not duplicate envelope rules across other docs; link here.
 
@@ -53,6 +53,8 @@ Envelope mode is considered enabled when the coordinator:
 - sends a `<TASK_PACKET_V1>`, and
 - sets `output_requirements.must_return` to require an `<AGENT_RESULT_V1>` envelope only (no preamble).
 
+In the live repo baseline, that requirement is derived from the canonical bootstrap packet emitted by `scripts/orchestration/task_bootstrap.py`; the protocol here describes the transport view, not a parallel builder.
+
 ### Envelope count
 
 - **Exactly one** `<AGENT_RESULT_V1>` envelope is valid per agent response.
@@ -81,6 +83,8 @@ Envelope mode is considered enabled when the coordinator:
 ## Envelope types + required keys
 
 ### 1) `<TASK_PACKET_V1>` (Coordinator → agent)
+
+`<TASK_PACKET_V1>` is a derived envelope view over the canonical bootstrap packet. The repo SoT remains `scripts/orchestration/task_bootstrap.py`; any transport serializer/projector must derive from that artifact instead of authoring a second packet contract.
 
 Minimum required keys:
 
@@ -111,9 +115,11 @@ Optional packet-level automation metadata (PR2 bootstrap hardening):
 - `inputs.needs_backlog_update` (boolean; deterministic sync signal)
 - `inputs.needs_docs_sync` (boolean; deterministic sync signal)
 - `inputs.needs_agents_sync` (boolean; deterministic sync signal)
+- `inputs.message_envelope` (object; additive derivation metadata carried by the canonical bootstrap packet, including `protocol_version`, `derived_view`, `mode`, and `output_requirements.must_return`)
 
-Canonical derivation for the sync signals above lives in
-`scripts/orchestration/bootstrap_sync_policy.py`.
+Canonical derivation for the sync signals and additive envelope-mode hint above lives in
+`scripts/orchestration/bootstrap_sync_policy.py`, while
+`scripts/orchestration/task_bootstrap.py` remains the only canonical packet builder.
 
 ### 2) `<AGENT_RESULT_V1>` (Agent → coordinator)
 

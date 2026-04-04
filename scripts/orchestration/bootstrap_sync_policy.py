@@ -46,6 +46,15 @@ AGENT_CONTRACT_PATH_MARKERS: tuple[str, ...] = (
 
 BACKLOG_LEDGER_PATH = "docs/roadmap/backlog_ledger.md"
 DOCS_PATH_PREFIX = "docs/"
+DOCS_ONLY_ROOT_FILES: tuple[str, ...] = (
+    "AGENTS.md",
+    "RUNBOOK_AGENT.md",
+    "README.md",
+    "CLAUDE.md",
+    "DEPLOYMENT.md",
+)
+ANALYSIS_ENVELOPE_MODE = "analysis"
+DOCS_ONLY_ENVELOPE_MODE = "docs_only"
 
 
 def matches_any_prefix(path: str, prefixes: tuple[str, ...]) -> bool:
@@ -123,3 +132,38 @@ def needs_agents_sync(candidate_paths: Sequence[str]) -> bool:
         or path.endswith(f"/{SKILL_CONTRACT_FILE}")
         for path in candidate_paths
     )
+
+
+def is_docs_only_contract_path(path: str) -> bool:
+    """Return True when the path is a canonical docs/contract surface.
+
+    RU: Docs-only режим допускается только для markdown/contract поверхностей.
+    EN: Docs-only mode is restricted to canonical markdown/contract surfaces.
+    """
+
+    normalized = path.strip()
+    if not normalized:
+        return False
+
+    if normalized in DOCS_ONLY_ROOT_FILES:
+        return True
+    if normalized.endswith(".md"):
+        return True
+    if normalized.endswith(f"/{SKILL_CONTRACT_FILE}") or normalized == SKILL_CONTRACT_FILE:
+        return True
+    return False
+
+
+def resolve_analysis_envelope_mode(candidate_paths: Sequence[str]) -> str:
+    """Return the additive envelope-mode hint for the canonical bootstrap packet.
+
+    RU: Смешанный или runtime scope всегда fail-closed в analysis.
+    EN: Mixed or runtime scope always fails closed to analysis.
+    """
+
+    normalized_paths = [path.strip() for path in candidate_paths if path.strip()]
+    if not normalized_paths or requires_security_review(normalized_paths):
+        return ANALYSIS_ENVELOPE_MODE
+    if all(is_docs_only_contract_path(path) for path in normalized_paths):
+        return DOCS_ONLY_ENVELOPE_MODE
+    return ANALYSIS_ENVELOPE_MODE

@@ -39,10 +39,12 @@ from scripts.orchestration.agent_consistency_loader import (
     load_non_routable_agents,
 )
 from scripts.orchestration.bootstrap_sync_policy import (
+    DOCS_ONLY_ENVELOPE_MODE,
     needs_agents_sync as bootstrap_needs_agents_sync,
     needs_backlog_update as bootstrap_needs_backlog_update,
     needs_docs_sync as bootstrap_needs_docs_sync,
     requires_security_review as bootstrap_requires_security_review,
+    resolve_analysis_envelope_mode,
 )
 from scripts.orchestration.design_lane_contract import (
     DESIGN_BLOCKERS,
@@ -99,6 +101,9 @@ PR_PHASES: tuple[str, ...] = (
 POST_OPEN_REVIEW_LANE: tuple[str, ...] = ("qa-engineer-agent", "bug-hunter")
 PR_REVIEW_ARTIFACT_TEMPLATE = "docs/review/PR_<N>_FIXED_MAPPING.md"
 MERGE_READINESS_ENTRYPOINT = "scripts/orchestration/check_merge_ready.py"
+MESSAGE_ENVELOPE_PROTOCOL_VERSION = "1.0"
+MESSAGE_ENVELOPE_DERIVED_VIEW = "TASK_PACKET_V1"
+ENVELOPE_ONLY_RESULT_REQUIREMENT = "AGENT_RESULT_V1 envelope only (no preamble)"
 
 
 def _read_json(path: Path) -> dict[str, Any] | None:
@@ -661,7 +666,9 @@ def build_task_packet(
 ) -> dict[str, Any]:
     """Build a deterministic task packet for orchestration tooling."""
 
-    normalized_paths = repo_relative_paths(candidate_paths)
+    normalized_paths = repo_relative_paths(
+        [path.strip() for path in candidate_paths if path.strip()]
+    )
     normalized_requested_agents = normalize_requested_agents(requested_agents)
     normalized_pr_phase = _normalize_pr_phase(pr_phase)
     design_lane_mode, design_lane_contract, design_lane_enabled = _build_design_lane_contract(
@@ -804,6 +811,17 @@ def build_task_packet(
     )
     needs_docs_sync = bootstrap_needs_docs_sync(normalized_paths)
     needs_agents_sync = bootstrap_needs_agents_sync(normalized_paths)
+    envelope_mode_hint = resolve_analysis_envelope_mode(normalized_paths)
+    message_envelope = {
+        "protocol_version": MESSAGE_ENVELOPE_PROTOCOL_VERSION,
+        "derived_view": MESSAGE_ENVELOPE_DERIVED_VIEW,
+        "mode": (
+            "docs-only" if envelope_mode_hint == DOCS_ONLY_ENVELOPE_MODE else envelope_mode_hint
+        ),
+        "output_requirements": {
+            "must_return": [ENVELOPE_ONLY_RESULT_REQUIREMENT],
+        },
+    }
     pr_lifecycle_contract = _build_pr_lifecycle_contract(normalized_pr_phase)
     if judgment_enabled:
         context_pack = sorted(set(context_pack).union(JUDGMENT_REQUIRED_CONTEXT_FILES))
@@ -861,6 +879,7 @@ def build_task_packet(
         "requested_agents": normalized_requested_agents,
         "requested_agent_disposition": requested_agent_resolution["requested_agent_disposition"],
         "required_context": context_pack,
+        "message_envelope": message_envelope,
         "recommended_skills": flatten_recommended_skills(skill_routing),
         "skill_routing": skill_routing,
         "automation_flags": {
