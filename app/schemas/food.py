@@ -159,6 +159,23 @@ class FoodItem(BaseModel):
     def _parse_nutrition_provenance(cls, value: object) -> dict[str, str]:
         return _parse_json_mapping(value)
 
+    @field_validator("nutrition_confidence", mode="before")
+    @classmethod
+    def _coerce_nutrition_confidence(cls, value: object) -> float:
+        if value is None:
+            return 0.0
+        if isinstance(value, (int, float)):
+            return float(value)
+        if isinstance(value, str):
+            raw = value.strip()
+            if not raw:
+                return 0.0
+            try:
+                return float(raw)
+            except ValueError:
+                return 0.0
+        return 0.0
+
 
 class FoodHit(BaseModel):
     """

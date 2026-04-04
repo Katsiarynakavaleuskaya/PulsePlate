@@ -5,7 +5,84 @@ RU: Тесты resolver-слоя provenance/confidence для питания.
 EN: Tests for nutrition provenance/confidence resolver.
 """
 
-from core.off_nutrition import NutritionInput, project_scalar_compat, resolve_nutrition
+import math
+
+from core.off_nutrition import (
+    NutritionInput,
+    is_valid_nutrient_scalar,
+    project_scalar_compat,
+    resolve_nutrition,
+)
+from core.off_nutrition.resolver import _is_valid_numeric, _normalize_source_name
+
+
+def test_is_valid_nutrient_scalar_accepts_finite_nonneg_numbers() -> None:
+    assert is_valid_nutrient_scalar(1) is True
+    assert is_valid_nutrient_scalar(0.0) is True
+    assert is_valid_nutrient_scalar(-1.0) is False
+    assert is_valid_nutrient_scalar(None) is False
+    assert is_valid_nutrient_scalar(True) is False
+    assert is_valid_nutrient_scalar(False) is False
+
+
+def test_normalize_source_name_off_and_merged_collapses_to_estimate() -> None:
+    assert _normalize_source_name("Open Food Facts") == "estimate"
+    assert _normalize_source_name("off") == "estimate"
+    assert _normalize_source_name("OFF") == "estimate"
+    assert _normalize_source_name("MERGED(usda, off)") == "estimate"
+    assert _normalize_source_name("merged(USDA, OFF)") == "estimate"
+    assert _normalize_source_name("usda") == "usda"
+
+
+def test_is_valid_numeric_rejects_nan_inf_negative_and_bool() -> None:
+    assert _is_valid_numeric(0.0) is True
+    assert _is_valid_numeric(3.14) is True
+    assert _is_valid_numeric(float("nan")) is False
+    assert _is_valid_numeric(float("inf")) is False
+    assert _is_valid_numeric(float("-inf")) is False
+    assert _is_valid_numeric(-1.0) is False
+    assert _is_valid_numeric(True) is False
+
+
+def test_resolve_nutrition_auto_discovers_nutrient_keys() -> None:
+    inputs = [
+        NutritionInput(source="estimate", nutrients={"protein_g": 5.0}, record_id="a"),
+        NutritionInput(source="estimate", nutrients={"fat_g": 1.0}, record_id="b"),
+    ]
+    result = resolve_nutrition(inputs=inputs, nutrient_keys=None)
+    assert result.nutrients["protein_g"] == 5.0
+    assert result.nutrients["fat_g"] == 1.0
+    assert result.provenance["protein_g"] == "estimate"
+    assert result.provenance["fat_g"] == "estimate"
+
+
+def test_resolve_nutrition_skips_invalid_numeric_values() -> None:
+    inputs = [
+        NutritionInput(
+            source="usda",
+            nutrients={
+                "protein_g": float("nan"),
+                "fat_g": float("inf"),
+                "carbs_g": -1.0,
+            },
+            record_id="usda-invalid",
+        ),
+        NutritionInput(
+            source="estimate",
+            nutrients={"protein_g": 10.0, "fat_g": 5.0, "carbs_g": 2.0},
+            record_id="off-valid",
+        ),
+    ]
+    result = resolve_nutrition(
+        inputs=inputs,
+        nutrient_keys=["protein_g", "fat_g", "carbs_g"],
+    )
+    assert math.isclose(result.nutrients["protein_g"], 10.0)
+    assert math.isclose(result.nutrients["fat_g"], 5.0)
+    assert math.isclose(result.nutrients["carbs_g"], 2.0)
+    assert result.provenance["protein_g"] == "estimate"
+    assert result.provenance["fat_g"] == "estimate"
+    assert result.provenance["carbs_g"] == "estimate"
 
 
 def test_resolve_nutrition_prefers_explicit_source_priority() -> None:

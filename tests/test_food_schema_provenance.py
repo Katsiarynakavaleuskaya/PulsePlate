@@ -1,5 +1,7 @@
 """Tests for additive provenance fields on app food schema."""
 
+import pytest
+
 from app.schemas.food import FoodItem, _parse_json_inputs, _parse_json_mapping
 
 
@@ -71,3 +73,33 @@ def test_parse_json_inputs_helper_covers_list_and_string_edge_cases() -> None:
     assert _parse_json_inputs([{"source": "estimate"}, "skip"]) == [{"source": "estimate"}]
     assert _parse_json_inputs("null") == []
     assert _parse_json_inputs('{"source":"estimate"}') == []
+    assert _parse_json_inputs("not-json") == []
+
+
+def test_food_item_nutrition_confidence_coerces_and_defaults() -> None:
+    food = FoodItem(
+        id="food-c1",
+        canonical_name="oat",
+        group="grain",
+        kcal=389.0,
+        protein_g=16.9,
+        fat_g=6.9,
+        carbs_g=66.3,
+        source="USDA",
+        version_date="2024-01-01",
+        nutrition_confidence="0.75",
+    )
+    assert food.nutrition_confidence == pytest.approx(0.75, 0.001)
+
+    food_default = FoodItem(
+        id="food-c2",
+        canonical_name="rye",
+        group="grain",
+        kcal=335.0,
+        protein_g=10.3,
+        fat_g=1.6,
+        carbs_g=69.8,
+        source="USDA",
+        version_date="2024-01-01",
+    )
+    assert food_default.nutrition_confidence == 0.0

@@ -77,3 +77,5 @@ async def test_unified_db_get_food_by_id_off_success():
             assert item is not None and hasattr(item, "name") and hasattr(item, "source")
             assert item.source == "Open Food Facts"
             assert item.nutrition_inputs[0]["source"] == "estimate"
+            assert item.nutrition_provenance["protein_g"] == "estimate"
+            assert item.nutrition_confidence == pytest.approx(0.4, 0.01)

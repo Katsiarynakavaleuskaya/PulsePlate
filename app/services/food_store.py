@@ -430,6 +430,8 @@ def _normalize_food_row(row: Dict[str, Any]) -> Dict[str, Any]:
         except (TypeError, ValueError):
             parsed_inputs = []
         normalized["nutrition_inputs"] = parsed_inputs if isinstance(parsed_inputs, list) else []
+    elif isinstance(raw_inputs, list):
+        normalized["nutrition_inputs"] = list(raw_inputs)
 
     raw_provenance = normalized.get("nutrition_provenance_json")
     if isinstance(raw_provenance, str):
@@ -440,9 +442,15 @@ def _normalize_food_row(row: Dict[str, Any]) -> Dict[str, Any]:
         normalized["nutrition_provenance"] = (
             parsed_provenance if isinstance(parsed_provenance, dict) else {}
         )
+    elif isinstance(raw_provenance, dict):
+        normalized["nutrition_provenance"] = dict(raw_provenance)
 
     if "nutrition_confidence" in normalized and normalized["nutrition_confidence"] is None:
         normalized["nutrition_confidence"] = 0.0
+
+    normalized.setdefault("nutrition_inputs", [])
+    normalized.setdefault("nutrition_provenance", {})
+    normalized.setdefault("nutrition_confidence", 0.0)
 
     return normalized
 

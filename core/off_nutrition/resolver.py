@@ -34,10 +34,18 @@ def _normalize_source_name(source: str) -> str:
 
 
 def _is_valid_numeric(value: object) -> bool:
+    # bool is a subclass of int; reject it so True/False cannot masquerade as nutrients.
+    if isinstance(value, bool):
+        return False
     if not isinstance(value, (int, float)):
         return False
     as_float = float(value)
     return math.isfinite(as_float) and as_float >= 0.0
+
+
+def is_valid_nutrient_scalar(value: object) -> bool:
+    """Return True when *value* is a finite, non-negative numeric nutrient scalar."""
+    return _is_valid_numeric(value)
 
 
 def _iter_priority_order(

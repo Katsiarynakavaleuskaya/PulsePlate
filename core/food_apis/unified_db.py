@@ -98,8 +98,9 @@ class UnifiedFoodItem:
         default 0.0 values if missing from USDA response. Pure protein/fat foods
         (e.g., chicken breast, salmon) may have 0 carbs and USDA may omit the field.
         """
-        # Normalize nutrients - ensure primary macros have defaults
-        nutrients = dict(usda_item.nutrients_per_100g)
+        # Normalize nutrients - ensure primary macros have defaults for downstream math.
+        raw_nutrients = dict(usda_item.nutrients_per_100g)
+        nutrients = dict(raw_nutrients)
 
         # Set defaults for primary macronutrients if missing
         nutrients.setdefault("protein_g", 0.0)
@@ -120,12 +121,14 @@ class UnifiedFoodItem:
                     "source": "usda",
                     "record_id": str(usda_item.fdc_id),
                     "version_ref": usda_item.publication_date,
-                    "nutrients": dict(usda_item.nutrients_per_100g),
+                    "nutrients": dict(raw_nutrients),
                     "raw_payload": {},
                 }
             ],
-            nutrition_provenance={key: "usda" for key in nutrients},
-            nutrition_confidence=0.7 if nutrients else 0.0,
+            # Only attribute USDA provenance to fields present in the upstream payload;
+            # synthetic macro defaults must not be labeled as USDA-sourced.
+            nutrition_provenance={key: "usda" for key in raw_nutrients},
+            nutrition_confidence=0.7 if raw_nutrients else 0.0,
         )
 
     @classmethod

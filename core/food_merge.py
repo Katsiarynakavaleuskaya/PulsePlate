@@ -13,7 +13,12 @@ from statistics import median
 from typing import Dict, Iterable, List
 
 from .food_sources.base import FoodRecord
-from .off_nutrition import NutritionInput, project_scalar_compat, resolve_nutrition
+from .off_nutrition import (
+    NutritionInput,
+    is_valid_nutrient_scalar,
+    project_scalar_compat,
+    resolve_nutrition,
+)
 
 # Micro nutrients list
 MICROS = [
@@ -76,19 +81,23 @@ def merge_records(streams: List[Iterable[FoodRecord]]) -> List[Dict]:
                 record_id=r.name,
                 version_ref=r.version_date,
                 nutrients={
-                    "kcal": r.kcal,
-                    "protein_g": r.protein_g,
-                    "fat_g": r.fat_g,
-                    "carbs_g": r.carbs_g,
-                    "fiber_g": r.fiber_g,
-                    "Fe_mg": r.Fe_mg,
-                    "Ca_mg": r.Ca_mg,
-                    "VitD_IU": r.VitD_IU,
-                    "B12_ug": r.B12_ug,
-                    "Folate_ug": r.Folate_ug,
-                    "Iodine_ug": r.Iodine_ug,
-                    "K_mg": r.K_mg,
-                    "Mg_mg": r.Mg_mg,
+                    key: float(value)
+                    for key, value in {
+                        "kcal": r.kcal,
+                        "protein_g": r.protein_g,
+                        "fat_g": r.fat_g,
+                        "carbs_g": r.carbs_g,
+                        "fiber_g": r.fiber_g,
+                        "Fe_mg": r.Fe_mg,
+                        "Ca_mg": r.Ca_mg,
+                        "VitD_IU": r.VitD_IU,
+                        "B12_ug": r.B12_ug,
+                        "Folate_ug": r.Folate_ug,
+                        "Iodine_ug": r.Iodine_ug,
+                        "K_mg": r.K_mg,
+                        "Mg_mg": r.Mg_mg,
+                    }.items()
+                    if is_valid_nutrient_scalar(value)
                 },
                 raw_payload={},
             )
@@ -106,6 +115,8 @@ def merge_records(streams: List[Iterable[FoodRecord]]) -> List[Dict]:
         compat["carbs_g"] = round(_merge_values([r.carbs_g for r in rows]), 2)
         compat["fiber_g"] = round(_merge_values([r.fiber_g for r in rows]), 2)
         if not has_usda_source:
+            # Legacy median path: _merge_values already drops None and negative values
+            # (same semantics as the retired micro_pick helper).
             for micro_key in MICROS:
                 compat[micro_key] = _merge_values([getattr(r, micro_key) for r in rows])
 
