@@ -16,6 +16,7 @@ from core.judgment import (
     SUPPORT_STATUSES,
     UNCERTAINTY_FIELDS,
 )
+from scripts.orchestration.bootstrap_sync_policy import matches_any_prefix
 from scripts.orchestration.design_lane_contract import canonicalize_design_blockers
 from scripts.orchestration.context_pack import REPO_ROOT, normalize_repo_path
 from scripts.orchestration.routing_graph_loader import (
@@ -25,7 +26,6 @@ from scripts.orchestration.routing_graph_loader import (
 from scripts.orchestration.task_bootstrap import (
     _apply_pr_lifecycle_review_path,
     _normalize_secondary_review_path,
-    _matches_any_prefix,
     _resolve_output_path,
     build_task_packet,
     main,
@@ -1147,10 +1147,10 @@ def test_matches_any_prefix_covers_exact_and_nested_paths() -> None:
 
     prefixes = ("scripts/", "docs/orchestration/")
 
-    assert _matches_any_prefix("scripts", prefixes) is True
-    assert _matches_any_prefix("scripts/orchestration/task_bootstrap.py", prefixes) is True
-    assert _matches_any_prefix("docs/orchestration/workflow.md", prefixes) is True
-    assert _matches_any_prefix("tests/test_task_bootstrap.py", prefixes) is False
+    assert matches_any_prefix("scripts", prefixes) is True
+    assert matches_any_prefix("scripts/orchestration/task_bootstrap.py", prefixes) is True
+    assert matches_any_prefix("docs/orchestration/workflow.md", prefixes) is True
+    assert matches_any_prefix("tests/test_task_bootstrap.py", prefixes) is False
 
 
 def test_normalize_repo_path_preserves_dot_cursor_prefix() -> None:
