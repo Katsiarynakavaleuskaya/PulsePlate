@@ -2295,7 +2295,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Target PR: PR-TBD-LOCAL-WORKFORCE-PR-A-BOOTSTRAP-SEAM
   - Area: orchestration / task bootstrap / skill routing / local workforce
   - Finding Type: RFC follow-on slice
-  - Status: Planned as the next non-duplicate repo lane after the docs-only RFC and automation-status reconciliation.
+  - Status: Ready as the next non-duplicate repo lane on `main` after merged prerequisite baseline PRs `#1325` (`866ba507`), `#1327` (`7df804cf`), and `#1328` (`10ce5e67`).
   - Reason: `docs/orchestration/COMPOSER_BOOTSTRAP_KIT_PR1.md` explicitly requires extending the existing coordinator bootstrap seam instead of introducing a second packet system. Coordinator automation PR2-PR5 plus the sync-policy extraction are already landed, so the next repo lane must add any local-workforce semantics additively on top of `task_bootstrap.py`, `skill_router.py`, and `bootstrap_sync_policy.py`.
   - Dependencies:
     - `PR #1325`
