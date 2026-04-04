@@ -21,8 +21,15 @@ Reason: The later artifact-normalization commit recorded the disposition blocks 
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1332#discussion_r3036117134
 Disposition: NOT-A-BUG
-Evidence: `docs/review/PR_1332_FIXED_MAPPING.md:30`
+Evidence: `RUNBOOK_AGENT.md:140`, `RUNBOOK_AGENT.md:141`
 Reason: `Pre-commit green` is intentionally tracked as complete on the current merge cycle because this lane reruns `pre-commit run --all-files` before push; the repository validator does not require that line to remain unchecked.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1332#discussion_r3036139160 -> PENDING_COMMIT
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1332#pullrequestreview-4058910404 -> PENDING_COMMIT
+Disposition: FIXED
+Commit: PENDING_COMMIT
+Evidence: `RUNBOOK_AGENT.md:140`, `RUNBOOK_AGENT.md:141`
+Reason: cubic identified a valid stale-proof issue in the artifact. This follow-up commit replaces the self-referential line citation with the canonical merge-ready blocking bundle proof and records the late cubic aggregate review against the same fix.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1332#discussion_r3036119273 -> ca065fe9
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1332#pullrequestreview-4058893902 -> ca065fe9
