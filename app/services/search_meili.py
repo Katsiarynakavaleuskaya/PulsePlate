@@ -7,6 +7,7 @@ from dataclasses import dataclass
 import json
 import logging
 import math
+import re
 import threading
 from typing import Any, Literal, TYPE_CHECKING
 
@@ -38,16 +39,19 @@ _TOTAL_DURATION_KEYS = (
     "processingTimeMs",
     "totalProcessingTimeMs",
     "totalMs",
+    "search",
 )
 _STAGE_NAME_ALIASES = {
     "authorization": "authorization",
     "authorizationms": "authorization",
     "authorize": "authorization",
     "authorizems": "authorization",
+    "waitforpermit": "authorization",
     "tokenization": "tokenization",
     "tokenizationms": "tokenization",
     "tokenize": "tokenization",
     "tokenizems": "tokenization",
+    "searchtokenize": "tokenization",
     "keywordsearch": "keyword_search",
     "keywordsearchms": "keyword_search",
     "keywords": "keyword_search",
@@ -58,13 +62,20 @@ _STAGE_NAME_ALIASES = {
     "filteringms": "filtering",
     "filters": "filtering",
     "filtersms": "filtering",
+    "searchfilter": "filtering",
     "ranking": "ranking",
     "rankingms": "ranking",
+    "searchranking": "ranking",
     "formatting": "formatting",
     "formattingms": "formatting",
     "format": "formatting",
     "formatms": "formatting",
+    "searchformat": "formatting",
 }
+_DURATION_VALUE_RE = re.compile(
+    r"^\s*(?P<value>\d+(?:\.\d+)?)\s*(?P<unit>ns|us|µs|μs|ms|s)\s*$",
+    re.IGNORECASE,
+)
 
 
 @dataclass(frozen=True)
@@ -105,6 +116,25 @@ def _coerce_non_negative_ms(value: object) -> float | None:
 
     if isinstance(value, bool):
         return None
+    if isinstance(value, str):
+        match = _DURATION_VALUE_RE.match(value)
+        if match is None:
+            return None
+        numeric_value = float(match.group("value"))
+        unit = match.group("unit").lower()
+        if unit == "ns":
+            normalized = numeric_value / 1_000_000
+        elif unit in {"us", "µs", "μs"}:
+            normalized = numeric_value / 1_000
+        elif unit == "ms":
+            normalized = numeric_value
+        else:
+            normalized = numeric_value * 1_000
+        if not math.isfinite(normalized):
+            return None
+        if normalized < 0 or normalized > _MAX_MEILI_DURATION_MS:
+            return None
+        return normalized
     if not isinstance(value, (int, float)):
         return None
     normalized = float(value)
@@ -118,7 +148,9 @@ def _coerce_non_negative_ms(value: object) -> float | None:
 def _normalize_stage_name(key: str) -> str | None:
     """Map vendor stage names to repo-owned labels."""
 
-    normalized = key.strip().lower().replace("-", "").replace("_", "").replace(" ", "")
+    normalized = (
+        key.strip().lower().replace("-", "").replace("_", "").replace(">", "").replace(" ", "")
+    )
     return _STAGE_NAME_ALIASES.get(normalized)
 
 

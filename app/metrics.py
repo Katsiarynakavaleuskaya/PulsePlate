@@ -248,7 +248,7 @@ def record_legacy_alias_hit(alias_route: str) -> None:
         counter.labels(alias_route=alias_route).inc()
     except (
         Exception
-    ):  # nosec B110: metrics must never affect request handling (remove-by: 2026-06-30, ref: PR-XXX)
+    ):  # nosec B110: metrics must never affect request handling (remove-by: 2026-06-30, ref: PR-1333)
         pass
 
 
@@ -317,7 +317,7 @@ def record_food_search_meili_performance(
             ).inc()
         except (
             Exception
-        ):  # nosec B110: metrics must never affect request handling (remove-by: 2026-06-30, ref: PR-XXX)
+        ):  # nosec B110: metrics must never affect request handling (remove-by: 2026-06-30, ref: PR-1333)
             pass
 
     if processing_time_ms is None:
@@ -335,7 +335,7 @@ def record_food_search_meili_performance(
         ).observe(processing_time_ms)
     except (
         Exception
-    ):  # nosec B110: metrics must never affect request handling (remove-by: 2026-06-30, ref: PR-XXX)
+    ):  # nosec B110: metrics must never affect request handling (remove-by: 2026-06-30, ref: PR-1333)
         pass
 
 
@@ -362,5 +362,5 @@ def record_food_search_meili_stage_timing(
         ).observe(duration_ms)
     except (
         Exception
-    ):  # nosec B110: metrics must never affect request handling (remove-by: 2026-06-30, ref: PR-XXX)
+    ):  # nosec B110: metrics must never affect request handling (remove-by: 2026-06-30, ref: PR-1333)
         pass

@@ -401,8 +401,9 @@ def test_metrics_scrape_includes_meili_observability_series(
             ],
             "processingTimeMs": 25,
             "performanceDetails": {
-                "authorization": {"durationMs": 1},
-                "tokenization": {"durationMs": 3},
+                "wait for permit": "295.29µs",
+                "search > tokenize": "436.67µs",
+                "search > format": "288.54µs",
                 "degraded": False,
             },
         },

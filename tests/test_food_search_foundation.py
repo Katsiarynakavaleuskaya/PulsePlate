@@ -247,10 +247,10 @@ def test_meili_backend_records_captured_performance_details(
             ],
             "processingTimeMs": 42,
             "performanceDetails": {
-                "authorization": {"durationMs": 1},
-                "tokenization": {"durationMs": 2},
-                "keywordSearch": {"durationMs": 15},
-                "formatting": {"durationMs": 4},
+                "wait for permit": "295.29µs",
+                "search > tokenize": "436.67µs",
+                "search": "3.56ms",
+                "search > format": "288.54µs",
                 "degraded": False,
             },
         },
@@ -267,12 +267,21 @@ def test_meili_backend_records_captured_performance_details(
             "processing_time_ms": 42.0,
         }
     ]
-    assert captured_stages == [
-        {"strategy": "hybrid_shadow", "stage": "authorization", "duration_ms": 1.0},
-        {"strategy": "hybrid_shadow", "stage": "tokenization", "duration_ms": 2.0},
-        {"strategy": "hybrid_shadow", "stage": "keyword_search", "duration_ms": 15.0},
-        {"strategy": "hybrid_shadow", "stage": "formatting", "duration_ms": 4.0},
+    assert [stage["strategy"] for stage in captured_stages] == [
+        "hybrid_shadow",
+        "hybrid_shadow",
+        "hybrid_shadow",
+        "hybrid_shadow",
     ]
+    assert [stage["stage"] for stage in captured_stages] == [
+        "authorization",
+        "tokenization",
+        "keyword_search",
+        "formatting",
+    ]
+    assert [stage["duration_ms"] for stage in captured_stages] == pytest.approx(
+        [0.29529, 0.43667, 3.56, 0.28854]
+    )
 
 
 def test_meili_backend_treats_invalid_perf_details_as_observability_only(
@@ -821,9 +830,13 @@ def test_search_meili_helper_sanitizers_cover_edge_branches() -> None:
     assert search_meili_module._normalize_degraded_flag("maybe") == "unknown"
     assert search_meili_module._coerce_non_negative_ms(True) is None
     assert search_meili_module._coerce_non_negative_ms("5") is None
+    assert search_meili_module._coerce_non_negative_ms("250us") == 0.25
+    assert search_meili_module._coerce_non_negative_ms("2s") == 2000.0
     assert search_meili_module._coerce_non_negative_ms(-1) is None
     assert search_meili_module._coerce_non_negative_ms(700_000) is None
     assert search_meili_module._normalize_stage_name("keywordSearch") == "keyword_search"
+    assert search_meili_module._normalize_stage_name("search > tokenize") == "tokenization"
+    assert search_meili_module._normalize_stage_name("wait for permit") == "authorization"
     assert search_meili_module._normalize_stage_name("unknown-stage") is None
     assert search_meili_module._duration_from_candidate(7) == 7.0
     assert search_meili_module._duration_from_candidate({"durationMs": 9}) == 9.0
