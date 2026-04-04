@@ -56,8 +56,8 @@ module SemanticPolicy
     /does\s+not\s+diagnos(?:e|is)[\s,]*(?:or|,|and)?\s*treat(?:\s+medical\s+conditions?)?/i,
     /не\s+ставит\s+диагноз[\s,]*(?:и|,)?\s*не\s+лечит[\s,]*(?:и|,)?\s*не\s+заменяет\s+консультаци(?:ю|и)\s+специалиста/i,
     /не\s+ставит\s+диагноз[\s,]*(?:и|,)?\s*не\s+лечит/i,
-    /no\s+diagnostica[\s,]*(?:ni|y|,)?\s*trata[\s,]*(?:ni|y|,)?\s*no\s+sustituye\s+la\s+atenci[oó]n\s+m[eé]dica\s+profesional/i,
-    /no\s+diagnostica[\s,]*(?:ni|y|,)?\s*trata(?:\s+afecciones?\s+m[eé]dicas?)?/i
+    /no\s+diagnostica[\s,]*(?:ni|y|,)?\s*(?:no\s+)?trata[\s,]*(?:ni|y|,)?\s*no\s+sustituye\s+la\s+atenci[oó]n\s+m[eé]dica\s+profesional/i,
+    /no\s+diagnostica[\s,]*(?:ni|y|,)?\s*(?:no\s+)?trata(?:\s+afecciones?\s+m[eé]dicas?)?/i
   ].freeze
 
   REVIEW_NOTE_PRIVACY_CONTRADICTIONS = [

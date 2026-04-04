@@ -454,6 +454,28 @@ def test_validate_metadata_allows_wellness_disclaimer_variants(tmp_path: Path) -
     assert result.returncode == 0, result.stderr
 
 
+def test_validate_metadata_allows_spanish_wellness_disclaimer_variant(tmp_path: Path) -> None:
+    metadata_root = tmp_path / "metadata"
+    review_notes, privacy_json = _prepare_metadata(metadata_root)
+    description_path = metadata_root / "es-ES" / "description.txt"
+    description_path.write_text(
+        (
+            "PulsePlate está diseñado para orientación wellness y planificación. "
+            "No diagnostica, no trata y no sustituye la atención médica profesional."
+        ),
+        encoding="utf-8",
+    )
+
+    result = _run_ruby(
+        REPO_ROOT / "ios/fastlane/verify/validate_metadata.rb",
+        str(metadata_root),
+        str(review_notes),
+        str(privacy_json),
+    )
+
+    assert result.returncode == 0, result.stderr
+
+
 def test_validate_metadata_allows_non_pricing_subscription_terms(tmp_path: Path) -> None:
     metadata_root = tmp_path / "metadata"
     review_notes, privacy_json = _prepare_metadata(metadata_root)
