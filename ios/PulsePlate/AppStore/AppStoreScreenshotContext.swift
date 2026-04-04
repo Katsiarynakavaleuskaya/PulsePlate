@@ -58,6 +58,8 @@ enum AppStoreScreenshotContext {
         return nil
     }
 
+    // RU: nonisolated(unsafe) безопасен для `previewProKey`, потому что getter возвращает только константы.
+    // EN: nonisolated(unsafe) is safe for `previewProKey` because the getter returns constants only.
     nonisolated(unsafe) static var previewProKey: String? {
         guard isEnabled else { return nil }
 

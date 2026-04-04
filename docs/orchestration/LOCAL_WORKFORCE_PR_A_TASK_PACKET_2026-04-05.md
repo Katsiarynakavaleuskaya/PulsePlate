@@ -102,7 +102,7 @@ What additive changes, if any, are allowed on the canonical bootstrap surfaces s
 - No new files appear under `docs/orchestration/LOCAL_AGENT_*`, `docs/orchestration/schemas/*`, or analogous parallel packet directories as part of `PR-A`
 - `build_task_packet(...)` remains deterministic for existing callers
 - Any new local-workforce bootstrap semantics are optional, documented, and test-backed
-- Skill-routing changes do not broaden unrelated task classes by accident
+- Skill-routing changes do not broaden unrelated task classes accidentally
 - Merge/readiness and current-head review governance remain inherited from the existing canonical wrapper path
 
 ## Validation Commands
