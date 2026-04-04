@@ -58,7 +58,9 @@ enum AppStoreScreenshotContext {
         return nil
     }
 
-    static var previewProKey: String? {
+    // RU: nonisolated(unsafe) безопасен для `previewProKey`, потому что getter возвращает только константы.
+    // EN: nonisolated(unsafe) is safe for `previewProKey` because the getter returns constants only.
+    nonisolated(unsafe) static var previewProKey: String? {
         guard isEnabled else { return nil }
 
         return "appstore-preview-key"
@@ -68,7 +70,6 @@ enum AppStoreScreenshotContext {
         guard isEnabled else { return }
 
         let userDefaults = UserDefaults.standard
-        let scenario = currentScenario ?? .coreValue
 
         // RU: Для App Store automation фиксируем детерминированное состояние без реальных данных.
         // EN: App Store automation always runs against deterministic seeded state only.
@@ -106,7 +107,7 @@ enum AppStoreScreenshotContext {
                     WeeklyPlanReaderView(
                         vm: WeeklyPlanReaderViewModel(
                             service: DefaultWeeklyPlanService(apiClient: APIClient(baseURL: AppConfig.baseURL())),
-                            apiKeyProvider: { AppStoreScreenshotContext.previewProKey }
+                            apiKeyProvider: { [key = AppStoreScreenshotContext.previewProKey] in key }
                         )
                     )
                 }
@@ -120,7 +121,7 @@ enum AppStoreScreenshotContext {
                             service: DefaultShoppingListService(
                                 apiClient: APIClient(baseURL: AppConfig.baseURL())
                             ),
-                            apiKeyProvider: { AppStoreScreenshotContext.previewProKey }
+                            apiKeyProvider: { [key = AppStoreScreenshotContext.previewProKey] in key }
                         ),
                         planData: ShoppingListStubPlan.minimal()
                     )
@@ -145,7 +146,7 @@ enum AppStoreScreenshotContext {
                             service: DefaultCBTInsightService(
                                 apiClient: APIClient(baseURL: AppConfig.baseURL())
                             ),
-                            apiKeyProvider: { AppStoreScreenshotContext.previewProKey }
+                            apiKeyProvider: { [key = AppStoreScreenshotContext.previewProKey] in key }
                         )
                     )
                 }
