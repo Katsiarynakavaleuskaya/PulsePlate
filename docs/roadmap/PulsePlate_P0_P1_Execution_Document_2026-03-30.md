@@ -6,7 +6,7 @@ Status: operator execution map
 ## Summary
 
 - Batch B is closed as a batch, but the paid contour is not fully release-ready.
-- The active critical path is now: deploy/runtime closure -> backend monetization follow-through -> web truth -> legal/release shell -> App Store closeout -> AI hardening follow-through.
+- The active critical path is now: deploy/runtime closure -> backend monetization follow-through -> web truth -> legal/release-shell follow-through -> AI hardening follow-through.
 - Do not reopen B1-B4 baseline work. Use explicit follow-up items already open in the canonical ledger.
 
 ## Status update — 2026-04-03
@@ -14,11 +14,10 @@ Status: operator execution map
 - PR1 Postgres foundation is already merged; do not reopen it inside the authz closeout lane.
 - PR2 deploy shell lane materially landed via `#1293`, with the extra CD env-token follow-up in `#1297`.
 - PR3 activation + persistence truth merged as `#1296`; shadow runtime truth is removed from the active monetization critical path.
-- PR4 is no longer pending implementation; that closeout merged as `#1298`.
-- PR4 closeout landed as docs/authz packet `#1298`, and web entitlement truth hardening landed via `#1299`.
+- PR4 closeout landed as docs/authz packet `#1298`, and web entitlement truth hardening landed via `#1299`, but `BACKLOG_LEDGER.md` remains the source of truth for whether `ledger-p0-billing-entitlement-routing` and `ledger-p0-web-entitlement-truth` are fully closed.
 - Web progress no longer ships fabricated charts on the release path; that docs-only closeout merged as `#1308`.
-- `docs/legal-policy-publish` already merged as `#1304`, and the current Wave 4 compliance closeout merged as `#1307`.
-- Wave 4 iOS/App Store release-ops closeout is already represented by merged `#1312`, `#1323`, and `#1324`; do not recast those slices as remaining P0 release-truth work.
+- `docs/legal-policy-publish` already merged as `#1304`; the current Wave 4 compliance closeout slice merged as `#1307`, but the canonical P0 epic remains open until the ledger says otherwise.
+- Wave 4 iOS/App Store release-ops closeout is already represented by merged `#1312`, `#1323`, and `#1324`; those merged slices do not change the rule that still-open P0 release-truth ledger items keep priority over P1 provider modernization.
 - `feat/apple-server-api-migration` remains a prepared P1 provider-modernization follow-on and must not overtake still-open P0 release-truth items in the ledger, especially `ledger-p0-eu-compliance-control-plane-follow-through`.
 - WebSocket foundation is no longer a stub-only surface; it is sufficiently wired for foundation scope, but it is not the current release priority.
 
@@ -101,14 +100,14 @@ Status: operator execution map
 - do not include: entitlement routing, iOS UI, App Store migration
 
 ### 4. feat(authz): enforce entitlement-backed routing after billing activation
-- status: closeout merged as `#1298`
-- closes: `ledger-p0-billing-entitlement-routing`
+- status: sequencing/closeout packet landed as `#1298`, but canonical closure still follows `BACKLOG_LEDGER.md`
+- ledger note: `ledger-p0-billing-entitlement-routing` remains the deciding source of truth until explicitly closed there
 - goal: backend entitlement truth for `/api/v1/pro/*` and `/api/v1/vip/*`; fail-closed startup contract; explicit RU/BY pre-entitlement rule
 - policy: manual RU/BY billing entry routes stay transport-auth only, not entitlement surfaces
 
 ### 5. feat(frontend): move web premium truth to canonical backend/store state
-- status: merged as `#1299`
-- closes: `ledger-p0-web-entitlement-truth`
+- status: sequencing/hardening slice landed as `#1299`, but canonical closure still follows `BACKLOG_LEDGER.md`
+- ledger note: `ledger-p0-web-entitlement-truth` remains the deciding source of truth until explicitly closed there
 - goal: remove local premium source of truth; dev-only gate mock purchase/restore
 - do not include: backend subscription redesign
 
@@ -124,8 +123,8 @@ Status: operator execution map
 - goal: canonical privacy/terms paths live in repo and are linked from web/iOS
 
 ### 8. feat(compliance): EU-first compliance control plane follow-through
-- status: Wave 4 closeout merged as `#1307`; any remaining program-level DSAR/public-surface work stays tracked in the ledger epic and is not the next active implementation lane
-- closes: `ledger-p0-eu-compliance-control-plane-follow-through`
+- status: Wave 4 closeout slice merged as `#1307`, but the canonical P0 epic remains open for program-level DSAR/public-surface and regulated-lane follow-through until the ledger says otherwise
+- ledger note: `ledger-p0-eu-compliance-control-plane-follow-through` remains the deciding source of truth until explicitly closed there
 - goal: keep `/privacy`, docs/legal, and compliance runtime synchronized for AI/health surfaces
 
 ### 9. docs/ios: subscription offers governance and StoreKit-truth pricing contract
@@ -141,12 +140,14 @@ Status: operator execution map
   - `ledger-p1-apple-server-api-migration`
 
 ### 10. feat(ios-release-ops): protected App Store asset rollout
+- status: merged as `#1323`
 - closes together:
   - `ledger-p1-ios-appstore-assets-rollout`
   - `ledger-p1-pr1147-ios-appstore-asset-followups`
 - goal: protected environments, upload workflow, deterministic screenshot contract, runbook
 
 ### 11. feat(ios-release-ops): semantic metadata/privacy validators
+- status: merged as `#1324`
 - closes: `ledger-p1-ios-appstore-semantic-validators`
 - goal: block medical/promissory copy drift and privacy-package mismatches
 
@@ -154,9 +155,10 @@ Status: operator execution map
 - status: prepared follow-on only; do not open this lane ahead of still-open P0 release-truth work
 - closes: `ledger-p1-apple-server-api-migration`
 - preconditions:
-  - `ledger-p0-billing-entitlement-routing` is merged
-  - `ledger-p0-web-entitlement-truth` is merged
+  - `ledger-p0-billing-entitlement-routing` is closed in the canonical ledger
+  - `ledger-p0-web-entitlement-truth` is closed in the canonical ledger
   - release-shell / compliance follow-through no longer blocks release truth; map this to still-open P0 items, especially `ledger-p0-eu-compliance-control-plane-follow-through`, not by reopening `ledger-p0-legal-policy-publish`
+  - no newly open P0 release-truth blocker is allowed to be overtaken unless an explicit decision log says otherwise
 - goal: move off classic `verifyReceipt` while keeping downstream activation contract stable and preserving the public/iOS transport contract
 - implementation note: deriving the App Store Server API identifier from the existing server-side receipt path is a feasibility checkpoint inside the lane; if it is not reliable, keep the legacy path as an explicit temporary fallback and do not force an iOS transport change in the same PR
 
