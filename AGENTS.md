@@ -349,6 +349,18 @@ Operational procedure lives in `RUNBOOK_AGENT.md` and `docs/orchestration/COORDI
 
 **Routing helper:** No hardcoded routing defaults except coordinator fallback; canonical `docs/orchestration/AGENT_ROUTING_GRAPH.md` is the baseline. Telemetry is advisory. Routing helper MUST NOT modify routing docs; it emits decisions only (JSON stdout).
 
+**Provider modernization sequencing (hard):**
+- Provider modernization PRs (for example Apple/Google/provider verification migrations) MUST NOT overtake still-open P0 release-truth work unless an explicit decision log says otherwise and links the governing backlog item or packet.
+
+**Provider migration wire-compatibility (hard):**
+- Provider-internal migrations MUST preserve the existing public endpoint, DTO/wire schema, and client transport contract unless a separate versioned migration PR explicitly changes them.
+
+**Temporary provider fallback TTL (hard):**
+- Any temporary provider fallback MUST be explicit and env-selected. Rollout notes MUST include rollback instructions, exit criteria, backlog link, and a remove-by date.
+
+**Provider PR-open context (hard):**
+- When a provider modernization PR is opened, the coordinator MUST attach the context packet to the declared role agents for review context. This context step does not replace the canonical mandatory post-open `qa-engineer-agent -> bug-hunter` lane.
+
 **Agent docs consistency:** Agent docs MUST stay consistent: routing ⊆ inventory ⊆ capability. Run `python scripts/orchestration/check_agent_consistency.py` (must PASS before merge readiness).
 
 **Templates:**

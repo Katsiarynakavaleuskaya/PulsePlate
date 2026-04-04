@@ -22,6 +22,23 @@ Scope: `docs/orchestration/**`
   - canonical packet/runbook:
     - [`docs/orchestration/TIER1_CI_CD_TASK_PACKET_2026-03-26.md`](./TIER1_CI_CD_TASK_PACKET_2026-03-26.md)
     - [`docs/orchestration/TIER1_CI_CD_PR_SERIES_RUNBOOK.md`](./TIER1_CI_CD_PR_SERIES_RUNBOOK.md)
+- For Apple/provider modernization follow-on lanes that preserve the public billing transport contract:
+  - primary: `agent-coordinator`
+  - secondary: `backend-engineer`
+  - reviewer: `security-auditor`
+  - advisory context reviewer: `app-store-release-agent`
+  - PR-open context pack:
+    - `agent-coordinator`
+    - `backend-engineer`
+    - `security-auditor`
+    - `qa-engineer-agent`
+    - `bug-hunter`
+    - `app-store-release-agent`
+  - mandatory post-open lane: `qa-engineer-agent -> bug-hunter`
+  - invariant: preserve the public endpoint, DTO/wire schema, and client transport contract unless a versioned migration packet explicitly changes them
+  - canonical references:
+    - root `AGENTS.md` provider migration wire-compatibility rule is the repo-global invariant
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-apple-server-api-migration` owns the lane-specific precondition and temporary-fallback contract
 - Any PR that updates `docs/review/PR_<N>_FIXED_MAPPING.md` in this scope must refresh the PR body mirror after the canonical artifact changes.
 - Detailed governance procedure lives in:
   - [`docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md`](./PR_ORCHESTRATION_CONTRACT_MATRIX.md)
