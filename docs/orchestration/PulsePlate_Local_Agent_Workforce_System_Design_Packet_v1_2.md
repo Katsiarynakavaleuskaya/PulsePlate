@@ -64,7 +64,7 @@ The local workforce system must do four things reliably:
 It must **not**:
 
 - silently mutate production
-- silently expand permissions
+- expand permissions without explicit approval
 - replace repo source of truth
 - use cloud sandboxes for sensitive paths by default
 
