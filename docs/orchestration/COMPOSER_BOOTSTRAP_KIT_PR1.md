@@ -73,7 +73,7 @@ That means the workforce follow-ons below must extend the **current canonical ba
    - primary surface: `docs/orchestration/AGENT_REFLECTION_PROTOCOL.md`
    - hard constraint: protocol first, helper/schema second; no parallel reflection contract
 3. `PR-C` — add experimental local support-plane storage as a non-canonical support plane
-   - primary surfaces should reuse existing security/control-plane runtime and runbook primitives where possible
+   - primary surfaces must reuse existing security/control-plane runtime and runbook primitives unless coordinator review records an explicit exception
    - hard constraint: this remains support infrastructure, not the canonical orchestration source of truth
 
 ## Worktree promotion

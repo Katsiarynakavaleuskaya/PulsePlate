@@ -2279,6 +2279,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Safe source-precedence and blocker rules are documented
     - No broad PR-governance refactor or merge-readiness semantic change is included
 
+<a id="ledger-p1-local-workforce-pr-a-bootstrap-seam"></a>
 - [ ] P1: Local workforce PR-A — extend the canonical coordinator bootstrap seam
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
@@ -2308,6 +2309,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - No standalone action-packet or parallel bootstrap schema system is introduced
     - No launcher/runtime auto-start claims are added to repo docs
 
+<a id="ledger-p1-local-workforce-pr-b-reflection-protocol"></a>
 - [ ] P1: Local workforce PR-B — extend the canonical reflection protocol first
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
@@ -2328,6 +2330,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - No parallel reflection contract is introduced beside `AGENT_REFLECTION_PROTOCOL.md`
     - Protocol wording remains explicit about canonical repo truth versus advisory/support surfaces
 
+<a id="ledger-p2-local-workforce-pr-c-support-plane"></a>
 - [ ] P2: Local workforce PR-C — add experimental local support-plane storage
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2
