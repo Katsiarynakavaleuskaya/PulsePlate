@@ -5,9 +5,20 @@
 - [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1329#pullrequestreview-4058881241 -> DEFERRED (high-level naming and transport-string consolidation suggestion; safe follow-up refactor outside this narrow bootstrap seam fix)
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1329#pullrequestreview-4058881241
+Disposition: DEFERRED
+Reason: high-level naming and transport-string consolidation suggestion; safe follow-up refactor outside this narrow bootstrap seam fix
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1329#pullrequestreview-4058883054 -> 6d6ae9b73c16b0e7de1f4b79ed84d47483aec298
+Disposition: FIXED
+Commit: 6d6ae9b73c16b0e7de1f4b79ed84d47483aec298
+Evidence: the current head normalizes whitespace-padded candidate paths before security-review and envelope-mode derivation, so privileged orchestration docs still fail closed to analysis mode
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1329#discussion_r3036100150 -> 6d6ae9b73c16b0e7de1f4b79ed84d47483aec298
+Disposition: FIXED
+Commit: 6d6ae9b73c16b0e7de1f4b79ed84d47483aec298
+Evidence: targeted regression tests now cover whitespace-padded docs-only and privileged-doc paths, closing the reported bypass risk on the canonical bootstrap seam
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1329#pullrequestreview-4058891475
+Disposition: NOT-A-BUG
+Reason: the only nitpick was self-corrected inside the review body; the cited test already had an explicit `-> None` annotation and required no code change
 
 ## Merge Readiness
 - [ ] All required checks pass
