@@ -4,6 +4,7 @@
 require "json"
 require "pathname"
 require "uri"
+require_relative "semantic_policy"
 
 REQUIRED_LOCALES = %w[en-US ru-RU es-ES].freeze
 # Policy: repo metadata stays launch-ready and source-controlled across locales,
@@ -46,6 +47,7 @@ review_notes_path = Pathname(ARGV[1])
 privacy_json_path = Pathname(ARGV[2])
 
 errors = []
+advisories = []
 
 REQUIRED_LOCALES.each do |locale|
   locale_dir = metadata_root.join(locale)
@@ -63,7 +65,11 @@ REQUIRED_LOCALES.each do |locale|
 
     if read_text(file_path).empty?
       errors << "Metadata file is empty: #{file_path}"
+      next
     end
+
+    content = read_text(file_path)
+    errors.concat(SemanticPolicy.metadata_hard_failures(file_path, content))
   end
 
   subtitle = locale_dir.join("subtitle.txt")
@@ -112,6 +118,8 @@ if privacy_json_path.file?
     errors << "Invalid JSON in #{privacy_json_path}"
   end
 end
+
+advisories.sort.each { |advisory| puts advisory }
 
 if errors.empty?
   puts "validate_metadata: OK"

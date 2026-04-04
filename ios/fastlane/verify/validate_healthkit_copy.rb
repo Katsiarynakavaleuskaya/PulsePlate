@@ -3,18 +3,13 @@
 
 require "json"
 require "pathname"
+require_relative "semantic_policy"
 
 INFO_PLIST_LOCALES = {
   "en-US" => "en.lproj",
   "ru-RU" => "ru.lproj",
   "es-ES" => "es.lproj"
 }.freeze
-
-BLOCKED_MEDICAL_CLAIMS = /
-  \b(?:BMI|IMC|medical|diagnos(?:e|es|ed|ing|is|tic)?|treat(?:ment|ments|s|ed|ing)?|cure(?:s|d|ing)?)\b|
-  \b(?:ИМТ|диагноз(?:а|ом|е|ы)?|леч(?:ит|ить|ен|ени(?:е|я)))\b|
-  \b(?:m[eé]dic(?:o|a|os|as|al|amente)?|tratamient(?:o|os)?|cura(?:r|ción|ciones|s)?)\b
-/ix.freeze
 
 def parse_strings(pathname)
   entries = {}
@@ -36,6 +31,7 @@ review_notes_path = Pathname(ARGV[1])
 privacy_json_path = Pathname(ARGV[2])
 
 errors = []
+advisories = []
 
 INFO_PLIST_LOCALES.each_value do |folder_name|
   strings_path = app_root.join(folder_name, "InfoPlist.strings")
@@ -54,7 +50,7 @@ INFO_PLIST_LOCALES.each_value do |folder_name|
   end
 
   errors << "NSHealthUpdateUsageDescription must be absent for read-only HealthKit in #{strings_path}" unless update_copy.to_s.empty?
-  errors << "Blocked medical claim wording found in #{strings_path}" if share_copy.match?(BLOCKED_MEDICAL_CLAIMS)
+  errors.concat(SemanticPolicy.healthkit_copy_hard_failures(strings_path, share_copy.to_s))
 end
 
 unless review_notes_path.file?
@@ -67,6 +63,8 @@ end
 
 if review_notes_path.file?
   notes = review_notes_path.read
+  errors.concat(SemanticPolicy.review_notes_hard_failures(review_notes_path, notes))
+  advisories.concat(SemanticPolicy.review_notes_advisories(review_notes_path, notes))
   %w[HealthKit wellness consent read-only].each do |required_phrase|
     next if notes.downcase.include?(required_phrase.downcase)
 
@@ -88,6 +86,8 @@ if privacy_json_path.file?
     errors << "Invalid JSON in #{privacy_json_path}"
   end
 end
+
+advisories.sort.each { |advisory| puts advisory }
 
 if errors.empty?
   puts "validate_healthkit_copy: OK"

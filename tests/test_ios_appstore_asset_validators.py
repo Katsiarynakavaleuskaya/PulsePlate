@@ -323,6 +323,92 @@ def test_validate_metadata_rejects_non_comma_keyword_separators(tmp_path: Path) 
     assert "Keywords must be comma-separated" in result.stderr
 
 
+@pytest.mark.parametrize(
+    ("locale", "content"),
+    [
+        ("en-US", "Doctor-led nutrition treatment for every patient."),
+        ("ru-RU", "Врач ставит диагноз и лечит пациента."),
+        ("es-ES", "Tratamiento médico guiado por doctor para cada paciente."),
+    ],
+)
+def test_validate_metadata_rejects_blocked_medical_wording_in_each_locale(
+    tmp_path: Path, locale: str, content: str
+) -> None:
+    metadata_root = tmp_path / "metadata"
+    review_notes, privacy_json = _prepare_metadata(metadata_root)
+    description_path = metadata_root / locale / "description.txt"
+    description_path.write_text(content, encoding="utf-8")
+
+    result = _run_ruby(
+        REPO_ROOT / "ios/fastlane/verify/validate_metadata.rb",
+        str(metadata_root),
+        str(review_notes),
+        str(privacy_json),
+    )
+
+    assert result.returncode == 1
+    assert f"Blocked medical wording found in {description_path}" in result.stderr
+
+
+def test_validate_metadata_rejects_guaranteed_promissory_claims(tmp_path: Path) -> None:
+    metadata_root = tmp_path / "metadata"
+    review_notes, privacy_json = _prepare_metadata(metadata_root)
+    promotional_text_path = metadata_root / "en-US" / "promotional_text.txt"
+    promotional_text_path.write_text(
+        "Guaranteed results in 7 days with clinically proven progress.",
+        encoding="utf-8",
+    )
+
+    result = _run_ruby(
+        REPO_ROOT / "ios/fastlane/verify/validate_metadata.rb",
+        str(metadata_root),
+        str(review_notes),
+        str(privacy_json),
+    )
+
+    assert result.returncode == 1
+    assert (
+        f"Blocked guaranteed/promissory wording found in {promotional_text_path}" in result.stderr
+    )
+
+
+def test_validate_metadata_rejects_wellness_only_contradiction_wording(tmp_path: Path) -> None:
+    metadata_root = tmp_path / "metadata"
+    review_notes, privacy_json = _prepare_metadata(metadata_root)
+    subtitle_path = metadata_root / "en-US" / "subtitle.txt"
+    subtitle_path.write_text("Doctor-led clinical therapy planner", encoding="utf-8")
+
+    result = _run_ruby(
+        REPO_ROOT / "ios/fastlane/verify/validate_metadata.rb",
+        str(metadata_root),
+        str(review_notes),
+        str(privacy_json),
+    )
+
+    assert result.returncode == 1
+    assert f"Blocked medical wording found in {subtitle_path}" in result.stderr
+
+
+def test_validate_metadata_rejects_store_truth_claims(tmp_path: Path) -> None:
+    metadata_root = tmp_path / "metadata"
+    review_notes, privacy_json = _prepare_metadata(metadata_root)
+    release_notes_path = metadata_root / "en-US" / "release_notes.txt"
+    release_notes_path.write_text(
+        "Start your free trial and subscribe for $9.99 per month.",
+        encoding="utf-8",
+    )
+
+    result = _run_ruby(
+        REPO_ROOT / "ios/fastlane/verify/validate_metadata.rb",
+        str(metadata_root),
+        str(review_notes),
+        str(privacy_json),
+    )
+
+    assert result.returncode == 1
+    assert f"Blocked StoreKit/App Store truth claim found in {release_notes_path}" in result.stderr
+
+
 def test_validate_metadata_rejects_invalid_argument_count(tmp_path: Path) -> None:
     result = _run_ruby(
         REPO_ROOT / "ios/fastlane/verify/validate_metadata.rb",
@@ -394,3 +480,104 @@ def test_metadata_and_healthkit_validators_accept_seeded_package(tmp_path: Path)
         str(privacy_json),
     )
     assert healthkit_result.returncode == 0, healthkit_result.stderr
+
+
+def test_validate_healthkit_copy_rejects_read_only_and_data_collection_contradictions(
+    tmp_path: Path,
+) -> None:
+    metadata_root = tmp_path / "metadata"
+    _review_notes, _privacy_json = _prepare_metadata(metadata_root)
+    review_notes = tmp_path / "review_information" / "notes.txt"
+    review_notes.parent.mkdir(parents=True, exist_ok=True)
+    review_notes.write_text(
+        "\n".join(
+            [
+                "HealthKit review summary",
+                "This flow is wellness-only.",
+                "Users provide consent before enabling access.",
+                "The HealthKit integration is read-only.",
+                "The app writes to Health and collects Health data on our servers.",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    privacy_json = tmp_path / "app_privacy_details.json"
+    privacy_json.write_text(
+        json.dumps([{"data_protections": ["DATA_NOT_COLLECTED"]}]),
+        encoding="utf-8",
+    )
+
+    pulseplate_root = tmp_path / "PulsePlate"
+    for folder in ("en.lproj", "ru.lproj", "es.lproj"):
+        locale_dir = pulseplate_root / folder
+        locale_dir.mkdir(parents=True, exist_ok=True)
+        (locale_dir / "InfoPlist.strings").write_text(
+            '"NSHealthShareUsageDescription" = "PulsePlate reads Health data with consent for wellness progress.";',
+            encoding="utf-8",
+        )
+
+    result = _run_ruby(
+        REPO_ROOT / "ios/fastlane/verify/validate_healthkit_copy.rb",
+        str(pulseplate_root),
+        str(review_notes),
+        str(privacy_json),
+    )
+
+    assert result.returncode == 1
+    assert f"Reviewer notes contradict read-only HealthKit posture: {review_notes}" in result.stderr
+    assert (
+        f"Reviewer notes contradict DATA_NOT_COLLECTED Health posture: {review_notes}"
+        in result.stderr
+    )
+
+
+def test_validate_healthkit_copy_emits_sorted_advisory_lines_without_failing(
+    tmp_path: Path,
+) -> None:
+    metadata_root = tmp_path / "metadata"
+    _review_notes, _privacy_json = _prepare_metadata(metadata_root)
+    review_notes = tmp_path / "review_information" / "notes.txt"
+    review_notes.parent.mkdir(parents=True, exist_ok=True)
+    review_notes.write_text(
+        "\n".join(
+            [
+                "HealthKit review summary",
+                "This flow is wellness-only.",
+                "Users provide consent before enabling access.",
+                "The HealthKit integration is read-only.",
+                "This review mentions analytics and personalization for a future audit.",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    privacy_json = tmp_path / "app_privacy_details.json"
+    privacy_json.write_text(
+        json.dumps([{"data_protections": ["DATA_NOT_COLLECTED"]}]),
+        encoding="utf-8",
+    )
+
+    pulseplate_root = tmp_path / "PulsePlate"
+    for folder in ("en.lproj", "ru.lproj", "es.lproj"):
+        locale_dir = pulseplate_root / folder
+        locale_dir.mkdir(parents=True, exist_ok=True)
+        (locale_dir / "InfoPlist.strings").write_text(
+            '"NSHealthShareUsageDescription" = "PulsePlate reads Health data with consent for wellness progress.";',
+            encoding="utf-8",
+        )
+
+    result = _run_ruby(
+        REPO_ROOT / "ios/fastlane/verify/validate_healthkit_copy.rb",
+        str(pulseplate_root),
+        str(review_notes),
+        str(privacy_json),
+    )
+
+    assert result.returncode == 0, result.stderr
+    advisory_lines = [line for line in result.stdout.splitlines() if line.startswith("ADVISORY: ")]
+    assert advisory_lines == [
+        f"ADVISORY: {review_notes} :: review whether App Privacy answers need updating for analytics/advertising language",
+        f"ADVISORY: {review_notes} :: review whether App Privacy answers need updating for personalization/data-sharing language",
+    ]
+    assert "validate_healthkit_copy: OK" in result.stdout

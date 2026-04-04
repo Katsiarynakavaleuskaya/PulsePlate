@@ -1,0 +1,119 @@
+# frozen_string_literal: true
+
+# RU: Общие детерминированные semantic rules для App Store release-ops validation.
+# EN: Shared deterministic semantic rules for App Store release-ops validation.
+module SemanticPolicy
+  APP_STORE_METADATA_FILES = %w[
+    description.txt
+    subtitle.txt
+    promotional_text.txt
+    release_notes.txt
+    keywords.txt
+  ].freeze
+
+  METADATA_MEDICAL_CLAIMS = /
+    \b(?:BMI|IMC|medical|doctor(?:s|led)?|diagnos(?:e|es|ed|ing|is|tic)?|patient(?:s)?|prescription(?:s)?|therapy|therapeutic)\b|
+    \b(?:ИМТ|медицин(?:а|ский|ская|ские|ских)|врач(?:а|ей|ом)?|диагноз(?:а|ом|е|ы)?|пациент(?:а|ов)?|рецепт(?:а|ов)?|терап(?:ия|ии|ию|ией))\b|
+    \b(?:m[eé]dic(?:o|a|os|as|al|amente)?|doctor(?:es)?|diagn[oó]stic(?:o|a|os|as)?|paciente(?:s)?|receta(?:s)?|terapia)\b
+  /ix.freeze
+
+  METADATA_TREATMENT_CLAIMS = /
+    \b(?:treat(?:ment|ments|s|ed|ing)?|cure(?:s|d|ing)?|heal(?:s|ed|ing)?|prevent(?:s|ed|ing)?)\b|
+    \b(?:леч(?:ит|ить|ен|ени(?:е|я))|исцел(?:яет|ение)|профилакт(?:ика|ирует))\b|
+    \b(?:tratamient(?:o|os)?|trat(?:a|ar|ado|ando)|cura(?:r|ción|ciones|s)?|san(?:a|ar|ado|ando)|prev(?:iene|enir|ención))\b
+  /ix.freeze
+
+  PROMISSORY_CLAIMS = /
+    \b(?:guarantee(?:d|s)?|guaranteed|instant(?:ly)?|rapid(?:ly)?|quick(?:ly)?|clinically\s+proven|proven\s+results?)\b|
+    \b(?:гарантир(?:ует|уют|ованный|ованные)|мгновенн(?:о|ый)|быстр(?:ый|о)|доказанн(?:ый|о))\b|
+    \b(?:garantiza(?:do|dos|da|das)?|instant[aá]neo(?:s|as)?|r[aá]pid(?:o|a|os|as|amente)|resultados?\s+comprobados)\b
+  /ix.freeze
+
+  STORE_TRUTH_CLAIMS = /
+    (?:[$€£¥₽]\s*\d)|(?:\d+\s*(?:USD|EUR|GBP|JPY|RUB))|
+    \b(?:monthly|yearly|per\s+month|per\s+year|subscription|subscribe|eligible|free\s+trial|trial|introductory\s+offer|auto-?renew)\b|
+    \b(?:ежемесячн(?:о|ая|ый)|ежегодн(?:о|ая|ый)|подписк(?:а|и|ой)|пробн(?:ый|ая)\s+период|триал|право\s+на\s+скидку|автопродление)\b|
+    \b(?:mensual|anual|suscripci[oó]n|suscr[ií]bete|prueba\s+gratuita|per[ií]odo\s+de\s+prueba|elegible|renovaci[oó]n\s+autom[aá]tica)\b
+  /ix.freeze
+
+  PRIVACY_ADVISORY_HINTS = [
+    {
+      pattern: /\b(?:analytics|advertising|ads|third-?party\s+sdk|tracking(?:\s+pixels?)?)\b/i,
+      message: "review whether App Privacy answers need updating for analytics/advertising language"
+    },
+    {
+      pattern: /\b(?:personalization|personalized\s+ads|data\s+sharing|share(?:s|d|ing)\s+data)\b/i,
+      message: "review whether App Privacy answers need updating for personalization/data-sharing language"
+    }
+  ].freeze
+
+  WELLNESS_DISCLAIMER_PATTERNS = [
+    /does\s+not\s+diagnose,\s*treat,\s*or\s*replace\s+professional\s+medical\s+care/i,
+    /не\s+ставит\s+диагноз,\s*не\s+лечит\s+и\s+не\s+заменяет\s+консультацию\s+специалиста/i,
+    /no\s+diagnostica,\s*no\s+trata\s+y\s+no\s+sustituye\s+la\s+atenci[oó]n\s+m[eé]dica\s+profesional/i
+  ].freeze
+
+  REVIEW_NOTE_PRIVACY_CONTRADICTIONS = [
+    {
+      pattern: /\b(?:write(?:s|back)?\s+to\s+Health|save(?:s)?\s+to\s+Health|sync(?:s)?\s+back\s+to\s+Health|updates?\s+Health\s+data)\b/i,
+      message: "Reviewer notes contradict read-only HealthKit posture"
+    },
+    {
+      pattern: /\b(?:collect(?:s|ed|ing)?\s+Health\s+data|store(?:s|d)?\s+Health\s+data\s+on\s+our\s+servers)\b/i,
+      message: "Reviewer notes contradict DATA_NOT_COLLECTED Health posture"
+    }
+  ].freeze
+
+  module_function
+
+  def metadata_hard_failures(pathname, content)
+    return [] unless APP_STORE_METADATA_FILES.include?(pathname.basename.to_s)
+
+    sanitized_content = strip_allowed_wellness_disclaimers(content)
+    failures = []
+    if sanitized_content.match?(METADATA_MEDICAL_CLAIMS)
+      failures << "Blocked medical wording found in #{pathname}"
+    end
+    if sanitized_content.match?(METADATA_TREATMENT_CLAIMS)
+      failures << "Blocked treatment/cure wording found in #{pathname}"
+    end
+    if sanitized_content.match?(PROMISSORY_CLAIMS)
+      failures << "Blocked guaranteed/promissory wording found in #{pathname}"
+    end
+    if sanitized_content.match?(STORE_TRUTH_CLAIMS)
+      failures << "Blocked StoreKit/App Store truth claim found in #{pathname}"
+    end
+    failures
+  end
+
+  def healthkit_copy_hard_failures(pathname, content)
+    failures = []
+    failures << "Blocked medical wording found in #{pathname}" if content.match?(METADATA_MEDICAL_CLAIMS)
+    failures << "Blocked treatment/cure wording found in #{pathname}" if content.match?(METADATA_TREATMENT_CLAIMS)
+    failures
+  end
+
+  def review_notes_hard_failures(pathname, content)
+    REVIEW_NOTE_PRIVACY_CONTRADICTIONS.filter_map do |rule|
+      rule[:message] if content.match?(rule[:pattern])
+    end.map { |message| "#{message}: #{pathname}" }
+  end
+
+  def review_notes_advisories(pathname, content)
+    PRIVACY_ADVISORY_HINTS.filter_map do |rule|
+      next unless content.match?(rule[:pattern])
+
+      advisory_message(pathname, rule[:message])
+    end
+  end
+
+  def advisory_message(pathname, reason)
+    "ADVISORY: #{pathname} :: #{reason}"
+  end
+
+  def strip_allowed_wellness_disclaimers(content)
+    WELLNESS_DISCLAIMER_PATTERNS.reduce(content.dup) do |sanitized, pattern|
+      sanitized.gsub(pattern, "")
+    end
+  end
+end
