@@ -5,7 +5,10 @@
 - [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1327#pullrequestreview-4058773858 -> e01f1394
+Disposition: FIXED
+Commit: e01f1394
+Evidence: `scripts/orchestration/bootstrap_sync_policy.py` now uses named agent-contract constants with `Sequence[str]` contracts, and `tests/test_bootstrap_sync_policy.py` covers the negative backlog path plus directory-prefix privileged-review cases requested by Sourcery
 
 ## Merge Readiness
 - [ ] All required checks pass
