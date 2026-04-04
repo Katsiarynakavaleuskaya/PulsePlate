@@ -50,6 +50,11 @@ Disposition: FIXED
 Commit: 3dff7c12
 Evidence: `ios/fastlane/verify/semantic_policy.rb`, `tests/test_ios_appstore_asset_validators.py`, `docs/review/PR_1324_FIXED_MAPPING.md`
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1324#pullrequestreview-4058406826 -> 54f697df
+Disposition: FIXED
+Commit: 54f697df
+Evidence: `ios/fastlane/verify/semantic_policy.rb`, `tests/test_ios_appstore_asset_validators.py`
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1324#discussion_r3035418398 -> 9d878406
 Disposition: FIXED
 Commit: 9d878406
@@ -63,6 +68,16 @@ Evidence: `ios/fastlane/verify/semantic_policy.rb`, `tests/test_ios_appstore_ass
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1324#discussion_r3035418403 -> 88ed2cf6
 Disposition: FIXED
 Commit: 88ed2cf6
+Evidence: `ios/fastlane/verify/semantic_policy.rb`, `tests/test_ios_appstore_asset_validators.py`
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1324#discussion_r3035434984 -> 54f697df
+Disposition: FIXED
+Commit: 54f697df
+Evidence: `ios/fastlane/verify/semantic_policy.rb`, `tests/test_ios_appstore_asset_validators.py`
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1324#discussion_r3035434985 -> 54f697df
+Disposition: FIXED
+Commit: 54f697df
 Evidence: `ios/fastlane/verify/semantic_policy.rb`, `tests/test_ios_appstore_asset_validators.py`
 
 ## Notes
