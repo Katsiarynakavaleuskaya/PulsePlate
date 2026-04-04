@@ -304,6 +304,19 @@ def test_task_bootstrap_fails_closed_to_analysis_for_privileged_docs() -> None:
     assert packet["automation_flags"]["security_review_required"] is True
 
 
+def test_task_bootstrap_normalizes_whitespace_padded_privileged_docs() -> None:
+    """Whitespace-padded privileged docs must still force analysis mode."""
+
+    packet = build_task_packet(
+        goal="Tighten agent message protocol wording",
+        task_class="Documentation",
+        candidate_paths=["  docs/orchestration/AGENT_MESSAGE_PROTOCOL.md  "],
+    )
+
+    assert packet["message_envelope"]["mode"] == "analysis"
+    assert packet["automation_flags"]["security_review_required"] is True
+
+
 def test_task_bootstrap_keeps_requested_bug_hunter_executable_in_post_open_lane() -> None:
     """Requested bug-hunter must stay runnable in the canonical post-open lane."""
 

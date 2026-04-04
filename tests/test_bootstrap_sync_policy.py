@@ -158,6 +158,20 @@ def test_bootstrap_sync_policy_derives_docs_only_envelope_mode_for_contract_scop
     )
 
 
+def test_bootstrap_sync_policy_normalizes_whitespace_padded_docs_only_paths() -> None:
+    """Whitespace-only padding must not change docs-only envelope derivation."""
+
+    assert (
+        resolve_analysis_envelope_mode(
+            [
+                " CONTRIBUTING.md ",
+                "\tDEPLOYMENT.md\n",
+            ]
+        )
+        == DOCS_ONLY_ENVELOPE_MODE
+    )
+
+
 def test_bootstrap_sync_policy_fails_closed_to_analysis_for_mixed_scope() -> None:
     """Mixed or runtime scopes must resolve to analysis mode."""
 
@@ -191,3 +205,11 @@ def test_bootstrap_sync_policy_fails_closed_to_analysis_for_privileged_docs() ->
 
     assert resolve_analysis_envelope_mode(candidate_paths) == ANALYSIS_ENVELOPE_MODE
     assert requires_security_review(candidate_paths) is True
+
+
+def test_bootstrap_sync_policy_fails_closed_for_whitespace_padded_privileged_docs() -> None:
+    """Privileged docs must stay in analysis mode even when input paths contain padding."""
+
+    candidate_paths = ["  docs/orchestration/AGENT_MESSAGE_PROTOCOL.md  "]
+
+    assert resolve_analysis_envelope_mode(candidate_paths) == ANALYSIS_ENVELOPE_MODE

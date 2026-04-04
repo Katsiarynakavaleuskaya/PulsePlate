@@ -666,7 +666,9 @@ def build_task_packet(
 ) -> dict[str, Any]:
     """Build a deterministic task packet for orchestration tooling."""
 
-    normalized_paths = repo_relative_paths(candidate_paths)
+    normalized_paths = repo_relative_paths(
+        [path.strip() for path in candidate_paths if path.strip()]
+    )
     normalized_requested_agents = normalize_requested_agents(requested_agents)
     normalized_pr_phase = _normalize_pr_phase(pr_phase)
     design_lane_mode, design_lane_contract, design_lane_enabled = _build_design_lane_contract(

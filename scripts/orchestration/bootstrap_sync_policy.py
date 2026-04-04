@@ -161,8 +161,9 @@ def resolve_analysis_envelope_mode(candidate_paths: Sequence[str]) -> str:
     EN: Mixed or runtime scope always fails closed to analysis.
     """
 
-    if not candidate_paths or requires_security_review(candidate_paths):
+    normalized_paths = [path.strip() for path in candidate_paths if path.strip()]
+    if not normalized_paths or requires_security_review(normalized_paths):
         return ANALYSIS_ENVELOPE_MODE
-    if all(is_docs_only_contract_path(path) for path in candidate_paths):
+    if all(is_docs_only_contract_path(path) for path in normalized_paths):
         return DOCS_ONLY_ENVELOPE_MODE
     return ANALYSIS_ENVELOPE_MODE
