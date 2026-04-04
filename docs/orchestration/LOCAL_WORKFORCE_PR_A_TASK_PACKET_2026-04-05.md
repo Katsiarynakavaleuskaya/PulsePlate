@@ -1,6 +1,7 @@
 # Local Workforce PR-A Task Packet
 
-**Date:** 2026-04-05 (`America/New_York`)
+**Effective date:** 2026-04-05 (`America/New_York`)
+**Creation date:** 2026-04-04 (`America/New_York`)
 **Status:** Active planning packet for the next repo lane after merged prerequisite baseline PRs `#1325`, `#1327`, and `#1328`.
 **Mode:** coordinator-first, additive-only, canonical-bootstrap extension
 
@@ -56,8 +57,8 @@ What additive changes, if any, are allowed on the canonical bootstrap surfaces s
 
 ## Hard Constraints
 
-1. `PR-A` must reuse the existing `TASK_PACKET_V1` seam; it must not introduce a sibling packet type or a second canonical schema tree.
-2. `schema_version` for the bootstrap flow must remain stable unless a separate versioned migration packet explicitly authorizes a change.
+1. `PR-A` must reuse the existing `TASK_PACKET_V1` protocol envelope contract defined in `docs/orchestration/AGENT_MESSAGE_PROTOCOL.md`; it must not introduce a sibling packet type or a second canonical schema tree.
+2. The bootstrap packet `schema_version` field emitted by `scripts/orchestration/task_bootstrap.py` must remain stable unless a separate versioned migration packet explicitly authorizes a change.
 3. Any local workforce semantics must be additive and optional; the default bootstrap path must remain valid without workforce-only caller requirements.
 4. Docs parity is mandatory: if packet or routing semantics change, `AGENT_MESSAGE_PROTOCOL.md` and/or `AGENT_SKILL_ROUTING_POLICY.md` must be updated in the same PR.
 5. Because the touched surfaces sit under `scripts/orchestration/**` and `docs/orchestration/**`, the lane remains privileged and must keep the security review path plus the mandatory post-open `qa-engineer-agent -> bug-hunter` lane.
