@@ -4,6 +4,7 @@
 # EN: Shared deterministic semantic rules for App Store release-ops validation.
 module SemanticPolicy
   APP_STORE_METADATA_FILES = %w[
+    name.txt
     description.txt
     subtitle.txt
     promotional_text.txt
@@ -29,37 +30,43 @@ module SemanticPolicy
     \b(?:garantiza(?:do|dos|da|das)?|instant[aá]neo(?:s|as)?|r[aá]pid(?:o|a|os|as|amente)|resultados?\s+comprobados)\b
   /ix.freeze
 
-  STORE_TRUTH_CLAIMS = /
-    (?:[$€£¥₽]\s*\d)|(?:\d+\s*(?:USD|EUR|GBP|JPY|RUB))|
-    \b(?:monthly|yearly|per\s+month|per\s+year|subscription|subscribe|eligible|free\s+trial|trial|introductory\s+offer|auto-?renew)\b|
-    \b(?:ежемесячн(?:о|ая|ый)|ежегодн(?:о|ая|ый)|подписк(?:а|и|ой)|пробн(?:ый|ая)\s+период|триал|право\s+на\s+скидку|автопродление)\b|
-    \b(?:mensual|anual|suscripci[oó]n|suscr[ií]bete|prueba\s+gratuita|per[ií]odo\s+de\s+prueba|elegible|renovaci[oó]n\s+autom[aá]tica)\b
-  /ix.freeze
+  STORE_TRUTH_CLAIMS = [
+    /(?:[$€£¥₽]\s*\d)|(?:\d+\s*(?:USD|EUR|GBP|JPY|RUB))/i,
+    /\b(?:free\s+trial|trial\s+period|introductory\s+offer|subscribe\s+now|subscription\s+for\s+\$?\d+|auto-?renew(?:ing|al)?)\b/i,
+    /\b(?:per\s+month|per\s+year|monthly\s+subscription|yearly\s+subscription)\b/i,
+    /\b(?:пробн(?:ый|ая)\s+период|вводн(?:ое|ая)\s+предложение|подпиш(?:итесь|ись)\s+сейчас|автопродлен(?:ие|ием))\b/i,
+    /\b(?:ежемесячн(?:ая|ый)\s+подписка|ежегодн(?:ая|ый)\s+подписка|в\s+месяц|в\s+год)\b/i,
+    /\b(?:prueba\s+gratuita|per[ií]odo\s+de\s+prueba|oferta\s+introductoria|suscr[ií]bete\s+ahora|renovaci[oó]n\s+autom[aá]tica)\b/i,
+    /\b(?:suscripci[oó]n\s+mensual|suscripci[oó]n\s+anual|por\s+mes|por\s+a[nñ]o)\b/i
+  ].freeze
 
   PRIVACY_ADVISORY_HINTS = [
     {
-      pattern: /\b(?:analytics|advertising|ads|third-?party\s+sdk|tracking(?:\s+pixels?)?)\b/i,
+      pattern: /\b(?:analytics|advertising|ads|third-?party\s+sdk|tracking(?:\s+pixels?)?|аналитик(?:а|и|ой)|реклам(?:а|ы|ный)|seguimiento|anal[ií]tica|publicidad)\b/i,
       message: "review whether App Privacy answers need updating for analytics/advertising language"
     },
     {
-      pattern: /\b(?:personalization|personalized\s+ads|data\s+sharing|share(?:s|d|ing)\s+data)\b/i,
+      pattern: /\b(?:personalization|personalized\s+ads|data\s+sharing|share(?:s|d|ing)\s+data|персонализ(?:ация|ированный)|обмен\s+данными|personalizaci[oó]n|compart(?:ir|e|imos)\s+datos)\b/i,
       message: "review whether App Privacy answers need updating for personalization/data-sharing language"
     }
   ].freeze
 
   WELLNESS_DISCLAIMER_PATTERNS = [
-    /does\s+not\s+diagnose,\s*treat,\s*or\s*replace\s+professional\s+medical\s+care/i,
-    /не\s+ставит\s+диагноз,\s*не\s+лечит\s+и\s+не\s+заменяет\s+консультацию\s+специалиста/i,
-    /no\s+diagnostica,\s*no\s+trata\s+y\s+no\s+sustituye\s+la\s+atenci[oó]n\s+m[eé]dica\s+profesional/i
+    /does\s+not\s+diagnos(?:e|is)[\s,]*(?:or|,|and)?\s*treat[\s,]*(?:or|,|and)?\s*(?:replace|substitute)\s+professional\s+medical\s+care/i,
+    /does\s+not\s+diagnos(?:e|is)[\s,]*(?:or|,|and)?\s*treat(?:\s+medical\s+conditions?)?/i,
+    /не\s+ставит\s+диагноз[\s,]*(?:и|,)?\s*не\s+лечит[\s,]*(?:и|,)?\s*не\s+заменяет\s+консультаци(?:ю|и)\s+специалиста/i,
+    /не\s+ставит\s+диагноз[\s,]*(?:и|,)?\s*не\s+лечит/i,
+    /no\s+diagnostica[\s,]*(?:ni|y|,)?\s*trata[\s,]*(?:ni|y|,)?\s*no\s+sustituye\s+la\s+atenci[oó]n\s+m[eé]dica\s+profesional/i,
+    /no\s+diagnostica[\s,]*(?:ni|y|,)?\s*trata(?:\s+afecciones?\s+m[eé]dicas?)?/i
   ].freeze
 
   REVIEW_NOTE_PRIVACY_CONTRADICTIONS = [
     {
-      pattern: /\b(?:write(?:s|back)?\s+to\s+Health|save(?:s)?\s+to\s+Health|sync(?:s)?\s+back\s+to\s+Health|updates?\s+Health\s+data)\b/i,
+      pattern: /\b(?:write(?:s|back)?\s+to\s+Health|save(?:s)?\s+to\s+Health|sync(?:s)?\s+back\s+to\s+Health|updates?\s+Health\s+data|записыва(?:ет|ют)\s+в\s+Health|сохраня(?:ет|ют)\s+в\s+Health|sincroniza(?:n|r)?\s+de\s+vuelta\s+con\s+Health)\b/i,
       message: "Reviewer notes contradict read-only HealthKit posture"
     },
     {
-      pattern: /\b(?:collect(?:s|ed|ing)?\s+Health\s+data|store(?:s|d)?\s+Health\s+data\s+on\s+our\s+servers)\b/i,
+      pattern: /\b(?:collect(?:s|ed|ing)?\s+Health\s+data|store(?:s|d)?\s+Health\s+data\s+on\s+our\s+servers|собира(?:ет|ют)\s+данные\s+Health|almacena(?:mos|n)?\s+datos\s+de\s+Health\s+en\s+nuestros\s+servidores)\b/i,
       message: "Reviewer notes contradict DATA_NOT_COLLECTED Health posture"
     }
   ].freeze
@@ -80,16 +87,17 @@ module SemanticPolicy
     if sanitized_content.match?(PROMISSORY_CLAIMS)
       failures << "Blocked guaranteed/promissory wording found in #{pathname}"
     end
-    if sanitized_content.match?(STORE_TRUTH_CLAIMS)
+    if store_truth_claim?(sanitized_content)
       failures << "Blocked StoreKit/App Store truth claim found in #{pathname}"
     end
     failures
   end
 
   def healthkit_copy_hard_failures(pathname, content)
+    sanitized_content = strip_allowed_wellness_disclaimers(content)
     failures = []
-    failures << "Blocked medical wording found in #{pathname}" if content.match?(METADATA_MEDICAL_CLAIMS)
-    failures << "Blocked treatment/cure wording found in #{pathname}" if content.match?(METADATA_TREATMENT_CLAIMS)
+    failures << "Blocked medical wording found in #{pathname}" if sanitized_content.match?(METADATA_MEDICAL_CLAIMS)
+    failures << "Blocked treatment/cure wording found in #{pathname}" if sanitized_content.match?(METADATA_TREATMENT_CLAIMS)
     failures
   end
 
@@ -115,5 +123,9 @@ module SemanticPolicy
     WELLNESS_DISCLAIMER_PATTERNS.reduce(content.dup) do |sanitized, pattern|
       sanitized.gsub(pattern, "")
     end
+  end
+
+  def store_truth_claim?(content)
+    STORE_TRUTH_CLAIMS.any? { |pattern| content.match?(pattern) }
   end
 end

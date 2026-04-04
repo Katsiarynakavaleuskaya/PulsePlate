@@ -409,6 +409,63 @@ def test_validate_metadata_rejects_store_truth_claims(tmp_path: Path) -> None:
     assert f"Blocked StoreKit/App Store truth claim found in {release_notes_path}" in result.stderr
 
 
+def test_validate_metadata_allows_wellness_disclaimer_variants(tmp_path: Path) -> None:
+    metadata_root = tmp_path / "metadata"
+    review_notes, privacy_json = _prepare_metadata(metadata_root)
+    description_path = metadata_root / "en-US" / "description.txt"
+    description_path.write_text(
+        "PulsePlate supports wellness planning and does not diagnose or treat medical conditions.",
+        encoding="utf-8",
+    )
+
+    result = _run_ruby(
+        REPO_ROOT / "ios/fastlane/verify/validate_metadata.rb",
+        str(metadata_root),
+        str(review_notes),
+        str(privacy_json),
+    )
+
+    assert result.returncode == 0, result.stderr
+
+
+def test_validate_metadata_allows_non_pricing_subscription_terms(tmp_path: Path) -> None:
+    metadata_root = tmp_path / "metadata"
+    review_notes, privacy_json = _prepare_metadata(metadata_root)
+    release_notes_path = metadata_root / "en-US" / "release_notes.txt"
+    release_notes_path.write_text(
+        "Fixes a subscription settings sync bug and improves eligibility copy review.",
+        encoding="utf-8",
+    )
+    keywords_path = metadata_root / "en-US" / "keywords.txt"
+    keywords_path.write_text("wellness,subscription,planning,coach", encoding="utf-8")
+
+    result = _run_ruby(
+        REPO_ROOT / "ios/fastlane/verify/validate_metadata.rb",
+        str(metadata_root),
+        str(review_notes),
+        str(privacy_json),
+    )
+
+    assert result.returncode == 0, result.stderr
+
+
+def test_validate_metadata_rejects_medical_app_name(tmp_path: Path) -> None:
+    metadata_root = tmp_path / "metadata"
+    review_notes, privacy_json = _prepare_metadata(metadata_root)
+    name_path = metadata_root / "en-US" / "name.txt"
+    name_path.write_text("Doctor BMI Coach", encoding="utf-8")
+
+    result = _run_ruby(
+        REPO_ROOT / "ios/fastlane/verify/validate_metadata.rb",
+        str(metadata_root),
+        str(review_notes),
+        str(privacy_json),
+    )
+
+    assert result.returncode == 1
+    assert f"Blocked medical wording found in {name_path}" in result.stderr
+
+
 def test_validate_metadata_rejects_invalid_argument_count(tmp_path: Path) -> None:
     result = _run_ruby(
         REPO_ROOT / "ios/fastlane/verify/validate_metadata.rb",
@@ -581,3 +638,28 @@ def test_validate_healthkit_copy_emits_sorted_advisory_lines_without_failing(
         f"ADVISORY: {review_notes} :: review whether App Privacy answers need updating for personalization/data-sharing language",
     ]
     assert "validate_healthkit_copy: OK" in result.stdout
+
+
+def test_validate_healthkit_copy_allows_wellness_disclaimer_variant(tmp_path: Path) -> None:
+    metadata_root = tmp_path / "metadata"
+    review_notes, privacy_json = _prepare_metadata(metadata_root)
+    pulseplate_root = tmp_path / "PulsePlate"
+    for folder in ("en.lproj", "ru.lproj", "es.lproj"):
+        locale_dir = pulseplate_root / folder
+        locale_dir.mkdir(parents=True, exist_ok=True)
+        (locale_dir / "InfoPlist.strings").write_text(
+            (
+                '"NSHealthShareUsageDescription" = '
+                '"PulsePlate reads Health data for wellness planning and does not diagnose or treat medical conditions.";'  # noqa: E501
+            ),
+            encoding="utf-8",
+        )
+
+    result = _run_ruby(
+        REPO_ROOT / "ios/fastlane/verify/validate_healthkit_copy.rb",
+        str(pulseplate_root),
+        str(review_notes),
+        str(privacy_json),
+    )
+
+    assert result.returncode == 0, result.stderr

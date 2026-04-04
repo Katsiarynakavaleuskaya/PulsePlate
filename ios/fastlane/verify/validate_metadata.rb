@@ -47,7 +47,6 @@ review_notes_path = Pathname(ARGV[1])
 privacy_json_path = Pathname(ARGV[2])
 
 errors = []
-advisories = []
 
 REQUIRED_LOCALES.each do |locale|
   locale_dir = metadata_root.join(locale)
@@ -118,8 +117,6 @@ if privacy_json_path.file?
     errors << "Invalid JSON in #{privacy_json_path}"
   end
 end
-
-advisories.sort.each { |advisory| puts advisory }
 
 if errors.empty?
   puts "validate_metadata: OK"
