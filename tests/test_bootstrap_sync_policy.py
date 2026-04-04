@@ -127,12 +127,15 @@ def test_bootstrap_sync_policy_freezes_docs_only_roots() -> None:
         "RUNBOOK_AGENT.md",
         "README.md",
         "CLAUDE.md",
+        "DEPLOYMENT.md",
     )
 
 
 def test_bootstrap_sync_policy_detects_docs_only_contract_paths() -> None:
     """Docs-only detection should stay limited to canonical markdown/contract files."""
 
+    assert is_docs_only_contract_path("CONTRIBUTING.md") is True
+    assert is_docs_only_contract_path("DEPLOYMENT.md") is True
     assert is_docs_only_contract_path("docs/orchestration/AGENT_MESSAGE_PROTOCOL.md") is True
     assert is_docs_only_contract_path(".github/PULL_REQUEST_TEMPLATE.md") is True
     assert is_docs_only_contract_path("frontend/AGENTS.md") is True
@@ -147,8 +150,8 @@ def test_bootstrap_sync_policy_derives_docs_only_envelope_mode_for_contract_scop
     assert (
         resolve_analysis_envelope_mode(
             [
-                "docs/orchestration/AGENT_MESSAGE_PROTOCOL.md",
-                "frontend/AGENTS.md",
+                "CONTRIBUTING.md",
+                "DEPLOYMENT.md",
             ]
         )
         == DOCS_ONLY_ENVELOPE_MODE
@@ -181,10 +184,10 @@ def test_bootstrap_sync_policy_detects_privileged_review_surfaces() -> None:
     assert requires_security_review(["tests/test_task_bootstrap.py"]) is False
 
 
-def test_bootstrap_sync_policy_keeps_privileged_docs_in_docs_only_mode() -> None:
-    """Privileged orchestration docs still remain docs-only while requiring review."""
+def test_bootstrap_sync_policy_fails_closed_to_analysis_for_privileged_docs() -> None:
+    """Privileged orchestration docs must stay in analysis mode."""
 
     candidate_paths = ["docs/orchestration/AGENT_MESSAGE_PROTOCOL.md"]
 
-    assert resolve_analysis_envelope_mode(candidate_paths) == DOCS_ONLY_ENVELOPE_MODE
+    assert resolve_analysis_envelope_mode(candidate_paths) == ANALYSIS_ENVELOPE_MODE
     assert requires_security_review(candidate_paths) is True

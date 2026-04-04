@@ -46,13 +46,12 @@ AGENT_CONTRACT_PATH_MARKERS: tuple[str, ...] = (
 
 BACKLOG_LEDGER_PATH = "docs/roadmap/backlog_ledger.md"
 DOCS_PATH_PREFIX = "docs/"
-CURSOR_AGENTS_DOCS_PREFIX = ".cursor/agents/"
-GITHUB_DOCS_PREFIX = ".github/"
 DOCS_ONLY_ROOT_FILES: tuple[str, ...] = (
     "AGENTS.md",
     "RUNBOOK_AGENT.md",
     "README.md",
     "CLAUDE.md",
+    "DEPLOYMENT.md",
 )
 ANALYSIS_ENVELOPE_MODE = "analysis"
 DOCS_ONLY_ENVELOPE_MODE = "docs_only"
@@ -148,12 +147,10 @@ def is_docs_only_contract_path(path: str) -> bool:
 
     if normalized in DOCS_ONLY_ROOT_FILES:
         return True
-    if normalized.endswith(f"/{AGENTS_CONTRACT_FILE}") or normalized == AGENTS_CONTRACT_FILE:
+    if normalized.endswith(".md"):
         return True
     if normalized.endswith(f"/{SKILL_CONTRACT_FILE}") or normalized == SKILL_CONTRACT_FILE:
         return True
-    if normalized.startswith((DOCS_PATH_PREFIX, CURSOR_AGENTS_DOCS_PREFIX, GITHUB_DOCS_PREFIX)):
-        return normalized.endswith(".md")
     return False
 
 
@@ -164,7 +161,7 @@ def resolve_analysis_envelope_mode(candidate_paths: Sequence[str]) -> str:
     EN: Mixed or runtime scope always fails closed to analysis.
     """
 
-    if not candidate_paths:
+    if not candidate_paths or requires_security_review(candidate_paths):
         return ANALYSIS_ENVELOPE_MODE
     if all(is_docs_only_contract_path(path) for path in candidate_paths):
         return DOCS_ONLY_ENVELOPE_MODE

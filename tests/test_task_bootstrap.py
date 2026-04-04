@@ -291,8 +291,8 @@ def test_task_bootstrap_fails_closed_to_analysis_envelope_for_mixed_scope() -> N
     }
 
 
-def test_task_bootstrap_keeps_privileged_docs_in_docs_only_envelope_mode() -> None:
-    """Privileged orchestration docs remain docs-only while still forcing security review."""
+def test_task_bootstrap_fails_closed_to_analysis_for_privileged_docs() -> None:
+    """Privileged orchestration docs stay in analysis mode while forcing security review."""
 
     packet = build_task_packet(
         goal="Tighten agent message protocol wording",
@@ -300,7 +300,7 @@ def test_task_bootstrap_keeps_privileged_docs_in_docs_only_envelope_mode() -> No
         candidate_paths=["docs/orchestration/AGENT_MESSAGE_PROTOCOL.md"],
     )
 
-    assert packet["message_envelope"]["mode"] == "docs-only"
+    assert packet["message_envelope"]["mode"] == "analysis"
     assert packet["automation_flags"]["security_review_required"] is True
 
 

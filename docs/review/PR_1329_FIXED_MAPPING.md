@@ -1,11 +1,11 @@
 # PR 1329 — Fixed in Commit Mapping
 
 ## Discussion Thread Pass
-- [x] Discussion-thread pass prepared for the live PR
-- [ ] Fixed in commit mapping completed
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
-- No actionable review comments yet on the live PR head.
+- No actionable review comments
 
 ## Merge Readiness
 - [ ] All required checks pass
