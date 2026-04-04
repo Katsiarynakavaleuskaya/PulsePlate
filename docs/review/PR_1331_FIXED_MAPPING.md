@@ -61,9 +61,9 @@ Reason: Same intentional legacy macro median path as discussion_r3036114927; res
 Disposition: FIXED
 Commit: dfbc80df
 Evidence: core/food_apis/unified_db.py:127-129 provenance only for `raw_nutrients` keys
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1331#discussion_r3036149415 -> c229601b7d9cc1f5e63aea5f1ee3009e0bec0c99
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1331#discussion_r3036149415 -> 1407832f80f68df0af5960932d3c683032db7697
 Disposition: FIXED
-Commit: c229601b7d9cc1f5e63aea5f1ee3009e0bec0c99
+Commit: 1407832f80f68df0af5960932d3c683032db7697
 Evidence: app/schemas/food.py `_coerce_nutrition_confidence` rejects non-finite floats via math.isfinite; tests/test_food_schema_provenance.py::test_food_item_nutrition_confidence_rejects_non_finite_floats
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1331#pullrequestreview-4058892072 -> 1f66930eda55a58265670f0f0d6f8b1cc2926856
 Disposition: FIXED
@@ -76,10 +76,10 @@ Reason: CodeRabbit script chain targets PR 1326 artifact governance; no addition
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1331#pullrequestreview-4058896782 -> 1f66930eda55a58265670f0f0d6f8b1cc2926856
 Disposition: FIXED
 Commit: 1f66930eda55a58265670f0f0d6f8b1cc2926856
-Evidence: Cubic inline review comments in this artifact through discussion_r3036119920; non-finite confidence follow-up in c229601b7d9cc1f5e63aea5f1ee3009e0bec0c99.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1331#pullrequestreview-4058917503 -> c229601b7d9cc1f5e63aea5f1ee3009e0bec0c99
+Evidence: Cubic inline review comments in this artifact through discussion_r3036119920; non-finite confidence follow-up in 1407832f80f68df0af5960932d3c683032db7697.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1331#pullrequestreview-4058917503 -> 1407832f80f68df0af5960932d3c683032db7697
 Disposition: FIXED
-Commit: c229601b7d9cc1f5e63aea5f1ee3009e0bec0c99
+Commit: 1407832f80f68df0af5960932d3c683032db7697
 Evidence: Cubic follow-up review after 1f66930e; nutrition_confidence finite guard closes remaining open thread discussion_r3036149415.
 
 ## Merge Readiness
