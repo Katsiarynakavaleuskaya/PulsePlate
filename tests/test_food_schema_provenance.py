@@ -1,5 +1,7 @@
 """Tests for additive provenance fields on app food schema."""
 
+import math
+
 import pytest
 
 from app.schemas.food import FoodItem, _parse_json_inputs, _parse_json_mapping
@@ -161,6 +163,51 @@ def test_food_item_nutrition_confidence_coerces_none_int_and_bad_strings() -> No
         nutrition_confidence="not-a-float",
     )
     assert bad_str.nutrition_confidence == 0.0
+
+
+def test_food_item_nutrition_confidence_rejects_non_finite_floats() -> None:
+    nan_food = FoodItem(
+        id="food-c8",
+        canonical_name="teff",
+        group="grain",
+        kcal=367.0,
+        protein_g=13.3,
+        fat_g=2.4,
+        carbs_g=73.1,
+        source="USDA",
+        version_date="2024-01-01",
+        nutrition_confidence=float("nan"),
+    )
+    assert nan_food.nutrition_confidence == 0.0
+
+    inf_food = FoodItem(
+        id="food-c9",
+        canonical_name="fonio",
+        group="grain",
+        kcal=368.0,
+        protein_g=11.0,
+        fat_g=3.8,
+        carbs_g=74.0,
+        source="USDA",
+        version_date="2024-01-01",
+        nutrition_confidence=float("inf"),
+    )
+    assert inf_food.nutrition_confidence == 0.0
+
+    nan_str = FoodItem(
+        id="food-c10",
+        canonical_name="sorghum",
+        group="grain",
+        kcal=329.0,
+        protein_g=10.6,
+        fat_g=3.5,
+        carbs_g=72.1,
+        source="USDA",
+        version_date="2024-01-01",
+        nutrition_confidence=str(float("nan")),
+    )
+    assert nan_str.nutrition_confidence == 0.0
+    assert math.isfinite(nan_str.nutrition_confidence)
 
 
 def test_food_item_nutrition_confidence_unknown_type_falls_back_to_zero() -> None:

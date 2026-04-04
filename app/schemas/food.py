@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import ast
 import json
+import math
 import re
 from typing import List, Optional
 
@@ -165,15 +166,17 @@ class FoodItem(BaseModel):
         if value is None:
             return 0.0
         if isinstance(value, (int, float)):
-            return float(value)
+            coerced = float(value)
+            return coerced if math.isfinite(coerced) else 0.0
         if isinstance(value, str):
             raw = value.strip()
             if not raw:
                 return 0.0
             try:
-                return float(raw)
+                coerced = float(raw)
             except ValueError:
                 return 0.0
+            return coerced if math.isfinite(coerced) else 0.0
         return 0.0
 
 
