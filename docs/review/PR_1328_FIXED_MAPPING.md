@@ -24,6 +24,6 @@ Evidence: the artifact now records the live CodeRabbit review mappings instead o
 - [ ] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
 - [ ] Pre-commit green
 - [ ] `make verify` green
-- [x] Mandatory post-open bug-hunter pass completed
-- [x] Security review completed for privileged orchestration docs
+- [ ] Mandatory post-open bug-hunter pass completed
+- [ ] Security review completed for privileged orchestration docs
 Notes: PR `#1328` is the docs-only orchestration status-reconciliation slice for the continuation track after merged PRs `#1254`, `#1265`, `#1266`, `#1268`, `#1325`, and `#1327`. The post-open `qa-engineer-agent -> bug-hunter` loop plus `security-auditor` review found no remaining blocker issues before the later CodeRabbit follow-up, and the current canonical artifact now maps those bot comments to the follow-up docs fix commit. Remaining risk is limited to live current-head CI, final review-thread disposition, and any new bot comments that may arrive before merge readiness is claimed.
