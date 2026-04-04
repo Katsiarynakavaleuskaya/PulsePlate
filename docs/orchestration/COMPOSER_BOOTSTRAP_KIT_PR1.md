@@ -53,9 +53,28 @@ Treat this file as a rollout/decomposition note for future follow-on PRs, not as
 
 ## Follow-on PRs
 
+Status snapshot before starting any follow-on repo slice:
+
+- coordinator automation PR2 bootstrap hardening is already landed on `main`
+- coordinator automation PR3 skill routing is already landed on `main`
+- coordinator automation PR4 PR lifecycle automation is already landed on `main`
+- coordinator automation PR5 creative/design activation is already landed on `main`
+- bootstrap sync-policy extraction is already landed on `main`
+
+These bullets describe the landed **repo-engine baseline once invoked**. They do not imply raw-session auto-start, launcher enforcement, or host-runtime guarantees by docs alone.
+
+That means the workforce follow-ons below must extend the **current canonical baseline**, not reopen those earlier automation slices under new names.
+
 1. `PR-A` — extend the canonical coordinator bootstrap seam instead of adding a second packet system
+   - primary surfaces: `scripts/orchestration/task_bootstrap.py`, `scripts/orchestration/skill_router.py`, `scripts/orchestration/bootstrap_sync_policy.py`
+   - expected parity docs/tests: `docs/orchestration/AGENT_SKILL_ROUTING_POLICY.md`, `docs/orchestration/AGENT_MESSAGE_PROTOCOL.md`, `tests/test_task_bootstrap.py`, `tests/test_skill_router.py`, `tests/test_bootstrap_sync_policy.py`
+   - hard constraint: additive packet/routing semantics only; no standalone `action_packet` tree, no parallel bootstrap schema system
 2. `PR-B` — extend the canonical reflection protocol before deriving helper/schema material
+   - primary surface: `docs/orchestration/AGENT_REFLECTION_PROTOCOL.md`
+   - hard constraint: protocol first, helper/schema second; no parallel reflection contract
 3. `PR-C` — add experimental local control-plane storage as a non-canonical support plane
+   - primary surfaces should reuse existing security/control-plane runtime and runbook primitives where possible
+   - hard constraint: this remains support infrastructure, not the canonical orchestration source of truth
 
 ## Worktree promotion
 
