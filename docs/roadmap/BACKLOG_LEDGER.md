@@ -433,6 +433,40 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Signed provenance/SBOM verification is enforced before deploy
     - Follow-up docs and CI checks explicitly cover the restored path
 
+<a id="ledger-p1-sbom-vex-signed-security-artifacts"></a>
+- [ ] P1: SBOM/VEX signed security artifacts lane after P0 release-truth closure
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (security maturity after release-truth closure)
+  - Target PR: TBD
+  - Status: 📋 Planned
+  - Blocked by:
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p0-billing-entitlement-routing`
+    - `docs/roadmap/BACKLOG_LEDGER.md#backlog-restore-signed-build-provenance`
+  - Reason (EN): SBOM/VEX/cosign/OPA is a separate security-maturity lane, but the current canonical release risk remains concentrated in release-truth closure. Until entitlement truth, backend/runtime closure, infra hardening, canonical OpenAPI sync, and web/iOS runtime parity are stable, this lane stays docs/governance-only and must not add new blocking CI or merge-path complexity.
+  - Current action:
+    - docs/governance only
+    - no CI enablement
+    - no blocking workflow or merge-gate changes
+  - Entry criteria:
+    - Entitlement truth is closed
+    - Backend/runtime closure is closed
+    - Infra hardening is stable
+    - OpenAPI is restored as canonical truth
+    - Web/iOS runtime parity is no longer a P0 release blocker
+  - Links:
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p0-billing-entitlement-routing`
+    - `docs/roadmap/BACKLOG_LEDGER.md#backlog-restore-signed-build-provenance`
+    - `docs/security/TOOLING_SURFACE_POLICY.md`
+    - `docs/architecture/ADR_DOCKER_BUILD_PROVENANCE_WORKAROUND_2026-03-01.md`
+  - DoD:
+    - SBOM is generated on every canonical build
+    - Vulnerability scan results are stored as canonical artifacts
+    - VEX is stored at a fixed canonical path
+    - cosign attestations are verified automatically
+    - OPA gate evaluates signed VEX exceptions deterministically
+    - Rollout is staged `warn-only -> enforced`
+    - Nightly reconciliation detects stale VEX entries
+
 <a id="ledger-p1-canonical-bootstrap-late-rehydration"></a>
 - [ ] P1: Canonical app bootstrap late-rehydration hardening
   - Owner: @katsiaryna_kavaleuskaya
