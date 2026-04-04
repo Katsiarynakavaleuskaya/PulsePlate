@@ -10,6 +10,10 @@
 - [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
+Disposition: FIXED
+Commit: e169e93f
+Evidence: docs/orchestration/LOCAL_WORKFORCE_PR_A_TASK_PACKET_2026-04-05.md:3; docs/orchestration/LOCAL_WORKFORCE_PR_A_TASK_PACKET_2026-04-05.md:4; docs/orchestration/LOCAL_WORKFORCE_PR_A_TASK_PACKET_2026-04-05.md:60; docs/orchestration/LOCAL_WORKFORCE_PR_A_TASK_PACKET_2026-04-05.md:61
+Reason: Clarified effective-vs-creation timestamps and explicitly disambiguated the `TASK_PACKET_V1` protocol envelope from the bootstrap packet `schema_version` field referenced by CodeRabbit.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1330#discussion_r3036114895 -> e169e93f
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1330#pullrequestreview-4058893402 -> e169e93f
 
