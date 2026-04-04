@@ -938,7 +938,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Semantic App Store metadata and privacy validator expansion
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-TBD-IOS-APPSTORE-SEMANTIC-VALIDATORS
+  - Target PR: PR #1324
+  - Status: 🚧 In progress via `feat/ios-appstore-semantic-validators`
   - Area: iOS / release-ops / compliance
   - Finding Type: semantic compliance coverage gap
   - Reason: Current App Store validators are strong on file presence, dimensions, and basic wording rules, but they do not yet scan metadata/promotional copy for wellness-safe semantic drift or future privacy-package mismatches.

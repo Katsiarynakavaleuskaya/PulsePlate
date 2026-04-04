@@ -4,6 +4,7 @@
 require "json"
 require "pathname"
 require "uri"
+require_relative "semantic_policy"
 
 REQUIRED_LOCALES = %w[en-US ru-RU es-ES].freeze
 # Policy: repo metadata stays launch-ready and source-controlled across locales,
@@ -61,9 +62,13 @@ REQUIRED_LOCALES.each do |locale|
       next
     end
 
-    if read_text(file_path).empty?
+    content = read_text(file_path)
+    if content.empty?
       errors << "Metadata file is empty: #{file_path}"
+      next
     end
+
+    errors.concat(SemanticPolicy.metadata_hard_failures(file_path, content))
   end
 
   subtitle = locale_dir.join("subtitle.txt")

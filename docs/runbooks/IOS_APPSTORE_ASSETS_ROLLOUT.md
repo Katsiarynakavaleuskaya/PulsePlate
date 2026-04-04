@@ -102,6 +102,27 @@ Use validation-only flow before any protected upload:
 3. Use PR validation and normal CI to ensure screenshot capture and validator
    surfaces stay green without touching protected upload paths.
 
+### Semantic validator outcomes
+
+The separate semantic-validator lane stays repo-local and does not require Apple
+enrollment or protected upload access.
+
+Blocking semantic failures:
+
+- App Store-facing copy uses medical / diagnosis / treatment / cure framing
+- App Store-facing copy makes guaranteed or promissory outcome claims
+- App Store-facing copy hardcodes pricing / trial / eligibility / billing claims
+  that must remain StoreKit / App Store truth
+- Reviewer notes or HealthKit copy contradict the current read-only /
+  `DATA_NOT_COLLECTED` posture
+
+Advisory findings:
+
+- machine-readable lines in the form `ADVISORY: <file> :: <reason>`
+- future privacy-review hints or suspicious-but-non-contradictory wording
+- advisory findings do not by themselves close or reopen the Apple-dependent
+  rollout evidence lane
+
 ## Protected Upload Procedure
 
 Protected uploads are allowed only from:
