@@ -437,7 +437,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: SBOM/VEX signed security artifacts lane after P0 release-truth closure
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (security maturity after release-truth closure)
-  - Target PR: TBD
+  - Target PR: PR #1332
   - Status: 📋 Planned
   - Blocked by:
     - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p0-billing-entitlement-routing`
