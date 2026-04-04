@@ -21,6 +21,10 @@ Evidence: `tests/test_bootstrap_sync_policy.py` now locks the false-path for `ne
 Disposition: FIXED
 Commit: e01f1394
 Evidence: `tests/test_bootstrap_sync_policy.py` now covers directory-only privileged prefixes and a close non-match for `requires_security_review`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1327#pullrequestreview-4058791613 -> e01f1394
+Disposition: FIXED
+Commit: e01f1394
+Evidence: the CodeRabbit nit targeted tuple-index access on commit `8790031e`; `scripts/orchestration/bootstrap_sync_policy.py` now uses named agent-contract constants and `Sequence[str]`, so the reported condition is already resolved by the existing fix commit
 
 ## Merge Readiness
 - [ ] All required checks pass
