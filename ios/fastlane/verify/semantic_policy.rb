@@ -143,7 +143,18 @@ module SemanticPolicy
   def negated_review_note_prefix?(prefix)
     recent_prefix = prefix.downcase[-96..] || prefix.downcase
     recent_prefix.match?(
-      /(?:\b(?:do\s+not|does\s+not|did\s+not|don't|doesn't|never|no\s+longer|никогда)\b(?:\W+[[:word:]]+){0,3}\W*\z|\b(?:не|no|nunca)\b\W*\z)/i,
+      /
+        (?:
+          \b(?:do\s+not|does\s+not|did\s+not|don't|doesn't|never|no\s+longer|никогда)\b
+          (?:\W+[[:word:]]+){0,3}\W*\z
+          |
+          \b(?:no|nunca)\s+se\b(?:\W+[[:word:]]+){0,2}\W*\z
+          |
+          \bне\b(?:\W+(?:сейчас|уже|больше|будет|будем|буду|станет|станут|может|можем|должен|должна|должны|нужно|следует)){0,2}\W*\z
+          |
+          \b(?:не|no|nunca)\b\W*\z
+        )
+      /ix,
     )
   end
 end
