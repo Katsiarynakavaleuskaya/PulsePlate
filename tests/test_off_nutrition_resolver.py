@@ -125,6 +125,18 @@ def test_resolve_nutrition_treats_explicit_zero_as_present() -> None:
     assert result.provenance["fat_g"] == "usda"
 
 
+def test_nutrition_resolved_to_dict_includes_raw_inputs() -> None:
+    result = resolve_nutrition(
+        inputs=[NutritionInput(source="estimate", nutrients={"protein_g": 9.5}, record_id="off-1")],
+        nutrient_keys=["protein_g"],
+    )
+    payload = result.to_dict()
+    assert payload["nutrients"] == {"protein_g": 9.5}
+    assert payload["provenance"] == {"protein_g": "estimate"}
+    assert len(payload["raw_inputs"]) == 1
+    assert payload["raw_inputs"][0]["record_id"] == "off-1"
+
+
 def test_project_scalar_compat_adds_legacy_defaults() -> None:
     resolved = resolve_nutrition(
         inputs=[NutritionInput(source="estimate", nutrients={"protein_g": 9.5}, record_id="off-1")],

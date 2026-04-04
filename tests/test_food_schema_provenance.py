@@ -103,3 +103,77 @@ def test_food_item_nutrition_confidence_coerces_and_defaults() -> None:
         version_date="2024-01-01",
     )
     assert food_default.nutrition_confidence == 0.0
+
+
+def test_food_item_nutrition_confidence_coerces_none_int_and_bad_strings() -> None:
+    explicit_none = FoodItem(
+        id="food-c3",
+        canonical_name="millet",
+        group="grain",
+        kcal=378.0,
+        protein_g=11.0,
+        fat_g=4.2,
+        carbs_g=72.9,
+        source="USDA",
+        version_date="2024-01-01",
+        nutrition_confidence=None,
+    )
+    assert explicit_none.nutrition_confidence == 0.0
+
+    as_int = FoodItem(
+        id="food-c4",
+        canonical_name="buckwheat",
+        group="grain",
+        kcal=343.0,
+        protein_g=13.3,
+        fat_g=3.4,
+        carbs_g=71.5,
+        source="USDA",
+        version_date="2024-01-01",
+        nutrition_confidence=1,
+    )
+    assert as_int.nutrition_confidence == 1.0
+
+    empty_str = FoodItem(
+        id="food-c5",
+        canonical_name="quinoa",
+        group="grain",
+        kcal=368.0,
+        protein_g=14.1,
+        fat_g=6.1,
+        carbs_g=64.2,
+        source="USDA",
+        version_date="2024-01-01",
+        nutrition_confidence="   ",
+    )
+    assert empty_str.nutrition_confidence == 0.0
+
+    bad_str = FoodItem(
+        id="food-c6",
+        canonical_name="amaranth",
+        group="grain",
+        kcal=371.0,
+        protein_g=13.6,
+        fat_g=7.0,
+        carbs_g=65.2,
+        source="USDA",
+        version_date="2024-01-01",
+        nutrition_confidence="not-a-float",
+    )
+    assert bad_str.nutrition_confidence == 0.0
+
+
+def test_food_item_nutrition_confidence_unknown_type_falls_back_to_zero() -> None:
+    food = FoodItem(
+        id="food-c7",
+        canonical_name="spelt",
+        group="grain",
+        kcal=338.0,
+        protein_g=14.6,
+        fat_g=2.4,
+        carbs_g=70.2,
+        source="USDA",
+        version_date="2024-01-01",
+        nutrition_confidence=["0.5"],
+    )
+    assert food.nutrition_confidence == 0.0
