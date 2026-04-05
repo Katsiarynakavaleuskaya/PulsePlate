@@ -142,6 +142,15 @@ def test_bootstrap_sync_policy_detects_docs_only_contract_paths() -> None:
     assert is_docs_only_contract_path("skills/bootstrap/SKILL.md") is True
     assert is_docs_only_contract_path("docs/orchestration/schema.json") is False
     assert is_docs_only_contract_path("scripts/orchestration/task_bootstrap.py") is False
+    assert is_docs_only_contract_path("app/internal_notes.md") is False
+    assert is_docs_only_contract_path("core/README.md") is False
+
+
+def test_bootstrap_sync_policy_fails_closed_for_implementation_tree_markdown() -> None:
+    """Markdown under implementation roots must not alone justify docs-only envelope."""
+
+    assert resolve_analysis_envelope_mode(["app/internal_notes.md"]) == ANALYSIS_ENVELOPE_MODE
+    assert resolve_analysis_envelope_mode(["core/README.md"]) == ANALYSIS_ENVELOPE_MODE
 
 
 def test_bootstrap_sync_policy_derives_docs_only_envelope_mode_for_contract_scope() -> None:

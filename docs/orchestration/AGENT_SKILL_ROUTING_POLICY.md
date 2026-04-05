@@ -62,6 +62,7 @@ Packet contract note:
 - `skill_routing.conditional` does not leak into `recommended_skills`.
 - `skill_routing` must expose:
   - `task_classification`
+  - `envelope_mode_hint` (mirrors `resolve_analysis_envelope_mode` in `scripts/orchestration/bootstrap_sync_policy.py:157`)
   - `required`
   - `recommended`
   - `conditional`
@@ -117,6 +118,10 @@ CV routing note:
 - Generic coordinator task packets should emit `domain: "cv"` for CV-first work.
 - Governed experimentation packets remain backward-compatible under `domain: "ml"` until the experiment packet contract is migrated explicitly.
 - `cv-agent` is graph-primary for routed CV tasks; runtime/client ownership still stays out of scope here and is tracked separately.
+
+### 2c. Docs-only envelope suppression
+
+When `envelope_mode_hint` is `docs_only` (all candidate paths are contract/docs-only surfaces and none require privileged security review per `bootstrap_sync_policy`), `scripts/orchestration/skill_router.py` **removes** implementation-oriented skills from `recommended` and `conditional` so selection stays aligned with root `AGENTS.md` docs-only PR scope and with `inputs.message_envelope.mode` (`docs-only`) on the bootstrap packet. The excluded slug set is `DOCS_ONLY_EXCLUDED_ROUTING_SKILLS` in `scripts/orchestration/skill_router.py:120`.
 
 ---
 
