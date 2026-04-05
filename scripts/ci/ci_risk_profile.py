@@ -21,6 +21,7 @@ ALL_RISK_GROUPS: tuple[str, ...] = (
     "billing_entitlement",
     "insight_ai",
     "openapi_contract",
+    "food_catalog",
     "route_contract_safety",
     "merge_governance",
 )
@@ -106,6 +107,14 @@ RISK_GROUP_PATTERNS: dict[str, tuple[str, ...]] = {
         "scripts/generate_openapi.py",
         "tests/test_openapi_*.py",
     ),
+    "food_catalog": (
+        "app/schemas/food.py",
+        "app/services/food_store.py",
+        "core/food_apis/*.py",
+        "core/food_merge.py",
+        "core/off_nutrition/*.py",
+        "scripts/build_food_db.py",
+    ),
     "merge_governance": (
         ".github/actions/*",
         ".github/scripts/*",
@@ -144,6 +153,7 @@ class RiskProfile:
     billing_entitlement: bool
     insight_ai: bool
     openapi_contract: bool
+    food_catalog: bool
     route_contract_safety: bool
     merge_governance: bool
     contract_risk_groups: tuple[str, ...]
@@ -162,6 +172,7 @@ class RiskProfile:
             "billing_entitlement": _bool_text(self.billing_entitlement),
             "insight_ai": _bool_text(self.insight_ai),
             "openapi_contract": _bool_text(self.openapi_contract),
+            "food_catalog": _bool_text(self.food_catalog),
             "route_contract_safety": _bool_text(self.route_contract_safety),
             "merge_governance": _bool_text(self.merge_governance),
             "contract_risk_groups": ",".join(self.contract_risk_groups),
@@ -251,6 +262,7 @@ def build_risk_profile(changed_files: list[str] | tuple[str, ...]) -> RiskProfil
             billing_entitlement=False,
             insight_ai=False,
             openapi_contract=False,
+            food_catalog=False,
             route_contract_safety=False,
             merge_governance=False,
             contract_risk_groups=(),
@@ -296,6 +308,7 @@ def build_risk_profile(changed_files: list[str] | tuple[str, ...]) -> RiskProfil
         billing_entitlement=group_hits["billing_entitlement"],
         insight_ai=group_hits["insight_ai"],
         openapi_contract=group_hits["openapi_contract"],
+        food_catalog=group_hits["food_catalog"],
         route_contract_safety=group_hits["route_contract_safety"],
         merge_governance=group_hits["merge_governance"],
         contract_risk_groups=selected_groups,

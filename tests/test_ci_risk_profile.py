@@ -26,6 +26,7 @@ def test_empty_changed_files_uses_default_risk_profile() -> None:
     assert profile.billing_entitlement is False
     assert profile.insight_ai is False
     assert profile.openapi_contract is False
+    assert profile.food_catalog is False
     assert profile.route_contract_safety is False
     assert profile.merge_governance is False
     assert profile.contract_risk_groups == ()
@@ -114,6 +115,7 @@ def test_billing_router_change_hits_billing_and_openapi_groups() -> None:
     assert profile.backend_shared is True
     assert profile.billing_entitlement is True
     assert profile.openapi_contract is True
+    assert profile.food_catalog is False
     assert profile.route_contract_safety is True
     assert profile.contract_risk_groups == (
         "billing_entitlement",
@@ -166,9 +168,41 @@ def test_generic_backend_change_hits_route_contract_safety_group() -> None:
     )
 
     assert profile.backend_shared is True
+    assert profile.food_catalog is False
     assert profile.route_contract_safety is True
     assert profile.run_backend_blocking is True
     assert profile.contract_risk_groups == ("route_contract_safety",)
+
+
+def test_food_schema_change_hits_food_catalog_openapi_and_route_groups() -> None:
+    profile = risk_profile.build_risk_profile(
+        ["app/schemas/food.py"],
+    )
+
+    assert profile.backend_shared is True
+    assert profile.openapi_contract is True
+    assert profile.food_catalog is True
+    assert profile.route_contract_safety is True
+    assert profile.contract_risk_groups == (
+        "openapi_contract",
+        "food_catalog",
+        "route_contract_safety",
+    )
+
+
+def test_off_nutrition_core_change_hits_food_catalog_and_route_groups() -> None:
+    profile = risk_profile.build_risk_profile(
+        ["core/off_nutrition/resolver.py"],
+    )
+
+    assert profile.backend_shared is True
+    assert profile.openapi_contract is False
+    assert profile.food_catalog is True
+    assert profile.route_contract_safety is True
+    assert profile.contract_risk_groups == (
+        "food_catalog",
+        "route_contract_safety",
+    )
 
 
 def test_mixed_backend_surface_keeps_openapi_and_route_contract_groups() -> None:
