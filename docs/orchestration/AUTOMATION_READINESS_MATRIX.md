@@ -133,9 +133,11 @@ creating competing definitions.
 Closure status for this wave is recorded in the backlog ledger (not duplicated
 here): `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-local-workforce-pr-a-bootstrap-seam`
 and `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-local-workforce-pr-b-reflection-protocol`.
-Baseline merge for the PR-A envelope slice is PR #1329; router parity
-(`docs_only` suppression + `envelope_mode_hint`) and PR-B reflection protocol
-extensions ship in PR #1339 (draft until merged).
+Baseline merge for the PR-A envelope slice is PR #1329 (merged). Router parity
+(`docs_only` suppression + `envelope_mode_hint`), `bootstrap_sync_policy`
+docs-only path contract, and PR-B reflection protocol extensions are implemented
+on PR #1339; ledger rows stay **open** until that PR is merged to `main`, then
+closed with merge SHA per backlog policy.
 
 ### PR1: Governance and SoT alignment
 

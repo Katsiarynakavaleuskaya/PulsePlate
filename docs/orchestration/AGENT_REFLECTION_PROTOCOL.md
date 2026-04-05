@@ -39,6 +39,22 @@ This section does not authorize a second reflection schema; it extends **when** 
 
 ---
 
+## Post-open PR review reflection (merge governance)
+
+After a PR is opened and automation/humans leave actionable feedback, coordinator-owned work should produce **one** systemic outcome per incident class (KPP), not ad-hoc thread chatter.
+
+Canonical cycle (see `AGENTS.md` / `RUNBOOK_AGENT.md`): **qa-engineer-agent** → **bug-hunter** → when privileged paths are touched (`scripts/ci/**`, `docs/orchestration/**`, `docs/review/**`) → **security-auditor**. Review threads require an explicit disposition (**FIXED** / **NOT-A-BUG** / **DEFERRED**) with evidence; map threads in `docs/review/PR_<N>_FIXED_MAPPING.md` before claiming merge readiness.
+
+Reflect using the artifact format below when:
+
+- the same bot or human finding repeats across PRs (guard drift, mapping hygiene, subprocess/binary path policy),
+- merge-readiness scripts fail for mapping or auth semantics,
+- or post-open review discovered a bootstrap/routing/envelope inconsistency not caught by pre-push checks.
+
+Promotion targets remain a **single** KPP destination (doc, guard test, or backlog item)—never parallel “shadow” checklists outside the canonical mapping artifact.
+
+---
+
 ## Incident types (suggested taxonomy)
 
 - **Format drift:** extra preamble, wrong keys, Markdown fences around JSON

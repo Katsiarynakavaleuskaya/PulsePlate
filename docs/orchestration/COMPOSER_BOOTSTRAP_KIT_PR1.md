@@ -70,8 +70,6 @@ That means the workforce follow-ons below must extend the **current canonical ba
    - expected parity docs/tests: `docs/orchestration/AGENT_SKILL_ROUTING_POLICY.md`, `docs/orchestration/AGENT_MESSAGE_PROTOCOL.md`, `tests/test_task_bootstrap.py`, `tests/test_skill_router.py`, `tests/test_bootstrap_sync_policy.py`
    - planning packet: [`LOCAL_WORKFORCE_PR_A_TASK_PACKET_2026-04-05.md`](./LOCAL_WORKFORCE_PR_A_TASK_PACKET_2026-04-05.md)
    - rollout note: PR-A may land in multiple narrow slices; the first slice may limit itself to `task_bootstrap.py`, `bootstrap_sync_policy.py`, `AGENT_MESSAGE_PROTOCOL.md`, and their targeted tests as long as any deferred `skill_router` parity remains explicitly documented in the live PR body/review artifacts
-   - planning packet: [`LOCAL_WORKFORCE_PR_A_TASK_PACKET_2026-04-05.md`](./LOCAL_WORKFORCE_PR_A_TASK_PACKET_2026-04-05.md)
-   - rollout note: PR-A may land in multiple narrow slices; the first slice may limit itself to `task_bootstrap.py`, `bootstrap_sync_policy.py`, `AGENT_MESSAGE_PROTOCOL.md`, and their targeted tests as long as any deferred `skill_router` parity remains explicitly documented in the live PR body/review artifacts
    - hard constraint: additive packet/routing semantics only; no standalone `action_packet` tree, no parallel bootstrap schema system
 2. `PR-B` — extend the canonical reflection protocol before deriving helper/schema material
    - primary surface: `docs/orchestration/AGENT_REFLECTION_PROTOCOL.md`
