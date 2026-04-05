@@ -128,6 +128,15 @@ This wording is canonical for the PR-series gate. Other runbooks may summarize
 the rule for operators, but they should reference this section instead of
 creating competing definitions.
 
+### Composer bootstrap kit wave (PR-A / PR-B)
+
+Closure status for this wave is recorded in the backlog ledger (not duplicated
+here): `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-local-workforce-pr-a-bootstrap-seam`
+and `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-local-workforce-pr-b-reflection-protocol`.
+Baseline merge for the PR-A envelope slice is PR #1329; router parity
+(`docs_only` suppression + `envelope_mode_hint`) and PR-B reflection protocol
+extensions ship in the follow-on merge that contains those artifacts.
+
 ### PR1: Governance and SoT alignment
 
 In:

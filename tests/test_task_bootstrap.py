@@ -130,6 +130,15 @@ def test_task_bootstrap_adds_automation_metadata_defaults() -> None:
             "must_return": ["AGENT_RESULT_V1 envelope only (no preamble)"],
         },
     }
+    assert packet["skill_routing"]["envelope_mode_hint"] == "docs_only"
+    implementation_skills = {
+        "pulseplate-backend-endpoints",
+        "pulseplate-openapi-sync",
+        "pulseplate-frontend-ui",
+        "vercel-react-best-practices",
+    }
+    recommended = {item["skill"] for item in packet["skill_routing"]["recommended"]}
+    assert implementation_skills.isdisjoint(recommended)
     assert packet["needs_backlog_update"] is False
     assert packet["needs_docs_sync"] is False
     assert packet["needs_agents_sync"] is False

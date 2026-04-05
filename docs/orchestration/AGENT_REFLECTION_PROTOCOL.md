@@ -24,6 +24,18 @@ Reflect when any occurs:
 - repeat failure (same class ≥2 times)
 - safety boundary risk (wellness-only)
 - budget breach
+- bootstrap envelope vs skill-routing mismatch (for example `message_envelope.mode` is `docs-only` while execution plans or recommended skills imply runtime code change, or `skill_routing.envelope_mode_hint` disagrees with envelope derivation for the same `candidate_paths`)
+
+---
+
+## Bootstrap and routing awareness (local workforce lane)
+
+Coordinator and review agents should treat the canonical task packet as the only orchestration SoT:
+
+- `inputs.message_envelope.mode` (`docs-only` vs `analysis`) is a **derived view** over the same path signals as `skill_routing.envelope_mode_hint` (`docs_only` vs `analysis` in `bootstrap_sync_policy.resolve_analysis_envelope_mode`). Evidence: `scripts/orchestration/task_bootstrap.py:814`, `scripts/orchestration/skill_router.py` (return payload includes `envelope_mode_hint`).
+- When triaging repeat failures or doc/code drift, if routing output and envelope disagree for identical inputs, reflect using the artifact format below and promote a **single** fix: either path normalization, policy doc correction, or deterministic router/bootstrap tests — not ad-hoc parallel contracts.
+
+This section does not authorize a second reflection schema; it extends **when** to reflect for orchestration hygiene.
 
 ---
 
@@ -34,6 +46,7 @@ Reflect when any occurs:
 - **Evidence failure:** claims without `file:line` or reproducible command evidence
 - **Safety boundary:** wellness-only wording violated or ambiguous
 - **Budget breach:** timebox/limits exceeded; recursion/hops unbounded
+- **Routing/envelope mismatch:** docs-only envelope paired with implementation skills, or `envelope_mode_hint` inconsistent with `message_envelope.mode` for the same path set
 
 ---
 
