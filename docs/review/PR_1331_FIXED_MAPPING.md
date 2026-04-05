@@ -105,13 +105,13 @@ Evidence: `.github/workflows/ci.yml:654-662` restores `tests/test_food_search_fo
 Disposition: FIXED
 Commit: 8b0029f2cfac87cff2ccdc3637f8dc1bd52aadc1
 Evidence: Same routing fix as `pullrequestreview-4059454063`; cubic inline comment on `ci.yml` route suite regression.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1331#discussion_r3036844060 -> eab55ae3fb409ea91cb735c59e5a3c6d8bb9bdc7
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1331#discussion_r3036844060 -> 2a7b085b7c3f75622aaadde23c70c4c256c79519
 Disposition: FIXED
-Commit: eab55ae3fb409ea91cb735c59e5a3c6d8bb9bdc7
+Commit: 2a7b085b7c3f75622aaadde23c70c4c256c79519
 Evidence: docs/review/PR_1331_FIXED_MAPPING.md:125-131 Merge Readiness checklist remains `[ ]` until final merge pass; Notes document local `make verify` discipline without pre-checking gates.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1331#discussion_r3036846541 -> eab55ae3fb409ea91cb735c59e5a3c6d8bb9bdc7
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1331#discussion_r3036846541 -> 2a7b085b7c3f75622aaadde23c70c4c256c79519
 Disposition: FIXED
-Commit: eab55ae3fb409ea91cb735c59e5a3c6d8bb9bdc7
+Commit: 2a7b085b7c3f75622aaadde23c70c4c256c79519
 Evidence: Same merge-readiness policy alignment as discussion_r3036844060 (Cubic thread on the same artifact section).
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1331#pullrequestreview-4059462399
 Disposition: NOT-A-BUG
