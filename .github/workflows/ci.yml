@@ -642,7 +642,10 @@ jobs:
                   tests/test_api.py \
                   tests/test_app_error_handling_combined.py \
                   tests/test_app_extended_coverage.py \
-                  tests/test_legacy_app_diff_coverage.py
+                  tests/test_food_search_foundation.py \
+                  tests/test_foods_router_coverage_boost.py \
+                  tests/test_legacy_app_diff_coverage.py \
+                  tests/test_metrics.py
                 ;;
               merge_governance)
                 add_suite \
