@@ -2326,10 +2326,10 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [x] P1: Local workforce PR-A — extend the canonical coordinator bootstrap seam
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR #1329 (additive `message_envelope` derivation) + PR-TBD (replace after push: `skill_router` `docs_only` parity, `envelope_mode_hint`, ledger/protocol SoT)
+  - Target PR: PR #1329 (additive `message_envelope` derivation) + PR #1339 (`skill_router` `docs_only` parity, `envelope_mode_hint`, ledger/protocol SoT)
   - Area: orchestration / task bootstrap / skill routing / local workforce
   - Finding Type: RFC follow-on slice
-  - Status: Complete. PR #1329 landed derived `message_envelope` on the canonical bootstrap packet; follow-on commit aligns `route_skills` with `bootstrap_sync_policy.resolve_analysis_envelope_mode` (`docs_only` suppresses implementation skills in `recommended`/`conditional`), adds `envelope_mode_hint` to routing output, and reconciles `AGENT_SKILL_ROUTING_POLICY.md`, `AGENT_MESSAGE_PROTOCOL.md`, and tests. Replace `PR-TBD` with the GitHub PR number that merges this bundle.
+  - Status: Complete pending merge of PR #1339. PR #1329 landed derived `message_envelope` on the canonical bootstrap packet; PR #1339 aligns `route_skills` with `bootstrap_sync_policy.resolve_analysis_envelope_mode` (`docs_only` suppresses implementation skills in `recommended`/`conditional`), adds `envelope_mode_hint` to routing output, and reconciles `AGENT_SKILL_ROUTING_POLICY.md`, `AGENT_MESSAGE_PROTOCOL.md`, tests, and backlog/matrix docs.
   - Reason: `docs/orchestration/COMPOSER_BOOTSTRAP_KIT_PR1.md` explicitly requires extending the existing coordinator bootstrap seam instead of introducing a second packet system. Coordinator automation PR2-PR5 plus the sync-policy extraction are already landed, so the next repo lane must add any local-workforce semantics additively on top of `task_bootstrap.py`, `skill_router.py`, and `bootstrap_sync_policy.py`.
   - Dependencies:
     - `PR #1325`
@@ -2357,7 +2357,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [x] P1: Local workforce PR-B — extend the canonical reflection protocol first
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-TBD-LOCAL-WORKFORCE-PR-B-REFLECTION-PROTOCOL (replace after push; may ship in same PR as PR-A parity when scope stays protocol-only)
+  - Target PR: PR #1339 (reflection protocol extensions shipped with PR-A parity slice)
   - Area: orchestration / reflection / knowledge promotion
   - Finding Type: RFC follow-on slice
   - Status: Complete for the protocol-first slice: `docs/orchestration/AGENT_REFLECTION_PROTOCOL.md` now documents bootstrap/envelope vs skill-routing mismatch triggers and KPP-aligned promotion behavior without a parallel reflection schema.

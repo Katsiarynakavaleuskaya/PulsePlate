@@ -65,7 +65,7 @@ These bullets describe the landed **repo-engine baseline once invoked**. They do
 
 That means the workforce follow-ons below must extend the **current canonical baseline**, not reopen those earlier automation slices under new names.
 
-1. `PR-A` — extend the canonical coordinator bootstrap seam instead of adding a second packet system (**landed:** PR #1329 for `message_envelope` derivation; same merge wave as this doc bump closes `skill_router` `docs_only` parity + `envelope_mode_hint`.)
+1. `PR-A` — extend the canonical coordinator bootstrap seam instead of adding a second packet system (**landed:** PR #1329 for `message_envelope` derivation; PR #1339 for `skill_router` `docs_only` parity + `envelope_mode_hint` and doc SoT reconciliation.)
    - primary surfaces: `scripts/orchestration/task_bootstrap.py`, `scripts/orchestration/skill_router.py`, `scripts/orchestration/bootstrap_sync_policy.py`
    - expected parity docs/tests: `docs/orchestration/AGENT_SKILL_ROUTING_POLICY.md`, `docs/orchestration/AGENT_MESSAGE_PROTOCOL.md`, `tests/test_task_bootstrap.py`, `tests/test_skill_router.py`, `tests/test_bootstrap_sync_policy.py`
    - planning packet: [`LOCAL_WORKFORCE_PR_A_TASK_PACKET_2026-04-05.md`](./LOCAL_WORKFORCE_PR_A_TASK_PACKET_2026-04-05.md)

@@ -135,7 +135,7 @@ here): `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-local-workforce-pr-a-bootstrap-
 and `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-local-workforce-pr-b-reflection-protocol`.
 Baseline merge for the PR-A envelope slice is PR #1329; router parity
 (`docs_only` suppression + `envelope_mode_hint`) and PR-B reflection protocol
-extensions ship in the follow-on merge that contains those artifacts.
+extensions ship in PR #1339 (draft until merged).
 
 ### PR1: Governance and SoT alignment
 
