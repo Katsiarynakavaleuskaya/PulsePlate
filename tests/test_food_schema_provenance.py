@@ -257,3 +257,55 @@ def test_food_item_nutrition_confidence_unknown_type_falls_back_to_zero() -> Non
         nutrition_confidence=["0.5"],
     )
     assert food.nutrition_confidence == 0.0
+
+
+def test_core_schemas_fooditem_resolver_provenance_fields_round_trip() -> None:
+    """Import core.schemas.FoodItem in this suite so class-body lines are traced under CI coverage."""
+    from core.schemas import FoodItem as CoreFoodItem
+
+    core_food = CoreFoodItem(
+        id="core-prov-1",
+        canonical_name="oats",
+        group="grain",
+        kcal=389.0,
+        protein_g=16.9,
+        fat_g=6.9,
+        carbs_g=66.3,
+        source="OFF",
+        version_date="2026-04-05",
+        nutrition_inputs=[{"source": "off", "record_id": "off-1"}],
+        nutrition_provenance={"kcal": "off", "protein_g": "estimate"},
+        nutrition_nutrient_confidence={"kcal": 0.9, "protein_g": 0.5},
+        nutrition_confidence=0.82,
+    )
+    dumped = core_food.model_dump()
+    assert dumped["nutrition_inputs"] == [{"source": "off", "record_id": "off-1"}]
+    assert dumped["nutrition_provenance"] == {"kcal": "off", "protein_g": "estimate"}
+    assert dumped["nutrition_nutrient_confidence"] == {"kcal": 0.9, "protein_g": 0.5}
+    assert dumped["nutrition_confidence"] == pytest.approx(0.82)
+
+
+def test_core_schemas_fooditem_resolver_provenance_fields_round_trip() -> None:
+    """Import core.schemas.FoodItem in this suite so class-body lines are traced under CI coverage."""
+    from core.schemas import FoodItem as CoreFoodItem
+
+    core_food = CoreFoodItem(
+        id="core-prov-1",
+        canonical_name="oats",
+        group="grain",
+        kcal=389.0,
+        protein_g=16.9,
+        fat_g=6.9,
+        carbs_g=66.3,
+        source="OFF",
+        version_date="2026-04-05",
+        nutrition_inputs=[{"source": "off", "record_id": "off-1"}],
+        nutrition_provenance={"kcal": "off", "protein_g": "estimate"},
+        nutrition_nutrient_confidence={"kcal": 0.9, "protein_g": 0.5},
+        nutrition_confidence=0.82,
+    )
+    dumped = core_food.model_dump()
+    assert dumped["nutrition_inputs"] == [{"source": "off", "record_id": "off-1"}]
+    assert dumped["nutrition_provenance"] == {"kcal": "off", "protein_g": "estimate"}
+    assert dumped["nutrition_nutrient_confidence"] == {"kcal": 0.9, "protein_g": 0.5}
+    assert dumped["nutrition_confidence"] == pytest.approx(0.82)
