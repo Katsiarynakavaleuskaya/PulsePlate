@@ -8,7 +8,12 @@
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1344#pullrequestreview-4059602669
+Disposition: FIXED
+Commit: d0d90099
+Evidence: `docs/review/PR_1344_FIXED_MAPPING.md:6` now uses `Discussion thread pass completed`, matching the section title and resolving the Sourcery terminology nitpick.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1344#pullrequestreview-4059602669 -> d0d90099
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1344#discussion_r3037031377 -> d0d90099
 
 ## Merge Readiness
 
