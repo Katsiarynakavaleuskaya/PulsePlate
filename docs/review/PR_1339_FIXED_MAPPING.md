@@ -2,12 +2,12 @@
 
 ## Discussion Thread Pass
 
-- [ ] Discussion-thread pass completed
-- [ ] Fixed in commit mapping completed
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
 
-_(Map review threads and bot comments here as they arrive; disposition rules per `AGENTS.md`.)_
+- No actionable review comments
 
 ## Merge Readiness
 
@@ -26,4 +26,5 @@ PR **#1339** closes the PR-A follow-on after **#1329**: `skill_router` aligns wi
 `bootstrap_sync_policy.resolve_analysis_envelope_mode`, exposes `envelope_mode_hint`,
 filters implementation skills under `docs_only`, and reconciles
 `AGENT_SKILL_ROUTING_POLICY.md`, `AGENT_MESSAGE_PROTOCOL.md`, `AGENT_REFLECTION_PROTOCOL.md`,
-backlog ledger, and automation matrix wording.
+backlog ledger, and automation matrix wording. Replace **No actionable review comments** with
+thread URLs and dispositions when review feedback arrives.
