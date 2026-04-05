@@ -3,17 +3,16 @@
 
 ## Discussion Thread Pass
 
-- [x] Discussion thread pass completed
+- [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1344#pullrequestreview-4059602669
-Disposition: FIXED
-Commit: d0d90099
-Evidence: `docs/review/PR_1344_FIXED_MAPPING.md:6` now uses `Discussion thread pass completed`, matching the section title and resolving the Sourcery terminology nitpick.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1344#pullrequestreview-4059602669 -> d0d90099
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1344#discussion_r3037031377 -> d0d90099
+Disposition: NOT-A-BUG
+Evidence: `scripts/ci/check_pr_body_phase2_gates.py:24` hard-codes the canonical Phase2 checkbox label as `Discussion-thread pass completed`, and `scripts/ci/check_pr_body_phase2_gates.py:138`-`scripts/ci/check_pr_body_phase2_gates.py:142` fail CI unless that exact checked label is present in the artifact.
+Reason: The Sourcery wording suggestion is stylistically reasonable, but this PR must preserve the contract-frozen checkbox text required by the repo's Phase2 validator.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1344#discussion_r3037031377
 
 ## Merge Readiness
 
