@@ -329,10 +329,17 @@ class FoodDatabaseBuilder:
                         ),
                     ),
                 )
-            cursor.executemany(
-                "INSERT INTO foods VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-                rows,
+            insert_sql = (
+                "INSERT INTO foods ("
+                "id, canonical_name, group_name, per_g, kcal, protein_g, fat_g, carbs_g, "
+                "fiber_g, Fe_mg, Ca_mg, K_mg, Mg_mg, VitD_IU, B12_ug, Folate_ug, "
+                "Iodine_ug, flags, brand, gtin, fdc_id, source, source_priority, "
+                "version_date, price_per_100g, nutrition_inputs_json, "
+                "nutrition_provenance_json, nutrition_confidence, "
+                "nutrition_nutrient_confidence_json"
+                ") VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
             )
+            cursor.executemany(insert_sql, rows)
 
             # Populate FTS
             cursor.execute("INSERT INTO foods_fts(foods_fts) VALUES('rebuild')")

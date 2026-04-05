@@ -1040,3 +1040,13 @@ def test_coerce_nutrient_confidence_map_skips_unparseable_string_values() -> Non
 def test_coerce_nutrient_confidence_map_skips_non_scalar_values() -> None:
     """Non int/float/str values use the else branch and are omitted."""
     assert food_store._coerce_nutrient_confidence_map({"k": []}) == {}
+
+
+def test_coerce_nutrient_confidence_map_skips_bool_values() -> None:
+    """Bools must not be treated as numeric confidence scalars."""
+    out = food_store._coerce_nutrient_confidence_map(
+        {"kcal": True, "protein_g": False, "fat_g": 0.25},
+    )
+    assert "kcal" not in out
+    assert "protein_g" not in out
+    assert out["fat_g"] == pytest.approx(0.25)

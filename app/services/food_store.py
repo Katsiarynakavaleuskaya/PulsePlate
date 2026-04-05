@@ -155,7 +155,7 @@ def _coerce_nutrient_confidence_map(raw: object) -> dict[str, float]:
     out: dict[str, float] = {}
     for key, item in raw.items():
         sk = str(key)
-        if isinstance(item, (int, float)):
+        if isinstance(item, (int, float)) and not isinstance(item, bool):
             val = float(item)
         elif isinstance(item, str):
             try:

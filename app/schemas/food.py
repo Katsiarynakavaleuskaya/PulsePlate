@@ -90,7 +90,7 @@ def _parse_json_float_dict(value: object) -> dict[str, float]:
         out: dict[str, float] = {}
         for key, item in value.items():
             sk = str(key)
-            if isinstance(item, (int, float)):
+            if isinstance(item, (int, float)) and not isinstance(item, bool):
                 coerced = float(item)
                 if math.isfinite(coerced) and coerced >= 0.0:
                     out[sk] = coerced

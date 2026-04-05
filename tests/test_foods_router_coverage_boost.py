@@ -69,6 +69,114 @@ class TestFoodsRouterCoverage:
         assert data[1]["kcal"] == 89
 
     @patch("app.routers.foods.food_store.search_foods")
+    def test_list_foods_coerces_bad_nutrition_confidence_safely(self, mock_search_foods):
+        """List hits must not raise on corrupt DB cells; bool/NaN → 0, valid strings kept."""
+        mock_search_foods.return_value = [
+            {
+                "id": "1",
+                "canonical_name": "apple",
+                "kcal": 52,
+                "protein_g": 0.3,
+                "fat_g": 0.2,
+                "carbs_g": 14.0,
+                "nutrition_confidence": True,
+            },
+            {
+                "id": "2",
+                "canonical_name": "banana",
+                "kcal": 89,
+                "protein_g": 1.1,
+                "fat_g": 0.3,
+                "carbs_g": 23.0,
+                "nutrition_confidence": float("nan"),
+            },
+            {
+                "id": "3",
+                "canonical_name": "oat",
+                "kcal": 10,
+                "protein_g": 0.0,
+                "fat_g": 0.0,
+                "carbs_g": 0.0,
+                "nutrition_confidence": " 0.5 ",
+            },
+            {
+                "id": "4",
+                "canonical_name": "bad-str",
+                "kcal": 1,
+                "protein_g": 0.0,
+                "fat_g": 0.0,
+                "carbs_g": 0.0,
+                "nutrition_confidence": "not-a-float",
+            },
+            {
+                "id": "5",
+                "canonical_name": "no-key",
+                "kcal": 2,
+                "protein_g": 0.0,
+                "fat_g": 0.0,
+                "carbs_g": 0.0,
+            },
+            {
+                "id": "6",
+                "canonical_name": "explicit-none",
+                "kcal": 3,
+                "protein_g": 0.0,
+                "fat_g": 0.0,
+                "carbs_g": 0.0,
+                "nutrition_confidence": None,
+            },
+            {
+                "id": "7",
+                "canonical_name": "wrong-type",
+                "kcal": 4,
+                "protein_g": 0.0,
+                "fat_g": 0.0,
+                "carbs_g": 0.0,
+                "nutrition_confidence": [],
+            },
+            {
+                "id": "8",
+                "canonical_name": "neg-num",
+                "kcal": 5,
+                "protein_g": 0.0,
+                "fat_g": 0.0,
+                "carbs_g": 0.0,
+                "nutrition_confidence": -0.1,
+            },
+            {
+                "id": "9",
+                "canonical_name": "inf-num",
+                "kcal": 6,
+                "protein_g": 0.0,
+                "fat_g": 0.0,
+                "carbs_g": 0.0,
+                "nutrition_confidence": float("inf"),
+            },
+            {
+                "id": "10",
+                "canonical_name": "neg-str",
+                "kcal": 7,
+                "protein_g": 0.0,
+                "fat_g": 0.0,
+                "carbs_g": 0.0,
+                "nutrition_confidence": "-3",
+            },
+        ]
+        response = client.get("/api/v1/foods?query=x&limit=10&offset=0")
+        assert response.status_code == 200
+        data = response.json()
+        assert data[0]["nutrition_confidence"] == 0.0
+        assert data[1]["nutrition_confidence"] == 0.0
+        assert data[2]["nutrition_confidence"] == pytest.approx(0.5)
+        assert data[3]["nutrition_confidence"] == 0.0
+        assert data[4]["nutrition_confidence"] == 0.0
+        assert data[5]["nutrition_confidence"] == 0.0
+        assert data[6]["nutrition_confidence"] == 0.0
+        assert data[7]["nutrition_confidence"] == 0.0
+        assert data[8]["nutrition_confidence"] == 0.0
+        assert data[9]["nutrition_confidence"] == 0.0
+
+    @patch("app.routers.foods.food_store.search_foods")
     def test_list_foods_empty_query(self, mock_search_foods):
         """Test list_foods with empty query."""
         mock_search_foods.return_value = []

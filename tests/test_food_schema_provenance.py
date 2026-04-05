@@ -108,6 +108,14 @@ def test_parse_json_float_dict_dict_branch_skips_blank_and_invalid_numeric_strin
     assert out["c"] == pytest.approx(0.2)
 
 
+def test_parse_json_float_dict_dict_branch_skips_bool_values() -> None:
+    """Bools are ints in Python; must not coerce True/False to 1.0/0.0."""
+    out = _parse_json_float_dict({"ok": 0.5, "bad_true": True, "bad_false": False})
+    assert out["ok"] == pytest.approx(0.5)
+    assert "bad_true" not in out
+    assert "bad_false" not in out
+
+
 def test_parse_json_inputs_json_object_string_returns_empty_list() -> None:
     assert _parse_json_inputs("{}") == []
 
