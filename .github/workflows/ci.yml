@@ -1133,21 +1133,23 @@ jobs:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - name: Select Xcode (pin 16.x compatible with iOS 18.5/18.6 runtimes)
+      - name: Select Xcode (require 26.x for iOS 26 SDK readiness)
         id: select-xcode
         shell: bash
         run: |
           set -euo pipefail
 
-          # Prefer newest stable 16.x to match iOS 18.5/18.6 runtimes on runner.
-          # (Xcode 16.2 expects iOS 18.2 platform, which is not installed here.)
+          # Prefer explicit Xcode 26.x installs first.
+          # Keep /Applications/Xcode.app as a final fallback, but verify the major version.
           CANDIDATES=(
-            "/Applications/Xcode_16.4.app/Contents/Developer"
-            "/Applications/Xcode_16.4.0.app/Contents/Developer"
-            "/Applications/Xcode_16.3.app/Contents/Developer"
-            "/Applications/Xcode_16.3.0.app/Contents/Developer"
-            "/Applications/Xcode_16.2.app/Contents/Developer"
-            "/Applications/Xcode_16.2.0.app/Contents/Developer"
+            "/Applications/Xcode_26.2.app/Contents/Developer"
+            "/Applications/Xcode_26.2.0.app/Contents/Developer"
+            "/Applications/Xcode_26.1.app/Contents/Developer"
+            "/Applications/Xcode_26.1.0.app/Contents/Developer"
+            "/Applications/Xcode_26.0.app/Contents/Developer"
+            "/Applications/Xcode_26.app/Contents/Developer"
+            "/Applications/Xcode_26.0.0.app/Contents/Developer"
+            "/Applications/Xcode.app/Contents/Developer"
           )
 
           SELECTED=""
@@ -1159,7 +1161,7 @@ jobs:
           done
 
           if [ -z "$SELECTED" ]; then
-            echo "::error::No suitable Xcode 16.x found in /Applications."
+            echo "::error::No suitable Xcode 26.x found in /Applications."
             echo "::error::Available Xcode apps:"
             for app in /Applications/Xcode*.app; do
               [ -e "$app" ] && echo " - $app"
@@ -1180,9 +1182,14 @@ jobs:
 
           # Extract Xcode version for cache key (avoid broken pipe from pipe consumers like head/sed)
           XCODEBUILD_VERSION="$(xcodebuild -version)"
-          # First line is like: "Xcode 16.4"
+          # First line is like: "Xcode 26.1"
           XCODE_VERSION="${XCODEBUILD_VERSION#Xcode }"
           XCODE_VERSION="${XCODE_VERSION%%$'\n'*}"
+          XCODE_MAJOR="${XCODE_VERSION%%.*}"
+          if [ "$XCODE_MAJOR" != "26" ]; then
+            echo "::error::Selected Xcode must be 26.x for iOS 26 SDK readiness. Got $XCODE_VERSION"
+            exit 1
+          fi
           echo "xcode_version=$XCODE_VERSION" >> "$GITHUB_OUTPUT"
           echo "XCODE_VERSION=$XCODE_VERSION" >> "$GITHUB_ENV"
 
@@ -1223,7 +1230,8 @@ jobs:
           python3 - << 'PY'
           import json, os, re, subprocess, sys
 
-          # Pin to stable iOS 18.6 to avoid "latest" resolving to iOS 26.x betas.
+          # Prefer stable iOS 26.x to match Xcode 26 / iOS 26 SDK readiness.
+          # Fall back to the highest available iOS runtime instead of using OS=latest.
           out = subprocess.check_output(["xcrun", "simctl", "list", "devices", "available", "-j"], text=True)
           data = json.loads(out)
           devices = data.get("devices", {})
@@ -1237,13 +1245,9 @@ jobs:
               print("::error::No iOS Simulator runtimes found", file=sys.stderr)
               sys.exit(1)
 
-          pinned = [r for r in ios_runtimes if re.search(r"SimRuntime\.iOS-18-6\b", r)]
-          if pinned:
-              runtime = pinned[0]
-          else:
-              ios18 = [r for r in ios_runtimes if re.search(r"SimRuntime\.iOS-18-\d+\b", r)]
-              runtime_pool = ios18 if ios18 else ios_runtimes
-              runtime = sorted(runtime_pool, key=parse_ios_ver, reverse=True)[0]
+          ios26 = [r for r in ios_runtimes if re.search(r"SimRuntime\.iOS-26-\d+\b", r)]
+          runtime_pool = ios26 if ios26 else ios_runtimes
+          runtime = sorted(runtime_pool, key=parse_ios_ver, reverse=True)[0]
 
           major, minor = parse_ios_ver(runtime)
           if major < 0 or minor < 0:
@@ -1501,19 +1505,21 @@ jobs:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - name: Select Xcode (pin 16.x compatible with iOS 18.5/18.6 runtimes)
+      - name: Select Xcode (require 26.x for iOS 26 SDK readiness)
         id: select-xcode
         shell: bash
         run: |
           set -euo pipefail
 
           CANDIDATES=(
-            "/Applications/Xcode_16.4.app/Contents/Developer"
-            "/Applications/Xcode_16.4.0.app/Contents/Developer"
-            "/Applications/Xcode_16.3.app/Contents/Developer"
-            "/Applications/Xcode_16.3.0.app/Contents/Developer"
-            "/Applications/Xcode_16.2.app/Contents/Developer"
-            "/Applications/Xcode_16.2.0.app/Contents/Developer"
+            "/Applications/Xcode_26.2.app/Contents/Developer"
+            "/Applications/Xcode_26.2.0.app/Contents/Developer"
+            "/Applications/Xcode_26.1.app/Contents/Developer"
+            "/Applications/Xcode_26.1.0.app/Contents/Developer"
+            "/Applications/Xcode_26.0.app/Contents/Developer"
+            "/Applications/Xcode_26.app/Contents/Developer"
+            "/Applications/Xcode_26.0.0.app/Contents/Developer"
+            "/Applications/Xcode.app/Contents/Developer"
           )
 
           SELECTED=""
@@ -1525,7 +1531,7 @@ jobs:
           done
 
           if [ -z "$SELECTED" ]; then
-            echo "::error::No suitable Xcode 16.x found in /Applications."
+            echo "::error::No suitable Xcode 26.x found in /Applications."
             echo "::error::Available Xcode apps:"
             for app in /Applications/Xcode*.app; do
               [ -e "$app" ] && echo " - $app"
@@ -1539,9 +1545,14 @@ jobs:
 
           # Extract Xcode version for cache key (avoid broken pipe from pipe consumers like head/sed)
           XCODEBUILD_VERSION="$(xcodebuild -version)"
-          # First line is like: "Xcode 16.4"
+          # First line is like: "Xcode 26.1"
           XCODE_VERSION="${XCODEBUILD_VERSION#Xcode }"
           XCODE_VERSION="${XCODE_VERSION%%$'\n'*}"
+          XCODE_MAJOR="${XCODE_VERSION%%.*}"
+          if [ "$XCODE_MAJOR" != "26" ]; then
+            echo "::error::Selected Xcode must be 26.x for iOS 26 SDK readiness. Got $XCODE_VERSION"
+            exit 1
+          fi
           echo "xcode_version=$XCODE_VERSION" >> "$GITHUB_OUTPUT"
           echo "XCODE_VERSION=$XCODE_VERSION" >> "$GITHUB_ENV"
 
@@ -1581,7 +1592,8 @@ jobs:
           python3 - << 'PY'
           import json, os, re, subprocess, sys
 
-          # Pin to stable iOS 18.6 to avoid "latest" resolving to iOS 26.x betas.
+          # Prefer stable iOS 26.x to match Xcode 26 / iOS 26 SDK readiness.
+          # Fall back to the highest available iOS runtime instead of using OS=latest.
           out = subprocess.check_output(["xcrun", "simctl", "list", "devices", "available", "-j"], text=True)
           data = json.loads(out)
           devices = data.get("devices", {})
@@ -1595,13 +1607,9 @@ jobs:
               print("::error::No iOS Simulator runtimes found", file=sys.stderr)
               sys.exit(1)
 
-          pinned = [r for r in ios_runtimes if re.search(r"SimRuntime\.iOS-18-6\b", r)]
-          if pinned:
-              runtime = pinned[0]
-          else:
-              ios18 = [r for r in ios_runtimes if re.search(r"SimRuntime\.iOS-18-\d+\b", r)]
-              runtime_pool = ios18 if ios18 else ios_runtimes
-              runtime = sorted(runtime_pool, key=parse_ios_ver, reverse=True)[0]
+          ios26 = [r for r in ios_runtimes if re.search(r"SimRuntime\.iOS-26-\d+\b", r)]
+          runtime_pool = ios26 if ios26 else ios_runtimes
+          runtime = sorted(runtime_pool, key=parse_ios_ver, reverse=True)[0]
 
           major, minor = parse_ios_ver(runtime)
           if major < 0 or minor < 0:

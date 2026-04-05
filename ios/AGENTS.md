@@ -143,15 +143,16 @@
 
 **Xcode selection:**
 
-- Preferred: Xcode 16.4 (`/Applications/Xcode_16.4.app`)
-- Fallback: Xcode 16.3 (`/Applications/Xcode_16.3.app`)
-- Fallback: Xcode 16.2 (`/Applications/Xcode_16.2.app`)
-- CI fails if no suitable Xcode 16.x is found (see `.github/workflows/ci.yml` `select-xcode` step).
+- Preferred: Xcode 26.2 (`/Applications/Xcode_26.2.app`)
+- Fallback: Xcode 26.1 (`/Applications/Xcode_26.1.app`)
+- Fallback: Xcode 26.0 (`/Applications/Xcode_26.0.app`)
+- Final fallback: `/Applications/Xcode.app`, but only if `xcodebuild -version` resolves to Xcode 26.x
+- CI fails if no suitable Xcode 26.x is found (see `.github/workflows/ci.yml` `select-xcode` step).
 
 **Simulator (CI):**
 
 - **Auto-selected** from available simulators at runtime (no hard-coded device)
-- **Runtime policy:** prefer iOS 18.6 → fallback to iOS 18.x → fallback to any iOS runtime (if needed)
+- **Runtime policy:** prefer iOS 26.x → fallback to the highest available iOS runtime (if needed)
 - **Device preference:** `iPhone 16e` → `iPhone 16` → `iPhone 16 Pro` → `iPhone 15` → `iPhone 14`
   - If none of the preferred devices exist on the runner, CI falls back to **any available iPhone**, then to **any iOS simulator** (deterministic sort)
 - **Destination:** **UDID-only** `platform=iOS Simulator,id=<UDID>`
@@ -217,10 +218,10 @@
 **Destination policy (CI):**
 
 - CI **auto-selects** destination from available simulators dynamically
-- Prefers **iOS 18.x runtime** (avoids `OS=latest` resolving to iOS 26.x betas)
+- Prefers **iOS 26.x runtime** and falls back to the highest available iOS runtime
 - Preferred devices: `iPhone 16e` → `iPhone 16` → `iPhone 16 Pro` → `iPhone 15` → `iPhone 14`
 - **Hard rule:** never pin a simulator that may not exist; CI must discover availability first
-- Never uses `OS=latest` for named devices (to avoid iOS 26.x beta runtimes)
+- Never uses `OS=latest` for named devices (to avoid nondeterministic runtime resolution)
 
 **Destination policy (Local):**
 
@@ -258,7 +259,7 @@
 - **Local:** Default `iPhone 16e` (can be overridden via `IOS_SIM_NAME`/`IOS_SIM_OS`)
 - **CI:** Auto-selects destination using **UDID-only** format (`platform=iOS Simulator,id=<UDID>`)
   - Prefers `iPhone 16e` → `iPhone 16` → `iPhone 16 Pro` → `iPhone 15` from available simulators
-  - Pins iOS 18.6 runtime (fallback to iOS 18.x if 18.6 unavailable)
+  - Prefers iOS 26.x runtime (fallback to the highest available iOS runtime)
   - **Never uses `OS=latest`** (guard fails job if `latest` detected)
 - Both use `-project PulsePlate.xcodeproj` (canonical: app scheme tests = project-based)
 - Both use explicit `-only-testing:PulsePlateTests/ClassName` entries + `-parallel-testing-enabled NO` (canonical pattern)

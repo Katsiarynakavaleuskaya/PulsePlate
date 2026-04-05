@@ -44,24 +44,35 @@ jobs:
         run: |
           set -euo pipefail
           CANDIDATES=(
-            "/Applications/Xcode_16.4.app/Contents/Developer"
-            "/Applications/Xcode_16.4.0.app/Contents/Developer"
-            "/Applications/Xcode_16.3.app/Contents/Developer"
-            "/Applications/Xcode_16.3.0.app/Contents/Developer"
-            "/Applications/Xcode_16.2.app/Contents/Developer"
-            "/Applications/Xcode_16.2.0.app/Contents/Developer"
+            "/Applications/Xcode_26.2.app/Contents/Developer"
+            "/Applications/Xcode_26.2.0.app/Contents/Developer"
+            "/Applications/Xcode_26.1.app/Contents/Developer"
+            "/Applications/Xcode_26.1.0.app/Contents/Developer"
+            "/Applications/Xcode_26.0.app/Contents/Developer"
+            "/Applications/Xcode_26.app/Contents/Developer"
+            "/Applications/Xcode_26.0.0.app/Contents/Developer"
             "/Applications/Xcode.app/Contents/Developer"
           )
 
           for candidate in "${CANDIDATES[@]}"; do
             if [ -d "$candidate" ]; then
               echo "DEVELOPER_DIR=$candidate" >> "$GITHUB_ENV"
+              sudo xcode-select -s "$candidate"
+              XCODEBUILD_VERSION="$(xcodebuild -version)"
+              XCODE_VERSION="${XCODEBUILD_VERSION#Xcode }"
+              XCODE_VERSION="${XCODE_VERSION%%$'\n'*}"
+              XCODE_MAJOR="${XCODE_VERSION%%.*}"
+              if [ "$XCODE_MAJOR" != "26" ]; then
+                echo "::error::Selected Xcode must be 26.x for iOS 26 SDK readiness. Got $XCODE_VERSION"
+                exit 1
+              fi
               echo "Using Xcode at $candidate"
+              xcodebuild -version
               exit 0
             fi
           done
 
-          echo "::error::No supported Xcode installation found"
+          echo "::error::No supported Xcode 26.x installation found"
           exit 1
 
       - uses: ruby/setup-ruby@4eb9f110bac952a8b68ecf92e3b5c7a987594ba6 # v1
@@ -107,19 +118,30 @@ jobs:
         run: |
           set -euo pipefail
           for candidate in \
-            /Applications/Xcode_16.4.app/Contents/Developer \
-            /Applications/Xcode_16.4.0.app/Contents/Developer \
-            /Applications/Xcode_16.3.app/Contents/Developer \
-            /Applications/Xcode_16.3.0.app/Contents/Developer \
-            /Applications/Xcode_16.2.app/Contents/Developer \
-            /Applications/Xcode_16.2.0.app/Contents/Developer \
+            /Applications/Xcode_26.2.app/Contents/Developer \
+            /Applications/Xcode_26.2.0.app/Contents/Developer \
+            /Applications/Xcode_26.1.app/Contents/Developer \
+            /Applications/Xcode_26.1.0.app/Contents/Developer \
+            /Applications/Xcode_26.0.app/Contents/Developer \
+            /Applications/Xcode_26.app/Contents/Developer \
+            /Applications/Xcode_26.0.0.app/Contents/Developer \
             /Applications/Xcode.app/Contents/Developer; do
             if [ -d "$candidate" ]; then
               echo "DEVELOPER_DIR=$candidate" >> "$GITHUB_ENV"
+              sudo xcode-select -s "$candidate"
+              XCODEBUILD_VERSION="$(xcodebuild -version)"
+              XCODE_VERSION="${XCODEBUILD_VERSION#Xcode }"
+              XCODE_VERSION="${XCODE_VERSION%%$'\n'*}"
+              XCODE_MAJOR="${XCODE_VERSION%%.*}"
+              if [ "$XCODE_MAJOR" != "26" ]; then
+                echo "::error::Selected Xcode must be 26.x for iOS 26 SDK readiness. Got $XCODE_VERSION"
+                exit 1
+              fi
+              xcodebuild -version
               exit 0
             fi
           done
-          echo "::error::No supported Xcode installation found"
+          echo "::error::No supported Xcode 26.x installation found"
           exit 1
 
       - uses: ruby/setup-ruby@4eb9f110bac952a8b68ecf92e3b5c7a987594ba6 # v1

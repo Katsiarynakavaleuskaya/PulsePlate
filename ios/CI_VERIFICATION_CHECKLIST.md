@@ -6,9 +6,9 @@
 
 В логах шага "Select Xcode" должна быть строка:
 ```
-Selected DEVELOPER_DIR: /Applications/Xcode_16.4.app/Contents/Developer
+Selected DEVELOPER_DIR: /Applications/Xcode_26.1.app/Contents/Developer
 ```
-(или 16.3, если 16.4 нет)
+(или другой `Xcode_26*.app`, если 26.1 нет)
 
 ### 2. Xcode Version
 
@@ -16,7 +16,7 @@ Selected DEVELOPER_DIR: /Applications/Xcode_16.4.app/Contents/Developer
 ```
 xcodebuild -version
 ```
-Должен показать `Xcode 16.4` (или 16.3), не 16.2.
+Должен показать `Xcode 26.x`, не 16.x.
 
 ### 3. Available Destinations
 
@@ -27,7 +27,7 @@ xcodebuild -showdestinations -project PulsePlate.xcodeproj -scheme PulsePlate
 
 **Ожидаемый результат:**
 - ✅ Должен показать список eligible iOS Simulator destinations
-- ❌ НЕ должно быть "iOS 18.2 is not installed" или "Ineligible destinations"
+- ❌ НЕ должно быть "Ineligible destinations" или ошибок про отсутствующий iOS 26 runtime при выбранном Xcode 26
 
 ### 4. Test Execution
 
@@ -67,7 +67,8 @@ xcodebuild test -destination platform=iOS Simulator,id=<UDID> ...
 - Локально нет warning про Copy Bundle Resources
 
 ✅ **Xcode pinning:**
-- CI шаг "Select Xcode" выбирает 16.4 → 16.3 → 16.2 по приоритету
+- CI шаг "Select Xcode" выбирает 26.2 → 26.1 → 26.0 → `Xcode.app` по приоритету
+- После выбора CI явно валидирует, что `xcodebuild -version` возвращает Xcode 26.x
 - `DEVELOPER_DIR` экспортируется через `GITHUB_ENV`
 
 ✅ **AGENTS.md:**
