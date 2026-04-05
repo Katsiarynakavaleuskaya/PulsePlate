@@ -85,7 +85,7 @@ def test_resolve_nutrition_skips_invalid_numeric_values() -> None:
     assert result.provenance["carbs_g"] == "estimate"
 
 
-def test_resolve_nutrition_prefers_explicit_source_priority() -> None:
+def test_resolve_nutrition_prefers_default_source_priority() -> None:
     inputs = [
         NutritionInput(source="estimate", nutrients={"protein_g": 8.0}, record_id="off-1"),
         NutritionInput(source="usda", nutrients={"protein_g": 12.0}, record_id="usda-1"),

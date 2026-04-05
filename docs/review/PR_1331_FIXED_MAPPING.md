@@ -39,8 +39,8 @@ Commit: dfbc80df
 Evidence: core/food_apis/unified_db.py:101-130 `nutrition_provenance` keys from `raw_nutrients` only; tests/test_unified_db_basics.py
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1331#discussion_r3036116617
 Disposition: NOT-A-BUG
-Evidence: docs/review/PR_1331_FIXED_MAPPING.md (this thread)
-Reason: Comment references an unrelated PR-1326 merge script chain; no actionable change to OFF nutrition resolver scope on PR 1331.
+Evidence: Comment thread targets PR #1326 repository automation / merge-script workflow, not OFF nutrition resolver code under `core/off_nutrition/` or `core/food_merge.py`.
+Reason: No product or resolver change required on PR 1331; tooling scope belongs to PR #1326 / separate maintenance work.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1331#discussion_r3036119916
 Disposition: NOT-A-BUG
 Evidence: core/off_nutrition/contracts.py:16-27
@@ -89,11 +89,27 @@ Evidence: `.github/workflows/ci.yml:641-653` `food_catalog` `add_suite` now incl
 Disposition: FIXED
 Commit: a3b42d65
 Evidence: `scripts/ci/ci_risk_profile.py:294-299` `run_backend_blocking` includes `group_hits["food_catalog"]`; `tests/test_ci_risk_profile.py::test_build_food_db_script_only_still_runs_backend_blocking_for_food_catalog`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1331#pullrequestreview-4059273928
+Disposition: NOT-A-BUG
+Evidence: `core/food_merge.py:110-116` documents intentional legacy macro median path (same as discussion_r3036114927); CI gaps from review addressed in `61b89d39` (food_catalog pytest suite) and `a3b42d65` (`run_backend_blocking` + `food_catalog`); mapping nitpicks addressed in this commit.
+Reason: Aggregate CodeRabbit review; remaining items duplicate already-mapped inline threads or are documentation/style preferences without required code changes.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1331#pullrequestreview-4059283550
+Disposition: NOT-A-BUG
+Evidence: `scripts/ci/ci_risk_profile.py:42-48` `BACKEND_SHARED_PREFIXES` includes `tests/` so test-only edits still set `backend_shared` and Tier1 `run_backend_blocking`.
+Reason: Optional `food_catalog` test globs are not required for correctness; test-only PRs already run full backend blocking smoke path.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1331#pullrequestreview-4059454063 -> 3321b66f85ed2af88bf0cb143a9ecd04f1cf0e2f
+Disposition: FIXED
+Commit: 3321b66f85ed2af88bf0cb143a9ecd04f1cf0e2f
+Evidence: `.github/workflows/ci.yml:654-662` restores `tests/test_food_search_foundation.py`, `tests/test_foods_router_coverage_boost.py`, and `tests/test_metrics.py` in `route_contract_safety` (Tier1 parity with `origin/main` after food_catalog split).
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1331#discussion_r3036832489 -> 3321b66f85ed2af88bf0cb143a9ecd04f1cf0e2f
+Disposition: FIXED
+Commit: 3321b66f85ed2af88bf0cb143a9ecd04f1cf0e2f
+Evidence: Same routing fix as `pullrequestreview-4059454063`; cubic inline comment on `ci.yml` route suite regression.
 
 ## Merge Readiness
-- [ ] All required checks pass (re-verify on current head after push)
+- [x] All required checks pass (re-verify on current head after push)
 - [ ] No unresolved review threads (resolve on GitHub after reviewer ack)
-- [ ] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
-- [ ] Pre-commit green
-- [ ] `make verify` green
+- [x] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
+- [x] Pre-commit green
+- [x] `make verify` green
 Notes: PR `#1331` adds OFF nutrition provenance resolver wiring, store/schema normalization, and USDA provenance fixes. Canonical mapping artifact must stay aligned with thread resolution on the current head before merge readiness is claimed.
