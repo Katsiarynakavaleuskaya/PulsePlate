@@ -10,7 +10,7 @@
 
 Disposition: FIXED
 Commit: c2323037
-Evidence: app/schemas/food.py (bool guard in `_parse_json_float_dict`); app/services/food_store.py:156 (`_coerce_nutrient_confidence_map`); scripts/build_food_db.py:332 (explicit `INSERT INTO foods (...)`); app/routers/foods.py:48 (`_coerce_hit_nutrition_confidence`); tests in `tests/test_food_schema_provenance.py`, `tests/test_food_store_service.py`, `tests/test_foods_router_coverage_boost.py`
+Evidence: app/schemas/food.py (bool guard in `_parse_json_float_dict`); app/services/food_store.py:156 (`_coerce_nutrient_confidence_map`); scripts/build_food_db.py:332 (explicit `INSERT INTO foods (...)`); app/routers/foods.py:48 (`_coerce_hit_nutrition_confidence`); tests in `tests/test_food_schema_provenance.py`, `tests/test_food_store_service.py`, `tests/test_foods_router_coverage_boost.py` (`test_list_foods_coerces_bad_nutrition_confidence_safely` uses `monkeypatch.setattr` per Python 3.12+/xdist policy)
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1346#discussion_r3037264392 -> c2323037
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1346#discussion_r3037266604 -> c2323037
@@ -23,6 +23,9 @@ Evidence: app/schemas/food.py (bool guard in `_parse_json_float_dict`); app/serv
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1346#pullrequestreview-4059773871 -> c2323037
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1346#pullrequestreview-4059775943 -> c2323037
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1346#pullrequestreview-4059778783 -> c2323037
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1346#discussion_r3037302271 -> 1c8af78a
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1346#pullrequestreview-4059801671 -> 1c8af78a
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1346#pullrequestreview-4059802357 -> 1c8af78a
 
 ## Merge Readiness
 
