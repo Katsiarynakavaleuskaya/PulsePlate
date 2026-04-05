@@ -102,7 +102,7 @@ mdurl==0.1.2
     #   markdown-it-py
 msgpack==1.1.2
     # via cachecontrol
-mypy==1.19.1
+mypy==1.20.0
     # via -r requirements-dev.in
 mypy-extensions==1.1.0
     # via
@@ -213,7 +213,7 @@ rich==14.3.3
     #   -c requirements.txt
     #   bandit
     #   pip-audit
-ruff==0.15.8
+ruff==0.15.9
     # via -r requirements-dev.in
 sortedcontainers==2.4.0
     # via
