@@ -1090,6 +1090,16 @@ Detailed procedures stay in runbooks, ADRs, and scoped `AGENTS.md` files.
 - Distinguish product/catalog provenance from Docker/build provenance: `docs/architecture/ADR_DOCKER_BUILD_PROVENANCE_WORKAROUND_2026-03-01.md`
 - Any new catalog, food, or restaurant integration must update provenance/source-of-truth docs or record a deferred follow-up in `docs/roadmap/BACKLOG_LEDGER.md`.
 
+### Deferred security-maturity lanes
+
+- SBOM/VEX/cosign/OPA rollout is deferred until P0 release-truth closure is complete and tracked in `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-sbom-vex-signed-security-artifacts`.
+- The later SBOM/VEX lane remains downstream of `docs/roadmap/BACKLOG_LEDGER.md#backlog-restore-signed-build-provenance`; signed build provenance restoration is the narrower supply-chain prerequisite/foundation for later security-artifact enforcement.
+- Release-truth closure ordering stays fixed: entitlement truth -> backend/runtime closure -> infra hardening -> canonical OpenAPI sync -> web/iOS runtime parity -> only then security-artifact lane.
+- Until that closure, do not add a blocking workflow, required check, or merge gate for the SBOM/VEX/cosign/OPA lane.
+- Future security-artifact rollout must be staged `warn-only -> enforced`; do not enable blocking mode in the first PR.
+- Security exceptions for this lane must be represented through canonical signed artifacts / VEX policy, not ad-hoc ignores.
+- Any postponed security-maturity lane must be recorded in `docs/roadmap/BACKLOG_LEDGER.md` immediately.
+
 ### Endpoint map updates
 
 - If a route, namespace, tier surface, or feature-flagged public contract changes, update `docs/contracts/API_CANONICAL_MAP.md` or document why no map change is required.
