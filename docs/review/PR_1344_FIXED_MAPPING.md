@@ -27,13 +27,13 @@ Disposition: FIXED
 Evidence: `2eadb894` unchecks `Pre-commit green` and ``make verify`` green so merge-readiness status is not pre-confirmed before the final current-head merge cycle.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1344#pullrequestreview-4059672103
 Disposition: FIXED
-Evidence: `706b2f70`
+Evidence: `706b2f70` updates `docs/review/PR_1344_FIXED_MAPPING.md` so the previously shorthand CodeRabbit mappings for `#discussion_r3037055700` and `#discussion_r3037055702` now carry explicit `Disposition` + `Evidence` proof text in this section.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1344#discussion_r3037124697
 Disposition: FIXED
 Evidence: `706b2f70` expands the prior shorthand CodeRabbit mappings into explicit `Disposition` + `Evidence` entries for each resolved discussion thread.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1344#pullrequestreview-4059672801
 Disposition: FIXED
-Evidence: `706b2f70`
+Evidence: `706b2f70` rewrites the notes paragraph in `docs/review/PR_1344_FIXED_MAPPING.md` to say local validation passed earlier while the merge-readiness checkboxes remain intentionally unchecked until the final current-head merge cycle.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1344#discussion_r3037125840
 Disposition: FIXED
 Evidence: `706b2f70` rewrites the notes block to state that local validation passed earlier while merge-readiness checkboxes remain intentionally unchecked until the final current-head merge cycle.
