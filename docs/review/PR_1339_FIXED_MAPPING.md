@@ -37,13 +37,18 @@ Commit: 1bef7d6c05b6d46071b337dcf570312e12d872f2
 Evidence: `requirements-test.txt:13`; `requirements-dev.txt:60`
 Reason: CI `pip install` for `requirements-test.txt` failed: `faker==40.11.1` no longer resolvable on the locked index (`--only-binary`); bump test/dev lock pins to `faker==40.12.0`.
 
+Disposition: FIXED
+Commit: 337f9e34
+Evidence: `requirements-dev.txt:83` (`librt==0.8.1`); `docs/roadmap/BACKLOG_LEDGER.md:2325`; `docs/orchestration/AUTOMATION_READINESS_MATRIX.md:131`; `docs/orchestration/AGENT_REFLECTION_PROTOCOL.md:40`; `docs/orchestration/COMPOSER_BOOTSTRAP_KIT_PR1.md:68`
+Reason: Post-open / bug-hunter hygiene: CI `pip download --only-binary` failed for `librt==0.7.5` (only `0.8.1` on index). PR-0 SoT reconciliation: ledger PR-A/PR-B rows open until merge; matrix + composer dedupe; reflection protocol post-open review section.
+
 ## Merge Readiness
 
-- [ ] All required checks pass (current head)
-- [ ] No unresolved review threads (re-check before merge)
-- [ ] No actionable bot comments remain unmapped in **Fixed in Commit Mapping**
-- [ ] Pre-commit green on latest push
-- [ ] `make verify` green where required for merge (or CI canonical truth documented in PR body)
+- [x] All required checks pass (current head)
+- [x] No unresolved review threads (re-check before merge)
+- [x] No actionable bot comments remain unmapped in **Fixed in Commit Mapping**
+- [x] Pre-commit green on latest push
+- [x] `make verify` green where required for merge (or CI canonical truth documented in PR body)
 - [x] Mandatory post-open **qa-engineer-agent** pass completed (bootstrap + routing tests exercised locally; CI is canonical)
 - [x] Mandatory post-open **bug-hunter** pass completed (`is_docs_only_contract_path` hardening in 082c7c90)
 - [x] **security-auditor** pass for privileged surfaces (no new privileged runtime; policy helpers + tests only)
