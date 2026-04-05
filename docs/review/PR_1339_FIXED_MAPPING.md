@@ -32,6 +32,11 @@ Commit: 979903be424adb9ca303de58dd494ffd1df71a56
 Evidence: `requirements.txt:294`; `requirements-lock.txt:294`
 Reason: CI `pip install` failed: `transformers==5.4.0` no longer resolvable on PyPI (`--only-binary`); bump locked pin to `transformers==5.5.0`.
 
+Disposition: FIXED
+Commit: 1bef7d6c05b6d46071b337dcf570312e12d872f2
+Evidence: `requirements-test.txt:13`; `requirements-dev.txt:60`
+Reason: CI `pip install` for `requirements-test.txt` failed: `faker==40.11.1` no longer resolvable on the locked index (`--only-binary`); bump test/dev lock pins to `faker==40.12.0`.
+
 ## Merge Readiness
 
 - [ ] All required checks pass (current head)
