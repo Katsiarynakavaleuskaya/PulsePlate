@@ -809,6 +809,8 @@ def test_food_search_meili_client_closed_on_app_shutdown(
         with TestClient(app):
             pass
         assert client.is_closed
+        assert getattr(app.state, "meili_http_client", None) is None
+        assert getattr(app.state, "meili_http_shutdown_event", None) is None
     finally:
         dispose_food_search_meili_http_client(app)
         food_store.reset_strategy_search_backend_adapter()
