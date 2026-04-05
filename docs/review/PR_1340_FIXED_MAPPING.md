@@ -43,8 +43,8 @@ Evidence: Sourcery reviewer guide / issue comment is documentation; substantive 
 
 ## Merge Readiness
 
-- [ ] All required checks pass
-- [ ] No unresolved review threads (re-check on current head before merge)
-- [ ] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
-- [ ] Pre-commit green
-- [ ] `make verify` green
+- [x] All required checks pass (verified: `gh pr checks 1340` exit 0 before follow-up doc commit)
+- [x] No unresolved review threads (`scripts/ci/check_pr_merge_readiness.py` PASS)
+- [x] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
+- [x] CI merge readiness gate pass
+- [ ] Local `make verify` before merge (repo policy; this agent ran `make diff-cov` → pass)
