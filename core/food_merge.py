@@ -13,6 +13,12 @@ from statistics import median
 from typing import Dict, Iterable, List
 
 from .food_sources.base import FoodRecord
+from .off_nutrition import (
+    NutritionInput,
+    is_valid_nutrient_scalar,
+    project_scalar_compat,
+    resolve_nutrition,
+)
 
 # Micro nutrients list
 MICROS = [
@@ -25,6 +31,7 @@ MICROS = [
     "K_mg",
     "Mg_mg",
 ]
+MERGED_NUTRIENT_KEYS = ["kcal", "protein_g", "fat_g", "carbs_g", "fiber_g", *MICROS]
 
 
 def _merge_values(values: List[float], strategy: str = "median") -> float:
@@ -68,27 +75,50 @@ def merge_records(streams: List[Iterable[FoodRecord]]) -> List[Dict]:
     today = date.today().isoformat()
 
     for name, rows in bucket.items():
-        # Merge macronutrients using median
-        kcal = _merge_values([r.kcal for r in rows])
-        protein = _merge_values([r.protein_g for r in rows])
-        fat = _merge_values([r.fat_g for r in rows])
-        carbs = _merge_values([r.carbs_g for r in rows])
-        fiber = _merge_values([r.fiber_g for r in rows])
+        nutrition_inputs = [
+            NutritionInput(
+                source=r.source,
+                record_id=r.name,
+                version_ref=r.version_date,
+                nutrients={
+                    key: float(value)
+                    for key, value in {
+                        "kcal": r.kcal,
+                        "protein_g": r.protein_g,
+                        "fat_g": r.fat_g,
+                        "carbs_g": r.carbs_g,
+                        "fiber_g": r.fiber_g,
+                        "Fe_mg": r.Fe_mg,
+                        "Ca_mg": r.Ca_mg,
+                        "VitD_IU": r.VitD_IU,
+                        "B12_ug": r.B12_ug,
+                        "Folate_ug": r.Folate_ug,
+                        "Iodine_ug": r.Iodine_ug,
+                        "K_mg": r.K_mg,
+                        "Mg_mg": r.Mg_mg,
+                    }.items()
+                    if is_valid_nutrient_scalar(value)
+                },
+                raw_payload={},
+            )
+            for r in rows
+        ]
+        resolved = resolve_nutrition(inputs=nutrition_inputs, nutrient_keys=MERGED_NUTRIENT_KEYS)
+        compat = project_scalar_compat(resolved, required_keys=MERGED_NUTRIENT_KEYS)
+        has_usda_source = any(r.source == "USDA" for r in rows)
 
-        # Priority for micronutrients: if USDA present, take from USDA, otherwise median
-        def micro_pick(key: str) -> float:
-            # Get values from USDA source first
-            usda_vals = [getattr(r, key) for r in rows if r.source == "USDA"]
-            usda_vals = [v for v in usda_vals if v is not None and v >= 0]
-
-            if usda_vals:
-                # If we have USDA values, use median of USDA values
-                return _merge_values(usda_vals, "median")
-
-            # Otherwise, use median of all values
-            all_vals = [getattr(r, key) for r in rows]
-            all_vals = [v for v in all_vals if v is not None and v >= 0]
-            return _merge_values(all_vals, "median")
+        # Preserve legacy median merge behavior for macronutrients until API clients
+        # are upgraded to consume per-field provenance directly.
+        compat["kcal"] = round(_merge_values([r.kcal for r in rows]), 1)
+        compat["protein_g"] = round(_merge_values([r.protein_g for r in rows]), 2)
+        compat["fat_g"] = round(_merge_values([r.fat_g for r in rows]), 2)
+        compat["carbs_g"] = round(_merge_values([r.carbs_g for r in rows]), 2)
+        compat["fiber_g"] = round(_merge_values([r.fiber_g for r in rows]), 2)
+        if not has_usda_source:
+            # Legacy median path: _merge_values already drops None and negative values
+            # (same semantics as the retired micro_pick helper).
+            for micro_key in MICROS:
+                compat[micro_key] = _merge_values([getattr(r, micro_key) for r in rows])
 
         # Collect all flags
         all_flags = set()
@@ -103,16 +133,19 @@ def merge_records(streams: List[Iterable[FoodRecord]]) -> List[Dict]:
             "name": name,
             "group": "other",  # Will be determined by classification logic
             "per_g": 100.0,
-            "kcal": round(kcal, 1),
-            "protein_g": round(protein, 2),
-            "fat_g": round(fat, 2),
-            "carbs_g": round(carbs, 2),
-            "fiber_g": round(fiber, 2),
-            **{k: round(micro_pick(k), 3) for k in MICROS},
+            "kcal": compat["kcal"],
+            "protein_g": compat["protein_g"],
+            "fat_g": compat["fat_g"],
+            "carbs_g": compat["carbs_g"],
+            "fiber_g": compat["fiber_g"],
+            **{k: round(compat[k], 3) for k in MICROS},
             "flags": list(sorted(all_flags)),
             "price": 0.0,  # Can be populated from OFF later
             "source": "MERGED(" + ",".join(sources) + ")",
             "version_date": today,
+            "nutrition_inputs": [entry.to_dict() for entry in resolved.raw_inputs],
+            "nutrition_provenance": dict(resolved.provenance),
+            "nutrition_confidence": resolved.confidence,
         }
         merged.append(out)
 
