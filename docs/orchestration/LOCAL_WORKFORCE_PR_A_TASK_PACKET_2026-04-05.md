@@ -2,7 +2,7 @@
 
 **Effective date:** 2026-04-05 (`America/New_York`)
 **Creation date:** 2026-04-04 (`America/New_York`)
-**Status:** Active planning packet for the next repo lane after merged prerequisite baseline PRs `#1325`, `#1327`, and `#1328`.
+**Status:** PR-A execution complete in repo (envelope slice: PR #1329; router `docs_only` parity + `envelope_mode_hint`: land with the PR that merges this worktree). This packet remains the historical scope contract for that lane.
 **Mode:** coordinator-first, additive-only, canonical-bootstrap extension
 
 ## Goal

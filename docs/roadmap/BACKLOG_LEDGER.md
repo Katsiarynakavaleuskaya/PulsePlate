@@ -2323,13 +2323,13 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - No broad PR-governance refactor or merge-readiness semantic change is included
 
 <a id="ledger-p1-local-workforce-pr-a-bootstrap-seam"></a>
-- [ ] P1: Local workforce PR-A — extend the canonical coordinator bootstrap seam
+- [x] P1: Local workforce PR-A — extend the canonical coordinator bootstrap seam
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-TBD-LOCAL-WORKFORCE-PR-A-BOOTSTRAP-SEAM
+  - Target PR: PR #1329 (additive `message_envelope` derivation) + PR #1339 (`skill_router` `docs_only` parity, `envelope_mode_hint`, ledger/protocol SoT)
   - Area: orchestration / task bootstrap / skill routing / local workforce
   - Finding Type: RFC follow-on slice
-  - Status: Ready as the next non-duplicate repo lane on `main` after merged prerequisite baseline PRs `#1325` (`866ba507`), `#1327` (`7df804cf`), and `#1328` (`10ce5e67`).
+  - Status: **Closed** — PR #1329 merged on `main`; PR #1339 squash-merged to `main` as `3b243a003daf9101b00639cada199a27e19c7e83` (parity: `route_skills` + `bootstrap_sync_policy.resolve_analysis_envelope_mode`, `envelope_mode_hint`, fail-closed docs-only paths, tests, SoT docs).
   - Reason: `docs/orchestration/COMPOSER_BOOTSTRAP_KIT_PR1.md` explicitly requires extending the existing coordinator bootstrap seam instead of introducing a second packet system. Coordinator automation PR2-PR5 plus the sync-policy extraction are already landed, so the next repo lane must add any local-workforce semantics additively on top of `task_bootstrap.py`, `skill_router.py`, and `bootstrap_sync_policy.py`.
   - Dependencies:
     - `PR #1325`
@@ -2354,16 +2354,16 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - No launcher/runtime auto-start claims are added to repo docs
 
 <a id="ledger-p1-local-workforce-pr-b-reflection-protocol"></a>
-- [ ] P1: Local workforce PR-B — extend the canonical reflection protocol first
+- [x] P1: Local workforce PR-B — extend the canonical reflection protocol first
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-TBD-LOCAL-WORKFORCE-PR-B-REFLECTION-PROTOCOL
+  - Target PR: PR #1339 (protocol-first reflection extensions bundled with the PR-A parity slice)
   - Area: orchestration / reflection / knowledge promotion
   - Finding Type: RFC follow-on slice
-  - Status: Planned
+  - Status: **Closed** — same squash merge as PR-A: `3b243a003daf9101b00639cada199a27e19c7e83`; `docs/orchestration/AGENT_REFLECTION_PROTOCOL.md` includes bootstrap/routing mismatch, post-open review reflection, and KPP promotion wording.
   - Reason: The local workforce RFC requires reflection changes to land through the canonical reflection protocol before any helper or schema material is promoted. This keeps knowledge-promotion semantics inside the existing repo SoT instead of creating a second reflection contract.
   - Dependencies:
-    - `PR-TBD-LOCAL-WORKFORCE-PR-A-BOOTSTRAP-SEAM`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-local-workforce-pr-a-bootstrap-seam` (closed with PR #1339)
   - Lifecycle: Start → Open → Push → Review → Merge
   - Links:
     - `docs/orchestration/COMPOSER_BOOTSTRAP_KIT_PR1.md`
@@ -2384,7 +2384,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Status: Planned
   - Reason: The RFC allows an experimental local control-plane/storage layer only as a non-canonical support plane. If promoted, it must reuse existing security/control-plane primitives where possible and must not become a second orchestration source of truth.
   - Dependencies:
-    - `PR-TBD-LOCAL-WORKFORCE-PR-B-REFLECTION-PROTOCOL`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-local-workforce-pr-b-reflection-protocol`
   - Lifecycle: Start → Open → Push → Review → Merge
   - Links:
     - `docs/orchestration/COMPOSER_BOOTSTRAP_KIT_PR1.md`
