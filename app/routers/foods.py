@@ -66,6 +66,7 @@ def list_foods(
             protein_g=r["protein_g"],
             fat_g=r["fat_g"],
             carbs_g=r["carbs_g"],
+            nutrition_confidence=float(r.get("nutrition_confidence") or 0.0),
         )
         for r in rows
     ]

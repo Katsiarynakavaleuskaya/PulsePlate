@@ -197,6 +197,10 @@ def test_merged_schema_sanity():
     assert isinstance(record["source"], str)
     assert isinstance(record["version_date"], str)
 
+    assert "nutrition_nutrient_confidence" in record
+    assert isinstance(record["nutrition_nutrient_confidence"], dict)
+    assert record["nutrition_nutrient_confidence"].get("kcal") == pytest.approx(0.7)
+
     # Check non-negative values
     assert record["per_g"] >= 0
     assert record["kcal"] >= 0

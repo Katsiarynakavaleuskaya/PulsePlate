@@ -309,10 +309,11 @@ def test_foods_route_contract_remains_stable_with_meili_backend(
         {
             "id": "m-1",
             "name": "Apple",
-            "kcal": 52,
+            "kcal": 52.0,
             "protein_g": 0.3,
             "fat_g": 0.2,
             "carbs_g": 14.0,
+            "nutrition_confidence": 0.0,
         }
     ]
 
@@ -370,10 +371,11 @@ def test_foods_route_contract_remains_stable_with_shadow_backend(
         {
             "id": "b-1",
             "name": "Baseline Apple",
-            "kcal": 51,
+            "kcal": 51.0,
             "protein_g": 0.2,
             "fat_g": 0.1,
             "carbs_g": 13.0,
+            "nutrition_confidence": 0.0,
         }
     ]
 

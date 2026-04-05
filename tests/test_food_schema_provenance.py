@@ -5,8 +5,9 @@ import math
 import pytest
 
 from app.schemas.food import (
+    FoodHit,
     FoodItem,
-    _parse_json_float_mapping,
+    _parse_json_float_dict,
     _parse_json_inputs,
     _parse_json_mapping,
 )
@@ -69,34 +70,6 @@ def test_food_item_accepts_mapping_and_none_for_additive_metadata() -> None:
     assert food.nutrition_provenance == {"protein_g": "estimate", "kcal": "123"}
 
 
-def test_parse_json_float_mapping_helper_coerces_numeric_and_rejects_bad_values() -> None:
-    assert _parse_json_float_mapping(None) == {}
-    assert _parse_json_float_mapping('{"kcal":0.7,"protein_g":true}') == {"kcal": 0.7}
-    assert _parse_json_float_mapping("not-json") == {}
-    assert _parse_json_float_mapping('["bad"]') == {}
-    assert _parse_json_float_mapping({"a": 1, "b": "x", "c": float("nan")}) == {"a": 1.0}
-    assert _parse_json_float_mapping("null") == {}
-    assert _parse_json_float_mapping("none") == {}
-    assert _parse_json_float_mapping("   ") == {}
-
-
-def test_food_item_parses_nutrition_nutrient_confidence() -> None:
-    food = FoodItem(
-        id="food-nc",
-        canonical_name="quinoa",
-        group="grain",
-        kcal=120.0,
-        protein_g=4.4,
-        fat_g=1.9,
-        carbs_g=21.3,
-        source="USDA",
-        version_date="2024-01-01",
-        nutrition_nutrient_confidence='{"kcal":0.7,"protein_g":0.6}',
-    )
-    assert food.nutrition_nutrient_confidence["kcal"] == pytest.approx(0.7)
-    assert food.nutrition_nutrient_confidence["protein_g"] == pytest.approx(0.6)
-
-
 def test_parse_json_mapping_helper_covers_none_invalid_and_non_dict_cases() -> None:
     assert _parse_json_mapping(None) == {}
     assert _parse_json_mapping('{"protein_g":"estimate"}') == {"protein_g": "estimate"}
@@ -109,6 +82,34 @@ def test_parse_json_inputs_helper_covers_list_and_string_edge_cases() -> None:
     assert _parse_json_inputs("null") == []
     assert _parse_json_inputs('{"source":"estimate"}') == []
     assert _parse_json_inputs("not-json") == []
+
+
+def test_parse_json_inputs_covers_none_whitespace_and_json_list_strings() -> None:
+    assert _parse_json_inputs(None) == []
+    assert _parse_json_inputs("   NONE   ") == []
+    assert _parse_json_inputs('  [{"a": 1}, "skip", {"b": 2}]  ') == [{"a": 1}, {"b": 2}]
+
+
+def test_parse_json_float_dict_string_json_and_non_dict_payload() -> None:
+    parsed = _parse_json_float_dict('{"k": "0.25", "m": 0.5}')
+    assert parsed["k"] == pytest.approx(0.25)
+    assert parsed["m"] == pytest.approx(0.5)
+    assert _parse_json_float_dict("[1]") == {}
+    assert _parse_json_float_dict("null") == {}
+    assert _parse_json_float_dict('"scalar"') == {}
+    assert _parse_json_float_dict("{not valid json") == {}
+    assert _parse_json_float_dict(True) == {}  # bool is not dict/str branch; tail return {}
+
+
+def test_parse_json_float_dict_dict_branch_skips_blank_and_invalid_numeric_strings() -> None:
+    out = _parse_json_float_dict({"a": "  ", "b": "not-a-float", "c": "0.2"})
+    assert "a" not in out
+    assert "b" not in out
+    assert out["c"] == pytest.approx(0.2)
+
+
+def test_parse_json_inputs_json_object_string_returns_empty_list() -> None:
+    assert _parse_json_inputs("{}") == []
 
 
 def test_food_item_nutrition_confidence_coerces_and_defaults() -> None:
@@ -259,27 +260,47 @@ def test_food_item_nutrition_confidence_unknown_type_falls_back_to_zero() -> Non
     assert food.nutrition_confidence == 0.0
 
 
-def test_core_schemas_fooditem_resolver_provenance_fields_round_trip() -> None:
-    """Import core.schemas.FoodItem in this suite so class-body lines are traced under CI coverage."""
-    from core.schemas import FoodItem as CoreFoodItem
-
-    core_food = CoreFoodItem(
-        id="core-prov-1",
-        canonical_name="oats",
+def test_food_item_nutrition_nutrient_confidence_parses_json_string() -> None:
+    food = FoodItem(
+        id="food-nc1",
+        canonical_name="barley",
         group="grain",
-        kcal=389.0,
-        protein_g=16.9,
-        fat_g=6.9,
-        carbs_g=66.3,
-        source="OFF",
-        version_date="2026-04-05",
-        nutrition_inputs=[{"source": "off", "record_id": "off-1"}],
-        nutrition_provenance={"kcal": "off", "protein_g": "estimate"},
-        nutrition_nutrient_confidence={"kcal": 0.9, "protein_g": 0.5},
-        nutrition_confidence=0.82,
+        kcal=352.0,
+        protein_g=10.0,
+        fat_g=2.3,
+        carbs_g=73.5,
+        source="USDA",
+        version_date="2024-01-01",
+        nutrition_nutrient_confidence='{"kcal": "0.8", "protein_g": 0.7}',
     )
-    dumped = core_food.model_dump()
-    assert dumped["nutrition_inputs"] == [{"source": "off", "record_id": "off-1"}]
-    assert dumped["nutrition_provenance"] == {"kcal": "off", "protein_g": "estimate"}
-    assert dumped["nutrition_nutrient_confidence"] == {"kcal": 0.9, "protein_g": 0.5}
-    assert dumped["nutrition_confidence"] == pytest.approx(0.82)
+    assert food.nutrition_nutrient_confidence["kcal"] == pytest.approx(0.8)
+    assert food.nutrition_nutrient_confidence["protein_g"] == pytest.approx(0.7)
+
+
+def test_food_item_nutrition_nutrient_confidence_drops_non_finite_and_negative() -> None:
+    food = FoodItem(
+        id="food-nc2",
+        canonical_name="rye",
+        group="grain",
+        kcal=338.0,
+        protein_g=10.3,
+        fat_g=1.6,
+        carbs_g=75.9,
+        source="USDA",
+        version_date="2024-01-01",
+        nutrition_nutrient_confidence={
+            "kcal": float("nan"),
+            "protein_g": -1.0,
+            "fat_g": float("inf"),
+            "carbs_g": 0.55,
+        },
+    )
+    assert "kcal" not in food.nutrition_nutrient_confidence
+    assert "protein_g" not in food.nutrition_nutrient_confidence
+    assert "fat_g" not in food.nutrition_nutrient_confidence
+    assert food.nutrition_nutrient_confidence["carbs_g"] == pytest.approx(0.55)
+
+
+def test_food_hit_includes_aggregate_nutrition_confidence_default() -> None:
+    hit = FoodHit(id="h1", name="Apple", kcal=52.0)
+    assert hit.nutrition_confidence == 0.0

@@ -52,37 +52,6 @@ def _normalize_food_flags(value: object) -> List[str]:
     return []
 
 
-def _parse_json_float_mapping(value: object) -> dict[str, float]:
-    """
-    Parse JSON/dict payloads into dict[str, float] for per-nutrient confidence.
-
-    RU: Парсит JSON/dict в dict[str, float].
-    EN: Parses JSON/dict into string-to-float mapping.
-    """
-
-    if value is None:
-        return {}
-    if isinstance(value, dict):
-        out: dict[str, float] = {}
-        for key, item in value.items():
-            if isinstance(item, bool) or not isinstance(item, (int, float)):
-                continue
-            coerced = float(item)
-            if math.isfinite(coerced):
-                out[str(key)] = coerced
-        return out
-    if isinstance(value, str):
-        raw = value.strip()
-        if not raw or raw.lower() in {"null", "none"}:
-            return {}
-        try:
-            parsed = json.loads(raw)
-        except (TypeError, ValueError):
-            return {}
-        return _parse_json_float_mapping(parsed)
-    return {}
-
-
 def _parse_json_mapping(value: object) -> dict[str, str]:
     """
     Parse JSON/dict payloads into dict[str, str].
@@ -108,9 +77,51 @@ def _parse_json_mapping(value: object) -> dict[str, str]:
     return {}
 
 
-def _parse_json_inputs(value: object) -> List[dict[str, object]]:
+def _parse_json_float_dict(value: object) -> dict[str, float]:
     """
-    Parse JSON/list payloads into list[dict[str, object]].
+    Parse JSON/dict payloads into dict[str, float] for per-nutrient confidence.
+
+    RU: Парсит JSON/dict в dict[str, float] для confidence по нутриентам.
+    EN: Parses JSON/dict into dict[str, float] for per-nutrient confidence.
+    """
+    if value is None:
+        return {}
+    if isinstance(value, dict):
+        out: dict[str, float] = {}
+        for key, item in value.items():
+            sk = str(key)
+            if isinstance(item, (int, float)):
+                coerced = float(item)
+                if math.isfinite(coerced) and coerced >= 0.0:
+                    out[sk] = coerced
+                continue
+            if isinstance(item, str):
+                raw = item.strip()
+                if not raw:
+                    continue
+                try:
+                    coerced = float(raw)
+                except ValueError:
+                    continue
+                if math.isfinite(coerced) and coerced >= 0.0:
+                    out[sk] = coerced
+        return out
+    if isinstance(value, str):
+        raw = value.strip()
+        if not raw or raw.lower() in {"null", "none"}:
+            return {}
+        try:
+            parsed = json.loads(raw)
+        except (TypeError, ValueError):
+            return {}
+        if isinstance(parsed, dict):
+            return _parse_json_float_dict(parsed)
+        return {}
+    return {}
+
+
+def _parse_json_inputs(value: object) -> List[dict[str, object]]:
+    """Parse JSON/list payloads into list[dict[str, object]].
 
     RU: Парсит JSON/list в список словарей.
     EN: Parses JSON/list payloads into list of dictionaries.
@@ -134,10 +145,7 @@ def _parse_json_inputs(value: object) -> List[dict[str, object]]:
 
 
 class FoodItem(BaseModel):
-    """
-    RU: Полная модель продукта с прослеживаемостью.
-    EN: Complete food model with provenance tracking.
-    """
+    """RU: Полная модель продукта с прослеживаемостью. EN: Complete food model."""
 
     id: str
     canonical_name: str
@@ -168,8 +176,8 @@ class FoodItem(BaseModel):
     price_per_100g: float = 0.0
     nutrition_inputs: List[dict[str, object]] = Field(default_factory=list)
     nutrition_provenance: dict[str, str] = Field(default_factory=dict)
-    nutrition_nutrient_confidence: dict[str, float] = Field(default_factory=dict)
     nutrition_confidence: float = 0.0
+    nutrition_nutrient_confidence: dict[str, float] = Field(default_factory=dict)
 
     @field_validator("flags", mode="before")
     @classmethod
@@ -192,11 +200,6 @@ class FoodItem(BaseModel):
     def _parse_nutrition_provenance(cls, value: object) -> dict[str, str]:
         return _parse_json_mapping(value)
 
-    @field_validator("nutrition_nutrient_confidence", mode="before")
-    @classmethod
-    def _parse_nutrition_nutrient_confidence(cls, value: object) -> dict[str, float]:
-        return _parse_json_float_mapping(value)
-
     @field_validator("nutrition_confidence", mode="before")
     @classmethod
     def _coerce_nutrition_confidence(cls, value: object) -> float:
@@ -216,6 +219,11 @@ class FoodItem(BaseModel):
             return coerced if math.isfinite(coerced) else 0.0
         return 0.0
 
+    @field_validator("nutrition_nutrient_confidence", mode="before")
+    @classmethod
+    def _parse_nutrition_nutrient_confidence(cls, value: object) -> dict[str, float]:
+        return _parse_json_float_dict(value)
+
 
 class FoodHit(BaseModel):
     """
@@ -230,6 +238,7 @@ class FoodHit(BaseModel):
     protein_g: float = 0.0
     fat_g: float = 0.0
     carbs_g: float = 0.0
+    nutrition_confidence: float = 0.0
 
 
 class FoodSourceAttribution(BaseModel):

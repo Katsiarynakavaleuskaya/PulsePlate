@@ -43,13 +43,21 @@ class _MockConnection:
         self,
         fetchall_result: Optional[List[Dict[str, Any]]] = None,
         fetchone_result: Optional[Dict[str, Any]] = None,
+        *,
+        pragma_include_nutrition_confidence: bool = True,
     ) -> None:
         self._fetchall_result = fetchall_result
         self._fetchone_result = fetchone_result
+        self._pragma_include_nutrition_confidence = pragma_include_nutrition_confidence
         self.execute_calls: List[tuple[str, Any]] = []
 
     def execute(self, sql: str, params: Any = None) -> _MockCursor:
         self.execute_calls.append((sql, params))
+        if "PRAGMA table_info(foods)" in sql:
+            pragma_rows: List[Any] = [(0, "id", "TEXT", 0, None, 0)]
+            if self._pragma_include_nutrition_confidence:
+                pragma_rows.append((1, "nutrition_confidence", "REAL", 0, None, 0))
+            return _MockCursor(fetchall_result=pragma_rows)
         return _MockCursor(self._fetchall_result, self._fetchone_result)
 
     def __enter__(self) -> "_MockConnection":
@@ -143,7 +151,7 @@ class TestFoodStoreCoverage:
 
         assert len(result) == 1
         assert result[0]["canonical_name"] == "apple"
-        assert len(mock_con.execute_calls) == 1
+        assert len(mock_con.execute_calls) == 2
 
     def test_search_foods_without_query(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test search_foods without query."""
@@ -165,7 +173,7 @@ class TestFoodStoreCoverage:
 
         assert len(result) == 1
         assert result[0]["canonical_name"] == "apple"
-        assert len(mock_con.execute_calls) == 1
+        assert len(mock_con.execute_calls) == 2
 
     def test_search_foods_none_query(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test search_foods with None query."""
@@ -176,7 +184,7 @@ class TestFoodStoreCoverage:
         result = food_store.search_foods(None, limit=10, offset=0)  # type: ignore[arg-type]
 
         assert result == []
-        assert len(mock_con.execute_calls) == 1
+        assert len(mock_con.execute_calls) == 2
 
     def test_get_food_found(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test get_food when food is found."""
