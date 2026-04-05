@@ -61,10 +61,10 @@ Reason: Same intentional legacy macro median path as discussion_r3036114927; res
 Disposition: FIXED
 Commit: dfbc80df
 Evidence: core/food_apis/unified_db.py:127-129 provenance only for `raw_nutrients` keys
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1331#discussion_r3036149415 -> 1407832f80f68df0af5960932d3c683032db7697
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1331#discussion_r3036149415 -> 1407832f
 Disposition: FIXED
-Commit: 1407832f80f68df0af5960932d3c683032db7697
-Evidence: app/schemas/food.py `_coerce_nutrition_confidence` rejects non-finite floats via math.isfinite; tests/test_food_schema_provenance.py::test_food_item_nutrition_confidence_rejects_non_finite_floats
+Commit: 1407832f
+Evidence: app/schemas/food.py `_coerce_nutrition_confidence` rejects non-finite floats via `math.isfinite`; tests/test_food_schema_provenance.py::test_food_item_nutrition_confidence_rejects_non_finite_floats
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1331#pullrequestreview-4058892072 -> 1f66930eda55a58265670f0f0d6f8b1cc2926856
 Disposition: FIXED
 Commit: 1f66930eda55a58265670f0f0d6f8b1cc2926856
@@ -76,11 +76,19 @@ Reason: CodeRabbit script chain targets PR 1326 artifact governance; no addition
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1331#pullrequestreview-4058896782 -> 1f66930eda55a58265670f0f0d6f8b1cc2926856
 Disposition: FIXED
 Commit: 1f66930eda55a58265670f0f0d6f8b1cc2926856
-Evidence: Cubic inline review comments in this artifact through discussion_r3036119920; non-finite confidence follow-up in 1407832f80f68df0af5960932d3c683032db7697.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1331#pullrequestreview-4058917503 -> 1407832f80f68df0af5960932d3c683032db7697
+Evidence: Cubic inline review comments in this artifact through discussion_r3036119920; non-finite confidence follow-up in 1407832f.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1331#pullrequestreview-4058917503 -> 1407832f
 Disposition: FIXED
-Commit: 1407832f80f68df0af5960932d3c683032db7697
+Commit: 1407832f
 Evidence: Cubic follow-up review after 1f66930e; nutrition_confidence finite guard closes remaining open thread discussion_r3036149415.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1331#discussion_r3036598493 -> 61b89d39
+Disposition: FIXED
+Commit: 61b89d39
+Evidence: `.github/workflows/ci.yml:641-653` `food_catalog` `add_suite` now includes `tests/test_food_store_additional_coverage.py`, `tests/test_food_store_coverage.py`, and `tests/test_unified_db_basics.py`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1331#discussion_r3036598496 -> a3b42d65
+Disposition: FIXED
+Commit: a3b42d65
+Evidence: `scripts/ci/ci_risk_profile.py:294-299` `run_backend_blocking` includes `group_hits["food_catalog"]`; `tests/test_ci_risk_profile.py::test_build_food_db_script_only_still_runs_backend_blocking_for_food_catalog`.
 
 ## Merge Readiness
 - [ ] All required checks pass (re-verify on current head after push)
