@@ -14,7 +14,7 @@ import asyncio
 import importlib
 import json
 import logging
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, TypedDict
 
@@ -84,6 +84,9 @@ class UnifiedFoodItem:
     source: str
     source_id: str
     category: Optional[str] = None
+    nutrition_inputs: list[dict[str, object]] = field(default_factory=list)
+    nutrition_provenance: dict[str, str] = field(default_factory=dict)
+    nutrition_confidence: float = 0.0
 
     @classmethod
     def from_usda_item(
@@ -95,8 +98,9 @@ class UnifiedFoodItem:
         default 0.0 values if missing from USDA response. Pure protein/fat foods
         (e.g., chicken breast, salmon) may have 0 carbs and USDA may omit the field.
         """
-        # Normalize nutrients - ensure primary macros have defaults
-        nutrients = dict(usda_item.nutrients_per_100g)
+        # Normalize nutrients - ensure primary macros have defaults for downstream math.
+        raw_nutrients = dict(usda_item.nutrients_per_100g)
+        nutrients = dict(raw_nutrients)
 
         # Set defaults for primary macronutrients if missing
         nutrients.setdefault("protein_g", 0.0)
@@ -112,6 +116,19 @@ class UnifiedFoodItem:
             source="USDA FoodData Central",
             source_id=str(usda_item.fdc_id),
             category=usda_item.food_category,
+            nutrition_inputs=[
+                {
+                    "source": "usda",
+                    "record_id": str(usda_item.fdc_id),
+                    "version_ref": usda_item.publication_date,
+                    "nutrients": dict(raw_nutrients),
+                    "raw_payload": {},
+                }
+            ],
+            # Only attribute USDA provenance to fields present in the upstream payload;
+            # synthetic macro defaults must not be labeled as USDA-sourced.
+            nutrition_provenance={key: "usda" for key in raw_nutrients},
+            nutrition_confidence=0.7 if raw_nutrients else 0.0,
         )
 
     @classmethod
@@ -140,6 +157,9 @@ class UnifiedFoodItem:
             source="Open Food Facts",
             source_id=off_item.code,
             category=off_item.categories[0] if off_item.categories else None,
+            nutrition_inputs=list(getattr(off_item, "nutrition_inputs", [])),
+            nutrition_provenance=dict(getattr(off_item, "nutrition_provenance", {})),
+            nutrition_confidence=float(getattr(off_item, "nutrition_confidence", 0.0)),
         )
 
     def to_menu_engine_format(self) -> UnifiedFoodResult:

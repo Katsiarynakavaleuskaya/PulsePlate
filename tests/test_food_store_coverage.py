@@ -148,12 +148,17 @@ class TestFoodStoreCoverage:
 
     def test_get_food_found(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Тест get_food когда еда найдена"""
-        mock_row = {"id": "1", "canonical_name": "test", "kcal": 100}
-        conn = _MockConnection(fetchone_result=mock_row)
+        db_row = {"id": "1", "canonical_name": "test", "kcal": 100}
+        conn = _MockConnection(fetchone_result=db_row)
         monkeypatch.setattr(food_store, "_connect", lambda: conn)
 
         result = food_store.get_food("1")
-        assert result == mock_row
+        assert result == {
+            **db_row,
+            "nutrition_inputs": [],
+            "nutrition_provenance": {},
+            "nutrition_confidence": 0.0,
+        }
 
     def test_nutrients_for_missing_food(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Тест nutrients_for с отсутствующей едой"""

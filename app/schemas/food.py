@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import ast
 import json
+import math
 import re
 from typing import List, Optional
 
@@ -51,6 +52,56 @@ def _normalize_food_flags(value: object) -> List[str]:
     return []
 
 
+def _parse_json_mapping(value: object) -> dict[str, str]:
+    """
+    Parse JSON/dict payloads into dict[str, str].
+
+    RU: Парсит JSON/dict в dict[str, str].
+    EN: Parses JSON/dict payloads into dict[str, str].
+    """
+
+    if value is None:
+        return {}
+    if isinstance(value, dict):
+        return {str(key): str(item) for key, item in value.items()}
+    if isinstance(value, str):
+        raw = value.strip()
+        if not raw or raw.lower() in {"null", "none"}:
+            return {}
+        try:
+            parsed = json.loads(raw)
+        except (TypeError, ValueError):
+            return {}
+        if isinstance(parsed, dict):
+            return {str(key): str(item) for key, item in parsed.items()}
+    return {}
+
+
+def _parse_json_inputs(value: object) -> List[dict[str, object]]:
+    """
+    Parse JSON/list payloads into list[dict[str, object]].
+
+    RU: Парсит JSON/list в список словарей.
+    EN: Parses JSON/list payloads into list of dictionaries.
+    """
+
+    if value is None:
+        return []
+    if isinstance(value, list):
+        return [dict(item) for item in value if isinstance(item, dict)]
+    if isinstance(value, str):
+        raw = value.strip()
+        if not raw or raw.lower() in {"null", "none"}:
+            return []
+        try:
+            parsed = json.loads(raw)
+        except (TypeError, ValueError):
+            return []
+        if isinstance(parsed, list):
+            return [dict(item) for item in parsed if isinstance(item, dict)]
+    return []
+
+
 class FoodItem(BaseModel):
     """
     RU: Полная модель продукта с прослеживаемостью.
@@ -84,6 +135,9 @@ class FoodItem(BaseModel):
     source_priority: int = 0
     version_date: str
     price_per_100g: float = 0.0
+    nutrition_inputs: List[dict[str, object]] = Field(default_factory=list)
+    nutrition_provenance: dict[str, str] = Field(default_factory=dict)
+    nutrition_confidence: float = 0.0
 
     @field_validator("flags", mode="before")
     @classmethod
@@ -95,6 +149,35 @@ class FoodItem(BaseModel):
         EN: Supports backward-compatible flags parsing for DB-backed rows.
         """
         return _normalize_food_flags(value)
+
+    @field_validator("nutrition_inputs", mode="before")
+    @classmethod
+    def _parse_nutrition_inputs(cls, value: object) -> List[dict[str, object]]:
+        return _parse_json_inputs(value)
+
+    @field_validator("nutrition_provenance", mode="before")
+    @classmethod
+    def _parse_nutrition_provenance(cls, value: object) -> dict[str, str]:
+        return _parse_json_mapping(value)
+
+    @field_validator("nutrition_confidence", mode="before")
+    @classmethod
+    def _coerce_nutrition_confidence(cls, value: object) -> float:
+        if value is None:
+            return 0.0
+        if isinstance(value, (int, float)):
+            coerced = float(value)
+            return coerced if math.isfinite(coerced) else 0.0
+        if isinstance(value, str):
+            raw = value.strip()
+            if not raw:
+                return 0.0
+            try:
+                coerced = float(raw)
+            except ValueError:
+                return 0.0
+            return coerced if math.isfinite(coerced) else 0.0
+        return 0.0
 
 
 class FoodHit(BaseModel):

@@ -137,6 +137,9 @@ class TestOFFClient:
         assert item.product_name == "Test Product"
         assert "protein_g" in item.nutrients_per_100g
         assert item.nutrients_per_100g["protein_g"] == 10.0
+        assert item.nutrition_inputs[0]["source"] == "estimate"
+        assert item.nutrition_provenance["protein_g"] == "estimate"
+        assert 0.0 <= item.nutrition_confidence <= 1.0
         assert "VEGAN" in item._generate_tags()
 
     def test_parse_product_item_missing_data(self):

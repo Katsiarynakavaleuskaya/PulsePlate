@@ -6,8 +6,10 @@ from pathlib import Path
 import pytest
 import scripts.orchestration.skill_router as skill_router_module
 
+from scripts.orchestration.bootstrap_sync_policy import DOCS_ONLY_ENVELOPE_MODE
 from scripts.orchestration.skill_router import (
     CLASSIFICATION_PRECEDENCE,
+    DOCS_ONLY_EXCLUDED_ROUTING_SKILLS,
     PRIVILEGED_SURFACE_PREFIXES,
     REQUESTED_AGENT_COMPANION_SKILL_BUNDLES,
     REQUESTED_AGENT_SKILL_BUNDLES,
@@ -457,6 +459,7 @@ def test_message_protocol_example_mentions_expanded_skill_routing_contract() -> 
 
     doc = _read_message_protocol_doc()
     assert '"task_classification": {' in doc
+    assert "envelope_mode_hint" in doc
     assert '"required": [' in doc
     assert '"recommended": [' in doc
     assert '"conditional": [' in doc
@@ -1188,3 +1191,37 @@ def test_skill_router_keeps_backend_endpoint_lane_for_cv_domain() -> None:
     )
 
     assert "pulseplate-backend-endpoints" in skills
+
+
+def test_docs_only_envelope_strips_implementation_skills() -> None:
+    """docs_only envelope must not recommend code-implementation skills (AGENTS docs-only PR rule)."""
+
+    decision = route_skills(
+        goal="Refresh documentation copy and glossary",
+        task_class="Documentation",
+        candidate_paths=["README.md", "docs/runbooks/QUICKSTART.md"],
+        domain="docs",
+        requested_agents=["frontend-engineer"],
+    )
+
+    assert decision["envelope_mode_hint"] == DOCS_ONLY_ENVELOPE_MODE
+    recommended = {item["skill"] for item in decision["recommended"]}
+    conditional = {item["skill"] for item in decision["conditional"]}
+    for skill in DOCS_ONLY_EXCLUDED_ROUTING_SKILLS:
+        assert skill not in recommended
+        assert skill not in conditional
+
+
+def test_privileged_docs_paths_use_analysis_envelope_for_routing() -> None:
+    """Privileged orchestration docs stay in analysis envelope; implementation skills remain eligible."""
+
+    decision = route_skills(
+        goal="Adjust orchestration workflow wording",
+        task_class="Orchestration",
+        candidate_paths=["docs/orchestration/workflow.md"],
+        domain="orchestration",
+    )
+
+    assert decision["envelope_mode_hint"] == "analysis"
+    recommended = {item["skill"] for item in decision["recommended"]}
+    assert "pulseplate-guards" in recommended

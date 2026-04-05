@@ -93,6 +93,10 @@ class TestUnifiedFoodItemConversions:
         assert unified_item.source == "USDA FoodData Central"
         assert unified_item.source_id == "12345"
         assert unified_item.category == "Poultry Products"
+        # Synthetic macro defaults must not inherit USDA provenance labels.
+        assert "carbs_g" not in unified_item.nutrition_provenance
+        assert unified_item.nutrition_provenance.get("protein_g") == "usda"
+        assert unified_item.nutrition_confidence == 0.7
 
     @patch("core.food_apis.unified_db.OFF_AVAILABLE", True)
     def test_from_off_item(self):
