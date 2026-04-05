@@ -105,11 +105,27 @@ Evidence: `.github/workflows/ci.yml:654-662` restores `tests/test_food_search_fo
 Disposition: FIXED
 Commit: 8b0029f2cfac87cff2ccdc3637f8dc1bd52aadc1
 Evidence: Same routing fix as `pullrequestreview-4059454063`; cubic inline comment on `ci.yml` route suite regression.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1331#discussion_r3036844060 -> eab55ae3fb409ea91cb735c59e5a3c6d8bb9bdc7
+Disposition: FIXED
+Commit: eab55ae3fb409ea91cb735c59e5a3c6d8bb9bdc7
+Evidence: docs/review/PR_1331_FIXED_MAPPING.md:125-131 Merge Readiness checklist remains `[ ]` until final merge pass; Notes document local `make verify` discipline without pre-checking gates.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1331#discussion_r3036846541 -> eab55ae3fb409ea91cb735c59e5a3c6d8bb9bdc7
+Disposition: FIXED
+Commit: eab55ae3fb409ea91cb735c59e5a3c6d8bb9bdc7
+Evidence: Same merge-readiness policy alignment as discussion_r3036844060 (Cubic thread on the same artifact section).
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1331#pullrequestreview-4059462399
+Disposition: NOT-A-BUG
+Evidence: docs/review/PR_1331_FIXED_MAPPING.md:125-131
+Reason: CodeRabbit aggregate re-review; checklist policy correction tracked under discussion_r3036844060.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1331#pullrequestreview-4059464178
+Disposition: NOT-A-BUG
+Evidence: docs/review/PR_1331_FIXED_MAPPING.md:125-131
+Reason: Cubic aggregate re-review; same policy correction as discussion_r3036846541.
 
 ## Merge Readiness
-- [x] All required checks pass (re-verify on current head after push)
+- [ ] All required checks pass (re-verify on current head after push)
 - [ ] No unresolved review threads (resolve on GitHub after reviewer ack)
-- [x] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
-- [x] Pre-commit green
-- [x] `make verify` green
-Notes: PR `#1331` adds OFF nutrition provenance resolver wiring, store/schema normalization, and USDA provenance fixes. Canonical mapping artifact must stay aligned with thread resolution on the current head before merge readiness is claimed.
+- [ ] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
+- [ ] Pre-commit green
+- [ ] `make verify` green
+Notes: PR `#1331` adds OFF nutrition provenance resolver wiring, store/schema normalization, and USDA provenance fixes. Keep every box above unchecked until the final merge pass. Local `make verify` was run green on branch HEAD before governance pushes; re-run on current head before merge.
