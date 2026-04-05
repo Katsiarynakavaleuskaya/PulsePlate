@@ -24,10 +24,10 @@ Evidence: `app/services/search_meili.py:103` (`build_meili_foods_search_headers`
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1340#discussion_r3036871644 -> c12597b230ca8e558805ad7a8eca2dd317410aab
 
 Disposition: FIXED
-Commit: aba3e6cf
+Commit: 07b46ed2
 Evidence: `tests/test_food_search_foundation.py` (`test_food_search_meili_client_closed_on_app_shutdown` asserts `app.state.meili_http_client` and `meili_http_shutdown_event` cleared after `TestClient` lifespan shutdown, not only `client.is_closed`)
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1340#pullrequestreview-4059500067 -> aba3e6cf
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1340#pullrequestreview-4059500067 -> 07b46ed2
 
 Disposition: NOT-A-BUG
 Evidence: CodeRabbit file-level review summaries; actionable inline threads are mapped with FIXED above.
