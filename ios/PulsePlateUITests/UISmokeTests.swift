@@ -16,11 +16,11 @@ final class UISmokeTests: XCTestCase {
   @MainActor
   func testLaunch() throws {
     let app = XCUIApplication()
-    setupSnapshot(app, waitForAnimations: false)
 
     // RU: Минимальный CI smoke — обычный launch path (без screenshot mode).
     // EN: Minimal CI smoke — normal launch path (no screenshot mode).
-    // Screenshot mode (health_permission) crashed on CI; normal path is the primary signal.
+    // Keep the smoke path free of fastlane snapshot launch arguments to avoid CI-only
+    // background assertion failures from screenshot/test harness side effects.
     app.launch()
     defer { app.terminate() }
 
