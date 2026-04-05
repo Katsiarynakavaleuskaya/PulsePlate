@@ -703,6 +703,7 @@ def test_meili_foods_search_helpers_match_contract_shape() -> None:
     )
     assert build_meili_foods_search_headers(None) == {}
     assert build_meili_foods_search_headers("") == {}
+    assert build_meili_foods_search_headers("   ") == {}
     assert build_meili_foods_search_headers("k") == {"Authorization": "Bearer k"}
     payload = build_meili_foods_search_payload(
         query="x",

@@ -103,9 +103,10 @@ def build_meili_foods_search_url(base_url: str, index_name: str) -> str:
 def build_meili_foods_search_headers(api_key: str | None) -> dict[str, str]:
     """Return Authorization headers for Meilisearch or an empty dict."""
 
-    if not api_key:
+    cleaned = (api_key or "").strip()
+    if not cleaned:
         return {}
-    return {"Authorization": f"Bearer {api_key}"}
+    return {"Authorization": f"Bearer {cleaned}"}
 
 
 def build_meili_foods_search_payload(
