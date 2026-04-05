@@ -118,7 +118,7 @@ networkx==3.6.1
     # via torch
 nh3==0.3.2
     # via -r requirements.in
-numpy==2.4.4
+numpy==2.4.0
     # via
     #   -r requirements.in
     #   contourpy
