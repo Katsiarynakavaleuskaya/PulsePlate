@@ -145,6 +145,7 @@ def merge_records(streams: List[Iterable[FoodRecord]]) -> List[Dict]:
             "version_date": today,
             "nutrition_inputs": [entry.to_dict() for entry in resolved.raw_inputs],
             "nutrition_provenance": dict(resolved.provenance),
+            "nutrition_nutrient_confidence": dict(resolved.nutrient_confidence),
             "nutrition_confidence": resolved.confidence,
         }
         merged.append(out)

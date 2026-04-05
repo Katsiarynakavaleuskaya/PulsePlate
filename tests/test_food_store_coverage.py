@@ -157,8 +157,43 @@ class TestFoodStoreCoverage:
             **db_row,
             "nutrition_inputs": [],
             "nutrition_provenance": {},
+            "nutrition_nutrient_confidence": {},
             "nutrition_confidence": 0.0,
         }
+
+    def test_get_food_invalid_nutrient_confidence_json_string(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Invalid JSON for nutrition_nutrient_confidence_json yields empty mapping."""
+        db_row = {
+            "id": "1",
+            "canonical_name": "test",
+            "kcal": 100,
+            "nutrition_nutrient_confidence_json": "not{valid-json",
+        }
+        conn = _MockConnection(fetchone_result=db_row)
+        monkeypatch.setattr(food_store, "_connect", lambda: conn)
+
+        result = food_store.get_food("1")
+        assert result is not None
+        assert result["nutrition_nutrient_confidence"] == {}
+
+    def test_get_food_nutrient_confidence_json_array_coerces_to_empty(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """JSON array after loads is not a dict; nutrient confidence normalizes to {}."""
+        db_row = {
+            "id": "2",
+            "canonical_name": "test2",
+            "kcal": 50,
+            "nutrition_nutrient_confidence_json": "[1, 2]",
+        }
+        conn = _MockConnection(fetchone_result=db_row)
+        monkeypatch.setattr(food_store, "_connect", lambda: conn)
+
+        result = food_store.get_food("2")
+        assert result is not None
+        assert result["nutrition_nutrient_confidence"] == {}
 
     def test_nutrients_for_missing_food(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Тест nutrients_for с отсутствующей едой"""

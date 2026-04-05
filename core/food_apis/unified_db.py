@@ -86,6 +86,7 @@ class UnifiedFoodItem:
     category: Optional[str] = None
     nutrition_inputs: list[dict[str, object]] = field(default_factory=list)
     nutrition_provenance: dict[str, str] = field(default_factory=dict)
+    nutrition_nutrient_confidence: dict[str, float] = field(default_factory=dict)
     nutrition_confidence: float = 0.0
 
     @classmethod
@@ -128,6 +129,9 @@ class UnifiedFoodItem:
             # Only attribute USDA provenance to fields present in the upstream payload;
             # synthetic macro defaults must not be labeled as USDA-sourced.
             nutrition_provenance={key: "usda" for key in raw_nutrients},
+            nutrition_nutrient_confidence=(
+                {key: 0.7 for key in raw_nutrients} if raw_nutrients else {}
+            ),
             nutrition_confidence=0.7 if raw_nutrients else 0.0,
         )
 
@@ -159,6 +163,9 @@ class UnifiedFoodItem:
             category=off_item.categories[0] if off_item.categories else None,
             nutrition_inputs=list(getattr(off_item, "nutrition_inputs", [])),
             nutrition_provenance=dict(getattr(off_item, "nutrition_provenance", {})),
+            nutrition_nutrient_confidence=dict(
+                getattr(off_item, "nutrition_nutrient_confidence", {})
+            ),
             nutrition_confidence=float(getattr(off_item, "nutrition_confidence", 0.0)),
         )
 
