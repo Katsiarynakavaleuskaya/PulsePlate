@@ -16,6 +16,11 @@ Reason: The Sourcery wording suggestion is stylistically reasonable, but this PR
 Disposition: NOT-A-BUG
 Evidence: `scripts/ci/check_pr_body_phase2_gates.py:24` and `scripts/ci/check_pr_body_phase2_gates.py:138`-`scripts/ci/check_pr_body_phase2_gates.py:142` require the exact checked label `Discussion-thread pass completed`, so keeping the hyphen is contract-correct for this artifact.
 Reason: This inline Sourcery thread requests the same wording change as the parent review and is intentionally closed with the same contract-based rationale.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1344#pullrequestreview-4059620641
+Disposition: FIXED
+Evidence: `2eadb894`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1344#discussion_r3037055700 -> 2eadb894
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1344#discussion_r3037055702 -> 2eadb894
 
 ## Merge Readiness
 
