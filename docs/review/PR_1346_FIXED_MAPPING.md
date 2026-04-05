@@ -20,6 +20,9 @@ Evidence: app/schemas/food.py (bool guard in `_parse_json_float_dict`); app/serv
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1346#discussion_r3037267264 -> c2323037
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1346#discussion_r3037271378 -> c2323037
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1346#discussion_r3037271380 -> c2323037
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1346#pullrequestreview-4059773871 -> c2323037
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1346#pullrequestreview-4059775943 -> c2323037
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1346#pullrequestreview-4059778783 -> c2323037
 
 ## Merge Readiness
 
