@@ -291,7 +291,12 @@ def build_risk_profile(changed_files: list[str] | tuple[str, ...]) -> RiskProfil
             group_name for group_name in ALL_RISK_GROUPS if group_hits[group_name]
         )
 
-    run_backend_blocking = workflow_privileged or backend_shared or group_hits["openapi_contract"]
+    run_backend_blocking = (
+        workflow_privileged
+        or backend_shared
+        or group_hits["openapi_contract"]
+        or group_hits["food_catalog"]
+    )
     run_security = run_backend_blocking
     run_openapi_sync = run_backend_blocking
 

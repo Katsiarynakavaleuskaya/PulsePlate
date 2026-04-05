@@ -205,6 +205,19 @@ def test_off_nutrition_core_change_hits_food_catalog_and_route_groups() -> None:
     )
 
 
+def test_build_food_db_script_only_still_runs_backend_blocking_for_food_catalog() -> None:
+    """scripts/build_food_db.py is not under BACKEND_SHARED_PREFIXES; food_catalog must gate CI."""
+    profile = risk_profile.build_risk_profile(
+        ["scripts/build_food_db.py"],
+    )
+
+    assert profile.backend_shared is False
+    assert profile.food_catalog is True
+    assert profile.run_backend_blocking is True
+    assert profile.run_openapi_sync is True
+    assert profile.contract_risk_groups == ("food_catalog",)
+
+
 def test_mixed_backend_surface_keeps_openapi_and_route_contract_groups() -> None:
     profile = risk_profile.build_risk_profile(
         ["app/main.py", "app/dependencies.py"],
