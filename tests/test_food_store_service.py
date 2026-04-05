@@ -8,6 +8,13 @@ import pytest
 
 from app.services import food_store
 
+_LEGACY_ROW_ADDITIVE_DEFAULTS: Dict[str, Any] = {
+    "nutrition_inputs": [],
+    "nutrition_provenance": {},
+    "nutrition_nutrient_confidence": {},
+    "nutrition_confidence": 0.0,
+}
+
 
 def test_validate_csv_quotes_valid(tmp_path: Path) -> None:
     csv_path = tmp_path / "aliases.csv"
@@ -163,6 +170,98 @@ def test_search_foods_parameter_normalization(monkeypatch: pytest.MonkeyPatch) -
     assert dummy.last_params[-2:] == [5, 1]
 
 
+def test_normalize_food_row_parses_additive_nutrition_metadata() -> None:
+    row = {
+        "id": "food-1",
+        "canonical_name": "apple",
+        "nutrition_inputs_json": '[{"source":"estimate","record_id":"off-1"}]',
+        "nutrition_provenance_json": '{"protein_g":"estimate"}',
+        "nutrition_nutrient_confidence_json": '{"protein_g":0.4,"kcal":0.3}',
+        "nutrition_confidence": 0.4,
+    }
+
+    normalized = food_store._normalize_food_row(row)
+
+    assert normalized["nutrition_inputs"][0]["source"] == "estimate"
+    assert normalized["nutrition_provenance"]["protein_g"] == "estimate"
+    assert normalized["nutrition_nutrient_confidence"]["protein_g"] == pytest.approx(0.4)
+    assert normalized["nutrition_nutrient_confidence"]["kcal"] == pytest.approx(0.3)
+    assert normalized["nutrition_confidence"] == 0.4
+
+
+def test_normalize_food_row_handles_invalid_json_and_none_confidence() -> None:
+    row = {
+        "id": "food-2",
+        "nutrition_inputs_json": "not-json",
+        "nutrition_provenance_json": "not-json",
+        "nutrition_confidence": None,
+    }
+
+    normalized = food_store._normalize_food_row(row)
+
+    assert normalized["nutrition_inputs"] == []
+    assert normalized["nutrition_provenance"] == {}
+    assert normalized["nutrition_nutrient_confidence"] == {}
+    assert normalized["nutrition_confidence"] == 0.0
+
+
+def test_normalize_food_row_ignores_non_list_or_non_dict_payloads() -> None:
+    row = {
+        "id": "food-3",
+        "nutrition_inputs_json": '{"source":"estimate"}',
+        "nutrition_provenance_json": '["bad"]',
+    }
+
+    normalized = food_store._normalize_food_row(row)
+
+    assert normalized["nutrition_inputs"] == []
+    assert normalized["nutrition_provenance"] == {}
+    assert normalized["nutrition_nutrient_confidence"] == {}
+
+
+def test_normalize_food_row_legacy_shape_without_additive_columns() -> None:
+    row = {"id": "food-legacy", "canonical_name": "milk", "kcal": 42.0}
+
+    normalized = food_store._normalize_food_row(row)
+
+    assert normalized["nutrition_inputs"] == []
+    assert normalized["nutrition_provenance"] == {}
+    assert normalized["nutrition_nutrient_confidence"] == {}
+    assert normalized["nutrition_confidence"] == 0.0
+
+
+def test_normalize_food_row_additive_columns_none_or_pre_parsed() -> None:
+    parsed_inputs = [{"source": "estimate", "record_id": "x"}]
+    parsed_prov = {"protein_g": "estimate"}
+    row = {
+        "id": "food-mixed",
+        "canonical_name": "yogurt",
+        "nutrition_inputs_json": None,
+        "nutrition_provenance_json": None,
+    }
+    assert food_store._normalize_food_row(row)["nutrition_inputs"] == []
+
+    row_pre = {
+        "id": "food-pre",
+        "canonical_name": "kefir",
+        "nutrition_inputs_json": parsed_inputs,
+        "nutrition_provenance_json": parsed_prov,
+        "nutrition_confidence": 0.25,
+    }
+    out = food_store._normalize_food_row(row_pre)
+    assert out["nutrition_inputs"] == parsed_inputs
+    assert out["nutrition_provenance"] == parsed_prov
+    assert out["nutrition_confidence"] == 0.25
+
+    row_nut = {
+        "id": "food-nutconf",
+        "canonical_name": "bar",
+        "nutrition_nutrient_confidence_json": {"fiber_g": 0.5, "bad": "x", "also": True},
+    }
+    nut_out = food_store._normalize_food_row(row_nut)
+    assert nut_out["nutrition_nutrient_confidence"] == {"fiber_g": 0.5}
+
+
 def test_get_food_by_barcode_returns_row_with_normalized_input(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -173,7 +272,7 @@ def test_get_food_by_barcode_returns_row_with_normalized_input(
 
     result = food_store.get_food_by_barcode(" 00012345678905 ")
 
-    assert result == {"id": "f1", "canonical_name": "apple"}
+    assert result == {"id": "f1", "canonical_name": "apple", **_LEGACY_ROW_ADDITIVE_DEFAULTS}
     assert conn.calls == ["00012345678905"]
 
 
@@ -188,7 +287,7 @@ def test_get_food_by_barcode_uses_leading_zero_fallback(monkeypatch: pytest.Monk
 
     result = food_store.get_food_by_barcode("0123456789012")
 
-    assert result == {"id": "f2", "canonical_name": "banana"}
+    assert result == {"id": "f2", "canonical_name": "banana", **_LEGACY_ROW_ADDITIVE_DEFAULTS}
     assert conn.calls == ["0123456789012", "123456789012"]
 
 
@@ -203,7 +302,7 @@ def test_get_food_by_barcode_drops_only_one_leading_zero(monkeypatch: pytest.Mon
 
     result = food_store.get_food_by_barcode("0012345678905")
 
-    assert result == {"id": "f3", "canonical_name": "pear"}
+    assert result == {"id": "f3", "canonical_name": "pear", **_LEGACY_ROW_ADDITIVE_DEFAULTS}
     assert conn.calls == ["0012345678905", "012345678905"]
 
 
@@ -221,7 +320,7 @@ def test_get_food_by_barcode_uses_full_strip_fallback_as_last_resort(
 
     result = food_store.get_food_by_barcode("0012345678905")
 
-    assert result == {"id": "f4", "canonical_name": "orange"}
+    assert result == {"id": "f4", "canonical_name": "orange", **_LEGACY_ROW_ADDITIVE_DEFAULTS}
     assert conn.calls == ["0012345678905", "012345678905", "12345678905"]
 
 

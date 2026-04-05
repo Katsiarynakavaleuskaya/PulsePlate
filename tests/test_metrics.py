@@ -677,6 +677,27 @@ def test_ws_observability_helpers_noop_when_metrics_unavailable(
     metrics_mod.dec_ws_active_connections("/ws")
 
 
+def test_record_legacy_alias_hit_swallows_counter_inc_errors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """record_legacy_alias_hit must swallow Prometheus label/inc failures."""
+    import app.metrics as app_metrics
+
+    from app.metrics import LEGACY_NUTRITION_DATE_ROUTE_TEMPLATE as route
+
+    class _BadChild:
+        def inc(self, amount: float = 1.0) -> None:
+            raise RuntimeError("boom")
+
+    class _BadCounter:
+        def labels(self, *, alias_route: str) -> _BadChild:
+            assert alias_route == route
+            return _BadChild()
+
+    monkeypatch.setattr(app_metrics, "LEGACY_ALIAS_REQUESTS_TOTAL", _BadCounter())
+    app_metrics.record_legacy_alias_hit(route)
+
+
 def test_ws_observability_helpers_swallow_metrics_backend_errors(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

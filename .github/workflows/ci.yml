@@ -49,6 +49,7 @@ jobs:
       billing_entitlement: ${{ steps.risk_profile.outputs.billing_entitlement }}
       insight_ai: ${{ steps.risk_profile.outputs.insight_ai }}
       openapi_contract: ${{ steps.risk_profile.outputs.openapi_contract }}
+      food_catalog: ${{ steps.risk_profile.outputs.food_catalog }}
       route_contract_safety: ${{ steps.risk_profile.outputs.route_contract_safety }}
       merge_governance: ${{ steps.risk_profile.outputs.merge_governance }}
       contract_risk_groups: ${{ steps.risk_profile.outputs.contract_risk_groups }}
@@ -637,12 +638,28 @@ jobs:
                   tests/test_openapi_import_safe_orm_guard.py \
                   tests/test_openapi_namespace_guards.py
                 ;;
+              food_catalog)
+                add_suite \
+                  tests/test_off_nutrition_resolver.py \
+                  tests/test_food_schema_provenance.py \
+                  tests/test_food_store_additional_coverage.py \
+                  tests/test_food_store_coverage.py \
+                  tests/test_food_store_service.py \
+                  tests/test_openfoodfacts_client.py \
+                  tests/test_unified_db_basics.py \
+                  tests/test_unified_db_off_coverage.py \
+                  tests/test_food_merge.py \
+                  tests/edges/test_unified_db_off_flags.py
+                ;;
               route_contract_safety)
                 add_suite \
                   tests/test_api.py \
                   tests/test_app_error_handling_combined.py \
                   tests/test_app_extended_coverage.py \
-                  tests/test_legacy_app_diff_coverage.py
+                  tests/test_food_search_foundation.py \
+                  tests/test_foods_router_coverage_boost.py \
+                  tests/test_legacy_app_diff_coverage.py \
+                  tests/test_metrics.py
                 ;;
               merge_governance)
                 add_suite \

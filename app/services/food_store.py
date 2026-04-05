@@ -7,6 +7,8 @@ EN: Access to FoodDB (SQLite) with FTS and alias expansion.
 
 from contextlib import contextmanager
 import csv
+import json
+import math
 import sqlite3
 from pathlib import Path
 import logging
@@ -400,6 +402,21 @@ _STRATEGY_SEARCH_BACKEND: FoodSearchBackend | None = None
 _SEARCH_BACKEND_LOCK = threading.Lock()
 
 
+def _parse_nutrient_confidence_mapping(value: object) -> Dict[str, float]:
+    """Coerce SQLite/JSON nutrient confidence payloads to dict[str, float]."""
+
+    if not isinstance(value, dict):
+        return {}
+    out: Dict[str, float] = {}
+    for key, item in value.items():
+        if isinstance(item, bool) or not isinstance(item, (int, float)):
+            continue
+        coerced = float(item)
+        if math.isfinite(coerced):
+            out[str(key)] = coerced
+    return out
+
+
 class FoodRepository:
     """Repository wrapper for food lookups against the local SQLite store."""
 
@@ -407,7 +424,7 @@ class FoodRepository:
     def get_by_id(food_id: str) -> Optional[Dict[str, Any]]:
         with _connect() as con:
             row = con.execute("SELECT * FROM foods WHERE id = ?", (food_id,)).fetchone()
-        return dict(row) if row else None
+        return _normalize_food_row(dict(row)) if row else None
 
     @staticmethod
     def get_by_gtin(gtin: str) -> Optional[Dict[str, Any]]:
@@ -415,7 +432,58 @@ class FoodRepository:
             row = con.execute(
                 "SELECT * FROM foods WHERE gtin = ? ORDER BY id ASC LIMIT 1", (gtin,)
             ).fetchone()
-        return dict(row) if row else None
+        return _normalize_food_row(dict(row)) if row else None
+
+
+def _normalize_food_row(row: Dict[str, Any]) -> Dict[str, Any]:
+    """Parse additive JSON fields from SQLite rows when present."""
+
+    normalized = dict(row)
+    raw_inputs = normalized.get("nutrition_inputs_json")
+    if isinstance(raw_inputs, str):
+        try:
+            parsed_inputs = json.loads(raw_inputs)
+        except (TypeError, ValueError):
+            parsed_inputs = []
+        normalized["nutrition_inputs"] = parsed_inputs if isinstance(parsed_inputs, list) else []
+    elif isinstance(raw_inputs, list):
+        normalized["nutrition_inputs"] = list(raw_inputs)
+
+    raw_provenance = normalized.get("nutrition_provenance_json")
+    if isinstance(raw_provenance, str):
+        try:
+            parsed_provenance = json.loads(raw_provenance)
+        except (TypeError, ValueError):
+            parsed_provenance = {}
+        normalized["nutrition_provenance"] = (
+            parsed_provenance if isinstance(parsed_provenance, dict) else {}
+        )
+    elif isinstance(raw_provenance, dict):
+        normalized["nutrition_provenance"] = dict(raw_provenance)
+
+    raw_nut_conf = normalized.get("nutrition_nutrient_confidence_json")
+    if isinstance(raw_nut_conf, str):
+        try:
+            parsed_nut_conf = json.loads(raw_nut_conf)
+        except (TypeError, ValueError):
+            parsed_nut_conf = {}
+        normalized["nutrition_nutrient_confidence"] = _parse_nutrient_confidence_mapping(
+            parsed_nut_conf
+        )
+    elif isinstance(raw_nut_conf, dict):
+        normalized["nutrition_nutrient_confidence"] = _parse_nutrient_confidence_mapping(
+            raw_nut_conf
+        )
+
+    if "nutrition_confidence" in normalized and normalized["nutrition_confidence"] is None:
+        normalized["nutrition_confidence"] = 0.0
+
+    normalized.setdefault("nutrition_inputs", [])
+    normalized.setdefault("nutrition_provenance", {})
+    normalized.setdefault("nutrition_nutrient_confidence", {})
+    normalized.setdefault("nutrition_confidence", 0.0)
+
+    return normalized
 
 
 def _is_truthy_env(value: str | None) -> bool:

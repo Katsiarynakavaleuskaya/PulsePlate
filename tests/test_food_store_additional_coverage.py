@@ -319,7 +319,13 @@ def test_get_food_uses_connection(monkeypatch: pytest.MonkeyPatch) -> None:
             return None
 
     monkeypatch.setattr(fs, "_connect", lambda: FakeConnection("f1", {"id": "f1"}))
-    assert fs.get_food("f1") == {"id": "f1"}
+    assert fs.get_food("f1") == {
+        "id": "f1",
+        "nutrition_inputs": [],
+        "nutrition_provenance": {},
+        "nutrition_nutrient_confidence": {},
+        "nutrition_confidence": 0.0,
+    }
     monkeypatch.setattr(fs, "_connect", lambda: FakeConnection("f2", None))
     assert fs.get_food("f2") is None
 

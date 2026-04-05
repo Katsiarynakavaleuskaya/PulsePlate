@@ -137,8 +137,10 @@ def needs_agents_sync(candidate_paths: Sequence[str]) -> bool:
 def is_docs_only_contract_path(path: str) -> bool:
     """Return True when the path is a canonical docs/contract surface.
 
-    RU: Docs-only режим допускается только для markdown/contract поверхностей.
-    EN: Docs-only mode is restricted to canonical markdown/contract surfaces.
+    RU: Произвольный ``*.md`` под ``app/``/``core/``/и т.д. не считается docs-only
+    контрактом (fail-closed в ``analysis``), чтобы не занижать envelope на runtime-деревьях.
+    EN: A bare ``*.md`` under implementation trees is not a docs-only contract path
+    (stays fail-closed to ``analysis``) so envelope mode cannot downshift on app/core notes.
     """
 
     normalized = path.strip()
@@ -147,10 +149,22 @@ def is_docs_only_contract_path(path: str) -> bool:
 
     if normalized in DOCS_ONLY_ROOT_FILES:
         return True
-    if normalized.endswith(".md"):
+
+    if normalized.startswith(DOCS_PATH_PREFIX) and normalized.endswith(".md"):
         return True
+
+    if normalized.startswith(".github/") and normalized.endswith(".md"):
+        return True
+
+    if normalized.endswith(f"/{AGENTS_CONTRACT_FILE}") or normalized == AGENTS_CONTRACT_FILE:
+        return True
+
     if normalized.endswith(f"/{SKILL_CONTRACT_FILE}") or normalized == SKILL_CONTRACT_FILE:
         return True
+
+    if "/" not in normalized and normalized.endswith(".md"):
+        return True
+
     return False
 
 

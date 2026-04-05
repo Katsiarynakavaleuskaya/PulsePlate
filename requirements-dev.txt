@@ -57,7 +57,7 @@ distlib==0.4.0
     # via virtualenv
 execnet==2.1.2
     # via pytest-xdist
-faker==40.11.1
+faker==40.12.0
     # via -r requirements-dev.in
 filelock==3.24.3
     # via
@@ -80,7 +80,7 @@ jinja2==3.1.6
     # via
     #   -c requirements.txt
     #   diff-cover
-librt==0.7.5
+librt==0.8.1
     # via mypy
 license-expression==30.4.4
     # via cyclonedx-python-lib
@@ -92,7 +92,7 @@ markupsafe==3.0.3
     # via
     #   -c requirements.txt
     #   jinja2
-marshmallow==4.2.3
+marshmallow==4.3.0
     # via -r requirements-dev.in
 mccabe==0.7.0
     # via flake8
@@ -102,7 +102,7 @@ mdurl==0.1.2
     #   markdown-it-py
 msgpack==1.1.2
     # via cachecontrol
-mypy==1.19.1
+mypy==1.20.0
     # via -r requirements-dev.in
 mypy-extensions==1.1.0
     # via
@@ -213,7 +213,7 @@ rich==14.3.3
     #   -c requirements.txt
     #   bandit
     #   pip-audit
-ruff==0.15.8
+ruff==0.15.9
     # via -r requirements-dev.in
 sortedcontainers==2.4.0
     # via

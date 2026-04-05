@@ -16,7 +16,11 @@ from core.judgment import (
     SUPPORT_STATUSES,
     UNCERTAINTY_FIELDS,
 )
-from scripts.orchestration.bootstrap_sync_policy import matches_any_prefix
+from scripts.orchestration.bootstrap_sync_policy import (
+    matches_any_prefix,
+    resolve_analysis_envelope_mode,
+)
+from scripts.orchestration.context_pack import repo_relative_paths
 from scripts.orchestration.design_lane_contract import canonicalize_design_blockers
 from scripts.orchestration.context_pack import REPO_ROOT, normalize_repo_path
 from scripts.orchestration.routing_graph_loader import (
@@ -130,6 +134,20 @@ def test_task_bootstrap_adds_automation_metadata_defaults() -> None:
             "must_return": ["AGENT_RESULT_V1 envelope only (no preamble)"],
         },
     }
+    assert packet["skill_routing"]["envelope_mode_hint"] == "docs_only"
+    _docs_paths = ["docs/ENGINEERING_LESSONS.md"]
+    _norm_docs = repo_relative_paths([p.strip() for p in _docs_paths if p.strip()])
+    assert packet["skill_routing"]["envelope_mode_hint"] == resolve_analysis_envelope_mode(
+        _norm_docs
+    )
+    implementation_skills = {
+        "pulseplate-backend-endpoints",
+        "pulseplate-openapi-sync",
+        "pulseplate-frontend-ui",
+        "vercel-react-best-practices",
+    }
+    recommended = {item["skill"] for item in packet["skill_routing"]["recommended"]}
+    assert implementation_skills.isdisjoint(recommended)
     assert packet["needs_backlog_update"] is False
     assert packet["needs_docs_sync"] is False
     assert packet["needs_agents_sync"] is False

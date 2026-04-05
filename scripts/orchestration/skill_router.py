@@ -11,6 +11,10 @@ import os
 import re
 from typing import Any
 
+from scripts.orchestration.bootstrap_sync_policy import (
+    DOCS_ONLY_ENVELOPE_MODE,
+    resolve_analysis_envelope_mode,
+)
 from scripts.orchestration.context_pack import normalize_text, repo_relative_paths
 from scripts.orchestration.design_lane_contract import (
     DESIGN_EXECUTION_TASK_MODES,
@@ -110,6 +114,21 @@ PRIVILEGED_SURFACE_SKILL_BUNDLES: dict[str, int] = {
     "security-best-practices": 4,
     "pulseplate-guards": 4,
 }
+
+# Skills that must not appear in recommended/conditional when the canonical bootstrap
+# envelope mode is docs_only (aligned with AGENTS.md docs-only PR rule).
+DOCS_ONLY_EXCLUDED_ROUTING_SKILLS: frozenset[str] = frozenset(
+    {
+        "pulseplate-backend-endpoints",
+        "pulseplate-openapi-sync",
+        "pulseplate-frontend-ui",
+        "vercel-react-best-practices",
+        "pulseplate-playwright-e2e",
+        "playwright",
+        "figma-implement-design",
+        "notion-spec-to-implementation",
+    }
+)
 
 SCRAPING_BLOCK_PATTERNS: tuple[tuple[str, str], ...] = (
     ("tiktok", "TikTok scraping is not an approved default for PulsePlate."),
@@ -274,6 +293,27 @@ def _validate_task_classification_contract() -> None:
 
 
 _validate_task_classification_contract()
+
+
+def _strip_skills_for_docs_only_envelope(
+    *,
+    envelope_mode: str,
+    recommended: list[dict[str, Any]],
+    conditional: list[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Remove implementation-skills from routing when bootstrap envelope is docs_only.
+
+    RU: Согласовано с `bootstrap_sync_policy.resolve_analysis_envelope_mode`.
+    EN: Keeps skill routing aligned with the canonical message envelope derivation.
+    """
+
+    if envelope_mode != DOCS_ONLY_ENVELOPE_MODE:
+        return recommended, conditional
+
+    excluded = DOCS_ONLY_EXCLUDED_ROUTING_SKILLS
+    filtered_recommended = [item for item in recommended if item["skill"] not in excluded]
+    filtered_conditional = [item for item in conditional if item["skill"] not in excluded]
+    return filtered_recommended, filtered_conditional
 
 
 @dataclass(frozen=True)
@@ -1231,11 +1271,19 @@ def route_skills(
         figma_execution_ready=figma_execution_ready,
     )
 
+    envelope_mode = resolve_analysis_envelope_mode(normalized_paths)
+    selected, conditional = _strip_skills_for_docs_only_envelope(
+        envelope_mode=envelope_mode,
+        recommended=selected,
+        conditional=conditional,
+    )
+
     return {
         "policy_version": ROUTING_POLICY_VERSION,
         "selection_mode": SELECTION_MODE,
         "requested_agents": list(normalized_requested_agents),
         "task_classification": task_classification,
+        "envelope_mode_hint": envelope_mode,
         "required": required,
         "recommended": selected,
         "conditional": conditional,

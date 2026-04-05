@@ -14,6 +14,18 @@ class _FakeOFFItem:
         self.countries = ["US"]
         self.code = "000111222"
         self.categories = ["Snacks"]
+        self.nutrition_inputs = [
+            {
+                "source": "estimate",
+                "record_id": "000111222",
+                "version_ref": "123456",
+                "nutrients": {"protein_g": 5.0},
+                "raw_payload": {"proteins_100g": 5.0},
+            }
+        ]
+        self.nutrition_provenance = {"protein_g": "estimate"}
+        self.nutrition_nutrient_confidence = {"protein_g": 0.4}
+        self.nutrition_confidence = 0.4
 
     def _generate_tags(self):
         return ["off", "snack"]
@@ -45,6 +57,9 @@ async def test_unified_db_search_uses_off_and_caches():
             # EN: Avoid strict class identity check due to potential module reloads
             assert results and hasattr(results[0], "name") and hasattr(results[0], "source")
             assert results[0].source == "Open Food Facts"
+            assert results[0].nutrition_provenance["protein_g"] == "estimate"
+            assert results[0].nutrition_nutrient_confidence["protein_g"] == pytest.approx(0.4, 0.01)
+            assert results[0].nutrition_confidence == pytest.approx(0.4, 0.01)
 
             # Second call should hit in-memory cache
             results2 = await db.search_food("sample", prefer_source="openfoodfacts")
@@ -63,3 +78,7 @@ async def test_unified_db_get_food_by_id_off_success():
             # EN: avoid class identity issues across module reloads
             assert item is not None and hasattr(item, "name") and hasattr(item, "source")
             assert item.source == "Open Food Facts"
+            assert item.nutrition_inputs[0]["source"] == "estimate"
+            assert item.nutrition_provenance["protein_g"] == "estimate"
+            assert item.nutrition_nutrient_confidence["protein_g"] == pytest.approx(0.4, 0.01)
+            assert item.nutrition_confidence == pytest.approx(0.4, 0.01)
