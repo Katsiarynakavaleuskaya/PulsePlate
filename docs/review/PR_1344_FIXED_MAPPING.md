@@ -37,6 +37,12 @@ Evidence: `706b2f70` rewrites the notes paragraph in `docs/review/PR_1344_FIXED_
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1344#discussion_r3037125840
 Disposition: FIXED
 Evidence: `706b2f70` rewrites the notes block to state that local validation passed earlier while merge-readiness checkboxes remain intentionally unchecked until the final current-head merge cycle.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1344#pullrequestreview-4059681051
+Disposition: FIXED
+Evidence: `a7a93463`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1344#discussion_r3037137871
+Disposition: FIXED
+Evidence: `a7a93463` strengthens the two `Evidence` lines tied to review URLs `#pullrequestreview-4059672103` and `#pullrequestreview-4059672801` so they describe the exact artifact changes instead of listing only the commit SHA.
 
 ## Merge Readiness
 
