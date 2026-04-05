@@ -17,8 +17,9 @@ python-multipart>=0.0.20,<1.0.0
 slowapi>=0.1.9,<1.0.0
 tenacity>=9.1.2,<10.0.0
 matplotlib>=3.10.7,<4.0.0
-# Avoid numpy 2.4.0 (yanked on PyPI for backward-compatibility regression).
-numpy>=2.0.0,<2.4.0
+# Align with CI `--only-binary` + index: cp313 manylinux wheels were only published at 2.4.x
+# on the constrained resolver path (2.3.x had no matching wheel there).
+numpy>=2.4.0,<2.5.0
 reportlab>=4.4.4,<5.0.0
 sqlalchemy>=2.0.44,<3.0.0
 # Required for async SQLAlchemy (create_async_engine, AsyncSession)
