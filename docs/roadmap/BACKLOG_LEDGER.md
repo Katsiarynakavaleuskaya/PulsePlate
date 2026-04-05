@@ -5335,11 +5335,11 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 
 
 <a id="ledger-p2-meili-client-maintainability-followup-pr1333"></a>
-- [x] P2: Meilisearch client shared-helper / config refactors (deferred from PR #1333)
+- [ ] P2: Meilisearch client shared-helper / config refactors (deferred from PR #1333)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2
   - Target PR: PR #1340
-  - Status: ✅ Done — consolidated foods-index request shape in `app/services/search_meili.py` (`MEILI_FOODS_ATTRIBUTES_TO_RETRIEVE`, `build_meili_foods_search_url`, `build_meili_foods_search_headers`, `build_meili_foods_search_payload`); `/api/v1/foods*` contracts unchanged.
+  - Status: 🟡 In progress in PR #1340 — consolidated foods-index request shape in `app/services/search_meili.py` (`MEILI_FOODS_ATTRIBUTES_TO_RETRIEVE`, `build_meili_foods_search_url`, `build_meili_foods_search_headers`, `build_meili_foods_search_payload`); `/api/v1/foods*` contracts unchanged. Recheck to ✅ after PR #1340 merges.
   - Reason (EN): PR #1333 intentionally limits scope to env-gated Meilisearch performance telemetry and Prometheus metrics; maintainability refactors noted in review stay out of the telemetry slice.
   - Links:
     - `app/services/search_meili.py`
@@ -7141,11 +7141,11 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Non-semantic search path remains default and stable
 
 <a id="ledger-p2-search-meili-transport-pooling"></a>
-- [x] P2: Search Meili transport pooling + lifecycle hook
+- [ ] P2: Search Meili transport pooling + lifecycle hook
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2
   - Target PR: PR #1340
-  - Status: ✅ Done — `app/bootstrap/food_search.py` owns `httpx.Client` limits + `app.state.meili_http_client`, `make_pooled_httpx_transport` + shutdown `threading.Event` in `search_meili.py`, shutdown handler; tests cover reuse, shutdown, baseline-after-meili, idempotent dispose (PR #1340).
+  - Status: 🟡 In progress in PR #1340 — `app/bootstrap/food_search.py` owns `httpx.Client` limits + `app.state.meili_http_client`, `make_pooled_httpx_transport` + shutdown `threading.Event` in `search_meili.py`, shutdown handler; tests cover reuse, shutdown, baseline-after-meili, idempotent dispose. Recheck to ✅ after PR #1340 merges.
   - Area: backend / search
   - Finding Type: runtime hardening follow-up
   - Reason: The search shadow foundation intentionally keeps an injected per-call `httpx.Client` transport because Meili remains optional and low-volume in this slice. If traffic expands, the backend should move to a shared pooled client with deterministic shutdown semantics instead of creating a fresh client per request.

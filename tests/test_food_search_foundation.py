@@ -742,7 +742,11 @@ def test_pooled_httpx_transport_reuses_single_client() -> None:
 
 
 def test_pooled_httpx_transport_refuses_when_shutdown_event_set() -> None:
+    request_count = 0
+
     def _handler(request: httpx.Request) -> httpx.Response:
+        nonlocal request_count
+        request_count += 1
         return httpx.Response(200, json={"hits": []})
 
     transport_layer = httpx.MockTransport(_handler)
@@ -750,9 +754,22 @@ def test_pooled_httpx_transport_refuses_when_shutdown_event_set() -> None:
     with httpx.Client(transport=transport_layer) as client:
         pooled = make_pooled_httpx_transport(client, shutdown_event=shutdown)
         assert pooled("http://test/indexes/i/search", {"q": "a"}, {}, 2.0) == {"hits": []}
+        assert request_count == 1
         shutdown.set()
         with pytest.raises(httpx.RequestError, match="shutting down"):
             pooled("http://test/indexes/i/search", {"q": "b"}, {}, 2.0)
+        assert request_count == 1
+
+
+def test_pooled_httpx_transport_propagates_http_status_errors() -> None:
+    def _handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(500, json={"detail": "server error"})
+
+    transport_layer = httpx.MockTransport(_handler)
+    with httpx.Client(transport=transport_layer) as client:
+        pooled = make_pooled_httpx_transport(client)
+        with pytest.raises(httpx.HTTPStatusError):
+            pooled("http://test/indexes/i/search", {"q": "a"}, {}, 2.0)
 
 
 def test_register_food_search_backend_replaces_pooled_client(
@@ -826,8 +843,11 @@ def test_dispose_food_search_meili_http_client_is_idempotent(
     try:
         register_food_search_backend(app)
         dispose_food_search_meili_http_client(app)
+        assert getattr(app.state, "meili_http_client", None) is None
+        assert getattr(app.state, "meili_http_shutdown_event", None) is None
         dispose_food_search_meili_http_client(app)
         assert getattr(app.state, "meili_http_client", None) is None
+        assert getattr(app.state, "meili_http_shutdown_event", None) is None
     finally:
         food_store.reset_strategy_search_backend_adapter()
 
