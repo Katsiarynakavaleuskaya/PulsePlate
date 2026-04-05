@@ -433,6 +433,40 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Signed provenance/SBOM verification is enforced before deploy
     - Follow-up docs and CI checks explicitly cover the restored path
 
+<a id="ledger-p1-sbom-vex-signed-security-artifacts"></a>
+- [ ] P1: SBOM/VEX signed security artifacts lane after P0 release-truth closure
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (security maturity after release-truth closure)
+  - Target PR: PR #1332
+  - Status: 📋 Planned
+  - Blocked by:
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p0-billing-entitlement-routing`
+    - `docs/roadmap/BACKLOG_LEDGER.md#backlog-restore-signed-build-provenance`
+  - Reason (EN): SBOM/VEX/cosign/OPA is a separate security-maturity lane, but the current canonical release risk remains concentrated in release-truth closure. Until entitlement truth, backend/runtime closure, infra hardening, canonical OpenAPI sync, and web/iOS runtime parity are stable, this lane stays docs/governance-only and must not add new blocking CI or merge-path complexity.
+  - Current action:
+    - docs/governance only
+    - no CI enablement
+    - no blocking workflow or merge-gate changes
+  - Entry criteria:
+    - Entitlement truth is closed
+    - Backend/runtime closure is closed
+    - Infra hardening is stable
+    - OpenAPI is restored as canonical truth
+    - Web/iOS runtime parity is no longer a P0 release blocker
+  - Links:
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p0-billing-entitlement-routing`
+    - `docs/roadmap/BACKLOG_LEDGER.md#backlog-restore-signed-build-provenance`
+    - `docs/security/TOOLING_SURFACE_POLICY.md`
+    - `docs/architecture/ADR_DOCKER_BUILD_PROVENANCE_WORKAROUND_2026-03-01.md`
+  - DoD:
+    - SBOM is generated on every canonical build
+    - Vulnerability scan results are stored as canonical artifacts
+    - VEX is stored at a fixed canonical path
+    - cosign attestations are verified automatically
+    - OPA gate evaluates signed VEX exceptions deterministically
+    - Rollout is staged `warn-only -> enforced`
+    - Nightly reconciliation detects stale VEX entries
+
 <a id="ledger-p1-canonical-bootstrap-late-rehydration"></a>
 - [ ] P1: Canonical app bootstrap late-rehydration hardening
   - Owner: @katsiaryna_kavaleuskaya
@@ -2295,7 +2329,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Target PR: PR-TBD-LOCAL-WORKFORCE-PR-A-BOOTSTRAP-SEAM
   - Area: orchestration / task bootstrap / skill routing / local workforce
   - Finding Type: RFC follow-on slice
-  - Status: Planned as the next non-duplicate repo lane after the docs-only RFC and automation-status reconciliation.
+  - Status: Ready as the next non-duplicate repo lane on `main` after merged prerequisite baseline PRs `#1325` (`866ba507`), `#1327` (`7df804cf`), and `#1328` (`10ce5e67`).
   - Reason: `docs/orchestration/COMPOSER_BOOTSTRAP_KIT_PR1.md` explicitly requires extending the existing coordinator bootstrap seam instead of introducing a second packet system. Coordinator automation PR2-PR5 plus the sync-policy extraction are already landed, so the next repo lane must add any local-workforce semantics additively on top of `task_bootstrap.py`, `skill_router.py`, and `bootstrap_sync_policy.py`.
   - Dependencies:
     - `PR #1325`
@@ -2303,6 +2337,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `PR #1328`
   - Lifecycle: Start → Open → Push → Review → Merge
   - Links:
+    - `docs/orchestration/LOCAL_WORKFORCE_PR_A_TASK_PACKET_2026-04-05.md`
     - `docs/orchestration/COMPOSER_BOOTSTRAP_KIT_PR1.md`
     - `docs/orchestration/PulsePlate_Local_Agent_Workforce_System_Design_Packet_v1_2.md`
     - `scripts/orchestration/task_bootstrap.py`
@@ -5297,6 +5332,20 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - New search backend is integrated behind compatibility layer
     - New endpoints contract for barcode/search filters is documented and tested
     - Target local-first search latency budget (<50ms p50) is measured and reported
+
+
+<a id="ledger-p2-meili-client-maintainability-followup-pr1333"></a>
+- [ ] P2: Meilisearch client shared-helper / config refactors (deferred from PR #1333)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: TBD
+  - Reason (EN): PR #1333 intentionally limits scope to env-gated Meilisearch performance telemetry and Prometheus metrics; maintainability refactors noted in review stay out of the telemetry slice.
+  - Links:
+    - `app/services/search_meili.py`
+    - `app/metrics.py`
+  - DoD:
+    - Duplicated Meili request configuration is consolidated where safe without changing `/api/v1/foods*` response contracts.
+    - `make verify` passes on the follow-up PR.
 
 
 - [x] P1: Execution Wave 3 — Restaurant menus + controlled user submissions
