@@ -97,13 +97,13 @@ Reason: Aggregate CodeRabbit review; remaining items duplicate already-mapped in
 Disposition: NOT-A-BUG
 Evidence: `scripts/ci/ci_risk_profile.py:42-48` `BACKEND_SHARED_PREFIXES` includes `tests/` so test-only edits still set `backend_shared` and Tier1 `run_backend_blocking`.
 Reason: Optional `food_catalog` test globs are not required for correctness; test-only PRs already run full backend blocking smoke path.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1331#pullrequestreview-4059454063 -> 3321b66f85ed2af88bf0cb143a9ecd04f1cf0e2f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1331#pullrequestreview-4059454063 -> 8b0029f2cfac87cff2ccdc3637f8dc1bd52aadc1
 Disposition: FIXED
-Commit: 3321b66f85ed2af88bf0cb143a9ecd04f1cf0e2f
+Commit: 8b0029f2cfac87cff2ccdc3637f8dc1bd52aadc1
 Evidence: `.github/workflows/ci.yml:654-662` restores `tests/test_food_search_foundation.py`, `tests/test_foods_router_coverage_boost.py`, and `tests/test_metrics.py` in `route_contract_safety` (Tier1 parity with `origin/main` after food_catalog split).
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1331#discussion_r3036832489 -> 3321b66f85ed2af88bf0cb143a9ecd04f1cf0e2f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1331#discussion_r3036832489 -> 8b0029f2cfac87cff2ccdc3637f8dc1bd52aadc1
 Disposition: FIXED
-Commit: 3321b66f85ed2af88bf0cb143a9ecd04f1cf0e2f
+Commit: 8b0029f2cfac87cff2ccdc3637f8dc1bd52aadc1
 Evidence: Same routing fix as `pullrequestreview-4059454063`; cubic inline comment on `ci.yml` route suite regression.
 
 ## Merge Readiness
