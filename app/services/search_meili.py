@@ -77,6 +77,57 @@ _DURATION_VALUE_RE = re.compile(
     re.IGNORECASE,
 )
 
+# Single source of truth for foods index search request shape (contract-stable).
+# RU: Единый SoT для формы запроса к индексу foods (стабильный контракт).
+# EN: Single source of truth for foods index search request shape (stable contract).
+MEILI_FOODS_ATTRIBUTES_TO_RETRIEVE: tuple[str, ...] = (
+    "id",
+    "canonical_name",
+    "name",
+    "kcal",
+    "protein_g",
+    "fat_g",
+    "carbs_g",
+    "source",
+    "content_hash",
+)
+
+
+def build_meili_foods_search_url(base_url: str, index_name: str) -> str:
+    """Return the Meilisearch search URL for a given index."""
+
+    normalized_base = base_url.rstrip("/")
+    return f"{normalized_base}/indexes/{index_name}/search"
+
+
+def build_meili_foods_search_headers(api_key: str | None) -> dict[str, str]:
+    """Return Authorization headers for Meilisearch or an empty dict."""
+
+    cleaned = (api_key or "").strip()
+    if not cleaned:
+        return {}
+    return {"Authorization": f"Bearer {cleaned}"}
+
+
+def build_meili_foods_search_payload(
+    *,
+    query: str,
+    limit: int,
+    offset: int,
+    show_performance_details: bool,
+) -> dict[str, Any]:
+    """Build the JSON body for a foods index search (attributes + optional perf flag)."""
+
+    payload: dict[str, Any] = {
+        "q": query,
+        "limit": limit,
+        "offset": offset,
+        "attributesToRetrieve": list(MEILI_FOODS_ATTRIBUTES_TO_RETRIEVE),
+    }
+    if show_performance_details:
+        payload["showPerformanceDetails"] = True
+    return payload
+
 
 @dataclass(frozen=True)
 class NormalizedMeiliPerformanceDetails:
@@ -265,7 +316,7 @@ def _default_transport(
     headers: Mapping[str, str],
     timeout_seconds: float,
 ) -> Any:
-    """Execute a POST request against Meilisearch."""
+    """Execute a POST request against Meilisearch (one short-lived client per call)."""
 
     with httpx.Client(timeout=timeout_seconds) as client:
         response = client.post(url, json=payload, headers=dict(headers))
@@ -273,6 +324,43 @@ def _default_transport(
         parsed_response: Any
         parsed_response = response.json()
         return parsed_response
+
+
+def make_pooled_httpx_transport(
+    client: httpx.Client,
+    *,
+    shutdown_event: threading.Event | None = None,
+) -> Transport:
+    """Bind POST semantics to a long-lived :class:`httpx.Client` for connection reuse.
+
+    RU: Переиспользование соединений через общий клиент; закрытие — на стороне владельца.
+    EN: Reuse connections via a shared client; the owner must close the client on shutdown.
+
+    When ``shutdown_event`` is set before :meth:`httpx.Client.post`, callers get
+    :class:`httpx.RequestError` so shadow threads avoid racing ``client.close()``.
+    """
+
+    def _transport(
+        url: str,
+        payload: dict[str, Any],
+        headers: Mapping[str, str],
+        timeout_seconds: float,
+    ) -> Any:
+        if shutdown_event is not None and shutdown_event.is_set():
+            raise httpx.RequestError(
+                f"Meilisearch HTTP client is shutting down before POST {url!r}",
+                request=httpx.Request("POST", url),
+            )
+        response = client.post(
+            url,
+            json=payload,
+            headers=dict(headers),
+            timeout=timeout_seconds,
+        )
+        response.raise_for_status()
+        return response.json()
+
+    return _transport
 
 
 def _start_shadow_thread(task: Callable[[], None]) -> None:
@@ -383,28 +471,14 @@ class MeiliSearchBackend:
         except (TypeError, ValueError) as exc:
             raise ValueError("limit and offset must be integers") from exc
 
-        search_url = f"{self._base_url}/indexes/{self._index_name}/search"
-        headers: dict[str, str] = {}
-        if self._api_key:
-            headers["Authorization"] = f"Bearer {self._api_key}"
-        payload = {
-            "q": query,
-            "limit": normalized_limit,
-            "offset": normalized_offset,
-            "attributesToRetrieve": [
-                "id",
-                "canonical_name",
-                "name",
-                "kcal",
-                "protein_g",
-                "fat_g",
-                "carbs_g",
-                "source",
-                "content_hash",
-            ],
-        }
-        if self._show_performance_details:
-            payload["showPerformanceDetails"] = True
+        search_url = build_meili_foods_search_url(self._base_url, self._index_name)
+        headers = build_meili_foods_search_headers(self._api_key)
+        payload = build_meili_foods_search_payload(
+            query=query,
+            limit=normalized_limit,
+            offset=normalized_offset,
+            show_performance_details=self._show_performance_details,
+        )
         try:
             response = self._transport(search_url, payload, headers, self._timeout_seconds)
         except (
