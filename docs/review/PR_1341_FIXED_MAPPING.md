@@ -19,6 +19,6 @@
 
 Disposition: FIXED
 
-Commit: ca32df25b215ea0bef3516ab6bdda3c5d851a38d; 63d06e6798328d59b62ecebb8e17bc05d3c574a8; d5006459a6ae10a9a677ca5960a58c2f8ee719f0
+Commit: ca32df25b215ea0bef3516ab6bdda3c5d851a38d; 63d06e6798328d59b62ecebb8e17bc05d3c574a8; d5006459a6ae10a9a677ca5960a58c2f8ee719f0; 7a28f81753260016ebf61c09aec020de65453234
 
 Evidence: scripts/build_food_db.py:329 (explicit `INSERT INTO foods` column list); requirements.in / requirements.txt (`numpy==2.4.0` for CI PULSEPLATE mirror + `--only-binary`; transformers `>=5.5.0` retained).
