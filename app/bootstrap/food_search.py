@@ -2,18 +2,32 @@
 
 from __future__ import annotations
 
+import logging
 import os
+import threading
 from typing import cast
 
+import httpx
 from fastapi import FastAPI
 
 from app.services import food_store
-from app.services.search_meili import MeiliSearchBackend, ShadowSearchBackend
+from app.services.search_meili import (
+    MeiliSearchBackend,
+    ShadowSearchBackend,
+    make_pooled_httpx_transport,
+)
 from app.utils.feature_flags import _is_truthy
+
+logger = logging.getLogger(__name__)
 
 DEFAULT_MEILI_TIMEOUT_SECONDS = 2.0
 DEFAULT_MEILI_INDEX_NAME = "foods"
 MEILI_SHOW_PERFORMANCE_DETAILS_ENV = "MEILI_SHOW_PERFORMANCE_DETAILS"
+MEILI_HTTP_MAX_CONNECTIONS = 32
+MEILI_HTTP_MAX_KEEPALIVE_CONNECTIONS = 16
+# httpx default timeout for the pooled client (all phases); per-search timeout still
+# comes from ``client.post(..., timeout=timeout_seconds)`` in the transport.
+MEILI_HTTP_CLIENT_DEFAULT_TIMEOUT_SECONDS = 5.0
 
 
 def _safe_timeout_seconds(raw_value: str | None) -> float:
@@ -42,20 +56,85 @@ def _safe_show_performance_details(raw_value: str | None) -> bool:
     return bool(enabled)
 
 
+def _dispose_meili_http_client(app: FastAPI) -> None:
+    """Close pooled Meili HTTP client if present."""
+
+    shutdown_event = getattr(app.state, "meili_http_shutdown_event", None)
+    if shutdown_event is not None:
+        shutdown_event.set()
+    client = getattr(app.state, "meili_http_client", None)
+    if client is not None:
+        try:
+            client.close()
+        except Exception:
+            logger.warning("Meili HTTP client close failed", exc_info=True)
+        finally:
+            if getattr(app.state, "meili_http_client", None) is client:
+                del app.state.meili_http_client
+    if (
+        shutdown_event is not None
+        and getattr(app.state, "meili_http_shutdown_event", None) is shutdown_event
+    ):
+        del app.state.meili_http_shutdown_event
+
+
+def dispose_food_search_meili_http_client(app: FastAPI) -> None:
+    """Public dispose hook for tests and manual teardown (mirrors shutdown behavior)."""
+
+    _dispose_meili_http_client(app)
+
+
+def _build_meili_http_client() -> httpx.Client:
+    """Create a pooled :class:`httpx.Client` for Meilisearch (bootstrap-owned)."""
+
+    return httpx.Client(
+        limits=httpx.Limits(
+            max_connections=MEILI_HTTP_MAX_CONNECTIONS,
+            max_keepalive_connections=MEILI_HTTP_MAX_KEEPALIVE_CONNECTIONS,
+        ),
+        timeout=httpx.Timeout(MEILI_HTTP_CLIENT_DEFAULT_TIMEOUT_SECONDS),
+    )
+
+
+def _ensure_meili_http_shutdown_handler(app: FastAPI) -> None:
+    """Register a single shutdown handler to close the pooled Meili client."""
+
+    if getattr(app.state, "_meili_http_shutdown_registered", False):
+        return
+
+    def _on_shutdown() -> None:
+        _dispose_meili_http_client(app)
+
+    app.add_event_handler("shutdown", _on_shutdown)
+    app.state._meili_http_shutdown_registered = True
+
+
 def register_food_search_backend(app: FastAPI) -> None:
     """Register optional search backend strategy without changing API routes."""
 
     strategy = food_store.get_search_backend_strategy()
     if strategy == "baseline_fts":
+        _dispose_meili_http_client(app)
         food_store.reset_strategy_search_backend_adapter()
         app.state.food_search_strategy = strategy
         return
 
     meili_url = (os.getenv("MEILI_URL") or "").strip()
     if not meili_url:
+        _dispose_meili_http_client(app)
         food_store.reset_strategy_search_backend_adapter()
         app.state.food_search_strategy = "baseline_fts"
         return
+
+    _dispose_meili_http_client(app)
+    app.state.meili_http_shutdown_event = threading.Event()
+    pooled_client = _build_meili_http_client()
+    app.state.meili_http_client = pooled_client
+    transport = make_pooled_httpx_transport(
+        pooled_client,
+        shutdown_event=app.state.meili_http_shutdown_event,
+    )
+    _ensure_meili_http_shutdown_handler(app)
 
     meili_backend = MeiliSearchBackend(
         base_url=meili_url,
@@ -66,6 +145,7 @@ def register_food_search_backend(app: FastAPI) -> None:
             os.getenv(MEILI_SHOW_PERFORMANCE_DETAILS_ENV)
         ),
         search_strategy_label=strategy,
+        transport=transport,
         fallback_backend=food_store.get_legacy_search_backend(),
     )
     adapter: food_store.FoodSearchBackend

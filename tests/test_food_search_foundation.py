@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import threading
 from collections.abc import Callable, Mapping
 from fastapi import FastAPI
 import httpx
@@ -11,6 +12,7 @@ from app.bootstrap.food_search import (
     _safe_index_name,
     _safe_show_performance_details,
     _safe_timeout_seconds,
+    dispose_food_search_meili_http_client,
     register_food_search_backend,
 )
 from app.services import food_store, search_meili as search_meili_module
@@ -24,7 +26,12 @@ from app.services.search_meili import (
     _default_transport,
     _numeric_field_or_default,
     _start_shadow_thread,
+    build_meili_foods_search_headers,
+    build_meili_foods_search_payload,
+    build_meili_foods_search_url,
+    make_pooled_httpx_transport,
     MeiliSearchBackend,
+    MEILI_FOODS_ATTRIBUTES_TO_RETRIEVE,
     ShadowSearchBackend,
 )
 
@@ -647,6 +654,7 @@ def test_register_food_search_backend_falls_back_to_baseline_without_meili_url(
         register_food_search_backend(app)
         assert app.state.food_search_strategy == "baseline_fts"
     finally:
+        dispose_food_search_meili_http_client(app)
         food_store.reset_strategy_search_backend_adapter()
 
 
@@ -668,6 +676,7 @@ def test_register_food_search_backend_registers_meili_strategy(
         assert backend._timeout_seconds == 2.0
         assert backend._show_performance_details is True
     finally:
+        dispose_food_search_meili_http_client(app)
         food_store.reset_strategy_search_backend_adapter()
 
 
@@ -681,6 +690,141 @@ def test_register_food_search_backend_registers_shadow_strategy(
         register_food_search_backend(app)
         assert app.state.food_search_strategy == "hybrid_shadow"
         assert isinstance(food_store.get_search_backend(), ShadowSearchBackend)
+    finally:
+        dispose_food_search_meili_http_client(app)
+        food_store.reset_strategy_search_backend_adapter()
+
+
+def test_meili_foods_search_helpers_match_contract_shape() -> None:
+    assert build_meili_foods_search_url("https://meili.example/", "foods_v2") == (
+        "https://meili.example/indexes/foods_v2/search"
+    )
+    assert build_meili_foods_search_headers(None) == {}
+    assert build_meili_foods_search_headers("") == {}
+    assert build_meili_foods_search_headers("k") == {"Authorization": "Bearer k"}
+    payload = build_meili_foods_search_payload(
+        query="x",
+        limit=3,
+        offset=1,
+        show_performance_details=False,
+    )
+    assert payload["q"] == "x"
+    assert payload["limit"] == 3
+    assert payload["offset"] == 1
+    assert payload["attributesToRetrieve"] == list(MEILI_FOODS_ATTRIBUTES_TO_RETRIEVE)
+    assert "showPerformanceDetails" not in payload
+    payload_perf = build_meili_foods_search_payload(
+        query="x",
+        limit=1,
+        offset=0,
+        show_performance_details=True,
+    )
+    assert payload_perf["showPerformanceDetails"] is True
+
+
+def test_pooled_httpx_transport_reuses_single_client() -> None:
+    request_count = 0
+
+    def _handler(request: httpx.Request) -> httpx.Response:
+        nonlocal request_count
+        request_count += 1
+        return httpx.Response(200, json={"hits": []})
+
+    transport_layer = httpx.MockTransport(_handler)
+    with httpx.Client(transport=transport_layer) as client:
+        pooled = make_pooled_httpx_transport(client)
+        assert pooled("http://test/indexes/i/search", {"q": "a"}, {}, 2.0) == {"hits": []}
+        assert pooled("http://test/indexes/i/search", {"q": "b"}, {}, 2.0) == {"hits": []}
+    assert request_count == 2
+
+
+def test_pooled_httpx_transport_refuses_when_shutdown_event_set() -> None:
+    def _handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"hits": []})
+
+    transport_layer = httpx.MockTransport(_handler)
+    shutdown = threading.Event()
+    with httpx.Client(transport=transport_layer) as client:
+        pooled = make_pooled_httpx_transport(client, shutdown_event=shutdown)
+        assert pooled("http://test/indexes/i/search", {"q": "a"}, {}, 2.0) == {"hits": []}
+        shutdown.set()
+        with pytest.raises(httpx.RequestError, match="shutting down"):
+            pooled("http://test/indexes/i/search", {"q": "b"}, {}, 2.0)
+
+
+def test_register_food_search_backend_replaces_pooled_client(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    app = FastAPI()
+    monkeypatch.setenv("FOOD_SEARCH_BACKEND_STRATEGY", "meili")
+    monkeypatch.setenv("MEILI_URL", "https://meili.example")
+    try:
+        register_food_search_backend(app)
+        first = app.state.meili_http_client
+        assert first is not None
+        assert not first.is_closed
+        register_food_search_backend(app)
+        second = app.state.meili_http_client
+        assert second is not first
+        assert first.is_closed
+        assert not second.is_closed
+    finally:
+        dispose_food_search_meili_http_client(app)
+        food_store.reset_strategy_search_backend_adapter()
+
+
+def test_food_search_meili_client_closed_on_app_shutdown(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from starlette.testclient import TestClient
+
+    monkeypatch.setenv("FOOD_SEARCH_BACKEND_STRATEGY", "meili")
+    monkeypatch.setenv("MEILI_URL", "https://meili.example")
+    app = FastAPI()
+    register_food_search_backend(app)
+    client = app.state.meili_http_client
+    assert client is not None
+    assert not client.is_closed
+    try:
+        with TestClient(app):
+            pass
+        assert client.is_closed
+    finally:
+        dispose_food_search_meili_http_client(app)
+        food_store.reset_strategy_search_backend_adapter()
+
+
+def test_register_food_search_baseline_disposes_pooled_client_after_meili(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    app = FastAPI()
+    monkeypatch.setenv("FOOD_SEARCH_BACKEND_STRATEGY", "meili")
+    monkeypatch.setenv("MEILI_URL", "https://meili.example")
+    try:
+        register_food_search_backend(app)
+        pooled = app.state.meili_http_client
+        assert pooled is not None
+        monkeypatch.setenv("FOOD_SEARCH_BACKEND_STRATEGY", "baseline_fts")
+        register_food_search_backend(app)
+        assert app.state.food_search_strategy == "baseline_fts"
+        assert getattr(app.state, "meili_http_client", None) is None
+        assert pooled.is_closed
+    finally:
+        dispose_food_search_meili_http_client(app)
+        food_store.reset_strategy_search_backend_adapter()
+
+
+def test_dispose_food_search_meili_http_client_is_idempotent(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    app = FastAPI()
+    monkeypatch.setenv("FOOD_SEARCH_BACKEND_STRATEGY", "meili")
+    monkeypatch.setenv("MEILI_URL", "https://meili.example")
+    try:
+        register_food_search_backend(app)
+        dispose_food_search_meili_http_client(app)
+        dispose_food_search_meili_http_client(app)
+        assert getattr(app.state, "meili_http_client", None) is None
     finally:
         food_store.reset_strategy_search_backend_adapter()
 

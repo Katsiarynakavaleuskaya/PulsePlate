@@ -5335,10 +5335,11 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 
 
 <a id="ledger-p2-meili-client-maintainability-followup-pr1333"></a>
-- [ ] P2: Meilisearch client shared-helper / config refactors (deferred from PR #1333)
+- [x] P2: Meilisearch client shared-helper / config refactors (deferred from PR #1333)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2
-  - Target PR: TBD
+  - Target PR: (assign on merge)
+  - Status: ✅ Done — consolidated foods-index request shape in `app/services/search_meili.py` (`MEILI_FOODS_ATTRIBUTES_TO_RETRIEVE`, `build_meili_foods_search_url`, `build_meili_foods_search_headers`, `build_meili_foods_search_payload`); `/api/v1/foods*` contracts unchanged.
   - Reason (EN): PR #1333 intentionally limits scope to env-gated Meilisearch performance telemetry and Prometheus metrics; maintainability refactors noted in review stay out of the telemetry slice.
   - Links:
     - `app/services/search_meili.py`
@@ -7140,15 +7141,17 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Non-semantic search path remains default and stable
 
 <a id="ledger-p2-search-meili-transport-pooling"></a>
-- [ ] P2: Search Meili transport pooling + lifecycle hook
+- [x] P2: Search Meili transport pooling + lifecycle hook
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2
-  - Target PR: PR-TBD-SEARCH-MEILI-TRANSPORT-POOLING
+  - Target PR: (assign on merge)
+  - Status: ✅ Done — `app/bootstrap/food_search.py` owns `httpx.Client` limits + `app.state.meili_http_client`, `make_pooled_httpx_transport` in `search_meili.py`, shutdown handler closes client; tests: `test_pooled_httpx_transport_reuses_single_client`, `test_food_search_meili_client_closed_on_app_shutdown`, `test_register_food_search_backend_replaces_pooled_client`.
   - Area: backend / search
   - Finding Type: runtime hardening follow-up
   - Reason: The search shadow foundation intentionally keeps an injected per-call `httpx.Client` transport because Meili remains optional and low-volume in this slice. If traffic expands, the backend should move to a shared pooled client with deterministic shutdown semantics instead of creating a fresh client per request.
   - Links:
     - `app/services/search_meili.py`
+    - `app/bootstrap/food_search.py`
     - `docs/review/PR_1099_FIXED_MAPPING.md`
   - DoD:
     - Shared Meili transport/client is lifecycle-managed and explicitly closed on shutdown
