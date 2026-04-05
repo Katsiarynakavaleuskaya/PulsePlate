@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import logging
 import threading
 from collections.abc import Callable, Mapping
+from unittest.mock import MagicMock
 from fastapi import FastAPI
 import httpx
 import pytest
@@ -827,6 +829,24 @@ def test_dispose_food_search_meili_http_client_is_idempotent(
         assert getattr(app.state, "meili_http_client", None) is None
     finally:
         food_store.reset_strategy_search_backend_adapter()
+
+
+def test_dispose_food_search_meili_http_client_warns_when_close_raises(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    app = FastAPI()
+    mock_client = MagicMock()
+    mock_client.close.side_effect = RuntimeError("simulated close failure")
+    app.state.meili_http_client = mock_client
+    app.state.meili_http_shutdown_event = threading.Event()
+
+    with caplog.at_level(logging.WARNING, logger="app.bootstrap.food_search"):
+        dispose_food_search_meili_http_client(app)
+
+    assert "Meili HTTP client close failed" in caplog.text
+    mock_client.close.assert_called_once_with()
+    assert getattr(app.state, "meili_http_client", None) is None
+    assert getattr(app.state, "meili_http_shutdown_event", None) is None
 
 
 def test_safe_timeout_and_index_helpers_use_fallbacks() -> None:
