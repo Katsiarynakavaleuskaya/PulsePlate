@@ -736,8 +736,8 @@ def test_pooled_httpx_transport_reuses_single_client() -> None:
     transport_layer = httpx.MockTransport(_handler)
     with httpx.Client(transport=transport_layer) as client:
         pooled = make_pooled_httpx_transport(client)
-        assert pooled("http://test/indexes/i/search", {"q": "a"}, {}, 2.0) == {"hits": []}
-        assert pooled("http://test/indexes/i/search", {"q": "b"}, {}, 2.0) == {"hits": []}
+        assert pooled("http://testserver/indexes/i/search", {"q": "a"}, {}, 2.0) == {"hits": []}
+        assert pooled("http://testserver/indexes/i/search", {"q": "b"}, {}, 2.0) == {"hits": []}
     assert request_count == 2
 
 
@@ -753,11 +753,11 @@ def test_pooled_httpx_transport_refuses_when_shutdown_event_set() -> None:
     shutdown = threading.Event()
     with httpx.Client(transport=transport_layer) as client:
         pooled = make_pooled_httpx_transport(client, shutdown_event=shutdown)
-        assert pooled("http://test/indexes/i/search", {"q": "a"}, {}, 2.0) == {"hits": []}
+        assert pooled("http://testserver/indexes/i/search", {"q": "a"}, {}, 2.0) == {"hits": []}
         assert request_count == 1
         shutdown.set()
         with pytest.raises(httpx.RequestError, match="shutting down"):
-            pooled("http://test/indexes/i/search", {"q": "b"}, {}, 2.0)
+            pooled("http://testserver/indexes/i/search", {"q": "b"}, {}, 2.0)
         assert request_count == 1
 
 
@@ -769,7 +769,7 @@ def test_pooled_httpx_transport_propagates_http_status_errors() -> None:
     with httpx.Client(transport=transport_layer) as client:
         pooled = make_pooled_httpx_transport(client)
         with pytest.raises(httpx.HTTPStatusError):
-            pooled("http://test/indexes/i/search", {"q": "a"}, {}, 2.0)
+            pooled("http://testserver/indexes/i/search", {"q": "a"}, {}, 2.0)
 
 
 def test_register_food_search_backend_replaces_pooled_client(
