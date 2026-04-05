@@ -53,6 +53,7 @@ class OFFFoodItem:
     last_modified_t: int  # Unix timestamp
     nutrition_inputs: list[dict[str, object]] = field(default_factory=list)
     nutrition_provenance: dict[str, str] = field(default_factory=dict)
+    nutrition_nutrient_confidence: dict[str, float] = field(default_factory=dict)
     nutrition_confidence: float = 0.0
 
     def to_menu_engine_format(self) -> dict[str, Any]:
@@ -71,6 +72,7 @@ class OFFFoodItem:
             "source_id": self.code,
             "nutrition_inputs": self.nutrition_inputs,
             "nutrition_provenance": self.nutrition_provenance,
+            "nutrition_nutrient_confidence": self.nutrition_nutrient_confidence,
             "nutrition_confidence": self.nutrition_confidence,
         }
 
@@ -336,6 +338,7 @@ class OFFClient:
                 last_modified_t=product_data.get("last_modified_t", 0),
                 nutrition_inputs=[entry.to_dict() for entry in resolution.raw_inputs],
                 nutrition_provenance=dict(resolution.provenance),
+                nutrition_nutrient_confidence=dict(resolution.nutrient_confidence),
                 nutrition_confidence=resolution.confidence,
             )
 

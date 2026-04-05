@@ -11,6 +11,7 @@ from app.services import food_store
 _LEGACY_ROW_ADDITIVE_DEFAULTS: Dict[str, Any] = {
     "nutrition_inputs": [],
     "nutrition_provenance": {},
+    "nutrition_nutrient_confidence": {},
     "nutrition_confidence": 0.0,
 }
 
@@ -175,6 +176,7 @@ def test_normalize_food_row_parses_additive_nutrition_metadata() -> None:
         "canonical_name": "apple",
         "nutrition_inputs_json": '[{"source":"estimate","record_id":"off-1"}]',
         "nutrition_provenance_json": '{"protein_g":"estimate"}',
+        "nutrition_nutrient_confidence_json": '{"protein_g":0.4,"kcal":0.3}',
         "nutrition_confidence": 0.4,
     }
 
@@ -182,6 +184,8 @@ def test_normalize_food_row_parses_additive_nutrition_metadata() -> None:
 
     assert normalized["nutrition_inputs"][0]["source"] == "estimate"
     assert normalized["nutrition_provenance"]["protein_g"] == "estimate"
+    assert normalized["nutrition_nutrient_confidence"]["protein_g"] == pytest.approx(0.4)
+    assert normalized["nutrition_nutrient_confidence"]["kcal"] == pytest.approx(0.3)
     assert normalized["nutrition_confidence"] == 0.4
 
 
@@ -197,6 +201,7 @@ def test_normalize_food_row_handles_invalid_json_and_none_confidence() -> None:
 
     assert normalized["nutrition_inputs"] == []
     assert normalized["nutrition_provenance"] == {}
+    assert normalized["nutrition_nutrient_confidence"] == {}
     assert normalized["nutrition_confidence"] == 0.0
 
 
@@ -211,6 +216,7 @@ def test_normalize_food_row_ignores_non_list_or_non_dict_payloads() -> None:
 
     assert normalized["nutrition_inputs"] == []
     assert normalized["nutrition_provenance"] == {}
+    assert normalized["nutrition_nutrient_confidence"] == {}
 
 
 def test_normalize_food_row_legacy_shape_without_additive_columns() -> None:
@@ -220,6 +226,7 @@ def test_normalize_food_row_legacy_shape_without_additive_columns() -> None:
 
     assert normalized["nutrition_inputs"] == []
     assert normalized["nutrition_provenance"] == {}
+    assert normalized["nutrition_nutrient_confidence"] == {}
     assert normalized["nutrition_confidence"] == 0.0
 
 
@@ -245,6 +252,14 @@ def test_normalize_food_row_additive_columns_none_or_pre_parsed() -> None:
     assert out["nutrition_inputs"] == parsed_inputs
     assert out["nutrition_provenance"] == parsed_prov
     assert out["nutrition_confidence"] == 0.25
+
+    row_nut = {
+        "id": "food-nutconf",
+        "canonical_name": "bar",
+        "nutrition_nutrient_confidence_json": {"fiber_g": 0.5, "bad": "x", "also": True},
+    }
+    nut_out = food_store._normalize_food_row(row_nut)
+    assert nut_out["nutrition_nutrient_confidence"] == {"fiber_g": 0.5}
 
 
 def test_get_food_by_barcode_returns_row_with_normalized_input(

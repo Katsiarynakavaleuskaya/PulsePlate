@@ -180,6 +180,7 @@ class FoodDatabaseBuilder:
                     price_per_100g=record.get("price_per_100g", record.get("price", 0.0)),
                     nutrition_inputs=record.get("nutrition_inputs", []),
                     nutrition_provenance=record.get("nutrition_provenance", {}),
+                    nutrition_nutrient_confidence=record.get("nutrition_nutrient_confidence", {}),
                     nutrition_confidence=record.get("nutrition_confidence", 0.0),
                 )
                 validated_foods.append(food_item)
@@ -272,6 +273,7 @@ class FoodDatabaseBuilder:
                 price_per_100g REAL,
                 nutrition_inputs_json TEXT,
                 nutrition_provenance_json TEXT,
+                nutrition_nutrient_confidence_json TEXT,
                 nutrition_confidence REAL
             )
         """)
@@ -320,11 +322,12 @@ class FoodDatabaseBuilder:
                         food.price_per_100g,
                         json.dumps(food.nutrition_inputs, ensure_ascii=False),
                         json.dumps(food.nutrition_provenance, ensure_ascii=False),
+                        json.dumps(food.nutrition_nutrient_confidence, ensure_ascii=False),
                         food.nutrition_confidence,
                     ),
                 )
             cursor.executemany(
-                "INSERT INTO foods VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                "INSERT INTO foods VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 rows,
             )
 

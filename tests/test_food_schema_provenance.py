@@ -4,7 +4,12 @@ import math
 
 import pytest
 
-from app.schemas.food import FoodItem, _parse_json_inputs, _parse_json_mapping
+from app.schemas.food import (
+    FoodItem,
+    _parse_json_float_mapping,
+    _parse_json_inputs,
+    _parse_json_mapping,
+)
 
 
 def test_food_item_parses_additive_nutrition_metadata_from_strings() -> None:
@@ -62,6 +67,34 @@ def test_food_item_accepts_mapping_and_none_for_additive_metadata() -> None:
 
     assert food.nutrition_inputs == []
     assert food.nutrition_provenance == {"protein_g": "estimate", "kcal": "123"}
+
+
+def test_parse_json_float_mapping_helper_coerces_numeric_and_rejects_bad_values() -> None:
+    assert _parse_json_float_mapping(None) == {}
+    assert _parse_json_float_mapping('{"kcal":0.7,"protein_g":true}') == {"kcal": 0.7}
+    assert _parse_json_float_mapping("not-json") == {}
+    assert _parse_json_float_mapping('["bad"]') == {}
+    assert _parse_json_float_mapping({"a": 1, "b": "x", "c": float("nan")}) == {"a": 1.0}
+    assert _parse_json_float_mapping("null") == {}
+    assert _parse_json_float_mapping("none") == {}
+    assert _parse_json_float_mapping("   ") == {}
+
+
+def test_food_item_parses_nutrition_nutrient_confidence() -> None:
+    food = FoodItem(
+        id="food-nc",
+        canonical_name="quinoa",
+        group="grain",
+        kcal=120.0,
+        protein_g=4.4,
+        fat_g=1.9,
+        carbs_g=21.3,
+        source="USDA",
+        version_date="2024-01-01",
+        nutrition_nutrient_confidence='{"kcal":0.7,"protein_g":0.6}',
+    )
+    assert food.nutrition_nutrient_confidence["kcal"] == pytest.approx(0.7)
+    assert food.nutrition_nutrient_confidence["protein_g"] == pytest.approx(0.6)
 
 
 def test_parse_json_mapping_helper_covers_none_invalid_and_non_dict_cases() -> None:
