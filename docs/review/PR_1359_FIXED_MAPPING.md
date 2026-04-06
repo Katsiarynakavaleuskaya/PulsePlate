@@ -34,6 +34,18 @@ Disposition: **FIXED** (evidence in `deploy/docker-compose.production.selfhosted
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1359#pullrequestreview-4062195935 -> ccfb52627b02d611616c6a7cdb0bf2effa530a6b
   Evidence: same as above (CodeRabbit aggregate review).
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1359#discussion_r3039842094 -> 3e229558ee6e79bed1e76114b949006a17d9894d
+  Evidence: same self-hosted compose + droplet runbook scope as prior threads (CodeRabbit follow-up).
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1359#pullrequestreview-4062421496 -> 3e229558ee6e79bed1e76114b949006a17d9894d
+  Evidence: same as above (CodeRabbit aggregate review, round 2).
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1359#discussion_r3039852130 -> 3e229558ee6e79bed1e76114b949006a17d9894d
+  Evidence: same as above (Cubic follow-up).
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1359#pullrequestreview-4062432851 -> 3e229558ee6e79bed1e76114b949006a17d9894d
+  Evidence: same as above (Cubic aggregate review, round 2).
+
 ## Merge Readiness
 
 - [ ] All required checks pass (GitHub CI on current PR head after each push)
