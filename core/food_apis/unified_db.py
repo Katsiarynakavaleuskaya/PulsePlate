@@ -18,6 +18,11 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, TypedDict
 
+from core.off_nutrition.bridge import (
+    merge_wire_nutrition_sources,
+    nutrition_inputs_from_unified_wire,
+)
+
 from .usda_client import USDAClient, USDAFoodItem
 from .unified_language import normalize_unified_db_language
 
@@ -169,6 +174,60 @@ class UnifiedFoodItem:
             nutrition_confidence=float(getattr(off_item, "nutrition_confidence", 0.0)),
         )
 
+    @classmethod
+    def from_usda_and_off_merge(
+        cls,
+        usda_unified: "UnifiedFoodItem",
+        off_unified: "UnifiedFoodItem",
+    ) -> "UnifiedFoodItem":
+        """Merge USDA primary hit with Open Food Facts via shared nutrition resolver.
+
+        RU: Слияние первичной строки USDA с OFF через общий nutrition resolver.
+        EN: Merge USDA primary row with OFF using the shared resolver priority order.
+        """
+
+        usda_inputs = nutrition_inputs_from_unified_wire(
+            nutrition_inputs_wire=usda_unified.nutrition_inputs,
+            nutrients_per_100g=usda_unified.nutrients_per_100g,
+            fallback_source="usda",
+            record_id=usda_unified.source_id,
+        )
+        off_inputs = nutrition_inputs_from_unified_wire(
+            nutrition_inputs_wire=off_unified.nutrition_inputs,
+            nutrients_per_100g=off_unified.nutrients_per_100g,
+            fallback_source="estimate",
+            record_id=off_unified.source_id,
+        )
+        key_union = set(usda_unified.nutrients_per_100g) | set(off_unified.nutrients_per_100g)
+        nutrient_keys = sorted(key_union) if key_union else None
+        resolved = merge_wire_nutrition_sources(
+            primary_inputs=usda_inputs,
+            secondary_inputs=off_inputs,
+            nutrient_keys=nutrient_keys,
+        )
+        nutrients = dict(resolved.nutrients)
+        nutrients.setdefault("protein_g", 0.0)
+        nutrients.setdefault("fat_g", 0.0)
+        nutrients.setdefault("carbs_g", 0.0)
+        tags = list(dict.fromkeys([*usda_unified.tags, *off_unified.tags]))
+        regions = list(
+            dict.fromkeys([*usda_unified.availability_regions, *off_unified.availability_regions])
+        )
+        return cls(
+            name=usda_unified.name,
+            nutrients_per_100g=nutrients,
+            cost_per_100g=usda_unified.cost_per_100g,
+            tags=tags,
+            availability_regions=regions,
+            source="USDA FoodData Central + Open Food Facts (merged)",
+            source_id=usda_unified.source_id,
+            category=usda_unified.category or off_unified.category,
+            nutrition_inputs=[entry.to_dict() for entry in resolved.raw_inputs],
+            nutrition_provenance=dict(resolved.provenance),
+            nutrition_nutrient_confidence=dict(resolved.nutrient_confidence),
+            nutrition_confidence=resolved.confidence,
+        )
+
     def to_menu_engine_format(self) -> UnifiedFoodResult:
         """Convert to format expected by menu_engine.py"""
         return {
@@ -291,6 +350,24 @@ class UnifiedFoodDatabase:
                         self._memory_cache[cache_key] = unified_item
             except Exception:
                 logger.exception("Error searching USDA")
+
+        # When USDA is preferred and returned hits, enrich the top result with OFF using
+        # the shared resolver (USDA ranks above OFF per DEFAULT_SOURCE_PRIORITY).
+        if prefer_source == "usda" and results and self.off_client:
+            try:
+                off_results = await self.off_client.search_products(query, page_size=1)
+                if off_results:
+                    off_unified = UnifiedFoodItem.from_off_item(off_results[0])
+                    merged = UnifiedFoodItem.from_usda_and_off_merge(results[0], off_unified)
+                    results[0] = merged
+                    if cache_key in self._memory_cache:
+                        self._memory_cache[cache_key] = merged
+            except Exception as exc:
+                logger.debug(
+                    "Unified DB: skipping USDA+OFF nutrition merge for query %r: %s",
+                    query,
+                    exc,
+                )
 
         # Search Open Food Facts if USDA results are empty or if preferred
         if (prefer_source == "openfoodfacts" or not results) and self.off_client:
