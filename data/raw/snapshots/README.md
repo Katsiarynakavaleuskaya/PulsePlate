@@ -15,7 +15,8 @@ This directory holds **local, git-ignored** Open Food Facts raw snapshot trees.
 ## Commands
 
 - Sync OFF snapshots: `python scripts/sync_food_snapshots.py` (optional `--root`, `--force`).
-- Verify manifest + files before DB build: `python scripts/build_food_db.py --validate-raw-snapshots`.
+- Verify manifest + files before DB build: `python scripts/build_food_db.py --validate-raw-snapshots`
+  (fail-closed: requires `off/manifest.json` under the snapshot root; build aborts if missing or tampered).
 
 Programmatic sync: `core.food_apis.snapshot_sync.sync_openfoodfacts_snapshot` or
 `DatabaseUpdateManager.sync_openfoodfacts_raw_snapshot`.

@@ -42,6 +42,28 @@ def test_validate_off_raw_manifest_gate_skips_without_manifest(tmp_path: Path) -
     assert result["reason"] == "missing_off_manifest"
 
 
+def test_validate_off_raw_manifest_gate_strict_missing_manifest_raises(tmp_path: Path) -> None:
+    snap_root = tmp_path / "snapshots"
+    snap_root.mkdir(parents=True)
+    with pytest.raises(SnapshotIntegrityError, match="missing off/manifest.json"):
+        validate_off_raw_manifest_gate(tmp_path, enabled=True, snapshot_root=snap_root, strict=True)
+
+
+def test_validate_off_raw_manifest_gate_snapshot_root_expanduser(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """``snapshot_root`` with ``~`` must resolve like env-based defaults."""
+    home = tmp_path / "home"
+    snap_root = home / "snapshots"
+    snap_root.mkdir(parents=True)
+    monkeypatch.setenv("HOME", str(home))
+    result = validate_off_raw_manifest_gate(
+        tmp_path, enabled=True, snapshot_root=Path("~/snapshots")
+    )
+    assert result["reason"] == "missing_off_manifest"
+    assert str(snap_root.resolve()) in result["root"]
+
+
 def test_validate_off_raw_manifest_gate_verifies_recorded(tmp_path: Path) -> None:
     base = tmp_path / "snapshots"
     manager = SnapshotManager(base)
@@ -100,6 +122,26 @@ def test_sync_openfoodfacts_snapshot_uses_manager(
     monkeypatch.setattr(SnapshotManager, "sync_if_needed", fake_sync)
     sync_openfoodfacts_snapshot(tmp_path, project_root=tmp_path, force=True)
     assert calls == [True]
+
+
+def test_sync_openfoodfacts_snapshot_propagates_today_provider_to_manager(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """``today_provider`` must feed both delta source and SnapshotManager (Codex P2)."""
+    fixed = date(2024, 1, 15)
+
+    def fixed_today() -> date:
+        return fixed
+
+    captured: list[date] = []
+
+    def fake_sync(self: SnapshotManager, source: object, force: bool = False) -> None:
+        captured.append(self._today_provider())
+        return None
+
+    monkeypatch.setattr(SnapshotManager, "sync_if_needed", fake_sync)
+    sync_openfoodfacts_snapshot(tmp_path, project_root=tmp_path, today_provider=fixed_today)
+    assert captured == [fixed]
 
 
 def test_sync_openfoodfacts_raw_root_expanduser(

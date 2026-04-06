@@ -18,19 +18,33 @@ def validate_off_raw_manifest_gate(
     project_root: Path,
     enabled: bool,
     snapshot_root: Path | None = None,
+    *,
+    strict: bool = False,
 ) -> dict[str, object]:
     """
     When ``enabled`` is False, return a disabled marker dict.
 
-    When enabled and ``off/manifest.json`` is missing under the snapshot root, return
-    ``status=skipped``. Otherwise run :meth:`SnapshotManager.verify_recorded_snapshots`
+    When enabled and ``off/manifest.json`` is missing under the snapshot root:
+    if ``strict`` is True (e.g. ``build_food_db --validate-raw-snapshots``), raise
+    :class:`SnapshotIntegrityError`; otherwise return ``status=skipped`` for optional checks.
+
+    When the manifest exists, run :meth:`SnapshotManager.verify_recorded_snapshots`
     for source ``off`` and return ``status=verified``.
     """
     if not enabled:
         return {"enabled": False}
-    root = snapshot_root if snapshot_root is not None else default_raw_snapshot_root(project_root)
+    root = (
+        snapshot_root.expanduser().resolve()
+        if snapshot_root is not None
+        else default_raw_snapshot_root(project_root)
+    )
     manifest_path = root / "off" / "manifest.json"
     if not manifest_path.is_file():
+        if strict:
+            raise SnapshotIntegrityError(
+                "OFF raw snapshot gate failed: missing off/manifest.json under "
+                f"{root} (strict validation requires a recorded manifest)"
+            )
         return {
             "enabled": True,
             "status": "skipped",

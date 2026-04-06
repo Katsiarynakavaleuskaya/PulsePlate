@@ -466,7 +466,7 @@ def main() -> None:
     if args.validate_raw_snapshots:
         from core.food_apis.raw_snapshot_gate import validate_off_raw_manifest_gate
 
-        gate = validate_off_raw_manifest_gate(project_root, enabled=True)
+        gate = validate_off_raw_manifest_gate(project_root, enabled=True, strict=True)
         logging.info("Raw snapshot gate: %s", gate)
         if gate.get("enabled") and gate.get("status") == "verified":
             logging.info("OFF raw snapshots verified: %s file(s)", gate.get("snapshots_checked"))

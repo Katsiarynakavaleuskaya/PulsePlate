@@ -43,6 +43,6 @@ def sync_openfoodfacts_snapshot(
         if raw_root is not None
         else default_raw_snapshot_root(project_root)
     )
-    manager = SnapshotManager(resolved)
+    manager = SnapshotManager(resolved, today_provider=today_provider)
     source = OpenFoodFactsDeltaSource(transport=transport, today_provider=today_provider)
     return manager.sync_if_needed(source, force=force)
