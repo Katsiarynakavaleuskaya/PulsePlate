@@ -9,8 +9,8 @@
 ## Fixed in Commit Mapping
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1357#pullrequestreview-4062081447
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1357#discussion_r3039564062
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1357#pullrequestreview-4062107107
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1357#discussion_r3039564062 -> a908bcbf
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1357#pullrequestreview-4062107107 -> a908bcbf
 
 Disposition: FIXED (CodeRabbit artifact checkboxes + symlink-loop resolve guard); NOT-A-BUG (Sourcery shebang/docstring and refactor suggestions out of PR scope)
 Evidence: `docs/review/PR_1357_FIXED_MAPPING.md` (artifact `[x]` per `review_mapping_artifact.py:30-31`); `scripts/ci/check_local_verify_environment.py` (`RuntimeError` with `resolve()`, docstring for first-token shebang); `tests/test_check_local_verify_environment.py` (`resolve` RuntimeError branch)
@@ -23,6 +23,6 @@ Evidence: `docs/review/PR_1357_FIXED_MAPPING.md` (artifact `[x]` per `review_map
 - [ ] Pre-commit green
 - [ ] `make verify` green locally
 
-Notes: If merge-readiness disposition guard requires a `Commit:` line for FIXED threads, add `- <url> -> <sha>` lines after landing this commit (commit-after-comment policy). Ledger checkbox for `ledger-p0-verify-env-wrapper-parity` closes in a **same-day docs-only PR** after merge.
+Notes: CodeRabbit FIXED threads map to `a908bcbf` (verify-env + artifact `[x]`). Ledger checkbox for `ledger-p0-verify-env-wrapper-parity` closes in a **same-day docs-only PR** after merge.
 
 <!-- markdownlint-enable MD034 -->
