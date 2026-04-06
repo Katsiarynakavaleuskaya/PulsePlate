@@ -6,9 +6,11 @@ import json
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
+import core.food_sources.snapshot_manager as snapshot_manager_module
 from core.food_sources.snapshot_manager import (
     SnapshotIntegrityError,
     SnapshotManager,
@@ -497,3 +499,132 @@ def test_verify_recorded_snapshots_size_mismatch_fails_closed(tmp_path: Path) ->
     )
     with pytest.raises(SnapshotIntegrityError, match="Size mismatch"):
         manager.verify_recorded_snapshots("size-mismatch")
+
+
+def test_verify_recorded_snapshots_rejects_manifest_path_traversal(tmp_path: Path) -> None:
+    """RU/EN: Manifest ``file`` must not escape ``base_path / source`` via ``..``."""
+    manager = SnapshotManager(tmp_path, today_provider=lambda: date(2026, 2, 24))
+    source_name = "esc"
+    source_dir = tmp_path / source_name
+    source_dir.mkdir(parents=True)
+    outside = tmp_path / "outside_evidence.bin"
+    outside.write_bytes(b"secret")
+    manifest_path = source_dir / "manifest.json"
+    manifest_path.write_text(
+        json.dumps(
+            {
+                "source": source_name,
+                "snapshots": [
+                    {
+                        "date": "2026-02-24",
+                        "file": "../../outside_evidence.bin",
+                        "checksum": sha256_file(outside),
+                        "records": 1,
+                        "bytes": outside.stat().st_size,
+                        "mode": "full",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    with pytest.raises(SnapshotIntegrityError, match="escapes source root"):
+        manager.verify_recorded_snapshots(source_name)
+
+
+def test_verify_recorded_snapshots_rejects_absolute_path_outside_source(tmp_path: Path) -> None:
+    """RU/EN: Absolute ``file`` outside the source directory must be rejected."""
+    manager = SnapshotManager(tmp_path, today_provider=lambda: date(2026, 2, 24))
+    source_name = "absout"
+    source_dir = tmp_path / source_name
+    source_dir.mkdir(parents=True)
+    outside = tmp_path / "elsewhere" / "x.bin"
+    outside.parent.mkdir(parents=True)
+    outside.write_bytes(b"x")
+    manifest_path = source_dir / "manifest.json"
+    manifest_path.write_text(
+        json.dumps(
+            {
+                "source": source_name,
+                "snapshots": [
+                    {
+                        "date": "2026-02-24",
+                        "file": str(outside.resolve()),
+                        "checksum": sha256_file(outside),
+                        "records": 1,
+                        "bytes": outside.stat().st_size,
+                        "mode": "full",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    with pytest.raises(SnapshotIntegrityError, match="escapes source root"):
+        manager.verify_recorded_snapshots(source_name)
+
+
+def test_validate_snapshot_maps_exists_oserror_to_integrity(tmp_path: Path) -> None:
+    manager = SnapshotManager(tmp_path, today_provider=lambda: date(2026, 2, 24))
+    snap = tmp_path / "probe" / "a.bin"
+    snap.parent.mkdir(parents=True)
+    snap.write_bytes(b"a")
+    meta = SnapshotMeta(
+        source="probe",
+        snapshot_date=date(2026, 2, 24),
+        file_path=snap,
+        checksum_sha256=sha256_file(snap),
+        record_count=1,
+        size_bytes=snap.stat().st_size,
+        mode="full",
+    )
+    with patch.object(Path, "exists", side_effect=PermissionError("denied")):
+        with pytest.raises(SnapshotIntegrityError, match="not accessible"):
+            manager.validate_snapshot(meta)
+
+
+def test_validate_snapshot_maps_stat_oserror_to_integrity(tmp_path: Path) -> None:
+    manager = SnapshotManager(tmp_path, today_provider=lambda: date(2026, 2, 24))
+    snap = tmp_path / "probe2" / "a.bin"
+    snap.parent.mkdir(parents=True)
+    snap.write_bytes(b"a")
+    meta = SnapshotMeta(
+        source="probe2",
+        snapshot_date=date(2026, 2, 24),
+        file_path=snap,
+        checksum_sha256=sha256_file(snap),
+        record_count=1,
+        size_bytes=snap.stat().st_size,
+        mode="full",
+    )
+
+    def _exists(self: Path) -> bool:
+        return True
+
+    with patch.object(Path, "exists", _exists):
+        with patch.object(Path, "stat", side_effect=OSError("stat failed")):
+            with pytest.raises(SnapshotIntegrityError, match="not accessible"):
+                manager.validate_snapshot(meta)
+
+
+def test_validate_snapshot_maps_sha256_oserror_to_integrity(tmp_path: Path) -> None:
+    manager = SnapshotManager(tmp_path, today_provider=lambda: date(2026, 2, 24))
+    snap = tmp_path / "probe3" / "a.bin"
+    snap.parent.mkdir(parents=True)
+    snap.write_bytes(b"a")
+    meta = SnapshotMeta(
+        source="probe3",
+        snapshot_date=date(2026, 2, 24),
+        file_path=snap,
+        checksum_sha256=sha256_file(snap),
+        record_count=1,
+        size_bytes=snap.stat().st_size,
+        mode="full",
+    )
+    with patch.object(
+        snapshot_manager_module,
+        "sha256_file",
+        side_effect=OSError("read failed"),
+    ):
+        with pytest.raises(SnapshotIntegrityError, match="not accessible"):
+            manager.validate_snapshot(meta)

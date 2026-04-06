@@ -208,27 +208,49 @@ class SnapshotManager:
         Resolve a manifest ``file`` field to an absolute path.
 
         RU: Относительные пути считаются относительно каталога манифеста источника
-        (стабильно при смене CWD процесса).
+        (стабильно при смене CWD процесса). Путь не должен выходить за пределы
+        ``base_path / source`` (защита от ``..`` и абсолютных путей вне дерева).
         EN: Relative paths are resolved against the source manifest directory so
-        re-validation does not depend on process working directory.
+        re-validation does not depend on process working directory. Resolved paths
+        must stay under ``base_path / source`` (no ``..`` / absolute escape).
         """
         manifest_parent = self._manifest_path(source).parent
+        source_root = manifest_parent.resolve()
         candidate = Path(file_field)
         if candidate.is_absolute():
-            return candidate.resolve()
-        return (manifest_parent / candidate).resolve()
+            resolved = candidate.resolve()
+        else:
+            resolved = (manifest_parent / candidate).resolve()
+        try:
+            resolved.relative_to(source_root)
+        except ValueError as exc:
+            raise SnapshotIntegrityError(
+                "Manifest snapshot path escapes source root for "
+                f"source={source!r}: {file_field!r}"
+            ) from exc
+        return resolved
 
     def validate_snapshot(self, meta: SnapshotMeta) -> None:
         """Fail-closed integrity validation before manifest update."""
-        if not meta.file_path.exists():
+        try:
+            exists = meta.file_path.exists()
+        except OSError as exc:
+            raise SnapshotIntegrityError(f"Snapshot file not accessible: {meta.file_path}") from exc
+        if not exists:
             raise SnapshotIntegrityError(f"Snapshot file does not exist: {meta.file_path}")
-        actual_size = meta.file_path.stat().st_size
+        try:
+            actual_size = meta.file_path.stat().st_size
+        except OSError as exc:
+            raise SnapshotIntegrityError(f"Snapshot file not accessible: {meta.file_path}") from exc
         if actual_size != meta.size_bytes:
             raise SnapshotIntegrityError(
                 "Size mismatch for snapshot "
                 f"{meta.file_path}: expected_bytes={meta.size_bytes} actual_bytes={actual_size}"
             )
-        actual_checksum = sha256_file(meta.file_path)
+        try:
+            actual_checksum = sha256_file(meta.file_path)
+        except OSError as exc:
+            raise SnapshotIntegrityError(f"Snapshot file not accessible: {meta.file_path}") from exc
         if actual_checksum != meta.checksum_sha256:
             raise SnapshotIntegrityError(
                 "Checksum mismatch for snapshot "
