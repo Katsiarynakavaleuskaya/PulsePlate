@@ -177,11 +177,14 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `Makefile`
     - `scripts/ci/check_local_verify_environment.py`
     - `tests/test_check_local_verify_environment.py`
+    - `RUNBOOK_AGENT.md` (section “Clean-Clone Verify Parity” / verify-env)
+    - `AGENTS.md` (Hard Gates / verify-env console-script note)
   - DoD:
     - `verify-env` detects stale or non-executable repo tool wrappers before `lint`
     - Local verify path fails with explicit remediation instead of bad-interpreter shell errors
     - Deterministic tests cover stale shebang or broken-wrapper detection
     - Local merge-gate docs reference the stronger parity check
+  - Status: implementation may land in a runtime PR; close this checkbox via a same-day docs-only PR after merge (ledger policy).
 
 <a id="ledger-p0-web-entitlement-truth"></a>
 - [ ] P0: Web entitlement truth must come from canonical backend/store state
