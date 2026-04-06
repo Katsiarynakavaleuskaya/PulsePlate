@@ -22,6 +22,17 @@ Scope: `docs/orchestration/**`
   - canonical packet/runbook:
     - [`docs/orchestration/TIER1_CI_CD_TASK_PACKET_2026-03-26.md`](./TIER1_CI_CD_TASK_PACKET_2026-03-26.md)
     - [`docs/orchestration/TIER1_CI_CD_PR_SERIES_RUNBOOK.md`](./TIER1_CI_CD_PR_SERIES_RUNBOOK.md)
+- For the METATRON Track A lane (offensive lab **out-of-band**; no product runtime):
+  - primary: `agent-coordinator`
+  - reviewers: `security-auditor`, `bug-hunter`, `architecture-specialist`
+  - acceptance: `qa-engineer-agent` (docs/deploy-only PRs: confirm no `app/` pentest surface)
+  - execution helper: `dev-operator`
+  - optional consult: `data-scientist-agent`, `epistemology-discovery-agent`, `tutor-mentor-agent`, `cursor-specialist-agent` (only if `.cursor/**` edits)
+  - backend: `backend-engineer` only on explicit non-user ingest ticket (not Epic 1 default)
+  - mandatory post-open lane: `qa-engineer-agent -> bug-hunter`
+  - canonical packet:
+    - [`docs/orchestration/METATRON_TRACK_A_EPIC1_TASK_PACKET_2026-04-06.md`](./METATRON_TRACK_A_EPIC1_TASK_PACKET_2026-04-06.md)
+  - related runbook: [`docs/orchestration/METATRON_SECURITY_ASSESSMENT_WAVE_RUNBOOK.md`](./METATRON_SECURITY_ASSESSMENT_WAVE_RUNBOOK.md)
 - For Apple/provider modernization follow-on lanes that preserve the public billing transport contract:
   - primary: `agent-coordinator`
   - secondary: `backend-engineer`

@@ -1,0 +1,19 @@
+# METATRON lab — isolated network stub only (no PulsePlate app build).
+# Profile keeps default `docker compose` invocations inert without --profile.
+name: metatron-lab
+services:
+  lab-network-placeholder:
+    image: alpine:3.20
+    profiles: ["metatron-lab-isolation"]
+    # BusyBox sleep rejects "infinity"; keep a long-lived placeholder for the internal network.
+    command: ["/bin/sh", "-c", "while true; do sleep 86400; done"]
+    networks: [lab_internal]
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 64M
+
+networks:
+  lab_internal:
+    internal: true

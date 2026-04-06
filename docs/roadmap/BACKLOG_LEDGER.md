@@ -170,7 +170,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P0: Verify-env executable wrapper parity for local merge gate
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0
-  - Target PR: PR-TBD-VERIFY-ENV-WRAPPER-PARITY
+  - Target PR: #1357
   - Area: tooling / local verify / developer workflow
   - Finding Type: false-green preflight gap
   - Reason: Local `make verify` can fail after `verify-env` already passed when stale `.venv` console entrypoints still point to deleted interpreters/worktrees. The preflight must detect broken wrappers or switch the gate to interpreter-module mode so local merge evidence is trustworthy.
@@ -178,11 +178,14 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `Makefile`
     - `scripts/ci/check_local_verify_environment.py`
     - `tests/test_check_local_verify_environment.py`
+    - `RUNBOOK_AGENT.md` (section “Clean-Clone Verify Parity” / verify-env)
+    - `AGENTS.md` (Hard Gates / verify-env console-script note)
   - DoD:
     - `verify-env` detects stale or non-executable repo tool wrappers before `lint`
     - Local verify path fails with explicit remediation instead of bad-interpreter shell errors
     - Deterministic tests cover stale shebang or broken-wrapper detection
     - Local merge-gate docs reference the stronger parity check
+  - Status: implementation may land in a runtime PR; close this checkbox via a same-day docs-only PR after merge (ledger policy).
 
 <a id="ledger-p0-web-entitlement-truth"></a>
 - [ ] P0: Web entitlement truth must come from canonical backend/store state
@@ -311,6 +314,26 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - No duplicate or conflicting ownership across active worktrees
 
 ### P1
+
+<a id="ledger-p1-metatron-offensive-lab-out-of-band"></a>
+- [ ] P1: METATRON-class offensive lab — out-of-band governance and operator runbook
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (security engineering / abuse prevention)
+  - Target PR: PR #1355
+  - Status: Epic 1 PR opened — coordinator task packet canonical (`docs/orchestration/METATRON_TRACK_A_EPIC1_TASK_PACKET_2026-04-06.md:1`); merge + checkbox closeout still pending.
+  - Area: security / deploy / orchestration / governance
+  - Reason (EN): METATRON-like stacks (local LLM + offensive recon) must not enter the PulsePlate product runtime or OpenAPI; operators still need canonical RoE, ADR, isolated deploy boundary, and coordinator-led assessment workflow. (RU: оффенсив-лаборатория остаётся вне продукта, но процесс и документы должны быть в репозитории.)
+  - Links:
+    - `docs/orchestration/METATRON_TRACK_A_EPIC1_TASK_PACKET_2026-04-06.md:1`
+    - `docs/architecture/ADR_METATRON_OFFENSIVE_LAB_OUT_OF_BAND_2026-04-06.md:1`
+    - `docs/security/METATRON_LAB_RULES_OF_ENGAGEMENT.md:1`
+    - `docs/orchestration/METATRON_SECURITY_ASSESSMENT_WAVE_RUNBOOK.md:1`
+    - `deploy/metatron-lab/README.md:1`
+  - DoD:
+    - ADR + RoE merged with Phase 1 docs evidence anchors
+    - Ledger links this packet; Target PR updated when merged
+    - No offensive tooling in `app.main` / product requirements; lab remains optional compose profile
+    - `make validate-min` (or `make verify` if orchestration scripts change) green on PR head
 
 <a id="ledger-p1-execution-doc-sot-reconciliation"></a>
 - [ ] P1: Execution-doc source-of-truth reconciliation after PR-1
