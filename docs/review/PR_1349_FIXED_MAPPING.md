@@ -25,7 +25,7 @@ Evidence: docs/architecture/ADR_SEARCH_PGTRGM_CANDIDATES_LANE_P2.md (path:line c
 
 ## Merge Readiness
 
-- [ ] All required checks pass on **current** PR head (re-run `gh pr view 1349 --json mergeStateStatus,headRefOid,statusCheckRollup` until `CLEAN` and rollup has no `FAILURE`/`ERROR`/`IN_PROGRESS`. Last green snapshot before mapping-only advance: `mergeStateStatus=CLEAN` at `headRefOid=e6f9c037a8140965ed4811534e36ed2319ff1ada`, 2026-04-06; `f542255d` re-triggers CI.)
+- [x] All required checks pass (`gh pr view 1349 --json mergeStateStatus,headRefOid,statusCheckRollup`: `mergeStateStatus=CLEAN`, `headRefOid=11a72eb6aa6c92599f171c723b35ad88c1cd672b`, rollup had no `FAILURE`/`ERROR`/`IN_PROGRESS`; 2026-04-06)
 - [x] No unresolved review threads (GraphQL `resolveReviewThread` for 5 threads, 2026-04-06)
 - [x] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
 - [x] Pre-commit green (push hook + commits `e8282c5e`, `f080e81e`)
