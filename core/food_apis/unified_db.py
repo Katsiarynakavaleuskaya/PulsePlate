@@ -368,6 +368,8 @@ class UnifiedFoodDatabase:
                     query,
                     exc,
                 )
+                # Drop stale search_* cache so a transient OFF failure can retry merge.
+                self._memory_cache.pop(cache_key, None)
 
         # Search Open Food Facts if USDA results are empty or if preferred
         if (prefer_source == "openfoodfacts" or not results) and self.off_client:

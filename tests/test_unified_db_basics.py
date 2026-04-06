@@ -509,6 +509,25 @@ class TestUnifiedFoodDatabaseSearch:
         assert len(results) == 1
         assert results[0].source == "USDA FoodData Central"
         assert "skipping USDA+OFF" in caplog.text
+        assert "search_plain usda merge skip" not in db._memory_cache  # noqa: SLF001
+
+        off_item = MagicMock()
+        off_item.product_name = "Branded retry"
+        off_item.nutrients_per_100g = {"fiber_g": 2.0}
+        off_item._generate_tags.return_value = ["branded"]
+        off_item.countries = ["US"]
+        off_item.code = "9998887776665"
+        off_item.categories = ["Meat"]
+        mock_off.search_products.side_effect = None
+        mock_off.search_products.return_value = [off_item]
+
+        caplog.clear()
+        merged_results = await db.search_food("plain usda merge skip", prefer_source="usda")
+        assert len(merged_results) == 1
+        top = merged_results[0]
+        assert "merged" in top.source.lower()
+        assert top.nutrients_per_100g.get("fiber_g") == 2.0
+        assert mock_off.search_products.await_count == 2
 
 
 class TestUnifiedFoodDatabaseGetById:

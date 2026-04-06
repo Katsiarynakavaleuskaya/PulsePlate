@@ -16,7 +16,7 @@ from .resolver import is_valid_nutrient_scalar, resolve_nutrition
 
 def nutrition_inputs_from_unified_wire(
     *,
-    nutrition_inputs_wire: Sequence[Mapping[str, Any]],
+    nutrition_inputs_wire: Sequence[Mapping[str, object]],
     nutrients_per_100g: Mapping[str, float],
     fallback_source: str,
     record_id: str | None,

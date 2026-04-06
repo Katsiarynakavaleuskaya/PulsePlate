@@ -42,6 +42,18 @@ def test_nutrition_inputs_skips_wire_when_all_nutrient_values_invalid() -> None:
     assert inputs[0].nutrients["fiber_g"] == 2.0
 
 
+def test_nutrition_inputs_filters_invalid_values_per_key() -> None:
+    """Invalid scalars for a nutrient key are dropped; valid keys on the same row stay."""
+    inputs = nutrition_inputs_from_unified_wire(
+        nutrition_inputs_wire=({"nutrients": {"protein_g": 10.0, "kcal": "not-a-number"}},),
+        nutrients_per_100g={"fiber_g": 1.0},
+        fallback_source="usda",
+        record_id="per-key-filter",
+    )
+    assert len(inputs) == 1
+    assert inputs[0].nutrients == {"protein_g": 10.0}
+
+
 def test_nutrition_inputs_from_unified_wire_empty_wire_uses_flat() -> None:
     inputs = nutrition_inputs_from_unified_wire(
         nutrition_inputs_wire=(),

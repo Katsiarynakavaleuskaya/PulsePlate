@@ -107,7 +107,7 @@ Every canonical record update must preserve:
 
 ### 5.4 Live USDA + OFF nutrition merge (MVP, no new HTTP routes)
 
-When the unified DB runs with USDA as the preferred source and both USDA and OFF clients are available, the first USDA result is merged with the top OFF search hit for the same query string. Field-level values follow `DEFAULT_SOURCE_PRIORITY` in `core/off_nutrition/resolver.py:15` (for example `usda` wins over `estimate` for the same nutrient key). Complementary nutrients present only in OFF are retained with `estimate` provenance. Implementation: `UnifiedFoodItem.from_usda_and_off_merge` in `core/food_apis/unified_db.py`, wire rebuild via `nutrition_inputs_from_unified_wire` in `core/off_nutrition/bridge.py`. This does not add or change public HTTP routes; it only affects internal unified search results used by menu-engine style helpers.
+When the unified DB runs with USDA as the preferred source and both USDA and OFF clients are available, the first USDA result is merged with the top OFF search hit for the same query string. Field-level values follow `DEFAULT_SOURCE_PRIORITY` in `core/off_nutrition/resolver.py:15` (for example `usda` wins over `estimate` for the same nutrient key). Complementary nutrients present only in OFF are retained with `estimate` provenance. Implementation: `UnifiedFoodItem.from_usda_and_off_merge` in `core/food_apis/unified_db.py`, wire rebuild via `nutrition_inputs_from_unified_wire` in `core/off_nutrition/bridge.py`. This does not add or change public HTTP routes; it only affects internal unified search results used by menu-engine-style helpers.
 
 ---
 
