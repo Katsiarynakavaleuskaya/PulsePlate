@@ -32,20 +32,19 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P0: Self-hosted Postgres Droplet Foundation
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0 (deployment-safety blocker)
-  - Target PR: TBD (branch `infra/p0-self-hosted-postgres-droplet`)
+  - Target PR: PR #1184 (infra/p0-self-hosted-postgres-droplet-foundation)
   - Area: infra / database / deploy
   - Reason: Promote Postgres from optional/profile-gated to canonical prod DB on Droplet. Insert narrow infra-wave between B1 and B2; Batch B remains active. SQLite stays dev/test fallback only.
   - Links:
     - docs/deploy/POSTGRES_SELF_HOSTED_DROPLET.md
-    - deploy/docker-compose.production.selfhosted.yaml
-    - deploy/systemd/pulseplate-postgres-backup.service.example
-    - scripts/ops/postgres_backup.sh
+    - docker-compose.yaml
     - core/db_fallback.py
   - DoD:
-    - Dedicated self-hosted compose: `postgres` without published 5432; `app` `depends_on` postgres + health condition; managed lane unchanged in `deploy/docker-compose.production.yaml`
-    - No dev-only password; `DATABASE_URL` + `POSTGRES_*` required per `.env.example`
-    - Backup/restore documented; host `scripts/ops/postgres_backup.sh` + optional systemd timer examples
-    - Runbook documents both lanes (managed vs self-hosted), migrations, Caddy build, health checks
+    - Postgres not optional/profile-gated in docker-compose
+    - No dev-only password; DATABASE_URL required for prod
+    - pulseplate depends_on postgres with health condition
+    - Backup/restore scripts exist
+    - Runbook documents migrations, health, backup/restore
 
 <a id="ledger-p0-payments-ruby-ios"></a>
 - [ ] P0: Payment rails for RU/BY + iOS-first monetization baseline
@@ -146,8 +145,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P0: Requested-agent bootstrap override and advisory specialist contract
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0
-  - Target PR: PR #1354 (https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1354); check `[x]` only after merge per ledger policy
-  - Status: Open for review; after merge, mark `[x]` via mandatory docs-only follow-up PR the same working day (backlog ledger policy).
+  - Target PR: PR-TBD-ORCHESTRATION-REQUESTED-AGENTS
   - Area: orchestration / task bootstrap / routing
   - Finding Type: coordinator bootstrap gap
   - Reason: The canonical coordinator workflow must preserve explicit user-requested agent slugs instead of dropping them during bootstrap. This is especially critical for `agent-coordinator`, `backend-engineer`, `bug-hunter`, `ml-engineer-agent`, and `data-scientist-agent`, where current routing semantics otherwise under-express user intent or hide non-routable specialists.
@@ -156,21 +154,17 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `docs/orchestration/AGENT_ROUTING_GRAPH.md`
     - `docs/orchestration/AGENT_NON_ROUTABLE_SPECIALISTS.md`
     - `docs/orchestration/workflow.md`
-    - `tests/test_task_bootstrap.py` (integration tests: `test_build_task_packet_*requested*`)
   - DoD:
     - Task packet schema records `requested_agents`
     - Bootstrap either honors, preserves as advisory, or rejects each requested slug with explicit rationale
     - Non-routable specialists are documented as user-requestable/advisory rather than silently unreachable
     - Deterministic tests cover routable promotion and non-routable advisory behavior
-  - Evidence (implementation):
-    - Graph slot set is evaluated before the non-routable specialist list so in-graph secondaries (e.g. `data-scientist-agent` on `cv`) promote correctly: `scripts/orchestration/task_bootstrap.py:568` (`allowed_promotions`), `:575` (graph precedence comment)
-    - Doc precedence: `docs/orchestration/AGENT_NON_ROUTABLE_SPECIALISTS.md:10`, rule 14 `docs/orchestration/AGENT_ROUTING_GRAPH.md:116`
 
 <a id="ledger-p0-verify-env-wrapper-parity"></a>
 - [ ] P0: Verify-env executable wrapper parity for local merge gate
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0
-  - Target PR: #1357
+  - Target PR: PR-TBD-VERIFY-ENV-WRAPPER-PARITY
   - Area: tooling / local verify / developer workflow
   - Finding Type: false-green preflight gap
   - Reason: Local `make verify` can fail after `verify-env` already passed when stale `.venv` console entrypoints still point to deleted interpreters/worktrees. The preflight must detect broken wrappers or switch the gate to interpreter-module mode so local merge evidence is trustworthy.
@@ -178,14 +172,11 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `Makefile`
     - `scripts/ci/check_local_verify_environment.py`
     - `tests/test_check_local_verify_environment.py`
-    - `RUNBOOK_AGENT.md` (section “Clean-Clone Verify Parity” / verify-env)
-    - `AGENTS.md` (Hard Gates / verify-env console-script note)
   - DoD:
     - `verify-env` detects stale or non-executable repo tool wrappers before `lint`
     - Local verify path fails with explicit remediation instead of bad-interpreter shell errors
     - Deterministic tests cover stale shebang or broken-wrapper detection
     - Local merge-gate docs reference the stronger parity check
-  - Status: implementation may land in a runtime PR; close this checkbox via a same-day docs-only PR after merge (ledger policy).
 
 <a id="ledger-p0-web-entitlement-truth"></a>
 - [ ] P0: Web entitlement truth must come from canonical backend/store state
@@ -314,28 +305,6 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - No duplicate or conflicting ownership across active worktrees
 
 ### P1
-
-<a id="ledger-p1-metatron-offensive-lab-out-of-band"></a>
-- [ ] P1: METATRON-class offensive lab — out-of-band governance and operator runbook
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P1 (security engineering / abuse prevention)
-  - Target PR: Epic 1 merged [#1355](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1355); Epic 2 / Epic 3 — PR-TBD (isolated runner + runbook; out of scope for Epic 1: no `app/` / product OpenAPI).
-  - Status: **Track A Epic 1 — CLOSED.** Landed via PR [#1355](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1355); canonical squash merge commit [`5a39c2ec3`](https://github.com/Katsiarynakavaleuskaya/PulsePlate/commit/5a39c2ec3) on `main`. Remaining: Epic 2 (infra/scripts isolated runner), Epic 3 (runbook) per coordinator sequencing after this ledger closeout.
-  - Area: security / deploy / orchestration / governance
-  - Reason (EN): METATRON-like stacks (local LLM + offensive recon) must not enter the PulsePlate product runtime or OpenAPI; operators still need canonical RoE, ADR, isolated deploy boundary, and coordinator-led assessment workflow. (RU: оффенсив-лаборатория остаётся вне продукта, но процесс и документы должны быть в репозитории.)
-  - Links:
-    - `docs/orchestration/METATRON_TRACK_A_EPIC1_TASK_PACKET_2026-04-06.md:1`
-    - `docs/architecture/ADR_METATRON_OFFENSIVE_LAB_OUT_OF_BAND_2026-04-06.md:1`
-    - `docs/security/METATRON_LAB_RULES_OF_ENGAGEMENT.md:1`
-    - `docs/orchestration/METATRON_SECURITY_ASSESSMENT_WAVE_RUNBOOK.md:1`
-    - `deploy/metatron-lab/README.md:1`
-    - Epic 1 merge evidence: [`5a39c2ec3`](https://github.com/Katsiarynakavaleuskaya/PulsePlate/commit/5a39c2ec3) (PR [#1355](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1355))
-  - DoD:
-    - [x] Epic 1: ADR + RoE + task packet + lab stub merged with evidence anchors (#1355 / `5a39c2ec3`)
-    - [x] Ledger links this packet; Epic 1 merge recorded
-    - [x] No offensive tooling in `app.main` / product requirements; lab remains optional compose profile
-    - [ ] Epic 2: isolated runner (infra/scripts only); merge-ready with `make verify` on touched surfaces per `AGENTS.md`
-    - [ ] Epic 3: operator assessment runbook / wave workflow hardening as needed
 
 <a id="ledger-p1-execution-doc-sot-reconciliation"></a>
 - [ ] P1: Execution-doc source-of-truth reconciliation after PR-1
@@ -2432,16 +2401,12 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P2: Local launcher rollout for coordinator-first automation
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2
-  - Target PR: PR #1350 + PR #1348 (repo docs/template + `local_session_bootstrap.sh` bridge); PR-TBD-LOCAL-LAUNCHER-ROLLOUT (host wrapper install / automation outside repo)
+  - Target PR: PR-TBD-LOCAL-LAUNCHER-ROLLOUT (outside repo PR chain; after PR2 minimum, preferred after PR5, and after any repo follow-on PR-A/B/C for the local workforce track)
   - Area: local tooling / launcher / Codex runtime
   - Finding Type: non-repo rollout follow-up
-  - Status (EN): Repo-side support merged: PR #1348 (`scripts/orchestration/local_session_bootstrap.sh`, SoT alignment), PR #1350 (`docs/templates/codex.config.example.toml`, `docs/dev/CODEX_SKILLS.md`, `docs/dev/AGENT_COMPATIBILITY_ONBOARDING.md`). Operator-owned machine launcher (preflight + bootstrap wiring, `PATH` / `CODEX_HOME`) remains open per DoD below. Merge commit for PR #1350 on `main`: `a3345b23102aa7c46e1dc36083edc7c2ec2e7ca4`.
   - Reason: Repo docs and deterministic engines alone cannot force raw session auto-start. A machine-local launcher or wrapper must wire preflight, bootstrap, and compatible runtime settings without pretending that `~/.codex/config.toml` is repo source of truth.
   - Links:
     - `docs/orchestration/AUTOMATION_READINESS_MATRIX.md`
-    - `docs/templates/codex.config.example.toml`
-    - `scripts/orchestration/local_session_bootstrap.sh`
-    - `docs/dev/CODEX_SKILLS.md`
     - `~/.codex/config.toml`
   - DoD:
     - Local launcher/wrapper classifies new tasks and invokes preflight + bootstrap before normal execution
@@ -4475,6 +4440,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `core/food_sources/`
     - `core/food_apis/update_manager.py`
     - `scripts/build_food_db.py`
+    - Merge follow-up: PR #1360 — fail-closed `verify_recorded_snapshots` + recorded size/checksum enforcement (extends W1 manifest integrity)
   - DoD:
     - Immutable raw snapshot layout is implemented
     - Manifest/checksum policy is enforced fail-closed
@@ -7221,12 +7187,17 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P2: Search zero-downtime swap orchestration lane
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2
-  - Target PR: PR-TBD-SEARCH-ZERO-DOWNTIME-SWAP
+  - Target PR: PR #1365 (<https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1365>)
   - Area: backend / search / ops
   - Finding Type: deferred indexing-orchestration rollout
-  - Reason: This foundation PR adds deterministic indexing helpers only. The admin/orchestration surface for build-validate-warm-swap cleanup remains deferred until Meili shadow rollout is proven and operational safeguards are specified.
+  - Reason (EN): Offline CLI + orchestrator on branch `swap/zero-downtime` implement build/validate/warm/swap without new public HTTP routes. Mark this checkbox after merge via the mandatory docs-only ledger follow-up; remaining DoD (grace-period cleanup / rollback tests) may need a follow-up PR if not fully satisfied in #1365.
   - Links:
     - `app/services/food_search_indexing.py`
+    - `app/services/meili_swap_orchestration.py:46`
+    - `scripts/meili_food_index_swap.py:1`
+    - `tests/test_meili_swap_orchestration.py:1`
+    - `docs/deploy/MEILISEARCH_ZERO_DOWNTIME_SWAP_RUNBOOK.md:1`
+    - `docs/orchestration/MEILI_SWAP_PR_READINESS.md:1`
     - `docs/review/PR_1099_FIXED_MAPPING.md`
     - `docs/orchestration/plan_SEARCH_ZERO_DOWNTIME_SWAP_FOLLOWUP.md`
   - DoD:
