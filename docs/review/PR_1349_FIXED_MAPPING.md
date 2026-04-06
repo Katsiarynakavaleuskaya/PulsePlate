@@ -25,7 +25,7 @@ Evidence: docs/architecture/ADR_SEARCH_PGTRGM_CANDIDATES_LANE_P2.md (path:line c
 
 ## Merge Readiness
 
-- [x] All required checks pass (`gh pr view 1349`: `mergeStateStatus=CLEAN`, `mergeable=MERGEABLE`, no `FAILURE`/`ERROR` in `statusCheckRollup`; 2026-04-06)
+- [ ] All required checks pass (re-run `gh pr view 1349 --json mergeStateStatus,statusCheckRollup`; tick only when `mergeStateStatus` is `CLEAN` and rollup has no `FAILURE`/`ERROR` — doc-only pushes can briefly show `UNSTABLE` while CI runs; prior snapshot: `CLEAN` at `bb63db61` head before `94f06760`)
 - [x] No unresolved review threads (GraphQL `resolveReviewThread` for 5 threads, 2026-04-06)
 - [x] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
 - [x] Pre-commit green (push hook + commits `e8282c5e`, `f080e81e`)
