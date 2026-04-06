@@ -24,6 +24,11 @@ Disposition: NOT-A-BUG
 Evidence: `docs/review/PR_1347_FIXED_MAPPING.md:18`, `docs/review/PR_1347_FIXED_MAPPING.md:31`, `docs/review/PR_1347_FIXED_MAPPING.md:37`
 Reason: The aggregate CodeRabbit review only summarizes the concrete artifact/checklist threads mapped below; after those thread-level fixes, no separate unresolved action remains in the parent review.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1347#pullrequestreview-4060717477
+Disposition: NOT-A-BUG
+Evidence: `.github/workflows/ios-appstore-assets.yml:43`, `.github/workflows/ios-appstore-assets.yml:124`, `docs/review/PR_1347_FIXED_MAPPING.md:22`
+Reason: This late aggregate CodeRabbit pass only proposes maintainability nitpicks. PR1 stays intentionally narrow to Xcode 26 readiness truth; adding unused `GITHUB_OUTPUT` exports and extracting a new composite action would widen the lane without changing current behavior, so the review has no independent merge blocker beyond the already-dispositioned thread-level fixes above.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1347#discussion_r3038230599
 Disposition: FIXED
 Commit: c2f1f3da
