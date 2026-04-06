@@ -8,7 +8,22 @@
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+Disposition: **FIXED** (evidence in `deploy/docker-compose.production.selfhosted.yaml`, `docs/deploy/POSTGRES_SELF_HOSTED_DROPLET.md`).
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1359#discussion_r3039605502 -> ccfb52627b02d611616c6a7cdb0bf2effa530a6b
+  Evidence: `deploy/docker-compose.production.selfhosted.yaml:56` (`--forwarded-allow-ips=\"caddy\"`).
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1359#discussion_r3039634911 -> ccfb52627b02d611616c6a7cdb0bf2effa530a6b
+  Evidence: same as above.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1359#discussion_r3039614630 -> ccfb52627b02d611616c6a7cdb0bf2effa530a6b
+  Evidence: `docs/deploy/POSTGRES_SELF_HOSTED_DROPLET.md` (restore example: `PROJECT_DIR` / `COMPOSE_FILE`).
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1359#discussion_r3039634907 -> ccfb52627b02d611616c6a7cdb0bf2effa530a6b
+  Evidence: `deploy/docker-compose.production.selfhosted.yaml:49` (`DATABASE_URL` from `POSTGRES_*`).
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1359#discussion_r3039637437 -> ccfb52627b02d611616c6a7cdb0bf2effa530a6b
+  Evidence: `deploy/docker-compose.production.selfhosted.yaml:82` (`PRODUCTION_DOMAIN` `:?`).
 
 ## Merge Readiness
 
@@ -17,7 +32,5 @@
 - [ ] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
 - [ ] Pre-commit green
 - [ ] `make verify` green locally
-
-Notes: Opened without prior review threads; update mapping when bots or humans leave actionable comments.
 
 <!-- markdownlint-enable MD034 -->
