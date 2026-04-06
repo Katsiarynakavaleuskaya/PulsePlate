@@ -1,6 +1,6 @@
 # Postgres on Droplet: production database lanes
 
-**Evidence (compose):** `deploy/docker-compose.production.yaml:22` (managed `DATABASE_URL`), `deploy/docker-compose.production.selfhosted.yaml:1` (colocated Postgres).
+**Evidence (compose):** `deploy/docker-compose.production.yaml:22` (managed `DATABASE_URL`), `deploy/docker-compose.production.selfhosted.yaml:49` (synthesized `DATABASE_URL` from `POSTGRES_*`), `deploy/docker-compose.staging.yaml:42` (Caddy `--forwarded-allow-ips` pattern).
 
 ## Lane A — Managed PostgreSQL (default production)
 
@@ -22,7 +22,7 @@ Health via the edge (after DNS/TLS):
 ## Lane B — Self-hosted Postgres on the same Droplet
 
 - **Compose:** `deploy/docker-compose.production.selfhosted.yaml`
-- **Contract:** internal `postgres` service (no host-published `5432`), `app` has `depends_on: postgres` with `condition: service_healthy`, `DATABASE_URL` must target `@postgres:5432` inside the compose network.
+- **Contract:** internal `postgres` service (no host-published `5432`), `app` has `depends_on: postgres` with `condition: service_healthy`. Compose **sets** `DATABASE_URL` for `app` to `postgresql+psycopg://…@postgres:5432/…` from `POSTGRES_USER`, `POSTGRES_PASSWORD`, and `POSTGRES_DB` so a stale managed URL in `.env` cannot point the app at an external database. Use **URL-safe** passwords or percent-encode reserved URI characters in `POSTGRES_PASSWORD`.
 - **Security:** keep Postgres off the public internet; rely on Docker network isolation and host firewall.
 
 ```bash
@@ -66,14 +66,17 @@ POSTGRES_USER=... POSTGRES_DB=... \
 **Restore** (operator adjusts paths and dump file):
 
 ```bash
-POSTGRES_USER=... POSTGRES_DB=... scripts/ops/postgres_restore.sh /absolute/path/to/file.dump
+PROJECT_DIR=/srv/pulseplate/deploy \
+COMPOSE_FILE=docker-compose.production.selfhosted.yaml \
+POSTGRES_USER=... POSTGRES_DB=... \
+  scripts/ops/postgres_restore.sh /absolute/path/to/file.dump
 ```
 
 **Scheduled backups:** examples under `deploy/systemd/pulseplate-postgres-backup.service.example` and `deploy/systemd/pulseplate-postgres-backup.timer.example` (install to `/etc/systemd/system/` and adjust `WorkingDirectory` / paths).
 
 ### Environment contract
 
-Required keys and semantics live in **`.env.example`** (`DATABASE_URL`, `POSTGRES_*`, `IMAGE_REF`, `PRODUCTION_DOMAIN`, etc.). Do not copy live credentials into runbooks.
+Required keys and semantics live in **`.env.example`** (`POSTGRES_*`, `IMAGE_REF`, `PRODUCTION_DOMAIN`, etc.). For lane B, any `DATABASE_URL` in `deploy/.env` is **not** used by the `app` service (compose synthesizes it from `POSTGRES_*`). Do not copy live credentials into runbooks.
 
 ### Extension: `pg_trgm` (search candidates)
 
