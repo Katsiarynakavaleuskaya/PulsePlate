@@ -102,6 +102,25 @@ def test_sync_openfoodfacts_snapshot_uses_manager(
     assert calls == [True]
 
 
+def test_sync_openfoodfacts_raw_root_expanduser(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """User-supplied ``raw_root`` must expand ``~`` like env-based default root."""
+    home = tmp_path / "homedir"
+    target = home / "snapshots"
+    target.mkdir(parents=True)
+    monkeypatch.setenv("HOME", str(home))
+    captured: list[Path] = []
+
+    def fake_sync(self: SnapshotManager, source: object, force: bool = False) -> None:
+        captured.append(self.base_path)
+        return None
+
+    monkeypatch.setattr(SnapshotManager, "sync_if_needed", fake_sync)
+    sync_openfoodfacts_snapshot(Path("~/snapshots"), project_root=tmp_path, force=False)
+    assert captured == [target.resolve()]
+
+
 def test_database_update_manager_sync_openfoodfacts_raw_snapshot_delegates(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

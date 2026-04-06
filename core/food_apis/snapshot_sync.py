@@ -39,7 +39,9 @@ def sync_openfoodfacts_snapshot(
     When ``raw_root`` is omitted, uses :func:`default_raw_snapshot_root`.
     """
     resolved = (
-        raw_root.resolve() if raw_root is not None else default_raw_snapshot_root(project_root)
+        raw_root.expanduser().resolve()
+        if raw_root is not None
+        else default_raw_snapshot_root(project_root)
     )
     manager = SnapshotManager(resolved)
     source = OpenFoodFactsDeltaSource(transport=transport, today_provider=today_provider)

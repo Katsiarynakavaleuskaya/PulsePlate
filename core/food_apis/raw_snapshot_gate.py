@@ -8,7 +8,6 @@ EN: Manifest + on-disk verification gate before database build.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
 
 from core.food_sources.snapshot_manager import SnapshotIntegrityError, SnapshotManager
 
@@ -19,7 +18,7 @@ def validate_off_raw_manifest_gate(
     project_root: Path,
     enabled: bool,
     snapshot_root: Path | None = None,
-) -> dict[str, Any]:
+) -> dict[str, object]:
     """
     When ``enabled`` is False, return a disabled marker dict.
 
