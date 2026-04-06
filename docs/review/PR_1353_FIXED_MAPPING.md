@@ -32,9 +32,9 @@ Reason: CodeRabbit summary review; actionable inline threads `3038957084`, `3038
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1353#pullrequestreview-4061433916
 
 Disposition: FIXED
-Commit: e93cee9a
-Evidence: `.github/workflows/build.yml:120`, `.github/workflows/trivy.yml:71`: `Log in to GHCR (Trivy DB)` runs only when `secrets.GHCR_READ_TOKEN` is non-empty so workflows do not fail the login step when the org secret is unavailable (e.g. forked PRs).
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1353#discussion_r3039119684 -> e93cee9a
+Commit: 6efc86f2
+Evidence: `.github/workflows/build.yml:113-124`, `.github/workflows/trivy.yml:33-75`: job env `GHCR_READ_TOKEN_AVAILABLE` derives from `secrets.GHCR_READ_TOKEN != ''`; `Log in to GHCR (Trivy DB)` runs only when `env.GHCR_READ_TOKEN_AVAILABLE == 'true'` (fork-safe when secret absent; step `if:` avoids `secrets.*` for actionlint).
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1353#discussion_r3039119684 -> 6efc86f2
 
 Disposition: NOT-A-BUG
 Evidence: `docs/review/PR_1353_FIXED_MAPPING.md` lists aggregate review URLs on separate `- <url>` lines per `scripts/orchestration/review_mapping_artifact.py` and CodeRabbit review `4061610776` formatting guidance.
