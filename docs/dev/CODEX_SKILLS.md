@@ -29,6 +29,15 @@ scripts/install_codex_skills.sh --dest /tmp/codex-skills
 
 After installation or updates, restart Codex so newly installed skills are loaded.
 
+## Host `~/.codex` (optional, not repo SoT)
+
+Machine-local Codex settings (`~/.codex/config.toml`, skills under `~/.codex/skills`) are **not**
+repository source of truth. Keys drift with Codex CLI versions; verify against current vendor docs.
+
+For a **minimal copy-paste starter only**, see
+[`docs/templates/codex.config.example.toml`](../templates/codex.config.example.toml).
+Customize on your machine; do not treat that template as a production or team contract.
+
 ## Repo compatibility bridge
 
 Use the repo bridge documents together:
