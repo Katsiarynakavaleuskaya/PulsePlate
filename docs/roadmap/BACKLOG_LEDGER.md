@@ -319,8 +319,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: METATRON-class offensive lab — out-of-band governance and operator runbook
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (security engineering / abuse prevention)
-  - Target PR: PR #1355
-  - Status: Epic 1 PR opened — coordinator task packet canonical (`docs/orchestration/METATRON_TRACK_A_EPIC1_TASK_PACKET_2026-04-06.md:1`); merge + checkbox closeout still pending.
+  - Target PR: Epic 1 merged [#1355](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1355); Epic 2 / Epic 3 — PR-TBD (isolated runner + runbook; out of scope for Epic 1: no `app/` / product OpenAPI).
+  - Status: **Track A Epic 1 — CLOSED.** Landed via PR [#1355](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1355); canonical squash merge commit [`5a39c2ec3`](https://github.com/Katsiarynakavaleuskaya/PulsePlate/commit/5a39c2ec3) on `main`. Remaining: Epic 2 (infra/scripts isolated runner), Epic 3 (runbook) per coordinator sequencing after this ledger closeout.
   - Area: security / deploy / orchestration / governance
   - Reason (EN): METATRON-like stacks (local LLM + offensive recon) must not enter the PulsePlate product runtime or OpenAPI; operators still need canonical RoE, ADR, isolated deploy boundary, and coordinator-led assessment workflow. (RU: оффенсив-лаборатория остаётся вне продукта, но процесс и документы должны быть в репозитории.)
   - Links:
@@ -329,11 +329,13 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `docs/security/METATRON_LAB_RULES_OF_ENGAGEMENT.md:1`
     - `docs/orchestration/METATRON_SECURITY_ASSESSMENT_WAVE_RUNBOOK.md:1`
     - `deploy/metatron-lab/README.md:1`
+    - Epic 1 merge evidence: [`5a39c2ec3`](https://github.com/Katsiarynakavaleuskaya/PulsePlate/commit/5a39c2ec3) (PR [#1355](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1355))
   - DoD:
-    - ADR + RoE merged with Phase 1 docs evidence anchors
-    - Ledger links this packet; Target PR updated when merged
-    - No offensive tooling in `app.main` / product requirements; lab remains optional compose profile
-    - `make validate-min` (or `make verify` if orchestration scripts change) green on PR head
+    - [x] Epic 1: ADR + RoE + task packet + lab stub merged with evidence anchors (#1355 / `5a39c2ec3`)
+    - [x] Ledger links this packet; Epic 1 merge recorded
+    - [x] No offensive tooling in `app.main` / product requirements; lab remains optional compose profile
+    - [ ] Epic 2: isolated runner (infra/scripts only); merge-ready with `make verify` on touched surfaces per `AGENTS.md`
+    - [ ] Epic 3: operator assessment runbook / wave workflow hardening as needed
 
 <a id="ledger-p1-execution-doc-sot-reconciliation"></a>
 - [ ] P1: Execution-doc source-of-truth reconciliation after PR-1
