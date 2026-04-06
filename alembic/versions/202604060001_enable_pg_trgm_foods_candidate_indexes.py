@@ -8,7 +8,8 @@ Enables the pg_trgm extension for future PostgreSQL-native trigram candidate
 lanes.  When public.foods exists (catalog colocated on the app database),
 creates GIN indexes on canonical_name, group_name, and brand.
 
-SQLite: no-op.  See docs/architecture/ADR_SEARCH_PGTRGM_CANDIDATES_LANE_P2.md
+SQLite: no-op.  Downgrade drops only this revision's indexes, not the pg_trgm extension.
+See docs/architecture/ADR_SEARCH_PGTRGM_CANDIDATES_LANE_P2.md
 """
 
 from alembic import op
@@ -68,4 +69,5 @@ def downgrade() -> None:
         return
 
     op.execute(_DOWNGRADE_DROP_INDEXES)
-    op.execute("DROP EXTENSION IF EXISTS pg_trgm")
+    # Intentionally do not DROP EXTENSION pg_trgm: upgrade uses CREATE IF NOT EXISTS, so this
+    # revision does not own extension lifecycle; the extension may pre-exist or be shared.

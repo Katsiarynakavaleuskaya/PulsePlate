@@ -6,10 +6,10 @@ Accepted — Phase 1 (extension + conditional indexes only). Runtime candidate q
 
 ## Context
 
-- Semantic bootstrap search loads a bounded candidate pool from the `foods` table (`canonical_name` and macros); see `app/services/food_store.py` (`_load_semantic_candidates`).
-- The canonical packaged food catalog is built into SQLite with FTS5 today; see `scripts/build_food_db.py` (`CREATE TABLE foods`, `foods_fts`).
-- Meilisearch remains an optional shadow/index lane; see `app/services/search_meili.py` (`MEILI_FOODS_ATTRIBUTES_TO_RETRIEVE` includes `canonical_name`).
-- Backlog: `docs/roadmap/BACKLOG_LEDGER.md` anchor `ledger-p2-search-pgtrgm-candidate-generation` and follow-up `ledger-p2-search-zero-downtime-swap-orchestration`.
+- Semantic bootstrap search loads a bounded candidate pool from the `foods` table (`canonical_name` and macros); see `app/services/food_store.py:603` (`_load_semantic_candidates`).
+- The canonical packaged food catalog is built into SQLite with FTS5 today; see `scripts/build_food_db.py:248` (`CREATE TABLE foods`) and `scripts/build_food_db.py:283` (`foods_fts`).
+- Meilisearch remains an optional shadow/index lane; see `app/services/search_meili.py:83` (`MEILI_FOODS_ATTRIBUTES_TO_RETRIEVE` includes `canonical_name`).
+- Backlog: `docs/roadmap/BACKLOG_LEDGER.md:7163` (`ledger-p2-search-pgtrgm-candidate-generation`) and `docs/roadmap/BACKLOG_LEDGER.md:7180` (`ledger-p2-search-zero-downtime-swap-orchestration`).
 
 ## Decision
 
