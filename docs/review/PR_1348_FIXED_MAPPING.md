@@ -16,7 +16,7 @@ Disposition: FIXED
 
 Commit: 87df922955a0b5499d085c0015f540742dd56d5d
 
-Evidence: `scripts/orchestration/local_session_bootstrap.sh` (REPO_ROOT-anchored `check_preflight.py`, `command -v python3`, missing-file guard, absolute `task_bootstrap.py` hint); `AGENTS.md` (single-doc workflow: root points to `scripts/AGENTS.md` for the opt-in shell); `docs/review/PR_1348_FIXED_MAPPING.md` (Discussion Thread Pass remains `[x]` per Phase2 guard).
+Evidence: `scripts/orchestration/local_session_bootstrap.sh` (REPO_ROOT-anchored `check_preflight.py`, `command -v python3`, missing-file guard, absolute `task_bootstrap.py` hint); `AGENTS.md` (single-doc workflow: root points to `scripts/AGENTS.md` for the opt-in shell); `docs/review/PR_1348_FIXED_MAPPING.md` (Discussion Thread Pass remains `[x]` per Phase 2 guard).
 
 ## Merge Readiness
 
