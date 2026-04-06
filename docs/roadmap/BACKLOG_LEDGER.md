@@ -310,8 +310,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: METATRON-class offensive lab — out-of-band governance and operator runbook
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (security engineering / abuse prevention)
-  - Target PR: PR-TBD-METATRON-TRACK-A
-  - Status: Epic 1 opened — coordinator task packet canonical (`docs/orchestration/METATRON_TRACK_A_EPIC1_TASK_PACKET_2026-04-06.md:1`); merge PR + checkbox closeout still pending.
+  - Target PR: PR #1355
+  - Status: Epic 1 PR opened — coordinator task packet canonical (`docs/orchestration/METATRON_TRACK_A_EPIC1_TASK_PACKET_2026-04-06.md:1`); merge + checkbox closeout still pending.
   - Area: security / deploy / orchestration / governance
   - Reason (EN): METATRON-like stacks (local LLM + offensive recon) must not enter the PulsePlate product runtime or OpenAPI; operators still need canonical RoE, ADR, isolated deploy boundary, and coordinator-led assessment workflow. (RU: оффенсив-лаборатория остаётся вне продукта, но процесс и документы должны быть в репозитории.)
   - Links:
