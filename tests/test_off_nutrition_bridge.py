@@ -2,11 +2,33 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
+from typing import Any, cast
+
 from core.off_nutrition.bridge import (
     merge_wire_nutrition_sources,
     nutrition_inputs_from_unified_wire,
 )
 from core.off_nutrition.contracts import NutritionInput
+
+
+def test_nutrition_inputs_skips_messy_wire_sequence_before_fallback() -> None:
+    """Exercise continue branches for non-Mapping row, non-Mapping nutrients, empty nutrients."""
+    messy: list[Any] = [
+        "not-a-mapping-row",
+        {"nutrients": "nutrients-not-a-mapping"},
+        {"nutrients": {"only_invalid": "not-a-number"}},
+    ]
+    inputs = nutrition_inputs_from_unified_wire(
+        nutrition_inputs_wire=cast(Sequence[Mapping[str, object]], messy),
+        nutrients_per_100g={"protein_g": 7.0},
+        fallback_source="usda",
+        record_id="fb",
+    )
+    assert len(inputs) == 1
+    assert inputs[0].source == "usda"
+    assert inputs[0].nutrients["protein_g"] == 7.0
+    assert inputs[0].record_id == "fb"
 
 
 def test_nutrition_inputs_skips_non_mapping_wire_rows() -> None:
