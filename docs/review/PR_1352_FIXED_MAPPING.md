@@ -3,12 +3,23 @@
 
 ## Discussion Thread Pass
 
-- [ ] Discussion-thread pass completed
-- [ ] Fixed in commit mapping completed
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments yet
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1352#discussion_r3038812753 -> 6c4167b442f1bd39aac02ba5f1f29d3afe081bd7
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1352#discussion_r3038812756 -> 6c4167b442f1bd39aac02ba5f1f29d3afe081bd7
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1352#discussion_r3038823028 -> 6c4167b442f1bd39aac02ba5f1f29d3afe081bd7
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1352#pullrequestreview-4061273775 -> 6c4167b442f1bd39aac02ba5f1f29d3afe081bd7
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1352#pullrequestreview-4061284779 -> 6c4167b442f1bd39aac02ba5f1f29d3afe081bd7
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1352#pullrequestreview-4061294695 -> 6c4167b442f1bd39aac02ba5f1f29d3afe081bd7
+
+Disposition: FIXED
+
+Commit: 6c4167b442f1bd39aac02ba5f1f29d3afe081bd7
+
+Evidence: `core/food_apis/unified_db.py` (evict `search_*` cache on USDA+OFF merge failure); `core/off_nutrition/bridge.py` (`nutrition_inputs_wire` typing); `tests/test_unified_db_basics.py`; `tests/test_off_nutrition_bridge.py`; `docs/architecture/FOOD_DATABASE_PLATFORM_STRATEGY_v1.md` (menu-engine-style hyphenation)
 
 ## Merge Readiness
 
