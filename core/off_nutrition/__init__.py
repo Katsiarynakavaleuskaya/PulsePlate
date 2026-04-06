@@ -5,6 +5,7 @@ RU: Вспомогательные сущности provenance/confidence для
 EN: Provenance/confidence helpers for OFF nutrition.
 """
 
+from .bridge import merge_wire_nutrition_sources, nutrition_inputs_from_unified_wire
 from .contracts import NutritionInput, NutritionResolved
 from .resolver import (
     DEFAULT_SOURCE_PRIORITY,
@@ -20,6 +21,8 @@ __all__ = [
     "NutritionInput",
     "NutritionResolved",
     "is_valid_nutrient_scalar",
+    "merge_wire_nutrition_sources",
+    "nutrition_inputs_from_unified_wire",
     "project_scalar_compat",
     "resolve_nutrition",
 ]
