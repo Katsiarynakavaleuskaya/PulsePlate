@@ -19,7 +19,6 @@ import httpx
 
 from app.services.food_search_indexing import build_swap_indexes_payload
 from app.services.search_meili import (
-    build_meili_foods_search_headers,
     build_meili_foods_search_payload,
     build_meili_foods_search_url,
 )
@@ -96,7 +95,12 @@ class MeiliSwapOrchestrator:
         return self._cfg.base_url.rstrip("/")
 
     def _headers(self) -> dict[str, str]:
-        return build_meili_foods_search_headers(self._cfg.api_key)
+        # Mirror ``build_meili_foods_search_headers`` (``app/services/search_meili.py``) so
+        # pre-push mypy with ``--follow-imports=skip`` does not widen this to ``Any``.
+        cleaned = (self._cfg.api_key or "").strip()
+        if not cleaned:
+            return {}
+        return {"Authorization": f"Bearer {cleaned}"}
 
     def _request_json(
         self,
