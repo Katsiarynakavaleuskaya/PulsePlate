@@ -345,3 +345,100 @@ def test_snapshot_manager_record_snapshot_dedup_and_ordering(tmp_path: Path) -> 
     assert len(snapshots) == 3
     keys = [(row["date"], row["file"], row["mode"]) for row in snapshots]
     assert keys == sorted(keys)
+
+
+def test_snapshot_manager_size_mismatch_fails_closed(tmp_path: Path) -> None:
+    manager = SnapshotManager(tmp_path, today_provider=lambda: date(2026, 2, 24))
+    snapshot_file = tmp_path / "sz" / "2026-02-24" / "f.bin"
+    snapshot_file.parent.mkdir(parents=True, exist_ok=True)
+    snapshot_file.write_bytes(b"abc")
+    bad_meta = SnapshotMeta(
+        source="sz",
+        snapshot_date=date(2026, 2, 24),
+        file_path=snapshot_file,
+        checksum_sha256=sha256_file(snapshot_file),
+        record_count=1,
+        size_bytes=999,
+        mode="full",
+    )
+    with pytest.raises(SnapshotIntegrityError, match="Size mismatch"):
+        manager.validate_snapshot(bad_meta)
+
+
+def test_verify_recorded_snapshots_revalidates_manifest(tmp_path: Path) -> None:
+    """``verify_recorded_snapshots`` should load manifest and validate each entry."""
+    manager = SnapshotManager(tmp_path, today_provider=lambda: date(2026, 2, 24))
+    source = _DummySource(name="dummy", full_payload=b"full", delta_payload=b"delta")
+    assert manager.sync_if_needed(source) is not None
+    assert manager.verify_recorded_snapshots("dummy") == 1
+
+
+def test_verify_recorded_snapshots_detects_tampering(tmp_path: Path) -> None:
+    manager = SnapshotManager(tmp_path, today_provider=lambda: date(2026, 2, 24))
+    source = _DummySource(name="dummy", full_payload=b"full", delta_payload=b"delta")
+    assert manager.sync_if_needed(source) is not None
+    manifest = json.loads((tmp_path / "dummy" / "manifest.json").read_text(encoding="utf-8"))
+    fpath = Path(manifest["snapshots"][0]["file"])
+    fpath.write_bytes(b"tampered")
+    with pytest.raises(SnapshotIntegrityError):
+        manager.verify_recorded_snapshots("dummy")
+
+
+def test_verify_recorded_snapshots_invalid_date_fails_closed(tmp_path: Path) -> None:
+    """Bad ISO date strings in manifest entries must raise ``SnapshotIntegrityError``."""
+    manager = SnapshotManager(tmp_path, today_provider=lambda: date(2026, 2, 24))
+    source_dir = tmp_path / "bad-dates"
+    source_dir.mkdir(parents=True, exist_ok=True)
+    manifest_path = source_dir / "manifest.json"
+    manifest_path.write_text(
+        json.dumps(
+            {
+                "source": "bad-dates",
+                "snapshots": [
+                    {
+                        "date": "not-a-valid-iso-date",
+                        "file": str(source_dir / "x.bin"),
+                        "checksum": "0" * 64,
+                        "records": 1,
+                        "bytes": 0,
+                        "mode": "full",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    with pytest.raises(SnapshotIntegrityError, match="Invalid snapshot date"):
+        manager.verify_recorded_snapshots("bad-dates")
+
+
+def test_verify_recorded_snapshots_size_mismatch_fails_closed(tmp_path: Path) -> None:
+    """Manifest ``bytes`` must match on-disk file size during re-validation."""
+    manager = SnapshotManager(tmp_path, today_provider=lambda: date(2026, 2, 24))
+    source_dir = tmp_path / "size-mismatch"
+    snap_dir = source_dir / "2026-02-24"
+    snap_dir.mkdir(parents=True, exist_ok=True)
+    snap_file = snap_dir / "full.bin"
+    snap_file.write_bytes(b"abc")
+
+    manifest_path = source_dir / "manifest.json"
+    manifest_path.write_text(
+        json.dumps(
+            {
+                "source": "size-mismatch",
+                "snapshots": [
+                    {
+                        "date": "2026-02-24",
+                        "file": str(snap_file),
+                        "checksum": sha256_file(snap_file),
+                        "records": 1,
+                        "bytes": 999,
+                        "mode": "full",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    with pytest.raises(SnapshotIntegrityError, match="Size mismatch"):
+        manager.verify_recorded_snapshots("size-mismatch")

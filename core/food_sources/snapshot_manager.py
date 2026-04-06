@@ -207,12 +207,50 @@ class SnapshotManager:
         """Fail-closed integrity validation before manifest update."""
         if not meta.file_path.exists():
             raise SnapshotIntegrityError(f"Snapshot file does not exist: {meta.file_path}")
+        actual_size = meta.file_path.stat().st_size
+        if actual_size != meta.size_bytes:
+            raise SnapshotIntegrityError(
+                "Size mismatch for snapshot "
+                f"{meta.file_path}: expected_bytes={meta.size_bytes} actual_bytes={actual_size}"
+            )
         actual_checksum = sha256_file(meta.file_path)
         if actual_checksum != meta.checksum_sha256:
             raise SnapshotIntegrityError(
                 "Checksum mismatch for snapshot "
                 f"{meta.file_path}: expected={meta.checksum_sha256} actual={actual_checksum}"
             )
+
+    def verify_recorded_snapshots(self, source: str) -> int:
+        """
+        Re-validate every manifest entry for ``source`` against on-disk bytes.
+
+        RU: Повторная проверка всех записей манифеста (fail-closed).
+        EN: Fail-closed re-validation of manifest entries (checksum + size).
+
+        Returns:
+            Number of snapshot entries verified.
+        """
+        data = self._load_manifest(source)
+        snapshots = data["snapshots"]
+        for snapshot in snapshots:
+            path = Path(snapshot["file"])
+            try:
+                snap_date = date.fromisoformat(snapshot["date"])
+            except ValueError as exc:
+                raise SnapshotIntegrityError(
+                    f"Invalid snapshot date in manifest for source={source}: {snapshot['date']}"
+                ) from exc
+            meta = SnapshotMeta(
+                source=source,
+                snapshot_date=snap_date,
+                file_path=path,
+                checksum_sha256=snapshot["checksum"],
+                record_count=int(snapshot["records"]),
+                size_bytes=int(snapshot["bytes"]),
+                mode=str(snapshot["mode"]),
+            )
+            self.validate_snapshot(meta)
+        return len(snapshots)
 
     def record_snapshot(self, meta: SnapshotMeta) -> None:
         """Persist snapshot metadata entry into source manifest."""
