@@ -169,7 +169,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P0: Verify-env executable wrapper parity for local merge gate
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0
-  - Target PR: PR-TBD-VERIFY-ENV-WRAPPER-PARITY
+  - Target PR: #1357
   - Area: tooling / local verify / developer workflow
   - Finding Type: false-green preflight gap
   - Reason: Local `make verify` can fail after `verify-env` already passed when stale `.venv` console entrypoints still point to deleted interpreters/worktrees. The preflight must detect broken wrappers or switch the gate to interpreter-module mode so local merge evidence is trustworthy.
