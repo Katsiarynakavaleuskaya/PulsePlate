@@ -47,6 +47,11 @@ jobs:
   build:
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    permissions:
+      actions: write
+      contents: read
+      packages: write
+      id-token: write
     environment:
       name: staging
       # Staging domain: pulseplate-staging.duckdns.org (DuckDNS, free DDNS)
@@ -58,6 +63,11 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Free disk space (Ubuntu hosted runner)
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc || true
+          df -h
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435
@@ -86,11 +96,7 @@ jobs:
           platforms: linux/amd64
           push: true
           tags: ${{ env.REGISTRY }}/${{ steps.image-name.outputs.image_name }}:staging-latest
-          # Omit cache-from to avoid 404 BlobNotFound when the GHA cache entry
-          # is missing or evicted mid-build. mode=min keeps export bounded.
-          # Explicit workflow scope avoids collisions with build.yml cache exports.
-          # ignore-error=true prevents CD failure on transient cache backend
-          # issues while still allowing image publication.
+          cache-from: type=gha,scope=cd-staging-${{ github.ref_name }}
           cache-to: type=gha,scope=cd-staging-${{ github.ref_name }},mode=min,ignore-error=true
           # Disable provenance to avoid buildx/GHA cache export failures
           # ("cache entry no longer exists" / BlobNotFound). Trade-off: SLSA
@@ -240,6 +246,11 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v')
     needs: production-gates
     runs-on: ubuntu-latest
+    permissions:
+      actions: write
+      contents: read
+      packages: write
+      id-token: write
     outputs:
       digest: ${{ steps.build.outputs.digest }}
       image_name: ${{ steps.image-name.outputs.image_name }}
@@ -249,6 +260,11 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Free disk space (Ubuntu hosted runner)
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc || true
+          df -h
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435
@@ -279,11 +295,7 @@ jobs:
           push: true
           # Source of truth for production deployments: prod-${tag} (never `latest`).
           tags: ${{ env.REGISTRY }}/${{ steps.image-name.outputs.image_name }}:prod-${{ github.ref_name }}
-          # Omit cache-from to avoid 404 BlobNotFound when the GHA cache entry
-          # is missing or evicted mid-build. mode=min keeps export bounded.
-          # Explicit workflow scope avoids collisions with build.yml and staging cache exports.
-          # ignore-error=true prevents CD failure on transient cache backend
-          # issues while still allowing image publication.
+          cache-from: type=gha,scope=cd-production-${{ github.ref_name }}
           cache-to: type=gha,scope=cd-production-${{ github.ref_name }},mode=min,ignore-error=true
           # Disable provenance to avoid buildx/GHA cache export failures
           # ("cache entry no longer exists" / BlobNotFound). Trade-off: SLSA
