@@ -32,19 +32,20 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P0: Self-hosted Postgres Droplet Foundation
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0 (deployment-safety blocker)
-  - Target PR: PR #1184 (infra/p0-self-hosted-postgres-droplet-foundation)
+  - Target PR: TBD (branch `infra/p0-self-hosted-postgres-droplet`)
   - Area: infra / database / deploy
   - Reason: Promote Postgres from optional/profile-gated to canonical prod DB on Droplet. Insert narrow infra-wave between B1 and B2; Batch B remains active. SQLite stays dev/test fallback only.
   - Links:
     - docs/deploy/POSTGRES_SELF_HOSTED_DROPLET.md
-    - docker-compose.yaml
+    - deploy/docker-compose.production.selfhosted.yaml
+    - deploy/systemd/pulseplate-postgres-backup.service.example
+    - scripts/ops/postgres_backup.sh
     - core/db_fallback.py
   - DoD:
-    - Postgres not optional/profile-gated in docker-compose
-    - No dev-only password; DATABASE_URL required for prod
-    - pulseplate depends_on postgres with health condition
-    - Backup/restore scripts exist
-    - Runbook documents migrations, health, backup/restore
+    - Dedicated self-hosted compose: `postgres` without published 5432; `app` `depends_on` postgres + health condition; managed lane unchanged in `deploy/docker-compose.production.yaml`
+    - No dev-only password; `DATABASE_URL` + `POSTGRES_*` required per `.env.example`
+    - Backup/restore documented; host `scripts/ops/postgres_backup.sh` + optional systemd timer examples
+    - Runbook documents both lanes (managed vs self-hosted), migrations, Caddy build, health checks
 
 <a id="ledger-p0-payments-ruby-ios"></a>
 - [ ] P0: Payment rails for RU/BY + iOS-first monetization baseline
