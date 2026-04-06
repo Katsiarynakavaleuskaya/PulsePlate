@@ -120,13 +120,17 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
+      # PAT may be present but expired/revoked; anonymous pull still works for public trivy-db.
       - name: Log in to GHCR (Trivy DB)
         if: ${{ env.GHCR_READ_TOKEN_AVAILABLE == 'true' }}
-        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef
-        with:
-          registry: ghcr.io
-          username: ${{ github.repository_owner }}
-          password: ${{ secrets.GHCR_READ_TOKEN }}
+        env:
+          GHCR_READ_TOKEN: ${{ secrets.GHCR_READ_TOKEN }}
+        run: |
+          set -euo pipefail
+          if ! echo "$GHCR_READ_TOKEN" | docker login ghcr.io -u "${{ github.repository_owner }}" --password-stdin
+          then
+            echo "::warning::GHCR_READ_TOKEN is set but docker login was denied; continuing without registry auth."
+          fi
 
       - name: Install Trivy via apt
         run: |
