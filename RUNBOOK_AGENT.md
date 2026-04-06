@@ -490,6 +490,19 @@ Use this checklist when operating agent automation or closing a token/secrets in
    - Record evidence and follow-ups in `docs/roadmap/BACKLOG_LEDGER.md`.
    - Keep controls aligned with `docs/security/AGENT_CONTROL_PLANE_SECURITY_BASELINE.md`.
    - Verify security release gate conditions pass (see baseline doc, section "Security Release Gate").
+
+## METATRON offensive lab (Track A, out-of-band)
+
+Coordinator-first lane only. Product runtime (`app.main`) must not carry METATRON-class
+offensive tooling.
+
+- Epic 1 task packet (roster + validation): `docs/orchestration/METATRON_TRACK_A_EPIC1_TASK_PACKET_2026-04-06.md:1`
+- ADR: `docs/architecture/ADR_METATRON_OFFENSIVE_LAB_OUT_OF_BAND_2026-04-06.md:1`
+- RoE: `docs/security/METATRON_LAB_RULES_OF_ENGAGEMENT.md:1`
+- Assessment wave runbook: `docs/orchestration/METATRON_SECURITY_ASSESSMENT_WAVE_RUNBOOK.md:1`
+- Ledger: `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-metatron-offensive-lab-out-of-band`
+- Optional compose stub: `deploy/metatron-lab/README.md:1`
+
 ## 0.1) CI: `actions/upload-artifact` fails with `FinalizeArtifact 403 Forbidden`
 
 **Reference:** Documentation: [PR #712](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/712). Fix required a
