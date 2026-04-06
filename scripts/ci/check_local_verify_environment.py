@@ -111,7 +111,7 @@ def _parse_absolute_shebang_interpreter(first_line: str) -> Path | None:
     Return interpreter path from shebang when the first token is an absolute path.
 
     If the shebang has extra arguments after that token (for example ``#!/usr/bin/python -O``),
-    only the first token is used; ``#!/usr/bin/env ...`` yields None (handled elsewhere).
+    only the first token is used. ``#!/usr/bin/env ...`` yields None (not validated in v1).
     """
     stripped = first_line.strip()
     if not stripped.startswith("#!"):
@@ -123,6 +123,19 @@ def _parse_absolute_shebang_interpreter(first_line: str) -> Path | None:
     if not candidate.startswith("/"):
         return None
     return Path(candidate)
+
+
+def _resolve_interpreter_path(interpreter: Path) -> Path:
+    """Resolve a shebang interpreter path (narrow seam for tests)."""
+    return interpreter.resolve()
+
+
+def _format_venv_bin_display(bin_dir: Path) -> str:
+    """Human-readable venv bin path for errors (prefer repo-relative)."""
+    try:
+        return str(bin_dir.relative_to(REPO_ROOT))
+    except ValueError:
+        return str(bin_dir)
 
 
 def collect_broken_console_wrappers(
@@ -160,12 +173,12 @@ def collect_broken_console_wrappers(
         if not lines:
             broken.append((name, "empty script"))
             continue
-        first_line = lines[0]
+        first_line = lines[0].lstrip("\ufeff")
         interpreter = _parse_absolute_shebang_interpreter(first_line)
         if interpreter is None:
             continue
         try:
-            interp_resolved = interpreter.resolve()
+            interp_resolved = _resolve_interpreter_path(interpreter)
         except (OSError, RuntimeError) as exc:
             broken.append(
                 (name, f"stale shebang interpreter (resolve error): {interpreter} ({exc})")
@@ -198,14 +211,17 @@ def build_failure_output(
     broken_console_wrappers: list[tuple[str, str]],
     missing_modules: list[tuple[str, str, str]],
     unexpected_startup_hooks: list[StartupHookFinding],
+    venv_bin_dir: Path | None = None,
 ) -> list[str]:
     """Build deterministic failure lines for terminal output."""
+    bin_dir = venv_bin_dir if venv_bin_dir is not None else VENV_BIN_DIR
+    bin_display = _format_venv_bin_display(bin_dir)
     lines = [
         "ERROR: local verify environment is incomplete.",
         f"Expected venv interpreter: {python_executable}",
     ]
     if broken_console_wrappers:
-        lines.append("Stale or broken venv console scripts (.venv/bin):")
+        lines.append(f"Stale or broken venv console scripts ({bin_display}):")
     for script_name, reason in broken_console_wrappers:
         lines.append(f"- {script_name} :: {reason}")
     if missing_modules:

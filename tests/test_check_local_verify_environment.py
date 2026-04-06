@@ -56,6 +56,7 @@ def test_build_failure_output_includes_recovery_commands() -> None:
 
 
 def test_build_failure_output_includes_broken_console_wrappers() -> None:
+    bin_dir = Path("/tmp/.venv/bin")
     lines = env_gate.build_failure_output(
         python_executable=Path("/tmp/.venv/bin/python"),
         broken_console_wrappers=[
@@ -63,9 +64,11 @@ def test_build_failure_output_includes_broken_console_wrappers() -> None:
         ],
         missing_modules=[],
         unexpected_startup_hooks=[],
+        venv_bin_dir=bin_dir,
     )
 
-    assert "Stale or broken venv console scripts (.venv/bin):" in lines
+    label = env_gate._format_venv_bin_display(bin_dir)
+    assert f"Stale or broken venv console scripts ({label}):" in lines
     assert "- flake8 :: stale shebang interpreter missing: /tmp/deleted-python" in lines
     assert any("make venv-sync" in line for line in lines)
 
@@ -237,7 +240,8 @@ def test_main_fails_when_console_wrapper_has_stale_absolute_shebang(
 
     assert result == 1
     captured = capsys.readouterr()
-    assert "Stale or broken venv console scripts (.venv/bin):" in captured.out
+    display = env_gate._format_venv_bin_display(env_gate.VENV_BIN_DIR)
+    assert f"Stale or broken venv console scripts ({display}):" in captured.out
     assert "flake8" in captured.out
     assert "stale shebang interpreter missing" in captured.out
 
@@ -266,7 +270,8 @@ def test_main_fails_when_console_wrapper_is_not_executable(
 
     assert result == 1
     captured = capsys.readouterr()
-    assert "Stale or broken venv console scripts (.venv/bin):" in captured.out
+    display = env_gate._format_venv_bin_display(env_gate.VENV_BIN_DIR)
+    assert f"Stale or broken venv console scripts ({display}):" in captured.out
     assert "flake8" in captured.out
     assert "not executable" in captured.out
 
@@ -295,7 +300,8 @@ def test_main_fails_when_console_wrapper_is_dangling_symlink(
 
     assert result == 1
     captured = capsys.readouterr()
-    assert "Stale or broken venv console scripts (.venv/bin):" in captured.out
+    display = env_gate._format_venv_bin_display(env_gate.VENV_BIN_DIR)
+    assert f"Stale or broken venv console scripts ({display}):" in captured.out
     assert "flake8" in captured.out
     assert "broken or dangling symlink" in captured.out
 
@@ -330,20 +336,73 @@ def test_collect_broken_console_wrappers_reports_resolve_runtimeerror(
     wrapper.write_text(f"#!{interp}\n", encoding="utf-8")
     os.chmod(wrapper, 0o755)
 
-    real_resolve = Path.resolve
-
-    def resolve_with_loop(self: Path, *args: object, **kwargs: object) -> Path:
-        if self == interp:
+    def resolve_with_loop(path: Path) -> Path:
+        if path == interp:
             raise RuntimeError("symlink loop")
-        return real_resolve(self, *args, **kwargs)
+        return path.resolve()
 
-    monkeypatch.setattr(Path, "resolve", resolve_with_loop)
+    monkeypatch.setattr(env_gate, "_resolve_interpreter_path", resolve_with_loop)
 
     out = env_gate.collect_broken_console_wrappers(venv_bin_dir=bin_dir)
     assert len(out) == 1
     assert out[0][0] == "flake8"
     assert "resolve error" in out[0][1]
     assert "symlink loop" in out[0][1]
+
+
+def test_collect_broken_console_wrappers_reports_empty_script(tmp_path: Path) -> None:
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir(parents=True)
+    wrapper = bin_dir / "flake8"
+    wrapper.write_text("", encoding="utf-8")
+    os.chmod(wrapper, 0o755)
+
+    out = env_gate.collect_broken_console_wrappers(venv_bin_dir=bin_dir)
+    assert out == [("flake8", "empty script")]
+
+
+def test_collect_broken_console_wrappers_reports_not_regular_file(tmp_path: Path) -> None:
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir(parents=True)
+    wrapper = bin_dir / "flake8"
+    wrapper.mkdir()
+
+    out = env_gate.collect_broken_console_wrappers(venv_bin_dir=bin_dir)
+    assert out == [("flake8", "not a regular file")]
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX chmod executable bit")
+def test_collect_broken_console_wrappers_reports_non_executable_interpreter(
+    tmp_path: Path,
+) -> None:
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir(parents=True)
+    interp = tmp_path / "interp"
+    interp.write_text("", encoding="utf-8")
+    os.chmod(interp, 0o644)
+    wrapper = bin_dir / "flake8"
+    wrapper.write_text(f"#!{interp}\n", encoding="utf-8")
+    os.chmod(wrapper, 0o755)
+
+    out = env_gate.collect_broken_console_wrappers(venv_bin_dir=bin_dir)
+    assert len(out) == 1
+    assert out[0][0] == "flake8"
+    assert "not executable" in out[0][1]
+
+
+def test_collect_broken_console_wrappers_strips_utf8_bom_before_shebang_parse(
+    tmp_path: Path,
+) -> None:
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir(parents=True)
+    wrapper = bin_dir / "flake8"
+    wrapper.write_text("\ufeff#!/no_such_interpreter_verify_env_test\n", encoding="utf-8")
+    os.chmod(wrapper, 0o755)
+
+    out = env_gate.collect_broken_console_wrappers(venv_bin_dir=bin_dir)
+    assert len(out) == 1
+    assert out[0][0] == "flake8"
+    assert "stale shebang interpreter missing" in out[0][1]
 
 
 def test_main_fails_when_unexpected_startup_hook_is_present(
