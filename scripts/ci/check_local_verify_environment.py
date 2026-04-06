@@ -4,11 +4,17 @@
 This script validates only the repo interpreter + module parity required for
 the canonical local verification gate. It does not repair or rewrite the
 environment and points developers to the documented recovery path.
+
+Console-script wrappers under ``.venv/bin`` are checked only when present:
+they must be executable and, if the shebang uses an absolute interpreter
+path, that path must exist. Shebangs of the form ``#!/usr/bin/env ...`` are
+not validated (v1) to avoid false positives from ambient PATH.
 """
 
 from __future__ import annotations
 
 import importlib
+import os
 import subprocess  # nosec B404: subprocess is required for bounded local guard execution (remove-by: 2026-07-31, ref: PR-1243)
 import sys
 from dataclasses import dataclass
@@ -25,6 +31,17 @@ REQUIRED_MODULES: tuple[tuple[str, str], ...] = (
     ("pytest", "test-fast"),
     ("coverage", "cov-check"),
     ("diff_cover.diff_cover_tool", "diff-cov"),
+)
+
+# Pip console-script names aligned with REQUIRED_MODULES / make verify stages.
+# Missing scripts are OK (``$(VENV_PYTHON) -m ...`` is canonical); present
+# scripts must not point at deleted interpreters or be non-executable.
+VERIFY_CRITICAL_CONSOLE_SCRIPT_NAMES: tuple[str, ...] = (
+    "flake8",
+    "pytest",
+    "mypy",
+    "coverage",
+    "diff-cover",
 )
 
 
@@ -89,6 +106,75 @@ def collect_unexpected_startup_hooks() -> list[StartupHookFinding]:
     raise RuntimeError("Unable to parse startup hook guard output.")
 
 
+def _parse_absolute_shebang_interpreter(first_line: str) -> Path | None:
+    """Return interpreter path from shebang if it is a single absolute path token."""
+    stripped = first_line.strip()
+    if not stripped.startswith("#!"):
+        return None
+    remainder = stripped[2:].strip()
+    if not remainder:
+        return None
+    candidate = remainder.split()[0]
+    if not candidate.startswith("/"):
+        return None
+    return Path(candidate)
+
+
+def collect_broken_console_wrappers(
+    *,
+    venv_bin_dir: Path | None = None,
+    script_names: tuple[str, ...] | None = None,
+) -> list[tuple[str, str]]:
+    """Return (script_name, reason) for present-but-broken venv console scripts."""
+    bin_dir = venv_bin_dir if venv_bin_dir is not None else VENV_BIN_DIR
+    names = script_names if script_names is not None else VERIFY_CRITICAL_CONSOLE_SCRIPT_NAMES
+    broken: list[tuple[str, str]] = []
+    for name in names:
+        script_path = bin_dir / name
+        if not script_path.exists() and not script_path.is_symlink():
+            continue
+        if script_path.is_symlink() and not script_path.exists():
+            broken.append((name, "broken or dangling symlink target"))
+            continue
+        try:
+            if not script_path.is_file():
+                broken.append((name, "not a regular file"))
+                continue
+        except OSError as exc:
+            broken.append((name, f"cannot stat path: {exc}"))
+            continue
+        if not os.access(script_path, os.X_OK):
+            broken.append((name, "not executable"))
+            continue
+        try:
+            raw = script_path.read_text(encoding="utf-8", errors="replace")
+        except OSError as exc:
+            broken.append((name, f"cannot read script: {exc}"))
+            continue
+        lines = raw.splitlines()
+        if not lines:
+            broken.append((name, "empty script"))
+            continue
+        first_line = lines[0]
+        interpreter = _parse_absolute_shebang_interpreter(first_line)
+        if interpreter is None:
+            continue
+        try:
+            interp_resolved = interpreter.resolve()
+        except OSError as exc:
+            broken.append(
+                (name, f"stale shebang interpreter (resolve error): {interpreter} ({exc})")
+            )
+            continue
+        if not interp_resolved.is_file():
+            broken.append((name, f"stale shebang interpreter missing: {interpreter}"))
+            continue
+        if not os.access(interp_resolved, os.X_OK):
+            broken.append((name, f"stale shebang interpreter not executable: {interpreter}"))
+            continue
+    return broken
+
+
 def collect_missing_modules(
     required_modules: tuple[tuple[str, str], ...] = REQUIRED_MODULES,
 ) -> list[tuple[str, str, str]]:
@@ -104,6 +190,7 @@ def collect_missing_modules(
 def build_failure_output(
     *,
     python_executable: Path,
+    broken_console_wrappers: list[tuple[str, str]],
     missing_modules: list[tuple[str, str, str]],
     unexpected_startup_hooks: list[StartupHookFinding],
 ) -> list[str]:
@@ -112,6 +199,10 @@ def build_failure_output(
         "ERROR: local verify environment is incomplete.",
         f"Expected venv interpreter: {python_executable}",
     ]
+    if broken_console_wrappers:
+        lines.append("Stale or broken venv console scripts (.venv/bin):")
+    for script_name, reason in broken_console_wrappers:
+        lines.append(f"- {script_name} :: {reason}")
     if missing_modules:
         lines.append("Missing verify-critical Python modules:")
     for module_name, verify_stage, error in missing_modules:
@@ -152,11 +243,13 @@ def main() -> int:
         print("- If the venv drifted, run `make venv-sync`")
         return 1
 
+    broken_wrappers = collect_broken_console_wrappers()
     missing_modules = collect_missing_modules()
     unexpected_startup_hooks = collect_unexpected_startup_hooks()
-    if missing_modules or unexpected_startup_hooks:
+    if broken_wrappers or missing_modules or unexpected_startup_hooks:
         for line in build_failure_output(
             python_executable=Path(sys.executable).resolve(),
+            broken_console_wrappers=broken_wrappers,
             missing_modules=missing_modules,
             unexpected_startup_hooks=unexpected_startup_hooks,
         ):
