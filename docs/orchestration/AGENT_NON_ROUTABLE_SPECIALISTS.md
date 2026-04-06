@@ -12,8 +12,8 @@ or reviewer for the **currently routed domain**, task bootstrap treats the graph
 authoritative and may **promote** an explicit request (`requested_agents`) like any other
 in-slot agent. The non-routable list applies when the agent is **outside** that domain’s
 slot set (advisory collaborator with `advisory_non_routable` disposition). Evidence:
-`scripts/orchestration/task_bootstrap.py` (`_apply_requested_agent_overrides`),
-`tests/test_task_bootstrap.py` (`test_build_task_packet_graph_slot_precedes_non_routable_specialist_list`).
+`scripts/orchestration/task_bootstrap.py:575` (graph slots before non-routable guard),
+`tests/test_task_bootstrap.py:1856` (`test_build_task_packet_graph_slot_precedes_non_routable_specialist_list`).
 
 Interpretation:
 
