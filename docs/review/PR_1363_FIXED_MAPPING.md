@@ -7,7 +7,11 @@
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+Disposition: FIXED
+Commit: 9c0e3ed24968004cd26eb6b24606283ff933dfca
+Evidence: `scripts/orchestration/local_support_plane.py:82` (`support_plane_path_outside_root`); `tests/test_local_support_plane.py:41`
+Reason: Sourcery review thread: wrap `Path.relative_to` in an explicit `ValueError` with a stable message when the resolved record path is outside the support-plane root.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1363#pullrequestreview-4062666937 -> 9c0e3ed24968004cd26eb6b24606283ff933dfca
 
 ## Merge Readiness
 
@@ -19,4 +23,4 @@
 - [ ] Mandatory post-open bug-hunter pass completed
 - [ ] Security review completed for privileged `scripts/orchestration/**` surface
 
-**Notes:** Opened as draft for local workforce PR-C (`scripts/orchestration/local_support_plane.py`). Re-validate mapping after first bot/human review threads; replace `No actionable review comments` with thread URLs + disposition when actionables exist.
+**Notes:** Review threads resolved after mapping Sourcery aggregate review to the path-guard fix commit above.
