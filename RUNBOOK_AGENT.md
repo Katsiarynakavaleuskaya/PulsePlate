@@ -297,15 +297,20 @@ make venv-sync
 make verify
 ```
 
-`make verify` now starts with `verify-env`, a fail-fast preflight that does not
-repair the environment and fails when verify-critical modules such as
+`make verify` starts with `verify-env`, a fail-fast preflight that does not
+repair the environment. It fails when verify-critical modules such as
 `flake8`, `diff_cover.diff_cover_tool` (`diff-cover`), `coverage`, `pytest`, or
-`mypy` are missing from `.venv`. Run `make verify` from repo root and do not
-rely on an externally activated interpreter: `verify-env` requires the repo
-`.venv` interpreter itself. The verify-critical gates themselves run in
-interpreter-module mode through the repo `.venv` (`$(VENV_PYTHON) -m ...`), so
-stale `.venv/bin/*` wrapper entrypoints are no longer the trust anchor for
-local merge evidence.
+`mypy` are missing from `.venv`, when unexpected executable `.pth` startup
+hooks are present, or when **present** `.venv/bin` console scripts for those
+tools are broken: non-executable, dangling symlink, or an absolute shebang
+pointing at a missing or non-executable interpreter (typical after deleting a
+worktree or moving the venv). Missing console scripts are allowed—the canonical
+`make verify` recipe uses `$(VENV_PYTHON) -m ...`—but any installed wrapper must
+be consistent so PATH-based tools, shells, and hooks do not fail later with
+opaque “bad interpreter” errors. Shebangs using `#!/usr/bin/env ...` are not
+validated in v1. Run `make verify` from repo root and do not rely on an
+externally activated interpreter: `verify-env` requires the repo `.venv`
+interpreter itself. Evidence: `scripts/ci/check_local_verify_environment.py`.
 
 Run from repo root before any push/PR:
 
