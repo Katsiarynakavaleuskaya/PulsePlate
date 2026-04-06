@@ -145,7 +145,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P0: Requested-agent bootstrap override and advisory specialist contract
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0
-  - Target PR: PR-TBD-ORCHESTRATION-REQUESTED-AGENTS
+  - Target PR: PR #1354 (https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1354); check `[x]` only after merge per ledger policy
+  - Status: Open for review; after merge, mark `[x]` via mandatory docs-only follow-up PR the same working day (backlog ledger policy).
   - Area: orchestration / task bootstrap / routing
   - Finding Type: coordinator bootstrap gap
   - Reason: The canonical coordinator workflow must preserve explicit user-requested agent slugs instead of dropping them during bootstrap. This is especially critical for `agent-coordinator`, `backend-engineer`, `bug-hunter`, `ml-engineer-agent`, and `data-scientist-agent`, where current routing semantics otherwise under-express user intent or hide non-routable specialists.
@@ -154,11 +155,15 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `docs/orchestration/AGENT_ROUTING_GRAPH.md`
     - `docs/orchestration/AGENT_NON_ROUTABLE_SPECIALISTS.md`
     - `docs/orchestration/workflow.md`
+    - `tests/test_task_bootstrap.py` (integration tests: `test_build_task_packet_*requested*`)
   - DoD:
     - Task packet schema records `requested_agents`
     - Bootstrap either honors, preserves as advisory, or rejects each requested slug with explicit rationale
     - Non-routable specialists are documented as user-requestable/advisory rather than silently unreachable
     - Deterministic tests cover routable promotion and non-routable advisory behavior
+  - Evidence (implementation):
+    - Graph slot set is evaluated before the non-routable specialist list so in-graph secondaries (e.g. `data-scientist-agent` on `cv`) promote correctly: `scripts/orchestration/task_bootstrap.py:568` (`allowed_promotions`), `:575` (graph precedence comment)
+    - Doc precedence: `docs/orchestration/AGENT_NON_ROUTABLE_SPECIALISTS.md:10`, rule 14 `docs/orchestration/AGENT_ROUTING_GRAPH.md:116`
 
 <a id="ledger-p0-verify-env-wrapper-parity"></a>
 - [ ] P0: Verify-env executable wrapper parity for local merge gate
