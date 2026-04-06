@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 from __future__ import annotations
 
+import math
 from typing import Any, Callable, Mapping, Protocol, Sequence
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -44,6 +45,22 @@ class _FoodStoreCompat:
 _FOOD_STORE_COMPAT: FoodStore = _FoodStoreCompat()
 
 
+def _coerce_hit_nutrition_confidence(raw: object) -> float:
+    """Finite non-negative float for list hits; never raises on bad DB cells."""
+    if raw is None:
+        return 0.0
+    if isinstance(raw, (int, float)) and not isinstance(raw, bool):
+        coerced = float(raw)
+        return coerced if math.isfinite(coerced) and coerced >= 0.0 else 0.0
+    if isinstance(raw, str):
+        try:
+            coerced = float(raw.strip())
+        except (TypeError, ValueError):
+            return 0.0
+        return coerced if math.isfinite(coerced) and coerced >= 0.0 else 0.0
+    return 0.0
+
+
 def get_food_store() -> FoodStore:
     return _FOOD_STORE_COMPAT
 
@@ -66,6 +83,7 @@ def list_foods(
             protein_g=r["protein_g"],
             fat_g=r["fat_g"],
             carbs_g=r["carbs_g"],
+            nutrition_confidence=_coerce_hit_nutrition_confidence(r.get("nutrition_confidence")),
         )
         for r in rows
     ]

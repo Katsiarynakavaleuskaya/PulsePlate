@@ -40,13 +40,21 @@ class _MockConnection:
         self,
         fetchall_result: Optional[List[Dict[str, Any]]] = None,
         fetchone_result: Optional[Dict[str, Any]] = None,
+        *,
+        pragma_include_nutrition_confidence: bool = True,
     ) -> None:
         self._fetchall_result = fetchall_result
         self._fetchone_result = fetchone_result
+        self._pragma_include_nutrition_confidence = pragma_include_nutrition_confidence
         self.execute_calls: List[tuple[str, Any]] = []
 
     def execute(self, sql: str, params: Any = None) -> _MockCursor:
         self.execute_calls.append((sql, params))
+        if "PRAGMA table_info(foods)" in sql:
+            pragma_rows: List[Any] = [(0, "id", "TEXT", 0, None, 0)]
+            if self._pragma_include_nutrition_confidence:
+                pragma_rows.append((1, "nutrition_confidence", "REAL", 0, None, 0))
+            return _MockCursor(fetchall_result=pragma_rows)
         return _MockCursor(self._fetchall_result, self._fetchone_result)
 
     def __enter__(self) -> "_MockConnection":
@@ -113,7 +121,7 @@ class TestFoodStoreCoverage:
 
         result = food_store.search_foods("")
         assert len(result) == 1
-        assert len(conn.execute_calls) == 1
+        assert len(conn.execute_calls) == 2
 
     def test_search_foods_none_query(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Тест search_foods с None запросом - проверка graceful handling"""
@@ -123,7 +131,7 @@ class TestFoodStoreCoverage:
         # Intentional: testing None handling, not type conversion
         result = food_store.search_foods(None)  # type: ignore[arg-type]
         assert len(result) == 1
-        assert len(conn.execute_calls) == 1
+        assert len(conn.execute_calls) == 2
 
     def test_search_foods_with_terms(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Тест search_foods с терминами"""
@@ -135,7 +143,7 @@ class TestFoodStoreCoverage:
         result = food_store.search_foods("йогурт")
         assert len(result) == 1
         # Проверяем, что SQL содержит OR условия для алиасов
-        sql = conn.execute_calls[0][0]
+        sql = conn.execute_calls[-1][0]
         assert "OR" in sql
 
     def test_get_food_not_found(self, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -306,7 +314,7 @@ class TestFoodStoreCoverage:
         food_store.search_foods("apple banana", limit=10, offset=5)
 
         # Проверяем, что SQL содержит JOIN и MATCH
-        sql, params = conn.execute_calls[0]
+        sql, params = conn.execute_calls[-1]
         assert "JOIN foods_fts" in sql
         assert "MATCH ?" in sql
         assert "LIMIT ? OFFSET ?" in sql
@@ -326,13 +334,27 @@ class TestFoodStoreCoverage:
         food_store.search_foods("", limit=15, offset=10)
 
         # Проверяем, что SQL не содержит JOIN
-        sql, params = conn.execute_calls[0]
+        sql, params = conn.execute_calls[-1]
         assert "JOIN" not in sql
         assert "MATCH" not in sql
         assert "LIMIT ? OFFSET ?" in sql
 
         # Проверяем параметры
         assert params == [15, 10]  # limit, offset
+
+    def test_search_foods_legacy_schema_skips_nutrition_confidence_column(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Additive confidence column absent -> SELECT must not reference it."""
+
+        conn = _MockConnection(
+            fetchall_result=[{"id": "1", "canonical_name": "x", "kcal": 1.0}],
+            pragma_include_nutrition_confidence=False,
+        )
+        monkeypatch.setattr(food_store, "_connect", lambda: conn)
+        food_store.search_foods("", limit=3, offset=0)
+        sql = conn.execute_calls[-1][0]
+        assert "nutrition_confidence" not in sql
 
     def test_nutrients_for_food_not_found_continue(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Тест nutrients_for когда get_food возвращает None - строка 89-91"""

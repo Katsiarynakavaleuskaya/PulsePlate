@@ -1,5 +1,6 @@
 import csv
 import logging
+import sqlite3
 from pathlib import Path
 from types import TracebackType
 from typing import Any, Dict, List
@@ -11,8 +12,8 @@ from app.services import food_store
 _LEGACY_ROW_ADDITIVE_DEFAULTS: Dict[str, Any] = {
     "nutrition_inputs": [],
     "nutrition_provenance": {},
-    "nutrition_nutrient_confidence": {},
     "nutrition_confidence": 0.0,
+    "nutrition_nutrient_confidence": {},
 }
 
 
@@ -101,10 +102,10 @@ def test_log_missing_food_summary(
 
 
 class _DummyCursor:
-    def __init__(self, rows: List[Dict[str, Any]]) -> None:
+    def __init__(self, rows: List[Any]) -> None:
         self._rows = rows
 
-    def fetchall(self) -> List[Dict[str, Any]]:
+    def fetchall(self) -> List[Any]:
         return self._rows
 
 
@@ -113,9 +114,15 @@ class _DummyConn:
         self.last_sql: str | None = None
         self.last_params: List[Any] | None = None
 
-    def execute(self, sql: str, params: List[Any]) -> _DummyCursor:
+    def execute(self, sql: str, params: Any = None) -> _DummyCursor:
         self.last_sql = sql
-        self.last_params = params
+        if "PRAGMA table_info(foods)" in sql:
+            pragma_rows: List[Any] = [
+                (0, "id", "TEXT", 0, None, 0),
+                (1, "nutrition_confidence", "REAL", 0, None, 0),
+            ]
+            return _DummyCursor(pragma_rows)
+        self.last_params = list(params) if params is not None else []
         return _DummyCursor([{"id": 1, "canonical_name": "apple", "kcal": 10.0}])
 
     def __enter__(self) -> "_DummyConn":
@@ -162,6 +169,7 @@ class _DummyBarcodeConn:
 
 
 def test_search_foods_parameter_normalization(monkeypatch: pytest.MonkeyPatch) -> None:
+    food_store.reset_foods_nutrition_confidence_column_cache()
     dummy = _DummyConn()
     monkeypatch.setattr(food_store, "_connect", lambda: dummy)
 
@@ -176,7 +184,6 @@ def test_normalize_food_row_parses_additive_nutrition_metadata() -> None:
         "canonical_name": "apple",
         "nutrition_inputs_json": '[{"source":"estimate","record_id":"off-1"}]',
         "nutrition_provenance_json": '{"protein_g":"estimate"}',
-        "nutrition_nutrient_confidence_json": '{"protein_g":0.4,"kcal":0.3}',
         "nutrition_confidence": 0.4,
     }
 
@@ -184,8 +191,6 @@ def test_normalize_food_row_parses_additive_nutrition_metadata() -> None:
 
     assert normalized["nutrition_inputs"][0]["source"] == "estimate"
     assert normalized["nutrition_provenance"]["protein_g"] == "estimate"
-    assert normalized["nutrition_nutrient_confidence"]["protein_g"] == pytest.approx(0.4)
-    assert normalized["nutrition_nutrient_confidence"]["kcal"] == pytest.approx(0.3)
     assert normalized["nutrition_confidence"] == 0.4
 
 
@@ -201,7 +206,6 @@ def test_normalize_food_row_handles_invalid_json_and_none_confidence() -> None:
 
     assert normalized["nutrition_inputs"] == []
     assert normalized["nutrition_provenance"] == {}
-    assert normalized["nutrition_nutrient_confidence"] == {}
     assert normalized["nutrition_confidence"] == 0.0
 
 
@@ -216,7 +220,6 @@ def test_normalize_food_row_ignores_non_list_or_non_dict_payloads() -> None:
 
     assert normalized["nutrition_inputs"] == []
     assert normalized["nutrition_provenance"] == {}
-    assert normalized["nutrition_nutrient_confidence"] == {}
 
 
 def test_normalize_food_row_legacy_shape_without_additive_columns() -> None:
@@ -226,8 +229,92 @@ def test_normalize_food_row_legacy_shape_without_additive_columns() -> None:
 
     assert normalized["nutrition_inputs"] == []
     assert normalized["nutrition_provenance"] == {}
-    assert normalized["nutrition_nutrient_confidence"] == {}
     assert normalized["nutrition_confidence"] == 0.0
+    assert normalized["nutrition_nutrient_confidence"] == {}
+
+
+def test_normalize_food_row_parses_nutrition_nutrient_confidence_json() -> None:
+    row = {
+        "id": "food-nc",
+        "canonical_name": "oats",
+        "nutrition_nutrient_confidence_json": '{"kcal":"0.7","protein_g":0.9}',
+    }
+    out = food_store._normalize_food_row(row)
+    assert out["nutrition_nutrient_confidence"]["kcal"] == pytest.approx(0.7)
+    assert out["nutrition_nutrient_confidence"]["protein_g"] == pytest.approx(0.9)
+
+
+def test_normalize_food_row_nutrient_confidence_from_mapping_not_json_string() -> None:
+    row = {
+        "id": "food-nc-dict",
+        "canonical_name": "tofu",
+        "nutrition_nutrient_confidence_json": {"fat_g": 0.4, "kcal": "0.6"},
+    }
+    out = food_store._normalize_food_row(row)
+    assert out["nutrition_nutrient_confidence"]["fat_g"] == pytest.approx(0.4)
+    assert out["nutrition_nutrient_confidence"]["kcal"] == pytest.approx(0.6)
+
+
+def test_foods_db_cache_key_string_fallback_on_resolve_oserror(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class _BadPath:
+        def __str__(self) -> str:
+            return "/tmp/fake-db-path.sqlite"
+
+        def resolve(self) -> Path:
+            raise OSError("simulated resolve failure")
+
+    monkeypatch.setattr(food_store, "DB_PATH", _BadPath())
+    assert food_store._foods_db_cache_key() == "/tmp/fake-db-path.sqlite"
+
+
+def test_search_foods_fts_includes_aggregate_confidence_when_pragma_reports_column(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """After cache may be False from error-path tests, pragma on this conn must win."""
+    food_store.reset_foods_nutrition_confidence_column_cache()
+    dummy = _DummyConn()
+    monkeypatch.setattr(food_store, "_connect", lambda: dummy)
+    food_store.search_foods("kiwi", limit=3, offset=0)
+    assert dummy.last_sql is not None
+    assert "f.nutrition_confidence" in dummy.last_sql
+
+
+def test_search_foods_fts_omits_aggregate_confidence_when_pragma_omits_column(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """FTS path must use lean SELECT when foods lacks nutrition_confidence (legacy DB)."""
+
+    class _NoConfConn(_DummyConn):
+        def execute(self, sql: str, params: Any = None) -> _DummyCursor:
+            self.last_sql = sql
+            if "PRAGMA table_info(foods)" in sql:
+                pragma_rows: List[Any] = [
+                    (0, "id", "TEXT", 0, None, 0),
+                    (1, "canonical_name", "TEXT", 0, None, 0),
+                ]
+                return _DummyCursor(pragma_rows)
+            self.last_params = list(params) if params is not None else []
+            return _DummyCursor([{"id": 1, "canonical_name": "apple", "kcal": 10.0}])
+
+    food_store.reset_foods_nutrition_confidence_column_cache()
+    dummy = _NoConfConn()
+    monkeypatch.setattr(food_store, "_connect", lambda: dummy)
+    food_store.search_foods("apple", limit=2, offset=0)
+    assert dummy.last_sql is not None
+    assert "MATCH" in dummy.last_sql
+    assert "f.nutrition_confidence" not in dummy.last_sql
+
+
+def test_foods_has_nutrition_confidence_column_handles_sqlite_execute_error() -> None:
+    food_store.reset_foods_nutrition_confidence_column_cache()
+
+    class _ErrConn:
+        def execute(self, *_a: Any, **_kw: Any) -> Any:
+            raise sqlite3.Error("pragma failed")
+
+    assert food_store._foods_has_nutrition_confidence_column(_ErrConn()) is False
 
 
 def test_normalize_food_row_additive_columns_none_or_pre_parsed() -> None:
@@ -252,14 +339,6 @@ def test_normalize_food_row_additive_columns_none_or_pre_parsed() -> None:
     assert out["nutrition_inputs"] == parsed_inputs
     assert out["nutrition_provenance"] == parsed_prov
     assert out["nutrition_confidence"] == 0.25
-
-    row_nut = {
-        "id": "food-nutconf",
-        "canonical_name": "bar",
-        "nutrition_nutrient_confidence_json": {"fiber_g": 0.5, "bad": "x", "also": True},
-    }
-    nut_out = food_store._normalize_food_row(row_nut)
-    assert nut_out["nutrition_nutrient_confidence"] == {"fiber_g": 0.5}
 
 
 def test_get_food_by_barcode_returns_row_with_normalized_input(
@@ -618,17 +697,35 @@ def test_bootstrap_semantic_backend_large_offset_falls_back_without_candidate_sc
 def test_load_semantic_candidates_uses_passed_limit(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    food_store.reset_foods_nutrition_confidence_column_cache()
+
     class _SemanticCursor:
-        def fetchall(self) -> List[Dict[str, Any]]:
-            return [{"id": "sem-1", "canonical_name": "Apple", "kcal": 52}]
+        def __init__(self, rows: List[Any] | None = None) -> None:
+            self._rows: List[Any] = (
+                rows
+                if rows is not None
+                else [{"id": "sem-1", "canonical_name": "Apple", "kcal": 52}]
+            )
+
+        def fetchall(self) -> List[Any]:
+            return self._rows
 
     class _SemanticConn:
         def __init__(self) -> None:
             self.last_params: tuple[int] | None = None
+            self.last_select_sql: str | None = None
 
-        def execute(self, sql: str, params: tuple[int]) -> _SemanticCursor:
+        def execute(self, sql: str, params: Any = None) -> _SemanticCursor:
+            if "PRAGMA table_info(foods)" in sql:
+                pragma_rows: List[Any] = [
+                    (0, "id", "TEXT", 0, None, 0),
+                    (1, "nutrition_confidence", "REAL", 0, None, 0),
+                ]
+                return _SemanticCursor(pragma_rows)
             assert "FROM foods ORDER BY id ASC LIMIT ?" in sql
-            self.last_params = params
+            assert params is not None
+            self.last_select_sql = sql
+            self.last_params = tuple(params)  # type: ignore[arg-type]
             return _SemanticCursor()
 
         def __enter__(self) -> "_SemanticConn":
@@ -646,7 +743,60 @@ def test_load_semantic_candidates_uses_passed_limit(
     monkeypatch.setattr(food_store, "_connect", lambda: conn)
     rows = food_store._load_semantic_candidates(limit=250)
     assert conn.last_params == (250,)
+    assert conn.last_select_sql is not None
+    assert "nutrition_confidence" in conn.last_select_sql
     assert rows[0]["id"] == "sem-1"
+
+
+def test_load_semantic_candidates_skips_aggregate_column_when_pragma_omits_it(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    food_store.reset_foods_nutrition_confidence_column_cache()
+
+    class _SemanticCursor:
+        def __init__(self, rows: List[Any] | None = None) -> None:
+            self._rows: List[Any] = (
+                rows
+                if rows is not None
+                else [{"id": "sem-2", "canonical_name": "Pear", "kcal": 57}]
+            )
+
+        def fetchall(self) -> List[Any]:
+            return self._rows
+
+    class _SemanticConnNoConf:
+        def __init__(self) -> None:
+            self.last_select_sql: str | None = None
+
+        def execute(self, sql: str, params: Any = None) -> _SemanticCursor:
+            if "PRAGMA table_info(foods)" in sql:
+                pragma_rows: List[Any] = [
+                    (0, "id", "TEXT", 0, None, 0),
+                    (1, "canonical_name", "TEXT", 0, None, 0),
+                ]
+                return _SemanticCursor(pragma_rows)
+            assert "FROM foods ORDER BY id ASC LIMIT ?" in sql
+            assert params is not None
+            self.last_select_sql = sql
+            return _SemanticCursor()
+
+        def __enter__(self) -> "_SemanticConnNoConf":
+            return self
+
+        def __exit__(
+            self,
+            exc_type: type[BaseException] | None,
+            exc_val: BaseException | None,
+            exc_tb: TracebackType | None,
+        ) -> None:
+            return None
+
+    conn = _SemanticConnNoConf()
+    monkeypatch.setattr(food_store, "_connect", lambda: conn)
+    rows = food_store._load_semantic_candidates(limit=12)
+    assert conn.last_select_sql is not None
+    assert "nutrition_confidence" not in conn.last_select_sql
+    assert rows[0]["id"] == "sem-2"
 
 
 def test_semantic_score_returns_zero_for_empty_tokens() -> None:
@@ -850,3 +1000,53 @@ def test_discover_food_source_keys_returns_defaults_when_rows_empty(
 
     monkeypatch.setattr(food_store, "_connect", lambda: _SourceConn())
     assert food_store._discover_food_source_keys() == ["usda", "open food facts"]
+
+
+def test_search_foods_works_when_sqlite_foods_lacks_nutrition_confidence(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Legacy food.sqlite without aggregate confidence column must not break list/search."""
+
+    db_path = tmp_path / "legacy_foods.sqlite"
+    with sqlite3.connect(db_path) as conn:
+        conn.execute("""
+            CREATE TABLE foods (
+                id TEXT PRIMARY KEY,
+                canonical_name TEXT NOT NULL,
+                kcal REAL,
+                protein_g REAL,
+                fat_g REAL,
+                carbs_g REAL
+            )
+            """)
+        conn.execute(
+            "INSERT INTO foods (id, canonical_name, kcal, protein_g, fat_g, carbs_g) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            ("fid1", "Apple", 52.0, 0.3, 0.2, 14.0),
+        )
+    monkeypatch.setattr(food_store, "DB_PATH", db_path)
+    food_store.reset_foods_nutrition_confidence_column_cache()
+    rows = food_store.search_foods("", limit=10, offset=0)
+    assert len(rows) == 1
+    assert rows[0]["canonical_name"] == "Apple"
+    assert "nutrition_confidence" not in rows[0]
+
+
+def test_coerce_nutrient_confidence_map_skips_unparseable_string_values() -> None:
+    """Invalid string numerics hit ValueError branch and are omitted."""
+    assert food_store._coerce_nutrient_confidence_map({"protein_g": "not-a-float"}) == {}
+
+
+def test_coerce_nutrient_confidence_map_skips_non_scalar_values() -> None:
+    """Non int/float/str values use the else branch and are omitted."""
+    assert food_store._coerce_nutrient_confidence_map({"k": []}) == {}
+
+
+def test_coerce_nutrient_confidence_map_skips_bool_values() -> None:
+    """Bools must not be treated as numeric confidence scalars."""
+    out = food_store._coerce_nutrient_confidence_map(
+        {"kcal": True, "protein_g": False, "fat_g": 0.25},
+    )
+    assert "kcal" not in out
+    assert "protein_g" not in out
+    assert out["fat_g"] == pytest.approx(0.25)

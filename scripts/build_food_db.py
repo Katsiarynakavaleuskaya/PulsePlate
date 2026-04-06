@@ -180,8 +180,8 @@ class FoodDatabaseBuilder:
                     price_per_100g=record.get("price_per_100g", record.get("price", 0.0)),
                     nutrition_inputs=record.get("nutrition_inputs", []),
                     nutrition_provenance=record.get("nutrition_provenance", {}),
-                    nutrition_nutrient_confidence=record.get("nutrition_nutrient_confidence", {}),
                     nutrition_confidence=record.get("nutrition_confidence", 0.0),
+                    nutrition_nutrient_confidence=record.get("nutrition_nutrient_confidence", {}),
                 )
                 validated_foods.append(food_item)
 
@@ -273,8 +273,8 @@ class FoodDatabaseBuilder:
                 price_per_100g REAL,
                 nutrition_inputs_json TEXT,
                 nutrition_provenance_json TEXT,
-                nutrition_nutrient_confidence_json TEXT,
-                nutrition_confidence REAL
+                nutrition_confidence REAL,
+                nutrition_nutrient_confidence_json TEXT
             )
         """)
 
@@ -322,43 +322,23 @@ class FoodDatabaseBuilder:
                         food.price_per_100g,
                         json.dumps(food.nutrition_inputs, ensure_ascii=False),
                         json.dumps(food.nutrition_provenance, ensure_ascii=False),
-                        json.dumps(food.nutrition_nutrient_confidence, ensure_ascii=False),
                         food.nutrition_confidence,
+                        json.dumps(
+                            food.nutrition_nutrient_confidence,
+                            ensure_ascii=False,
+                        ),
                     ),
                 )
-            insert_sql = """
-            INSERT INTO foods (
-                id,
-                canonical_name,
-                group_name,
-                per_g,
-                kcal,
-                protein_g,
-                fat_g,
-                carbs_g,
-                fiber_g,
-                Fe_mg,
-                Ca_mg,
-                K_mg,
-                Mg_mg,
-                VitD_IU,
-                B12_ug,
-                Folate_ug,
-                Iodine_ug,
-                flags,
-                brand,
-                gtin,
-                fdc_id,
-                source,
-                source_priority,
-                version_date,
-                price_per_100g,
-                nutrition_inputs_json,
-                nutrition_provenance_json,
-                nutrition_nutrient_confidence_json,
-                nutrition_confidence
-            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-            """
+            insert_sql = (
+                "INSERT INTO foods ("
+                "id, canonical_name, group_name, per_g, kcal, protein_g, fat_g, carbs_g, "
+                "fiber_g, Fe_mg, Ca_mg, K_mg, Mg_mg, VitD_IU, B12_ug, Folate_ug, "
+                "Iodine_ug, flags, brand, gtin, fdc_id, source, source_priority, "
+                "version_date, price_per_100g, nutrition_inputs_json, "
+                "nutrition_provenance_json, nutrition_confidence, "
+                "nutrition_nutrient_confidence_json"
+                ") VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
+            )
             cursor.executemany(insert_sql, rows)
 
             # Populate FTS

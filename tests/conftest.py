@@ -813,3 +813,13 @@ def _merge_snapshots(*snapshots) -> Any:
                 seen_alias.add(key)
 
     return CatalogSnapshot(regions=regions, stores=stores, skus=skus, aliases=aliases)
+
+
+@pytest.fixture(autouse=True)
+def _reset_food_store_nutrition_confidence_cache() -> Generator[None, None, None]:
+    """Avoid cross-test drift for food.sqlite pragma cache (mocked vs real DB paths)."""
+
+    yield
+    from app.services import food_store as _food_store
+
+    _food_store.reset_foods_nutrition_confidence_column_cache()
