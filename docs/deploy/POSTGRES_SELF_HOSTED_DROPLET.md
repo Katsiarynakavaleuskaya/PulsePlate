@@ -1,91 +1,95 @@
-# Postgres Self-Hosted Droplet Foundation
+# Postgres on Droplet: production database lanes
 
-> Alternate lane only. Canonical production now uses managed PostgreSQL via external `DATABASE_URL`.
-> Keep this document for self-hosted droplet operations, staging experiments, or disaster-recovery drills.
+**Evidence (compose):** `deploy/docker-compose.production.yaml:22` (managed `DATABASE_URL`), `deploy/docker-compose.production.selfhosted.yaml:49` (synthesized `DATABASE_URL` from `POSTGRES_*`), `deploy/docker-compose.staging.yaml:42` (Caddy `--forwarded-allow-ips` pattern).
 
-**Purpose:** Self-hosted Postgres reference for PulsePlate on a Droplet. This is no longer the canonical production database baseline.
+## Lane A — Managed PostgreSQL (default production)
 
-**Design rationale (architecture):**
-
-- Postgres runs internal-only (no public 5432); app connects via `DATABASE_URL` within compose network.
-- Production/staging fail closed on primary DB init errors; SQLite is not an accepted canonical runtime baseline there.
-- SQLite fallback remains local/dev/test only.
-- Health checks use `/health/db` for readiness; `DATABASE_URL` is required for production/staging.
-- Managed PostgreSQL with provider snapshots / PITR is the canonical production path; this document remains the self-hosted alternate.
-
----
-
-## 1. How to start Postgres
+- **Compose:** `deploy/docker-compose.production.yaml`
+- **Contract:** `app` uses an external instance via `DATABASE_URL` only (no `postgres` service in that file).
+- **Operator flow:** provision managed Postgres (snapshots / PITR per provider), set `DATABASE_URL` in `deploy/.env`, then bring up `app` + `caddy`.
 
 ```bash
-cd /srv/pulseplate-production
-docker compose up -d postgres
-docker compose ps
-docker compose exec postgres pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB"
+# From repo root (after deploy/.env is populated)
+docker compose --project-directory deploy -f deploy/docker-compose.production.yaml config
+docker compose --project-directory deploy -f deploy/docker-compose.production.yaml up -d
 ```
 
----
+Health via the edge (after DNS/TLS):
 
-## 2. How to apply migrations
+- Liveness: `GET /health` (must stay DB-free)
+- Readiness: `GET /ready` (may be 503 when DB is down)
+
+## Lane B — Self-hosted Postgres on the same Droplet
+
+- **Compose:** `deploy/docker-compose.production.selfhosted.yaml`
+- **Contract:** internal `postgres` service (no host-published `5432`), `app` has `depends_on: postgres` with `condition: service_healthy`. Compose **sets** `DATABASE_URL` for `app` to `postgresql+psycopg://…@postgres:5432/…` from `POSTGRES_USER`, `POSTGRES_PASSWORD`, and `POSTGRES_DB` so a stale managed URL in `.env` cannot point the app at an external database. Use **URL-safe** passwords or percent-encode reserved URI characters in `POSTGRES_PASSWORD`.
+- **Security:** keep Postgres off the public internet; rely on Docker network isolation and host firewall.
 
 ```bash
-docker compose run --rm app alembic upgrade head
+# From repo root (after deploy/.env is populated — see .env.example for keys)
+docker compose --project-directory deploy -f deploy/docker-compose.production.selfhosted.yaml config
+docker compose --project-directory deploy -f deploy/docker-compose.production.selfhosted.yaml up -d
+docker compose --project-directory deploy -f deploy/docker-compose.production.selfhosted.yaml ps
+docker compose --project-directory deploy -f deploy/docker-compose.production.selfhosted.yaml exec postgres \
+  pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB"
 ```
 
----
+### Migrations (both lanes)
 
-## 3. How to start the application
+Run Alembic in a one-off `app` container (same compose file as the running stack):
 
 ```bash
-docker compose up -d app caddy
-curl http://127.0.0.1/health/db
-curl http://127.0.0.1/ready
+docker compose --project-directory deploy -f deploy/docker-compose.production.selfhosted.yaml run --rm app alembic upgrade head
 ```
 
----
+Swap the `-f` path when using the managed stack.
 
-## 4. Backup and restore
+### Caddy image build (self-hosted lane)
 
-**Backup:**
+The `caddy` service builds from `frontend/Dockerfile.caddy-spa` (context `frontend/`). From repo root:
 
 ```bash
-POSTGRES_USER=... POSTGRES_DB=... scripts/ops/postgres_backup.sh
+docker compose --project-directory deploy -f deploy/docker-compose.production.selfhosted.yaml build caddy
 ```
 
-**Restore:**
+### Backup and restore
+
+**Host backup script** (calls `docker compose exec` — run on the Droplet, not inside a container):
 
 ```bash
-POSTGRES_USER=... POSTGRES_DB=... scripts/ops/postgres_restore.sh /absolute/path/to/file.dump
+PROJECT_DIR=/srv/pulseplate/deploy \
+COMPOSE_FILE=docker-compose.production.selfhosted.yaml \
+POSTGRES_USER=... POSTGRES_DB=... \
+  /srv/pulseplate/scripts/ops/postgres_backup.sh
 ```
 
----
+**Restore** (operator adjusts paths and dump file):
 
-## 5. Environment contract
+```bash
+PROJECT_DIR=/srv/pulseplate/deploy \
+COMPOSE_FILE=docker-compose.production.selfhosted.yaml \
+POSTGRES_USER=... POSTGRES_DB=... \
+  scripts/ops/postgres_restore.sh /absolute/path/to/file.dump
+```
 
-Required for production:
+**Scheduled backups:** examples under `deploy/systemd/pulseplate-postgres-backup.service.example` and `deploy/systemd/pulseplate-postgres-backup.timer.example` (install to `/etc/systemd/system/` and adjust `WorkingDirectory` / paths).
 
-- `POSTGRES_DB` — database name
-- `POSTGRES_USER` — database user
-- `POSTGRES_PASSWORD` — strong password (no dev fallback)
-- `DATABASE_URL` — format `postgresql+psycopg://<user>:<password>@<host>:5432/<dbname>`
+### Environment contract
 
-**DATABASE_URL host modes:**
+Required keys and semantics live in **`.env.example`** (`POSTGRES_*`, `IMAGE_REF`, `PRODUCTION_DOMAIN`, etc.). For lane B, any `DATABASE_URL` in `deploy/.env` is **not** used by the `app` service (compose synthesizes it from `POSTGRES_*`). Do not copy live credentials into runbooks.
 
-- **Docker Compose / Droplet:** `@postgres:5432` (service name in compose network)
-- **Native local run:** `@localhost:5432` (Postgres on host)
+### Extension: `pg_trgm` (search candidates)
 
-These environment variables and host modes are specific to the self-hosted alternate lane; canonical production uses only `DATABASE_URL` pointing to an external managed instance.
+Alembic revision `alembic/versions/202604060001_enable_pg_trgm_foods_candidate_indexes.py` runs `CREATE EXTENSION IF NOT EXISTS pg_trgm` when supported.
 
-See `.env.example` for the canonical contract.
-
----
-
-## 6. Search extension: `pg_trgm` (candidate lane prep)
-
-Alembic revision `alembic/versions/202604060001_enable_pg_trgm_foods_candidate_indexes.py` runs `CREATE EXTENSION IF NOT EXISTS pg_trgm` on PostgreSQL and creates GIN(trgm) indexes on `public.foods` **only when that table exists** (catalog colocated on the app database).
-
-**Managed PostgreSQL:** many providers require enabling `pg_trgm` once in the control plane (or grant `CREATE` on extension to the app role). If `alembic upgrade head` fails with insufficient privilege, pre-provision the extension and re-run migrations.
+**Managed providers:** enable `pg_trgm` in the control plane if migrations fail on privilege.
 
 **Evidence / design:** `docs/architecture/ADR_SEARCH_PGTRGM_CANDIDATES_LANE_P2.md`, `app/services/food_store.py:603` (`_load_semantic_candidates`).
 
-**Follow-up (separate P2):** zero-downtime index orchestration — `docs/roadmap/BACKLOG_LEDGER.md` anchor `ledger-p2-search-zero-downtime-swap-orchestration`.
+**Follow-up (P2):** `docs/roadmap/BACKLOG_LEDGER.md` anchor `ledger-p2-search-zero-downtime-swap-orchestration`.
+
+### Production DB invariant (repo policy)
+
+Paid runtime, subscriptions, entitlement state, and client history must not ship on SQLite as canonical production storage. SQLite remains for local development, tests, and documented fallback paths.
+
+See: `AGENTS.md` (Production DB invariant), `core/db_fallback.py`.
