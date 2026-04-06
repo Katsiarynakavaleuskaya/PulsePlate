@@ -287,7 +287,11 @@ def build_pip_proxy_install_command(
         str(requirement_file),
     ]
     if not use_pip_cache:
-        command.insert(4, "--no-cache-dir")
+        try:
+            install_idx = command.index("install")
+        except ValueError as exc:
+            raise RuntimeError("pip proxy install command is missing the install verb") from exc
+        command.insert(install_idx + 1, "--no-cache-dir")
     if trusted_host:
         command.extend(["--trusted-host", trusted_host])
     if constraints_file is not None:
@@ -592,6 +596,14 @@ def install_with_guard_from_proxy(
     trusted_host: str | None,
 ) -> int:
     if docker_single_pass_locked_install_enabled():
+        if len(requirement_files) != 1:
+            print(
+                "ERROR: Docker single-pass locked install requires exactly one requirements file "
+                f"(got {len(requirement_files)}). Combine manifests or disable "
+                f"{DOCKER_SINGLE_PASS_LOCKED_INSTALL_ENV}.",
+                file=sys.stderr,
+            )
+            return 1
         allow_cache = docker_pip_layer_cache_enabled()
         install_from_proxy(
             python_executable=python_executable,

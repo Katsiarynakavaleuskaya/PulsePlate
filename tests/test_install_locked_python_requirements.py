@@ -215,7 +215,8 @@ def test_build_pip_proxy_install_command_uses_approved_proxy_without_cache(
     )
 
     assert command[:4] == ["python", "-m", "pip", "install"]
-    assert "--no-cache-dir" in command
+    install_idx = command.index("install")
+    assert command[install_idx + 1] == "--no-cache-dir"
     assert "--only-binary" in command
     assert ":all:" in command
     assert "--index-url" in command
@@ -791,6 +792,45 @@ def test_main_direct_proxy_docker_single_pass_runs_one_target_install_and_guard(
     assert observed_commands[0][:4] == ["python", "-m", "pip", "install"]
     assert "--no-cache-dir" not in observed_commands[0]
     assert observed_guard_python == ["python"]
+
+
+def test_main_direct_proxy_docker_single_pass_rejects_multiple_requirement_files(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    requirements = tmp_path / "requirements.txt"
+    requirements.write_text("openai==2.29.0\n", encoding="utf-8")
+    dev_requirements = tmp_path / "requirements-dev.txt"
+    dev_requirements.write_text("pytest\n", encoding="utf-8")
+    guard_script = tmp_path / "check_python_startup_hooks.py"
+    guard_script.write_text("# test guard\n", encoding="utf-8")
+
+    def _fail_run_command(_command: list[str]) -> None:
+        pytest.fail("run_command should not run when single-pass preflight rejects")
+
+    monkeypatch.setattr(installer, "run_command", _fail_run_command)
+    monkeypatch.setenv(installer.APPROVED_INDEX_ENV_VAR, APPROVED_PROXY_URL)
+    monkeypatch.setenv(installer.DOCKER_SINGLE_PASS_LOCKED_INSTALL_ENV, "1")
+
+    result = installer.main(
+        [
+            "--python-executable",
+            "python",
+            "--requirements-file",
+            str(requirements),
+            "--dev-requirements-file",
+            str(dev_requirements),
+            "--install-dev",
+            "--guard-script",
+            str(guard_script),
+            "--install-mode",
+            "direct-proxy",
+        ]
+    )
+
+    assert result == 1
+    assert "exactly one requirements file" in capsys.readouterr().err
 
 
 def test_main_direct_proxy_mode_stops_before_target_install_when_guard_fails(
