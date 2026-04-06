@@ -15,7 +15,7 @@ Reason: The aggregate Sourcery review has no independent blocker beyond the inli
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1347#discussion_r3038220869
 Disposition: FIXED
-Commit: COMMIT_SHA_WORKFLOW_FIX
+Commit: c2f1f3da
 Evidence: `.github/workflows/ios-appstore-assets.yml:62`, `.github/workflows/ios-appstore-assets.yml:77`, `.github/workflows/ios-appstore-assets.yml:120`, `.github/workflows/ios-appstore-assets.yml:136`
 Reason: Added the same failure-time Xcode inventory logging and explicit `Selected DEVELOPER_DIR` output that `ci.yml` already uses, so the App Store assets workflow keeps debugging parity with the canonical CI lane.
 
@@ -26,13 +26,13 @@ Reason: The aggregate CodeRabbit review only summarizes the concrete artifact/ch
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1347#discussion_r3038230599
 Disposition: FIXED
-Commit: COMMIT_SHA_WORKFLOW_FIX
+Commit: c2f1f3da
 Evidence: `docs/review/PR_1347_FIXED_MAPPING.md:44`, `docs/review/PR_1347_FIXED_MAPPING.md:45`, `docs/review/PR_1347_FIXED_MAPPING.md:46`
 Reason: The merge-readiness checkboxes now remain forward-looking until the final current-head merge pass, while the note preserves that local validation succeeded earlier in the lane.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1347#discussion_r3038230603
 Disposition: FIXED
-Commit: COMMIT_SHA_WORKFLOW_FIX
+Commit: c2f1f3da
 Evidence: `ios/CI_VERIFICATION_CHECKLIST.md:7`, `ios/CI_VERIFICATION_CHECKLIST.md:14`, `ios/CI_VERIFICATION_CHECKLIST.md:20`, `ios/CI_VERIFICATION_CHECKLIST.md:33`, `ios/CI_VERIFICATION_CHECKLIST.md:44`, `ios/CI_VERIFICATION_CHECKLIST.md:49`, `ios/CI_VERIFICATION_CHECKLIST.md:55`
 Reason: Added explicit fenced-code languages to every snippet in the checklist and aligned the canonical Xcode example with the workflow's `26.2 -> 26.1 -> 26.0` priority order.
 
