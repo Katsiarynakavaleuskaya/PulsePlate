@@ -565,18 +565,6 @@ def _apply_requested_agent_overrides(
             )
             continue
 
-        if agent in non_routable:
-            if agent not in advisory_agents:
-                advisory_agents.append(agent)
-            dispositions.append(
-                _disposition(
-                    agent,
-                    REQUESTED_AGENT_STATUS_ADVISORY_NON_ROUTABLE,
-                    "Agent is canonical but non-routable; kept as an advisory collaborator.",
-                )
-            )
-            continue
-
         allowed_promotions = {candidate for candidate in [secondary_agent, reviewer] if candidate}
         if canonical_route is not None:
             allowed_promotions.add(canonical_route.primary)
@@ -584,6 +572,9 @@ def _apply_requested_agent_overrides(
                 allowed_promotions.add(canonical_route.secondary)
             allowed_promotions.add(canonical_route.reviewer)
 
+        # Graph slots take precedence over the non-routable specialist list: a specialist
+        # may appear as secondary/reviewer in AGENT_ROUTING_GRAPH.md while still being
+        # listed in AGENT_NON_ROUTABLE_SPECIALISTS.md for default routing semantics.
         if agent in allowed_promotions:
             previous_primary = resolved_primary
             resolved_primary = agent
@@ -614,6 +605,18 @@ def _apply_requested_agent_overrides(
                     agent,
                     REQUESTED_AGENT_STATUS_PROMOTED,
                     "Requested agent is compatible with the routed domain and was promoted.",
+                )
+            )
+            continue
+
+        if agent in non_routable:
+            if agent not in advisory_agents:
+                advisory_agents.append(agent)
+            dispositions.append(
+                _disposition(
+                    agent,
+                    REQUESTED_AGENT_STATUS_ADVISORY_NON_ROUTABLE,
+                    "Agent is canonical but non-routable; kept as an advisory collaborator.",
                 )
             )
             continue
