@@ -8,16 +8,16 @@
 
 ## Fixed in Commit Mapping
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1355#pullrequestreview-4061659184 -> 3d3a69876bd232be6390e4508aeab298fb0c15c7
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1355#discussion_r3039155999 -> 3d3a69876bd232be6390e4508aeab298fb0c15c7
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1355#discussion_r3039156007 -> 3d3a69876bd232be6390e4508aeab298fb0c15c7
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1355#pullrequestreview-4061659673 -> 3d3a69876bd232be6390e4508aeab298fb0c15c7
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1355#discussion_r3039156475 -> 3d3a69876bd232be6390e4508aeab298fb0c15c7
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1355#discussion_r3039156481 -> 3d3a69876bd232be6390e4508aeab298fb0c15c7
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1355#pullrequestreview-4061659184 -> e8592e319344dbea8f4af68260cb1d5e9430a3d8
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1355#discussion_r3039155999 -> e8592e319344dbea8f4af68260cb1d5e9430a3d8
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1355#discussion_r3039156007 -> e8592e319344dbea8f4af68260cb1d5e9430a3d8
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1355#pullrequestreview-4061659673 -> e8592e319344dbea8f4af68260cb1d5e9430a3d8
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1355#discussion_r3039156475 -> e8592e319344dbea8f4af68260cb1d5e9430a3d8
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1355#discussion_r3039156481 -> e8592e319344dbea8f4af68260cb1d5e9430a3d8
 
 Disposition: FIXED
 
-Commit: 3d3a69876bd232be6390e4508aeab298fb0c15c7
+Commit: e8592e319344dbea8f4af68260cb1d5e9430a3d8
 
 Evidence: PR title/body classify the change as security config + documentation (not docs-only): `.gitignore` `artifacts/security_lab/` aligns with `AGENTS.md` lab-artifact hygiene; `deploy/metatron-lab/docker-compose.yaml` replaces BusyBox-invalid `sleep infinity` with a long-running shell loop; `docs/security/METATRON_LAB_RULES_OF_ENGAGEMENT.md` states written authorization is mandatory before any listed target is in scope; ledger Target PR traceability was already updated in prior commits and remains referenced here for CodeRabbit thread closure.
 
