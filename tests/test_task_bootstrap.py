@@ -1780,7 +1780,12 @@ def _disposition_map(packet: dict[str, object]) -> dict[str, dict[str, str]]:
 
     rows = packet["requested_agent_disposition"]
     assert isinstance(rows, list)
-    return {str(row["agent"]): dict(row) for row in rows}  # type: ignore[arg-type]
+    out: dict[str, dict[str, str]] = {}
+    for row in rows:
+        assert isinstance(row, dict)
+        agent = str(row["agent"])
+        out[agent] = {str(k): str(v) for k, v in row.items()}
+    return out
 
 
 def test_build_task_packet_rejects_unknown_requested_agent() -> None:
