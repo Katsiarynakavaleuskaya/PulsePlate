@@ -2,12 +2,12 @@
 
 ## Discussion Thread Pass
 
-- [ ] Discussion-thread pass completed
-- [ ] Fixed in commit mapping completed
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
 
-_(No review threads yet — add dispositions here as comments arrive.)_
+- No actionable review comments
 
 ## Merge Readiness
 
