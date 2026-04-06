@@ -2401,12 +2401,16 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P2: Local launcher rollout for coordinator-first automation
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2
-  - Target PR: PR-TBD-LOCAL-LAUNCHER-ROLLOUT (outside repo PR chain; after PR2 minimum, preferred after PR5, and after any repo follow-on PR-A/B/C for the local workforce track)
+  - Target PR: PR #1350 + PR #1348 (repo docs/template + `local_session_bootstrap.sh` bridge); PR-TBD-LOCAL-LAUNCHER-ROLLOUT (host wrapper install / automation outside repo)
   - Area: local tooling / launcher / Codex runtime
   - Finding Type: non-repo rollout follow-up
+  - Status (EN): Repo-side support merged: PR #1348 (`scripts/orchestration/local_session_bootstrap.sh`, SoT alignment), PR #1350 (`docs/templates/codex.config.example.toml`, `docs/dev/CODEX_SKILLS.md`, `docs/dev/AGENT_COMPATIBILITY_ONBOARDING.md`). Operator-owned machine launcher (preflight + bootstrap wiring, `PATH` / `CODEX_HOME`) remains open per DoD below. Merge commit for PR #1350 on `main`: `a3345b23102aa7c46e1dc36083edc7c2ec2e7ca4`.
   - Reason: Repo docs and deterministic engines alone cannot force raw session auto-start. A machine-local launcher or wrapper must wire preflight, bootstrap, and compatible runtime settings without pretending that `~/.codex/config.toml` is repo source of truth.
   - Links:
     - `docs/orchestration/AUTOMATION_READINESS_MATRIX.md`
+    - `docs/templates/codex.config.example.toml`
+    - `scripts/orchestration/local_session_bootstrap.sh`
+    - `docs/dev/CODEX_SKILLS.md`
     - `~/.codex/config.toml`
   - DoD:
     - Local launcher/wrapper classifies new tasks and invokes preflight + bootstrap before normal execution
