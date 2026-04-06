@@ -25,7 +25,7 @@ Evidence: docs/architecture/ADR_SEARCH_PGTRGM_CANDIDATES_LANE_P2.md (path:line c
 
 ## Merge Readiness
 
-- [ ] All required checks pass (GitHub CI on current PR head after each push)
+- [x] All required checks pass (`gh pr view 1349`: `mergeStateStatus=CLEAN`, `mergeable=MERGEABLE`, no `FAILURE`/`ERROR` in `statusCheckRollup`; 2026-04-06)
 - [x] No unresolved review threads (GraphQL `resolveReviewThread` for 5 threads, 2026-04-06)
 - [x] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
 - [x] Pre-commit green (push hook + commits `e8282c5e`, `f080e81e`)
