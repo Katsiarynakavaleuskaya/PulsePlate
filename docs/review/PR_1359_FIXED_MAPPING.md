@@ -11,7 +11,7 @@
 Disposition: **FIXED** (evidence in `deploy/docker-compose.production.selfhosted.yaml`, `docs/deploy/POSTGRES_SELF_HOSTED_DROPLET.md`).
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1359#discussion_r3039605502 -> ccfb52627b02d611616c6a7cdb0bf2effa530a6b
-  Evidence: `deploy/docker-compose.production.selfhosted.yaml:56` (`--forwarded-allow-ips=\"caddy\"`).
+  Evidence: `deploy/docker-compose.production.selfhosted.yaml:56` (`--forwarded-allow-ips="caddy"`).
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1359#discussion_r3039634911 -> ccfb52627b02d611616c6a7cdb0bf2effa530a6b
   Evidence: same as above.
