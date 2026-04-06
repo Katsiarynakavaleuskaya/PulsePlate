@@ -7168,14 +7168,19 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P2: Search PostgreSQL `pg_trgm` candidate generation lane
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2
-  - Target PR: PR-TBD-SEARCH-PGTRGM-CANDIDATES
+  - Target PR: [#1349](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1349) (Phase 1 DDL + docs; full DoD remains open until runtime lane + tests)
   - Area: backend / search
   - Finding Type: deferred hybrid-search rollout
   - Reason: This PR intentionally preserves SQLite/FTS as the live baseline and adds Meili shadow mode only. PostgreSQL `pg_trgm` candidate generation remains deferred until PostgreSQL is promoted to the canonical search-adjacent store.
+  - Progress (Phase 1 — DDL + docs, this slice): Alembic enables `pg_trgm` on PostgreSQL and creates `ix_foods_*_gin_trgm` indexes when `public.foods` exists; ADR + deploy note document scope. Runtime trigram candidate queries + strategy routing remain **open** until this checkbox closes.
   - Links:
     - `app/services/search_meili.py`
     - `app/services/food_store.py`
     - `docs/review/PR_1099_FIXED_MAPPING.md`
+    - `docs/review/PR_1349_FIXED_MAPPING.md`
+    - `docs/architecture/ADR_SEARCH_PGTRGM_CANDIDATES_LANE_P2.md`
+    - `alembic/versions/202604060001_enable_pg_trgm_foods_candidate_indexes.py`
+    - `docs/orchestration/task_analysis_SEARCH_PGTRGM_CANDIDATES_P2.md`
   - DoD:
     - `pg_trgm` candidate generation exists behind additive strategy routing with deterministic fallback
     - Relevance and latency tests cover candidate generation for representative food queries
@@ -7192,6 +7197,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Links:
     - `app/services/food_search_indexing.py`
     - `docs/review/PR_1099_FIXED_MAPPING.md`
+    - `docs/orchestration/plan_SEARCH_ZERO_DOWNTIME_SWAP_FOLLOWUP.md`
   - DoD:
     - Offline build-validate-warm-swap workflow is implemented with deterministic commands or admin surface
     - Swap orchestration is tested against `*_v2` indexes without changing public food API contracts
