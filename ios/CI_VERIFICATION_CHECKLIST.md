@@ -5,15 +5,15 @@
 ### 1. Xcode Pinning
 
 В логах шага "Select Xcode" должна быть строка:
+```text
+Selected DEVELOPER_DIR: /Applications/Xcode_26.2.app/Contents/Developer
 ```
-Selected DEVELOPER_DIR: /Applications/Xcode_26.1.app/Contents/Developer
-```
-(или другой `Xcode_26*.app`, если 26.1 нет)
+(или другой `Xcode_26*.app`, если `26.2` недоступен на runner)
 
 ### 2. Xcode Version
 
 После выбора Xcode:
-```
+```bash
 xcodebuild -version
 ```
 Должен показать `Xcode 26.x`, не 16.x.
@@ -21,7 +21,7 @@ xcodebuild -version
 ### 3. Available Destinations
 
 После boot симулятора:
-```
+```bash
 xcodebuild -showdestinations -project PulsePlate.xcodeproj -scheme PulsePlate
 ```
 
@@ -31,7 +31,7 @@ xcodebuild -showdestinations -project PulsePlate.xcodeproj -scheme PulsePlate
 
 ### 4. Test Execution
 
-```
+```bash
 xcodebuild test -destination platform=iOS Simulator,id=<UDID> ...
 ```
 
@@ -44,18 +44,18 @@ xcodebuild test -destination platform=iOS Simulator,id=<UDID> ...
 Если CI всё ещё падает, пришлите:
 
 1. **Строку с выбранным Xcode:**
-   ```
+   ```text
    Selected DEVELOPER_DIR: ...
    ```
 
 2. **Первые 10 строк после `xcodebuild -showdestinations`:**
-   ```
+   ```text
    { platform:iOS Simulator, ... }
    ...
    ```
 
 3. **Если упало — первые 5 строк ошибки:**
-   ```
+   ```text
    error: ...
    ```
 

@@ -58,6 +58,7 @@ jobs:
             if [ -d "$candidate" ]; then
               echo "DEVELOPER_DIR=$candidate" >> "$GITHUB_ENV"
               sudo xcode-select -s "$candidate"
+              echo "Selected DEVELOPER_DIR: $candidate"
               XCODEBUILD_VERSION="$(xcodebuild -version)"
               XCODE_VERSION="${XCODEBUILD_VERSION#Xcode }"
               XCODE_VERSION="${XCODE_VERSION%%$'\n'*}"
@@ -73,6 +74,12 @@ jobs:
           done
 
           echo "::error::No supported Xcode 26.x installation found"
+          echo "Available Xcode installations under /Applications:"
+          for xcode_app in /Applications/Xcode*.app; do
+            if [ -d "$xcode_app" ]; then
+              echo " - $xcode_app"
+            fi
+          done
           exit 1
 
       - uses: ruby/setup-ruby@4eb9f110bac952a8b68ecf92e3b5c7a987594ba6 # v1
@@ -129,6 +136,7 @@ jobs:
             if [ -d "$candidate" ]; then
               echo "DEVELOPER_DIR=$candidate" >> "$GITHUB_ENV"
               sudo xcode-select -s "$candidate"
+              echo "Selected DEVELOPER_DIR: $candidate"
               XCODEBUILD_VERSION="$(xcodebuild -version)"
               XCODE_VERSION="${XCODEBUILD_VERSION#Xcode }"
               XCODE_VERSION="${XCODE_VERSION%%$'\n'*}"
@@ -142,6 +150,12 @@ jobs:
             fi
           done
           echo "::error::No supported Xcode 26.x installation found"
+          echo "Available Xcode installations under /Applications:"
+          for xcode_app in /Applications/Xcode*.app; do
+            if [ -d "$xcode_app" ]; then
+              echo " - $xcode_app"
+            fi
+          done
           exit 1
 
       - uses: ruby/setup-ruby@4eb9f110bac952a8b68ecf92e3b5c7a987594ba6 # v1
