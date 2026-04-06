@@ -18,6 +18,8 @@ APPROVED_PROXY_URL = "https://packages.example.internal/simple"
 def isolate_proxy_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv(installer.APPROVED_INDEX_ENV_VAR, raising=False)
     monkeypatch.delenv(installer.TRUSTED_HOST_ENV_VAR, raising=False)
+    monkeypatch.delenv(installer.DOCKER_SINGLE_PASS_LOCKED_INSTALL_ENV, raising=False)
+    monkeypatch.delenv(installer.DOCKER_PIP_LAYER_CACHE_ENV, raising=False)
     for env_var in installer.AMBIENT_INDEX_OVERRIDE_ENV_VARS:
         monkeypatch.delenv(env_var, raising=False)
 
@@ -220,6 +222,24 @@ def test_build_pip_proxy_install_command_uses_approved_proxy_without_cache(
     assert APPROVED_PROXY_URL in command
     assert "--trusted-host" in command
     assert "--constraint" in command
+
+
+def test_build_pip_proxy_install_command_omits_no_cache_dir_when_cache_allowed(
+    tmp_path: Path,
+) -> None:
+    constraints = tmp_path / "constraints.txt"
+    constraints.write_text("openai>=2.29.0\n", encoding="utf-8")
+
+    command = installer.build_pip_proxy_install_command(
+        python_executable="python",
+        requirement_file=tmp_path / "requirements.txt",
+        constraints_file=constraints,
+        index_url=APPROVED_PROXY_URL,
+        trusted_host="packages.example.internal",
+        allow_pip_download_cache=True,
+    )
+
+    assert "--no-cache-dir" not in command
 
 
 def test_validate_private_proxy_url_rejects_public_hosts() -> None:
@@ -683,6 +703,94 @@ def test_main_runs_direct_proxy_install_and_static_guard(
     assert APPROVED_PROXY_URL in install_command
     assert str(requirements) in install_command
     assert observed_guard_python == ["staging-python"]
+
+
+def test_main_direct_proxy_docker_layer_cache_skips_no_cache_dir_on_target_only(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    requirements = tmp_path / "requirements.txt"
+    requirements.write_text("openai==2.29.0\n", encoding="utf-8")
+    guard_script = tmp_path / "check_python_startup_hooks.py"
+    guard_script.write_text("# test guard\n", encoding="utf-8")
+    observed_commands: list[list[str]] = []
+
+    @contextmanager
+    def fake_staging_environment(target_python: str) -> str:
+        yield "staging-python"
+
+    monkeypatch.setattr(
+        installer, "run_command", lambda command: observed_commands.append(list(command))
+    )
+    monkeypatch.setattr(
+        installer,
+        "collect_startup_hook_failure_lines",
+        lambda **kwargs: [],
+    )
+    monkeypatch.setattr(installer, "staged_python_environment", fake_staging_environment)
+    monkeypatch.setenv(installer.APPROVED_INDEX_ENV_VAR, APPROVED_PROXY_URL)
+    monkeypatch.setenv(installer.DOCKER_PIP_LAYER_CACHE_ENV, "1")
+
+    result = installer.main(
+        [
+            "--python-executable",
+            "python",
+            "--requirements-file",
+            str(requirements),
+            "--guard-script",
+            str(guard_script),
+            "--install-mode",
+            "direct-proxy",
+        ]
+    )
+
+    assert result == 0
+    assert len(observed_commands) == 2
+    assert "--no-cache-dir" in observed_commands[0]
+    assert "--no-cache-dir" not in observed_commands[1]
+
+
+def test_main_direct_proxy_docker_single_pass_runs_one_target_install_and_guard(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    requirements = tmp_path / "requirements.txt"
+    requirements.write_text("openai==2.29.0\n", encoding="utf-8")
+    guard_script = tmp_path / "check_python_startup_hooks.py"
+    guard_script.write_text("# test guard\n", encoding="utf-8")
+    observed_commands: list[list[str]] = []
+    observed_guard_python: list[str] = []
+
+    monkeypatch.setattr(
+        installer, "run_command", lambda command: observed_commands.append(list(command))
+    )
+    monkeypatch.setattr(
+        installer,
+        "collect_startup_hook_failure_lines",
+        lambda **kwargs: observed_guard_python.append(kwargs["python_executable"]) or [],
+    )
+    monkeypatch.setenv(installer.APPROVED_INDEX_ENV_VAR, APPROVED_PROXY_URL)
+    monkeypatch.setenv(installer.DOCKER_SINGLE_PASS_LOCKED_INSTALL_ENV, "1")
+    monkeypatch.setenv(installer.DOCKER_PIP_LAYER_CACHE_ENV, "1")
+
+    result = installer.main(
+        [
+            "--python-executable",
+            "python",
+            "--requirements-file",
+            str(requirements),
+            "--guard-script",
+            str(guard_script),
+            "--install-mode",
+            "direct-proxy",
+        ]
+    )
+
+    assert result == 0
+    assert len(observed_commands) == 1
+    assert observed_commands[0][:4] == ["python", "-m", "pip", "install"]
+    assert "--no-cache-dir" not in observed_commands[0]
+    assert observed_guard_python == ["python"]
 
 
 def test_main_direct_proxy_mode_stops_before_target_install_when_guard_fails(
