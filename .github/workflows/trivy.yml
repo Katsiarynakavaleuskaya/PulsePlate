@@ -28,6 +28,9 @@ jobs:
       security-events: write # for github/codeql-action/upload-sarif to upload SARIF results
     name: Build
     runs-on: ubuntu-latest
+    env:
+      # secrets.* is not available in step-level `if:` (actionlint / context rules); gate at job env instead.
+      GHCR_READ_TOKEN_AVAILABLE: ${{ secrets.GHCR_READ_TOKEN != '' }}
     steps:
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -69,7 +72,7 @@ jobs:
           trivy --version
 
       - name: Log in to GHCR (Trivy DB)
-        if: ${{ secrets.GHCR_READ_TOKEN != '' }}
+        if: ${{ env.GHCR_READ_TOKEN_AVAILABLE == 'true' }}
         uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef
         with:
           registry: ghcr.io
