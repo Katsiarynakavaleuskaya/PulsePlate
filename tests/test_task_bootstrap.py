@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import uuid
 from pathlib import Path
 
 import pytest
@@ -1277,10 +1278,11 @@ def test_main_rejects_output_outside_repo(tmp_path, capsys) -> None:
     assert "FAIL: --output must stay within the repository root" in captured.out
 
 
-def test_main_writes_relative_output_inside_repo(tmp_path, monkeypatch, capsys) -> None:
+def test_main_writes_relative_output_inside_repo(monkeypatch, capsys) -> None:
     """CLI should write relative --output under repo root and report repo-relative path."""
 
-    relative_output = Path("tmp/task-packet.json")
+    # Unique path avoids xdist races on a shared repo-local tmp file.
+    relative_output = Path(f"tmp/task-packet-{uuid.uuid4().hex}.json")
     repo_output = (REPO_ROOT / relative_output).resolve()
     if repo_output.exists():
         repo_output.unlink()
@@ -1380,7 +1382,7 @@ def test_main_writes_relative_output_inside_repo(tmp_path, monkeypatch, capsys) 
 def test_main_writes_repo_root_output_as_relative_path(monkeypatch, capsys) -> None:
     """Direct children of the repo root should still be reported repo-relative."""
 
-    relative_output = Path("task-packet-root.json")
+    relative_output = Path(f"task-packet-root-{uuid.uuid4().hex}.json")
     repo_output = (REPO_ROOT / relative_output).resolve()
     if repo_output.exists():
         repo_output.unlink()
