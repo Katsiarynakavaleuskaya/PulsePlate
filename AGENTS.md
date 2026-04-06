@@ -194,6 +194,7 @@ The merge-readiness gate remains separate and still requires `GITHUB_TOKEN` for 
 **Forbidden to commit:**
 - `artifacts/agent_runs/`
 - `artifacts/orchestration/`
+- `artifacts/security_lab/`
 - `worktrees/`
 - `.venv/`
 - `.pytest_cache/`

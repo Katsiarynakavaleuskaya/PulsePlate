@@ -32,19 +32,20 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P0: Self-hosted Postgres Droplet Foundation
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0 (deployment-safety blocker)
-  - Target PR: PR #1184 (infra/p0-self-hosted-postgres-droplet-foundation)
+  - Target PR: TBD (branch `infra/p0-self-hosted-postgres-droplet`)
   - Area: infra / database / deploy
   - Reason: Promote Postgres from optional/profile-gated to canonical prod DB on Droplet. Insert narrow infra-wave between B1 and B2; Batch B remains active. SQLite stays dev/test fallback only.
   - Links:
     - docs/deploy/POSTGRES_SELF_HOSTED_DROPLET.md
-    - docker-compose.yaml
+    - deploy/docker-compose.production.selfhosted.yaml
+    - deploy/systemd/pulseplate-postgres-backup.service.example
+    - scripts/ops/postgres_backup.sh
     - core/db_fallback.py
   - DoD:
-    - Postgres not optional/profile-gated in docker-compose
-    - No dev-only password; DATABASE_URL required for prod
-    - pulseplate depends_on postgres with health condition
-    - Backup/restore scripts exist
-    - Runbook documents migrations, health, backup/restore
+    - Dedicated self-hosted compose: `postgres` without published 5432; `app` `depends_on` postgres + health condition; managed lane unchanged in `deploy/docker-compose.production.yaml`
+    - No dev-only password; `DATABASE_URL` + `POSTGRES_*` required per `.env.example`
+    - Backup/restore documented; host `scripts/ops/postgres_backup.sh` + optional systemd timer examples
+    - Runbook documents both lanes (managed vs self-hosted), migrations, Caddy build, health checks
 
 <a id="ledger-p0-payments-ruby-ios"></a>
 - [ ] P0: Payment rails for RU/BY + iOS-first monetization baseline
@@ -313,6 +314,28 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - No duplicate or conflicting ownership across active worktrees
 
 ### P1
+
+<a id="ledger-p1-metatron-offensive-lab-out-of-band"></a>
+- [ ] P1: METATRON-class offensive lab — out-of-band governance and operator runbook
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (security engineering / abuse prevention)
+  - Target PR: Epic 1 merged [#1355](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1355); Epic 2 / Epic 3 — PR-TBD (isolated runner + runbook; out of scope for Epic 1: no `app/` / product OpenAPI).
+  - Status: **Track A Epic 1 — CLOSED.** Landed via PR [#1355](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1355); canonical squash merge commit [`5a39c2ec3`](https://github.com/Katsiarynakavaleuskaya/PulsePlate/commit/5a39c2ec3) on `main`. Remaining: Epic 2 (infra/scripts isolated runner), Epic 3 (runbook) per coordinator sequencing after this ledger closeout.
+  - Area: security / deploy / orchestration / governance
+  - Reason (EN): METATRON-like stacks (local LLM + offensive recon) must not enter the PulsePlate product runtime or OpenAPI; operators still need canonical RoE, ADR, isolated deploy boundary, and coordinator-led assessment workflow. (RU: оффенсив-лаборатория остаётся вне продукта, но процесс и документы должны быть в репозитории.)
+  - Links:
+    - `docs/orchestration/METATRON_TRACK_A_EPIC1_TASK_PACKET_2026-04-06.md:1`
+    - `docs/architecture/ADR_METATRON_OFFENSIVE_LAB_OUT_OF_BAND_2026-04-06.md:1`
+    - `docs/security/METATRON_LAB_RULES_OF_ENGAGEMENT.md:1`
+    - `docs/orchestration/METATRON_SECURITY_ASSESSMENT_WAVE_RUNBOOK.md:1`
+    - `deploy/metatron-lab/README.md:1`
+    - Epic 1 merge evidence: [`5a39c2ec3`](https://github.com/Katsiarynakavaleuskaya/PulsePlate/commit/5a39c2ec3) (PR [#1355](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1355))
+  - DoD:
+    - [x] Epic 1: ADR + RoE + task packet + lab stub merged with evidence anchors (#1355 / `5a39c2ec3`)
+    - [x] Ledger links this packet; Epic 1 merge recorded
+    - [x] No offensive tooling in `app.main` / product requirements; lab remains optional compose profile
+    - [ ] Epic 2: isolated runner (infra/scripts only); merge-ready with `make verify` on touched surfaces per `AGENTS.md`
+    - [ ] Epic 3: operator assessment runbook / wave workflow hardening as needed
 
 <a id="ledger-p1-execution-doc-sot-reconciliation"></a>
 - [ ] P1: Execution-doc source-of-truth reconciliation after PR-1
