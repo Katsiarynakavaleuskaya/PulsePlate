@@ -306,6 +306,26 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 
 ### P1
 
+<a id="ledger-p1-metatron-offensive-lab-out-of-band"></a>
+- [ ] P1: METATRON-class offensive lab — out-of-band governance and operator runbook
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (security engineering / abuse prevention)
+  - Target PR: PR-TBD-METATRON-TRACK-A
+  - Status: Epic 1 opened — coordinator task packet canonical (`docs/orchestration/METATRON_TRACK_A_EPIC1_TASK_PACKET_2026-04-06.md:1`); merge PR + checkbox closeout still pending.
+  - Area: security / deploy / orchestration / governance
+  - Reason (EN): METATRON-like stacks (local LLM + offensive recon) must not enter the PulsePlate product runtime or OpenAPI; operators still need canonical RoE, ADR, isolated deploy boundary, and coordinator-led assessment workflow. (RU: оффенсив-лаборатория остаётся вне продукта, но процесс и документы должны быть в репозитории.)
+  - Links:
+    - `docs/orchestration/METATRON_TRACK_A_EPIC1_TASK_PACKET_2026-04-06.md:1`
+    - `docs/architecture/ADR_METATRON_OFFENSIVE_LAB_OUT_OF_BAND_2026-04-06.md:1`
+    - `docs/security/METATRON_LAB_RULES_OF_ENGAGEMENT.md:1`
+    - `docs/orchestration/METATRON_SECURITY_ASSESSMENT_WAVE_RUNBOOK.md:1`
+    - `deploy/metatron-lab/README.md:1`
+  - DoD:
+    - ADR + RoE merged with Phase 1 docs evidence anchors
+    - Ledger links this packet; Target PR updated when merged
+    - No offensive tooling in `app.main` / product requirements; lab remains optional compose profile
+    - `make validate-min` (or `make verify` if orchestration scripts change) green on PR head
+
 <a id="ledger-p1-execution-doc-sot-reconciliation"></a>
 - [ ] P1: Execution-doc source-of-truth reconciliation after PR-1
   - Owner: @katsiaryna_kavaleuskaya
