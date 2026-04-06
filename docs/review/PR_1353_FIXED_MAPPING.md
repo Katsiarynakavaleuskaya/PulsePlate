@@ -23,11 +23,26 @@ Evidence: Phase 2 checklist and mapping in this artifact aligned with `scripts/c
 
 Disposition: NOT-A-BUG
 Evidence: `AGENTS.md` (CI strictness / `continue-on-error` at YAML level), `68e4055d` (concrete workflow edits above).
-Reason: `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1353#pullrequestreview-4061358914` is a Sourcery aggregate review; the actionable inline thread `3038884405` is mapped to `68e4055d`.
+Reason: Sourcery aggregate review; the actionable inline thread `3038884405` is mapped to `68e4055d`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1353#pullrequestreview-4061358914
 
 Disposition: NOT-A-BUG
 Evidence: `68e4055d` (workflow + installer evidence above).
-Reason: `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1353#pullrequestreview-4061433916` is a CodeRabbit summary review; actionable inline threads `3038957084`, `3038957096`, `3038957099`, `3038957106` are mapped individually above.
+Reason: CodeRabbit summary review; actionable inline threads `3038957084`, `3038957096`, `3038957099`, `3038957106` are mapped individually above.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1353#pullrequestreview-4061433916
+
+Disposition: FIXED
+Commit: e93cee9a
+Evidence: `.github/workflows/build.yml:120`, `.github/workflows/trivy.yml:71`: `Log in to GHCR (Trivy DB)` runs only when `secrets.GHCR_READ_TOKEN` is non-empty so workflows do not fail the login step when the org secret is unavailable (e.g. forked PRs).
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1353#discussion_r3039119684 -> e93cee9a
+
+Disposition: NOT-A-BUG
+Evidence: `docs/review/PR_1353_FIXED_MAPPING.md` lists aggregate review URLs on separate `- <url>` lines per `scripts/orchestration/review_mapping_artifact.py` and CodeRabbit review `4061610776` formatting guidance.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1353#pullrequestreview-4061610776
+
+Disposition: NOT-A-BUG
+Evidence: Cubic P1 inline thread `3039119684` is covered by the FIXED mapping entry immediately above; this URL is the aggregate Cubic review only.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1353#pullrequestreview-4061616480
 
 ## Merge Readiness
 
