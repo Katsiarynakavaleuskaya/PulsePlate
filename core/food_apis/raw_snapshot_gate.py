@@ -7,6 +7,7 @@ EN: Manifest + on-disk verification gate before database build.
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from core.food_sources.snapshot_manager import SnapshotIntegrityError, SnapshotManager
@@ -56,6 +57,12 @@ def validate_off_raw_manifest_gate(
         checked = manager.verify_recorded_snapshots("off")
     except SnapshotIntegrityError as exc:
         raise SnapshotIntegrityError(f"OFF raw snapshot gate failed: {exc}") from exc
+    except (json.JSONDecodeError, OSError, UnicodeDecodeError) as exc:
+        # RU: Битый манифест / I/O не должны «протекать» сырым traceback из CLI.
+        # EN: Map parse/read failures to the same gate contract as integrity errors.
+        raise SnapshotIntegrityError(
+            f"OFF raw snapshot gate failed: cannot read off/manifest.json under {root}: {exc}"
+        ) from exc
     return {
         "enabled": True,
         "status": "verified",

@@ -38,14 +38,18 @@ def main() -> int:
     )
     args = parser.parse_args()
     project_root = _ROOT
+    display_root = (
+        args.root.expanduser().resolve()
+        if args.root is not None
+        else default_raw_snapshot_root(project_root)
+    )
     meta = sync_openfoodfacts_snapshot(
         args.root,
         project_root=project_root,
         force=args.force,
     )
-    root = args.root if args.root is not None else default_raw_snapshot_root(project_root)
     if meta is None:
-        print(f"No new snapshot written under {root} (already up to date).")
+        print(f"No new snapshot written under {display_root} (already up to date).")
         return 0
     print(f"Recorded snapshot: {meta.file_path} mode={meta.mode} records={meta.record_count}")
     return 0

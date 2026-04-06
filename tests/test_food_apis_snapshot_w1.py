@@ -87,6 +87,16 @@ def test_validate_off_raw_manifest_gate_verifies_recorded(tmp_path: Path) -> Non
     assert result["snapshots_checked"] == 1
 
 
+def test_validate_off_raw_manifest_gate_malformed_manifest_json_raises(tmp_path: Path) -> None:
+    """Corrupt off/manifest.json must surface as SnapshotIntegrityError (gate contract)."""
+    base = tmp_path / "snapshots"
+    off = base / "off"
+    off.mkdir(parents=True)
+    (off / "manifest.json").write_text("{ not valid json", encoding="utf-8")
+    with pytest.raises(SnapshotIntegrityError, match="OFF raw snapshot gate failed"):
+        validate_off_raw_manifest_gate(tmp_path, enabled=True, snapshot_root=base)
+
+
 def test_validate_off_raw_manifest_gate_tamper_raises(tmp_path: Path) -> None:
     base = tmp_path / "snapshots"
     manager = SnapshotManager(base)
@@ -188,6 +198,33 @@ def test_database_update_manager_sync_openfoodfacts_raw_snapshot_delegates(
     mgr.sync_openfoodfacts_raw_snapshot(tmp_path / "raw", force=True)
     assert captured["raw_root"] == tmp_path / "raw"
     assert captured["force"] is True
+
+
+def test_database_update_manager_sync_forwards_project_root(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_sync(
+        raw_root: Path | None,
+        *,
+        project_root: Path | None = None,
+        force: bool = False,
+        transport: object | None = None,
+        today_provider: object | None = None,
+    ) -> None:
+        captured["raw_root"] = raw_root
+        captured["project_root"] = project_root
+        return None
+
+    import core.food_apis.snapshot_sync as snapshot_sync_mod
+
+    monkeypatch.setattr(snapshot_sync_mod, "sync_openfoodfacts_snapshot", fake_sync)
+    mgr = DatabaseUpdateManager(cache_dir=tmp_path / "cache")
+    proj = tmp_path / "myproject"
+    mgr.sync_openfoodfacts_raw_snapshot(None, project_root=proj)
+    assert captured["raw_root"] is None
+    assert captured["project_root"] == proj
 
 
 def test_manifest_file_relative_path_verify(tmp_path: Path) -> None:

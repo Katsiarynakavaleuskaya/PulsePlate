@@ -228,6 +228,7 @@ class DatabaseUpdateManager:
         self,
         raw_root: str | Path | None = None,
         *,
+        project_root: Path | None = None,
         force: bool = False,
         transport: "OFFTransport | None" = None,
         today_provider: Callable[[], date] | None = None,
@@ -237,13 +238,15 @@ class DatabaseUpdateManager:
 
         RU: Делегирует загрузку сырого снапшота OFF в ``snapshot_sync``.
         EN: Delegates OFF raw snapshot sync to :mod:`core.food_apis.snapshot_sync`.
+        When ``raw_root`` is None, ``project_root`` selects the default snapshot tree
+        (same semantics as :func:`snapshot_sync.default_raw_snapshot_root`).
         """
         from . import snapshot_sync
 
         root = Path(raw_root) if raw_root is not None else None
         return snapshot_sync.sync_openfoodfacts_snapshot(
             root,
-            project_root=None,
+            project_root=project_root,
             force=force,
             transport=transport,
             today_provider=today_provider,
