@@ -77,3 +77,15 @@ Required for production:
 These environment variables and host modes are specific to the self-hosted alternate lane; canonical production uses only `DATABASE_URL` pointing to an external managed instance.
 
 See `.env.example` for the canonical contract.
+
+---
+
+## 6. Search extension: `pg_trgm` (candidate lane prep)
+
+Alembic revision `alembic/versions/202604060001_enable_pg_trgm_foods_candidate_indexes.py` runs `CREATE EXTENSION IF NOT EXISTS pg_trgm` on PostgreSQL and creates GIN(trgm) indexes on `public.foods` **only when that table exists** (catalog colocated on the app database).
+
+**Managed PostgreSQL:** many providers require enabling `pg_trgm` once in the control plane (or grant `CREATE` on extension to the app role). If `alembic upgrade head` fails with insufficient privilege, pre-provision the extension and re-run migrations.
+
+**Evidence / design:** `docs/architecture/ADR_SEARCH_PGTRGM_CANDIDATES_LANE_P2.md`, `app/services/food_store.py:603` (`_load_semantic_candidates`).
+
+**Follow-up (separate P2):** zero-downtime index orchestration — `docs/roadmap/BACKLOG_LEDGER.md` anchor `ledger-p2-search-zero-downtime-swap-orchestration`.
