@@ -640,6 +640,7 @@ jobs:
                 ;;
               food_catalog)
                 add_suite \
+                  tests/test_off_nutrition_bridge.py \
                   tests/test_off_nutrition_resolver.py \
                   tests/test_food_schema_provenance.py \
                   tests/test_food_store_additional_coverage.py \
