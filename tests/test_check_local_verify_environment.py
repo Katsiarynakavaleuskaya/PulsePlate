@@ -317,6 +317,35 @@ def test_collect_broken_console_wrappers_ignores_env_shebang(tmp_path: Path) -> 
     assert env_gate.collect_broken_console_wrappers(venv_bin_dir=bin_dir) == []
 
 
+def test_collect_broken_console_wrappers_reports_resolve_runtimeerror(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """Broken venvs may trigger RuntimeError from Path.resolve() on interpreter loops."""
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir(parents=True)
+    interp = tmp_path / "interp"
+    interp.touch()
+    wrapper = bin_dir / "flake8"
+    wrapper.write_text(f"#!{interp}\n", encoding="utf-8")
+    os.chmod(wrapper, 0o755)
+
+    real_resolve = Path.resolve
+
+    def resolve_with_loop(self: Path, *args: object, **kwargs: object) -> Path:
+        if self == interp:
+            raise RuntimeError("symlink loop")
+        return real_resolve(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "resolve", resolve_with_loop)
+
+    out = env_gate.collect_broken_console_wrappers(venv_bin_dir=bin_dir)
+    assert len(out) == 1
+    assert out[0][0] == "flake8"
+    assert "resolve error" in out[0][1]
+    assert "symlink loop" in out[0][1]
+
+
 def test_main_fails_when_unexpected_startup_hook_is_present(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],

@@ -107,7 +107,12 @@ def collect_unexpected_startup_hooks() -> list[StartupHookFinding]:
 
 
 def _parse_absolute_shebang_interpreter(first_line: str) -> Path | None:
-    """Return interpreter path from shebang if it is a single absolute path token."""
+    """
+    Return interpreter path from shebang when the first token is an absolute path.
+
+    If the shebang has extra arguments after that token (for example ``#!/usr/bin/python -O``),
+    only the first token is used; ``#!/usr/bin/env ...`` yields None (handled elsewhere).
+    """
     stripped = first_line.strip()
     if not stripped.startswith("#!"):
         return None
@@ -161,7 +166,7 @@ def collect_broken_console_wrappers(
             continue
         try:
             interp_resolved = interpreter.resolve()
-        except OSError as exc:
+        except (OSError, RuntimeError) as exc:
             broken.append(
                 (name, f"stale shebang interpreter (resolve error): {interpreter} ({exc})")
             )
