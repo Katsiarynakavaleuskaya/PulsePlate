@@ -25,6 +25,18 @@ Suggested first action in Cursor:
 - use it as a local bridge into the canonical coordinator-first workflow, not as a replacement for [`docs/orchestration/workflow.md`](../orchestration/workflow.md)
 - follow the local startup checklist there
 
+## Raw session vs bootstrap (invariant)
+
+Policy and routing are **deterministic only after** you run the repo entrypoints (`check_preflight.py`, then `task_bootstrap.py`). Markdown and skills do **not** auto-start a coordinator-first session on the host.
+
+Optional first command from repo root:
+
+```bash
+scripts/orchestration/local_session_bootstrap.sh
+```
+
+See [`docs/orchestration/AUTOMATION_READINESS_MATRIX.md`](../orchestration/AUTOMATION_READINESS_MATRIX.md) for capability claims vs launcher requirements.
+
 ## Codex
 
 - Repo-native Codex skills live in [`tools/codex_skills/`](../../tools/codex_skills/)

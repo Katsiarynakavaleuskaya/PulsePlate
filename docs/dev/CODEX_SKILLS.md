@@ -52,6 +52,8 @@ The user should not have to name skills manually for normal project work, but
 that routing comes from the canonical bootstrap/orchestration path, not from
 this document by itself.
 
+**Raw session note:** nothing in this file runs at host session start. Use `scripts/orchestration/local_session_bootstrap.sh` (optional) then `task_bootstrap.py` so routing and `recommended_skills` are produced deterministically.
+
 Canonical selection order after bootstrap:
 
 1. `pulseplate-workflow`
