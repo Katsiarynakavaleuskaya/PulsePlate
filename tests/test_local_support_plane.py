@@ -38,6 +38,17 @@ def test_normalize_key_rejects_path_like() -> None:
         lsp.normalize_key("foo/bar")
 
 
+def test_ensure_under_root_rejects_path_outside_root(tmp_path: Path) -> None:
+    root = tmp_path / "root"
+    outside = tmp_path / "outside"
+    root.mkdir()
+    outside.mkdir()
+    bad_file = outside / "x.json"
+    bad_file.write_text("{}", encoding="utf-8")
+    with pytest.raises(ValueError, match="support_plane_path_outside_root"):
+        lsp._ensure_under_root(bad_file, root)
+
+
 def test_resolve_support_plane_root_env_override(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:

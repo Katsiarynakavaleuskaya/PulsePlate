@@ -76,7 +76,10 @@ def _ensure_under_root(path: Path, root: Path) -> None:
 
     resolved_path = path.resolve()
     resolved_root = root.resolve()
-    resolved_path.relative_to(resolved_root)
+    try:
+        resolved_path.relative_to(resolved_root)
+    except ValueError as exc:
+        raise ValueError("support_plane_path_outside_root") from exc
 
 
 def get_record(
