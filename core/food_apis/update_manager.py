@@ -18,9 +18,10 @@ import logging
 import re
 import unicodedata
 from dataclasses import asdict, dataclass, is_dataclass
-from datetime import timedelta
+from datetime import date, timedelta
 from pathlib import Path
 from typing import (
+    TYPE_CHECKING,
     Any,
     Awaitable,
     Callable,
@@ -31,7 +32,13 @@ from typing import (
     Sequence,
     TypeVar,
     Union,
+    cast,
 )
+
+from core.food_sources.snapshot_manager import SnapshotMeta
+
+if TYPE_CHECKING:
+    from core.food_sources.off_delta import OFFTransport
 
 from .openfoodfacts_client import OFF_AVAILABLE, OFFClient
 from .unified_db import UnifiedFoodDatabase, UnifiedFoodItem
@@ -216,6 +223,31 @@ class DatabaseUpdateManager:
 
         except Exception as e:
             logger.error("Error saving versions: %s", e, exc_info=True)
+
+    def sync_openfoodfacts_raw_snapshot(
+        self,
+        raw_root: str | Path | None = None,
+        *,
+        force: bool = False,
+        transport: "OFFTransport | None" = None,
+        today_provider: Callable[[], date] | None = None,
+    ) -> SnapshotMeta | None:
+        """
+        Sync OFF raw snapshots into the canonical raw tree (lazy import of sync module).
+
+        RU: Делегирует загрузку сырого снапшота OFF в ``snapshot_sync``.
+        EN: Delegates OFF raw snapshot sync to :mod:`core.food_apis.snapshot_sync`.
+        """
+        from . import snapshot_sync
+
+        root = Path(raw_root) if raw_root is not None else None
+        return snapshot_sync.sync_openfoodfacts_snapshot(
+            root,
+            project_root=None,
+            force=force,
+            transport=transport,
+            today_provider=today_provider,
+        )
 
     def _calculate_checksum(self, data: Dict[str, Any]) -> str:
         """Calculate checksum for data integrity."""
@@ -1072,7 +1104,7 @@ async def get_update_status() -> dict[str, object]:
     scheduler = scheduler_mod._scheduler_instance
     if scheduler is None:
         return _empty_scheduler_status()
-    return scheduler.get_status()
+    return cast(dict[str, object], scheduler.get_status())
 
 
 def __getattr__(name: str) -> object:
