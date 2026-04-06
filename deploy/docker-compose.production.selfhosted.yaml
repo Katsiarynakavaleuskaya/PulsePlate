@@ -1,0 +1,97 @@
+# Production on a single Droplet with colocated PostgreSQL (self-hosted lane).
+# For managed PostgreSQL + same host edge, use docker-compose.production.yaml instead.
+#
+# Run from repo root (or set COMPOSE_FILE + PROJECT_DIR for backup scripts):
+#   docker compose --project-directory deploy -f deploy/docker-compose.production.selfhosted.yaml up -d
+#
+# Requires deploy/.env with IMAGE_REF, POSTGRES_*, DATABASE_URL (@postgres:5432), PRODUCTION_DOMAIN, etc.
+
+networks:
+  web:
+    external: false
+    ipam:
+      config:
+        - subnet: 172.30.100.0/24
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    restart: unless-stopped
+    networks: [web]
+    env_file:
+      - .env
+    environment:
+      - POSTGRES_DB=${POSTGRES_DB:?POSTGRES_DB is required}
+      - POSTGRES_USER=${POSTGRES_USER:?POSTGRES_USER is required}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  app:
+    image: ${IMAGE_REF:?IMAGE_REF is required}
+    restart: unless-stopped
+    networks: [web]
+    expose:
+      - "8000"
+    env_file:
+      - .env
+    environment:
+      - ENVIRONMENT=production
+      - DATABASE_URL=${DATABASE_URL:?DATABASE_URL is required}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: >
+      uvicorn app.main:app --host 0.0.0.0 --port 8000
+      --proxy-headers
+      --forwarded-allow-ips="172.30.100.0/24"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8000/ready').read()",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  caddy:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile.caddy-spa
+      args:
+        VITE_API_BASE: ${VITE_API_BASE:-/api/v1}
+    restart: unless-stopped
+    networks: [web]
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      - PRODUCTION_DOMAIN=${PRODUCTION_DOMAIN}
+      - STAGING_FALLBACK_DOMAIN=${STAGING_FALLBACK_DOMAIN:-pulseplate-staging.duckdns.org}
+    volumes:
+      - ./Caddyfile.production:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      app:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "caddy", "version"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  postgres_data:
+    driver: local
+  caddy_data:
+  caddy_config:
