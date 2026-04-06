@@ -59,6 +59,10 @@ Owned outside repo source of truth:
 - compatible `~/.codex/config.toml` settings
 - machine-local entrypoint wiring
 
+Optional **repo companion** (operator-invoked only; not host auto-start):
+
+- `scripts/orchestration/local_session_bootstrap.sh` runs `check_preflight.py --mode analyze` and prints the next step to invoke `task_bootstrap.py` (see script output and `--help`).
+
 This is the layer that can actually make coordinator-first bootstrap happen at
 session start on one machine.
 
@@ -211,6 +215,11 @@ Out:
 - new merge-readiness semantics.
 
 ### Local rollout (outside repo PR chain)
+
+Operator path today (repo companion, **not** a guarantee of raw-session auto-start):
+
+1. (Optional) `scripts/orchestration/local_session_bootstrap.sh` from repo root — preflight analyze + printed `task_bootstrap` recipe.
+2. `python3 scripts/orchestration/task_bootstrap.py ...` — deterministic packet + routing metadata once invoked.
 
 In:
 

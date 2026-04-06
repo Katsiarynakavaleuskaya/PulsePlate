@@ -325,6 +325,8 @@ A **task** is any unit of work that:
 
 **Pre-flight MUST run:** `python3 scripts/orchestration/check_preflight.py` — failure = stop execution.
 
+Optional local bridge (operator-invoked; not host auto-start): `scripts/orchestration/local_session_bootstrap.sh` runs analyze-mode preflight and prints a `task_bootstrap.py` invocation recipe (see [`docs/orchestration/AUTOMATION_READINESS_MATRIX.md`](docs/orchestration/AUTOMATION_READINESS_MATRIX.md)).
+
 1. **Task Analysis** → Coordinator analyzes task, identifies domains, assigns priority
 2. **Agent Assignment** → Coordinator routes to appropriate agent(s) based on capabilities
 3. **Work Review** → Coordinator reviews agent outputs, verifies quality gates
