@@ -25,6 +25,15 @@ Disposition: **FIXED** (evidence in `deploy/docker-compose.production.selfhosted
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1359#discussion_r3039637437 -> ccfb52627b02d611616c6a7cdb0bf2effa530a6b
   Evidence: `deploy/docker-compose.production.selfhosted.yaml:82` (`PRODUCTION_DOMAIN` `:?`).
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1359#pullrequestreview-4062157556 -> ccfb52627b02d611616c6a7cdb0bf2effa530a6b
+  Evidence: same uvicorn/Caddy + restore/docs fixes as inline threads (Sourcery aggregate review).
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1359#pullrequestreview-4062193213 -> ccfb52627b02d611616c6a7cdb0bf2effa530a6b
+  Evidence: same as above (Cubic aggregate review).
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1359#pullrequestreview-4062195935 -> ccfb52627b02d611616c6a7cdb0bf2effa530a6b
+  Evidence: same as above (CodeRabbit aggregate review).
+
 ## Merge Readiness
 
 - [ ] All required checks pass (GitHub CI on current PR head after each push)
