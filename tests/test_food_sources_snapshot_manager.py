@@ -365,6 +365,61 @@ def test_snapshot_manager_size_mismatch_fails_closed(tmp_path: Path) -> None:
         manager.validate_snapshot(bad_meta)
 
 
+def test_record_snapshot_size_mismatch_leaves_manifest_unchanged(tmp_path: Path) -> None:
+    """RU/EN: ``record_snapshot`` must fail closed on size mismatch without writing manifest."""
+    manager = SnapshotManager(tmp_path, today_provider=lambda: date(2026, 2, 24))
+    snapshot_file = tmp_path / "rsz" / "2026-02-24" / "f.bin"
+    snapshot_file.parent.mkdir(parents=True, exist_ok=True)
+    snapshot_file.write_bytes(b"abc")
+    bad_meta = SnapshotMeta(
+        source="rsz",
+        snapshot_date=date(2026, 2, 24),
+        file_path=snapshot_file,
+        checksum_sha256=sha256_file(snapshot_file),
+        record_count=1,
+        size_bytes=999,
+        mode="full",
+    )
+    with pytest.raises(SnapshotIntegrityError, match="Size mismatch"):
+        manager.record_snapshot(bad_meta)
+    assert not (tmp_path / "rsz" / "manifest.json").exists()
+
+
+def test_verify_recorded_snapshots_resolves_relative_manifest_paths(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Relative ``file`` entries must resolve against manifest dir, not process CWD."""
+    manager = SnapshotManager(tmp_path, today_provider=lambda: date(2026, 2, 24))
+    source_name = "rel"
+    day_dir = tmp_path / source_name / "2026-02-24"
+    day_dir.mkdir(parents=True)
+    snap_file = day_dir / "data.bin"
+    snap_file.write_bytes(b"hello")
+    manifest_path = tmp_path / source_name / "manifest.json"
+    manifest_path.write_text(
+        json.dumps(
+            {
+                "source": source_name,
+                "snapshots": [
+                    {
+                        "date": "2026-02-24",
+                        "file": "2026-02-24/data.bin",
+                        "checksum": sha256_file(snap_file),
+                        "records": 1,
+                        "bytes": snap_file.stat().st_size,
+                        "mode": "full",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    other_cwd = tmp_path / "other_cwd"
+    other_cwd.mkdir()
+    monkeypatch.chdir(other_cwd)
+    assert manager.verify_recorded_snapshots(source_name) == 1
+
+
 def test_verify_recorded_snapshots_revalidates_manifest(tmp_path: Path) -> None:
     """``verify_recorded_snapshots`` should load manifest and validate each entry."""
     manager = SnapshotManager(tmp_path, today_provider=lambda: date(2026, 2, 24))

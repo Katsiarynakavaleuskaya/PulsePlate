@@ -203,6 +203,21 @@ class SnapshotManager:
                 f"Invalid latest snapshot date for source={source}"
             ) from exc
 
+    def _resolve_manifest_snapshot_path(self, source: str, file_field: str) -> Path:
+        """
+        Resolve a manifest ``file`` field to an absolute path.
+
+        RU: Относительные пути считаются относительно каталога манифеста источника
+        (стабильно при смене CWD процесса).
+        EN: Relative paths are resolved against the source manifest directory so
+        re-validation does not depend on process working directory.
+        """
+        manifest_parent = self._manifest_path(source).parent
+        candidate = Path(file_field)
+        if candidate.is_absolute():
+            return candidate.resolve()
+        return (manifest_parent / candidate).resolve()
+
     def validate_snapshot(self, meta: SnapshotMeta) -> None:
         """Fail-closed integrity validation before manifest update."""
         if not meta.file_path.exists():
@@ -233,7 +248,7 @@ class SnapshotManager:
         data = self._load_manifest(source)
         snapshots = data["snapshots"]
         for snapshot in snapshots:
-            path = Path(snapshot["file"])
+            path = self._resolve_manifest_snapshot_path(source, snapshot["file"])
             try:
                 snap_date = date.fromisoformat(snapshot["date"])
             except ValueError as exc:
