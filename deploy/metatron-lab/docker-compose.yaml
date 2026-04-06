@@ -5,7 +5,8 @@ services:
   lab-network-placeholder:
     image: alpine:3.20
     profiles: ["metatron-lab-isolation"]
-    command: ["sleep", "infinity"]
+    # BusyBox sleep rejects "infinity"; keep a long-lived placeholder for the internal network.
+    command: ["/bin/sh", "-c", "while true; do sleep 86400; done"]
     networks: [lab_internal]
     deploy:
       resources:

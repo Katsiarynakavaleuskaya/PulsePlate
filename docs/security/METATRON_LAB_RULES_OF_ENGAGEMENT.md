@@ -16,10 +16,14 @@ systems without explicit written permission from the asset owner.
 
 ## Allowed targets
 
-- Hostnames and IP ranges **explicitly listed** in a written engagement letter or internal
-  asset inventory for the operator’s organization.
-- **Staging / lab** systems dedicated to security testing, with the same ownership as
-  the operator team.
+**Written authorization is mandatory for every engagement.** Inventory membership,
+same-team ownership, or “lab” labels **do not** replace an explicit scope approval
+(engagement letter / ticket) naming targets, CIDRs, and the time window.
+
+- Hostnames and IP ranges may appear in an internal asset inventory **only after** they
+  are **named in written authorization** for that assessment.
+- **Staging / lab** hosts are in scope **only when** that environment is explicitly
+  approved in the same authorization (not merely because it shares team ownership).
 
 ## Forbidden
 
