@@ -2386,7 +2386,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P2: Local workforce PR-C — add experimental local support-plane storage
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2
-  - Target PR: PR-TBD-LOCAL-WORKFORCE-PR-C-SUPPORT-PLANE
+  - Target PR: PR #1363 (draft; \`docs/review/PR_1363_FIXED_MAPPING.md\`)
   - Area: orchestration / security / local support plane
   - Finding Type: RFC follow-on slice
   - Status: Planned
