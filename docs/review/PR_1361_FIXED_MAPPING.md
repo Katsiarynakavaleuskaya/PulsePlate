@@ -17,6 +17,11 @@ Reason: Sourcery fail-closed semantics for `--validate-raw-snapshots`; Sourcery/
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1361#discussion_r3039910407 -> a65dd6fe34626341f0832dedcbb040b0d7b58121
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1361#discussion_r3039914070 -> a65dd6fe34626341f0832dedcbb040b0d7b58121
 
+Disposition: FIXED
+Commit: a56f768f82f4273d3611c1de7fd3502d801e359a
+Evidence: `core/food_apis/raw_snapshot_gate.py` (map `JSONDecodeError` / `OSError` / `UnicodeDecodeError` to `SnapshotIntegrityError`); `core/food_apis/update_manager.py` (optional `project_root` → `snapshot_sync`); `scripts/sync_food_snapshots.py` (resolved `display_root` in “no new snapshot” message); `tests/test_food_apis_snapshot_w1.py` (malformed manifest gate; `project_root` forward).
+Reason: Bug-hunter P1 gate error contract + P2 manager/CLI consistency.
+
 Disposition: NOT-A-BUG
 Evidence: `docs/review/PR_1361_FIXED_MAPPING.md:1`; Sourcery pull-request summary duplicates the threaded `discussion_r` items mapped above with `Disposition: FIXED`.
 Reason: Aggregate review body is not an additional fix thread; per-line comments carry actionable items.
