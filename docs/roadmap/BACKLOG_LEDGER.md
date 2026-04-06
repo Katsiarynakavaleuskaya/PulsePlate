@@ -4472,6 +4472,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `core/food_sources/`
     - `core/food_apis/update_manager.py`
     - `scripts/build_food_db.py`
+    - Merge follow-up: PR #1360 — fail-closed `verify_recorded_snapshots` + recorded size/checksum enforcement (extends W1 manifest integrity)
   - DoD:
     - Immutable raw snapshot layout is implemented
     - Manifest/checksum policy is enforced fail-closed
