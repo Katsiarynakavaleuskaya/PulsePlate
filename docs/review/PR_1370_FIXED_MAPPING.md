@@ -9,7 +9,7 @@ Bot and human review threads must be dispositioned below when actionable comment
 
 ## Fixed in Commit Mapping
 
-- Cubic (optional-arg flags): `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1370#discussion_r3045361493` → **Disposition: FIXED** — guard `--goal`, `--task-class`, `--pr-phase`, `--requested-agent`, `--path` with `[[ $# -lt 2 ]]` before reading `$2` in `docs/templates/pulseplate-coordinator-launch.example.sh` (avoids `set -u` unbound `$2`); evidence: same file after commit below.
+- Cubic (optional-arg flags): `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1370#discussion_r3045361493` → **Disposition: FIXED** — guard `--goal`, `--task-class`, `--pr-phase`, `--requested-agent`, `--path` with `[[ $# -lt 2 ]]` before reading `$2` in `docs/templates/pulseplate-coordinator-launch.example.sh` (avoids `set -u` unbound `$2`); evidence: same file after commit `d8494ec98e0465a9b2fdfb260119232ec880f761`.
 
 ## Merge Readiness
 
