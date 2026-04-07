@@ -143,11 +143,11 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Regression tests cover paid, expired, and missing-entitlement paths
 
 <a id="ledger-p0-requested-agent-bootstrap"></a>
-- [ ] P0: Requested-agent bootstrap override and advisory specialist contract
+- [x] P0: Requested-agent bootstrap override and advisory specialist contract
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0
-  - Target PR: PR #1354 (https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1354); check `[x]` only after merge per ledger policy
-  - Status: Open for review; after merge, mark `[x]` via mandatory docs-only follow-up PR the same working day (backlog ledger policy).
+  - Target PR: PR #1354 (https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1354)
+  - Status: ✅ Merged (PR #1354, 2026-04-06; merge commit `ba9ea2f8`). Ledger checkbox closed in PR #1356 (mandatory docs-only follow-up the same working day; backlog ledger policy).
   - Area: orchestration / task bootstrap / routing
   - Finding Type: coordinator bootstrap gap
   - Reason: The canonical coordinator workflow must preserve explicit user-requested agent slugs instead of dropping them during bootstrap. This is especially critical for `agent-coordinator`, `backend-engineer`, `bug-hunter`, `ml-engineer-agent`, and `data-scientist-agent`, where current routing semantics otherwise under-express user intent or hide non-routable specialists.
@@ -2410,7 +2410,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P2: Local workforce PR-C — add experimental local support-plane storage
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2
-  - Target PR: PR-TBD-LOCAL-WORKFORCE-PR-C-SUPPORT-PLANE
+  - Target PR: PR #1363 (draft; \`docs/review/PR_1363_FIXED_MAPPING.md\`)
   - Area: orchestration / security / local support plane
   - Finding Type: RFC follow-on slice
   - Status: Planned
@@ -2421,9 +2421,12 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Links:
     - `docs/orchestration/COMPOSER_BOOTSTRAP_KIT_PR1.md`
     - `docs/orchestration/PulsePlate_Local_Agent_Workforce_System_Design_Packet_v1_2.md`
+    - `docs/orchestration/TASK_ANALYSIS_LOCAL_WORKFORCE_PR_C_2026-04-05.md`
     - `docs/security/AGENT_CONTROL_PLANE_SECURITY_BASELINE.md`
     - `docs/architecture/ADR-003-agent-control-plane-mvp.md`
     - `app/security/agent_control_plane.py`
+    - `scripts/orchestration/local_support_plane.py`
+    - `tests/test_local_support_plane.py`
   - DoD:
     - Experimental local support-plane storage/runtime remains explicitly non-canonical
     - Existing security/control-plane primitives are reused where possible
@@ -4476,11 +4479,28 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `core/food_sources/`
     - `core/food_apis/update_manager.py`
     - `scripts/build_food_db.py`
+    - W1 manifest integrity extension: PR #1360 (merged; canonical ledger entry below)
   - DoD:
     - Immutable raw snapshot layout is implemented
     - Manifest/checksum policy is enforced fail-closed
     - Deterministic OFF delta ingestion is in place
     - Existing `/api/v1/foods*` behavior remains compatible
+
+
+- [x] P1: PR #1360 — snapshot record verification + size enforcement (W1 manifest integrity)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR #1360 (https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1360)
+  - Status: ✅ Merged (PR #1360, 2026-04-06; merge commit `837cfa170a30160e5f720609cb508e05d4565782`)
+  - Area: backend / data ingestion / manifest integrity
+  - Finding Type: W1 merge follow-up (fail-closed verification)
+  - Reason (EN): Extend Wave 1 snapshot hub with fail-closed `verify_recorded_snapshots` and recorded size/checksum enforcement. (RU: расширение W1 — жёсткая проверка записанных снапшотов и размера.)
+  - Links:
+    - `core/food_sources/snapshot_manager.py`
+    - `docs/architecture/FOOD_DATABASE_PLATFORM_STRATEGY_v1.md` (§5.1)
+  - DoD:
+    - Fail-closed verification path covered by deterministic tests
+    - Strategy SoT §5.1 anchors reference current `file:line` entrypoints
 
 
 - [x] P0: Food data licensing + attribution compliance package
@@ -7222,12 +7242,17 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P2: Search zero-downtime swap orchestration lane
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2
-  - Target PR: PR-TBD-SEARCH-ZERO-DOWNTIME-SWAP
+  - Target PR: PR #1365 (<https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1365>)
   - Area: backend / search / ops
   - Finding Type: deferred indexing-orchestration rollout
-  - Reason: This foundation PR adds deterministic indexing helpers only. The admin/orchestration surface for build-validate-warm-swap cleanup remains deferred until Meili shadow rollout is proven and operational safeguards are specified.
+  - Reason (EN): Offline CLI + orchestrator on branch `swap/zero-downtime` implement build/validate/warm/swap without new public HTTP routes. Mark this checkbox after merge via the mandatory docs-only ledger follow-up; remaining DoD (grace-period cleanup / rollback tests) may need a follow-up PR if not fully satisfied in #1365.
   - Links:
     - `app/services/food_search_indexing.py`
+    - `app/services/meili_swap_orchestration.py:46`
+    - `scripts/meili_food_index_swap.py:1`
+    - `tests/test_meili_swap_orchestration.py:1`
+    - `docs/deploy/MEILISEARCH_ZERO_DOWNTIME_SWAP_RUNBOOK.md:1`
+    - `docs/orchestration/MEILI_SWAP_PR_READINESS.md:1`
     - `docs/review/PR_1099_FIXED_MAPPING.md`
     - `docs/orchestration/plan_SEARCH_ZERO_DOWNTIME_SWAP_FOLLOWUP.md`
   - DoD:

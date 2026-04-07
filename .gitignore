@@ -172,6 +172,11 @@ ehthumbs.db
 Thumbs.db
 
 # Project specific
+# Local raw food dumps (W1); keep snapshots README only
+data/raw/*
+!data/raw/snapshots/
+data/raw/snapshots/*
+!data/raw/snapshots/README.md
 # Generated analysis artifacts
 bayesian_quality_report.json
 bayesian_analysis_results.json
