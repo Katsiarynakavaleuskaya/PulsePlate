@@ -31,7 +31,7 @@ Bot and human review threads must be dispositioned below when actionable comment
 **Disposition:** FIXED
 **Commit:** `ad7246efaa6de2b005d95e5731e7b776524e10e3`
 
-**Evidence:** `scripts/orchestration/wiki_promote.py` — rollback paths use `Path.replace` / `os.replace` overwrite semantics only (no prior `dst.unlink`).
+**Evidence:** `scripts/orchestration/wiki_promote.py:97-105` (staging rollback), `129-133` (`put_record` rollback) — `backup_path.replace(dst)` only; no prior `dst.unlink`.
 
 **Threads:**
 
