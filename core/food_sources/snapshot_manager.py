@@ -134,8 +134,7 @@ class SnapshotManager:
             )
         if manifest_source != source:
             raise SnapshotIntegrityError(
-                "Invalid manifest schema for source="
-                f"{source}: source mismatch '{manifest_source}'"
+                f"Invalid manifest schema for source={source}: source mismatch '{manifest_source}'"
             )
 
         if "snapshots" not in loaded:
@@ -225,8 +224,7 @@ class SnapshotManager:
             resolved.relative_to(source_root)
         except ValueError as exc:
             raise SnapshotIntegrityError(
-                "Manifest snapshot path escapes source root for "
-                f"source={source!r}: {file_field!r}"
+                f"Manifest snapshot path escapes source root for source={source!r}: {file_field!r}"
             ) from exc
         return resolved
 
