@@ -16,7 +16,7 @@ Bot and human review threads must be dispositioned below when actionable comment
 
 - [ ] Current-head CI green for PR branch head
 - [ ] Required checks complete (no pending jobs)
-- [ ] All review threads resolved on GitHub after disposition updates
+- [x] All review threads resolved on GitHub after disposition updates
 
 ### Local verification
 
