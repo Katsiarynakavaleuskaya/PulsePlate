@@ -72,6 +72,9 @@ jobs:
           # Scope rev suffix: GHA cache can 404 on stale blobs; rotating scope recovers without disabling cache.
           cache-from: type=gha,scope=docker-openapi-smoke-v2-${{ github.ref_name }}
           cache-to: type=gha,scope=docker-openapi-smoke-v2-${{ github.ref_name }},mode=min,ignore-error=true
+          # Provenance / SLSA attestations require a registry push; docker exporter + load:true cannot
+          # attach attestations (Docker docs: build CI attestations). Do not enable provenance here
+          # without a separate push-based job — see docs/architecture/ADR_DOCKER_BUILD_PROVENANCE_WORKAROUND_2026-03-01.md.
           provenance: false
           target: production
 
