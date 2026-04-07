@@ -2406,13 +2406,13 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Protocol wording remains explicit about canonical repo truth versus advisory/support surfaces
 
 <a id="ledger-p2-local-workforce-pr-c-support-plane"></a>
-- [ ] P2: Local workforce PR-C — add experimental local support-plane storage
+- [x] P2: Local workforce PR-C — add experimental local support-plane storage
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2
-  - Target PR: PR #1363 (draft; \`docs/review/PR_1363_FIXED_MAPPING.md\`)
+  - Target PR: PR #1363
   - Area: orchestration / security / local support plane
   - Finding Type: RFC follow-on slice
-  - Status: Planned
+  - Status: **Closed** — merged to `main` as squash merge commit `e6c7e5affb8c5ef82453af64cd78735af03990e4` (evidence: `scripts/orchestration/local_support_plane.py`, `tests/test_local_support_plane.py`, `docs/review/PR_1363_FIXED_MAPPING.md`).
   - Reason: The RFC allows an experimental local control-plane/storage layer only as a non-canonical support plane. If promoted, it must reuse existing security/control-plane primitives where possible and must not become a second orchestration source of truth.
   - Dependencies:
     - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-local-workforce-pr-b-reflection-protocol`
