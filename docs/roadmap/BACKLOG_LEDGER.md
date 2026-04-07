@@ -319,11 +319,12 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: METATRON-class offensive lab — out-of-band governance and operator runbook
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (security engineering / abuse prevention)
-  - Target PR: Epic 1 merged [#1355](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1355); Epic 2 / Epic 3 — PR-TBD (isolated runner + runbook; out of scope for Epic 1: no `app/` / product OpenAPI).
+  - Target PR: Epic 1 merged [#1355](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1355); Epic 2 / Epic 3 — PR-TBD (isolated runner + runbook; out of scope for Epic 1: no `app/` / product OpenAPI). Epic 2 packet: `docs/orchestration/METATRON_TRACK_A_EPIC2_TASK_PACKET_2026-04-06.md:1`.
   - Status: **Track A Epic 1 — CLOSED.** Landed via PR [#1355](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1355); canonical squash merge commit [`5a39c2ec3`](https://github.com/Katsiarynakavaleuskaya/PulsePlate/commit/5a39c2ec3) on `main`. Remaining: Epic 2 (infra/scripts isolated runner), Epic 3 (runbook) per coordinator sequencing after this ledger closeout.
   - Area: security / deploy / orchestration / governance
   - Reason (EN): METATRON-like stacks (local LLM + offensive recon) must not enter the PulsePlate product runtime or OpenAPI; operators still need canonical RoE, ADR, isolated deploy boundary, and coordinator-led assessment workflow. (RU: оффенсив-лаборатория остаётся вне продукта, но процесс и документы должны быть в репозитории.)
   - Links:
+    - `docs/orchestration/METATRON_TRACK_A_EPIC2_TASK_PACKET_2026-04-06.md:1`
     - `docs/orchestration/METATRON_TRACK_A_EPIC1_TASK_PACKET_2026-04-06.md:1`
     - `docs/architecture/ADR_METATRON_OFFENSIVE_LAB_OUT_OF_BAND_2026-04-06.md:1`
     - `docs/security/METATRON_LAB_RULES_OF_ENGAGEMENT.md:1`
@@ -7241,12 +7242,17 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P2: Search zero-downtime swap orchestration lane
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2
-  - Target PR: PR-TBD-SEARCH-ZERO-DOWNTIME-SWAP
+  - Target PR: PR #1365 (<https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1365>)
   - Area: backend / search / ops
   - Finding Type: deferred indexing-orchestration rollout
-  - Reason: This foundation PR adds deterministic indexing helpers only. The admin/orchestration surface for build-validate-warm-swap cleanup remains deferred until Meili shadow rollout is proven and operational safeguards are specified.
+  - Reason (EN): Offline CLI + orchestrator on branch `swap/zero-downtime` implement build/validate/warm/swap without new public HTTP routes. Mark this checkbox after merge via the mandatory docs-only ledger follow-up; remaining DoD (grace-period cleanup / rollback tests) may need a follow-up PR if not fully satisfied in #1365.
   - Links:
     - `app/services/food_search_indexing.py`
+    - `app/services/meili_swap_orchestration.py:46`
+    - `scripts/meili_food_index_swap.py:1`
+    - `tests/test_meili_swap_orchestration.py:1`
+    - `docs/deploy/MEILISEARCH_ZERO_DOWNTIME_SWAP_RUNBOOK.md:1`
+    - `docs/orchestration/MEILI_SWAP_PR_READINESS.md:1`
     - `docs/review/PR_1099_FIXED_MAPPING.md`
     - `docs/orchestration/plan_SEARCH_ZERO_DOWNTIME_SWAP_FOLLOWUP.md`
   - DoD:
