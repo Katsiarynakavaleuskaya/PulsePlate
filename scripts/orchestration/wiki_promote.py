@@ -7,7 +7,6 @@ EN: Fail-closed if output would resolve under repo ``docs/`` (canonical tree).
 from __future__ import annotations
 
 import argparse
-import contextlib
 import json
 import sys
 from pathlib import Path
@@ -99,9 +98,11 @@ def promote_slug(
                 audit_secret=audit_secret,
                 audit_log_path=audit_log_path,
             )
-        except Exception:
-            with contextlib.suppress(OSError):
+        except Exception as exc:
+            try:
                 dst.unlink(missing_ok=True)
+            except OSError as unlink_exc:
+                raise unlink_exc from exc
             raise
     return dst
 

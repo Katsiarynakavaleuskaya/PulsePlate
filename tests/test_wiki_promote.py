@@ -251,6 +251,48 @@ def test_promote_unlinks_on_unexpected_put_record_failure(
     assert not dst.is_file()
 
 
+def test_promote_rollback_unlink_failure_chains_from_support_plane_error(
+    tmp_path: Path,
+    allowlist: set[tuple[str, str]],
+    audit_signing_material: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """RU: Ошибка unlink при откате не глотается — видна вместе с причиной из SP.
+    EN: Rollback unlink errors propagate; support-plane failure remains __cause__ chain.
+    """
+
+    repo = tmp_path / "r"
+    wiki = repo / "wiki"
+    slug = _ingest_one(repo, wiki)
+    dst = wiki / "project_internal" / "promoted" / f"{slug}.md"
+    real_unlink = Path.unlink
+
+    def boom(*_a: object, **_kw: object) -> None:
+        raise RuntimeError("support_plane_failed")
+
+    def unlink_patched(self: Path, *a: object, **kw: object) -> None:
+        if self == dst:
+            raise PermissionError("rollback_unlink_denied")
+        return real_unlink(self, *a, **kw)
+
+    monkeypatch.setattr(lsp, "put_record", boom)
+    monkeypatch.setattr(Path, "unlink", unlink_patched)
+    with pytest.raises(PermissionError, match="rollback_unlink_denied") as record:
+        wiki_promote.promote_slug(
+            slug,
+            corpus="project_internal",
+            wiki_root=wiki,
+            repo_root=repo,
+            write_support_plane=True,
+            allowlist=allowlist,
+            sp_root_override=tmp_path / "sp",
+            audit_secret=audit_signing_material,
+        )
+    assert record.value.__cause__ is not None
+    assert isinstance(record.value.__cause__, RuntimeError)
+    assert dst.is_file()
+
+
 def test_main_out_when_wiki_outside_repo(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
