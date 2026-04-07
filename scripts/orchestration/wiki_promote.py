@@ -60,7 +60,7 @@ def promote_slug(
     """Copy ``pages/<slug>.md`` to ``promoted/<slug>.md`` with promotion metadata."""
 
     validate_slug(slug)
-    layout = wcs.corpus_layout(wcs.corpus_base(wiki_root, corpus))
+    layout: dict[str, Path] = wcs.corpus_layout(wcs.corpus_base(wiki_root, corpus))
     violations = wiki_lint.lint_corpus(corpus=corpus, wiki_root=wiki_root, repo_root=repo_root)
     prefix = f"{slug}.md:"
     blocking = [v for v in violations if v == "pages_directory_missing" or v.startswith(prefix)]
@@ -70,8 +70,9 @@ def promote_slug(
     src = layout["pages"] / f"{slug}.md"
     if not src.is_file():
         raise FileNotFoundError(f"missing_page:{slug}")
-    dst = layout["promoted"] / f"{slug}.md"
-    layout["promoted"].mkdir(parents=True, exist_ok=True)
+    promoted_dir: Path = layout["promoted"]
+    promoted_dir.mkdir(parents=True, exist_ok=True)
+    dst: Path = promoted_dir / f"{slug}.md"
     reject_if_under_canonical_docs(dst, repo_root=repo_root)
     try:
         dst.relative_to(layout["base"].resolve())
