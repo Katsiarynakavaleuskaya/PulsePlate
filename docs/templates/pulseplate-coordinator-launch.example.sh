@@ -24,11 +24,31 @@ PATH_ARGS=()
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --goal) GOAL="$2"; shift 2 ;;
-    --task-class) TASK_CLASS="$2"; shift 2 ;;
-    --pr-phase) PR_PHASE="$2"; shift 2 ;;
-    --requested-agent) REQUESTED_ARGS+=(--requested-agent "$2"); shift 2 ;;
-    --path) PATH_ARGS+=(--path "$2"); shift 2 ;;
+    --goal)
+      if [[ $# -lt 2 ]]; then echo "ERROR: --goal requires a value" >&2; exit 2; fi
+      GOAL="$2"
+      shift 2
+      ;;
+    --task-class)
+      if [[ $# -lt 2 ]]; then echo "ERROR: --task-class requires a value" >&2; exit 2; fi
+      TASK_CLASS="$2"
+      shift 2
+      ;;
+    --pr-phase)
+      if [[ $# -lt 2 ]]; then echo "ERROR: --pr-phase requires a value" >&2; exit 2; fi
+      PR_PHASE="$2"
+      shift 2
+      ;;
+    --requested-agent)
+      if [[ $# -lt 2 ]]; then echo "ERROR: --requested-agent requires a value" >&2; exit 2; fi
+      REQUESTED_ARGS+=(--requested-agent "$2")
+      shift 2
+      ;;
+    --path)
+      if [[ $# -lt 2 ]]; then echo "ERROR: --path requires a value" >&2; exit 2; fi
+      PATH_ARGS+=(--path "$2")
+      shift 2
+      ;;
     *) echo "ERROR: unknown arg: $1" >&2; exit 2 ;;
   esac
 done
