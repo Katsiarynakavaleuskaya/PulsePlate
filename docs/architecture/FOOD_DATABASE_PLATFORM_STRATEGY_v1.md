@@ -86,6 +86,19 @@ Required metadata per snapshot:
 - file size
 - manifest entry with immutable path
 
+Implementation anchors (W1, repo paths on default branch):
+
+- Snapshot manifest hub + fail-closed revalidation (size/checksum): `core/food_sources/snapshot_manager.py:91` (`SnapshotManager`), `:258` (`verify_recorded_snapshots`)
+- OFF deterministic delta/full source: `core/food_sources/off_delta.py:54` (`OpenFoodFactsDeltaSource`)
+- OFF export selection (cache/snapshot inputs): `core/food_apis/update_manager.py:261` (`_find_off_export_file`); scheduler entry for OFF updates: `:352` (`update_database` → `_update_off_database`)
+- Food DB build pipeline: `scripts/build_food_db.py:64` (`FoodDatabaseBuilder`), `:454` (`main`)
+- Raw OFF snapshot sync (facade): `core/food_apis/snapshot_sync.py:28` (`sync_openfoodfacts_snapshot`)
+- Build-time OFF raw manifest gate: `core/food_apis/raw_snapshot_gate.py:18` (`validate_off_raw_manifest_gate`)
+- CLI — sync raw snapshots: `scripts/sync_food_snapshots.py:25` (`main`)
+- Builder flag — fail-closed raw verify before build: `scripts/build_food_db.py:458` (`--validate-raw-snapshots`)
+
+Ledger cross-check: W1 execution + PR #1360 merge (`837cfa170a30160e5f720609cb508e05d4565782`) for `verify_recorded_snapshots` / manifest integrity — see `docs/roadmap/BACKLOG_LEDGER.md` (PR #1360 entry).
+
 ### 5.2 Canonical entity contract
 
 Canonical food record must support:
