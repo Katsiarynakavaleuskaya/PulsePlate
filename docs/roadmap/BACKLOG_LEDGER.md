@@ -143,11 +143,11 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Regression tests cover paid, expired, and missing-entitlement paths
 
 <a id="ledger-p0-requested-agent-bootstrap"></a>
-- [ ] P0: Requested-agent bootstrap override and advisory specialist contract
+- [x] P0: Requested-agent bootstrap override and advisory specialist contract
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0
-  - Target PR: PR #1354 (https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1354); check `[x]` only after merge per ledger policy
-  - Status: Open for review; after merge, mark `[x]` via mandatory docs-only follow-up PR the same working day (backlog ledger policy).
+  - Target PR: PR #1354 (https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1354)
+  - Status: ✅ Merged (PR #1354, 2026-04-06; merge commit `ba9ea2f8`). Ledger checkbox closed in PR #1356 (mandatory docs-only follow-up the same working day; backlog ledger policy).
   - Area: orchestration / task bootstrap / routing
   - Finding Type: coordinator bootstrap gap
   - Reason: The canonical coordinator workflow must preserve explicit user-requested agent slugs instead of dropping them during bootstrap. This is especially critical for `agent-coordinator`, `backend-engineer`, `bug-hunter`, `ml-engineer-agent`, and `data-scientist-agent`, where current routing semantics otherwise under-express user intent or hide non-routable specialists.
@@ -319,8 +319,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: METATRON-class offensive lab — out-of-band governance and operator runbook
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (security engineering / abuse prevention)
-  - Target PR: PR #1355
-  - Status: Epic 1 PR opened — coordinator task packet canonical (`docs/orchestration/METATRON_TRACK_A_EPIC1_TASK_PACKET_2026-04-06.md:1`); merge + checkbox closeout still pending.
+  - Target PR: Epic 1 merged [#1355](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1355); Epic 2 / Epic 3 — PR-TBD (isolated runner + runbook; out of scope for Epic 1: no `app/` / product OpenAPI).
+  - Status: **Track A Epic 1 — CLOSED.** Landed via PR [#1355](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1355); canonical squash merge commit [`5a39c2ec3`](https://github.com/Katsiarynakavaleuskaya/PulsePlate/commit/5a39c2ec3) on `main`. Remaining: Epic 2 (infra/scripts isolated runner), Epic 3 (runbook) per coordinator sequencing after this ledger closeout.
   - Area: security / deploy / orchestration / governance
   - Reason (EN): METATRON-like stacks (local LLM + offensive recon) must not enter the PulsePlate product runtime or OpenAPI; operators still need canonical RoE, ADR, isolated deploy boundary, and coordinator-led assessment workflow. (RU: оффенсив-лаборатория остаётся вне продукта, но процесс и документы должны быть в репозитории.)
   - Links:
@@ -329,11 +329,13 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `docs/security/METATRON_LAB_RULES_OF_ENGAGEMENT.md:1`
     - `docs/orchestration/METATRON_SECURITY_ASSESSMENT_WAVE_RUNBOOK.md:1`
     - `deploy/metatron-lab/README.md:1`
+    - Epic 1 merge evidence: [`5a39c2ec3`](https://github.com/Katsiarynakavaleuskaya/PulsePlate/commit/5a39c2ec3) (PR [#1355](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1355))
   - DoD:
-    - ADR + RoE merged with Phase 1 docs evidence anchors
-    - Ledger links this packet; Target PR updated when merged
-    - No offensive tooling in `app.main` / product requirements; lab remains optional compose profile
-    - `make validate-min` (or `make verify` if orchestration scripts change) green on PR head
+    - [x] Epic 1: ADR + RoE + task packet + lab stub merged with evidence anchors (#1355 / `5a39c2ec3`)
+    - [x] Ledger links this packet; Epic 1 merge recorded
+    - [x] No offensive tooling in `app.main` / product requirements; lab remains optional compose profile
+    - [ ] Epic 2: isolated runner (infra/scripts only); merge-ready with `make verify` on touched surfaces per `AGENTS.md`
+    - [ ] Epic 3: operator assessment runbook / wave workflow hardening as needed
 
 <a id="ledger-p1-execution-doc-sot-reconciliation"></a>
 - [ ] P1: Execution-doc source-of-truth reconciliation after PR-1
@@ -2407,7 +2409,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P2: Local workforce PR-C — add experimental local support-plane storage
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2
-  - Target PR: PR-TBD-LOCAL-WORKFORCE-PR-C-SUPPORT-PLANE
+  - Target PR: PR #1363 (draft; \`docs/review/PR_1363_FIXED_MAPPING.md\`)
   - Area: orchestration / security / local support plane
   - Finding Type: RFC follow-on slice
   - Status: Planned
@@ -2418,9 +2420,12 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Links:
     - `docs/orchestration/COMPOSER_BOOTSTRAP_KIT_PR1.md`
     - `docs/orchestration/PulsePlate_Local_Agent_Workforce_System_Design_Packet_v1_2.md`
+    - `docs/orchestration/TASK_ANALYSIS_LOCAL_WORKFORCE_PR_C_2026-04-05.md`
     - `docs/security/AGENT_CONTROL_PLANE_SECURITY_BASELINE.md`
     - `docs/architecture/ADR-003-agent-control-plane-mvp.md`
     - `app/security/agent_control_plane.py`
+    - `scripts/orchestration/local_support_plane.py`
+    - `tests/test_local_support_plane.py`
   - DoD:
     - Experimental local support-plane storage/runtime remains explicitly non-canonical
     - Existing security/control-plane primitives are reused where possible

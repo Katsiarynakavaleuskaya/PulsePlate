@@ -77,6 +77,7 @@ That means the workforce follow-ons below must extend the **current canonical ba
 3. `PR-C` — add experimental local support-plane storage as a non-canonical support plane
    - primary surfaces must reuse existing security/control-plane runtime and runbook primitives unless coordinator review records an explicit exception
    - hard constraint: this remains support infrastructure, not the canonical orchestration source of truth
+   - implementation anchor (repo slice): `scripts/orchestration/local_support_plane.py` (+ `tests/test_local_support_plane.py`, task analysis `docs/orchestration/TASK_ANALYSIS_LOCAL_WORKFORCE_PR_C_2026-04-05.md`)
 
 ## Worktree promotion
 
