@@ -9,7 +9,7 @@ Initialize a PulsePlate agent session with the repo-native path below.
 5. Read [`docs/dev/AGENT_COMPATIBILITY_ONBOARDING.md`](../../docs/dev/AGENT_COMPATIBILITY_ONBOARDING.md)
 6. If you need project-local MCP wiring, copy [`.cursor/mcp.json.example`](../mcp.json.example) to `.cursor/mcp.json`
 7. If you need Codex skills, run [`scripts/install_codex_skills.sh`](../../scripts/install_codex_skills.sh) and restart Codex
-8. **Optional (local raw session):** from repo root, run [`scripts/orchestration/local_session_bootstrap.sh`](../../scripts/orchestration/local_session_bootstrap.sh) to run analyze-mode preflight and print the `task_bootstrap.py` invocation recipe (does not replace a host launcher)
+8. **Cold start (pick one):** If you installed the opt-in machine launcher on your host, use it first per [`docs/dev/LOCAL_COORDINATOR_LAUNCHER_ROLLOUT.md`](../../docs/dev/LOCAL_COORDINATOR_LAUNCHER_ROLLOUT.md). Otherwise, from repo root, run [`scripts/orchestration/local_session_bootstrap.sh`](../../scripts/orchestration/local_session_bootstrap.sh) for analyze-mode preflight and the printed `task_bootstrap.py` recipe. Neither path changes repository SoT.
 
 Use the repository's canonical custom orchestration workflow for any new task:
 

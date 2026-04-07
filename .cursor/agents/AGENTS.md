@@ -12,6 +12,8 @@ This document defines **scoped rules** specific to Cursor agents in `.cursor/age
 
 **Hard rule:** Any new task MUST start with `agent-coordinator` for task analysis and agent routing.
 
+**Machine-local launcher:** An opt-in host wrapper may front-load `check_preflight.py` and `task_bootstrap.py`; **coordinator-first authority** remains root `AGENTS.md` and the canonical workflow (`docs/orchestration/workflow.md`), not the launcher.
+
 **Reference:** Root `AGENTS.md` (Agent Coordination section) for full policy.
 
 **Local implementation:** `.cursor/agents/agent-coordinator.md` is the canonical coordinator agent.
