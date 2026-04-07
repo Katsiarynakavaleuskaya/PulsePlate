@@ -2437,7 +2437,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P2: Local workforce PR-D — advisory wiki compiler over local support plane
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2
-  - Target PR: (open; branch `feat/local-workforce-pr-d-advisory-wiki-compiler`)
+  - Target PR: PR #1371 (branch `feat/local-workforce-pr-d-advisory-wiki-compiler`)
   - Area: orchestration / local support plane / operator tooling
   - Finding Type: RFC follow-on slice (compiled advisory memory)
   - Status (EN): Implementation on branch; merge closes this item when `docs/review/PR_<N>_FIXED_MAPPING.md` exists and checklist is complete.
@@ -2445,6 +2445,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Dependencies:
     - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p2-local-workforce-pr-c-support-plane`
   - Links:
+    - `docs/review/PR_1371_FIXED_MAPPING.md`
     - `docs/orchestration/LOCAL_WIKI_SUPPORT_PLANE.md`
     - `scripts/orchestration/wiki_ingest.py`
     - `scripts/orchestration/wiki_query.py`
