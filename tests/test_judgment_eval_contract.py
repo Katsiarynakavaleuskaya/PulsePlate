@@ -16,6 +16,7 @@ from core.judgment_eval import (
     _require_case_string,
     _require_object,
     _score_ratio,
+    _validate_turns,
 )
 from scripts.orchestration.judgment_eval_contract import (
     evaluate_fitchef_replay_case,
@@ -99,6 +100,17 @@ def test_judgment_eval_helper_edges_fail_closed() -> None:
     assert _score_ratio(3, 4) == 4
     assert _score_ratio(0, 0) == 0
     assert _contains_marker("steady dinner routine", "") is False
+
+    assert _validate_turns([], label="case") == []
+    assert _validate_turns(
+        [{"role": "user", "text": "hello"}, {"role": "assistant", "text": "hi"}],
+        label="case",
+    ) == [
+        {"role": "user", "text": "hello"},
+        {"role": "assistant", "text": "hi"},
+    ]
+    with pytest.raises(ValueError, match="case turn #1 role must be user"):
+        _validate_turns([{"role": "system", "text": "nope"}], label="case")
 
     with pytest.raises(ValueError, match="fitchef markers must be a list"):
         _normalize_string_list("not-a-list", label="fitchef markers")
