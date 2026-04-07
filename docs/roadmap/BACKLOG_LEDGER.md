@@ -2456,6 +2456,11 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - CLIs documented and covered by deterministic tests
     - No writes to canonical `docs/**` tree from promote path; support-plane keys respect `normalize_key`
     - Ledger + agent entrypoints reference the wiki doc in the same merge cycle
+  - Deferred / follow-ups (post-v1 hardening, English-first):
+    - Slug strategy after truncation (reject vs hash-suffix vs manifest) when paths differ but truncate to the same slug (`scripts/orchestration/_wiki_compiler_support.py` `path_to_slug`).
+    - Optional promotion **history** or versioned SP keys / manifest (today `wiki.promoted.<slug>` overwrites).
+    - Richer lint: orphans, stale links, index/page consistency beyond raw hash, contradiction checks (not in v1).
+    - Search: ranking, headings/title weighting, or index-first retrieval (v1 is body substring only).
 
 - [ ] P2: Local launcher rollout for coordinator-first automation
   - Owner: @katsiaryna_kavaleuskaya

@@ -32,6 +32,66 @@ It is **not** a second source of truth for product, orchestration, or contracts.
 - Embeddings, vector databases, network retrieval, OpenAPI, `app/**`, or client runtimes.
 - Replacing KPP, bootstrap packets, or orchestration SoT documents.
 
+**Name this slice honestly:** it is an **advisory filesystem wiki compiler v1** (ingest → pages/raw/index,
+read-only list/search/detail, integrity lint, guarded promote). It is **not** a full “compiled-memory
+reasoning layer”, knowledge graph, index-first ranked retrieval, or semantic quality gate.
+
+## Operational semantics (filesystem vs support plane)
+
+| Surface | On support-plane write failure | Rationale |
+|--------|---------------------------------|-----------|
+| **Ingest** (`wiki_ingest.py`) | **Warn and continue** (`support_plane_skip:…` on stderr); filesystem writes (raw/page/index/log) already applied | Metadata mirror is best-effort; corpus on disk is the primary ingest artifact for v1. |
+| **Promote** (`wiki_promote.py`) | **Fail closed:** promoted file is removed if `put_record` fails after the file was written | Avoids a promoted file without a matching optional metadata record when policy requires SP. |
+
+Do **not** describe ingest as wholly fail-closed on support-plane mutations: only canonical-path and
+on-disk errors abort the run; SP failures are warnings unless you treat stderr in your operator
+pipeline as fatal.
+
+Evidence: ingest SP catch — `scripts/orchestration/wiki_ingest.py:155`; promote write then
+`put_record` with `unlink` on failure — `scripts/orchestration/wiki_promote.py:80`–`scripts/orchestration/wiki_promote.py:101`.
+
+## v1 tool semantics (what the code actually does)
+
+### `wiki_ingest.py`
+
+- Sources must resolve **under `repo_root`** (`relative_to`); corpus base must not sit under
+  canonical `docs/**` (`reject_if_under_canonical_docs`).
+- **`--source` is not restricted to `.md`:** any file may be ingested; raw snapshot is always stored
+  under `raw/<sha256>.md` (filename convention only). Content is decoded as UTF-8; invalid UTF-8 uses
+  replacement + `utf8_replace:*` warning — suitable for **markdown-first** internal corpora, not a
+  universal binary document pipeline.
+- Page frontmatter is **narrow v1 integrity metadata** (`corpus`, `source_rel_path`, `content_hash`,
+  `ingested_at`, `advisory`) — not a rich page schema or knowledge graph.
+
+### `wiki_query.py`
+
+- **Read-only** list / search / detail over filesystem pages.
+- **Search** is **substring match on page body** (JSON wrapper); there is no index-first ranking,
+  title/heading weighting, or embedding retrieval. Calling it a “query engine” in the sense of search
+  products would be **overstated** — prefer “local grep-like search over ingested pages”.
+
+### `wiki_lint.py`
+
+- **Integrity lint:** `pages/` presence, required frontmatter keys, `advisory == true`, matching
+  `raw/<hash>.md` for declared hash. It does **not** enforce contradiction checks, orphan pages,
+  link validity, backlinks, or index drift beyond raw existence.
+
+### `wiki_promote.py`
+
+- Promotion is **review-oriented:** slug validation, per-page lint gate, `reject_if_under_canonical_docs`
+  on the promoted path, optional `put_record`.
+- Support-plane key **`wiki.promoted.<slug>` is a single slot:** each successful promote **overwrites**
+  the prior record for that slug. **No versioned promotion history** in SP (filesystem `promoted/`
+  holds the latest file only; historical SP audit is out of scope for v1).
+
+### Slug collisions
+
+- Ingest detects **same slug from two different source paths** in one run and fails with
+  `slug_collision:…`.
+- **Truncation:** slugs are capped for key length (`_wiki_compiler_support.py`); two long distinct
+  paths could still converge after truncation — treated as **acceptable v1 risk**; a stricter
+  strategy is deferred (see backlog).
+
 ## Directory layout
 
 Default wiki root: `artifacts/orchestration/wiki/` (gitignored).
