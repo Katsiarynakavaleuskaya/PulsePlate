@@ -97,8 +97,6 @@ def promote_slug(
     except OSError as stage_exc:
         try:
             if backup_created and backup_path.is_file():
-                if dst.exists():
-                    dst.unlink(missing_ok=True)
                 backup_path.replace(dst)
             with contextlib.suppress(OSError):
                 tmp_path.unlink(missing_ok=True)
@@ -132,8 +130,6 @@ def promote_slug(
         try:
             if had_prior:
                 if backup_path.is_file():
-                    if dst.is_file():
-                        dst.unlink(missing_ok=True)
                     backup_path.replace(dst)
                 else:
                     # EN: Backup missing (TOCTOU / concurrent writer); keep dst (new content).
