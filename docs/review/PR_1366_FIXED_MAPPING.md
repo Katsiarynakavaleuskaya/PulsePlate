@@ -8,8 +8,6 @@
 
 ## Fixed in Commit Mapping
 
-Merge readiness maps actionable bot **review** URLs (`#pullrequestreview-*`); thread permalinks below are for human traceability.
-
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1366#pullrequestreview-4062825633 -> dc299c888882c3f747af6cabcafd2b1e7c296eff
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1366#pullrequestreview-4062831379 -> dc299c888882c3f747af6cabcafd2b1e7c296eff
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1366#pullrequestreview-4066112826 -> dc299c888882c3f747af6cabcafd2b1e7c296eff
@@ -31,6 +29,6 @@ Evidence: Sourcery r3040200807 r3040200813 (stderr + test contract); Cubic r3040
 - [ ] Pre-commit green
 - [ ] `make verify` green locally (or agreed subset: `make validate-min` + targeted tests; see PR body)
 
-Notes: All review threads resolved on GitHub. Artifact lists both `#pullrequestreview-*` (merge gate) and `discussion_r*` (thread permalinks).
+Notes: All review threads resolved on GitHub. Merge readiness maps actionable bot reviews by `#pullrequestreview-*` URLs; `discussion_r*` lines are thread permalinks for traceability.
 
 <!-- markdownlint-enable MD034 -->
