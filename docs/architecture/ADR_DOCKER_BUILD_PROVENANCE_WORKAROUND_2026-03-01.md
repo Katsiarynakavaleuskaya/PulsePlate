@@ -57,3 +57,4 @@ Aligned with **Context steps (1)–(5)** above (same order as [Evidence Anchors]
 - Workflow: `.github/workflows/build.yml`.
 - Workflow: `.github/workflows/cd.yml`.
 - Docker CI attestations overview: https://docs.docker.com/build/ci/github-actions/attestations/
+- Backlog Ledger: `docs/roadmap/BACKLOG_LEDGER.md` (`#backlog-restore-signed-build-provenance` — restore signed build provenance; DoD and blockers tracked in the ledger).
