@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
+import shutil
 from pathlib import Path
 
 import pytest
@@ -159,6 +161,36 @@ def test_promote_rejects_bad_slug() -> None:
         wiki_promote.validate_slug("../x")
 
 
+@pytest.mark.skipif(
+    not hasattr(os, "symlink"),
+    reason="symlink required to simulate promoted/ escaping corpus",
+)
+def test_promote_rejects_symlink_promoted_dir_outside_corpus(tmp_path: Path) -> None:
+    """Resolved destination must stay under corpus before mkdir (symlink escape)."""
+
+    repo = tmp_path / "r"
+    wiki = repo / "wiki"
+    slug = _ingest_one(repo, wiki)
+    layout = wcs.corpus_layout(wcs.corpus_base(wiki, "project_internal"))
+    promoted = layout["promoted"]
+    if promoted.exists():
+        if promoted.is_dir():
+            shutil.rmtree(promoted)
+        else:
+            promoted.unlink()
+    outside = tmp_path / "outside_promoted"
+    outside.mkdir(parents=True)
+    os.symlink(outside, promoted, target_is_directory=True)
+    with pytest.raises(ValueError, match="promote_path_outside_corpus"):
+        wiki_promote.promote_slug(
+            slug,
+            corpus="project_internal",
+            wiki_root=wiki,
+            repo_root=repo,
+            write_support_plane=False,
+        )
+
+
 def test_promote_does_not_write_file_when_put_record_fails(
     tmp_path: Path,
     allowlist: set[tuple[str, str]],
@@ -175,6 +207,37 @@ def test_promote_does_not_write_file_when_put_record_fails(
 
     monkeypatch.setattr(lsp, "put_record", boom)
     with pytest.raises(ValueError, match="support_plane_value_too_large"):
+        wiki_promote.promote_slug(
+            slug,
+            corpus="project_internal",
+            wiki_root=wiki,
+            repo_root=repo,
+            write_support_plane=True,
+            allowlist=allowlist,
+            sp_root_override=tmp_path / "sp",
+            audit_secret=audit_signing_material,
+        )
+    assert not dst.is_file()
+
+
+def test_promote_unlinks_on_unexpected_put_record_failure(
+    tmp_path: Path,
+    allowlist: set[tuple[str, str]],
+    audit_signing_material: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Rollback promoted file on any support-plane failure, not only a fixed tuple."""
+
+    repo = tmp_path / "r"
+    wiki = repo / "wiki"
+    slug = _ingest_one(repo, wiki)
+    dst = wiki / "project_internal" / "promoted" / f"{slug}.md"
+
+    def boom(*_a: object, **_kw: object) -> None:
+        raise TypeError("unexpected_support_plane")
+
+    monkeypatch.setattr(lsp, "put_record", boom)
+    with pytest.raises(TypeError, match="unexpected_support_plane"):
         wiki_promote.promote_slug(
             slug,
             corpus="project_internal",

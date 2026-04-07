@@ -7,6 +7,7 @@ EN: Fail-closed if output would resolve under repo ``docs/`` (canonical tree).
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import sys
 from pathlib import Path
@@ -57,11 +58,13 @@ def promote_slug(
     promoted_dir: Path = layout["promoted"]
     dst: Path = promoted_dir / f"{slug}.md"
     wcs.reject_if_under_canonical_docs(dst, repo_root=repo_root)
-    promoted_dir.mkdir(parents=True, exist_ok=True)
+    base_resolved = layout["base"].resolve()
+    resolved_dst = dst.resolve(strict=False)
     try:
-        dst.relative_to(layout["base"].resolve())
+        resolved_dst.relative_to(base_resolved)
     except ValueError as exc:
         raise ValueError("promote_path_outside_corpus") from exc
+    promoted_dir.mkdir(parents=True, exist_ok=True)
 
     raw_text = src.read_text(encoding="utf-8")
     meta, body = wcs.parse_frontmatter(raw_text)
@@ -96,8 +99,9 @@ def promote_slug(
                 audit_secret=audit_secret,
                 audit_log_path=audit_log_path,
             )
-        except (OSError, PermissionError, ValueError, RuntimeError):
-            dst.unlink(missing_ok=True)
+        except Exception:
+            with contextlib.suppress(OSError):
+                dst.unlink(missing_ok=True)
             raise
     return dst
 
