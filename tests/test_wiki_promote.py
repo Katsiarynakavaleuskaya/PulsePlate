@@ -60,6 +60,45 @@ def test_promote_writes_promoted_and_metadata(tmp_path: Path) -> None:
     assert "promoted_at:" in text
 
 
+def test_promote_support_plane_external_wiki_root(
+    tmp_path: Path,
+    allowlist: set[tuple[str, str]],
+    audit_signing_material: str,
+) -> None:
+    """Promoted path in SP JSON must not use repo relative_to when wiki lives outside repo."""
+
+    repo = tmp_path / "r"
+    (repo / "s").mkdir(parents=True)
+    f = repo / "s" / "a.md"
+    f.write_text("body", encoding="utf-8")
+    wiki_root = tmp_path / "ext_wiki"
+    sp = tmp_path / "sp"
+    audit_log = tmp_path / "audit.jsonl"
+    wiki_ingest.ingest_paths(
+        [f],
+        corpus="project_internal",
+        wiki_root=wiki_root,
+        repo_root=repo,
+        write_support_plane=False,
+    )
+    wiki_promote.promote_slug(
+        "s.a",
+        corpus="project_internal",
+        wiki_root=wiki_root,
+        repo_root=repo,
+        write_support_plane=True,
+        allowlist=allowlist,
+        sp_root_override=sp,
+        audit_secret=audit_signing_material,
+        audit_log_path=audit_log,
+    )
+    rec = lsp.get_record("wiki.promoted.s.a", root_override=sp)
+    assert rec is not None
+    promoted_path = str(rec["promoted_path"])
+    assert promoted_path.startswith("wiki:")
+    assert "/promoted/" in promoted_path
+
+
 def test_promote_support_plane_record(
     tmp_path: Path,
     allowlist: set[tuple[str, str]],

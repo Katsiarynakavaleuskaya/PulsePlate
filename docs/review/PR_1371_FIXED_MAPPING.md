@@ -31,3 +31,4 @@ Bot and human review threads must be dispositioned below when actionable comment
 | 8 | rag-systems / data-scientist / ml-engineer | Advisory N/A | No embeddings, vector, or model code in scope; ledger OUT unchanged |
 | 11–12 | qa + bug-hunter bundle | `make verify` | Re-run after fixes; wiki tests: `pytest tests/test_wiki_*.py tests/test_wiki_compiler_keys.py` |
 | follow-up | bug-hunter (ordering / `main` out) | Addressed in code | Promote: `dst.write_text` then `put_record`; `unlink` on SP failure; `main()` `out` via `path_for_support_plane_record` (wiki outside repo) |
+| follow-up | qa (cross-run slug / external wiki SP path) | Addressed in code | Ingest: `slug_collision_existing` when existing page `source_rel_path` differs (`wiki_ingest.py`); tests `test_ingest_slug_collision_existing_across_runs`, `test_promote_support_plane_external_wiki_root` |

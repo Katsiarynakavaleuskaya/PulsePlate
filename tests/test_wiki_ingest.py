@@ -138,6 +138,60 @@ def test_ingest_slug_collision_raises(tmp_path: Path) -> None:
         )
 
 
+def test_ingest_slug_collision_existing_across_runs(tmp_path: Path) -> None:
+    """Same slug from different sources on separate ingest calls must not overwrite silently."""
+
+    repo = tmp_path / "repo"
+    pdir = repo / "p"
+    pdir.mkdir(parents=True)
+    (pdir / "q").write_text("first", encoding="utf-8")
+    (pdir / "q.md").write_text("second", encoding="utf-8")
+    wiki_root = repo / "w"
+    wiki_ingest.ingest_paths(
+        [pdir / "q"],
+        corpus="c",
+        wiki_root=wiki_root,
+        repo_root=repo,
+        write_support_plane=False,
+    )
+    with pytest.raises(ValueError, match="slug_collision_existing"):
+        wiki_ingest.ingest_paths(
+            [pdir / "q.md"],
+            corpus="c",
+            wiki_root=wiki_root,
+            repo_root=repo,
+            write_support_plane=False,
+        )
+
+
+def test_ingest_same_source_reingest_overwrites(tmp_path: Path) -> None:
+    """Re-ingesting the same repo path updates the page (same source_rel_path)."""
+
+    repo = tmp_path / "repo"
+    (repo / "x").mkdir(parents=True)
+    f = repo / "x" / "note.md"
+    f.write_text("v1", encoding="utf-8")
+    wiki_root = repo / "w"
+    wiki_ingest.ingest_paths(
+        [f],
+        corpus="c",
+        wiki_root=wiki_root,
+        repo_root=repo,
+        write_support_plane=False,
+    )
+    f.write_text("v2", encoding="utf-8")
+    slugs, _ = wiki_ingest.ingest_paths(
+        [f],
+        corpus="c",
+        wiki_root=wiki_root,
+        repo_root=repo,
+        write_support_plane=False,
+    )
+    assert slugs == ["x.note"]
+    page = wiki_root / "c" / "pages" / "x.note.md"
+    assert "v2" in page.read_text(encoding="utf-8")
+
+
 def test_ingest_non_utf8_emits_warning(tmp_path: Path) -> None:
     repo = tmp_path / "repo"
     (repo / "bin").mkdir(parents=True)

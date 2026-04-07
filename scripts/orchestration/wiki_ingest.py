@@ -100,8 +100,15 @@ def ingest_paths(
         except UnicodeDecodeError:
             text = data.decode("utf-8", errors="replace")
             warnings.append(f"utf8_replace:{rel.as_posix()}")
-        page_body = wcs.format_frontmatter(meta) + text
         page_path = layout["pages"] / f"{slug}.md"
+        if page_path.is_file():
+            existing_meta, _ = wcs.parse_frontmatter(page_path.read_text(encoding="utf-8"))
+            prior_src = existing_meta.get("source_rel_path")
+            if prior_src is None or str(prior_src).strip() == "":
+                raise ValueError(f"slug_collision_existing:{slug}:missing_source_rel_path")
+            if str(prior_src) != rel_posix:
+                raise ValueError(f"slug_collision_existing:{slug}:{prior_src}:{rel_posix}")
+        page_body = wcs.format_frontmatter(meta) + text
         page_path.write_text(page_body, encoding="utf-8")
         written.append(slug)
 

@@ -47,7 +47,7 @@ Do **not** describe ingest as wholly fail-closed on support-plane mutations: onl
 on-disk errors abort the run; SP failures are warnings unless you treat stderr in your operator
 pipeline as fatal.
 
-Evidence: ingest SP catch — `scripts/orchestration/wiki_ingest.py:155`; promote write then
+Evidence: ingest SP catch — `scripts/orchestration/wiki_ingest.py:162`; promote write then
 `put_record` with `unlink` on failure — `scripts/orchestration/wiki_promote.py:80`–`scripts/orchestration/wiki_promote.py:101`.
 
 ## v1 tool semantics (what the code actually does)
@@ -88,6 +88,9 @@ Evidence: ingest SP catch — `scripts/orchestration/wiki_ingest.py:155`; promot
 
 - Ingest detects **same slug from two different source paths** in one run and fails with
   `slug_collision:…`.
+- **Across separate ingest runs:** if `pages/<slug>.md` already exists, ingest reads prior
+  `source_rel_path` from frontmatter; if it differs from the current source (or is missing),
+  ingest fails with `slug_collision_existing:…` instead of silently overwriting.
 - **Truncation:** slugs are capped for key length (`_wiki_compiler_support.py`); two long distinct
   paths could still converge after truncation — treated as **acceptable v1 risk**; a stricter
   strategy is deferred (see backlog).
