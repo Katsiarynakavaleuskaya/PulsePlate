@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import subprocess
+from pathlib import Path
 
 import pytest
 
@@ -68,14 +69,52 @@ def test_run_compose_config_q_invokes_docker_binary(monkeypatch: pytest.MonkeyPa
     def _run(*args: object, **kwargs: object) -> subprocess.CompletedProcess[str]:
         recorded["args"] = args
         recorded["kwargs"] = kwargs
-        return subprocess.CompletedProcess(args=(), returncode=0, stdout="", stderr="")
+        return subprocess.CompletedProcess(
+            args=(), returncode=7, stdout="", stderr="compose failed"
+        )
 
     monkeypatch.setattr("scripts.metatron_lab.compose_guard.subprocess.run", _run)
     root = repo_root()
-    run_compose_config_q(root, "metatron-lab-isolation", "/usr/bin/docker")
+    expected_compose = compose_file_for_repo(root)
+    rc = run_compose_config_q(root, "metatron-lab-isolation", "/usr/bin/docker")
+    assert rc == 7
     cmd = recorded["args"]
     assert isinstance(cmd, tuple) and len(cmd) == 1
     inner = cmd[0]
     assert isinstance(inner, list)
-    assert inner[0] == "/usr/bin/docker"
-    assert inner[1] == "compose"
+    assert inner == [
+        "/usr/bin/docker",
+        "compose",
+        "-f",
+        str(expected_compose),
+        "--profile",
+        "metatron-lab-isolation",
+        "config",
+        "-q",
+    ]
+    kwargs = recorded["kwargs"]
+    assert kwargs["cwd"] == str(root)
+    assert kwargs["check"] is False
+    assert kwargs["capture_output"] is True
+    assert kwargs["text"] is True
+
+
+def test_run_compose_config_q_failure_prints_stderr(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    def _run(*_args: object, **_kwargs: object) -> subprocess.CompletedProcess[str]:
+        return subprocess.CompletedProcess(
+            args=(),
+            returncode=3,
+            stdout="",
+            stderr="invalid yaml near line 9\n",
+        )
+
+    monkeypatch.setattr("scripts.metatron_lab.compose_guard.subprocess.run", _run)
+    root = Path("/tmp/fake-root")
+    rc = run_compose_config_q(root, "metatron-lab-runner", "/bin/docker")
+    assert rc == 3
+    err = capsys.readouterr().err
+    assert "metatron-lab-runner" in err
+    assert "rc=3" in err
+    assert "invalid yaml" in err

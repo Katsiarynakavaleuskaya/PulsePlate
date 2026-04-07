@@ -26,7 +26,7 @@ def main(argv: list[str] | None = None) -> int:
         for line in operator_checklist_lines():
             print(line)
         return 0
-    return 2
+    raise RuntimeError(f"unhandled command: {args.command!r}")  # pragma: no cover
 
 
 if __name__ == "__main__":

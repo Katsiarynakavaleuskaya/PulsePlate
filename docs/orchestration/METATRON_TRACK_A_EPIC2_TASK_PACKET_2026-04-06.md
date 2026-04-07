@@ -90,6 +90,7 @@ Execute in order; coordinator holds DoD until each gate is satisfied or explicit
 
 ```bash
 python3 scripts/orchestration/check_preflight.py
+python3 scripts/orchestration/check_agent_consistency.py
 docker compose -f deploy/metatron-lab/docker-compose.yaml --profile metatron-lab-isolation config -q
 docker compose -f deploy/metatron-lab/docker-compose.yaml --profile metatron-lab-runner config -q
 python3 -m scripts.metatron_lab validate
