@@ -2,14 +2,16 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 from datetime import date
 from pathlib import Path
 import pytest
 
+from core.food_apis import scheduler as scheduler_mod
 from core.food_apis.raw_snapshot_gate import validate_off_raw_manifest_gate
 from core.food_apis.snapshot_sync import default_raw_snapshot_root, sync_openfoodfacts_snapshot
-from core.food_apis.update_manager import DatabaseUpdateManager
+from core.food_apis.update_manager import DatabaseUpdateManager, get_update_status
 from core.food_sources.snapshot_manager import SnapshotIntegrityError, SnapshotManager, SnapshotMeta
 from core.food_sources.snapshot_manager import sha256_file
 
@@ -225,6 +227,23 @@ def test_database_update_manager_sync_forwards_project_root(
     mgr.sync_openfoodfacts_raw_snapshot(None, project_root=proj)
     assert captured["raw_root"] is None
     assert captured["project_root"] == proj
+
+
+def test_get_update_status_forwards_scheduler_get_status(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """When a global scheduler exists, status must come from ``get_status()`` (cast branch)."""
+
+    class _FakeScheduler:
+        def get_status(self) -> dict[str, object]:
+            return {"scheduler": {"is_running": True}, "databases": {}}
+
+    monkeypatch.setattr(scheduler_mod, "_scheduler_instance", _FakeScheduler())
+    out = asyncio.run(get_update_status())
+    assert isinstance(out, dict)
+    sched = out.get("scheduler")
+    assert isinstance(sched, dict)
+    assert sched.get("is_running") is True
 
 
 def test_manifest_file_relative_path_verify(tmp_path: Path) -> None:

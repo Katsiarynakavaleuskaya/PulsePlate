@@ -650,7 +650,9 @@ jobs:
                   tests/test_unified_db_basics.py \
                   tests/test_unified_db_off_coverage.py \
                   tests/test_food_merge.py \
-                  tests/edges/test_unified_db_off_flags.py
+                  tests/edges/test_unified_db_off_flags.py \
+                  tests/test_food_apis_snapshot_w1.py \
+                  tests/test_food_sources_snapshot_manager.py
                 ;;
               route_contract_safety)
                 add_suite \
