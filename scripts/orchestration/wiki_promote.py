@@ -55,9 +55,9 @@ def promote_slug(
     if not src.is_file():
         raise FileNotFoundError(f"missing_page:{slug}")
     promoted_dir: Path = layout["promoted"]
-    promoted_dir.mkdir(parents=True, exist_ok=True)
     dst: Path = promoted_dir / f"{slug}.md"
     wcs.reject_if_under_canonical_docs(dst, repo_root=repo_root)
+    promoted_dir.mkdir(parents=True, exist_ok=True)
     try:
         dst.relative_to(layout["base"].resolve())
     except ValueError as exc:

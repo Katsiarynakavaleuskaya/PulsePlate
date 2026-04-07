@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from pathlib import Path
 from typing import Final
@@ -19,6 +20,7 @@ EXIT_VIOLATIONS: Final[int] = 1
 EXIT_USAGE: Final[int] = 2
 
 _REQUIRED_KEYS = ("advisory", "corpus", "content_hash", "ingested_at")
+_CONTENT_HASH_RE: Final[re.Pattern[str]] = re.compile(r"^[0-9a-f]{64}$")
 
 
 def lint_corpus(
@@ -47,6 +49,9 @@ def lint_corpus(
         ch = str(meta.get("content_hash", ""))
         if not ch:
             violations.append(f"{page.name}:empty_content_hash")
+            continue
+        if not _CONTENT_HASH_RE.match(ch):
+            violations.append(f"{page.name}:invalid_content_hash_format")
             continue
         raw_path = raw_dir / f"{ch}.md"
         if not raw_path.is_file():

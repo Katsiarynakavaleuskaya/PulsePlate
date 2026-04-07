@@ -18,14 +18,14 @@ It is **not** a second source of truth for product, orchestration, or contracts.
 
 ## Purpose and boundaries (IN / OUT)
 
-**In scope**
+#### In scope
 
 - Operator-local compiled memory under gitignored `artifacts/orchestration/wiki/`.
 - Optional metadata keys `wiki.source.*`, `wiki.page.*`, `wiki.promoted.*` via `put_record`
   when `AGENT_CONTROL_ALLOWLIST` includes `local_support_plane:artifacts_kv` and execution
   mode allows mutations (see `app/security/agent_control_plane.py`).
 
-**Out of scope**
+#### Out of scope
 
 - Canonical documentation under `docs/**`, root `AGENTS.md`, or `docs/roadmap/BACKLOG_LEDGER.md`
   — ingest and promote **fail closed** if the corpus base would resolve under `docs/`; neither tool edits those trees.

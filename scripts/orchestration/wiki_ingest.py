@@ -78,6 +78,10 @@ def ingest_paths(
         data = abs_src.read_bytes()
         digest = wcs.sha256_hex(data)
         slug = wcs.path_to_slug(rel)
+        try:
+            wcs.validate_wiki_slug(slug)
+        except ValueError as exc:
+            raise ValueError(f"slug_from_path_invalid:{rel.as_posix()}:{slug}") from exc
         rel_posix = rel.as_posix()
         prior = slug_first_source.get(slug)
         if prior is not None and prior != rel_posix:

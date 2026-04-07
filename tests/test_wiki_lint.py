@@ -20,6 +20,28 @@ def test_lint_pages_missing(tmp_path: Path) -> None:
     assert "pages_directory_missing" in v
 
 
+def test_lint_rejects_invalid_content_hash_format(tmp_path: Path) -> None:
+    repo = tmp_path / "r"
+    wiki = repo / "w"
+    layout_base = wiki / "project_internal"
+    pages = layout_base / "pages"
+    raw = layout_base / "raw"
+    pages.mkdir(parents=True)
+    raw.mkdir(parents=True)
+    bad_page = pages / "bad.md"
+    bad_page.write_text(
+        "---\n"
+        "advisory: true\n"
+        "content_hash: NOT_A_HASH\n"
+        "corpus: project_internal\n"
+        "ingested_at: 2026-01-01T00:00:00Z\n"
+        "---\n\nbody\n",
+        encoding="utf-8",
+    )
+    v = wiki_lint.lint_corpus(corpus="project_internal", wiki_root=wiki, repo_root=repo)
+    assert any("invalid_content_hash_format" in x for x in v)
+
+
 def test_lint_clean_after_ingest(tmp_path: Path) -> None:
     repo = tmp_path / "r"
     (repo / "s").mkdir(parents=True)
