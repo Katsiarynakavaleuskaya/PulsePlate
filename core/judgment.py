@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import math
 import re
-from typing import Literal, Mapping, Sequence, TypedDict, cast
+from typing import Literal, Mapping, Sequence, TypeGuard, TypedDict, cast
 
 ClaimType = Literal[
     "fact",
@@ -50,6 +50,20 @@ EVIDENCE_MODES: tuple[EvidenceMode, ...] = (
     "heuristic",
     "none",
 )
+
+
+def _is_claim_type(value: str) -> TypeGuard[ClaimType]:
+    return value in CLAIM_TYPES
+
+
+def _is_support_status(value: str) -> TypeGuard[SupportStatus]:
+    return value in SUPPORT_STATUSES
+
+
+def _is_evidence_mode(value: str) -> TypeGuard[EvidenceMode]:
+    return value in EVIDENCE_MODES
+
+
 PROMOTION_LABELS: tuple[str, ...] = ("promote", "defer", "discard")
 JUDGMENT_FLOW: tuple[str, ...] = (
     "propose",
@@ -133,10 +147,10 @@ def parse_claim_type(raw_value: str) -> ClaimType:
     if not isinstance(raw_value, str):
         raise ValueError("claim_type must be a string.")
     normalized = raw_value.strip().lower()
-    if normalized not in CLAIM_TYPES:
+    if not _is_claim_type(normalized):
         allowed = ", ".join(CLAIM_TYPES)
         raise ValueError(f"claim_type must be one of: {allowed}.")
-    return cast(ClaimType, normalized)
+    return normalized
 
 
 def parse_support_status(raw_value: str) -> SupportStatus:
@@ -145,10 +159,10 @@ def parse_support_status(raw_value: str) -> SupportStatus:
     if not isinstance(raw_value, str):
         raise ValueError("support_status must be a string.")
     normalized = raw_value.strip().lower()
-    if normalized not in SUPPORT_STATUSES:
+    if not _is_support_status(normalized):
         allowed = ", ".join(SUPPORT_STATUSES)
         raise ValueError(f"support_status must be one of: {allowed}.")
-    return cast(SupportStatus, normalized)
+    return normalized
 
 
 def parse_evidence_mode(raw_value: str) -> EvidenceMode:
@@ -157,10 +171,10 @@ def parse_evidence_mode(raw_value: str) -> EvidenceMode:
     if not isinstance(raw_value, str):
         raise ValueError("evidence_mode must be a string.")
     normalized = raw_value.strip().lower()
-    if normalized not in EVIDENCE_MODES:
+    if not _is_evidence_mode(normalized):
         allowed = ", ".join(EVIDENCE_MODES)
         raise ValueError(f"evidence_mode must be one of: {allowed}.")
-    return cast(EvidenceMode, normalized)
+    return normalized
 
 
 def classify_claim_type(text: str) -> ClaimType:

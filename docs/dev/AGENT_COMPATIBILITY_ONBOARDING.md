@@ -10,7 +10,9 @@ Read these in order:
 2. [`docs/ENGINEERING_LESSONS.md`](../ENGINEERING_LESSONS.md)
 3. [`RUNBOOK_AGENT.md`](../../RUNBOOK_AGENT.md)
 4. the nearest scoped `AGENTS.md` for the files you touch
-5. this guide for tool-specific setup notes
+5. optional machine-local launcher (if installed on your host): see [`LOCAL_COORDINATOR_LAUNCHER_ROLLOUT.md`](./LOCAL_COORDINATOR_LAUNCHER_ROLLOUT.md) — **opt-in only**, not a global default
+6. coordinator bootstrap: `scripts/orchestration/check_preflight.py` then `scripts/orchestration/task_bootstrap.py` (or the printed recipe from `local_session_bootstrap.sh`)
+7. this guide for tool-specific setup notes
 
 ## Cursor
 
@@ -66,7 +68,8 @@ When instructions overlap, use this order:
 1. root `AGENTS.md`
 2. nearest scoped `AGENTS.md`
 3. `RUNBOOK_AGENT.md`
-4. tool-specific bridge docs such as this file, `CLAUDE.md`, or `docs/dev/CODEX_SKILLS.md`
+4. optional host launcher (if present) for **ordering** preflight/bootstrap only — does not override policy in root `AGENTS.md`
+5. tool-specific bridge docs such as this file, `CLAUDE.md`, or `docs/dev/CODEX_SKILLS.md`
 
 ## Local validation reminder
 
