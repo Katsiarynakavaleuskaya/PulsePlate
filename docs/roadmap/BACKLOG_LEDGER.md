@@ -143,11 +143,11 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Regression tests cover paid, expired, and missing-entitlement paths
 
 <a id="ledger-p0-requested-agent-bootstrap"></a>
-- [ ] P0: Requested-agent bootstrap override and advisory specialist contract
+- [x] P0: Requested-agent bootstrap override and advisory specialist contract
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0
-  - Target PR: PR #1354 (https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1354); check `[x]` only after merge per ledger policy
-  - Status: Open for review; after merge, mark `[x]` via mandatory docs-only follow-up PR the same working day (backlog ledger policy).
+  - Target PR: PR #1354 (https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1354)
+  - Status: ✅ Merged (PR #1354, 2026-04-06; merge commit `ba9ea2f8`). Ledger checkbox closed in PR #1356 (mandatory docs-only follow-up the same working day; backlog ledger policy).
   - Area: orchestration / task bootstrap / routing
   - Finding Type: coordinator bootstrap gap
   - Reason: The canonical coordinator workflow must preserve explicit user-requested agent slugs instead of dropping them during bootstrap. This is especially critical for `agent-coordinator`, `backend-engineer`, `bug-hunter`, `ml-engineer-agent`, and `data-scientist-agent`, where current routing semantics otherwise under-express user intent or hide non-routable specialists.
