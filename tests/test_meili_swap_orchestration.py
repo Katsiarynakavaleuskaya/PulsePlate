@@ -19,7 +19,9 @@ def _cfg(
     *,
     primary: str = "foods",
     candidate: str = "foods_v2",
-    base: str = "http://meili.test",
+    # Use loopback host: CI autouse guard blocks non-allowlisted hosts even with MockTransport
+    # (see tests/conftest.py::_block_external_network_in_ci).
+    base: str = "http://127.0.0.1",
 ) -> MeiliSwapConfig:
     return MeiliSwapConfig(
         base_url=base,
@@ -40,6 +42,20 @@ def test_ensure_distinct_rejects_empty() -> None:
     cfg = _cfg(primary="", candidate="foods_v2")
     with pytest.raises(ValueError, match="non-empty"):
         ensure_distinct_primary_and_candidate(cfg)
+
+
+def test_localhost_with_port_passes_ci_network_guard() -> None:
+    """localhost + port is allowlisted under _block_external_network_in_ci (like 127.0.0.1)."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.method == "GET" and request.url.path == "/indexes/foods_v2/stats":
+            return httpx.Response(200, json={"numberOfDocuments": 7})
+        return httpx.Response(404, json={"message": "unexpected"})
+
+    transport = httpx.MockTransport(handler)
+    cfg = _cfg(base="http://localhost:7700")
+    with MeiliSwapOrchestrator(cfg, client=httpx.Client(transport=transport)) as orch:
+        assert orch.get_index_document_count("foods_v2") == 7
 
 
 def test_connect_error_wraps_safe_message() -> None:

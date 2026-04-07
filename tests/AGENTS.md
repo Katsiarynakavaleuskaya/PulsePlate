@@ -33,6 +33,20 @@
 
 - See canonical WebSocket/realtime invariants in root `AGENTS.md`.
 
+### CI external network guard (`httpx` / `requests`)
+
+When `CI=true` or `BLOCK_TEST_NETWORK` is set (unless `ALLOW_TEST_NETWORK=true`), autouse fixture
+`tests/conftest.py::_block_external_network_in_ci` patches `httpx.Client.request`,
+`httpx.AsyncClient.request`, and `requests.Session.request` so URLs must use an **allowlisted host**
+before any transport (including `httpx.MockTransport`) runs.
+
+**Allowlisted hostnames:** `127.0.0.1`, `localhost`, `::1`, `testserver`, plus any comma-separated
+entries in `TEST_NETWORK_ALLOWED_HOSTS`.
+
+**Implication for tests:** Fake Meili or other httpx clients must use e.g. `http://127.0.0.1` or
+`http://localhost:7700` as `base_url`, not arbitrary hostnames like `meili.test`, or CI raises
+`AssertionError: External HTTP blocked in tests`.
+
 ### Module purge / reload invariant (xdist stability)
 
 Some tests intentionally purge/reload modules (e.g., via `module_purge.purge_modules(...)` or

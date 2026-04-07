@@ -1,10 +1,11 @@
 # METATRON lab — isolated network stub only (no PulsePlate app build).
 # Profile keeps default `docker compose` invocations inert without --profile.
+# Epic 2: metatron-lab-runner adds a second stub for operator-sidecar extension (still no app COPY).
 name: metatron-lab
 services:
   lab-network-placeholder:
     image: alpine:3.20
-    profiles: ["metatron-lab-isolation"]
+    profiles: ["metatron-lab-isolation", "metatron-lab-runner"]
     # BusyBox sleep rejects "infinity"; keep a long-lived placeholder for the internal network.
     command: ["/bin/sh", "-c", "while true; do sleep 86400; done"]
     networks: [lab_internal]
@@ -13,6 +14,17 @@ services:
         limits:
           cpus: "0.25"
           memory: 64M
+
+  lab-runner-sidecar-stub:
+    image: alpine:3.20
+    profiles: ["metatron-lab-runner"]
+    command: ["/bin/sh", "-c", "while true; do sleep 86400; done"]
+    networks: [lab_internal]
+    deploy:
+      resources:
+        limits:
+          cpus: "0.50"
+          memory: 128M
 
 networks:
   lab_internal:
