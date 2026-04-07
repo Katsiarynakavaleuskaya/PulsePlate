@@ -19,6 +19,8 @@ Evidence: `docs/orchestration/LOCAL_WIKI_SUPPORT_PLANE.md` (MD036: real `####` h
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1371#pullrequestreview-4070678463 -> 11120d62b9ce12a47dcfe3de5c7ecc9348456b69
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1371#pullrequestreview-4070686110 -> 11120d62b9ce12a47dcfe3de5c7ecc9348456b69
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1371#pullrequestreview-4070759857 -> 11120d62b9ce12a47dcfe3de5c7ecc9348456b69
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1371#pullrequestreview-4070914662 -> b8a5bd5dcb581dad569bd09cb8bd194474477b6e
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1371#pullrequestreview-4070984357 -> 4b21c57bf390abf6cf6d0357cf9e3929059e2d61
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1371#discussion_r3047331822 -> 11120d62b9ce12a47dcfe3de5c7ecc9348456b69
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1371#discussion_r3047331852 -> 11120d62b9ce12a47dcfe3de5c7ecc9348456b69
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1371#discussion_r3047331861 -> 11120d62b9ce12a47dcfe3de5c7ecc9348456b69
