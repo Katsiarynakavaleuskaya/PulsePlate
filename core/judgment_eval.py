@@ -7,7 +7,7 @@ EN: Contract and evaluator for offline judgment replay without providers or netw
 from __future__ import annotations
 
 import re
-from typing import Literal, TypedDict, cast
+from typing import Literal, TypeGuard, TypedDict, cast
 
 from core.insight.philosophy_validator import validate_llm_output
 from core.judgment import (
@@ -36,6 +36,10 @@ FitChefBoundaryClass = Literal["wellness_coaching", "high_distress_boundary"]
 FitChefReplayRole = Literal["user", "assistant"]
 FitChefContextStrength = Literal["weak", "medium", "strong"]
 FITCHEF_REPLAY_ROLES: frozenset[FitChefReplayRole] = frozenset({"user", "assistant"})
+
+
+def _is_fitchef_replay_role(value: str) -> TypeGuard[FitChefReplayRole]:
+    return value in FITCHEF_REPLAY_ROLES
 
 
 class FitChefReplayTurnRecord(TypedDict):
@@ -173,7 +177,7 @@ def _validate_turns(raw_value: object, *, label: str) -> list[FitChefReplayTurnR
         turn_payload = _require_object(raw_turn, label=f"{label} turn #{index}")
         raw_role = _require_case_string(turn_payload, key="role", label=f"{label} turn #{index}")
         role = raw_role.lower()
-        if role not in FITCHEF_REPLAY_ROLES:
+        if not _is_fitchef_replay_role(role):
             raise ValueError(f"{label} turn #{index} role must be user|assistant.")
         turns.append(
             {

@@ -10,7 +10,7 @@ paths.
 from __future__ import annotations
 
 import re
-from typing import Literal, TypedDict
+from typing import Literal, TypeGuard, TypedDict
 
 from core.insight.philosophy_validator import validate_llm_output
 
@@ -34,6 +34,16 @@ OUTPUT_CLASSES: tuple[CreativeResearchOutputClass, ...] = (
     "anomaly_explanation_candidate",
     "creative_ideation",
 )
+
+
+def _is_creative_confidence(value: str) -> TypeGuard[CreativeResearchConfidence]:
+    return value in CONFIDENCE_LEVELS
+
+
+def _is_creative_phase(value: str) -> TypeGuard[CreativeResearchPhase]:
+    return value in VALID_PHASES
+
+
 PROMOTION_DECISIONS: tuple[CreativeResearchPromotionDecision, ...] = (
     "promote",
     "defer",
@@ -361,7 +371,7 @@ def validate_bundle(payload: object) -> CreativeResearchBundleRecord:
         key="phase",
         label="Creative research eval bundle",
     ).lower()
-    if phase not in VALID_PHASES:
+    if not _is_creative_phase(phase):
         allowed = ", ".join(VALID_PHASES)
         raise ValueError(f"Creative research eval bundle phase must be one of: {allowed}.")
 
@@ -391,11 +401,11 @@ def validate_bundle(payload: object) -> CreativeResearchBundleRecord:
             key="confidence",
             label=label,
         ).lower()
-        if confidence not in CONFIDENCE_LEVELS:
+        if not _is_creative_confidence(confidence):
             allowed = ", ".join(CONFIDENCE_LEVELS)
             raise ValueError(f"{label} confidence must be one of: {allowed}.")
 
-        normalized_confidence: CreativeResearchConfidence = confidence
+        normalized_confidence = confidence
         candidate: CreativeResearchCandidateRecord = {
             "candidate_id": _require_non_empty_string(
                 candidate_payload,
@@ -446,7 +456,7 @@ def validate_bundle(payload: object) -> CreativeResearchBundleRecord:
         }
         candidates.append(candidate)
 
-    normalized_phase: CreativeResearchPhase = phase
+    normalized_phase = phase
     bundle_record: CreativeResearchBundleRecord = {
         "schema_version": schema_version,
         "bundle_id": bundle_id,
