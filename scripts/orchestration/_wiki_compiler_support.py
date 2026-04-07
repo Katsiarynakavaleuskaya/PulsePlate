@@ -19,6 +19,9 @@ DEFAULT_WIKI_ROOT: Final[Path] = Path("artifacts") / "orchestration" / "wiki"
 # local_support_plane.MAX_KEY_LEN is 128 → longest safe slug is 114.
 MAX_WIKI_SLUG_CHARS: Final[int] = 114
 
+# Hex suffix length when ``base`` slug exceeds ``MAX_WIKI_SLUG_CHARS`` (path-stable disambiguation).
+_TRUNCATION_HASH_CHARS: Final[int] = 10
+
 _WIKI_SLUG_RE = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9._-]{0,113}$")
 
 _SLUG_SEGMENT_RE = re.compile(r"[^a-zA-Z0-9._-]+")
@@ -114,7 +117,12 @@ def path_for_support_plane_record(
 
 
 def path_to_slug(rel_path: Path) -> str:
-    """Derive wiki page slug from a path relative to repo root."""
+    """Derive wiki page slug from a path relative to repo root.
+
+    Short paths keep the legacy dot-joined slug. When that base exceeds
+    ``MAX_WIKI_SLUG_CHARS``, append a stable SHA-256 prefix of the POSIX rel path
+    so distinct long paths rarely collide after truncation.
+    """
 
     raw_parts = [p for p in rel_path.parts if p not in (".", "")]
     if not raw_parts:
@@ -125,8 +133,18 @@ def path_to_slug(rel_path: Path) -> str:
         name = Path(p).stem if is_last and p.lower().endswith(".md") else p
         seg = _sanitize_key_segment(name, fallback="part")
         parts.append(seg)
-    slug = ".".join(parts)
-    return slug[:MAX_WIKI_SLUG_CHARS]
+    base = ".".join(parts)
+    if len(base) <= MAX_WIKI_SLUG_CHARS:
+        return base
+
+    suffix = hashlib.sha256(rel_path.as_posix().encode("utf-8")).hexdigest()[
+        :_TRUNCATION_HASH_CHARS
+    ]
+    head_budget = MAX_WIKI_SLUG_CHARS - 1 - len(suffix)
+    head = (base[:head_budget].rstrip("._-") if head_budget > 0 else "") or "page"
+    slug = f"{head}.{suffix}"
+    validate_wiki_slug(slug)
+    return slug
 
 
 def sha256_hex(data: bytes) -> str:

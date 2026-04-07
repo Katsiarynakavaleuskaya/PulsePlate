@@ -34,6 +34,26 @@ def test_path_to_slug_truncates_to_max_length() -> None:
     rel = Path(*parts) / "tail.md"
     slug = wcs.path_to_slug(rel)
     assert len(slug) <= wcs.MAX_WIKI_SLUG_CHARS
+    wcs.validate_wiki_slug(slug)
+
+
+def test_path_to_slug_long_path_is_stable() -> None:
+    parts = [f"seg{i}" for i in range(40)]
+    rel = Path(*parts) / "tail.md"
+    assert wcs.path_to_slug(rel) == wcs.path_to_slug(rel)
+
+
+def test_path_to_slug_long_paths_disambiguate() -> None:
+    """Paths sharing the same naive 114-char prefix must not share slug after hashing."""
+
+    inner = tuple(f"x{i}" for i in range(45))
+    rel_a = Path(*inner) / "marker_a.md"
+    rel_b = Path(*inner) / "marker_b.md"
+    slug_a = wcs.path_to_slug(rel_a)
+    slug_b = wcs.path_to_slug(rel_b)
+    assert slug_a != slug_b
+    wcs.validate_wiki_slug(slug_a)
+    wcs.validate_wiki_slug(slug_b)
 
 
 def test_validate_wiki_slug_rejects_oversized_slug() -> None:
