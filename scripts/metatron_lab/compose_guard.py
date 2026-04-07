@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import shutil
-import subprocess  # nosec B404 — operator-only docker compose config -q; argv built from fixed tokens + absolute docker via shutil.which (remove-by: 2026-07-01, ref: BACKLOG_LEDGER.md#ledger-p1-metatron-offensive-lab-out-of-band)
+import subprocess  # nosec B404: operator-only docker compose config -q; argv from fixed tokens + docker via shutil.which (remove-by: 2026-07-01, ref: PR-1366)
 from pathlib import Path
 
 LAB_PROFILES: tuple[str, ...] = ("metatron-lab-isolation", "metatron-lab-runner")
@@ -31,7 +31,7 @@ def run_compose_config_q(root: Path, profile: str, docker_bin: str) -> int:
         "config",
         "-q",
     ]
-    completed = subprocess.run(  # nosec B603 — no shell; argv is docker + fixed compose flags + repo compose path (remove-by: 2026-07-01, ref: BACKLOG_LEDGER.md#ledger-p1-metatron-offensive-lab-out-of-band)
+    completed = subprocess.run(  # nosec B603: no shell; argv is docker + fixed compose flags + repo compose path (remove-by: 2026-07-01, ref: PR-1366)
         cmd,
         cwd=str(root),
         check=False,

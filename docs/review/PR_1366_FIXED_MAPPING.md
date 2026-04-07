@@ -3,12 +3,14 @@
 
 ## Discussion Thread Pass
 
-- [x] Discussion-thread pass completed (initial open — no threads)
-- [x] Fixed in commit mapping completed (initial scaffold)
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
+
+No actionable GitHub review threads at initial open; refresh when review comments appear.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments (initial open)
+- No actionable review comments
 
 ## Merge Readiness
 
