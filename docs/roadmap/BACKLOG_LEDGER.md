@@ -2436,10 +2436,10 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P2: Local launcher rollout for coordinator-first automation
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2
-  - Target PR: PR #1348 + PR #1350 (landed); open companion PR (branch `docs/local-launcher-rollout-closeout`: runbook + sanitized wrapper example + entry-doc sync); host install remains operator-owned outside git
+  - Target PR: PR #1348 + PR #1350 (landed); PR #1370 (repo companion: runbook + sanitized wrapper example + entry-doc sync + core TypeGuard mypy fix); host install remains operator-owned outside git
   - Area: local tooling / launcher / Codex runtime
   - Finding Type: non-repo rollout follow-up
-  - Status (EN): Companion PR adds `docs/dev/LOCAL_COORDINATOR_LAUNCHER_ROLLOUT.md`, `docs/templates/pulseplate-coordinator-launch.example.sh`, and aligned onboarding pointers. **Do not check this item complete** until host smoke evidence is recorded (per runbook “Smoke checks” + “Evidence and backlog”) on at least one opted-in machine—not markdown alone.
+  - Status (EN): Companion PR #1370 adds `docs/dev/LOCAL_COORDINATOR_LAUNCHER_ROLLOUT.md`, `docs/templates/pulseplate-coordinator-launch.example.sh`, and aligned onboarding pointers. **Do not check this item complete** until host smoke evidence is recorded (per runbook “Smoke checks” + “Evidence and backlog”) on at least one opted-in machine—not markdown alone.
   - Reason: Repo docs and deterministic engines alone cannot force raw session auto-start. A machine-local launcher or wrapper must wire preflight, bootstrap, and compatible runtime settings without pretending that `~/.codex/config.toml` is repo source of truth.
   - Links:
     - `docs/orchestration/AUTOMATION_READINESS_MATRIX.md`
