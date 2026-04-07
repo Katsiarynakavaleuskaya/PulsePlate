@@ -8,7 +8,24 @@
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+Disposition: FIXED
+Commit: see mapping entries below
+Evidence: `app/services/meili_swap_orchestration.py` (delete/create await `taskUid`; `run_full_pipeline` empty-doc guard), `scripts/meili_food_index_swap.py` (streaming JSONL), `docs/deploy/MEILISEARCH_ZERO_DOWNTIME_SWAP_RUNBOOK.md`, `tests/test_meili_swap_orchestration.py`
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1365#discussion_r3040128245 -> d4587d5795703d2a4fce7e2ac14fc28d7e631c83
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1365#discussion_r3040128250 -> d4587d5795703d2a4fce7e2ac14fc28d7e631c83
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1365#discussion_r3040157804 -> d4587d5795703d2a4fce7e2ac14fc28d7e631c83
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1365#discussion_r3040157806 -> d4587d5795703d2a4fce7e2ac14fc28d7e631c83
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1365#discussion_r3040157812 -> d4587d5795703d2a4fce7e2ac14fc28d7e631c83
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1365#discussion_r3040157818 -> d4587d5795703d2a4fce7e2ac14fc28d7e631c83
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1365#discussion_r3040157827 -> d4587d5795703d2a4fce7e2ac14fc28d7e631c83
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1365#discussion_r3040184880 -> d4587d5795703d2a4fce7e2ac14fc28d7e631c83
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1365#discussion_r3040184892 -> d4587d5795703d2a4fce7e2ac14fc28d7e631c83
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1365#discussion_r3040184896 -> d4587d5795703d2a4fce7e2ac14fc28d7e631c83
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1365#discussion_r3040184902 -> d4587d5795703d2a4fce7e2ac14fc28d7e631c83
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1365#pullrequestreview-4062742519 -> d4587d5795703d2a4fce7e2ac14fc28d7e631c83
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1365#pullrequestreview-4062775056 -> d4587d5795703d2a4fce7e2ac14fc28d7e631c83
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1365#pullrequestreview-4062807365 -> d4587d5795703d2a4fce7e2ac14fc28d7e631c83
 
 ## Merge Readiness
 
@@ -18,6 +35,6 @@
 - [ ] Pre-commit green
 - [ ] `make verify` green locally
 
-Notes: Refresh this artifact and PR-body mirror after review threads or actionable bot comments appear.
+Notes: Resolve review threads on GitHub after verifying disposition; mirror `### Fixed in Commit Mapping` in the PR body if required by Phase 2 gates.
 
 <!-- markdownlint-enable MD034 -->
