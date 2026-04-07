@@ -10,7 +10,7 @@ paths.
 from __future__ import annotations
 
 import re
-from typing import Literal, TypedDict, cast
+from typing import Literal, TypedDict
 
 from core.insight.philosophy_validator import validate_llm_output
 
@@ -395,7 +395,7 @@ def validate_bundle(payload: object) -> CreativeResearchBundleRecord:
             allowed = ", ".join(CONFIDENCE_LEVELS)
             raise ValueError(f"{label} confidence must be one of: {allowed}.")
 
-        normalized_confidence = cast(CreativeResearchConfidence, confidence)
+        normalized_confidence: CreativeResearchConfidence = confidence
         candidate: CreativeResearchCandidateRecord = {
             "candidate_id": _require_non_empty_string(
                 candidate_payload,
@@ -446,7 +446,7 @@ def validate_bundle(payload: object) -> CreativeResearchBundleRecord:
         }
         candidates.append(candidate)
 
-    normalized_phase = cast(CreativeResearchPhase, phase)
+    normalized_phase: CreativeResearchPhase = phase
     bundle_record: CreativeResearchBundleRecord = {
         "schema_version": schema_version,
         "bundle_id": bundle_id,
