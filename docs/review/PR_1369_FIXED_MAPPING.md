@@ -2,20 +2,23 @@
 
 ## Discussion Thread Pass
 
-- No GitHub review threads at artifact creation time. Re-run disposition mapping when bots or humans add actionables.
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
+
+No actionable GitHub review threads at artifact creation; update this artifact when bots or humans file review comments.
 
 ## Fixed in Commit Mapping
 
-_(No threads yet — add \`- <thread_url> -> <sha>\` rows only after explicit disposition per AGENTS.md.)_
+- No actionable review comments
 
 ## Merge Readiness
 
 - [ ] Current-head CI green for PR branch head
 - [ ] Required checks complete (no pending jobs)
-- [ ] Any new review threads dispositioned below
+- [ ] Any new review threads dispositioned under **Fixed in Commit Mapping**
 
 ### Local / design verification
 
-- Branch head: use `gh pr view 1369 --json headRefOid` (avoid stale SHAs in this artifact)
-- Evidence: `docs/architecture/ADR_DOCKER_BUILD_PROVENANCE_WORKAROUND_2026-03-01.md` (updated Context, Decision, Evidence Anchors)
+- Evidence: `docs/architecture/ADR_DOCKER_BUILD_PROVENANCE_WORKAROUND_2026-03-01.md` (Context steps + Evidence Anchors)
 - Evidence: `.github/workflows/docker-openapi-smoke.yml:75`-`78` (load vs attestations rationale)
+- Branch head: `gh pr view 1369 --json headRefOid -q .headRefOid`
