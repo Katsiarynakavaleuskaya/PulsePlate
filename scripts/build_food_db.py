@@ -5,11 +5,13 @@ RU: Сборка профессиональной базы данных прод
 EN: Build professional food database from CSV to Parquet/SQLite.
 """
 
+import argparse
 import sys
 from pathlib import Path
 
 # Add project root to path
-sys.path.append(str(Path(__file__).parent.parent))
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent
+sys.path.append(str(_PROJECT_ROOT))
 
 import hashlib
 import json
@@ -451,8 +453,25 @@ class FoodDatabaseBuilder:
 
 def main() -> None:
     """Main entry point."""
+    parser = argparse.ArgumentParser(description="Build merged food database (USDA + OFF).")
+    parser.add_argument(
+        "--validate-raw-snapshots",
+        action="store_true",
+        help="Fail-closed verify OFF raw snapshot manifest under data/raw/snapshots before build.",
+    )
+    args = parser.parse_args()
+
     setup_logging()
-    builder = FoodDatabaseBuilder()
+    project_root = _PROJECT_ROOT
+    if args.validate_raw_snapshots:
+        from core.food_apis.raw_snapshot_gate import validate_off_raw_manifest_gate
+
+        gate = validate_off_raw_manifest_gate(project_root, enabled=True, strict=True)
+        logging.info("Raw snapshot gate: %s", gate)
+        if gate.get("enabled") and gate.get("status") == "verified":
+            logging.info("OFF raw snapshots verified: %s file(s)", gate.get("snapshots_checked"))
+
+    builder = FoodDatabaseBuilder(project_root=project_root)
     builder.build()
 
 
