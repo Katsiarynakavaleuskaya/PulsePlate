@@ -2409,7 +2409,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P2: Local workforce PR-C — add experimental local support-plane storage
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2
-  - Target PR: PR-TBD-LOCAL-WORKFORCE-PR-C-SUPPORT-PLANE
+  - Target PR: PR #1363 (draft; \`docs/review/PR_1363_FIXED_MAPPING.md\`)
   - Area: orchestration / security / local support plane
   - Finding Type: RFC follow-on slice
   - Status: Planned
@@ -2420,9 +2420,12 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Links:
     - `docs/orchestration/COMPOSER_BOOTSTRAP_KIT_PR1.md`
     - `docs/orchestration/PulsePlate_Local_Agent_Workforce_System_Design_Packet_v1_2.md`
+    - `docs/orchestration/TASK_ANALYSIS_LOCAL_WORKFORCE_PR_C_2026-04-05.md`
     - `docs/security/AGENT_CONTROL_PLANE_SECURITY_BASELINE.md`
     - `docs/architecture/ADR-003-agent-control-plane-mvp.md`
     - `app/security/agent_control_plane.py`
+    - `scripts/orchestration/local_support_plane.py`
+    - `tests/test_local_support_plane.py`
   - DoD:
     - Experimental local support-plane storage/runtime remains explicitly non-canonical
     - Existing security/control-plane primitives are reused where possible
