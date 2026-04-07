@@ -19,7 +19,9 @@ def _cfg(
     *,
     primary: str = "foods",
     candidate: str = "foods_v2",
-    base: str = "http://meili.test",
+    # Use loopback host: CI autouse guard blocks non-allowlisted hosts even with MockTransport
+    # (see tests/conftest.py::_block_external_network_in_ci).
+    base: str = "http://127.0.0.1",
 ) -> MeiliSwapConfig:
     return MeiliSwapConfig(
         base_url=base,
