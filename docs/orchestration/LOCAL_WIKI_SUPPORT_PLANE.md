@@ -41,14 +41,14 @@ reasoning layer”, knowledge graph, index-first ranked retrieval, or semantic q
 | Surface | On support-plane write failure | Rationale |
 |--------|---------------------------------|-----------|
 | **Ingest** (`wiki_ingest.py`) | **Warn and continue** (`support_plane_skip:…` on stderr); filesystem writes (raw/page/index/log) already applied | Metadata mirror is best-effort; corpus on disk is the primary ingest artifact for v1. |
-| **Promote** (`wiki_promote.py`) | **Fail closed:** if `put_record` fails after the new promoted content was staged, the prior promoted file (if any) is **restored** from `.bak` when that backup exists; if there was no prior file, the new promoted file is **removed**. If a prior file existed but the backup is missing (race / concurrent promote), the new content on `dst` is **kept** so the tool does not delete the only remaining copy. | Avoids “orphan” promoted files without SP, preserves non-destructive rollback when backup is intact, and avoids total loss when backup is absent. |
+| **Promote** (`wiki_promote.py`) | **Fail closed:** if **filesystem staging** fails after `dst` was moved to `.bak`, the prior file is **restored** to visible `dst` and tmp is removed. If `put_record` fails after staging succeeds, the prior promoted file (if any) is **restored** from `.bak` when that backup exists; if there was no prior file, the new promoted file is **removed**. If a prior file existed but the backup is missing (race / concurrent promote), the new content on `dst` is **kept**. | Same non-destructive goal for SP errors and staging rename errors; avoids orphan promoted files without SP. |
 
 Do **not** describe ingest as wholly fail-closed on support-plane mutations: only canonical-path and
 on-disk errors abort the run; SP failures are warnings unless you treat stderr in your operator
 pipeline as fatal.
 
 Evidence: ingest SP catch — `scripts/orchestration/wiki_ingest.py:162`; promote atomic staging,
-`put_record`, and rollback — `scripts/orchestration/wiki_promote.py:83`–`scripts/orchestration/wiki_promote.py:137`.
+staging (`tmp`/`bak`), `put_record`, and rollbacks — `scripts/orchestration/wiki_promote.py:83`–`scripts/orchestration/wiki_promote.py:151`.
 
 ## v1 tool semantics (what the code actually does)
 
@@ -84,7 +84,10 @@ Evidence: ingest SP catch — `scripts/orchestration/wiki_ingest.py:162`; promot
   succeeds, so there can be a **short window** where disk reflects the new promote while the support-plane
   record is still old or missing; on `put_record` failure, rollback **restores** the prior promoted file
   when `.bak` exists, **removes** the new file when there was no prior, or **keeps** the new file on
-  `dst` if a prior existed but the backup is missing (avoids deleting the only copy). This is **not**
+  `dst` if a prior existed but the backup is missing (avoids deleting the only copy). If **filesystem
+  staging** fails after `dst` was moved to `.bak` but before `tmp` becomes `dst`, the prior visible file
+  is **restored** from `.bak` and the tmp file is cleaned up — same non-destructive goal as SP rollback.
+  This is **not**
   a single atomic transaction across filesystem + SP — acceptable for local advisory tooling; avoid
   overlapping promotes for the same slug from multiple processes.
 - Support-plane key **`wiki.promoted.<slug>` is a single slot:** each successful promote **overwrites**

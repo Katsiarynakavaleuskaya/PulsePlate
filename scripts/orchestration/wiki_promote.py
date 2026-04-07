@@ -88,9 +88,23 @@ def promote_slug(
 
     tmp_path.write_text(out_text, encoding="utf-8")
     had_prior = dst.is_file()
-    if had_prior:
-        dst.replace(backup_path)
-    tmp_path.replace(dst)
+    backup_created = False
+    try:
+        if had_prior:
+            dst.replace(backup_path)
+            backup_created = True
+        tmp_path.replace(dst)
+    except OSError as stage_exc:
+        try:
+            if backup_created and backup_path.is_file():
+                if dst.exists():
+                    dst.unlink(missing_ok=True)
+                backup_path.replace(dst)
+            with contextlib.suppress(OSError):
+                tmp_path.unlink(missing_ok=True)
+        except OSError as rollback_exc:
+            raise rollback_exc from stage_exc
+        raise stage_exc
 
     if not write_support_plane:
         with contextlib.suppress(OSError):

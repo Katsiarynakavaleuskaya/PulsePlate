@@ -256,11 +256,11 @@ def test_promote_keeps_new_dst_when_backup_missing_on_rollback(
         audit_secret=audit_signing_material,
     )
     prior = dst.read_text(encoding="utf-8")
-
+    backup_path = dst.parent / f".{slug}.promote.bak"
     orig_is_file = Path.is_file
 
     def is_file_patched(self: Path) -> bool:
-        if str(self).endswith(".promote.bak"):
+        if self.resolve() == backup_path.resolve():
             return False
         return orig_is_file(self)
 
@@ -283,6 +283,54 @@ def test_promote_keeps_new_dst_when_backup_missing_on_rollback(
         )
     assert dst.is_file()
     assert dst.read_text(encoding="utf-8") != prior
+
+
+def test_promote_restores_prior_when_tmp_replace_fails_after_backup_created(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Staging gap: if tmp->dst replace fails after dst->bak, restore visible prior on dst."""
+
+    repo = tmp_path / "r"
+    wiki = repo / "wiki"
+    slug = _ingest_one(repo, wiki)
+    dst = wiki / "project_internal" / "promoted" / f"{slug}.md"
+    promote_tmp = dst.parent / f".{slug}.promote.tmp"
+    backup_path = dst.parent / f".{slug}.promote.bak"
+
+    wiki_promote.promote_slug(
+        slug,
+        corpus="project_internal",
+        wiki_root=wiki,
+        repo_root=repo,
+        write_support_plane=False,
+    )
+    prior = dst.read_text(encoding="utf-8")
+
+    monkeypatch.setattr(wcs, "utc_now_iso", lambda: "2026-01-11T11:00:00Z")
+
+    original_replace = Path.replace
+
+    def replace_patched(self: Path, target: Path) -> Path:
+        if self.resolve() == promote_tmp.resolve() and target.resolve() == dst.resolve():
+            raise OSError("staging_rename_failed")
+        return original_replace(self, target)
+
+    monkeypatch.setattr(Path, "replace", replace_patched)
+
+    with pytest.raises(OSError, match="staging_rename_failed"):
+        wiki_promote.promote_slug(
+            slug,
+            corpus="project_internal",
+            wiki_root=wiki,
+            repo_root=repo,
+            write_support_plane=False,
+        )
+
+    assert dst.is_file()
+    assert dst.read_text(encoding="utf-8") == prior
+    assert not backup_path.exists()
+    assert not promote_tmp.exists()
 
 
 def test_promote_preserves_prior_on_unexpected_put_record_failure(
