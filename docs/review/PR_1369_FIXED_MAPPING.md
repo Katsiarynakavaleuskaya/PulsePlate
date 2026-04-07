@@ -16,6 +16,6 @@ _(No threads yet — add \`- <thread_url> -> <sha>\` rows only after explicit di
 
 ### Local / design verification
 
-- Branch head: `ab392be0c` (ADR SoT + smoke comments + mapping scaffold)
+- Branch head: use `gh pr view 1369 --json headRefOid` (avoid stale SHAs in this artifact)
 - Evidence: `docs/architecture/ADR_DOCKER_BUILD_PROVENANCE_WORKAROUND_2026-03-01.md` (updated Context, Decision, Evidence Anchors)
 - Evidence: `.github/workflows/docker-openapi-smoke.yml:75`-`78` (load vs attestations rationale)
