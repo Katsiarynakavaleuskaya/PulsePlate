@@ -4478,12 +4478,28 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `core/food_sources/`
     - `core/food_apis/update_manager.py`
     - `scripts/build_food_db.py`
-    - Merge follow-up: PR #1360 — fail-closed `verify_recorded_snapshots` + recorded size/checksum enforcement (extends W1 manifest integrity)
+    - W1 manifest integrity extension: PR #1360 (merged; canonical ledger entry below)
   - DoD:
     - Immutable raw snapshot layout is implemented
     - Manifest/checksum policy is enforced fail-closed
     - Deterministic OFF delta ingestion is in place
     - Existing `/api/v1/foods*` behavior remains compatible
+
+
+- [x] P1: PR #1360 — snapshot record verification + size enforcement (W1 manifest integrity)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR #1360 (https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1360)
+  - Status: ✅ Merged (PR #1360, 2026-04-06; merge commit `837cfa170a30160e5f720609cb508e05d4565782`)
+  - Area: backend / data ingestion / manifest integrity
+  - Finding Type: W1 merge follow-up (fail-closed verification)
+  - Reason (EN): Extend Wave 1 snapshot hub with fail-closed `verify_recorded_snapshots` and recorded size/checksum enforcement. (RU: расширение W1 — жёсткая проверка записанных снапшотов и размера.)
+  - Links:
+    - `core/food_sources/snapshot_manager.py`
+    - `docs/architecture/FOOD_DATABASE_PLATFORM_STRATEGY_v1.md` (§5.1)
+  - DoD:
+    - Fail-closed verification path covered by deterministic tests
+    - Strategy SoT §5.1 anchors reference current `file:line` entrypoints
 
 
 - [x] P0: Food data licensing + attribution compliance package
