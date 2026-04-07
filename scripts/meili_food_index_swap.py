@@ -14,7 +14,6 @@ import argparse
 import json
 import logging
 import os
-import sys
 from collections.abc import Iterable, Mapping
 from pathlib import Path
 from typing import Any, TextIO
@@ -179,12 +178,11 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "build":
             path = Path(args.documents)
             with path.open(encoding="utf-8") as fp:
-                docs = list(_iter_jsonl_documents(fp))
-            n = orch.orchestrate_build(
-                docs,
-                batch_size=batch_size,
-                recreate_candidate=not args.no_recreate,
-            )
+                n = orch.orchestrate_build(
+                    _iter_jsonl_documents(fp),
+                    batch_size=batch_size,
+                    recreate_candidate=not args.no_recreate,
+                )
             print(f"indexed={n}")
             return 0
 
@@ -211,14 +209,13 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "pipeline":
             path = Path(args.documents)
             with path.open(encoding="utf-8") as fp:
-                docs = list(_iter_jsonl_documents(fp))
-            orch.run_full_pipeline(
-                docs,
-                batch_size=batch_size,
-                recreate_candidate=not args.no_recreate,
-                skip_swap=bool(args.skip_swap),
-                allow_empty_swap=bool(args.allow_empty_swap),
-            )
+                orch.run_full_pipeline(
+                    _iter_jsonl_documents(fp),
+                    batch_size=batch_size,
+                    recreate_candidate=not args.no_recreate,
+                    skip_swap=bool(args.skip_swap),
+                    allow_empty_swap=bool(args.allow_empty_swap),
+                )
             print("pipeline_ok=1")
             return 0
 

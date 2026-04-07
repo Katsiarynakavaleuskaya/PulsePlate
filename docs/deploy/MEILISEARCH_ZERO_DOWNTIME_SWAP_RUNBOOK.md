@@ -35,19 +35,19 @@ python scripts/meili_food_index_swap.py pipeline --documents /path/to/foods.json
 ## Swap implementation anchor
 
 Swap is executed via `POST /swap-indexes` and task polling in
-`MeiliSwapOrchestrator.perform_index_swap` — `app/services/meili_swap_orchestration.py:220`.
+`MeiliSwapOrchestrator.perform_index_swap` — `app/services/meili_swap_orchestration.py:254`.
 
 ## Failure hints
 
 - **Unreachable / timeout**: errors mention `MEILI_URL` only (no API key in messages); see
   `_meili_unreachable_message` at `app/services/meili_swap_orchestration.py:60`.
 - **Task failures**: orchestrator raises with Meilisearch task error payload after polling
-  `GET /tasks/{taskUid}` (`app/services/meili_swap_orchestration.py:161`).
+  `GET /tasks/{taskUid}` in `MeiliSwapOrchestrator._wait_for_task` (`app/services/meili_swap_orchestration.py:191`).
 
 ## Evidence anchors (docs Phase 1)
 
 - `app/services/meili_swap_orchestration.py:46`
 - `app/services/meili_swap_orchestration.py:60`
-- `app/services/meili_swap_orchestration.py:161`
-- `app/services/meili_swap_orchestration.py:220`
+- `app/services/meili_swap_orchestration.py:191`
+- `app/services/meili_swap_orchestration.py:254`
 - `scripts/meili_food_index_swap.py:1`

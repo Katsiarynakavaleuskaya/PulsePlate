@@ -90,7 +90,9 @@ def test_orchestrate_build_batches() -> None:
         if request.method == "DELETE" and request.url.path == "/indexes/foods_v2":
             return httpx.Response(404, json={})
         if request.method == "POST" and request.url.path == "/indexes":
-            return httpx.Response(201, json={"uid": "foods_v2"})
+            return httpx.Response(202, json={"taskUid": 50})
+        if request.method == "GET" and request.url.path == "/tasks/50":
+            return httpx.Response(200, json={"status": "succeeded"})
         if request.method == "POST" and request.url.path.endswith("/documents"):
             body = json.loads(request.content.decode("utf-8"))
             assert isinstance(body, list)
@@ -169,6 +171,24 @@ def test_delete_index_if_exists_404_returns_false() -> None:
     transport = httpx.MockTransport(handler)
     with MeiliSwapOrchestrator(_cfg(), client=httpx.Client(transport=transport)) as orch:
         assert orch.delete_index_if_exists("missing") is False
+
+
+def test_delete_index_if_exists_waits_for_task() -> None:
+    calls: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(f"{request.method} {request.url.path}")
+        if request.method == "DELETE" and request.url.path == "/indexes/foods_v2":
+            return httpx.Response(202, json={"taskUid": 99})
+        if request.method == "GET" and request.url.path == "/tasks/99":
+            return httpx.Response(200, json={"status": "succeeded"})
+        return httpx.Response(404, json={"message": "unexpected"})
+
+    transport = httpx.MockTransport(handler)
+    with MeiliSwapOrchestrator(_cfg(), client=httpx.Client(transport=transport)) as orch:
+        assert orch.delete_index_if_exists("foods_v2") is True
+    assert "DELETE /indexes/foods_v2" in calls
+    assert "GET /tasks/99" in calls
 
 
 def test_wait_for_task_failed_status() -> None:

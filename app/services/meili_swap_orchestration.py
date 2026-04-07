@@ -12,6 +12,7 @@ from __future__ import annotations
 import logging
 import time
 from collections.abc import Iterable, Mapping, Sequence
+from itertools import chain
 from dataclasses import dataclass
 from typing import Any
 
@@ -146,20 +147,45 @@ class MeiliSwapOrchestrator:
             raise
 
     def delete_index_if_exists(self, index_uid: str) -> bool:
-        """Delete index UID when present; return whether a delete was issued."""
+        """Delete index UID when present; return whether a delete was issued.
+
+        Meilisearch enqueues index deletion as an async task; we wait for it before
+        callers recreate the same UID (avoids index_already_exists races).
+        """
 
         path = f"/indexes/{index_uid}"
-        return self._request_ignore_404("DELETE", path)
+        url = f"{self._root()}{path}"
+        try:
+            response = self._client.request("DELETE", url, headers=self._headers())
+        except httpx.ConnectError as exc:
+            raise RuntimeError(_meili_unreachable_message(self._cfg.base_url)) from exc
+        except httpx.TimeoutException as exc:
+            raise RuntimeError(_meili_unreachable_message(self._cfg.base_url)) from exc
+        except httpx.HTTPError:
+            raise
+        if response.status_code == 404:
+            return False
+        response.raise_for_status()
+        if response.status_code == 204 or not response.content:
+            logger.info("Meili index delete completed uid=%s (no task body)", index_uid)
+            return True
+        payload: Any = response.json()
+        if isinstance(payload, dict) and "taskUid" in payload:
+            self._wait_for_task(int(payload["taskUid"]))
+        return True
 
     def create_index(self, index_uid: str, *, primary_key: str = "id") -> None:
         """Create a new index with the given primary key."""
 
         ensure_distinct_primary_and_candidate(self._cfg)
-        self._request_json(
+        task = self._request_json(
             "POST",
             "/indexes",
             json_body={"uid": index_uid, "primaryKey": primary_key},
         )
+        if not isinstance(task, dict) or "taskUid" not in task:
+            raise RuntimeError(f"Unexpected index create response: {task!r}")
+        self._wait_for_task(int(task["taskUid"]))
         logger.info("Meili index created uid=%s primary_key=%s", index_uid, primary_key)
 
     def _wait_for_task(self, task_uid: int) -> None:
@@ -312,19 +338,24 @@ class MeiliSwapOrchestrator:
         """build → validate → warm → optional swap."""
 
         ensure_distinct_primary_and_candidate(self._cfg)
-        docs_list = list(documents)
-        if not docs_list and not skip_swap and not allow_empty_swap:
-            raise ValueError(
-                "Refusing full pipeline swap with an empty document set "
-                "(set skip_swap=True or allow_empty_swap=True for advanced recovery flows)"
-            )
+        iterator = iter(documents)
+        first = next(iterator, None)
+        if first is None:
+            if not skip_swap and not allow_empty_swap:
+                raise ValueError(
+                    "Refusing full pipeline swap with an empty document set "
+                    "(set skip_swap=True or allow_empty_swap=True for advanced recovery flows)"
+                )
+            doc_iter: Iterable[Mapping[str, Any]] = ()
+        else:
+            doc_iter = chain((first,), iterator)
         indexed = self.orchestrate_build(
-            iter(docs_list),
+            doc_iter,
             batch_size=batch_size,
             recreate_candidate=recreate_candidate,
         )
-        self.orchestrate_validate(expected_documents=indexed if docs_list else None)
-        if docs_list:
+        self.orchestrate_validate(expected_documents=indexed if first is not None else None)
+        if first is not None:
             self.orchestrate_warm(queries=warm_queries)
         if not skip_swap:
             self.perform_index_swap()
