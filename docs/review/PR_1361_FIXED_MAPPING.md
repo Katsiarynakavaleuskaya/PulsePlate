@@ -37,6 +37,11 @@ Evidence: `docs/review/PR_1361_FIXED_MAPPING.md:1`; Codex connector summary revi
 Reason: Mirror Sourcery/cubic aggregate handling; single inline thread captured in FIXED block.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1361#pullrequestreview-4062505328
 
+Disposition: NOT-A-BUG
+Evidence: `docs/review/PR_1361_FIXED_MAPPING.md:1`; CodeRabbit summary / tips without a new threaded finding beyond the Sourcery/cubic/Codex items already mapped above; PR CI follow-up for diff-coverage is the `food_catalog` suite expansion (`.github/workflows/ci.yml`) plus `get_update_status` scheduler branch coverage (`tests/test_food_apis_snapshot_w1.py`).
+Reason: Aggregate bot review body is advisory; no extra `discussion_r` beyond existing FIXED mapping.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1361#pullrequestreview-4066114949
+
 ## Merge Readiness
 
 - [ ] All required checks pass (GitHub CI on current PR head after each push)
