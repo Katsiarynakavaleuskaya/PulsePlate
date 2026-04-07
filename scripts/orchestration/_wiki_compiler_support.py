@@ -86,6 +86,33 @@ def _sanitize_key_segment(raw: str, *, fallback: str) -> str:
     return s[:120]
 
 
+def path_for_support_plane_record(
+    path: Path,
+    *,
+    repo_root: Path,
+    wiki_root: Path,
+) -> str:
+    """Stable path string for LSP JSON fields.
+
+    Prefer repo-relative paths when ``path`` is under ``repo_root``; otherwise
+    use a ``wiki:``-prefixed path relative to ``wiki_root``, then fall back to
+    an absolute POSIX path (RU/EN: avoids ``relative_to`` crashes when wiki
+    corpus lives outside the repo tree).
+    """
+
+    rp = path.resolve()
+    rr = repo_root.resolve()
+    try:
+        return rp.relative_to(rr).as_posix()
+    except ValueError:
+        pass
+    wr = wiki_root.resolve()
+    try:
+        return f"wiki:{rp.relative_to(wr).as_posix()}"
+    except ValueError:
+        return rp.as_posix()
+
+
 def path_to_slug(rel_path: Path) -> str:
     """Derive wiki page slug from a path relative to repo root."""
 

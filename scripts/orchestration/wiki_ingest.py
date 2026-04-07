@@ -56,10 +56,12 @@ def ingest_paths(
 
     warnings: list[str] = []
     written: list[str] = []
+    wiki_resolved = wiki_root.resolve()
     layout = wcs.corpus_layout(wcs.corpus_base(wiki_root, corpus))
     wcs.reject_if_under_canonical_docs(layout["base"], repo_root=repo_root)
     layout["pages"].mkdir(parents=True, exist_ok=True)
     layout["raw"].mkdir(parents=True, exist_ok=True)
+    slug_first_source: dict[str, str] = {}
 
     active_allowlist = allowlist
     if write_support_plane and active_allowlist is None:
@@ -76,6 +78,11 @@ def ingest_paths(
         data = abs_src.read_bytes()
         digest = wcs.sha256_hex(data)
         slug = wcs.path_to_slug(rel)
+        rel_posix = rel.as_posix()
+        prior = slug_first_source.get(slug)
+        if prior is not None and prior != rel_posix:
+            raise ValueError(f"slug_collision:{slug}:{prior}")
+        slug_first_source[slug] = rel_posix
         raw_name = f"{digest}.md"
         raw_path = layout["raw"] / raw_name
         raw_path.write_bytes(data)
@@ -105,11 +112,17 @@ def ingest_paths(
 
         if write_support_plane:
             try:
+                raw_sp = wcs.path_for_support_plane_record(
+                    raw_path, repo_root=repo_root, wiki_root=wiki_resolved
+                )
+                page_sp = wcs.path_for_support_plane_record(
+                    page_path, repo_root=repo_root, wiki_root=wiki_resolved
+                )
                 src_record: dict[str, Any] = {
                     "corpus": corpus,
                     "source_rel_path": rel.as_posix(),
                     "content_hash": digest,
-                    "raw_path": raw_path.relative_to(repo_root).as_posix(),
+                    "raw_path": raw_sp,
                     "ingested_at": ingested_at,
                 }
                 lsp.put_record(
@@ -126,7 +139,7 @@ def ingest_paths(
                     "slug": slug,
                     "source_rel_path": rel.as_posix(),
                     "content_hash": digest,
-                    "page_path": page_path.relative_to(repo_root).as_posix(),
+                    "page_path": page_sp,
                     "ingested_at": ingested_at,
                 }
                 lsp.put_record(

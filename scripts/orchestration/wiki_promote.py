@@ -72,25 +72,33 @@ def promote_slug(
         "promoted_at": promoted_at,
     }
     out_text = wcs.format_frontmatter(meta) + body
-    dst.write_text(out_text, encoding="utf-8")
+    wiki_resolved = wiki_root.resolve()
+    promoted_sp = wcs.path_for_support_plane_record(
+        dst, repo_root=repo_root, wiki_root=wiki_resolved
+    )
 
+    dst.write_text(out_text, encoding="utf-8")
     if write_support_plane:
         active = allowlist if allowlist is not None else cp.load_allowlist_from_env()
         payload: dict[str, Any] = {
             "corpus": corpus,
             "slug": slug,
             "promoted_at": promoted_at,
-            "promoted_path": dst.relative_to(repo_root.resolve()).as_posix(),
+            "promoted_path": promoted_sp,
         }
-        lsp.put_record(
-            f"wiki.promoted.{slug}",
-            payload,
-            allowlist=active,
-            repo_root=repo_root,
-            root_override=sp_root_override,
-            audit_secret=audit_secret,
-            audit_log_path=audit_log_path,
-        )
+        try:
+            lsp.put_record(
+                f"wiki.promoted.{slug}",
+                payload,
+                allowlist=active,
+                repo_root=repo_root,
+                root_override=sp_root_override,
+                audit_secret=audit_secret,
+                audit_log_path=audit_log_path,
+            )
+        except (OSError, PermissionError, ValueError, RuntimeError):
+            dst.unlink(missing_ok=True)
+            raise
     return dst
 
 
@@ -135,15 +143,10 @@ def main(argv: list[str] | None = None) -> int:
     except PermissionError as exc:
         print(json.dumps({"error": str(exc), "ok": False}, sort_keys=True), file=sys.stderr)
         return EXIT_USAGE
-    print(
-        json.dumps(
-            {
-                "ok": True,
-                "out": out.relative_to(repo_root.resolve()).as_posix(),
-            },
-            sort_keys=True,
-        )
+    out_display = wcs.path_for_support_plane_record(
+        out, repo_root=repo_root, wiki_root=wiki_root.resolve()
     )
+    print(json.dumps({"ok": True, "out": out_display}, sort_keys=True))
     return EXIT_OK
 
 

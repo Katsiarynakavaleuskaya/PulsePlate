@@ -120,6 +120,70 @@ def test_promote_rejects_bad_slug() -> None:
         wiki_promote.validate_slug("../x")
 
 
+def test_promote_does_not_write_file_when_put_record_fails(
+    tmp_path: Path,
+    allowlist: set[tuple[str, str]],
+    audit_signing_material: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = tmp_path / "r"
+    wiki = repo / "wiki"
+    slug = _ingest_one(repo, wiki)
+    dst = wiki / "project_internal" / "promoted" / f"{slug}.md"
+
+    def boom(*_a: object, **_kw: object) -> None:
+        raise ValueError("support_plane_value_too_large")
+
+    monkeypatch.setattr(lsp, "put_record", boom)
+    with pytest.raises(ValueError, match="support_plane_value_too_large"):
+        wiki_promote.promote_slug(
+            slug,
+            corpus="project_internal",
+            wiki_root=wiki,
+            repo_root=repo,
+            write_support_plane=True,
+            allowlist=allowlist,
+            sp_root_override=tmp_path / "sp",
+            audit_secret=audit_signing_material,
+        )
+    assert not dst.is_file()
+
+
+def test_main_out_when_wiki_outside_repo(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo = tmp_path / "r"
+    (repo / "s").mkdir(parents=True)
+    f = repo / "s" / "a.md"
+    f.write_text("body", encoding="utf-8")
+    wiki_root = tmp_path / "ext_wiki"
+    wiki_ingest.ingest_paths(
+        [f],
+        corpus="project_internal",
+        wiki_root=wiki_root,
+        repo_root=repo,
+        write_support_plane=False,
+    )
+    assert (
+        wiki_promote.main(
+            [
+                "--slug",
+                "s.a",
+                "--repo-root",
+                str(repo),
+                "--wiki-root",
+                str(wiki_root),
+                "--no-write-support-plane",
+            ]
+        )
+        == 0
+    )
+    out = json.loads(capsys.readouterr().out.strip())
+    assert out["ok"] is True
+    assert out["out"].startswith("wiki:")
+
+
 def test_main_ok(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     repo = tmp_path / "r"
     wiki = repo / "wiki"
