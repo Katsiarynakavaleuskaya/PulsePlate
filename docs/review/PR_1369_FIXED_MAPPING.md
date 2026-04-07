@@ -16,6 +16,6 @@ _(No threads yet — add \`- <thread_url> -> <sha>\` rows only after explicit di
 
 ### Local / design verification
 
-- Commit: `4dce1e9c9` (initial PR head — update if amended)
+- Branch head: `69cdd13ef` (includes ADR evidence-order alignment + mapping scaffold)
 - Evidence: `docs/architecture/ADR_DOCKER_BUILD_PROVENANCE_WORKAROUND_2026-03-01.md` (updated Context, Decision, Evidence Anchors)
 - Evidence: `.github/workflows/docker-openapi-smoke.yml:75`-`78` (load vs attestations rationale)
