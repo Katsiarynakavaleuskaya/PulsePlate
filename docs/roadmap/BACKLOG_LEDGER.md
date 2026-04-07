@@ -2433,6 +2433,35 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Launcher/runtime behavior stays outside repo SoT unless separately promoted by the automation readiness matrix
     - No duplicate orchestration source of truth is introduced
 
+<a id="ledger-p2-local-workforce-pr-d-advisory-wiki-compiler"></a>
+- [ ] P2: Local workforce PR-D — advisory wiki compiler over local support plane
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR #1371 (branch `feat/local-workforce-pr-d-advisory-wiki-compiler`)
+  - Area: orchestration / local support plane / operator tooling
+  - Finding Type: RFC follow-on slice (compiled advisory memory)
+  - Status (EN): Implementation on branch; merge closes this item when `docs/review/PR_<N>_FIXED_MAPPING.md` exists and checklist is complete.
+  - Reason: Non-canonical wiki artifacts help operators navigate ingested repo slices without introducing embeddings, vector stores, or a second documentation SoT.
+  - Dependencies:
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p2-local-workforce-pr-c-support-plane`
+  - Links:
+    - `docs/review/PR_1371_FIXED_MAPPING.md`
+    - `docs/orchestration/LOCAL_WIKI_SUPPORT_PLANE.md`
+    - `scripts/orchestration/wiki_ingest.py`
+    - `scripts/orchestration/wiki_query.py`
+    - `scripts/orchestration/wiki_lint.py`
+    - `scripts/orchestration/wiki_promote.py`
+    - `scripts/orchestration/local_support_plane.py`
+  - DoD:
+    - CLIs documented and covered by deterministic tests
+    - No writes to canonical `docs/**` tree from promote path; support-plane keys respect `normalize_key`
+    - Ledger + agent entrypoints reference the wiki doc in the same merge cycle
+  - Deferred / follow-ups (post-v1 hardening, English-first):
+    - Slug strategy after truncation (reject vs hash-suffix vs manifest) when paths differ but truncate to the same slug (`scripts/orchestration/_wiki_compiler_support.py` `path_to_slug`).
+    - Optional promotion **history** or versioned SP keys / manifest (today `wiki.promoted.<slug>` overwrites).
+    - Richer lint: orphans, stale links, index/page consistency beyond raw hash, contradiction checks (not in v1).
+    - Search: ranking, headings/title weighting, or index-first retrieval (v1 is body substring only).
+
 - [ ] P2: Local launcher rollout for coordinator-first automation
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2

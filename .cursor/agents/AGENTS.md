@@ -18,6 +18,8 @@ This document defines **scoped rules** specific to Cursor agents in `.cursor/age
 
 **Local implementation:** `.cursor/agents/agent-coordinator.md` is the canonical coordinator agent.
 
+**Advisory wiki compiler:** Operator-local compiled memory via `scripts/orchestration/wiki_ingest.py` (and related CLIs). It is **not** orchestration SoT and does not replace canonical `docs/**` or KPP; boundaries and commands are documented in `docs/orchestration/LOCAL_WIKI_SUPPORT_PLANE.md`.
+
 ## Required pre-flight (SoT)
 
 Before doing any work:
