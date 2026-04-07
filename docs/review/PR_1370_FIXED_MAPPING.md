@@ -2,14 +2,14 @@
 
 ## Discussion Thread Pass
 
-- [ ] Discussion-thread pass completed
-- [ ] Fixed in commit mapping completed
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 
-Bot and human review threads must be dispositioned below; resolve conversations on GitHub after mapping.
+Bot and human review threads must be dispositioned below when actionable comments appear; resolve conversations on GitHub after mapping.
 
 ## Fixed in Commit Mapping
 
-<!-- Add thread URLs with disposition (FIXED / NOT-A-BUG / DEFERRED) per AGENTS.md merge governance. -->
+- No actionable review comments
 
 ## Merge Readiness
 
