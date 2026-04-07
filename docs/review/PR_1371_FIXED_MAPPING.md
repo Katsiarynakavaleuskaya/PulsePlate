@@ -13,7 +13,7 @@ Disposition: FIXED
 
 Commit: 11120d62b9ce12a47dcfe3de5c7ecc9348456b69
 
-Evidence: `docs/orchestration/LOCAL_WIKI_SUPPORT_PLANE.md` (MD036: real `####` headings for In/Out scope); `scripts/orchestration/wiki_promote.py` (`reject_if_under_canonical_docs` before `promoted/` mkdir); `scripts/orchestration/wiki_ingest.py` (`validate_wiki_slug` after `path_to_slug`); `scripts/orchestration/wiki_lint.py` (64-char lowercase hex `content_hash` before raw filename); prior branch commits already cover external-wiki SP paths, promote `unlink` on SP failure, cross-run `slug_collision_existing`, and ingest best-effort SP semantics documented in LOCAL_WIKI.
+Evidence: `docs/orchestration/LOCAL_WIKI_SUPPORT_PLANE.md` (MD036: real `####` headings for In/Out scope); `scripts/orchestration/wiki_promote.py` (`reject_if_under_canonical_docs` before `promoted/` mkdir); `scripts/orchestration/wiki_ingest.py` (`validate_wiki_slug` after `path_to_slug`); `scripts/orchestration/wiki_lint.py` (64-char lowercase hex `content_hash` before raw filename); prior branch commits already cover external-wiki SP paths, promote `unlink` on SP failure, cross-run `slug_collision_existing`, and ingest best-effort SP semantics documented in LOCAL_WIKI. Follow-up: `wiki_promote.py` resolves `dst` vs corpus `base` before `promoted_dir.mkdir` (`promote_path_outside_corpus`); `put_record` rollback uses broad `except Exception` with `unlink` under `suppress(OSError)` (`b8a5bd5dcb581dad569bd09cb8bd194474477b6e`).
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1371#pullrequestreview-4070641652 -> 11120d62b9ce12a47dcfe3de5c7ecc9348456b69
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1371#pullrequestreview-4070678463 -> 11120d62b9ce12a47dcfe3de5c7ecc9348456b69
@@ -27,6 +27,8 @@ Evidence: `docs/orchestration/LOCAL_WIKI_SUPPORT_PLANE.md` (MD036: real `####` h
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1371#discussion_r3047339239 -> 11120d62b9ce12a47dcfe3de5c7ecc9348456b69
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1371#discussion_r3047339244 -> 11120d62b9ce12a47dcfe3de5c7ecc9348456b69
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1371#discussion_r3047400690 -> 11120d62b9ce12a47dcfe3de5c7ecc9348456b69
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1371#discussion_r3047532381 -> b8a5bd5dcb581dad569bd09cb8bd194474477b6e
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1371#discussion_r3047532394 -> b8a5bd5dcb581dad569bd09cb8bd194474477b6e
 
 ## Merge Readiness
 
