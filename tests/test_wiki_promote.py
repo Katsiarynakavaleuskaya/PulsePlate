@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 
 import pytest
 
 from app.security import agent_control_plane as cp
+from scripts.orchestration import _wiki_compiler_support as wcs
 from scripts.orchestration import local_support_plane as lsp
 from scripts.orchestration import wiki_ingest
 from scripts.orchestration import wiki_promote
@@ -85,11 +87,25 @@ def test_promote_support_plane_record(
 
 
 def test_promote_forbidden_under_canonical_docs(tmp_path: Path) -> None:
+    """Promote fail-closed under ``docs/**`` even when corpus was created without ingest."""
+
     repo = tmp_path / "r"
-    (repo / "docs").mkdir(parents=True)
     wiki = repo / "docs" / "evil_wiki"
-    slug = _ingest_one(repo, wiki)
-    with pytest.raises(ValueError, match="promote_forbidden_under_canonical_docs"):
+    digest = hashlib.sha256(b"body").hexdigest()
+    layout = wcs.corpus_layout(wcs.corpus_base(wiki, "project_internal"))
+    layout["raw"].mkdir(parents=True, exist_ok=True)
+    layout["pages"].mkdir(parents=True, exist_ok=True)
+    (layout["raw"] / f"{digest}.md").write_bytes(b"body")
+    slug = "hello"
+    meta = {
+        "advisory": "true",
+        "corpus": "project_internal",
+        "content_hash": digest,
+        "ingested_at": "2026-01-01T00:00:00Z",
+    }
+    page_body = wcs.format_frontmatter({str(k): str(v) for k, v in meta.items()}) + "body\n"
+    (layout["pages"] / f"{slug}.md").write_text(page_body, encoding="utf-8")
+    with pytest.raises(ValueError, match="forbidden_under_canonical_docs"):
         wiki_promote.promote_slug(
             slug,
             corpus="project_internal",

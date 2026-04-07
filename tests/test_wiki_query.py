@@ -85,6 +85,30 @@ def test_query_search_hits(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -
     assert data["hits"]
 
 
+def test_query_detail_rejects_path_like_slug(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    repo = tmp_path / "repo"
+    _seed_wiki(repo)
+    assert (
+        wiki_query.main(
+            [
+                "--mode",
+                "detail",
+                "--slug",
+                "../x",
+                "--repo-root",
+                str(repo),
+                "--wiki-root",
+                str(repo / "wiki"),
+            ]
+        )
+        == 2
+    )
+    err = json.loads(capsys.readouterr().err.strip())
+    assert "slug_invalid" in err["error"]
+
+
 def test_query_detail_missing(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     repo = tmp_path / "repo"
     repo.mkdir()

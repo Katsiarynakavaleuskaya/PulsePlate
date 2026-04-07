@@ -57,6 +57,21 @@ def test_ingest_writes_raw_page_index_log(tmp_path: Path) -> None:
     assert "ingest" in log
 
 
+def test_ingest_rejects_wiki_root_under_canonical_docs(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    (repo / "docs" / "wiki_here").mkdir(parents=True)
+    src = repo / "docs" / "wiki_here" / "n.md"
+    src.write_text("x", encoding="utf-8")
+    with pytest.raises(ValueError, match="forbidden_under_canonical_docs"):
+        wiki_ingest.ingest_paths(
+            [src],
+            corpus="project_internal",
+            wiki_root=repo / "docs" / "wiki_here",
+            repo_root=repo,
+            write_support_plane=False,
+        )
+
+
 def test_ingest_rejects_path_outside_repo(tmp_path: Path) -> None:
     repo = tmp_path / "repo"
     repo.mkdir()

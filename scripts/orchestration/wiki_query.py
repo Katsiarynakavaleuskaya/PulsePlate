@@ -44,6 +44,7 @@ def search_pages(pages_dir: Path, needle: str) -> list[dict[str, Any]]:
 
 
 def detail_page(pages_dir: Path, slug: str) -> dict[str, Any] | None:
+    wcs.validate_wiki_slug(slug)
     path = pages_dir / f"{slug}.md"
     if not path.is_file():
         return None

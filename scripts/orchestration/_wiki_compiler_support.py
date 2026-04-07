@@ -15,6 +15,12 @@ from typing import Any, Final
 # Default layout under repo (gitignored).
 DEFAULT_WIKI_ROOT: Final[Path] = Path("artifacts") / "orchestration" / "wiki"
 
+# Slugs feed support-plane keys ``wiki.page.{slug}`` (10) and ``wiki.promoted.{slug}`` (14).
+# local_support_plane.MAX_KEY_LEN is 128 → longest safe slug is 114.
+MAX_WIKI_SLUG_CHARS: Final[int] = 114
+
+_WIKI_SLUG_RE = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9._-]{0,113}$")
+
 _SLUG_SEGMENT_RE = re.compile(r"[^a-zA-Z0-9._-]+")
 
 
@@ -26,6 +32,27 @@ def repo_root_default() -> Path:
 
 def resolve_repo_root(explicit: Path | None) -> Path:
     return explicit.resolve() if explicit is not None else repo_root_default()
+
+
+def reject_if_under_canonical_docs(path: Path, *, repo_root: Path) -> None:
+    """Block writes under repo ``docs/**`` (canonical documentation tree)."""
+
+    resolved = path.resolve()
+    docs_root = (repo_root / "docs").resolve()
+    if not docs_root.is_dir():
+        return
+    try:
+        resolved.relative_to(docs_root)
+    except ValueError:
+        return
+    raise ValueError("forbidden_under_canonical_docs")
+
+
+def validate_wiki_slug(slug: str) -> None:
+    """Reject path-like slugs and enforce length/pattern for wiki.page / wiki.promoted keys."""
+
+    if not _WIKI_SLUG_RE.match(slug) or ".." in slug:
+        raise ValueError("slug_invalid")
 
 
 def corpus_base(wiki_root: Path, corpus: str) -> Path:
@@ -72,7 +99,7 @@ def path_to_slug(rel_path: Path) -> str:
         seg = _sanitize_key_segment(name, fallback="part")
         parts.append(seg)
     slug = ".".join(parts)
-    return slug[:120]
+    return slug[:MAX_WIKI_SLUG_CHARS]
 
 
 def sha256_hex(data: bytes) -> str:

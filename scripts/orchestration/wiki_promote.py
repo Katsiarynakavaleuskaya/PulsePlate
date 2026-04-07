@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import re
 import sys
 from pathlib import Path
 from typing import Any, Final
@@ -23,26 +22,11 @@ EXIT_OK: Final[int] = 0
 EXIT_LINT: Final[int] = 1
 EXIT_USAGE: Final[int] = 2
 
-_SLUG_RE = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9._-]{0,119}$")
-
 
 def validate_slug(slug: str) -> None:
-    if not _SLUG_RE.match(slug) or ".." in slug:
-        raise ValueError("slug_invalid")
+    """Back-compat wrapper; prefer ``wcs.validate_wiki_slug`` in new code."""
 
-
-def reject_if_under_canonical_docs(path: Path, *, repo_root: Path) -> None:
-    """Block writes into ``docs/**`` (canonical documentation tree)."""
-
-    resolved = path.resolve()
-    docs_root = (repo_root / "docs").resolve()
-    if not docs_root.is_dir():
-        return
-    try:
-        resolved.relative_to(docs_root)
-    except ValueError:
-        return
-    raise ValueError("promote_forbidden_under_canonical_docs")
+    wcs.validate_wiki_slug(slug)
 
 
 def promote_slug(
@@ -59,7 +43,7 @@ def promote_slug(
 ) -> Path:
     """Copy ``pages/<slug>.md`` to ``promoted/<slug>.md`` with promotion metadata."""
 
-    validate_slug(slug)
+    wcs.validate_wiki_slug(slug)
     layout: dict[str, Path] = wcs.corpus_layout(wcs.corpus_base(wiki_root, corpus))
     violations = wiki_lint.lint_corpus(corpus=corpus, wiki_root=wiki_root, repo_root=repo_root)
     prefix = f"{slug}.md:"
@@ -73,7 +57,7 @@ def promote_slug(
     promoted_dir: Path = layout["promoted"]
     promoted_dir.mkdir(parents=True, exist_ok=True)
     dst: Path = promoted_dir / f"{slug}.md"
-    reject_if_under_canonical_docs(dst, repo_root=repo_root)
+    wcs.reject_if_under_canonical_docs(dst, repo_root=repo_root)
     try:
         dst.relative_to(layout["base"].resolve())
     except ValueError as exc:

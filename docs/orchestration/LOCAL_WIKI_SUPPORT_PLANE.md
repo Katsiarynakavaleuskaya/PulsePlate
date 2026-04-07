@@ -28,7 +28,7 @@ It is **not** a second source of truth for product, orchestration, or contracts.
 **Out of scope**
 
 - Canonical documentation under `docs/**`, root `AGENTS.md`, or `docs/roadmap/BACKLOG_LEDGER.md`
-  — the promote path **must not** resolve under `docs/`; ingest/promote never edit those trees.
+  — ingest and promote **fail closed** if the corpus base would resolve under `docs/`; neither tool edits those trees.
 - Embeddings, vector databases, network retrieval, OpenAPI, `app/**`, or client runtimes.
 - Replacing KPP, bootstrap packets, or orchestration SoT documents.
 

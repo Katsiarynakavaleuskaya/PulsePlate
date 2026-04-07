@@ -57,6 +57,7 @@ def ingest_paths(
     warnings: list[str] = []
     written: list[str] = []
     layout = wcs.corpus_layout(wcs.corpus_base(wiki_root, corpus))
+    wcs.reject_if_under_canonical_docs(layout["base"], repo_root=repo_root)
     layout["pages"].mkdir(parents=True, exist_ok=True)
     layout["raw"].mkdir(parents=True, exist_ok=True)
 
