@@ -38,6 +38,8 @@ Disposition: NOT-A-BUG
 
 Reason: Sourcery, Cubic, and CodeRabbit bot reviews below are advisory summaries or duplicate context; substantive items are covered by FIXED commits above or require no further code change in this PR.
 
+Evidence: `scripts/orchestration/wiki_promote.py:83-146` (staging + `put_record` rollback semantics); `tests/test_wiki_promote.py` (regressions incl. narrow `Path.is_file` patch); aggregate bot shells add no extra correctness defects beyond FIXED blocks above. Sourcery-only readability follow-up (extract rollback helpers) is **DEFERRED** in `docs/roadmap/BACKLOG_LEDGER.md#ledger-p2-local-workforce-pr-d-advisory-wiki-compiler` Deferred / follow-ups.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1372#pullrequestreview-4071571999
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1372#pullrequestreview-4071591219
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1372#discussion_r3048131934
@@ -69,5 +71,6 @@ Evidence: `.github/workflows/ci.yml:437-441`, `requirements.txt:57`, `safety-pol
 
 ## Deferred / Follow-ups
 
+- Sourcery readability: extract staging / SP rollback from `promote_slug` into documented helpers (behavior unchanged): **DEFERRED** — `docs/roadmap/BACKLOG_LEDGER.md#ledger-p2-local-workforce-pr-d-advisory-wiki-compiler` (Deferred / follow-ups bullet).
 - Optional single-writer / locking for concurrent `promote` same slug: **DEFERRED** — traceability `docs/orchestration/LOCAL_WIKI_SUPPORT_PLANE.md` (two-phase / layout notes) and `docs/roadmap/BACKLOG_LEDGER.md#ledger-p2-local-workforce-pr-d-advisory-wiki-compiler` (Deferred / follow-ups). No separate issue opened in this PR.
 - **fonttools >=4.62.0 when private index syncs:** `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-fonttools-private-index-bump`

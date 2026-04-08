@@ -2476,6 +2476,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Ledger + agent entrypoints reference the wiki doc in the same merge cycle
   - Deferred / follow-ups (post-v1 hardening, English-first):
     - Slug strategy after truncation (reject vs hash-suffix vs manifest) when paths differ but truncate to the same slug (`scripts/orchestration/_wiki_compiler_support.py` `path_to_slug`).
+    - Readability refactor (no behavior change): extract staging filesystem rollback and support-plane failure rollback from `wiki_promote.promote_slug` into small helpers with docstrings (Sourcery review suggestion on PR #1372; current logic is correct and covered by `tests/test_wiki_promote.py`).
     - Optional promotion **history** or versioned SP keys / manifest (today `wiki.promoted.<slug>` overwrites).
     - Richer lint: orphans, stale links, index/page consistency beyond raw hash, contradiction checks (not in v1).
     - Search: ranking, headings/title weighting, or index-first retrieval (v1 is body substring only).
