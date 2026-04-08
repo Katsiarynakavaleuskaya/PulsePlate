@@ -2,21 +2,15 @@
 
 ## Discussion Thread Pass
 
-- [ ] Discussion-thread pass completed
-- [ ] Fixed in commit mapping completed
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 
 Bot and human review threads must be dispositioned below when actionable comments
 appear; resolve conversations on GitHub only after mapping per `AGENTS.md`.
 
 ## Fixed in Commit Mapping
 
-No review threads yet.
-
-Use one of the canonical dispositions as review arrives:
-
-- `FIXED` -> commit SHA + evidence + thread mapping
-- `NOT-A-BUG` -> reason + evidence + thread link
-- `DEFERRED` -> backlog link + thread link
+- No actionable review comments
 
 ## Merge Readiness
 
