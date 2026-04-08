@@ -8,7 +8,12 @@
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+Disposition: NOT-A-BUG
+Evidence: `ios/Gemfile:4`; `ios/Gemfile.lock:166`; the current PR diff still contains the `public_suffix < 7` compatibility pin and the corresponding `public_suffix 6.0.2` lockfile resolution.
+Reason: cubic identified a scope-note mismatch, but on the current PR head the scope note is accurate because the change set explicitly includes the Ruby 3.1 compatibility pin in `ios/Gemfile`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1374#pullrequestreview-4075243188
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1374#discussion_r3051472569
 
 ## Merge Readiness
 
