@@ -9,6 +9,11 @@ Implement it as a **separate advisory compiled-memory workforce rail**, while th
 
 ## Canonical split
 
+| Rail | Umbrella / anchor | Scope | In scope | Out of scope |
+| --- | --- | --- | --- | --- |
+| Rail A | `P1: Wave 6 AI runtime umbrella` | Canonical product AI runtime | fallback chain, quota/provider safety, RAG hardening, bounded-context extraction, reliability/security gates | advisory wiki memory, operator-only compiled notes, non-canonical workforce tooling |
+| Rail B | `P2: Karpathy-style advisory wiki umbrella` | Advisory workforce compiled memory | local operator memory, advisory wiki/compiler/query-lint/reference-corpus controls | product RAG replacement, DB/runtime/API source of truth, public response-contract logic |
+
 ### Rail A — Product AI runtime (canonical)
 Purpose:
 - insight fallback reliability
@@ -84,16 +89,16 @@ Rules:
 
 ---
 
-# RAIL A — Product AI runtime epic
+## RAIL A — Product AI runtime epic
 
 ## PR-A0 — docs/backlog umbrella
-**Title**
+#### Title
 `docs(roadmap): add Wave 6 AI runtime umbrella for RAG/LLM execution`
 
-**Goal**
+#### Goal
 Create one explicit umbrella item so Codex does not re-derive sequencing from scattered ledger entries.
 
-**In scope**
+#### In scope
 - add AI umbrella backlog entry
 - add missing child items:
   - `rag-hardening-followthrough`
@@ -107,7 +112,7 @@ Create one explicit umbrella item so Codex does not re-derive sequencing from sc
   - recursive methods
   - scientific reliability pipeline
 
-**DoD**
+#### DoD
 - one umbrella entry exists
 - Wave 6 order is explicit
 - product rail and Karpathy workforce rail are explicitly separated
@@ -115,27 +120,27 @@ Create one explicit umbrella item so Codex does not re-derive sequencing from sc
 ---
 
 ## PR-A1 — insight fallback chain
-**Title**
+#### Title
 `feat(ai-runtime): implement insight fallback chain and readiness visibility`
 
-**Backlog target**
+#### Backlog target
 `ledger-p0-insight-fallback-chain`
 
-**Goal**
+#### Goal
 Make provider fallback deterministic and expose fallback / echo mode in readiness without leaking secrets.
 
-**In scope**
+#### In scope
 - provider fallback order
 - failover policy
 - `/ready` fallback/echo visibility
 - backward-compatible response behavior
 
-**Out of scope**
+#### Out of scope
 - recursive methods
 - new public AI surfaces
 - UI redesign
 
-**DoD**
+#### DoD
 - deterministic provider order
 - readiness surface shows fallback state
 - tests cover provider-down / fallback-on / echo-mode cases
@@ -143,48 +148,48 @@ Make provider fallback deterministic and expose fallback / echo mode in readines
 ---
 
 ## PR-A1b — PRO monthly quota parity
-**Title**
+#### Title
 `feat(ai-runtime): enforce PRO monthly quota before provider calls`
 
-**Backlog target**
+#### Backlog target
 existing PRO monthly quota item
 
-**Goal**
+#### Goal
 Close the remaining quota gap before deeper LLM/RAG rollout.
 
-**In scope**
+#### In scope
 - PRO quota enforcement for CBT insight and future PRO LLM surfaces
 - 429 tests
 - fail-closed startup / config checks if needed
 
-**Reason for placement**
+#### Reason for placement
 Recursive / philosophy rollout increases call amplification. Quota parity must exist before deeper rollout.
 
 ---
 
 ## PR-A2 — RAG hardening follow-through
-**Title**
+#### Title
 `feat(rag): harden retrieval path and recompute confidence deterministically`
 
-**Backlog target**
+#### Backlog target
 new `ledger-p1-rag-hardening-followthrough`
 
-**Goal**
+#### Goal
 Turn the scattered RAG technical debt into one bounded runtime hardening lane.
 
-**In scope**
+#### In scope
 - vector query hardening
 - confidence recomputation
 - retrieval-source weighting cleanup
 - SQL assembly hardening / refactor where needed
 - deterministic response reasons
 
-**Out of scope**
+#### Out of scope
 - workforce wiki
 - broad UX changes
 - giant multimodal expansion
 
-**DoD**
+#### DoD
 - confidence is recomputed deterministically from retrieval/verification evidence
 - vector path is safer and more maintainable
 - no response-contract regressions
@@ -192,16 +197,16 @@ Turn the scattered RAG technical debt into one bounded runtime hardening lane.
 ---
 
 ## PR-A3 — AI bounded-context packet
-**Title**
+#### Title
 `docs(architecture): define AI bounded-context packet and ownership map`
 
-**Backlog target**
+#### Backlog target
 new `ledger-p1-ai-bounded-context-packet`
 
-**Goal**
+#### Goal
 Lock architecture before extraction.
 
-**In scope**
+#### In scope
 - define ownership boundaries for:
   - `core/ai/*`
   - `core/rag/*`
@@ -210,32 +215,32 @@ Lock architecture before extraction.
   - safety / eval / telemetry ownership
 - list what remains transitional
 
-**DoD**
+#### DoD
 - packet exists as canonical architecture SoT for extraction PR
 - routers/adapters vs AI core ownership is explicit
 
 ---
 
 ## PR-A4 — bounded-context extraction
-**Title**
+#### Title
 `feat(ai-runtime): extract remaining AI runtime into dedicated bounded context`
 
-**Backlog target**
+#### Backlog target
 `ledger-p1-ai-bounded-context-extraction`
 
-**Goal**
+#### Goal
 Physically move remaining runtime ownership into the canonical AI seam.
 
-**In scope**
+#### In scope
 - provider/runtime ownership moves into `core/ai/*`
 - routers stay thin
 - transitional ownership removed
 
-**Out of scope**
+#### Out of scope
 - new model features
 - product copy changes
 
-**DoD**
+#### DoD
 - AI core ownership is consolidated
 - adapters stay thin
 - file:line evidence exists
@@ -243,23 +248,23 @@ Physically move remaining runtime ownership into the canonical AI seam.
 ---
 
 ## PR-A5 — LLM reliability/security gates
-**Title**
+#### Title
 `feat(ai-quality): add retrieval, faithfulness, injection, and privacy gates`
 
-**Backlog target**
+#### Backlog target
 `ledger-p1-llm-reliability-security-gates`
 
-**Goal**
+#### Goal
 Make AI quality drift detectable before merge/release.
 
-**In scope**
+#### In scope
 - retrieval regression checks
 - faithfulness / unsupported-claim checks
 - prompt-injection adversarial tests
 - privacy-sensitive evaluation
 - philosophy_validator in release/CI path where appropriate
 
-**DoD**
+#### DoD
 - explicit evaluation package exists
 - gates are deterministic
 - runtime docs point to one gate source
@@ -267,38 +272,38 @@ Make AI quality drift detectable before merge/release.
 ---
 
 ## PR-A6 — philosophical rollout W1
-**Title**
+#### Title
 `feat(ai-quality): rollout philosophical validation phases on bounded surfaces`
 
-**Backlog target**
+#### Backlog target
 `ledger-p1-philosophical-logic`
 
-**Goal**
+#### Goal
 Promote the philosophy line from isolated groundwork into a bounded runtime lane.
 
-**Recommended order inside the PR series**
+#### Recommended order inside the PR series
 1. Aristotelian logic
 2. Analytical philosophy
 3. Post-analytical philosophy
 4. Linguistic philosophy
 5. unified validator/prompt builder
 
-**Constraint**
+#### Constraint
 Must remain behind bounded runtime surfaces and existing safety/eval gates.
 
 ---
 
 ## PR-A7 — recursive methods W1
-**Title**
+#### Title
 `feat(ai-runtime): rollout recursive RAG and bounded recursive verification`
 
-**Backlog target**
+#### Backlog target
 `ledger-p1-recursive-methods`
 
-**Goal**
+#### Goal
 Promote recursive methods as a bounded runtime improvement, not as an uncontrolled cost explosion.
 
-**Recommended order**
+#### Recommended order
 1. recursive retrieval
 2. recursive reasoning
 3. recursive refinement
@@ -306,22 +311,22 @@ Promote recursive methods as a bounded runtime improvement, not as an uncontroll
 5. recursive learning
 6. unified assistant integration
 
-**Constraint**
+#### Constraint
 Use budgets, caching, early stopping, and deterministic depth control.
 
 ---
 
 ## PR-A8 — speed optimization for recursive stack
-**Title**
+#### Title
 `feat(ai-runtime): add philosophical speed optimization to recursive stack`
 
-**Source basis**
+#### Source basis
 Speech-act classification, language-game detection, early stopping, adaptive depth.
 
-**Goal**
+#### Goal
 Reduce recursive latency before broadening rollout.
 
-**In scope**
+#### In scope
 - speech act classifier
 - language game depth mapping
 - verification-based early stopping
@@ -330,16 +335,16 @@ Reduce recursive latency before broadening rollout.
 ---
 
 ## PR-A9 — scientific reliability packet
-**Title**
+#### Title
 `docs(ai): publish scientific reliability evidence packet for the AI lane`
 
-**Backlog target**
+#### Backlog target
 `ledger-p1-scientific-reliability-pipeline`
 
-**Goal**
+#### Goal
 Turn the AI moat into evidence-backed positioning without overclaiming.
 
-**In scope**
+#### In scope
 - benchmarks
 - claim boundaries
 - reproducible evidence packet
@@ -347,39 +352,39 @@ Turn the AI moat into evidence-backed positioning without overclaiming.
 
 ---
 
-# RAIL B — Karpathy-style workforce compiled-memory epic
+## RAIL B — Karpathy-style workforce compiled-memory epic
 
-## Rule
+### Rule
 This rail is **not product RAG**.
 It is a **workforce/operator memory rail**.
 
 ## PR-B0 — launcher/bootstrap hardening
-**Title**
+#### Title
 `fix(local-workforce): harden launcher/bootstrap seam before advisory wiki expansion`
 
-**Goal**
+#### Goal
 Ensure session start reliably runs preflight + bootstrap before relying on compiled memory.
 
 ---
 
 ## PR-B1 — advisory wiki compiler v1
-**Title**
+#### Title
 `feat(orchestration): advisory wiki compiler over local support plane`
 
-**Current anchor**
+#### Current anchor
 existing local workforce PR-D entry
 
-**Goal**
+#### Goal
 Implement raw/wiki/index/log style advisory memory.
 
-**In scope**
+#### In scope
 - ingest
 - query
 - lint
 - promote
 - local support-plane metadata
 
-**Out of scope**
+#### Out of scope
 - embeddings
 - vector DB
 - user-facing truth
@@ -388,31 +393,31 @@ Implement raw/wiki/index/log style advisory memory.
 ---
 
 ## PR-B2 — advisory wiki semantics hardening
-**Title**
+#### Title
 `fix(orchestration): harden advisory wiki semantics and promote rollback safety`
 
-**Current status**
+#### Current status
 Materially landed via `PR #1372`; do not reopen as baseline work.
 Treat `PR #1372` as historical workforce-rail context only, not as scope carryover
 into the governance/docs umbrella PR.
 
-**Goal**
+#### Goal
 Non-destructive promote semantics + deterministic slug hardening.
 
 ---
 
 ## PR-B3 — query/lint enrichment
-**Title**
+#### Title
 `feat(orchestration): enrich advisory wiki query and lint without changing SoT`
 
-**Optional follow-on**
+#### Optional follow-on
 - orphan detection
 - stale link detection
 - contradiction lint
 - title/heading weighting
 - manifest/history improvements
 
-**Still out of scope**
+#### Still out of scope
 - embeddings
 - vector DB
 - product RAG replacement
@@ -420,19 +425,19 @@ Non-destructive promote semantics + deterministic slug hardening.
 ---
 
 ## PR-B4 — optional reference-corpus policy
-**Title**
+#### Title
 `docs(orchestration): define bounded reference-corpus policy for advisory wiki`
 
-**Goal**
+#### Goal
 Allow DeepWiki or other reference corpora only as read-only secondary understanding aids.
 
-**Rule**
+#### Rule
 - DeepWiki/reference corpora = helper for understanding
 - repo = source of truth
 
 ---
 
-# What is missing in the backlog right now
+## What is missing in the backlog right now
 
 Add these missing items explicitly:
 
@@ -446,16 +451,16 @@ Without these five entries, the line is still scattered and Codex will keep reco
 
 ---
 
-# Global constraints for Codex
+## Global constraints for Codex
 
-## Must do
+### Must do
 - keep repo / contracts / DB as canonical truth
 - keep product AI rail separate from advisory workforce wiki rail
 - keep PRs narrow and single-purpose
 - add deterministic tests for each lane
 - preserve public contract compatibility where stated
 
-## Must not do
+### Must not do
 - do not replace product RAG with wiki
 - do not introduce a second source of truth
 - do not open embeddings/vector DB early in workforce rail
@@ -464,7 +469,7 @@ Without these five entries, the line is still scattered and Codex will keep reco
 
 ---
 
-# Paste-ready short instruction for Codex
+## Paste-ready short instruction for Codex
 
 Build the PulsePlate RAG/LLM/Karpathy line as two separate but coordinated rails:
 

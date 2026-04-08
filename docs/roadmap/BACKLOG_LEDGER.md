@@ -1431,6 +1431,28 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Ownership boundaries for AI runtime seams are explicit
     - Packet and extraction items are separate and non-duplicative
 
+<a id="ledger-p3-governance-doc-sot-consolidation"></a>
+- [ ] P3: Consolidate coordinator-first docs SoT and rail summary table
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P3
+  - Target PR: PR-TBD-GOVERNANCE-DOC-SOT-CONSOLIDATION
+  - Area: docs / orchestration / roadmap
+  - Finding Type: review follow-up
+  - Status: 📋 Planned
+  - Reason (EN): PR #1377 review feedback identified two useful but broader follow-ups: reducing wording drift by pointing repeated coordinator-first and role-order guidance at one explicit source-of-truth subsection, and adding a compact rail/umbrella/scope summary table near the top of the RAG/LLM/Karpathy epic spine. This work should stay separate from the narrow docs/governance merge-fix slice so the current PR can close its governance lane without silently widening scope.
+  - Links:
+    - `AGENTS.md`
+    - `RUNBOOK_AGENT.md`
+    - `docs/orchestration/workflow.md`
+    - `docs/dev/LOCAL_COORDINATOR_LAUNCHER_ROLLOUT.md`
+    - `docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md`
+    - `docs/review/PR_1377_FIXED_MAPPING.md`
+  - DoD:
+    - One explicit source-of-truth subsection is identified for coordinator-first and role-order invariants
+    - Repeated operator-facing docs link to that source without losing lane-local execution context
+    - `PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md` includes a compact rail/umbrella/scope summary table
+    - No runtime, OpenAPI, or product-surface changes are introduced
+
 <a id="ledger-p1-philosophical-logic"></a>
 - [ ] P1: Philosophical logic principles for LLM reliability (Aristotelian, Analytical, Post-Analytical, Linguistic)
   - Owner: @katsiaryna_kavaleuskaya

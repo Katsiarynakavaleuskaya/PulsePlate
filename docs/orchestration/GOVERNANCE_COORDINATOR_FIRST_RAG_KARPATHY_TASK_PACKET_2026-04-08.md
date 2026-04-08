@@ -1,7 +1,7 @@
 # Governance Task Packet — Coordinator-First + RAG/LLM/Karpathy Epic Spine
 
 **Date:** 2026-04-08
-**Scope:** docs/governance only
+**Scope:** docs-only governance lane touching canonical governance files across the repo
 **Mode:** pre-open governance packet
 
 ## Purpose

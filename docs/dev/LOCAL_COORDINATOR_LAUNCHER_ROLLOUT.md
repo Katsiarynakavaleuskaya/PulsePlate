@@ -135,16 +135,11 @@ Before opening the next PR in the train:
 - inspect current-head `main` health;
 - if `main` is red, pending on merge fallout, or otherwise unstable, stop and stabilize
   `main` first;
-- only then create the next branch.
-
-Delete the remote PR branch only if that matches your post-merge policy (`AGENTS.md`, `RUNBOOK_AGENT.md`).
-
-Then:
-- verify current-head `main` health before starting the next PR in the train;
-- if `main` is red, pending on merge fallout, or otherwise unstable, stop and stabilize `main`
-  first;
+- only then create the next branch from synced `origin/main`;
 - re-run wrapper smokes on the same machine;
 - refresh the installed script if the repo template changed.
+
+Delete the remote PR branch only if that matches your post-merge policy (`AGENTS.md`, `RUNBOOK_AGENT.md`).
 
 Clean only local gitignored artifacts relevant to the finished lane. Do **not** commit or promote:
 - `artifacts/`

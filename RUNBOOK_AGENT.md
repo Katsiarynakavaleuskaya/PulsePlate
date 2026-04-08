@@ -53,6 +53,8 @@ Rules:
 - Do not skip an assigned role agent without an explicit coordinator update to the packet.
 - Do not replace the declared order with an ad-hoc internal stack.
 - The canonical post-open `qa-engineer-agent -> bug-hunter` lane remains mandatory for PR work.
+Source of truth: the active lane packet or runbook at the canonical packet path for the current
+lane, which contains the enforced role-agent sequence for that task or PR.
 
 **Usage:**
 ```text
@@ -107,9 +109,13 @@ Use this sequence after a merge and before opening the next PR in a train:
 3. `git merge --ff-only origin/main`
 4. verify current-head required-check health for `main`; if `main` is red, pending on merge
    fallout, or otherwise unstable, stop and fix `main`
-5. remove merged local branches only after sync
-6. remove merged remote branches/worktrees only after sync and verification
-7. clear only gitignored local artifacts relevant to the finished lane; never commit
+5. run `gh pr view <N> --json state` and confirm the PR state is `MERGED`; abort cleanup and
+   next-PR prep if the PR is not merged yet
+6. remove merged local branches only after sync and merge-state verification
+7. remove merged remote branches/worktrees only after sync and merge-state verification
+8. start the next worktree/branch from synced `origin/main`; do not push more work to the
+   already merged PR branch
+9. clear only gitignored local artifacts relevant to the finished lane; never commit
    `artifacts/`, `worktrees/`, or host-local wrapper state
 
 This is an operator runbook rule; it does not authorize `git pull` shortcuts or force-pushes.
