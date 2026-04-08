@@ -14,7 +14,7 @@ from pathlib import Path
 import logging
 import os
 import re
-from typing import Any, Dict, Iterator, List, Optional, Mapping, Protocol, Sequence, Tuple
+from typing import Any, Callable, Dict, Iterator, List, Optional, Mapping, Protocol, Sequence, Tuple
 import threading
 from collections import defaultdict
 
@@ -109,12 +109,59 @@ _FOOD_ATTRIBUTION_DEFAULT_KEYS: Tuple[str, ...] = ("usda", "open food facts")
 
 
 def _foods_db_cache_key() -> str:
-    """Stable cache key for the active food SQLite path."""
+    """Backward-compatible cache key for the configured DB path.
+
+    RU: Этот helper смотрит только на настроенный глобальный путь и нужен там,
+    где реального sqlite-соединения ещё нет.
+    EN: This helper is intentionally path-only; connection-aware cache invalidation
+    lives in `_foods_db_cache_key_for_connection(...)`.
+    """
 
     try:
         return str(DB_PATH.resolve())
     except OSError:
         return str(DB_PATH)
+
+
+def _foods_db_cache_key_for_connection(con: sqlite3.Connection) -> str | None:
+    """Return a stable cache key for real SQLite connections only.
+
+    RU: Для mock/stub подключений отключаем глобальный cache, чтобы порядок тестов
+    не влиял на pragma-result.
+    EN: Disable global cache for mock/stub connections to avoid suite-order coupling.
+    This helper intentionally tracks the live connection file state, so pragma cache
+    invalidates when the underlying SQLite file changes in place.
+    """
+
+    if not isinstance(con, sqlite3.Connection):
+        return None
+    try:
+        database_rows = con.execute("PRAGMA database_list").fetchall()
+    except sqlite3.Error:
+        database_path = DB_PATH
+    else:
+        main_db_path_str = next(
+            (
+                str(row[2]).strip()
+                for row in database_rows
+                if len(row) >= 3 and str(row[1]) == "main"
+            ),
+            "",
+        )
+        if not main_db_path_str or main_db_path_str == ":memory:":
+            return None
+        database_path = Path(main_db_path_str)
+
+    try:
+        resolved_path = database_path.resolve()
+    except OSError:
+        resolved_path = database_path
+
+    try:
+        stat_result = resolved_path.stat()
+    except OSError:
+        return str(resolved_path)
+    return f"{resolved_path}:{stat_result.st_mtime_ns}:{stat_result.st_size}"
 
 
 def _foods_has_nutrition_confidence_column(con: sqlite3.Connection) -> bool:
@@ -124,20 +171,66 @@ def _foods_has_nutrition_confidence_column(con: sqlite3.Connection) -> bool:
     Older shipped food.sqlite files may omit this column; search/list SQL must stay compatible.
     """
 
-    key = _foods_db_cache_key()
-    with _NUTRITION_CONFIDENCE_CACHE_LOCK:
-        cached = _NUTRITION_CONFIDENCE_COLUMN_CACHE.get(key)
-    if cached is not None:
-        return cached
+    cache_key = _foods_db_cache_key_for_connection(con)
+    if cache_key is not None:
+        with _NUTRITION_CONFIDENCE_CACHE_LOCK:
+            cached = _NUTRITION_CONFIDENCE_COLUMN_CACHE.get(cache_key)
+        if cached is not None:
+            return cached
     try:
         info_rows = con.execute("PRAGMA table_info(foods)").fetchall()
     except sqlite3.Error:
         has_col = False
     else:
         has_col = any(str(row[1]) == "nutrition_confidence" for row in info_rows)
-    with _NUTRITION_CONFIDENCE_CACHE_LOCK:
-        _NUTRITION_CONFIDENCE_COLUMN_CACHE[key] = has_col
+    if cache_key is not None:
+        with _NUTRITION_CONFIDENCE_CACHE_LOCK:
+            _NUTRITION_CONFIDENCE_COLUMN_CACHE[cache_key] = has_col
     return has_col
+
+
+def _invalidate_foods_nutrition_confidence_cache(con: sqlite3.Connection) -> None:
+    """Drop the cached pragma result for the active SQLite database."""
+
+    cache_key = _foods_db_cache_key_for_connection(con)
+    if cache_key is None:
+        return
+    with _NUTRITION_CONFIDENCE_CACHE_LOCK:
+        _NUTRITION_CONFIDENCE_COLUMN_CACHE.pop(cache_key, None)
+
+
+def _is_missing_nutrition_confidence_column_error(exc: sqlite3.OperationalError) -> bool:
+    """Return True only for the additive legacy-schema failure we intentionally recover from."""
+
+    return bool(
+        re.search(
+            r"no such column:\s*(?:\w+\.)?nutrition_confidence\b",
+            str(exc),
+            re.IGNORECASE,
+        )
+    )
+
+
+def _execute_foods_query_with_legacy_retry(
+    con: sqlite3.Connection,
+    build_query: Callable[[bool], tuple[str, Sequence[Any]]],
+) -> list[sqlite3.Row]:
+    """Execute a foods read query with one legacy-schema retry.
+
+    RU: Повторяем только при additive-ошибке отсутствующей колонки.
+    EN: Retry only for the additive missing-column case; other SQL errors must surface.
+    """
+
+    has_conf = _foods_has_nutrition_confidence_column(con)
+    sql, params = build_query(has_conf)
+    try:
+        return con.execute(sql, params).fetchall()
+    except sqlite3.OperationalError as exc:
+        if not has_conf or not _is_missing_nutrition_confidence_column_error(exc):
+            raise
+    _invalidate_foods_nutrition_confidence_cache(con)
+    fallback_sql, fallback_params = build_query(False)
+    return con.execute(fallback_sql, fallback_params).fetchall()
 
 
 def reset_foods_nutrition_confidence_column_cache() -> None:
@@ -608,18 +701,23 @@ def _load_semantic_candidates(limit: int) -> List[Dict[str, Any]]:
     EN: Loads candidates directly from foods, bypassing search pagination clamp.
     """
     with _connect() as con:
-        has_conf = _foods_has_nutrition_confidence_column(con)
-        if has_conf:
-            q = (
-                "SELECT id, canonical_name, kcal, protein_g, fat_g, carbs_g, "
-                "nutrition_confidence FROM foods ORDER BY id ASC LIMIT ?"
-            )
-        else:
-            q = (
-                "SELECT id, canonical_name, kcal, protein_g, fat_g, carbs_g "
-                "FROM foods ORDER BY id ASC LIMIT ?"
-            )
-        rows = con.execute(q, (limit,)).fetchall()
+        rows = _execute_foods_query_with_legacy_retry(
+            con,
+            lambda has_conf: (
+                (
+                    (
+                        "SELECT id, canonical_name, kcal, protein_g, fat_g, carbs_g, "
+                        "nutrition_confidence FROM foods ORDER BY id ASC LIMIT ?"
+                    )
+                    if has_conf
+                    else (
+                        "SELECT id, canonical_name, kcal, protein_g, fat_g, carbs_g "
+                        "FROM foods ORDER BY id ASC LIMIT ?"
+                    )
+                ),
+                (limit,),
+            ),
+        )
     return [dict(row) for row in rows]
 
 
@@ -868,48 +966,44 @@ def search_foods(query: str, limit: int | str = 20, offset: int | str = 0) -> Li
     # Validate and normalize pagination parameters
     limit, offset = _validate_pagination_params(limit, offset)
     terms = expand_query(query) if query else []
-    with _connect() as con:
-        has_conf = _foods_has_nutrition_confidence_column(con)
+
+    def _build_query(has_conf: bool) -> tuple[str, Sequence[Any]]:
         if terms:
-            # Query uses parameter placeholders for all user inputs;
-            # only the number of placeholders is constructed dynamically.
-            # Safe but consider phrase/prefix search (e.g., "term*" for prefix matching)
-            # for better FTS behavior in future enhancements.
-            # Dynamic SQL construction: only clause count is dynamic, all values use placeholders
-            # This is safe because we only construct the number of OR clauses, not the actual values
-            if has_conf:
-                sql_prefix = """
+            sql_prefix = (
+                """
           SELECT f.id, f.canonical_name, f.kcal, f.protein_g, f.fat_g, f.carbs_g,
                  f.nutrition_confidence
           FROM foods f
           JOIN foods_fts ff ON ff.rowid = f.rowid
           WHERE"""
-            else:
-                sql_prefix = """
+                if has_conf
+                else """
           SELECT f.id, f.canonical_name, f.kcal, f.protein_g, f.fat_g, f.carbs_g
           FROM foods f
           JOIN foods_fts ff ON ff.rowid = f.rowid
           WHERE"""
+            )
             sql = (
                 sql_prefix
                 + " "
                 + " OR ".join(["ff.canonical_name MATCH ?"] * len(terms))
                 + " LIMIT ? OFFSET ?"
             )
-            params = [*terms, limit, offset]
+            return sql, [*terms, limit, offset]
+        if has_conf:
+            sql = (
+                "SELECT id, canonical_name, kcal, protein_g, fat_g, carbs_g, "
+                "nutrition_confidence FROM foods LIMIT ? OFFSET ?"
+            )
         else:
-            if has_conf:
-                sql = (
-                    "SELECT id, canonical_name, kcal, protein_g, fat_g, carbs_g, "
-                    "nutrition_confidence FROM foods LIMIT ? OFFSET ?"
-                )
-            else:
-                sql = (
-                    "SELECT id, canonical_name, kcal, protein_g, fat_g, carbs_g "
-                    "FROM foods LIMIT ? OFFSET ?"
-                )
-            params = [limit, offset]
-        rows = con.execute(sql, params).fetchall()
+            sql = (
+                "SELECT id, canonical_name, kcal, protein_g, fat_g, carbs_g "
+                "FROM foods LIMIT ? OFFSET ?"
+            )
+        return sql, [limit, offset]
+
+    with _connect() as con:
+        rows = _execute_foods_query_with_legacy_retry(con, _build_query)
     return [dict(r) for r in rows]
 
 

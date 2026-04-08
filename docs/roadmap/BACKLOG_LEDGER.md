@@ -7310,6 +7310,31 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Swap orchestration is tested against `*_v2` indexes without changing public food API contracts
     - Grace-period cleanup and rollback-safe recovery are documented and covered by tests
 
+<a id="ledger-p2-food-store-legacy-schema-cache-follow-through"></a>
+- [ ] P2: Food-store legacy schema/cache seam follow-through
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR-TBD-FOOD-STORE-LEGACY-SCHEMA-FOLLOW-THROUGH
+  - Area: backend / search / tests
+  - Finding Type: hotfix follow-up hardening
+  - Reason: The main-stabilization hotfix intentionally stays narrow and fixes the
+    blocking stale-`has_conf=True` failure path for legacy SQLite schemas missing
+    `foods.nutrition_confidence`. Two adjacent non-blocking follow-ups remain
+    deferred: a real-SQLite runtime regression for the semantic bootstrap read path,
+    and a tighter policy for transient `PRAGMA table_info(foods)` failures so a
+    temporary schema-probe error does not cache `False` longer than intended.
+  - Links:
+    - `app/services/food_store.py`
+    - `tests/test_food_store_service.py`
+    - `tests/test_food_store_coverage.py`
+    - `tests/test_food_store_coverage_boost.py`
+    - `tests/test_simple_coverage_boost.py`
+  - DoD:
+    - Semantic candidate/bootstrap read path has a real SQLite legacy-schema regression test
+    - Schema-probe transient failures are non-cacheable or bounded-retry, not an indefinite cached `False`
+    - Cache-seam tests remain deterministic and explicitly reset shared state
+    - Public `/api/v1/foods/search` contract remains unchanged while additive `nutrition_confidence` stays best-effort
+
 
 - [x] Test skips cleanup (low priority batch) — superseded by PR-728 classification
   - Owner: @katsiaryna_kavaleuskaya

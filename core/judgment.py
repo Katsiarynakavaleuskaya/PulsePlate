@@ -150,7 +150,9 @@ def parse_claim_type(raw_value: str) -> ClaimType:
     if not _is_claim_type(normalized):
         allowed = ", ".join(CLAIM_TYPES)
         raise ValueError(f"claim_type must be one of: {allowed}.")
-    return normalized
+    # Keep the explicit iteration form so mypy preserves the Literal return type
+    # on strict/push-hook runs instead of widening through a generic cast path.
+    return next(claim_type for claim_type in CLAIM_TYPES if claim_type == normalized)
 
 
 def parse_support_status(raw_value: str) -> SupportStatus:
@@ -162,7 +164,9 @@ def parse_support_status(raw_value: str) -> SupportStatus:
     if not _is_support_status(normalized):
         allowed = ", ".join(SUPPORT_STATUSES)
         raise ValueError(f"support_status must be one of: {allowed}.")
-    return normalized
+    return next(
+        support_status for support_status in SUPPORT_STATUSES if support_status == normalized
+    )
 
 
 def parse_evidence_mode(raw_value: str) -> EvidenceMode:
@@ -174,7 +178,7 @@ def parse_evidence_mode(raw_value: str) -> EvidenceMode:
     if not _is_evidence_mode(normalized):
         allowed = ", ".join(EVIDENCE_MODES)
         raise ValueError(f"evidence_mode must be one of: {allowed}.")
-    return normalized
+    return next(evidence_mode for evidence_mode in EVIDENCE_MODES if evidence_mode == normalized)
 
 
 def classify_claim_type(text: str) -> ClaimType:
