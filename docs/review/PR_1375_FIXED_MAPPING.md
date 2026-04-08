@@ -2,19 +2,14 @@
 
 ## Discussion Thread Pass
 
-- [x] Discussion-thread pass initialized for PR-open state (no actionable review threads yet; rerun after new review activity)
-- [x] Fixed in commit mapping initialized
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 
 Bot and human review threads must be dispositioned below when actionable comments appear; resolve conversations on GitHub only after mapping per `AGENTS.md`.
 
 ## Fixed in Commit Mapping
 
-No actionable human or bot review threads at PR open.
-
-Add new review comments below using canonical dispositions:
-- `FIXED` with commit SHA + evidence
-- `NOT-A-BUG` with reason + evidence
-- `DEFERRED` with backlog link
+- No actionable review comments
 
 ## Merge Readiness
 
