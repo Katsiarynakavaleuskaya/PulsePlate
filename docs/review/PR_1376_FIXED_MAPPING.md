@@ -12,7 +12,6 @@ Bot and human review threads must be dispositioned below when actionable comment
 Disposition: FIXED
 Commit: 5ab8a3780
 Evidence: app/services/food_store.py:126; core/judgment.py:144; core/judgment_eval.py:169; core/creative_research.py:407; tests/test_food_store_service.py:335
-
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1376#issuecomment-4204538823 -> 5ab8a3780
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1376#pullrequestreview-4073510048 -> 5ab8a3780
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1376#discussion_r3049869404 -> 5ab8a3780
@@ -22,7 +21,6 @@ Evidence: app/services/food_store.py:126; core/judgment.py:144; core/judgment_ev
 Disposition: FIXED
 Commit: c803b348d
 Evidence: app/services/food_store.py:202; tests/test_food_store_service.py:272; tests/test_food_store_service.py:342; tests/test_food_store_service.py:381
-
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1376#discussion_r3049873465 -> c803b348d
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1376#discussion_r3049907717 -> c803b348d
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1376#discussion_r3049954462 -> c803b348d
@@ -32,19 +30,16 @@ Evidence: app/services/food_store.py:202; tests/test_food_store_service.py:272; 
 Disposition: NOT-A-BUG
 Evidence: AGENTS.md:5; AGENTS.md:40; scripts/orchestration/review_mapping_artifact.py:152
 Reason: CodeRabbit's walkthrough and generic pre-merge warnings are advisory only for this repository. The canonical merge gates are `make verify`, explicit disposition tracking for bot comments, and the PR `<N>` fixed-mapping artifact mirror.
-
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1376#issuecomment-4204532851
 
 Disposition: NOT-A-BUG
 Evidence: app/services/food_store.py:202; tests/test_food_store_service.py:381
 Reason: The Codex review summary only aggregates the alias-qualified missing-column finding that is fixed in `c803b348d`; the summary itself does not require a separate code change once the underlying inline thread is dispositioned.
-
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1376#pullrequestreview-4073514071
 
 Disposition: NOT-A-BUG
 Evidence: docs/review/PR_1375_FIXED_MAPPING.md:1; tests/test_simple_coverage_boost.py:56; app/routers/foods.py:68; app/services/food_store.py:202
 Reason: This CodeRabbit review summary aggregates one retry-predicate fix already landed in `c803b348d`, two intentional historical-evidence notes for superseded PR `#1375`, and one fixture warning that is invalid on current head because the route parameter is `query`, not `q`.
-
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1376#pullrequestreview-4073549805
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1376#discussion_r3049907730
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1376#discussion_r3049907733
@@ -53,14 +48,12 @@ Reason: This CodeRabbit review summary aggregates one retry-predicate fix alread
 Disposition: NOT-A-BUG
 Evidence: docs/review/PR_1375_FIXED_MAPPING.md:1; app/services/food_store.py:126; tests/test_food_store_service.py:272
 Reason: Cubic's review summary aggregates two findings already fixed in `c803b348d` and one intentional historical-evidence artifact for superseded PR `#1375`; the remaining PR-number comment is governance context, not a product defect on PR `#1376`.
-
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1376#pullrequestreview-4073610573
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1376#discussion_r3049954474
 
 Disposition: NOT-A-BUG
 Evidence: AGENTS.md:8; AGENTS.md:16
 Reason: The external Codecov patch-coverage advisory was generated on an earlier head. The repository's canonical gate is local `make verify`, which includes diff-cover ≥97% and now passes on the current branch head.
-
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1376#issuecomment-4204654240
 
 ## Merge Readiness
