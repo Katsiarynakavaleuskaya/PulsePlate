@@ -79,6 +79,12 @@ def _set_test_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("FEATURE_PREMIUM_NUTRITION", "true")
 
 
+@pytest.fixture(autouse=True)
+def _reset_food_store_cache_before_test() -> None:
+    """Reset the schema cache before each mock-driven coverage test."""
+    food_store.reset_foods_nutrition_confidence_column_cache()
+
+
 class TestFoodStoreCoverage:
     """Test class for food_store coverage boost."""
 

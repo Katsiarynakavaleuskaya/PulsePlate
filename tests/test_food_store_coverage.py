@@ -76,6 +76,12 @@ def _set_test_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("FEATURE_PREMIUM_NUTRITION", "true")
 
 
+@pytest.fixture(autouse=True)
+def _reset_food_store_cache_before_test() -> None:
+    """Keep pragma-driven mock tests deterministic regardless of suite order."""
+    food_store.reset_foods_nutrition_confidence_column_cache()
+
+
 class TestFoodStoreCoverage:
     """Тесты для покрытия недостающих строк в food_store.py"""
 

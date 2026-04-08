@@ -269,6 +269,41 @@ def test_foods_db_cache_key_string_fallback_on_resolve_oserror(
     assert food_store._foods_db_cache_key() == "/tmp/fake-db-path.sqlite"
 
 
+def test_foods_db_cache_key_for_connection_uses_db_path_when_database_list_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    db_path = tmp_path / "foods.sqlite"
+    db_path.write_text("", encoding="utf-8")
+    monkeypatch.setattr(food_store, "DB_PATH", db_path)
+    conn = sqlite3.connect(":memory:")
+    conn.close()
+    cache_key = food_store._foods_db_cache_key_for_connection(conn)
+    assert cache_key is not None
+    assert str(db_path.resolve()) in cache_key
+
+
+def test_foods_db_cache_key_for_connection_falls_back_when_resolve_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    db_path = tmp_path / "foods.sqlite"
+    with sqlite3.connect(db_path) as conn:
+        monkeypatch.setattr(Path, "resolve", lambda self: (_ for _ in ()).throw(OSError("boom")))
+        cache_key = food_store._foods_db_cache_key_for_connection(conn)
+    assert cache_key is not None
+    assert str(db_path) in cache_key
+
+
+def test_foods_db_cache_key_for_connection_returns_plain_path_when_stat_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    db_path = tmp_path / "foods.sqlite"
+    expected_path = str(db_path.resolve())
+    with sqlite3.connect(db_path) as conn:
+        monkeypatch.setattr(Path, "stat", lambda self: (_ for _ in ()).throw(OSError("boom")))
+        cache_key = food_store._foods_db_cache_key_for_connection(conn)
+    assert cache_key == expected_path
+
+
 def test_search_foods_fts_includes_aggregate_confidence_when_pragma_reports_column(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -315,6 +350,101 @@ def test_foods_has_nutrition_confidence_column_handles_sqlite_execute_error() ->
             raise sqlite3.Error("pragma failed")
 
     assert food_store._foods_has_nutrition_confidence_column(_ErrConn()) is False
+
+
+def test_invalidate_foods_nutrition_confidence_cache_drops_active_entry(tmp_path: Path) -> None:
+    db_path = tmp_path / "foods.sqlite"
+    with sqlite3.connect(db_path) as conn:
+        conn.execute("""
+            CREATE TABLE foods (
+                id TEXT PRIMARY KEY,
+                canonical_name TEXT NOT NULL,
+                nutrition_confidence REAL
+            )
+            """)
+        conn.commit()
+        original_db_path = food_store.DB_PATH
+        food_store.DB_PATH = db_path
+        try:
+            food_store.reset_foods_nutrition_confidence_column_cache()
+            cache_key = food_store._foods_db_cache_key_for_connection(conn)
+            assert cache_key is not None
+            assert food_store._foods_has_nutrition_confidence_column(conn) is True
+            assert cache_key in food_store._NUTRITION_CONFIDENCE_COLUMN_CACHE
+            food_store._invalidate_foods_nutrition_confidence_cache(conn)
+            assert cache_key not in food_store._NUTRITION_CONFIDENCE_COLUMN_CACHE
+        finally:
+            food_store.DB_PATH = original_db_path
+
+
+def test_execute_foods_query_with_legacy_retry_retries_missing_confidence_column(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class _Cursor:
+        def __init__(self, rows: List[Dict[str, Any]]) -> None:
+            self._rows = rows
+
+        def fetchall(self) -> List[Dict[str, Any]]:
+            return self._rows
+
+    class _RetryConn:
+        def __init__(self) -> None:
+            self.calls: List[str] = []
+
+        def execute(self, sql: str, params: Any = None) -> _Cursor:
+            del params
+            self.calls.append(sql)
+            if "nutrition_confidence" in sql:
+                raise sqlite3.OperationalError("no such column: nutrition_confidence")
+            return _Cursor([{"id": "fallback"}])
+
+    conn = _RetryConn()
+    invalidations: List[str] = []
+    monkeypatch.setattr(food_store, "_foods_has_nutrition_confidence_column", lambda _con: True)
+    monkeypatch.setattr(
+        food_store,
+        "_invalidate_foods_nutrition_confidence_cache",
+        lambda _con: invalidations.append("invalidated"),
+    )
+
+    rows = food_store._execute_foods_query_with_legacy_retry(
+        conn,
+        lambda has_conf: (
+            ("SELECT id, nutrition_confidence FROM foods" if has_conf else "SELECT id FROM foods"),
+            (),
+        ),
+    )
+
+    assert [row["id"] for row in rows] == ["fallback"]
+    assert invalidations == ["invalidated"]
+    assert conn.calls == [
+        "SELECT id, nutrition_confidence FROM foods",
+        "SELECT id FROM foods",
+    ]
+
+
+def test_execute_foods_query_with_legacy_retry_reraises_other_operational_errors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class _BrokenConn:
+        def execute(self, sql: str, params: Any = None) -> Any:
+            del sql, params
+            raise sqlite3.OperationalError("database is locked")
+
+    monkeypatch.setattr(food_store, "_foods_has_nutrition_confidence_column", lambda _con: True)
+
+    with pytest.raises(sqlite3.OperationalError, match="database is locked"):
+        food_store._execute_foods_query_with_legacy_retry(
+            _BrokenConn(),
+            lambda has_conf: (
+                (
+                    "SELECT id, nutrition_confidence FROM foods"
+                    if has_conf
+                    else "SELECT id FROM foods"
+                ),
+                (),
+            ),
+        )
 
 
 def test_normalize_food_row_additive_columns_none_or_pre_parsed() -> None:
