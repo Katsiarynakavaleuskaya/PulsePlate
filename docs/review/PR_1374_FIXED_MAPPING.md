@@ -8,10 +8,6 @@
 
 ## Fixed in Commit Mapping
 
-Disposition: NOT-A-BUG
-Evidence: GitHub GraphQL `reviewThreads(first:100)` returned an empty set for PR `#1374`; there are no actionable human or bot review threads to map.
-Reason: This Dependabot PR only needs governance artifact coverage plus a Ruby 3.1 compatibility pin so the existing security bump can pass the `validate-assets` lane.
-
 - No actionable review comments
 
 ## Merge Readiness
