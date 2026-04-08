@@ -136,7 +136,7 @@ def parse_claim_type(raw_value: str) -> ClaimType:
     if normalized not in CLAIM_TYPES:
         allowed = ", ".join(CLAIM_TYPES)
         raise ValueError(f"claim_type must be one of: {allowed}.")
-    return cast(ClaimType, normalized)
+    return normalized
 
 
 def parse_support_status(raw_value: str) -> SupportStatus:
@@ -148,7 +148,7 @@ def parse_support_status(raw_value: str) -> SupportStatus:
     if normalized not in SUPPORT_STATUSES:
         allowed = ", ".join(SUPPORT_STATUSES)
         raise ValueError(f"support_status must be one of: {allowed}.")
-    return cast(SupportStatus, normalized)
+    return normalized
 
 
 def parse_evidence_mode(raw_value: str) -> EvidenceMode:
@@ -160,7 +160,7 @@ def parse_evidence_mode(raw_value: str) -> EvidenceMode:
     if normalized not in EVIDENCE_MODES:
         allowed = ", ".join(EVIDENCE_MODES)
         raise ValueError(f"evidence_mode must be one of: {allowed}.")
-    return cast(EvidenceMode, normalized)
+    return normalized
 
 
 def classify_claim_type(text: str) -> ClaimType:

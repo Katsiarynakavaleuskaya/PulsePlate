@@ -177,7 +177,7 @@ def _validate_turns(raw_value: object, *, label: str) -> list[FitChefReplayTurnR
             raise ValueError(f"{label} turn #{index} role must be user|assistant.")
         turns.append(
             {
-                "role": cast(FitChefReplayRole, role),
+                "role": role,
                 "text": _require_case_string(
                     turn_payload, key="text", label=f"{label} turn #{index}"
                 ),
