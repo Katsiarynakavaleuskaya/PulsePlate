@@ -65,6 +65,11 @@ Disposition: FIXED
 Commit: 1d3405d8f
 Evidence: `docs/roadmap/BACKLOG_LEDGER.md:1412`
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1377#pullrequestreview-4075156360
+Disposition: NOT-A-BUG
+Evidence: `docs/roadmap/BACKLOG_LEDGER.md:2513`; `docs/roadmap/BACKLOG_LEDGER.md:2537`; `docs/roadmap/BACKLOG_LEDGER.md:2623`
+Reason: The cited entries already sit inside a contiguous P2 cluster immediately after another P2 backlog item, so priority ordering is preserved without relocating them to a distant generic `### P2` bucket.
+
 ## Merge Readiness
 
 - [ ] Current-head CI green for PR branch head
