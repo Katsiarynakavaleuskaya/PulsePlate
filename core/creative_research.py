@@ -404,7 +404,8 @@ def validate_bundle(payload: object) -> CreativeResearchBundleRecord:
         if not _is_creative_confidence(confidence):
             allowed = ", ".join(CONFIDENCE_LEVELS)
             raise ValueError(f"{label} confidence must be one of: {allowed}.")
-
+        # Keep the explicit `next(...)` narrowing so strict mypy preserves the
+        # CreativeResearchConfidence Literal instead of widening to plain str.
         normalized_confidence = next(level for level in CONFIDENCE_LEVELS if level == confidence)
         candidate: CreativeResearchCandidateRecord = {
             "candidate_id": _require_non_empty_string(
@@ -455,7 +456,8 @@ def validate_bundle(payload: object) -> CreativeResearchBundleRecord:
             ),
         }
         candidates.append(candidate)
-
+    # Keep the explicit `next(...)` narrowing so strict mypy preserves the
+    # CreativeResearchPhase Literal used by the shared evaluation contract.
     normalized_phase = next(valid_phase for valid_phase in VALID_PHASES if valid_phase == phase)
     bundle_record: CreativeResearchBundleRecord = {
         "schema_version": schema_version,

@@ -179,6 +179,8 @@ def _validate_turns(raw_value: object, *, label: str) -> list[FitChefReplayTurnR
         role = raw_role.lower()
         if not _is_fitchef_replay_role(role):
             raise ValueError(f"{label} turn #{index} role must be user|assistant.")
+        # Keep the explicit `next(...)` narrowing so strict mypy preserves the
+        # FitChefReplayRole Literal instead of widening to plain str.
         normalized_role = next(
             replay_role for replay_role in FITCHEF_REPLAY_ROLES if replay_role == role
         )

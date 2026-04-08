@@ -150,6 +150,8 @@ def parse_claim_type(raw_value: str) -> ClaimType:
     if not _is_claim_type(normalized):
         allowed = ", ".join(CLAIM_TYPES)
         raise ValueError(f"claim_type must be one of: {allowed}.")
+    # Keep the explicit iteration form so mypy preserves the Literal return type
+    # on strict/push-hook runs instead of widening through a generic cast path.
     return next(claim_type for claim_type in CLAIM_TYPES if claim_type == normalized)
 
 

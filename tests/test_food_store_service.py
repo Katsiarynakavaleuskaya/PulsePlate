@@ -304,6 +304,61 @@ def test_foods_db_cache_key_for_connection_returns_plain_path_when_stat_fails(
     assert cache_key == expected_path
 
 
+def test_foods_db_cache_key_for_connection_returns_none_for_non_sqlite_connection() -> None:
+    class _NotSqliteConnection:
+        pass
+
+    assert food_store._foods_db_cache_key_for_connection(_NotSqliteConnection()) is None
+
+
+def test_foods_db_cache_key_for_connection_prefers_main_database_path_and_changes_on_mutation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    db_path = tmp_path / "foods.sqlite"
+    fallback_db_path = tmp_path / "fallback.sqlite"
+    fallback_db_path.write_text("", encoding="utf-8")
+    monkeypatch.setattr(food_store, "DB_PATH", fallback_db_path)
+
+    with sqlite3.connect(db_path) as conn:
+        conn.execute("CREATE TABLE cache_probe (id INTEGER PRIMARY KEY, payload TEXT)")
+        conn.commit()
+
+        first_cache_key = food_store._foods_db_cache_key_for_connection(conn)
+        assert first_cache_key is not None
+        assert first_cache_key.startswith(f"{db_path.resolve()}:")
+
+        first_path, first_mtime_ns, first_size = first_cache_key.rsplit(":", 2)
+        assert first_path == str(db_path.resolve())
+        assert first_mtime_ns.isdigit()
+        assert first_size.isdigit()
+
+        conn.execute(
+            "INSERT INTO cache_probe (payload) VALUES (?)",
+            ("x" * 10000,),
+        )
+        conn.commit()
+
+        second_cache_key = food_store._foods_db_cache_key_for_connection(conn)
+
+    assert second_cache_key is not None
+    assert second_cache_key.startswith(f"{db_path.resolve()}:")
+    assert second_cache_key != first_cache_key
+
+
+def test_is_missing_nutrition_confidence_column_error_matches_only_legacy_additive_failure() -> (
+    None
+):
+    assert food_store._is_missing_nutrition_confidence_column_error(
+        sqlite3.OperationalError("no such column: nutrition_confidence")
+    )
+    assert not food_store._is_missing_nutrition_confidence_column_error(
+        sqlite3.OperationalError("no such column: canonical_name")
+    )
+    assert not food_store._is_missing_nutrition_confidence_column_error(
+        sqlite3.OperationalError("database is locked")
+    )
+
+
 def test_search_foods_fts_includes_aggregate_confidence_when_pragma_reports_column(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

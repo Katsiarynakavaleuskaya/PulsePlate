@@ -109,7 +109,13 @@ _FOOD_ATTRIBUTION_DEFAULT_KEYS: Tuple[str, ...] = ("usda", "open food facts")
 
 
 def _foods_db_cache_key() -> str:
-    """Backward-compatible cache key for the configured DB path."""
+    """Backward-compatible cache key for the configured DB path.
+
+    RU: Этот helper смотрит только на настроенный глобальный путь и нужен там,
+    где реального sqlite-соединения ещё нет.
+    EN: This helper is intentionally path-only; connection-aware cache invalidation
+    lives in `_foods_db_cache_key_for_connection(...)`.
+    """
 
     try:
         return str(DB_PATH.resolve())
@@ -123,6 +129,8 @@ def _foods_db_cache_key_for_connection(con: sqlite3.Connection) -> str | None:
     RU: Для mock/stub подключений отключаем глобальный cache, чтобы порядок тестов
     не влиял на pragma-result.
     EN: Disable global cache for mock/stub connections to avoid suite-order coupling.
+    This helper intentionally tracks the live connection file state, so pragma cache
+    invalidates when the underlying SQLite file changes in place.
     """
 
     if not isinstance(con, sqlite3.Connection):
