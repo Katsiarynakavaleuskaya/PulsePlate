@@ -191,6 +191,185 @@ def test_promote_rejects_symlink_promoted_dir_outside_corpus(tmp_path: Path) -> 
         )
 
 
+def test_promote_preserves_existing_promoted_file_on_put_record_failure(
+    tmp_path: Path,
+    allowlist: set[tuple[str, str]],
+    audit_signing_material: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Second promote with SP failure must restore prior promoted content (non-destructive)."""
+
+    repo = tmp_path / "r"
+    wiki = repo / "wiki"
+    slug = _ingest_one(repo, wiki)
+    dst = wiki / "project_internal" / "promoted" / f"{slug}.md"
+    wiki_promote.promote_slug(
+        slug,
+        corpus="project_internal",
+        wiki_root=wiki,
+        repo_root=repo,
+        write_support_plane=False,
+    )
+    prior = dst.read_text(encoding="utf-8")
+    assert "promoted_at:" in prior
+
+    def boom(*_a: object, **_kw: object) -> None:
+        raise ValueError("support_plane_value_too_large")
+
+    monkeypatch.setattr(lsp, "put_record", boom)
+    with pytest.raises(ValueError, match="support_plane_value_too_large"):
+        wiki_promote.promote_slug(
+            slug,
+            corpus="project_internal",
+            wiki_root=wiki,
+            repo_root=repo,
+            write_support_plane=True,
+            allowlist=allowlist,
+            sp_root_override=tmp_path / "sp",
+            audit_secret=audit_signing_material,
+        )
+    assert dst.read_text(encoding="utf-8") == prior
+
+
+def test_promote_keeps_new_dst_when_backup_missing_on_rollback(
+    tmp_path: Path,
+    allowlist: set[tuple[str, str]],
+    audit_signing_material: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """If .bak appears missing during rollback, do not unlink dst (avoid total loss)."""
+
+    repo = tmp_path / "r"
+    wiki = repo / "wiki"
+    slug = _ingest_one(repo, wiki)
+    dst = wiki / "project_internal" / "promoted" / f"{slug}.md"
+    _promo_times = iter(["2026-01-10T10:00:00Z", "2026-01-11T11:00:00Z"])
+    monkeypatch.setattr(wcs, "utc_now_iso", lambda: next(_promo_times))
+    wiki_promote.promote_slug(
+        slug,
+        corpus="project_internal",
+        wiki_root=wiki,
+        repo_root=repo,
+        write_support_plane=False,
+        allowlist=allowlist,
+        sp_root_override=tmp_path / "sp",
+        audit_secret=audit_signing_material,
+    )
+    prior = dst.read_text(encoding="utf-8")
+    backup_path = dst.parent / f".{slug}.promote.bak"
+    orig_is_file = Path.is_file
+
+    def is_file_patched(self: Path) -> bool:
+        if self.resolve() == backup_path.resolve():
+            return False
+        return orig_is_file(self)
+
+    monkeypatch.setattr(Path, "is_file", is_file_patched)
+
+    def boom(*_a: object, **_kw: object) -> None:
+        raise ValueError("support_plane_missing_backup_sim")
+
+    monkeypatch.setattr(lsp, "put_record", boom)
+    with pytest.raises(ValueError, match="support_plane_missing_backup_sim"):
+        wiki_promote.promote_slug(
+            slug,
+            corpus="project_internal",
+            wiki_root=wiki,
+            repo_root=repo,
+            write_support_plane=True,
+            allowlist=allowlist,
+            sp_root_override=tmp_path / "sp",
+            audit_secret=audit_signing_material,
+        )
+    assert dst.is_file()
+    assert dst.read_text(encoding="utf-8") != prior
+
+
+def test_promote_restores_prior_when_tmp_replace_fails_after_backup_created(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Staging gap: if tmp->dst replace fails after dst->bak, restore visible prior on dst."""
+
+    repo = tmp_path / "r"
+    wiki = repo / "wiki"
+    slug = _ingest_one(repo, wiki)
+    dst = wiki / "project_internal" / "promoted" / f"{slug}.md"
+    promote_tmp = dst.parent / f".{slug}.promote.tmp"
+    backup_path = dst.parent / f".{slug}.promote.bak"
+
+    wiki_promote.promote_slug(
+        slug,
+        corpus="project_internal",
+        wiki_root=wiki,
+        repo_root=repo,
+        write_support_plane=False,
+    )
+    prior = dst.read_text(encoding="utf-8")
+
+    monkeypatch.setattr(wcs, "utc_now_iso", lambda: "2026-01-11T11:00:00Z")
+
+    original_replace = Path.replace
+
+    def replace_patched(self: Path, target: Path) -> Path:
+        if self.resolve() == promote_tmp.resolve() and target.resolve() == dst.resolve():
+            raise OSError("staging_rename_failed")
+        return original_replace(self, target)
+
+    monkeypatch.setattr(Path, "replace", replace_patched)
+
+    with pytest.raises(OSError, match="staging_rename_failed"):
+        wiki_promote.promote_slug(
+            slug,
+            corpus="project_internal",
+            wiki_root=wiki,
+            repo_root=repo,
+            write_support_plane=False,
+        )
+
+    assert dst.is_file()
+    assert dst.read_text(encoding="utf-8") == prior
+    assert not backup_path.exists()
+    assert not promote_tmp.exists()
+
+
+def test_promote_preserves_prior_on_unexpected_put_record_failure(
+    tmp_path: Path,
+    allowlist: set[tuple[str, str]],
+    audit_signing_material: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = tmp_path / "r"
+    wiki = repo / "wiki"
+    slug = _ingest_one(repo, wiki)
+    dst = wiki / "project_internal" / "promoted" / f"{slug}.md"
+    wiki_promote.promote_slug(
+        slug,
+        corpus="project_internal",
+        wiki_root=wiki,
+        repo_root=repo,
+        write_support_plane=False,
+    )
+    prior = dst.read_text(encoding="utf-8")
+
+    def boom(*_a: object, **_kw: object) -> None:
+        raise TypeError("unexpected_support_plane")
+
+    monkeypatch.setattr(lsp, "put_record", boom)
+    with pytest.raises(TypeError, match="unexpected_support_plane"):
+        wiki_promote.promote_slug(
+            slug,
+            corpus="project_internal",
+            wiki_root=wiki,
+            repo_root=repo,
+            write_support_plane=True,
+            allowlist=allowlist,
+            sp_root_override=tmp_path / "sp",
+            audit_secret=audit_signing_material,
+        )
+    assert dst.read_text(encoding="utf-8") == prior
+
+
 def test_promote_does_not_write_file_when_put_record_fails(
     tmp_path: Path,
     allowlist: set[tuple[str, str]],

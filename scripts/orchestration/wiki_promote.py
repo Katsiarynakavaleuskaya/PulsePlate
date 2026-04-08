@@ -7,6 +7,7 @@ EN: Fail-closed if output would resolve under repo ``docs/`` (canonical tree).
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import sys
 from pathlib import Path
@@ -79,31 +80,69 @@ def promote_slug(
         dst, repo_root=repo_root, wiki_root=wiki_resolved
     )
 
-    dst.write_text(out_text, encoding="utf-8")
-    if write_support_plane:
-        active = allowlist if allowlist is not None else cp.load_allowlist_from_env()
-        payload: dict[str, Any] = {
-            "corpus": corpus,
-            "slug": slug,
-            "promoted_at": promoted_at,
-            "promoted_path": promoted_sp,
-        }
+    tmp_path = promoted_dir / f".{slug}.promote.tmp"
+    backup_path = promoted_dir / f".{slug}.promote.bak"
+    for stale in (tmp_path, backup_path):
+        with contextlib.suppress(OSError):
+            stale.unlink(missing_ok=True)
+
+    tmp_path.write_text(out_text, encoding="utf-8")
+    had_prior = dst.is_file()
+    backup_created = False
+    try:
+        if had_prior:
+            dst.replace(backup_path)
+            backup_created = True
+        tmp_path.replace(dst)
+    except OSError as stage_exc:
         try:
-            lsp.put_record(
-                f"wiki.promoted.{slug}",
-                payload,
-                allowlist=active,
-                repo_root=repo_root,
-                root_override=sp_root_override,
-                audit_secret=audit_secret,
-                audit_log_path=audit_log_path,
-            )
-        except Exception as exc:
-            try:
+            if backup_created and backup_path.is_file():
+                backup_path.replace(dst)
+            with contextlib.suppress(OSError):
+                tmp_path.unlink(missing_ok=True)
+        except OSError as rollback_exc:
+            raise rollback_exc from stage_exc
+        raise stage_exc
+
+    if not write_support_plane:
+        with contextlib.suppress(OSError):
+            backup_path.unlink(missing_ok=True)
+        return dst
+
+    active = allowlist if allowlist is not None else cp.load_allowlist_from_env()
+    payload: dict[str, Any] = {
+        "corpus": corpus,
+        "slug": slug,
+        "promoted_at": promoted_at,
+        "promoted_path": promoted_sp,
+    }
+    try:
+        lsp.put_record(
+            f"wiki.promoted.{slug}",
+            payload,
+            allowlist=active,
+            repo_root=repo_root,
+            root_override=sp_root_override,
+            audit_secret=audit_secret,
+            audit_log_path=audit_log_path,
+        )
+    except Exception as exc:
+        try:
+            if had_prior:
+                if backup_path.is_file():
+                    backup_path.replace(dst)
+                else:
+                    # EN: Backup missing (TOCTOU / concurrent writer); keep dst (new content).
+                    # RU: Нет .bak — не удаляем единственную копию на dst.
+                    pass
+            else:
                 dst.unlink(missing_ok=True)
-            except OSError as unlink_exc:
-                raise unlink_exc from exc
-            raise
+        except OSError as rollback_exc:
+            raise rollback_exc from exc
+        raise
+    else:
+        with contextlib.suppress(OSError):
+            backup_path.unlink(missing_ok=True)
     return dst
 
 

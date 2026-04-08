@@ -41,14 +41,14 @@ reasoning layer”, knowledge graph, index-first ranked retrieval, or semantic q
 | Surface | On support-plane write failure | Rationale |
 |--------|---------------------------------|-----------|
 | **Ingest** (`wiki_ingest.py`) | **Warn and continue** (`support_plane_skip:…` on stderr); filesystem writes (raw/page/index/log) already applied | Metadata mirror is best-effort; corpus on disk is the primary ingest artifact for v1. |
-| **Promote** (`wiki_promote.py`) | **Fail closed:** promoted file is removed if `put_record` fails after the file was written | Avoids a promoted file without a matching optional metadata record when policy requires SP. |
+| **Promote** (`wiki_promote.py`) | **Fail closed:** if **filesystem staging** fails after `dst` was moved to `.bak`, the prior file is **restored** to visible `dst` and tmp is removed. If `put_record` fails after staging succeeds, the prior promoted file (if any) is **restored** from `.bak` when that backup exists; if there was no prior file, the new promoted file is **removed**. If a prior file existed but the backup is missing (race / concurrent promote), the new content on `dst` is **kept**. | Same non-destructive goal for SP errors and staging rename errors; avoids orphan promoted files without SP. |
 
 Do **not** describe ingest as wholly fail-closed on support-plane mutations: only canonical-path and
 on-disk errors abort the run; SP failures are warnings unless you treat stderr in your operator
 pipeline as fatal.
 
-Evidence: ingest SP catch — `scripts/orchestration/wiki_ingest.py:162`; promote write then
-`put_record` with `unlink` on failure — `scripts/orchestration/wiki_promote.py:80`–`scripts/orchestration/wiki_promote.py:101`.
+Evidence: ingest SP catch — `scripts/orchestration/wiki_ingest.py:162`; promote atomic staging,
+staging (`tmp`/`bak`), `put_record`, and rollbacks — `scripts/orchestration/wiki_promote.py:83`–`scripts/orchestration/wiki_promote.py:151`.
 
 ## v1 tool semantics (what the code actually does)
 
@@ -80,6 +80,16 @@ Evidence: ingest SP catch — `scripts/orchestration/wiki_ingest.py:162`; promot
 
 - Promotion is **review-oriented:** slug validation, per-page lint gate, `reject_if_under_canonical_docs`
   on the promoted path, optional `put_record`.
+- **Two-phase contract (v1):** the durable `promoted/<slug>.md` file is updated **before** `put_record`
+  succeeds, so there can be a **short window** where disk reflects the new promote while the support-plane
+  record is still old or missing; on `put_record` failure, rollback **restores** the prior promoted file
+  when `.bak` exists, **removes** the new file when there was no prior, or **keeps** the new file on
+  `dst` if a prior existed but the backup is missing (avoids deleting the only copy). If **filesystem
+  staging** fails after `dst` was moved to `.bak` but before `tmp` becomes `dst`, the prior visible file
+  is **restored** from `.bak` and the tmp file is cleaned up — same non-destructive goal as SP rollback.
+  This is **not**
+  a single atomic transaction across filesystem + SP — acceptable for local advisory tooling; avoid
+  overlapping promotes for the same slug from multiple processes.
 - Support-plane key **`wiki.promoted.<slug>` is a single slot:** each successful promote **overwrites**
   the prior record for that slug. **No versioned promotion history** in SP (filesystem `promoted/`
   holds the latest file only; historical SP audit is out of scope for v1).
@@ -91,9 +101,12 @@ Evidence: ingest SP catch — `scripts/orchestration/wiki_ingest.py:162`; promot
 - **Across separate ingest runs:** if `pages/<slug>.md` already exists, ingest reads prior
   `source_rel_path` from frontmatter; if it differs from the current source (or is missing),
   ingest fails with `slug_collision_existing:…` instead of silently overwriting.
-- **Truncation:** slugs are capped for key length (`_wiki_compiler_support.py`); two long distinct
-  paths could still converge after truncation — treated as **acceptable v1 risk**; a stricter
-  strategy is deferred (see backlog).
+- **Long slugs:** when the dot-joined base would exceed the support-plane slug budget
+  (`scripts/orchestration/_wiki_compiler_support.py:119`), the slug keeps a truncated **head** plus a **stable hex suffix**
+  derived from SHA-256 of the source relative path (POSIX), so distinct long paths normally map to
+  distinct slugs. A theoretical collision remains possible if two paths produced the same suffix
+  (extremely unlikely for the configured prefix length); treat as out of scope for v1 beyond
+  deterministic tests in `tests/test_wiki_compiler_keys.py`.
 
 ## Directory layout
 

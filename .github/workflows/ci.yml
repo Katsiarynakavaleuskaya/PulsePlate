@@ -434,9 +434,11 @@ jobs:
             cat safety-console.log
           fi
 
-          if [ "$safety_exit_code" -gt 1 ]; then
-            echo "❌ Safety failed to complete successfully (exit code: $safety_exit_code)"
-            exit "$safety_exit_code"
+          # Safety CLI 3.x may exit with codes >1 when vulnerabilities are found (e.g. 64), not only 1.
+          # Treat missing/empty JSON as a real execution failure; severities are gated in parse-safety-report.py.
+          if [ ! -s safety-report.json ]; then
+            echo "❌ Safety failed to produce safety-report.json (exit code: $safety_exit_code)"
+            exit "${safety_exit_code:-1}"
           fi
 
           analysis_status=0
