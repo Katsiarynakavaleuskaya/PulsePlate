@@ -46,6 +46,11 @@ Reason: This CodeRabbit review summary aggregates one retry-predicate fix alread
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1376#discussion_r3049907738
 
 Disposition: NOT-A-BUG
+Evidence: app/services/food_store.py:970
+Reason: The new CodeRabbit nitpick is already satisfied on current head: `_build_query` already has the explicit `-> tuple[str, Sequence[Any]]` annotation requested by the review, so no code change is needed.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1376#pullrequestreview-4074264767
+
+Disposition: NOT-A-BUG
 Evidence: docs/review/PR_1375_FIXED_MAPPING.md:1; app/services/food_store.py:126; tests/test_food_store_service.py:272
 Reason: Cubic's review summary aggregates two findings already fixed in `c803b348d` and one intentional historical-evidence artifact for superseded PR `#1375`; the remaining PR-number comment is governance context, not a product defect on PR `#1376`.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1376#pullrequestreview-4073610573
