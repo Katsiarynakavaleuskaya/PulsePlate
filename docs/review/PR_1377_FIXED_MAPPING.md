@@ -37,8 +37,28 @@ Evidence: `docs/orchestration/GOVERNANCE_COORDINATOR_FIRST_RAG_KARPATHY_TASK_PAC
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1377#pullrequestreview-4074356578
 Disposition: DEFERRED
-Backlog: `docs/roadmap/BACKLOG_LEDGER.md#ledger-p3-governance-doc-sot-consolidation`
+Backlog: `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-governance-doc-sot-consolidation`
 Reason: The requested coordinator-first SoT consolidation and epic-rail summary table are valid follow-up documentation improvements, but they widen this narrow governance merge-fix slice and are tracked separately.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1377#discussion_r3050759375 -> 85bce6467
+Disposition: FIXED
+Commit: 85bce6467
+Evidence: `docs/roadmap/BACKLOG_LEDGER.md:1435`; `docs/roadmap/BACKLOG_LEDGER.md:1437`
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1377#pullrequestreview-4074490182 -> 85bce6467
+Disposition: FIXED
+Commit: 85bce6467
+Evidence: `docs/roadmap/BACKLOG_LEDGER.md:1435`; `docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md:378`; `docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md:496`
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1377#discussion_r3050775822 -> 85bce6467
+Disposition: FIXED
+Commit: 85bce6467
+Evidence: `docs/roadmap/BACKLOG_LEDGER.md:1435`; `docs/roadmap/BACKLOG_LEDGER.md:1437`
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1377#pullrequestreview-4074506477 -> 85bce6467
+Disposition: FIXED
+Commit: 85bce6467
+Evidence: `docs/roadmap/BACKLOG_LEDGER.md:1435`; `docs/roadmap/BACKLOG_LEDGER.md:1437`
 
 ## Merge Readiness
 
