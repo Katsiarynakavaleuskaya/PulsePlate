@@ -10,7 +10,35 @@ appear; resolve conversations on GitHub only after mapping per `AGENTS.md`.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1377#discussion_r3050646475 -> 2fa900a2b
+Disposition: FIXED
+Commit: 2fa900a2b
+Evidence: `docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md:12`; `docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md:92`; `docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md:95`
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1377#discussion_r3050646486 -> 2fa900a2b
+Disposition: FIXED
+Commit: 2fa900a2b
+Evidence: `RUNBOOK_AGENT.md:112`; `RUNBOOK_AGENT.md:116`
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1377#pullrequestreview-4074376729 -> 2fa900a2b
+Disposition: FIXED
+Commit: 2fa900a2b
+Evidence: `RUNBOOK_AGENT.md:56`; `RUNBOOK_AGENT.md:112`; `docs/dev/LOCAL_COORDINATOR_LAUNCHER_ROLLOUT.md:134`; `docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md:12`
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1377#discussion_r3050658486 -> 2fa900a2b
+Disposition: FIXED
+Commit: 2fa900a2b
+Evidence: `docs/orchestration/GOVERNANCE_COORDINATOR_FIRST_RAG_KARPATHY_TASK_PACKET_2026-04-08.md:4`
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1377#pullrequestreview-4074389157 -> 2fa900a2b
+Disposition: FIXED
+Commit: 2fa900a2b
+Evidence: `docs/orchestration/GOVERNANCE_COORDINATOR_FIRST_RAG_KARPATHY_TASK_PACKET_2026-04-08.md:4`
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1377#pullrequestreview-4074356578
+Disposition: DEFERRED
+Backlog: `docs/roadmap/BACKLOG_LEDGER.md#ledger-p3-governance-doc-sot-consolidation`
+Reason: The requested coordinator-first SoT consolidation and epic-rail summary table are valid follow-up documentation improvements, but they widen this narrow governance merge-fix slice and are tracked separately.
 
 ## Merge Readiness
 
