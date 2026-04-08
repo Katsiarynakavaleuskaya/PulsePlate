@@ -1431,10 +1431,10 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Ownership boundaries for AI runtime seams are explicit
     - Packet and extraction items are separate and non-duplicative
 
-<a id="ledger-p3-governance-doc-sot-consolidation"></a>
-- [ ] P3: Consolidate coordinator-first docs SoT and rail summary table
+<a id="ledger-p1-governance-doc-sot-consolidation"></a>
+- [ ] P1: Consolidate coordinator-first docs SoT and rail summary table
   - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P3
+  - Priority: P1
   - Target PR: PR-TBD-GOVERNANCE-DOC-SOT-CONSOLIDATION
   - Area: docs / orchestration / roadmap
   - Finding Type: review follow-up

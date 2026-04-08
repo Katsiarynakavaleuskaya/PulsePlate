@@ -375,7 +375,7 @@ Ensure session start reliably runs preflight + bootstrap before relying on compi
 existing local workforce PR-D entry
 
 #### Goal
-Implement raw/wiki/index/log style advisory memory.
+Implement raw/wiki/index/log-style advisory memory.
 
 #### In scope
 - ingest
@@ -493,7 +493,7 @@ Build the PulsePlate RAG/LLM/Karpathy line as two separate but coordinated rails
    - PR-B3 optional query/lint enrichment
    - PR-B4 optional reference-corpus policy
 
-Never treat advisory wiki as product truth. Never replace repo/contracts/DB truth. Never let this rail overtake still-open emergency release blockers.
+Never treat advisory wiki as product truth. Do not replace repo/contracts/DB truth. This rail must not overtake still-open emergency release blockers.
 
 For the governance/docs prep PR:
 - keep `docs/review/PR_1372_FIXED_MAPPING.md` as a separate active review artifact;
