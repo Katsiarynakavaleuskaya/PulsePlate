@@ -1369,6 +1369,90 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Security/static analysis checks pass without local suppressions for this path
 
 
+<a id="ledger-p1-wave6-ai-runtime-umbrella"></a>
+- [ ] P1: Wave 6 AI runtime umbrella
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (AI differentiation sequencing)
+  - Target PR: PR-TBD-WAVE6-AI-RUNTIME-UMBRELLA
+  - Area: AI / roadmap / execution spine
+  - Finding Type: epic normalization
+  - Status: 📋 Planned
+  - Reason (EN): Wave 6 already exists in the execution document, but the backlog still lacks one umbrella entry that binds runtime AI sequencing into a single governed PR spine. Without an umbrella, later agents keep reconstructing the order from scattered items and risk mixing runtime AI work with the advisory workforce/wiki lane.
+  - Links:
+    - `docs/roadmap/PulsePlate_P0_P1_Execution_Document_2026-03-30.md`
+    - `docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p0-insight-fallback-chain`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-ai-bounded-context-extraction`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-philosophical-logic`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-recursive-methods`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-scientific-reliability-pipeline`
+  - DoD:
+    - One umbrella item exists for the product AI runtime rail
+    - Wave 6 order is explicit and pointer-based
+    - Runtime AI rail is kept separate from the Karpathy workforce/wiki rail
+    - Existing child items remain authoritative and are not duplicated as competing SoT
+
+<a id="ledger-p1-rag-hardening-followthrough"></a>
+- [ ] P1: RAG hardening follow-through
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (runtime reliability)
+  - Target PR: PR-TBD-RAG-HARDENING-FOLLOWTHROUGH
+  - Area: AI / RAG / runtime hardening
+  - Finding Type: follow-through runtime slice
+  - Status: 📋 Planned
+  - Reason (EN): The execution spine already calls for a dedicated runtime RAG hardening slice, but the backlog still tracks the work only indirectly through scattered vector/refactor debt and follow-through wording. This item creates one canonical anchor for retrieval-path hardening, deterministic confidence recomputation, and response-contract-safe cleanup.
+  - Links:
+    - `docs/roadmap/PulsePlate_P0_P1_Execution_Document_2026-03-30.md`
+    - `docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md`
+    - `docs/contracts/RAG_CONTRACT.md`
+    - `core/rag/vector_rag.py`
+  - DoD:
+    - Retrieval hardening has one canonical backlog anchor
+    - Confidence recomputation and retrieval-path cleanup are documented as runtime follow-through
+    - No new semantic/vector surface expansion is implied by this item alone
+    - Public response contracts remain additive and stable
+
+<a id="ledger-p1-ai-bounded-context-packet"></a>
+- [ ] P1: AI bounded-context packet
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (architecture sequencing)
+  - Target PR: PR-TBD-AI-BOUNDED-CONTEXT-PACKET
+  - Area: AI / architecture / docs
+  - Finding Type: packet-first architecture freeze
+  - Status: 📋 Planned
+  - Reason (EN): The execution order already expects a packet-first architecture slice before bounded-context extraction, but the backlog lacks a dedicated packet anchor. This item freezes ownership boundaries before code movement so extraction work stays narrow and contract-safe.
+  - Links:
+    - `docs/roadmap/PulsePlate_P0_P1_Execution_Document_2026-03-30.md`
+    - `docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-ai-bounded-context-extraction`
+    - `docs/architecture/ADR_AI_RUNTIME_BOUNDED_CONTEXT_SEAM_2026-03-09.md`
+  - DoD:
+    - A docs-only packet exists before extraction
+    - Ownership boundaries for AI runtime seams are explicit
+    - Packet and extraction items are separate and non-duplicative
+
+<a id="ledger-p1-governance-doc-sot-consolidation"></a>
+- [ ] P1: Consolidate coordinator-first docs SoT and rail summary table
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-GOVERNANCE-DOC-SOT-CONSOLIDATION
+  - Area: docs / orchestration / roadmap
+  - Finding Type: review follow-up
+  - Status: 📋 Planned
+  - Reason (EN): PR #1377 review feedback identified two useful but broader follow-ups: reducing wording drift by pointing repeated coordinator-first and role-order guidance at one explicit source-of-truth subsection, and adding a compact rail/umbrella/scope summary table near the top of the RAG/LLM/Karpathy epic spine. This work should stay separate from the narrow docs/governance merge-fix slice so the current PR can close its governance lane without silently widening scope.
+  - Links:
+    - `AGENTS.md`
+    - `RUNBOOK_AGENT.md`
+    - `docs/orchestration/workflow.md`
+    - `docs/dev/LOCAL_COORDINATOR_LAUNCHER_ROLLOUT.md`
+    - `docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md`
+    - `docs/review/PR_1377_FIXED_MAPPING.md`
+  - DoD:
+    - One explicit source-of-truth subsection is identified for coordinator-first and role-order invariants
+    - Repeated operator-facing docs link to that source without losing lane-local execution context
+    - `PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md` includes a compact rail/umbrella/scope summary table
+    - No runtime, OpenAPI, or product-surface changes are introduced
+
 <a id="ledger-p1-philosophical-logic"></a>
 - [ ] P1: Philosophical logic principles for LLM reliability (Aristotelian, Analytical, Post-Analytical, Linguistic)
   - Owner: @katsiaryna_kavaleuskaya
@@ -2450,6 +2534,23 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Existing security/control-plane primitives are reused where possible
     - Launcher/runtime behavior stays outside repo SoT unless separately promoted by the automation readiness matrix
     - No duplicate orchestration source of truth is introduced
+<a id="ledger-p2-karpathy-style-advisory-wiki-umbrella"></a>
+- [ ] P2: Karpathy-style advisory wiki umbrella
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR-TBD-KARPATHY-ADVISORY-WIKI-UMBRELLA
+  - Area: orchestration / workforce memory / roadmap
+  - Finding Type: umbrella canonicalization
+  - Reason (EN): The workforce compiled-memory line now has launcher/bootstrap, compiler, and hardening slices, but the backlog still lacks one explicit umbrella item that marks it as a separate advisory rail rather than an accidental side-project or product-RAG substitute. (RU: У workforce compiled-memory линии уже есть launcher/bootstrap, compiler и hardening slices, но в backlog нет одного umbrella-item, который бы фиксировал её как отдельный advisory rail, а не побочный side-project или замену product RAG.)
+  - Links:
+    - `docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md`
+    - `docs/dev/LOCAL_COORDINATOR_LAUNCHER_ROLLOUT.md`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p2-local-workforce-pr-d-advisory-wiki-compiler`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p2-local-launcher-rollout-for-coordinator-first-automation`
+  - DoD:
+    - One canonical umbrella entry exists for the advisory workforce rail
+    - The rail is explicitly marked non-canonical and non-product-facing
+    - Existing launcher/compiler slices are linked as children or prerequisites
 
 <a id="ledger-p2-local-workforce-pr-d-advisory-wiki-compiler"></a>
 - [ ] P2: Local workforce PR-D — advisory wiki compiler over local support plane
@@ -2481,6 +2582,43 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Richer lint: orphans, stale links, index/page consistency beyond raw hash, contradiction checks (not in v1).
     - Search: ranking, headings/title weighting, or index-first retrieval (v1 is body substring only).
 
+<a id="ledger-p2-advisory-wiki-query-lint-enrichment"></a>
+- [ ] P2: Advisory wiki query/lint enrichment
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR-TBD-ADVISORY-WIKI-QUERY-LINT-ENRICHMENT
+  - Area: orchestration / workforce memory / operator tooling
+  - Finding Type: post-hardening follow-on
+  - Reason (EN): The compiler/hardening baseline is now present, but the next workforce slice should enrich query and lint behavior without widening into embeddings, vector search, or product-facing RAG semantics. (RU: Базовый compiler/hardening уже есть, но следующий workforce slice должен улучшать query/lint без ухода в embeddings, vector search или product-facing RAG semantics.)
+  - Links:
+    - `docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p2-local-workforce-pr-d-advisory-wiki-compiler`
+    - `scripts/orchestration/wiki_query.py`
+    - `scripts/orchestration/wiki_lint.py`
+  - DoD:
+    - Query/lint enrichment remains non-canonical and operator-only
+    - No embeddings, vector DB, or public runtime coupling are introduced
+    - Follow-on scope is explicit: richer query semantics, orphan/stale-link detection, contradiction lint, or index weighting
+
+<a id="ledger-p2-advisory-wiki-reference-corpus-policy"></a>
+- [ ] P2: Advisory wiki bounded reference-corpus policy
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR-TBD-ADVISORY-WIKI-REFERENCE-CORPUS-POLICY
+  - Area: orchestration / workforce memory / docs
+  - Finding Type: source-boundary policy
+  - Status: 📋 Planned
+  - Reason: The workforce rail includes a bounded reference-corpus policy slice so DeepWiki or similar helper corpora can remain read-only secondary aids instead of drifting into a second source of truth.
+  - Links:
+    - `docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md`
+    - `docs/dev/LOCAL_COORDINATOR_LAUNCHER_ROLLOUT.md`
+    - `docs/orchestration/AUTOMATION_READINESS_MATRIX.md`
+  - DoD:
+    - Reference corpora are explicitly documented as read-only helper inputs
+    - Repo artifacts remain the only canonical source of truth
+    - No embeddings, vector DB, or product-runtime coupling are introduced by this policy item
+
+<a id="ledger-p2-local-launcher-rollout-for-coordinator-first-automation"></a>
 - [ ] P2: Local launcher rollout for coordinator-first automation
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2

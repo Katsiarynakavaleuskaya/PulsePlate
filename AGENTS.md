@@ -315,6 +315,10 @@ If your change conflicts with these docs, you must explain why and how risks are
 
 **Hard rule:** Any new task MUST start with `agent-coordinator` for task analysis and agent routing.
 
+**Start gate clarification:** If launcher/runtime auto-capture is unavailable, manual
+`agent-coordinator` invocation is still mandatory before any non-trivial execution.
+Coordinator-first is a start gate, not advisory wording.
+
 ### Definition of a Task (Canonical)
 
 A **task** is any unit of work that:
@@ -341,6 +345,19 @@ Optional local bridge (operator-invoked; not host auto-start): see [`scripts/AGE
 4. **Synthesis** → Coordinator synthesizes multi-agent work into coherent solution
 5. **DoD** → Coordinator verifies Definition of Done before PR merge
 
+### Role-Agent Order Contract
+
+For coordinator-owned PR lanes, the coordinator defines the executable role order and that
+order becomes mandatory for the lane packet/runbook.
+
+Rules:
+- Every role agent assigned by coordinator MUST be used in the declared order.
+- No assigned role agent may be skipped without an explicit coordinator update to the
+  packet/runbook.
+- No parallel or ad-hoc internal role stack may replace the declared coordinator order.
+- Privileged-surface lanes must still include the canonical mandatory post-open
+  `qa-engineer-agent -> bug-hunter` pass even when earlier reviewers already participated.
+
 ### PR Handling Lifecycle (Coordinator-Owned)
 
 All non-trivial PR work must follow this coordinator-owned lifecycle:
@@ -350,6 +367,17 @@ All non-trivial PR work must follow this coordinator-owned lifecycle:
 3. **Push cycle**: before each push, run `pre-commit run --all-files` and the applicable local gates; after each push, watch the **current-head** CI state, not stale historical runs.
 4. **Review cycle**: treat every new human or bot comment as coordinator input; record disposition in `docs/review/PR_<N>_FIXED_MAPPING.md` first, update the PR-body mirror second, and re-run merge-readiness checks after the latest activity.
 5. **Merge cycle**: claim merge readiness only after the strict wrapper passes, required current-head checks are green with no pending jobs, no actionable bot comments remain, and the mandatory wait-window has elapsed.
+
+### Next-PR Start Gate
+
+After any merge:
+- sync local `main` with a fetch-based flow;
+- inspect current-head health for `main`;
+- if `main` is red, pending on merge fallout, or otherwise unstable, do **not** start the
+  next PR;
+- stabilize `main` first, then open the next branch in the sequence.
+
+This rule applies to epic PR trains as well as ordinary follow-up work.
 
 Operational procedure lives in `RUNBOOK_AGENT.md` and `docs/orchestration/COORDINATOR_MERGE_READINESS_RULES.md`; this section is the policy summary that every agent must follow.
 

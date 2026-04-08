@@ -22,6 +22,8 @@
 > enforcement described in `docs/orchestration/AUTOMATION_READINESS_MATRIX.md`.
 
 **When creating any task, coordinator-first routing is required.**
+If launcher/runtime auto-capture is unavailable, manual coordinator invocation is still
+required before any non-trivial execution. This is a start gate, not advisory wording.
 
 **Canonical workflow:** See `docs/orchestration/workflow.md`
 
@@ -41,6 +43,18 @@ The coordinator will:
 4. **Synthesize outputs** from multiple agents into one coherent solution.
 5. **Verify quality gates and merge-governance state** before any readiness claim.
 6. **Record follow-ups** in `docs/roadmap/BACKLOG_LEDGER.md` when work is deferred.
+
+### Required role-order execution
+
+When a coordinator-owned task packet or runbook declares an explicit role-agent order, execute
+the assigned role agents in that order.
+
+Rules:
+- Do not skip an assigned role agent without an explicit coordinator update to the packet.
+- Do not replace the declared order with an ad-hoc internal stack.
+- The canonical post-open `qa-engineer-agent -> bug-hunter` lane remains mandatory for PR work.
+Source of truth: the active lane packet or runbook at the canonical packet path for the current
+lane, which contains the enforced role-agent sequence for that task or PR.
 
 **Usage:**
 ```text
@@ -70,6 +84,12 @@ instructions still match the live contract:
 - See canonical definition: `AGENTS.md` (Agent Coordination section)
 - Templates: `docs/orchestration/*.template.md`
 - Full workflow: `docs/orchestration/workflow.md`
+- If the previous PR in the active train has merged, sync local `main` first and verify
+  current-head `main` health before creating the next branch.
+- If `main` is red, pending because of merge fallout, or otherwise unstable, stop the next PR
+  and stabilize `main` first.
+- If the active lane packet or runbook defines an explicit role-agent order, execute the
+  assigned role agents in that exact order.
 - For PR lifecycle packets, bootstrap may now accept `--pr-phase`:
   - `pre_open` for pre-PR scope lock without review-lane synthesis
   - `post_open_review` after PR creation to surface the mandatory
@@ -79,6 +99,26 @@ instructions still match the live contract:
   or host-runtime auto-trigger by itself.
 
 **Postponed items:** Always record in `docs/roadmap/BACKLOG_LEDGER.md` immediately.
+
+### Post-merge sync and cleanup before the next PR
+
+Use this sequence after a merge and before opening the next PR in a train:
+
+1. `git checkout main`
+2. `git fetch --prune origin`
+3. `git merge --ff-only origin/main`
+4. verify current-head required-check health for `main`; if `main` is red, pending on merge
+   fallout, or otherwise unstable, stop and fix `main`
+5. run `gh pr view <N> --json state` and confirm the PR state is `MERGED`; abort cleanup and
+   next-PR prep if the PR is not merged yet
+6. remove merged local branches only after sync and merge-state verification
+7. remove merged remote branches/worktrees only after sync and merge-state verification
+8. start the next worktree/branch from synced `origin/main`; do not push more work to the
+   already merged PR branch
+9. clear only gitignored local artifacts relevant to the finished lane; never commit
+   `artifacts/`, `worktrees/`, or host-local wrapper state
+
+This is an operator runbook rule; it does not authorize `git pull` shortcuts or force-pushes.
 
 ---
 

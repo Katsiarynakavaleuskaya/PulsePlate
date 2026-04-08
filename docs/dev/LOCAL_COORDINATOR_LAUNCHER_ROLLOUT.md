@@ -16,6 +16,18 @@ developers or CI. Repository markdown and templates do not auto-start sessions o
 [`scripts/orchestration/local_session_bootstrap.sh`](../../scripts/orchestration/local_session_bootstrap.sh)
 (repo bridge; prints bootstrap recipe only).
 
+**Governance boundary:** This launcher can invoke canonical coordinator packets on an opted-in
+machine. It does **not** bypass review-thread, required-check, or merge-readiness rules from root
+`AGENTS.md` and `RUNBOOK_AGENT.md`.
+
+**Coordinator-first boundary:** launcher installation makes coordinator-first startup easier on
+an opted-in machine, but it does not replace the repo policy that manual `agent-coordinator`
+invocation is mandatory when launcher/runtime auto-capture is unavailable.
+
+**Governance lane note:** the coordinator-first/RAG-Karpathy governance prep lane may carry its
+own packet, but this launcher runbook remains governed by the stable repo SoT listed above rather
+than by an ephemeral PR packet path.
+
 ## Install (host)
 
 1. Ensure `python3` is on `PATH` and you have a git clone of this repository.
@@ -119,9 +131,25 @@ git merge --ff-only origin/main
 git branch -d docs/local-launcher-rollout-closeout
 ```
 
+Before opening the next PR in the train:
+- inspect current-head `main` health;
+- if `main` is red, pending on merge fallout, or otherwise unstable, stop and stabilize
+  `main` first;
+- only then create the next branch from synced `origin/main`;
+- re-run wrapper smokes on the same machine;
+- refresh the installed script if the repo template changed.
+
 Delete the remote PR branch only if that matches your post-merge policy (`AGENTS.md`, `RUNBOOK_AGENT.md`).
 
-Then: re-run wrapper smokes on the same machine; refresh the installed script if the repo template changed.
+Clean only local gitignored artifacts relevant to the finished lane. Do **not** commit or promote:
+- `artifacts/`
+- `worktrees/`
+- host-local wrappers
+- `~/.codex/config.toml`
+- shell `PATH` snippets
+
+Avoid vague "clear caches" cleanup. Remove only lane-local gitignored artifacts that are safe to
+recreate; do not touch tracked repo files except through intentional PR changes.
 
 ## Rollback
 
@@ -137,6 +165,7 @@ Then: re-run wrapper smokes on the same machine; refresh the installed script if
 - **No CI enforcement:** hosts opt in individually.
 - **Secrets:** never pass tokens via wrapper flags; keep host config out of git.
 - Task packets land under `artifacts/` (gitignored); do not commit them.
+- This launcher/runbook line does **not** authorize a new PR if post-merge `main` is unhealthy.
 
 ## Evidence and backlog
 
