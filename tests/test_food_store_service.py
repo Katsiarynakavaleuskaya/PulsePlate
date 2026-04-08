@@ -443,6 +443,24 @@ def test_foods_has_nutrition_confidence_column_handles_sqlite_execute_error() ->
     assert food_store._foods_has_nutrition_confidence_column(_ErrConn()) is False
 
 
+def test_foods_has_nutrition_confidence_column_returns_cached_value_without_pragma(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    food_store.reset_foods_nutrition_confidence_column_cache()
+
+    class _NoPragmaConn:
+        def execute(self, *_a: Any, **_kw: Any) -> Any:
+            raise AssertionError("cached path must not execute PRAGMA")
+
+    monkeypatch.setattr(food_store, "_foods_db_cache_key_for_connection", lambda _con: "cache-key")
+    food_store._NUTRITION_CONFIDENCE_COLUMN_CACHE["cache-key"] = True
+
+    try:
+        assert food_store._foods_has_nutrition_confidence_column(_NoPragmaConn()) is True
+    finally:
+        food_store.reset_foods_nutrition_confidence_column_cache()
+
+
 def test_invalidate_foods_nutrition_confidence_cache_drops_active_entry(tmp_path: Path) -> None:
     db_path = tmp_path / "foods.sqlite"
     with sqlite3.connect(db_path) as conn:
@@ -466,6 +484,15 @@ def test_invalidate_foods_nutrition_confidence_cache_drops_active_entry(tmp_path
             assert cache_key not in food_store._NUTRITION_CONFIDENCE_COLUMN_CACHE
         finally:
             food_store.DB_PATH = original_db_path
+
+
+def test_invalidate_foods_nutrition_confidence_cache_noops_without_cache_key() -> None:
+    food_store.reset_foods_nutrition_confidence_column_cache()
+
+    with sqlite3.connect(":memory:") as conn:
+        food_store._invalidate_foods_nutrition_confidence_cache(conn)
+
+    assert food_store._NUTRITION_CONFIDENCE_COLUMN_CACHE == {}
 
 
 def test_execute_foods_query_with_legacy_retry_retries_missing_confidence_column(
