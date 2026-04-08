@@ -34,6 +34,19 @@ Backlog: docs/roadmap/BACKLOG_LEDGER.md#ledger-p2-local-workforce-pr-d-advisory-
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1372#discussion_r3048131943
 
+Disposition: NOT-A-BUG
+
+Reason: Sourcery, Cubic, and CodeRabbit bot reviews below are advisory summaries or duplicate context; substantive items are covered by FIXED commits above or require no further code change in this PR.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1372#pullrequestreview-4071571999
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1372#pullrequestreview-4071591219
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1372#discussion_r3048131934
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1372#discussion_r3048131939
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1372#pullrequestreview-4071604087
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1372#pullrequestreview-4071666845
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1372#pullrequestreview-4071672230
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1372#discussion_r3048194790
+
 ## Merge Readiness
 
 - [ ] Current-head CI green for PR branch head
