@@ -49,9 +49,16 @@ Reason: Sourcery, Cubic, and CodeRabbit bot reviews below are advisory summaries
 
 ## Merge Readiness
 
-- [ ] Current-head CI green for PR branch head
+- [ ] Current-head CI green for PR branch head (includes `security` job after Safety gate fix)
 - [ ] Required checks complete (no pending jobs)
 - [ ] All review threads resolved on GitHub after disposition updates
+
+### Proactive CI: Safety / dependency (no review thread)
+
+- Commit `044ece6e9e381687877a1b366a175516e0b7b2b9` — Safety CLI 3.x: fail only when `safety-report.json` is missing/empty; fonttools `4.62.1`; `docs/security/FONTTOOLS_TTX_EVAL_ADVISORY.md`.
+- Commit `0b0ba1f4a2ae7bcddba860b9ff3f65e916b5281b` — `detect-secrets` baseline sync after staged edits.
+
+Evidence: `.github/workflows/ci.yml:437-441`, `requirements.txt:57`, `docs/security/FONTTOOLS_TTX_EVAL_ADVISORY.md:1`
 
 ### Local verification
 
