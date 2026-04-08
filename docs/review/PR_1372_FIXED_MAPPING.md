@@ -48,6 +48,16 @@ Evidence: `scripts/orchestration/wiki_promote.py:83-146` (staging + `put_record`
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1372#pullrequestreview-4071666845
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1372#pullrequestreview-4071672230
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1372#discussion_r3048194790
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1372#pullrequestreview-4073232967
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1372#discussion_r3049616519
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1372#pullrequestreview-4073302335
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1372#discussion_r3049680798
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1372#discussion_r3049680808
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1372#discussion_r3049689402
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1372#discussion_r3049689406
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1372#pullrequestreview-4073311595
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1372#discussion_r3049706223
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1372#pullrequestreview-4073329825
 
 ## Merge Readiness
 
