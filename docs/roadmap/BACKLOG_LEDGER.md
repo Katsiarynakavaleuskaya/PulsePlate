@@ -1409,7 +1409,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - DoD:
     - Retrieval hardening has one canonical backlog anchor
     - Confidence recomputation and retrieval-path cleanup are documented as runtime follow-through
-    - No semantic/vector expansion is implied by this item alone
+    - No new semantic/vector surface expansion is implied by this item alone
     - Public response contracts remain additive and stable
 
 <a id="ledger-p1-ai-bounded-context-packet"></a>
