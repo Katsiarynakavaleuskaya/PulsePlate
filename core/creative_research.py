@@ -395,7 +395,7 @@ def validate_bundle(payload: object) -> CreativeResearchBundleRecord:
             allowed = ", ".join(CONFIDENCE_LEVELS)
             raise ValueError(f"{label} confidence must be one of: {allowed}.")
 
-        normalized_confidence = confidence
+        normalized_confidence = next(level for level in CONFIDENCE_LEVELS if level == confidence)
         candidate: CreativeResearchCandidateRecord = {
             "candidate_id": _require_non_empty_string(
                 candidate_payload,
@@ -446,7 +446,7 @@ def validate_bundle(payload: object) -> CreativeResearchBundleRecord:
         }
         candidates.append(candidate)
 
-    normalized_phase = phase
+    normalized_phase = next(valid_phase for valid_phase in VALID_PHASES if valid_phase == phase)
     bundle_record: CreativeResearchBundleRecord = {
         "schema_version": schema_version,
         "bundle_id": bundle_id,

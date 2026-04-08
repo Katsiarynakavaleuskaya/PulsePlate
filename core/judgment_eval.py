@@ -175,9 +175,12 @@ def _validate_turns(raw_value: object, *, label: str) -> list[FitChefReplayTurnR
         role = raw_role.lower()
         if role not in FITCHEF_REPLAY_ROLES:
             raise ValueError(f"{label} turn #{index} role must be user|assistant.")
+        normalized_role = next(
+            replay_role for replay_role in FITCHEF_REPLAY_ROLES if replay_role == role
+        )
         turns.append(
             {
-                "role": role,
+                "role": normalized_role,
                 "text": _require_case_string(
                     turn_payload, key="text", label=f"{label} turn #{index}"
                 ),
