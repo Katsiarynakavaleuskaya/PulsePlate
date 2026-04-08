@@ -2898,6 +2898,23 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Billing activation/persistence closeout remains explicitly out of scope for this CVE
     - Alerts `#579` and `#580` are closed or formally covered by the approved suppression policy
 
+- [ ] P1: Reconcile open Dependabot alerts on `main` after manifest fixes
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-STALE-DEPENDABOT-RECONCILIATION
+  - Area: security / dependencies / scanner-state
+  - Finding Type: stale alert reconciliation
+  - Reason: As of 8 April 2026, GitHub Dependabot on `main` still reports open alerts `#100`, `#99`-`#95`, `#94`, and `#93`-`#92` for `addressable`, `hono`, `@hono/node-server`, and `vite`, while the repo manifests already show newer dependency states (`ios/Gemfile.lock` -> `addressable 2.9.0`, `package-lock.json` -> `hono 4.12.12` and `@hono/node-server 1.19.13`, `frontend/package-lock.json` -> `vite 6.4.2`). These alerts appear stale relative to current manifests, but require per-alert reconciliation against the GitHub advisory boundary and scanner refresh state. That work must stay in a dedicated follow-up instead of expanding the narrow root npm remediation PR for `smol-toml` / `yaml`.
+  - Links:
+    - `ios/Gemfile.lock`
+    - `package-lock.json`
+    - `frontend/package-lock.json`
+    - `docs/review/PR_1372_FIXED_MAPPING.md`
+  - DoD:
+    - Confirm whether GitHub auto-closes the alerts after the next scanner refresh on `main`
+    - If alerts remain open, document per-alert evidence that `main` already carries the patched version or open a dedicated triage PR with that evidence
+    - Resolve the stale-alert state without reopening unrelated dependency drift in the narrow remediation PR
+
 <a id="ledger-p1-ai-reliability-experiment-sublane"></a>
 - [ ] P1: AI reliability experimentation sublane for logic + philosophy offline replay
   - Owner: @katsiaryna_kavaleuskaya
