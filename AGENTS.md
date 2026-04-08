@@ -15,6 +15,13 @@ Or individually:
 - `make test-fast` — deterministic smoke subset (`tests/edges` + `tests/test_remaining_modules.py`)
 - `make diff-cov` — diff-cover ≥97% against origin/main
 
+`verify-env` (the first step of `make verify`) also rejects **present** broken
+`.venv/bin` console scripts for flake8/pytest/mypy/coverage/diff-cover (stale
+absolute shebang, non-executable file, broken symlink) so local preflight
+cannot pass while PATH-activated or hook-driven invocations would still hit a
+dead interpreter. Missing scripts are OK; see
+`scripts/ci/check_local_verify_environment.py`.
+
 **Tooling behavior contract (validation helpers):**
 
 - `test-fast` is deterministic and does not use `.pytest_cache`/`--lf`.
@@ -187,6 +194,7 @@ The merge-readiness gate remains separate and still requires `GITHUB_TOKEN` for 
 **Forbidden to commit:**
 - `artifacts/agent_runs/`
 - `artifacts/orchestration/`
+- `artifacts/security_lab/`
 - `worktrees/`
 - `.venv/`
 - `.pytest_cache/`
@@ -324,6 +332,8 @@ A **task** is any unit of work that:
 ### Workflow
 
 **Pre-flight MUST run:** `python3 scripts/orchestration/check_preflight.py` — failure = stop execution.
+
+Optional local bridge (operator-invoked; not host auto-start): see [`scripts/AGENTS.md`](scripts/AGENTS.md) (first-class wrappers) and [`docs/orchestration/AUTOMATION_READINESS_MATRIX.md`](docs/orchestration/AUTOMATION_READINESS_MATRIX.md).
 
 1. **Task Analysis** → Coordinator analyzes task, identifies domains, assigns priority
 2. **Agent Assignment** → Coordinator routes to appropriate agent(s) based on capabilities

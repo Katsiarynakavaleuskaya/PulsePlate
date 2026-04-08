@@ -30,6 +30,7 @@ on:
   workflow_dispatch:
 
 permissions:
+  actions: write
   contents: read
 
 env:
@@ -47,14 +48,35 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Free disk space (Ubuntu hosted runner)
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc || true
+          df -h
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435
 
       - name: Build Docker image
-        run: |
-          docker build \
-            --build-arg PULSEPLATE_PYTHON_INDEX_URL="${PULSEPLATE_PYTHON_INDEX_URL}" \
-            --build-arg PULSEPLATE_PYTHON_TRUSTED_HOST="${PULSEPLATE_PYTHON_TRUSTED_HOST}" \
-            -t pulseplate-smoke:${{ github.sha }} .
+        uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7.0.0
+        with:
+          context: .
+          build-args: |
+            PULSEPLATE_PYTHON_INDEX_URL=${{ env.PULSEPLATE_PYTHON_INDEX_URL }}
+            PULSEPLATE_PYTHON_TRUSTED_HOST=${{ env.PULSEPLATE_PYTHON_TRUSTED_HOST }}
+          platforms: linux/amd64
+          push: false
+          load: true
+          tags: pulseplate-smoke:${{ github.sha }}
+          # Scope rev suffix: GHA cache can 404 on stale blobs; rotating scope recovers without disabling cache.
+          cache-from: type=gha,scope=docker-openapi-smoke-v2-${{ github.ref_name }}
+          cache-to: type=gha,scope=docker-openapi-smoke-v2-${{ github.ref_name }},mode=min,ignore-error=true
+          # Provenance / SLSA attestations require a registry push; docker exporter + load:true cannot
+          # attach attestations (Docker docs: build CI attestations). Do not enable provenance here
+          # without a separate push-based job — see docs/architecture/ADR_DOCKER_BUILD_PROVENANCE_WORKAROUND_2026-03-01.md.
+          provenance: false
+          target: production
 
       - name: Run container
         run: |

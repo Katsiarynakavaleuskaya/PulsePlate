@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import uuid
 from pathlib import Path
 
 import pytest
@@ -28,6 +29,11 @@ from scripts.orchestration.routing_graph_loader import (
     REQUIRED_BOOTSTRAP_LANE,
 )
 from scripts.orchestration.task_bootstrap import (
+    REQUESTED_AGENT_STATUS_ADVISORY_DOMAIN_MISMATCH,
+    REQUESTED_AGENT_STATUS_ADVISORY_NON_ROUTABLE,
+    REQUESTED_AGENT_STATUS_HONORED_PRIMARY,
+    REQUESTED_AGENT_STATUS_PROMOTED,
+    REQUESTED_AGENT_STATUS_REJECTED_UNKNOWN,
     _apply_pr_lifecycle_review_path,
     _normalize_secondary_review_path,
     _resolve_output_path,
@@ -1272,10 +1278,11 @@ def test_main_rejects_output_outside_repo(tmp_path, capsys) -> None:
     assert "FAIL: --output must stay within the repository root" in captured.out
 
 
-def test_main_writes_relative_output_inside_repo(tmp_path, monkeypatch, capsys) -> None:
+def test_main_writes_relative_output_inside_repo(monkeypatch, capsys) -> None:
     """CLI should write relative --output under repo root and report repo-relative path."""
 
-    relative_output = Path("tmp/task-packet.json")
+    # Unique path avoids xdist races on a shared repo-local tmp file.
+    relative_output = Path(f"tmp/task-packet-{uuid.uuid4().hex}.json")
     repo_output = (REPO_ROOT / relative_output).resolve()
     if repo_output.exists():
         repo_output.unlink()
@@ -1375,7 +1382,7 @@ def test_main_writes_relative_output_inside_repo(tmp_path, monkeypatch, capsys) 
 def test_main_writes_repo_root_output_as_relative_path(monkeypatch, capsys) -> None:
     """Direct children of the repo root should still be reported repo-relative."""
 
-    relative_output = Path("task-packet-root.json")
+    relative_output = Path(f"task-packet-root-{uuid.uuid4().hex}.json")
     repo_output = (REPO_ROOT / relative_output).resolve()
     if repo_output.exists():
         repo_output.unlink()
@@ -1768,3 +1775,111 @@ def test_main_passes_design_lane_flags(
     assert observed["code_native_design_brief_path"] == "docs/design/HERO_BRIEF.md"
     assert observed["explicit_creation_mode"] is True
     assert json.loads(captured.out)["task_packet_id"] == "design-packet"
+
+
+def _disposition_map(packet: dict[str, object]) -> dict[str, dict[str, str]]:
+    """Map agent slug -> disposition row for requested-agent assertions."""
+
+    rows = packet["requested_agent_disposition"]
+    assert isinstance(rows, list)
+    out: dict[str, dict[str, str]] = {}
+    for row in rows:
+        assert isinstance(row, dict)
+        agent = str(row["agent"])
+        out[agent] = {str(k): str(v) for k, v in row.items()}
+    return out
+
+
+def test_build_task_packet_rejects_unknown_requested_agent() -> None:
+    """Unknown slugs must record rejected_unknown with explicit rationale."""
+
+    packet = build_task_packet(
+        goal="Orchestration hygiene",
+        task_class="Orchestration",
+        candidate_paths=["scripts/orchestration/task_bootstrap.py"],
+        requested_agents=["totally-unknown-agent-slug-xyz"],
+    )
+    dm = _disposition_map(packet)
+    assert dm["totally-unknown-agent-slug-xyz"]["status"] == REQUESTED_AGENT_STATUS_REJECTED_UNKNOWN
+    assert "not registered" in dm["totally-unknown-agent-slug-xyz"]["reason"].lower()
+    assert "totally-unknown-agent-slug-xyz" not in packet["secondary_agents"]
+
+
+def test_build_task_packet_non_routable_requested_agent_stays_advisory() -> None:
+    """Non-routable specialists outside domain slots stay advisory with disposition."""
+
+    packet = build_task_packet(
+        goal="Harden task bootstrap",
+        task_class="Orchestration",
+        candidate_paths=["scripts/orchestration/task_bootstrap.py"],
+        requested_agents=["ml-engineer-agent"],
+    )
+    dm = _disposition_map(packet)
+    assert dm["ml-engineer-agent"]["status"] == REQUESTED_AGENT_STATUS_ADVISORY_NON_ROUTABLE
+    assert "non-routable" in dm["ml-engineer-agent"]["reason"].lower()
+    assert "ml-engineer-agent" in packet["secondary_agents"]
+    secondary_slugs = {b["repo_agent_slug"] for b in packet["native_subagent_bridge"]["secondary"]}
+    assert "ml-engineer-agent" not in secondary_slugs
+    advisory_slugs = {b["repo_agent_slug"] for b in packet["native_subagent_bridge"]["advisory"]}
+    assert "ml-engineer-agent" in advisory_slugs
+
+
+def test_build_task_packet_promotes_requested_agent_in_domain_slot_set() -> None:
+    """Requested agent listed in graph primary/secondary/reviewer may be promoted."""
+
+    packet = build_task_packet(
+        goal="Tune retrieval quality",
+        task_class="AI / ML",
+        candidate_paths=["core/ai/insight_runtime.py"],
+        requested_agents=["rag-systems-agent"],
+    )
+    assert packet["domain"] == "ml"
+    dm = _disposition_map(packet)
+    assert dm["rag-systems-agent"]["status"] == REQUESTED_AGENT_STATUS_PROMOTED
+    assert packet["primary_agent"] == "rag-systems-agent"
+    assert "ai-innovation-specialist" in packet["secondary_agents"]
+
+
+def test_build_task_packet_routable_agent_domain_mismatch_stays_advisory() -> None:
+    """Routable agent outside routed domain slots becomes advisory_domain_mismatch."""
+
+    packet = build_task_packet(
+        goal="Docs routing only",
+        task_class="Orchestration",
+        candidate_paths=["scripts/orchestration/task_bootstrap.py"],
+        requested_agents=["backend-engineer"],
+    )
+    dm = _disposition_map(packet)
+    assert dm["backend-engineer"]["status"] == REQUESTED_AGENT_STATUS_ADVISORY_DOMAIN_MISMATCH
+    assert "slot" in dm["backend-engineer"]["reason"].lower()
+    assert packet["primary_agent"] == "agent-coordinator"
+
+
+def test_build_task_packet_graph_slot_precedes_non_routable_specialist_list() -> None:
+    """Specialists listed as non-routable but present on graph slots are promoted, not advisory."""
+
+    packet = build_task_packet(
+        goal="Refine CV metrics export",
+        task_class="Computer Vision",
+        candidate_paths=["README.md"],
+        requested_agents=["data-scientist-agent"],
+    )
+    assert packet["domain"] == "cv"
+    dm = _disposition_map(packet)
+    assert dm["data-scientist-agent"]["status"] == REQUESTED_AGENT_STATUS_PROMOTED
+    assert packet["primary_agent"] == "data-scientist-agent"
+    assert "cv-agent" in packet["secondary_agents"]
+
+
+def test_build_task_packet_honored_primary_when_requested_matches_routed_primary() -> None:
+    """Explicit request for the default primary must record honored_primary."""
+
+    packet = build_task_packet(
+        goal="Coordinator bootstrap",
+        task_class="Orchestration",
+        candidate_paths=["scripts/orchestration/task_bootstrap.py"],
+        requested_agents=["agent-coordinator"],
+    )
+    dm = _disposition_map(packet)
+    assert dm["agent-coordinator"]["status"] == REQUESTED_AGENT_STATUS_HONORED_PRIMARY
+    assert packet["primary_agent"] == "agent-coordinator"

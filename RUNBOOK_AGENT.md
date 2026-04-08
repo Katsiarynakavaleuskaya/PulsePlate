@@ -297,15 +297,20 @@ make venv-sync
 make verify
 ```
 
-`make verify` now starts with `verify-env`, a fail-fast preflight that does not
-repair the environment and fails when verify-critical modules such as
+`make verify` starts with `verify-env`, a fail-fast preflight that does not
+repair the environment. It fails when verify-critical modules such as
 `flake8`, `diff_cover.diff_cover_tool` (`diff-cover`), `coverage`, `pytest`, or
-`mypy` are missing from `.venv`. Run `make verify` from repo root and do not
-rely on an externally activated interpreter: `verify-env` requires the repo
-`.venv` interpreter itself. The verify-critical gates themselves run in
-interpreter-module mode through the repo `.venv` (`$(VENV_PYTHON) -m ...`), so
-stale `.venv/bin/*` wrapper entrypoints are no longer the trust anchor for
-local merge evidence.
+`mypy` are missing from `.venv`, when unexpected executable `.pth` startup
+hooks are present, or when **present** `.venv/bin` console scripts for those
+tools are broken: non-executable, dangling symlink, or an absolute shebang
+pointing at a missing or non-executable interpreter (typical after deleting a
+worktree or moving the venv). Missing console scripts are allowed—the canonical
+`make verify` recipe uses `$(VENV_PYTHON) -m ...`—but any installed wrapper must
+be consistent so PATH-based tools, shells, and hooks do not fail later with
+opaque “bad interpreter” errors. Shebangs using `#!/usr/bin/env ...` are not
+validated in v1. Run `make verify` from repo root and do not rely on an
+externally activated interpreter: `verify-env` requires the repo `.venv`
+interpreter itself. Evidence: `scripts/ci/check_local_verify_environment.py`.
 
 Run from repo root before any push/PR:
 
@@ -490,6 +495,19 @@ Use this checklist when operating agent automation or closing a token/secrets in
    - Record evidence and follow-ups in `docs/roadmap/BACKLOG_LEDGER.md`.
    - Keep controls aligned with `docs/security/AGENT_CONTROL_PLANE_SECURITY_BASELINE.md`.
    - Verify security release gate conditions pass (see baseline doc, section "Security Release Gate").
+
+## METATRON offensive lab (Track A, out-of-band)
+
+Coordinator-first lane only. Product runtime (`app.main`) must not carry METATRON-class
+offensive tooling.
+
+- Epic 1 task packet (roster + validation): `docs/orchestration/METATRON_TRACK_A_EPIC1_TASK_PACKET_2026-04-06.md:1`
+- ADR: `docs/architecture/ADR_METATRON_OFFENSIVE_LAB_OUT_OF_BAND_2026-04-06.md:1`
+- RoE: `docs/security/METATRON_LAB_RULES_OF_ENGAGEMENT.md:1`
+- Assessment wave runbook: `docs/orchestration/METATRON_SECURITY_ASSESSMENT_WAVE_RUNBOOK.md:1`
+- Ledger: `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-metatron-offensive-lab-out-of-band`
+- Optional compose stub: `deploy/metatron-lab/README.md:1`
+
 ## 0.1) CI: `actions/upload-artifact` fails with `FinalizeArtifact 403 Forbidden`
 
 **Reference:** Documentation: [PR #712](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/712). Fix required a

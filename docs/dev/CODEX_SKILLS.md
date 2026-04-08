@@ -29,6 +29,15 @@ scripts/install_codex_skills.sh --dest /tmp/codex-skills
 
 After installation or updates, restart Codex so newly installed skills are loaded.
 
+## Host `~/.codex` (optional, not repo SoT)
+
+Machine-local Codex settings (`~/.codex/config.toml`, skills under `~/.codex/skills`) are **not**
+repository source of truth. Keys drift with Codex CLI versions; verify against current vendor docs.
+
+For a **minimal copy-paste starter only**, see
+[`docs/templates/codex.config.example.toml`](../templates/codex.config.example.toml).
+Customize on your machine; do not treat that template as a production or team contract.
+
 ## Repo compatibility bridge
 
 Use the repo bridge documents together:
@@ -42,6 +51,12 @@ Use the repo bridge documents together:
 The user should not have to name skills manually for normal project work, but
 that routing comes from the canonical bootstrap/orchestration path, not from
 this document by itself.
+
+**Raw session note:** nothing in this file runs at host session start. Use `scripts/orchestration/local_session_bootstrap.sh` (optional) then `task_bootstrap.py` so routing and `recommended_skills` are produced deterministically.
+
+**Launcher vs skills:** If you use an opt-in machine launcher (see [`docs/dev/LOCAL_COORDINATOR_LAUNCHER_ROLLOUT.md`](./LOCAL_COORDINATOR_LAUNCHER_ROLLOUT.md)), run preflight/bootstrap **before** relying on installed skills or manual task work. **Skills do not replace** `task_bootstrap.py`; they complement routing after a packet exists.
+
+**Advisory wiki (optional):** For operator-local wiki snapshots over the experimental support plane, see [`docs/orchestration/LOCAL_WIKI_SUPPORT_PLANE.md`](../orchestration/LOCAL_WIKI_SUPPORT_PLANE.md) (`wiki_ingest` / `wiki_query` / `wiki_lint` / `wiki_promote`). This remains non-canonical and gitignored.
 
 Canonical selection order after bootstrap:
 

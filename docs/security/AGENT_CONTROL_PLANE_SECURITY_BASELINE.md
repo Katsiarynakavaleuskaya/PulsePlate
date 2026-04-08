@@ -12,6 +12,9 @@ Define the minimum security controls required to operate PulsePlate agent automa
 - `app/security/agent_control_plane.py:1` — runtime MVP primitives for policy gate, signed audit envelope,
   and short-lived scoped token issuing.
 - `tests/test_agent_control_plane_mvp.py:1` — deterministic tests for fail-closed semantics and signature integrity.
+- `scripts/orchestration/local_support_plane.py:1` — experimental **non-canonical** local support-plane KV
+  (policy + execution-mode + optional signed audit); not orchestration SoT (see module docstring).
+- `tests/test_local_support_plane.py:1` — deterministic tests for allowlist, execution mode, size limits, audit.
 
 ## Mandatory Controls (P0)
 

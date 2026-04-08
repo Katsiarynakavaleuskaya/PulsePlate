@@ -14,6 +14,7 @@
 - `PRODUCTION.md` — production setup и конфигурация
 - `DIGITALOCEAN.md` — provisioning и инфраструктура (droplet, firewall, volumes)
 - `DOCKER.md` — docker compose / сервисы / команды / best practices
+- `POSTGRES_SELF_HOSTED_DROPLET.md` — Postgres lanes: managed vs self-hosted on Droplet (`deploy/docker-compose.production*.yaml`)
 - `OPERATIONAL_SIGNALS.md` — health/readiness probes, metrics, tracing, telemetry, known gaps
 - `SOLO.md` — solo deployment setup (single-server deployment)
 - `READING_LIST.md` — список документации для изучения

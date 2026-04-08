@@ -7,6 +7,14 @@ but are not required to appear in `AGENT_ROUTING_GRAPH.md` as primary/secondary/
 
 These specialists are **non-routable by default**, not forbidden.
 
+**Precedence:** If a specialist appears in `AGENT_ROUTING_GRAPH.md` as primary, secondary,
+or reviewer for the **currently routed domain**, task bootstrap treats the graph slot as
+authoritative and may **promote** an explicit request (`requested_agents`) like any other
+in-slot agent. The non-routable list applies when the agent is **outside** that domain’s
+slot set (advisory collaborator with `advisory_non_routable` disposition). Evidence:
+`scripts/orchestration/task_bootstrap.py:575` (graph slots before non-routable guard),
+`tests/test_task_bootstrap.py:1856` (`test_build_task_packet_graph_slot_precedes_non_routable_specialist_list`).
+
 Interpretation:
 
 - Coordinator may keep them **advisory-only** when the canonical routing graph already

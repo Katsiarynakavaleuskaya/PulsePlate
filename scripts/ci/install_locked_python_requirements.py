@@ -41,6 +41,24 @@ REQUIREMENTS_PROFILES: tuple[str, ...] = (
     "runtime-test",
     "ci-lite",
 )
+DOCKER_SINGLE_PASS_LOCKED_INSTALL_ENV = "PULSEPLATE_DOCKER_SINGLE_PASS_LOCKED_INSTALL"  # nosec B105: public env key contract, not a password (remove-by: 2026-12-31, ref: PR-docker-gha-buildx-pip-cache)
+DOCKER_PIP_LAYER_CACHE_ENV = "PULSEPLATE_DOCKER_PIP_LAYER_CACHE"
+
+
+def _env_truthy(name: str) -> bool:
+    """Return True when env is set to a common affirmative string."""
+    value = os.environ.get(name, "").strip().lower()
+    return value in {"1", "true", "yes", "on"}
+
+
+def docker_single_pass_locked_install_enabled() -> bool:
+    """Docker single-pass: install once on target interpreter, then run startup-hook guard there."""
+    return _env_truthy(DOCKER_SINGLE_PASS_LOCKED_INSTALL_ENV)
+
+
+def docker_pip_layer_cache_enabled() -> bool:
+    """When True, omit pip --no-cache-dir so BuildKit cache mounts can reuse HTTP wheels."""
+    return _env_truthy(DOCKER_PIP_LAYER_CACHE_ENV)
 
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
@@ -248,14 +266,19 @@ def build_pip_proxy_install_command(
     constraints_file: Path | None,
     index_url: str,
     trusted_host: str | None,
+    allow_pip_download_cache: bool | None = None,
 ) -> list[str]:
     constraints_file = validate_constraints_file(constraints_file)
+    use_pip_cache = (
+        docker_pip_layer_cache_enabled()
+        if allow_pip_download_cache is None
+        else allow_pip_download_cache
+    )
     command = [
         python_executable,
         "-m",
         "pip",
         "install",
-        "--no-cache-dir",
         "--only-binary",
         ":all:",
         "--index-url",
@@ -263,6 +286,12 @@ def build_pip_proxy_install_command(
         "--requirement",
         str(requirement_file),
     ]
+    if not use_pip_cache:
+        try:
+            install_idx = command.index("install")
+        except ValueError as exc:
+            raise RuntimeError("pip proxy install command is missing the install verb") from exc
+        command.insert(install_idx + 1, "--no-cache-dir")
     if trusted_host:
         command.extend(["--trusted-host", trusted_host])
     if constraints_file is not None:
@@ -474,6 +503,7 @@ def install_from_proxy(
     constraints_file: Path | None,
     index_url: str,
     trusted_host: str | None,
+    allow_pip_download_cache: bool | None = None,
 ) -> None:
     for requirement_file in requirement_files:
         run_command(
@@ -483,6 +513,7 @@ def install_from_proxy(
                 constraints_file=constraints_file,
                 index_url=index_url,
                 trusted_host=trusted_host,
+                allow_pip_download_cache=allow_pip_download_cache,
             )
         )
 
@@ -564,6 +595,34 @@ def install_with_guard_from_proxy(
     index_url: str,
     trusted_host: str | None,
 ) -> int:
+    if docker_single_pass_locked_install_enabled():
+        if len(requirement_files) != 1:
+            print(
+                "ERROR: Docker single-pass locked install requires exactly one requirements file "
+                f"(got {len(requirement_files)}). Combine manifests or disable "
+                f"{DOCKER_SINGLE_PASS_LOCKED_INSTALL_ENV}.",
+                file=sys.stderr,
+            )
+            return 1
+        allow_cache = docker_pip_layer_cache_enabled()
+        install_from_proxy(
+            python_executable=python_executable,
+            requirement_files=requirement_files,
+            constraints_file=constraints_file,
+            index_url=index_url,
+            trusted_host=trusted_host,
+            allow_pip_download_cache=allow_cache,
+        )
+        failure_lines = collect_startup_hook_failure_lines(
+            guard_script=guard_script,
+            python_executable=python_executable,
+        )
+        if failure_lines:
+            for line in failure_lines:
+                print(line)
+            return 1
+        return 0
+
     with staged_python_environment(python_executable) as staging_python:
         install_from_proxy(
             python_executable=staging_python,
@@ -571,6 +630,7 @@ def install_with_guard_from_proxy(
             constraints_file=constraints_file,
             index_url=index_url,
             trusted_host=trusted_host,
+            allow_pip_download_cache=False,
         )
 
         failure_lines = collect_startup_hook_failure_lines(
@@ -588,6 +648,7 @@ def install_with_guard_from_proxy(
         constraints_file=constraints_file,
         index_url=index_url,
         trusted_host=trusted_host,
+        allow_pip_download_cache=docker_pip_layer_cache_enabled(),
     )
     return 0
 

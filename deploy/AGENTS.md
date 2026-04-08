@@ -3,8 +3,11 @@
 ## Scope and layout
 - This AGENTS.md applies to: `deploy/` and below.
 - Key files: `deploy/Caddyfile`, `deploy/Caddyfile.production`, `deploy/docker-compose.staging.yaml`,
-  `deploy/docker-compose.production.yaml`, `frontend/Dockerfile.caddy-spa`,
-  root `Dockerfile`, root `docker-compose.yaml`.
+  `deploy/docker-compose.production.yaml`, `deploy/docker-compose.production.selfhosted.yaml`,
+  `frontend/Dockerfile.caddy-spa`, root `Dockerfile`, root `docker-compose.yaml`.
+- **METATRON offensive lab (out-of-band):** `deploy/metatron-lab/` — optional isolated-network
+  stub only; see `deploy/metatron-lab/README.md:1` and ADR
+  `docs/architecture/ADR_METATRON_OFFENSIVE_LAB_OUT_OF_BAND_2026-04-06.md:1`.
 
 ## Production Caddy + SPA (apex)
 
@@ -13,6 +16,12 @@
 
 ```bash
 docker compose -f deploy/docker-compose.production.yaml build caddy
+```
+
+- **Self-hosted Postgres lane** (colocated `postgres` + `app` + `caddy`): `deploy/docker-compose.production.selfhosted.yaml`. Build Caddy the same way with that file:
+
+```bash
+docker compose --project-directory deploy -f deploy/docker-compose.production.selfhosted.yaml build caddy
 ```
 
 - **Override API base at image build time** (staging / alternate host):
