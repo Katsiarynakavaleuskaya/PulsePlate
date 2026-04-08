@@ -50,6 +50,8 @@ Task
 Automation note:
 
 - coordinator-first is a repo policy requirement;
+- if launcher/runtime auto-capture is unavailable, manual `agent-coordinator`
+  invocation is still mandatory before non-trivial execution;
 - guaranteed raw session auto-start requires a local launcher/runtime
   enforcement layer and is not implied by docs alone;
 - see `docs/orchestration/AUTOMATION_READINESS_MATRIX.md`.
@@ -62,6 +64,8 @@ Automation note:
 - Priority assigned (P0/P1/P2)
 - Agent(s) assigned
 - Expected outcome defined
+- If the lane packet/runbook declares a role-agent order, that order is recorded
+  as mandatory for the lane and must not be replaced by an ad-hoc internal stack.
 
 **Pre-flight Checklist (SoT):** See “Canonical Pre-flight Checklist (SoT)” below (mandatory).
 
@@ -79,6 +83,7 @@ Automation note:
 #### 0) Auto-verification (mandatory)
 - [ ] Run: `python3 -m scripts.orchestration.check_preflight` — must exit 0 (PASS). Failure = stop execution.
 - [ ] Run: `python3 scripts/orchestration/check_agent_consistency.py` — must exit 0 (PASS). Ensures routing ⊆ inventory ⊆ capability.
+- [ ] Confirm coordinator-first start gate was satisfied: either `agent-coordinator` was invoked manually, or a launcher/bootstrap path already produced the governing packet for this lane.
 
 #### 1) Context loading
 - [ ] Загружен root `AGENTS.md` (инварианты, quality gates, запреты)
@@ -98,6 +103,8 @@ Automation note:
 - [ ] Назначен primary agent
 - [ ] Назначены secondary agents (если multi-domain)
 - [ ] Проставлены зависимости / handoff / sync points (если multi-agent)
+- [ ] Если lane packet/runbook задаёт явный role-agent order, назначенные role agents будут
+  выполнены в этом порядке без пропуска
 - [ ] Определён `recommended_skills` packet по `docs/orchestration/AGENT_SKILL_ROUTING_POLICY.md`
 - [ ] `skill_routing` содержит `task_classification`, `required`, `recommended`, `conditional`, `blocked`
 - [ ] Task packet содержит additive automation metadata:
@@ -468,6 +475,8 @@ Rule: promotion writes exactly one durable destination artifact plus one local p
 5. **Dev-only:** This workflow is for development, not runtime product
 6. **Pre-flight enforcement:** Coordinator must complete Pre-flight Checklist before starting
 7. **Post-flight verification:** Coordinator must verify execution requirements before Synthesis
+8. **Next-PR start gate:** in PR trains, the next PR starts only after the previous PR is merged,
+   local `main` is synced, and current-head `main` is green after merge fallout
 
 ---
 

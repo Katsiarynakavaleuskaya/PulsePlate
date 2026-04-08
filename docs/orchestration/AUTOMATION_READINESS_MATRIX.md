@@ -105,7 +105,12 @@ Never collapse these into one vague word like "automatic."
 
 Current approved wording:
 
+- Canonical policy wording lives in `AGENTS.md`; workflow and readiness docs
+  must stay aligned to that source instead of restating divergent variants.
+
 - Coordinator-first is **policy-required**.
+- Manual `agent-coordinator` invocation remains mandatory when launcher/runtime
+  auto-capture is unavailable.
 - Bootstrap packet generation is **deterministic once invoked**.
 - Skill routing is **automatic after bootstrap**, not automatic at raw chat start.
 - Bug-hunter post-open pass is **deterministic once invoked** via
@@ -114,6 +119,8 @@ Current approved wording:
   report/research deliverables or governed research surfaces.
 - Figma execution is **conditionally automatic**, packet-gated, blocker-aware,
   and never unconditional.
+- Launcher convenience can invoke canonical packets, but it does **not** bypass
+  review-thread, required-check, or merge-readiness governance.
 
 ## Approved PR Series For This Wave
 
@@ -121,6 +128,7 @@ Series invariant:
 
 - Do not start `PR<N+1>` until `PR<N>` has:
   - been opened under canonical PR governance,
+  - executed any declared role-agent order for that lane packet/runbook,
   - completed its mandatory post-open review loop for that lane,
   - reached current-head green + resolved-comment merge readiness,
   - been merged,
@@ -131,6 +139,11 @@ Series invariant:
 This wording is canonical for the PR-series gate. Other runbooks may summarize
 the rule for operators, but they should reference this section instead of
 creating competing definitions.
+
+Explicit operator rule:
+- after `PR<N>` merges, sync local `main`, verify current-head `main` health, and do not
+  start `PR<N+1>` while `main` is red, pending on merge fallout, or otherwise unstable.
+- treat this as a hard process gate for the next PR in the train, not a heuristic.
 
 ### Composer bootstrap kit wave (PR-A / PR-B)
 
