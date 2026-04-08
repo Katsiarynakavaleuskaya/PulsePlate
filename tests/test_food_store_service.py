@@ -275,7 +275,7 @@ def test_foods_db_cache_key_for_connection_uses_db_path_when_database_list_fails
     db_path = tmp_path / "foods.sqlite"
     db_path.write_text("", encoding="utf-8")
     monkeypatch.setattr(food_store, "DB_PATH", db_path)
-    conn = sqlite3.connect(":memory:")
+    conn = sqlite3.connect(db_path)
     conn.close()
     cache_key = food_store._foods_db_cache_key_for_connection(conn)
     assert cache_key is not None
@@ -286,8 +286,22 @@ def test_foods_db_cache_key_for_connection_falls_back_when_resolve_fails(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     db_path = tmp_path / "foods.sqlite"
+
+    class _BadResolvePath:
+        def __init__(self, raw_path: str) -> None:
+            self._raw_path = Path(raw_path)
+
+        def __str__(self) -> str:
+            return str(self._raw_path)
+
+        def resolve(self) -> Path:
+            raise OSError("boom")
+
+        def stat(self) -> Any:
+            return self._raw_path.stat()
+
     with sqlite3.connect(db_path) as conn:
-        monkeypatch.setattr(Path, "resolve", lambda self: (_ for _ in ()).throw(OSError("boom")))
+        monkeypatch.setattr(food_store, "Path", _BadResolvePath)
         cache_key = food_store._foods_db_cache_key_for_connection(conn)
     assert cache_key is not None
     assert str(db_path) in cache_key
@@ -298,8 +312,22 @@ def test_foods_db_cache_key_for_connection_returns_plain_path_when_stat_fails(
 ) -> None:
     db_path = tmp_path / "foods.sqlite"
     expected_path = str(db_path.resolve())
+
+    class _BadStatPath:
+        def __init__(self, raw_path: str) -> None:
+            self._raw_path = Path(raw_path)
+
+        def __str__(self) -> str:
+            return str(self._raw_path)
+
+        def resolve(self) -> "_BadStatPath":
+            return self
+
+        def stat(self) -> Any:
+            raise OSError("boom")
+
     with sqlite3.connect(db_path) as conn:
-        monkeypatch.setattr(Path, "stat", lambda self: (_ for _ in ()).throw(OSError("boom")))
+        monkeypatch.setattr(food_store, "Path", _BadStatPath)
         cache_key = food_store._foods_db_cache_key_for_connection(conn)
     assert cache_key == expected_path
 
@@ -309,6 +337,11 @@ def test_foods_db_cache_key_for_connection_returns_none_for_non_sqlite_connectio
         pass
 
     assert food_store._foods_db_cache_key_for_connection(_NotSqliteConnection()) is None
+
+
+def test_foods_db_cache_key_for_connection_returns_none_for_in_memory_sqlite_connection() -> None:
+    with sqlite3.connect(":memory:") as conn:
+        assert food_store._foods_db_cache_key_for_connection(conn) is None
 
 
 def test_foods_db_cache_key_for_connection_prefers_main_database_path_and_changes_on_mutation(
@@ -350,6 +383,9 @@ def test_is_missing_nutrition_confidence_column_error_matches_only_legacy_additi
 ):
     assert food_store._is_missing_nutrition_confidence_column_error(
         sqlite3.OperationalError("no such column: nutrition_confidence")
+    )
+    assert food_store._is_missing_nutrition_confidence_column_error(
+        sqlite3.OperationalError("No Such Column: f.NUTRITION_CONFIDENCE")
     )
     assert not food_store._is_missing_nutrition_confidence_column_error(
         sqlite3.OperationalError("no such column: canonical_name")

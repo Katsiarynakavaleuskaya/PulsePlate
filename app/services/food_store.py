@@ -140,15 +140,17 @@ def _foods_db_cache_key_for_connection(con: sqlite3.Connection) -> str | None:
     except sqlite3.Error:
         database_path = DB_PATH
     else:
-        main_db_path = next(
+        main_db_path_str = next(
             (
-                Path(str(row[2]))
+                str(row[2]).strip()
                 for row in database_rows
-                if len(row) >= 3 and str(row[1]) == "main" and str(row[2]).strip()
+                if len(row) >= 3 and str(row[1]) == "main"
             ),
-            DB_PATH,
+            "",
         )
-        database_path = main_db_path
+        if not main_db_path_str or main_db_path_str == ":memory:":
+            return None
+        database_path = Path(main_db_path_str)
 
     try:
         resolved_path = database_path.resolve()
@@ -200,7 +202,13 @@ def _invalidate_foods_nutrition_confidence_cache(con: sqlite3.Connection) -> Non
 def _is_missing_nutrition_confidence_column_error(exc: sqlite3.OperationalError) -> bool:
     """Return True only for the additive legacy-schema failure we intentionally recover from."""
 
-    return "no such column: nutrition_confidence" in str(exc).lower()
+    return bool(
+        re.search(
+            r"no such column:\s*(?:\w+\.)?nutrition_confidence\b",
+            str(exc),
+            re.IGNORECASE,
+        )
+    )
 
 
 def _execute_foods_query_with_legacy_retry(
