@@ -55,10 +55,11 @@ Reason: Sourcery, Cubic, and CodeRabbit bot reviews below are advisory summaries
 
 ### Proactive CI: Safety / dependency (no review thread)
 
-- Commit `044ece6e9e381687877a1b366a175516e0b7b2b9` — Safety CLI 3.x: fail only when `safety-report.json` is missing/empty; fonttools `4.62.1`; `docs/security/FONTTOOLS_TTX_EVAL_ADVISORY.md`.
+- Commit `044ece6e9e381687877a1b366a175516e0b7b2b9` — Safety CLI 3.x: fail only when `safety-report.json` is missing/empty (severity still via `parse-safety-report.py`).
+- **fonttools / private index:** pins are `fonttools==4.61.1` on `requirements.txt`, `requirements-ci-lite.txt`, `requirements-lock.txt` because the approved private index currently serves only `4.61.1` (PyPI has `>=4.62.0`). PyUp `88739` ignored in `safety-policy.yaml` until the mirror syncs. Advisory + remove-by: `docs/security/FONTTOOLS_TTX_EVAL_ADVISORY.md`. Follow-up: `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-fonttools-private-index-bump`.
 - Commit `0b0ba1f4a2ae7bcddba860b9ff3f65e916b5281b` — `detect-secrets` baseline sync after staged edits.
 
-Evidence: `.github/workflows/ci.yml:437-441`, `requirements.txt:57`, `docs/security/FONTTOOLS_TTX_EVAL_ADVISORY.md:1`
+Evidence: `.github/workflows/ci.yml:437-441`, `requirements.txt:57`, `safety-policy.yaml:12`, `docs/security/FONTTOOLS_TTX_EVAL_ADVISORY.md:1`
 
 ### Local verification
 
@@ -69,3 +70,4 @@ Evidence: `.github/workflows/ci.yml:437-441`, `requirements.txt:57`, `docs/secur
 ## Deferred / Follow-ups
 
 - Optional single-writer / locking for concurrent `promote` same slug: **DEFERRED** — traceability `docs/orchestration/LOCAL_WIKI_SUPPORT_PLANE.md` (two-phase / layout notes) and `docs/roadmap/BACKLOG_LEDGER.md#ledger-p2-local-workforce-pr-d-advisory-wiki-compiler` (Deferred / follow-ups). No separate issue opened in this PR.
+- **fonttools >=4.62.0 when private index syncs:** `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-fonttools-private-index-bump`

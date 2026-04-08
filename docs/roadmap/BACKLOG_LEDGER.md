@@ -315,6 +315,24 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 
 ### P1
 
+<a id="ledger-p1-fonttools-private-index-bump"></a>
+- [ ] P1: Bump fonttools to >=4.62.0 after private Python index mirrors fixed wheels (remove Safety ignore 88739)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (supply-chain / CVE debt; mirrors `docs/security/` waiver discipline)
+  - Target PR: TBD (land when `PULSEPLATE_PYTHON_INDEX_URL` resolves `fonttools>=4.62.0` with locked install + Docker)
+  - Area: security / CI / dependencies
+  - Reason (EN): Public PyPI ships patched `fonttools`; the approved private index currently exposes only `4.61.1`, so pins and Safety policy ignore PyUp `88739` are intentional until the mirror syncs. (RU: зеркало пакетов отстаёт от PyPI — после появления колеса >=4.62.0 убрать ignore и поднять пин.)
+  - Links:
+    - `docs/security/FONTTOOLS_TTX_EVAL_ADVISORY.md:1`
+    - `safety-policy.yaml:12`
+    - `requirements.txt:57`
+    - `scripts/ci/install_locked_python_requirements.py:277`
+  - DoD:
+    - `requirements.txt`, `requirements-ci-lite.txt`, `requirements-lock.txt` pin `fonttools>=4.62.0` (or exact fixed version available on the private index)
+    - Remove `88739` from `safety-policy.yaml`
+    - Locked install + Docker production target succeed against the private index; `make verify` green
+    - Advisory updated (remove-by closed or docs-only follow-up per backlog policy)
+
 <a id="ledger-p1-metatron-offensive-lab-out-of-band"></a>
 - [ ] P1: METATRON-class offensive lab — out-of-band governance and operator runbook
   - Owner: @katsiaryna_kavaleuskaya
