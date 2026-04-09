@@ -3,12 +3,17 @@
 
 ## Discussion Thread Pass
 
-- [ ] Discussion-thread pass completed
-- [ ] Fixed in commit mapping completed
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
 
-No review threads or actionable bot comments are present yet.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1378#issuecomment-4209830092
+  Disposition: NOT-A-BUG
+  Evidence: Informational CodeRabbit draft-skip status comment only; no code or doc action requested.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1378#issuecomment-4209832933
+  Disposition: NOT-A-BUG
+  Evidence: Informational Sourcery reviewer-guide comment only; no actionable finding or requested change.
 
 ## Merge Readiness
 
