@@ -6,9 +6,52 @@ RU: Тесты для оставшихся модулей с низким пок
 EN: Tests for remaining modules with low coverage
 """
 
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
+from packaging.version import Version
+
+from tests.test_root_npm_dependency_guards import (
+    MIN_AXIOS_VERSION,
+    MIN_PROXY_FROM_ENV_VERSION,
+    _load_json,
+)
+
+
+def test_root_npm_security_override_smoke() -> None:
+    """RU/EN: Keep critical root npm CVE floors in the deterministic fast lane."""
+    repo_root = Path(__file__).resolve().parents[1]
+    package_manifest = _load_json(repo_root / "package.json")
+    package_lock = _load_json(repo_root / "package-lock.json")
+
+    agentguard_overrides = package_manifest.get("overrides", {}).get("@goplus/agentguard", {})
+    assert agentguard_overrides.get("axios") == str(MIN_AXIOS_VERSION)
+
+    packages = package_lock.get("packages", {})
+    assert isinstance(packages, dict)
+
+    axios_versions = [
+        Version(package_data["version"])
+        for package_path, package_data in packages.items()
+        if isinstance(package_path, str)
+        and package_path.endswith("/axios")
+        and isinstance(package_data, dict)
+        and isinstance(package_data.get("version"), str)
+    ]
+    proxy_versions = [
+        Version(package_data["version"])
+        for package_path, package_data in packages.items()
+        if isinstance(package_path, str)
+        and package_path.endswith("/proxy-from-env")
+        and isinstance(package_data, dict)
+        and isinstance(package_data.get("version"), str)
+    ]
+
+    assert axios_versions, "package-lock.json: axios entries missing from packages map"
+    assert proxy_versions, "package-lock.json: proxy-from-env entries missing from packages map"
+    assert min(axios_versions) >= MIN_AXIOS_VERSION
+    assert min(proxy_versions) >= MIN_PROXY_FROM_ENV_VERSION
 
 
 class TestShoplistModule:
