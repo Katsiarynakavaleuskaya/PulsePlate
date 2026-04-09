@@ -1,12 +1,12 @@
 # PR 1381 — Fixed in Commit Mapping
 
 ## Discussion Thread Pass
-- [ ] Discussion-thread pass completed
-- [ ] Fixed in commit mapping completed
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
 
-- No actionable review threads or bot findings have been dispositioned yet.
+- No actionable review comments
 
 ## Merge Readiness
 
