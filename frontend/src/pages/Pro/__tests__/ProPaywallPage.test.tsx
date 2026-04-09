@@ -56,7 +56,7 @@ describe("ProPaywallPage", () => {
     expect(navigateMock).not.toHaveBeenCalled();
   });
 
-  it("navigates back when the user closes the paywall", async () => {
+  it("navigates back when the user closes the paywall", async (): Promise<void> => {
     render(<ProPaywallPage />);
 
     fireEvent.click(screen.getByTestId("paywall-cancel"));
