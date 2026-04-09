@@ -1,7 +1,7 @@
 # PR 1382 — Fixed in Commit Mapping
 
 ## Discussion Thread Pass
-- [ ] Discussion-thread pass completed
+- [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
@@ -17,7 +17,7 @@ Evidence: `tests/test_remaining_modules.py`, `docs/security/CVE-2025-62718-axios
 ## Merge Readiness
 
 - [ ] All required checks pass
-- [ ] No unresolved review threads (re-check on current head before merge)
+- [x] No unresolved review threads (re-check on current head before merge)
 - [x] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
 - [x] Pre-commit green
 - [x] `make verify` green
