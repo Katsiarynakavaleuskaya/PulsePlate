@@ -58,6 +58,26 @@ Disposition: FIXED
 Commit: d7bd8daba
 Evidence: `scripts/ci/install_locked_python_requirements.py:238` now rejects non-canonical date forms before parsing, and `tests/test_install_locked_python_requirements.py:345` asserts the failure mode.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1378#discussion_r3057542776
+Disposition: FIXED
+Commit: a8d18f41c
+Evidence: `docs/security/CRYPTOGRAPHY_46_0_7_PRIVATE_INDEX_ADVISORY.md:35`, `docs/security/CRYPTOGRAPHY_46_0_7_PRIVATE_INDEX_ADVISORY.md:37`, and `docs/security/CRYPTOGRAPHY_46_0_7_PRIVATE_INDEX_ADVISORY.md:38` now point at the live fallback entrypoints instead of stale anchors.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1378#discussion_r3057542784
+Disposition: FIXED
+Commit: a8d18f41c
+Evidence: `scripts/ci/install_locked_python_requirements.py:351` now downloads into a same-directory temp file, verifies sha256, and only then replaces the destination; `tests/test_install_locked_python_requirements.py:406` covers partial-download cleanup.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1378#discussion_r3057542798
+Disposition: FIXED
+Commit: a8d18f41c
+Evidence: `scripts/ci/install_locked_python_requirements.py:761` and `scripts/ci/install_locked_python_requirements.py:799` now retry with staged emergency wheels only after the approved proxy path fails; `tests/test_install_locked_python_requirements.py:441` and `tests/test_install_locked_python_requirements.py:499` cover wheelhouse and direct-proxy fallback semantics.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1378#pullrequestreview-4081992869
+Disposition: NOT-A-BUG
+Evidence: Review-container URL only; its actionable items are dispositioned at `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1378#discussion_r3057542776`, `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1378#discussion_r3057542784`, and `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1378#discussion_r3057542798`.
+Reason: The review object itself carries no remaining independent action once its child findings are fixed and mapped.
+
 ## Merge Readiness
 
 - [ ] All required checks pass (GitHub CI on current PR head after each push)
