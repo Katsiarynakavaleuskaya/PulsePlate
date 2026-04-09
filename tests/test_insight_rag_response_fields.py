@@ -193,10 +193,21 @@ class _EchoProvider:
 
 
 @pytest.fixture
-def client(app: FastAPI) -> Generator[TestClient, None, None]:
+def rag_client(app: FastAPI) -> Generator[TestClient, None, None]:
     """Use a unique client host per test to avoid shared rate-limit buckets."""
     with TestClient(app, client=(f"rag-contract-{uuid4().hex}", 50000)) as test_client:
         yield test_client
+
+
+@pytest.fixture(autouse=True)
+def _disable_rate_limiting_for_rag_contracts(
+    monkeypatch: pytest.MonkeyPatch,
+    app: FastAPI,
+) -> None:
+    """RAG contract tests validate payload shape, not 429 behavior."""
+
+    _ensure_rate_limiting_disabled(monkeypatch, app)
+    _disable_vip_monthly_quota(monkeypatch)
 
 
 def _ensure_rate_limiting_disabled(
@@ -286,7 +297,7 @@ class TestInsightV1RAGFields:
 
     def test_rag_enabled_returns_sources_and_metadata(
         self,
-        client: TestClient,
+        rag_client: TestClient,
         monkeypatch: pytest.MonkeyPatch,
         vip_headers: dict[str, str],
     ) -> None:
@@ -294,14 +305,16 @@ class TestInsightV1RAGFields:
 
         monkeypatch.setenv("FEATURE_INSIGHT", "true")
         monkeypatch.setenv("FEATURE_RAG", "true")
-        monkeypatch.setattr(llm, "get_provider", lambda: _EchoProvider(), raising=True)
+        monkeypatch.setattr(llm, "get_insight_provider", lambda: _EchoProvider(), raising=True)
         monkeypatch.setattr(
             "core.rag.vector_rag.retrieve_context_structured",
             _make_fake_structured,
             raising=True,
         )
 
-        resp = client.post("/api/v1/insight", json={"text": "What is BMI?"}, headers=vip_headers)
+        resp = rag_client.post(
+            "/api/v1/insight", json={"text": "What is BMI?"}, headers=vip_headers
+        )
         assert resp.status_code == 200
         assert resp.headers.get("content-type", "").startswith("application/json")
         data = resp.json()
@@ -320,7 +333,7 @@ class TestInsightV1RAGFields:
 
     def test_rag_enabled_empty_chunks_returns_zero_sources(
         self,
-        client: TestClient,
+        rag_client: TestClient,
         monkeypatch: pytest.MonkeyPatch,
         vip_headers: dict[str, str],
     ) -> None:
@@ -328,14 +341,14 @@ class TestInsightV1RAGFields:
 
         monkeypatch.setenv("FEATURE_INSIGHT", "true")
         monkeypatch.setenv("FEATURE_RAG", "true")
-        monkeypatch.setattr(llm, "get_provider", lambda: _EchoProvider(), raising=True)
+        monkeypatch.setattr(llm, "get_insight_provider", lambda: _EchoProvider(), raising=True)
         monkeypatch.setattr(
             "core.rag.vector_rag.retrieve_context_structured",
             _make_empty_structured,
             raising=True,
         )
 
-        resp = client.post("/api/v1/insight", json={"text": "test"}, headers=vip_headers)
+        resp = rag_client.post("/api/v1/insight", json={"text": "test"}, headers=vip_headers)
         assert resp.status_code == 200
         assert resp.headers.get("content-type", "").startswith("application/json")
         data = resp.json()
@@ -349,7 +362,7 @@ class TestInsightV1RAGFields:
 
     def test_rag_response_confidence_uses_active_output_chunks(
         self,
-        client: TestClient,
+        rag_client: TestClient,
         monkeypatch: pytest.MonkeyPatch,
         vip_headers: dict[str, str],
     ) -> None:
@@ -358,14 +371,16 @@ class TestInsightV1RAGFields:
 
         monkeypatch.setenv("FEATURE_INSIGHT", "true")
         monkeypatch.setenv("FEATURE_RAG", "true")
-        monkeypatch.setattr(llm, "get_provider", lambda: _EchoProvider(), raising=True)
+        monkeypatch.setattr(llm, "get_insight_provider", lambda: _EchoProvider(), raising=True)
         monkeypatch.setattr(
             "core.rag.vector_rag.retrieve_context_structured",
             _make_stale_confidence_structured,
             raising=True,
         )
 
-        resp = client.post("/api/v1/insight", json={"text": "What is BMI?"}, headers=vip_headers)
+        resp = rag_client.post(
+            "/api/v1/insight", json={"text": "What is BMI?"}, headers=vip_headers
+        )
         assert resp.status_code == 200
         assert resp.headers.get("content-type", "").startswith("application/json")
         data = resp.json()
@@ -375,7 +390,7 @@ class TestInsightV1RAGFields:
 
     def test_rag_response_confidence_uses_filtered_subset_chunks(
         self,
-        client: TestClient,
+        rag_client: TestClient,
         monkeypatch: pytest.MonkeyPatch,
         vip_headers: dict[str, str],
     ) -> None:
@@ -395,7 +410,7 @@ class TestInsightV1RAGFields:
         monkeypatch.setenv("FEATURE_INSIGHT", "true")
         monkeypatch.setenv("FEATURE_RAG", "true")
         monkeypatch.setenv("FEATURE_PHILOSOPHY_VALIDATION", "true")
-        monkeypatch.setattr(llm, "get_provider", lambda: _EchoProvider(), raising=True)
+        monkeypatch.setattr(llm, "get_insight_provider", lambda: _EchoProvider(), raising=True)
         monkeypatch.setattr(
             "core.rag.vector_rag.retrieve_context_structured",
             lambda *args, **kwargs: rag_ctx,
@@ -407,7 +422,9 @@ class TestInsightV1RAGFields:
             raising=True,
         )
 
-        resp = client.post("/api/v1/insight", json={"text": "What is BMI?"}, headers=vip_headers)
+        resp = rag_client.post(
+            "/api/v1/insight", json={"text": "What is BMI?"}, headers=vip_headers
+        )
         assert resp.status_code == 200
         assert resp.headers.get("content-type", "").startswith("application/json")
         data = resp.json()
@@ -419,7 +436,7 @@ class TestInsightV1RAGFields:
 
     def test_rag_disabled_returns_defaults(
         self,
-        client: TestClient,
+        rag_client: TestClient,
         monkeypatch: pytest.MonkeyPatch,
         vip_headers: dict[str, str],
     ) -> None:
@@ -427,9 +444,9 @@ class TestInsightV1RAGFields:
 
         monkeypatch.setenv("FEATURE_INSIGHT", "true")
         monkeypatch.setenv("FEATURE_RAG", "false")
-        monkeypatch.setattr(llm, "get_provider", lambda: _EchoProvider(), raising=True)
+        monkeypatch.setattr(llm, "get_insight_provider", lambda: _EchoProvider(), raising=True)
 
-        resp = client.post("/api/v1/insight", json={"text": "test"}, headers=vip_headers)
+        resp = rag_client.post("/api/v1/insight", json={"text": "test"}, headers=vip_headers)
         assert resp.status_code == 200
         assert resp.headers.get("content-type", "").startswith("application/json")
         data = resp.json()
@@ -441,7 +458,7 @@ class TestInsightV1RAGFields:
 
     def test_rag_source_preview_redacts_internal_metadata(
         self,
-        client: TestClient,
+        rag_client: TestClient,
         monkeypatch: pytest.MonkeyPatch,
         vip_headers: dict[str, str],
     ) -> None:
@@ -450,14 +467,14 @@ class TestInsightV1RAGFields:
 
         monkeypatch.setenv("FEATURE_INSIGHT", "true")
         monkeypatch.setenv("FEATURE_RAG", "true")
-        monkeypatch.setattr(llm, "get_provider", lambda: _EchoProvider(), raising=True)
+        monkeypatch.setattr(llm, "get_insight_provider", lambda: _EchoProvider(), raising=True)
         monkeypatch.setattr(
             "core.rag.vector_rag.retrieve_context_structured",
             _make_fake_structured,
             raising=True,
         )
 
-        resp = client.post("/api/v1/insight", json={"text": "test"}, headers=vip_headers)
+        resp = rag_client.post("/api/v1/insight", json={"text": "test"}, headers=vip_headers)
         assert resp.status_code == 200
         assert resp.headers.get("content-type", "").startswith("application/json")
         data = resp.json()
@@ -466,7 +483,7 @@ class TestInsightV1RAGFields:
 
     def test_recursive_rag_enabled_returns_recursive_metadata(
         self,
-        client: TestClient,
+        rag_client: TestClient,
         monkeypatch: pytest.MonkeyPatch,
         vip_headers: dict[str, str],
     ) -> None:
@@ -476,7 +493,7 @@ class TestInsightV1RAGFields:
         monkeypatch.setenv("FEATURE_INSIGHT", "true")
         monkeypatch.setenv("FEATURE_RAG", "true")
         monkeypatch.setenv("FEATURE_RAG_RECURSIVE", "true")
-        monkeypatch.setattr(llm, "get_provider", lambda: _EchoProvider(), raising=True)
+        monkeypatch.setattr(llm, "get_insight_provider", lambda: _EchoProvider(), raising=True)
         monkeypatch.setattr(
             "core.rag.recursive_retrieval.retrieve_recursive_context_structured",
             _make_fake_recursive_structured,
@@ -492,7 +509,9 @@ class TestInsightV1RAGFields:
             raising=True,
         )
 
-        resp = client.post("/api/v1/insight", json={"text": "What is BMI?"}, headers=vip_headers)
+        resp = rag_client.post(
+            "/api/v1/insight", json={"text": "What is BMI?"}, headers=vip_headers
+        )
         assert resp.status_code == 200
         assert resp.headers.get("content-type", "").startswith("application/json")
         data = resp.json()
@@ -504,7 +523,7 @@ class TestInsightV1RAGFields:
 
     def test_recursive_verification_reason_codes_surface_in_response(
         self,
-        client: TestClient,
+        rag_client: TestClient,
         monkeypatch: pytest.MonkeyPatch,
         vip_headers: dict[str, str],
     ) -> None:
@@ -524,7 +543,7 @@ class TestInsightV1RAGFields:
         monkeypatch.setenv("FEATURE_PHILOSOPHY_ROUTER", "true")
         monkeypatch.setenv("FEATURE_PHILOSOPHY_PHASE12", "true")
         monkeypatch.setenv("FEATURE_PHILOSOPHY_LINGUISTIC", "true")
-        monkeypatch.setattr(llm, "get_provider", lambda: provider, raising=True)
+        monkeypatch.setattr(llm, "get_insight_provider", lambda: provider, raising=True)
         monkeypatch.setattr(
             "core.rag.recursive_retrieval.retrieve_recursive_context_structured",
             _make_fake_recursive_structured,
@@ -552,7 +571,7 @@ class TestInsightV1RAGFields:
             raising=True,
         )
 
-        resp = client.post(
+        resp = rag_client.post(
             "/api/v1/insight",
             json={"text": "How much protein should I eat for recovery?"},
             headers=vip_headers,
@@ -570,7 +589,7 @@ class TestInsightV1RAGFields:
 
     def test_recursive_optimization_enabled_preserves_recursive_api_contract(
         self,
-        client: TestClient,
+        rag_client: TestClient,
         monkeypatch: pytest.MonkeyPatch,
         vip_headers: dict[str, str],
     ) -> None:
@@ -581,7 +600,7 @@ class TestInsightV1RAGFields:
         monkeypatch.setenv("FEATURE_RAG", "true")
         monkeypatch.setenv("FEATURE_RAG_RECURSIVE", "true")
         monkeypatch.setenv("FEATURE_RAG_RECURSIVE_OPTIMIZATION", "true")
-        monkeypatch.setattr(llm, "get_provider", lambda: _EchoProvider(), raising=True)
+        monkeypatch.setattr(llm, "get_insight_provider", lambda: _EchoProvider(), raising=True)
 
         seen_optimization_enabled: list[bool] = []
 
@@ -595,7 +614,9 @@ class TestInsightV1RAGFields:
             raising=True,
         )
 
-        resp = client.post("/api/v1/insight", json={"text": "What is BMI?"}, headers=vip_headers)
+        resp = rag_client.post(
+            "/api/v1/insight", json={"text": "What is BMI?"}, headers=vip_headers
+        )
 
         assert resp.status_code == 200
         assert resp.headers.get("content-type", "").startswith("application/json")
@@ -612,7 +633,7 @@ class TestInsightV1RAGFields:
 
     def test_insight_text_not_contaminated_by_source_headers(
         self,
-        client: TestClient,
+        rag_client: TestClient,
         monkeypatch: pytest.MonkeyPatch,
         vip_headers: dict[str, str],
     ) -> None:
@@ -620,17 +641,17 @@ class TestInsightV1RAGFields:
         import llm
 
         _disable_vip_monthly_quota(monkeypatch)
-        _ensure_rate_limiting_disabled(monkeypatch, client.app)
+        _ensure_rate_limiting_disabled(monkeypatch, rag_client.app)
         monkeypatch.setenv("FEATURE_INSIGHT", "true")
         monkeypatch.setenv("FEATURE_RAG", "true")
-        monkeypatch.setattr(llm, "get_provider", lambda: _EchoProvider(), raising=True)
+        monkeypatch.setattr(llm, "get_insight_provider", lambda: _EchoProvider(), raising=True)
         monkeypatch.setattr(
             "core.rag.vector_rag.retrieve_context_structured",
             _make_fake_structured,
             raising=True,
         )
 
-        with _isolated_test_client(client.app) as isolated_client:
+        with _isolated_test_client(rag_client.app) as isolated_client:
             resp = isolated_client.post(
                 "/api/v1/insight",
                 json={"text": "What is BMI?"},
@@ -647,24 +668,24 @@ class TestInsightLegacyRAGFields:
 
     def test_legacy_rag_enabled_returns_fields(
         self,
-        client: TestClient,
+        rag_client: TestClient,
         monkeypatch: pytest.MonkeyPatch,
         vip_headers: dict[str, str],
     ) -> None:
         import llm
 
         _disable_vip_monthly_quota(monkeypatch)
-        _ensure_rate_limiting_disabled(monkeypatch, client.app)
+        _ensure_rate_limiting_disabled(monkeypatch, rag_client.app)
         monkeypatch.setenv("FEATURE_INSIGHT", "true")
         monkeypatch.setenv("FEATURE_RAG", "true")
-        monkeypatch.setattr(llm, "get_provider", lambda: _EchoProvider(), raising=True)
+        monkeypatch.setattr(llm, "get_insight_provider", lambda: _EchoProvider(), raising=True)
         monkeypatch.setattr(
             "core.rag.vector_rag.retrieve_context_structured",
             _make_fake_structured,
             raising=True,
         )
 
-        with _isolated_test_client(client.app) as isolated_client:
+        with _isolated_test_client(rag_client.app) as isolated_client:
             resp = isolated_client.post("/insight", json={"text": "test"}, headers=vip_headers)
             assert resp.status_code == 200, resp.text
             assert resp.headers.get("content-type", "").startswith("application/json")
@@ -677,19 +698,19 @@ class TestInsightLegacyRAGFields:
 
     def test_legacy_rag_disabled_returns_defaults(
         self,
-        client: TestClient,
+        rag_client: TestClient,
         monkeypatch: pytest.MonkeyPatch,
         vip_headers: dict[str, str],
     ) -> None:
         import llm
 
         _disable_vip_monthly_quota(monkeypatch)
-        _ensure_rate_limiting_disabled(monkeypatch, client.app)
+        _ensure_rate_limiting_disabled(monkeypatch, rag_client.app)
         monkeypatch.setenv("FEATURE_INSIGHT", "true")
         monkeypatch.setenv("FEATURE_RAG", "false")
-        monkeypatch.setattr(llm, "get_provider", lambda: _EchoProvider(), raising=True)
+        monkeypatch.setattr(llm, "get_insight_provider", lambda: _EchoProvider(), raising=True)
 
-        with _isolated_test_client(client.app) as isolated_client:
+        with _isolated_test_client(rag_client.app) as isolated_client:
             resp = isolated_client.post("/insight", json={"text": "test"}, headers=vip_headers)
             assert resp.status_code == 200, resp.text
             assert resp.headers.get("content-type", "").startswith("application/json")

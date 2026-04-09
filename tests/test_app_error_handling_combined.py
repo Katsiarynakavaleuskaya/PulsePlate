@@ -211,6 +211,7 @@ class TestAppExceptionHandlersCoverage:
             )
             assert mocked_post.called is True
             assert response.status_code == 200
+            assert response.headers.get("content-type", "").startswith("application/json")
             payload = response.json()
             assert payload["provider"] == "stub"
             assert payload["insight"].startswith("[stub @ ")
@@ -239,6 +240,7 @@ class TestAppExceptionHandlersCoverage:
             )
             assert mocked_post.called is True
             assert response.status_code == 200
+            assert response.headers.get("content-type", "").startswith("application/json")
             payload = response.json()
             assert payload["provider"] == "stub"
             assert payload["insight"].startswith("[stub @ ")

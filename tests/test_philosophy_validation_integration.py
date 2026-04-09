@@ -13,6 +13,8 @@ from unittest.mock import patch
 import pytest
 from fastapi.testclient import TestClient
 
+from tests._client import disable_rate_limiting_for_test_app
+
 # ---------------------------------------------------------------------------
 # Fakes
 # ---------------------------------------------------------------------------
@@ -117,7 +119,18 @@ def _setup_insight(monkeypatch: pytest.MonkeyPatch) -> None:
 
     monkeypatch.setenv("FEATURE_INSIGHT", "true")
     monkeypatch.setenv("FEATURE_RAG", "true")
-    monkeypatch.setattr(llm, "get_provider", lambda: _EchoProvider(), raising=True)
+    monkeypatch.setattr(llm, "get_insight_provider", lambda: _EchoProvider(), raising=True)
+
+
+@pytest.fixture(autouse=True)
+def _disable_rate_limiting_for_insight_tests(
+    monkeypatch: pytest.MonkeyPatch,
+    client: TestClient,
+) -> None:
+    """Keep insight integration tests deterministic outside dedicated 429 suites."""
+
+    monkeypatch.delenv("RATE_LIMITING_IN_TESTS", raising=False)
+    disable_rate_limiting_for_test_app(client.app)
 
 
 # ---------------------------------------------------------------------------
@@ -376,7 +389,7 @@ class TestPhilosophicalRuntimeIntegration:
         monkeypatch.setenv("FEATURE_RAG", "false")
         monkeypatch.setenv("FEATURE_PHILOSOPHY_ROUTER", "true")
         monkeypatch.setenv("FEATURE_PHILOSOPHY_LINGUISTIC", "true")
-        monkeypatch.setattr(llm, "get_provider", lambda: _ExplodingProvider(), raising=True)
+        monkeypatch.setattr(llm, "get_insight_provider", lambda: _ExplodingProvider(), raising=True)
 
         resp = client.post(
             "/api/v1/insight",
@@ -405,7 +418,7 @@ class TestPhilosophicalRuntimeIntegration:
         monkeypatch.setenv("FEATURE_RAG", "false")
         monkeypatch.setenv("FEATURE_PHILOSOPHY_ROUTER", "true")
         monkeypatch.setenv("FEATURE_PHILOSOPHY_LINGUISTIC", "true")
-        monkeypatch.setattr(llm, "get_provider", lambda: _ExplodingProvider(), raising=True)
+        monkeypatch.setattr(llm, "get_insight_provider", lambda: _ExplodingProvider(), raising=True)
 
         resp = client.post("/insight", json={"text": "What is BMI?"}, headers=vip_headers)
 
@@ -432,7 +445,7 @@ class TestPhilosophicalRuntimeIntegration:
         monkeypatch.setenv("FEATURE_PHILOSOPHY_PHASE12", "true")
         monkeypatch.setattr(
             llm,
-            "get_provider",
+            "get_insight_provider",
             lambda: _StaticProvider(
                 "According to WHO, 20-40 grams of protein per meal is a practical range for many adults."
             ),

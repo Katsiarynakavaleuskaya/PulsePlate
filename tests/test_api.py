@@ -234,6 +234,7 @@ def test_insight_runtime_primary_failure_falls_back_to_ollama_family(
     response = client.post(path, json={"text": "test fallback"}, headers=vip_headers)
 
     assert response.status_code == 200
+    assert response.headers.get("content-type", "").startswith("application/json")
     data = response.json()
     assert data["provider"] == "ollama"
     assert "[ollama-lite]" in data["insight"]
@@ -257,13 +258,14 @@ def test_insight_runtime_chain_exhaustion_falls_back_to_stub(
     response = client.post(path, json={"text": "test fallback"}, headers=vip_headers)
 
     assert response.status_code == 200
+    assert response.headers.get("content-type", "").startswith("application/json")
     data = response.json()
     assert data["provider"] == "stub"
     assert data["insight"].startswith("[stub @ ")
     assert "Insight: test fallback" in data["insight"]
 
 
-@patch("llm.get_provider")
+@patch("llm.get_insight_provider")
 def test_api_insight_provider_generate_failure(
     mock_get_provider: Mock,
     client: TestClient,
@@ -289,7 +291,7 @@ def test_api_insight_provider_generate_failure(
     assert "Generate failed" not in data.get("detail", "")
 
 
-@patch("llm.get_provider")
+@patch("llm.get_insight_provider")
 def test_api_insight_provider_none(
     mock_get_provider: Mock,
     client: TestClient,

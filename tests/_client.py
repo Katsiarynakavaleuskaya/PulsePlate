@@ -52,7 +52,7 @@ def disable_rate_limiting_for_test_app(app_instance: FastAPI) -> None:
         if not isinstance(route, APIRoute):
             continue
         endpoint = getattr(route, "endpoint", None)
-        if endpoint is None:
+        if endpoint is None or not callable(endpoint):
             continue
         closure_nonlocals = inspect.getclosurevars(endpoint).nonlocals
         for captured in closure_nonlocals.values():

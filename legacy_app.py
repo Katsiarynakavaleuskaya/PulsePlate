@@ -1167,14 +1167,20 @@ async def ready(session: Session = Depends(get_session)) -> Dict[str, object]:
     Hidden from OpenAPI — semantics live in /health/db.
     """
     readiness_payload = await database_health(session=session)
+    insight_runtime: dict[str, object] = {"status": "unavailable"}
 
-    # RU: Добавляем только безопасную runtime-видимость для insight без секретов.
-    # EN: Add only safe insight runtime visibility without leaking secrets.
-    from llm import get_insight_runtime_readiness
+    try:
+        # RU: Добавляем только безопасную runtime-видимость для insight без секретов.
+        # EN: Add only safe insight runtime visibility without leaking secrets.
+        from llm import get_insight_runtime_readiness
+
+        insight_runtime = get_insight_runtime_readiness()
+    except Exception as exc:
+        logger.warning("Insight runtime readiness unavailable on /ready: %s", exc)
 
     return {
         **readiness_payload,
-        "insight_runtime": get_insight_runtime_readiness(),
+        "insight_runtime": insight_runtime,
     }
 
 

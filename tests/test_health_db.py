@@ -24,6 +24,7 @@ def test_database_health_ok() -> None:
     with TestClient(cast(ASGIApp, app.app)) as client:
         response = client.get("/health/db")
     assert response.status_code == 200
+    assert response.headers.get("content-type", "").startswith("application/json")
     assert response.json() == {"status": "ok"}
 
 
@@ -36,14 +37,14 @@ def test_ready_ok_exposes_additive_insight_runtime() -> None:
         response = client.get("/ready")
 
     assert response.status_code == 200
+    assert response.headers.get("content-type", "").startswith("application/json")
     payload = response.json()
     assert payload["status"] == "ok"
-    assert payload["insight_runtime"] == {
-        "feature_enabled": False,
-        "primary_provider": None,
-        "fallback_order": [],
-        "echo_mode_provider": None,
-    }
+    insight_runtime = payload["insight_runtime"]
+    assert insight_runtime["feature_enabled"] is False
+    assert insight_runtime["primary_provider"] is None
+    assert insight_runtime["fallback_order"] == []
+    assert insight_runtime["echo_mode_provider"] is None
 
 
 def test_ready_ok_exposes_echo_mode_without_secret_leak(
@@ -60,14 +61,14 @@ def test_ready_ok_exposes_echo_mode_without_secret_leak(
         response = client.get("/ready")
 
     assert response.status_code == 200
+    assert response.headers.get("content-type", "").startswith("application/json")
     payload = response.json()
     assert payload["status"] == "ok"
-    assert payload["insight_runtime"] == {
-        "feature_enabled": True,
-        "primary_provider": "stub",
-        "fallback_order": ["stub"],
-        "echo_mode_provider": "stub",
-    }
+    insight_runtime = payload["insight_runtime"]
+    assert insight_runtime["feature_enabled"] is True
+    assert insight_runtime["primary_provider"] == "stub"
+    assert insight_runtime["fallback_order"] == ["stub"]
+    assert insight_runtime["echo_mode_provider"] == "stub"
 
 
 @pytest.mark.parametrize("path", ["/health/db", "/ready"])
@@ -83,6 +84,7 @@ def test_readiness_failure(monkeypatch: pytest.MonkeyPatch, path: str) -> None:
         response = client.get(path)
 
     assert response.status_code == 503
+    assert response.headers.get("content-type", "").startswith("application/json")
     assert response.json()["detail"].lower().startswith("database")
 
 

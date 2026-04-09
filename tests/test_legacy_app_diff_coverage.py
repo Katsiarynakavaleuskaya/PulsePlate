@@ -313,7 +313,7 @@ async def test_insight_v1_rag_path_builds_prompt(monkeypatch: pytest.MonkeyPatch
     # Patch llm.get_provider import inside legacy_app endpoints
     import llm
 
-    monkeypatch.setattr(llm, "get_provider", lambda: _Provider())
+    monkeypatch.setattr(llm, "get_insight_provider", lambda: _Provider())
 
     # Patch retrieve_context_structured to return a context with chunks
     import core.rag.vector_rag as vector_rag
@@ -371,7 +371,7 @@ async def test_insight_v1_trims_prompt_text(monkeypatch: pytest.MonkeyPatch) -> 
 
     import llm
 
-    monkeypatch.setattr(llm, "get_provider", lambda: _Provider())
+    monkeypatch.setattr(llm, "get_insight_provider", lambda: _Provider())
 
     # Mock the orchestration to return a prompt longer than max length
     from core.rag.orchestration import RAGOrchestrationResult
@@ -415,7 +415,7 @@ async def test_legacy_insight_rag_path_trims(monkeypatch: pytest.MonkeyPatch) ->
 
     import llm
 
-    monkeypatch.setattr(llm, "get_provider", lambda: _Provider())
+    monkeypatch.setattr(llm, "get_insight_provider", lambda: _Provider())
     import core.rag.vector_rag as vector_rag
     from dataclasses import dataclass
     from typing import Optional
@@ -474,7 +474,7 @@ async def test_legacy_insight_trims_prompt_text(monkeypatch: pytest.MonkeyPatch)
 
     import llm
 
-    monkeypatch.setattr(llm, "get_provider", lambda: _Provider())
+    monkeypatch.setattr(llm, "get_insight_provider", lambda: _Provider())
 
     # Mock the orchestration to return a prompt longer than max length
     from core.rag.orchestration import RAGOrchestrationResult

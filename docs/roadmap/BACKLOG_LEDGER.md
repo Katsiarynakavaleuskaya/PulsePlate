@@ -278,7 +278,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P0: Insight fallback chain + echo-mode readiness visibility
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0 (VIP reliability)
-  - Target PR: PR-1379
+  - Target PR: PR `#1379`
   - Status: 🟡 In review
   - Reason (EN): Master checklist items #2 and #4 require deterministic behavior when primary LLM/provider path is unavailable and explicit operator visibility for fallback/echo mode.
   - Links:

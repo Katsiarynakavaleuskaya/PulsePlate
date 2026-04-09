@@ -313,7 +313,7 @@ class TestInsightEndpoints:
         """Test insight endpoint with no provider configured."""
         with (
             patch.dict(os.environ, {"FEATURE_INSIGHT": "true"}),
-            patch("llm.get_provider", return_value=None),
+            patch("llm.get_insight_provider", return_value=None),
         ):
             response = self.client.post("/insight", json={"text": "test"}, headers=self.vip_headers)
             assert response.status_code == 503
@@ -327,7 +327,7 @@ class TestInsightEndpoints:
 
         with (
             patch.dict(os.environ, {"FEATURE_INSIGHT": "true"}),
-            patch("llm.get_provider", return_value=mock_provider),
+            patch("llm.get_insight_provider", return_value=mock_provider),
         ):
             response = self.client.post("/insight", json={"text": "test"}, headers=self.vip_headers)
             assert response.status_code == 503
@@ -345,7 +345,7 @@ class TestInsightEndpoints:
 
         with (
             patch.dict(os.environ, {"FEATURE_INSIGHT": "true"}),
-            patch("llm.get_provider", return_value=mock_provider),
+            patch("llm.get_insight_provider", return_value=mock_provider),
         ):
             response = self.client.post(
                 "/insight", json={"text": "test query"}, headers=self.vip_headers
@@ -366,7 +366,7 @@ class TestInsightEndpoints:
 
         with (
             patch.dict(os.environ, {"API_KEY": "test_key", "FEATURE_INSIGHT": "true"}),
-            patch("llm.get_provider", return_value=mock_provider),
+            patch("llm.get_insight_provider", return_value=mock_provider),
         ):
             response = self.client.post(
                 "/api/v1/insight", json={"text": "test query"}, headers=self.vip_headers

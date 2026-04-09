@@ -421,7 +421,7 @@ def test_insight_tracing_emits_chain_and_llm_spans(
             return "trace-safe insight"
 
     monkeypatch.setenv("FEATURE_INSIGHT", "true")
-    monkeypatch.setattr(llm, "get_provider", lambda: AsyncStubProvider(), raising=True)
+    monkeypatch.setattr(llm, "get_insight_provider", lambda: AsyncStubProvider(), raising=True)
 
     response = client.post(
         "/api/v1/insight",
@@ -466,7 +466,7 @@ def test_insight_tracing_emits_retrieval_span_when_rag_enabled(
 
     monkeypatch.setenv("FEATURE_INSIGHT", "true")
     monkeypatch.setenv("FEATURE_RAG", "true")
-    monkeypatch.setattr(llm, "get_provider", lambda: AsyncStubProvider(), raising=True)
+    monkeypatch.setattr(llm, "get_insight_provider", lambda: AsyncStubProvider(), raising=True)
 
     async def _mock_retrieve_and_validate_rag(*_args: object, **_kwargs: object) -> SimpleNamespace:
         return SimpleNamespace(

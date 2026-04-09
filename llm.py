@@ -20,6 +20,8 @@ _PLACEHOLDER_API_KEYS = {
     "changeme",
     "your_api_key_here",
 }
+_DEFAULT_OLLAMA_TIMEOUT = 1.5
+_MIN_OLLAMA_TIMEOUT = 0.1
 
 
 def _load_optional_provider(module_name: str, class_name: str) -> type[ProviderBase] | None:
@@ -89,12 +91,28 @@ def _normalized_llm_provider() -> str:
 def _parse_ollama_timeout() -> float:
     """Parse Ollama timeout from env with safe fallback."""
 
-    raw_timeout = os.getenv("OLLAMA_TIMEOUT", "1.5")
+    raw_timeout = os.getenv("OLLAMA_TIMEOUT", str(_DEFAULT_OLLAMA_TIMEOUT))
     try:
-        return float(raw_timeout)
+        timeout = float(raw_timeout)
     except ValueError as exc:
-        logger.warning("Invalid OLLAMA_TIMEOUT '%s', defaulting to 1.5: %s", raw_timeout, exc)
-        return 1.5
+        logger.warning(
+            "Invalid OLLAMA_TIMEOUT '%s', defaulting to %.1f: %s",
+            raw_timeout,
+            _DEFAULT_OLLAMA_TIMEOUT,
+            exc,
+        )
+        return _DEFAULT_OLLAMA_TIMEOUT
+
+    if timeout < _MIN_OLLAMA_TIMEOUT:
+        logger.warning(
+            "OLLAMA_TIMEOUT '%s' below minimum %.1f; defaulting to %.1f",
+            raw_timeout,
+            _MIN_OLLAMA_TIMEOUT,
+            _DEFAULT_OLLAMA_TIMEOUT,
+        )
+        return _DEFAULT_OLLAMA_TIMEOUT
+
+    return timeout
 
 
 def _build_stub_provider() -> ProviderBase:
@@ -203,7 +221,15 @@ def _decorate_provider_with_fallback(
         for provider_name, builder in fallback_builders:
             fallback_provider = fallback_cache.get(provider_name)
             if fallback_provider is None:
-                fallback_provider = builder()
+                try:
+                    fallback_provider = builder()
+                except Exception as exc:
+                    logger.warning(
+                        "Insight fallback builder '%s' failed; skipping provider",
+                        provider_name,
+                        exc_info=exc,
+                    )
+                    continue
                 fallback_cache[provider_name] = fallback_provider
             provider_attempts.append(
                 (
@@ -228,6 +254,11 @@ def _decorate_provider_with_fallback(
             setattr(
                 provider,
                 "active_provider_name",
+                str(getattr(candidate_provider, "name", provider_name)),
+            )
+            setattr(
+                provider,
+                "name",
                 str(getattr(candidate_provider, "name", provider_name)),
             )
             return result
@@ -257,11 +288,32 @@ def get_insight_runtime_readiness() -> dict[str, object]:
     }
 
 
-def get_provider():
+def get_provider() -> ProviderBase | None:
     """Возвращает провайдер по переменной окружения LLM_PROVIDER.
 
     Если переменная пустая/неизвестная — возвращает None
     (а не implicit stub)."""
+    val = _normalized_llm_provider()
+
+    if val in {"", "none", "no"}:
+        return None
+
+    if val == "stub":
+        return _build_stub_provider()
+
+    if val == "ollama":
+        return _build_ollama_family_provider()
+
+    if val == "perplexity":
+        return _build_perplexity_family_provider()
+
+    # неизвестное значение — считаем, что провайдера нет
+    return None
+
+
+def get_insight_provider() -> ProviderBase | None:
+    """Return insight-specific provider with deterministic runtime fallback chain."""
+
     val = _normalized_llm_provider()
 
     if val in {"", "none", "no"}:

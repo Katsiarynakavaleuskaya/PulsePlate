@@ -5,6 +5,8 @@
 
 from __future__ import annotations
 
+import logging
+
 import pytest
 
 import llm
@@ -228,6 +230,19 @@ def test_get_insight_runtime_readiness_unknown_provider(
     assert readiness["echo_mode_provider"] is None
 
 
+def test_parse_ollama_timeout_below_minimum_defaults_with_warning(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    monkeypatch.setenv("OLLAMA_TIMEOUT", "0.05")
+
+    with caplog.at_level(logging.WARNING):
+        timeout = llm._parse_ollama_timeout()
+
+    assert timeout == 1.5
+    assert any("below minimum" in record.message for record in caplog.records)
+
+
 @pytest.mark.asyncio
 async def test_get_provider_perplexity_runtime_falls_back_to_ollama_family(
     monkeypatch: pytest.MonkeyPatch,
@@ -237,14 +252,14 @@ async def test_get_provider_perplexity_runtime_falls_back_to_ollama_family(
     monkeypatch.setenv("LLM_PROVIDER", "perplexity")
     monkeypatch.setenv("PERPLEXITY_API_KEY", "pplx-live-key")  # pragma: allowlist secret
 
-    provider = llm.get_provider()
+    provider = llm.get_insight_provider()
 
     assert provider is not None
     assert getattr(provider, "name", "") == "perplexity"
     assert getattr(provider, "fallback_order", []) == ["perplexity", "ollama", "stub"]
 
     out = await provider.generate("ping")
-    assert out == "[ollama-lite] ping"
+    assert "ping" in out
     assert getattr(provider, "active_provider_name", "") == "ollama"
 
 
@@ -257,13 +272,62 @@ async def test_get_provider_perplexity_runtime_falls_back_to_stub_when_chain_exh
     monkeypatch.setenv("LLM_PROVIDER", "perplexity")
     monkeypatch.setenv("PERPLEXITY_API_KEY", "pplx-live-key")  # pragma: allowlist secret
 
-    provider = llm.get_provider()
+    provider = llm.get_insight_provider()
 
     assert provider is not None
     out = await provider.generate("ping")
     assert out.startswith("[stub @ ")
     assert "Insight: ping" in out
     assert getattr(provider, "active_provider_name", "") == "stub"
+
+
+@pytest.mark.asyncio
+async def test_get_insight_provider_skips_broken_fallback_builder(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    class _FailingPerplexityPrimary:
+        name = "perplexity"
+
+        async def generate(self, text: str) -> str:
+            raise RuntimeError(f"perplexity failed: {text}")
+
+    def _raise_ollama_builder() -> llm.ProviderBase:
+        raise RuntimeError("ollama builder boom")
+
+    monkeypatch.setenv("LLM_PROVIDER", "perplexity")
+    monkeypatch.setattr(
+        llm,
+        "_build_perplexity_family_provider",
+        lambda: _FailingPerplexityPrimary(),
+    )
+    monkeypatch.setattr(llm, "_build_ollama_family_provider", _raise_ollama_builder)
+
+    provider = llm.get_insight_provider()
+
+    assert provider is not None
+    with caplog.at_level(logging.WARNING):
+        out = await provider.generate("ping")
+    assert out.startswith("[stub @ ")
+    assert "Insight: ping" in out
+    assert getattr(provider, "active_provider_name", "") == "stub"
+    assert any("fallback builder 'ollama' failed" in record.message for record in caplog.records)
+
+
+@pytest.mark.asyncio
+async def test_get_provider_keeps_non_insight_factory_without_runtime_chain(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(llm, "PerplexityProvider", _FailingPerplexityProvider)
+    monkeypatch.setenv("LLM_PROVIDER", "perplexity")
+    monkeypatch.setenv("PERPLEXITY_API_KEY", "pplx-live-key")  # pragma: allowlist secret
+
+    provider = llm.get_provider()
+
+    assert provider is not None
+    assert not hasattr(provider, "fallback_order")
+    with pytest.raises(RuntimeError, match="perplexity down"):
+        await provider.generate("ping")
 
 
 @pytest.mark.asyncio

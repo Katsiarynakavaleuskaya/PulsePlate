@@ -145,7 +145,7 @@ def _disable_singleton_rate_limiters() -> None:
             continue
 
         for attr_name in ("app", "main_app"):
-            app_instance = getattr(module, attr_name, None)
+            app_instance = vars(module).get(attr_name)
             if not isinstance(app_instance, FastAPI):
                 continue
 
