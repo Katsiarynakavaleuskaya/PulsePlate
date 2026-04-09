@@ -56,21 +56,12 @@ describe("ProPaywallPage", () => {
     expect(navigateMock).not.toHaveBeenCalled();
   });
 
-  it("navigates back on successful web purchase without surfacing an error", async () => {
-    purchasePremiumMock.mockResolvedValueOnce(undefined);
-
+  it("navigates back when the user closes the paywall", async () => {
     render(<ProPaywallPage />);
 
-    fireEvent.click(screen.getByTestId("paywall-cta"));
+    fireEvent.click(screen.getByTestId("paywall-cancel"));
 
-    await waitFor(() => {
-      expect(purchasePremiumMock).toHaveBeenCalledWith({
-        source: "bmi_soft_paywall",
-        via: "pro_page",
-      });
-      expect(navigateMock).toHaveBeenCalledWith(-1);
-    });
-
-    expect(screen.queryByTestId("paywall-purchase-error")).toBeNull();
+    expect(purchasePremiumMock).not.toHaveBeenCalled();
+    expect(navigateMock).toHaveBeenCalledWith(-1);
   });
 });

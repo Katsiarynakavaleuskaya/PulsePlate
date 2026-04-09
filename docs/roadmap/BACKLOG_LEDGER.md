@@ -202,15 +202,17 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P0: Web entitlement truth must come from canonical backend/store state
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0
-  - Target PR: PR-TBD-WEB-ENTITLEMENT-TRUTH
-  - Status: 🟡 Next active P0 release-truth lane after closure of `ledger-p0-billing-entitlement-routing`
+  - Target PR: PR-TBD-WEB-ENTITLEMENT-TRUTH (`feat/web-entitlement-truth`)
+  - Status: 🟡 Closeout staged in `feat/web-entitlement-truth`: canonical web entitlement truth remains `/api/v1/pro/session`, shared MSW release-surface tests no longer institutionalize `/api/purchase` or `/api/restore`, and web paywall page tests no longer imply a successful production web checkout path. Mark this item closed only after the PR merges.
   - Area: frontend / monetization / thin-client
   - Finding Type: thin-client and release-trust gap
-  - Reason: The live web surface still uses local premium state and mock-only purchase/restore flows, which breaks thin-client policy and can misstate monetization truth during release/readiness work.
+  - Reason: Runtime web entitlement truth already reads the canonical backend session contract, but the lane stayed open because stale frontend mock/release-path assumptions still treated mock purchase/restore endpoints and optimistic web checkout success as live contract surface.
   - Links:
     - `frontend/src/lib/usePremium.ts`
     - `frontend/src/lib/paywallPurchase.ts`
     - `frontend/src/mocks/handlers.ts`
+    - `frontend/src/mocks/__tests__/purchase.test.ts`
+    - `frontend/src/pages/Pro/__tests__/ProPaywallPage.test.tsx`
     - `frontend/src/api/openapi.json`
     - `frontend/AGENTS.md`
   - DoD:
