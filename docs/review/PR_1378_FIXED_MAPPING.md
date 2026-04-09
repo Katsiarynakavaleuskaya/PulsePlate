@@ -25,7 +25,7 @@
 
 ### Scope Notes
 
-- Keep this PR limited to dependency and security remediation for npm overrides and the `cryptography` safe floor.
+- Keep this PR limited to dependency and security remediation for npm overrides and the `cryptography 46.0.7` patched floor plus its exact-wheel fallback.
 - Keep the backlog note for open Dependabot alert reconciliation on `main`.
 - Do not mix any `rag` / `insight` lane changes into this PR.
 

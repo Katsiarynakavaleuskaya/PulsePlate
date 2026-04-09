@@ -334,27 +334,24 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Advisory updated (remove-by closed or docs-only follow-up per backlog policy)
 
 <a id="ledger-p1-cryptography-private-index-sync"></a>
-- [x] P1: Close `cryptography 46.0.7` mirror blocker via safe repin to `46.0.6`
+- [ ] P1: Remove temporary `cryptography 46.0.7` emergency wheel fallback after approved mirror sync
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (security / supply-chain / CI blocker)
-  - Target PR: `PR #1378`
-  - Status: ✅ Closed on `09 April 2026`
+  - Target PR: `PR-TBD` (follow-up after `PR #1378`)
+  - Status: Active as of `09 April 2026`
   - Area: security / CI / dependencies
-  - Reason (EN): `repair/hono-security` briefly moved to exact `cryptography 46.0.7`, but current-head CI and Docker installs showed the approved private index lagged that upstream release. The canonical CVE floor for CVE-2026-26007 is `46.0.5`, so the branch was repinned to the still-safe exact release `46.0.6` to restore merge readiness without weakening the dependency guard. (RU: ветка временно ушла на точный `46.0.7`, но CI/Docker показали отставание приватного зеркала. Канонический безопасный минимум для CVE-2026-26007 — `46.0.5`, поэтому ветку вернули на безопасный `46.0.6`, чтобы восстановить merge readiness без ослабления security guard.)
+  - Reason (EN): `repair/hono-security` must stay on the patched exact release `cryptography 46.0.7`, but current-head CI and Docker installs showed the approved private index lagged that upstream release. `PR #1378` therefore adds a time-boxed exact-wheel fallback with pinned `sha256` digests instead of a vulnerable repin or a broad public-index bypass. Remove this fallback as soon as the approved mirror serves `46.0.7` natively. (RU: `repair/hono-security` должен остаться на исправленном точном релизе `cryptography 46.0.7`, но CI/Docker показали отставание приватного зеркала. Поэтому `PR #1378` добавляет временный exact-wheel fallback с pinned `sha256`, а не уязвимый репин и не широкий bypass на публичный индекс. Удалить fallback сразу после того, как одобренное зеркало начнёт отдавать `46.0.7` нативно.)
   - Links:
     - `docs/security/CRYPTOGRAPHY_46_0_7_PRIVATE_INDEX_ADVISORY.md:1`
-    - `docs/security/CVE-2026-26007-cryptography.md:8`
+    - `scripts/ci/emergency_python_wheels.json`
     - `scripts/ci/install_locked_python_requirements.py`
     - `.github/actions/python-setup/action.yml`
-    - `.github/workflows/ci.yml`
-    - `requirements.txt`
-    - `constraints.txt`
-    - `docs/review/PR_1378_FIXED_MAPPING.md`
+    - `Dockerfile`
   - DoD:
-    - [x] Branch uses an exact safe release (`46.0.6`) that remains above the canonical floor `46.0.5`
-    - [x] Advisory doc is closed/updated in the same PR
-    - [ ] Current-head locked install succeeds in shared CI and Docker lanes against the approved index
-    - [ ] `PR #1378` no longer needs to remain draft for dependency availability reasons
+    - [ ] Approved private proxy serves `cryptography 46.0.7` without the emergency fallback manifest
+    - [ ] `scripts/ci/emergency_python_wheels.json` is removed from canonical CI/Docker paths
+    - [ ] Locked install, Docker build, and `make verify` succeed with the private proxy alone
+    - [ ] Advisory is updated to mark the emergency fallback retired
 
 <a id="ledger-p1-metatron-offensive-lab-out-of-band"></a>
 - [ ] P1: METATRON-class offensive lab — out-of-band governance and operator runbook

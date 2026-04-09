@@ -180,6 +180,8 @@ def test_build_pip_download_command_uses_constraint_when_present(tmp_path: Path)
     assert command[:4] == ["python", "-m", "pip", "download"]
     assert "--only-binary" in command
     assert ":all:" in command
+    assert "--find-links" in command
+    assert str(tmp_path / "wheelhouse") in command
     assert "--dest" in command
     assert "--index-url" in command
     assert APPROVED_PROXY_URL in command
@@ -243,6 +245,20 @@ def test_build_pip_proxy_install_command_omits_no_cache_dir_when_cache_allowed(
     assert "--no-cache-dir" not in command
 
 
+def test_build_pip_proxy_install_command_supports_find_links(tmp_path: Path) -> None:
+    command = installer.build_pip_proxy_install_command(
+        python_executable="python",
+        requirement_file=tmp_path / "requirements.txt",
+        constraints_file=None,
+        index_url=APPROVED_PROXY_URL,
+        trusted_host=None,
+        find_links_dir=tmp_path / "wheelhouse",
+    )
+
+    assert "--find-links" in command
+    assert str(tmp_path / "wheelhouse") in command
+
+
 def test_validate_private_proxy_url_rejects_public_hosts() -> None:
     with pytest.raises(RuntimeError, match="must not point to public host"):
         installer.validate_private_proxy_url("https://pypi.org/simple")
@@ -276,6 +292,87 @@ def test_resolve_private_proxy_settings_rejects_ambient_overrides(
             index_url=APPROVED_PROXY_URL,
             trusted_host=None,
         )
+
+
+def test_load_emergency_wheel_manifest_rejects_expired_file(tmp_path: Path) -> None:
+    manifest = tmp_path / "emergency.json"
+    manifest.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "expires_at": "2026-04-01",
+                "artifacts": [
+                    {
+                        "package": "cryptography",
+                        "version": "46.0.7",
+                        "filename": "cryptography.whl",
+                        "url": "https://files.pythonhosted.org/packages/example/cryptography.whl",
+                        "sha256": "a" * 64,
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(RuntimeError, match="expired"):
+        installer.load_emergency_wheel_manifest(manifest)
+
+
+def test_stage_emergency_wheels_downloads_only_requested_exact_artifacts(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    requirements = tmp_path / "requirements.txt"
+    requirements.write_text("cryptography==46.0.7\nopenai==2.29.0\n", encoding="utf-8")
+    manifest = tmp_path / "emergency.json"
+    manifest.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "expires_at": "2099-12-31",
+                "artifacts": [
+                    {
+                        "package": "cryptography",
+                        "version": "46.0.7",
+                        "filename": "cryptography-46.0.7.whl",
+                        "url": "https://files.pythonhosted.org/packages/example/cryptography-46.0.7.whl",
+                        "sha256": "b" * 64,
+                    },
+                    {
+                        "package": "cryptography",
+                        "version": "46.0.8",
+                        "filename": "cryptography-46.0.8.whl",
+                        "url": "https://files.pythonhosted.org/packages/example/cryptography-46.0.8.whl",
+                        "sha256": "c" * 64,
+                    },
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    observed_downloads: list[tuple[str, Path, str]] = []
+
+    def fake_download(*, url: str, destination: Path, expected_sha256: str) -> None:
+        observed_downloads.append((url, destination, expected_sha256))
+        destination.write_bytes(b"wheel-bytes")
+
+    monkeypatch.setattr(installer, "_download_with_sha256", fake_download)
+
+    staged = installer.stage_emergency_wheels(
+        requirement_files=[requirements],
+        wheelhouse_dir=tmp_path / "wheelhouse",
+        manifest_path=manifest,
+    )
+
+    assert [path.name for path in staged] == ["cryptography-46.0.7.whl"]
+    assert observed_downloads == [
+        (
+            "https://files.pythonhosted.org/packages/example/cryptography-46.0.7.whl",
+            tmp_path / "wheelhouse" / "cryptography-46.0.7.whl",
+            "b" * 64,
+        )
+    ]
 
 
 def test_build_pip_download_command_fails_when_constraints_file_is_missing(
