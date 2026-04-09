@@ -31,10 +31,15 @@ artifact or a separately approved higher safe release.
 
 - **Current branch pins:** `requirements.txt`, `requirements-ci-lite.txt`,
   `requirements-dev.txt`, `requirements-lock.txt`, and `constraints.txt` all
-  require `cryptography 46.0.7` or `>=46.0.7`.
+  require `cryptography 46.0.7` or `>=46.0.7`; representative anchors:
+  `requirements.txt:39`, `constraints.txt:53`.
 - **Approved private CI/Docker index:** current-head installs fail with
   `Cannot install cryptography==46.0.7 ... no matching distributions available
-  for your environment: cryptography` followed by `ResolutionImpossible`.
+  for your environment: cryptography` followed by `ResolutionImpossible`; the
+  locked installer + workflow path is anchored at
+  `scripts/ci/install_locked_python_requirements.py:277`,
+  `scripts/ci/install_locked_python_requirements.py:356`,
+  `.github/actions/python-setup/action.yml:61`, and `.github/workflows/ci.yml:400`.
 - **Observed failing runs on PR #1378 head `22670ae9`:**
   - `CI` run `24175455245`
   - `Frontend CI` run `24175455183`
@@ -62,9 +67,10 @@ artifact or a separately approved higher safe release.
 
 ## References
 
-- `scripts/ci/install_locked_python_requirements.py`
-- `.github/actions/python-setup/action.yml`
-- `.github/workflows/ci.yml`
-- `requirements.txt`
-- `constraints.txt`
-- `docs/review/PR_1378_FIXED_MAPPING.md`
+- `requirements.txt:39`
+- `constraints.txt:53`
+- `scripts/ci/install_locked_python_requirements.py:277`
+- `scripts/ci/install_locked_python_requirements.py:356`
+- `.github/actions/python-setup/action.yml:61`
+- `.github/workflows/ci.yml:400`
+- `docs/review/PR_1378_FIXED_MAPPING.md:1`
