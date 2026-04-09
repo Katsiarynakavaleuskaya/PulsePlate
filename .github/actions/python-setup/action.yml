@@ -135,6 +135,7 @@ runs:
           --python-executable python \
           --constraints-file "${{ inputs.constraints-file }}" \
           --install-mode "${{ inputs.install-mode }}" \
+          --emergency-wheel-manifest "${{ github.workspace }}/scripts/ci/emergency_python_wheels.json" \
           "${install_args[@]}"
 
     # Backward-compatibility no-op: requirements-dev.txt is installed above via

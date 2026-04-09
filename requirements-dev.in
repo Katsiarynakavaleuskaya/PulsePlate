@@ -18,7 +18,7 @@ bandit>=1.8.6  # Security tool - keep >= for vulnerability updates
 # safety removed: CVE-2025-14009 (nltk transitive), see docs/security/CVE-2025-14009-nltk.md
 pip-audit>=2.9.0  # Security tool - keep >= for vulnerability updates
 marshmallow>=4.1.2  # Explicit floor to keep CVE fix independent of transitive deps
-cryptography>=46.0.6  # Keep explicit dependency floor for dependency-security guard
+cryptography>=46.0.7  # Keep explicit dependency floor for dependency-security guard
 requests>=2.33.0  # Security floor for GHSA-gc5v-m9x4-r6x2 across dev tooling surfaces
 pre-commit~=4.5.1
 pip-tools~=7.5.3

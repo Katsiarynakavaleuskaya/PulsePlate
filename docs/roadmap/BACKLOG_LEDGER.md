@@ -333,6 +333,26 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Locked install + Docker production target succeed against the private index; `make verify` green
     - Advisory updated (remove-by closed or docs-only follow-up per backlog policy)
 
+<a id="ledger-p1-cryptography-private-index-sync"></a>
+- [ ] P1: Remove temporary `cryptography 46.0.7` emergency wheel fallback after approved mirror sync
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (security / supply-chain / CI blocker)
+  - Target PR: `PR-TBD` (follow-up after `PR #1378`)
+  - Status: Active as of `09 April 2026`
+  - Area: security / CI / dependencies
+  - Reason (EN): `repair/hono-security` must stay on the patched exact release `cryptography 46.0.7`, but current-head CI and Docker installs showed the approved private index lagged that upstream release. `PR #1378` therefore adds a time-boxed exact-wheel fallback with pinned `sha256` digests instead of a vulnerable repin or a broad public-index bypass. Remove this fallback as soon as the approved mirror serves `46.0.7` natively. (RU: `repair/hono-security` должен остаться на исправленном точном релизе `cryptography 46.0.7`, но CI/Docker показали отставание приватного зеркала. Поэтому `PR #1378` добавляет временный exact-wheel fallback с pinned `sha256`, а не уязвимый репин и не широкий bypass на публичный индекс. Удалить fallback сразу после того, как одобренное зеркало начнёт отдавать `46.0.7` нативно.)
+  - Links:
+    - `docs/security/CRYPTOGRAPHY_46_0_7_PRIVATE_INDEX_ADVISORY.md:1`
+    - `scripts/ci/emergency_python_wheels.json`
+    - `scripts/ci/install_locked_python_requirements.py`
+    - `.github/actions/python-setup/action.yml`
+    - `Dockerfile`
+  - DoD:
+    - [ ] Approved private proxy serves `cryptography 46.0.7` without the emergency fallback manifest
+    - [ ] `scripts/ci/emergency_python_wheels.json` is removed from canonical CI/Docker paths
+    - [ ] Locked install, Docker build, and `make verify` succeed with the private proxy alone
+    - [ ] Advisory is updated to mark the emergency fallback retired
+
 <a id="ledger-p1-metatron-offensive-lab-out-of-band"></a>
 - [ ] P1: METATRON-class offensive lab — out-of-band governance and operator runbook
   - Owner: @katsiaryna_kavaleuskaya
@@ -2897,6 +2917,98 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Separate security lane decides between narrow suppression and upstream/base-image remediation
     - Billing activation/persistence closeout remains explicitly out of scope for this CVE
     - Alerts `#579` and `#580` are closed or formally covered by the approved suppression policy
+
+<a id="ledger-p1-reconcile-open-dependabot-alerts"></a>
+- [ ] P1: Reconcile open Dependabot alerts on `main` after manifest fixes
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-STALE-DEPENDABOT-RECONCILIATION
+  - Area: security / dependencies / scanner-state
+  - Finding Type: stale alert reconciliation
+  - Reason: As of 8 April 2026, GitHub Dependabot on `main` still reports open alerts `#100`, `#99`-`#95`, `#94`, and `#93`-`#92` for `addressable`, `hono`, `@hono/node-server`, and `vite`, while the repo manifests already show newer dependency states (`ios/Gemfile.lock` -> `addressable 2.9.0`, `package-lock.json` -> `hono 4.12.12` and `@hono/node-server 1.19.13`, `frontend/package-lock.json` -> `vite 6.4.2`). These alerts appear stale relative to current manifests, but require per-alert reconciliation against the GitHub advisory boundary and scanner refresh state. That work must stay in a dedicated follow-up instead of expanding the narrow root npm remediation PR for `smol-toml` / `yaml`.
+  - Links:
+    - `ios/Gemfile.lock`
+    - `package-lock.json`
+    - `frontend/package-lock.json`
+    - `docs/review/PR_1372_FIXED_MAPPING.md`
+  - Child items (one alert bundle per package/advisory family):
+    - `ledger-p1-dependabot-alert-100-addressable`
+    - `ledger-p1-dependabot-alert-99-95-hono`
+    - `ledger-p1-dependabot-alert-94-hono-node-server`
+    - `ledger-p1-dependabot-alert-93-92-vite`
+  - DoD:
+    - Confirm whether GitHub auto-closes the alerts after the next scanner refresh on `main`
+    - If alerts remain open, document per-alert evidence that `main` already carries the patched version or open a dedicated triage PR with that evidence
+    - Resolve the stale-alert state without reopening unrelated dependency drift in the narrow remediation PR
+
+<a id="ledger-p1-dependabot-alert-100-addressable"></a>
+- [ ] P1: Reconcile Dependabot alert `#100` (`addressable`) on `main`
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-DEPENDABOT-100-ADDRESSABLE
+  - Area: security / ruby / scanner-state
+  - Finding Type: stale alert reconciliation
+  - Reason: GitHub still reports alert `#100` for `addressable` against `ios/Gemfile.lock`, while the lockfile already carries `addressable 2.9.0`. Confirm whether the advisory boundary still applies or whether this is scanner lag requiring refresh evidence.
+  - Links:
+    - `ios/Gemfile.lock`
+    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/security/dependabot/100`
+  - DoD:
+    - Capture the patched version/advisory boundary for alert `#100`
+    - Confirm whether `ios/Gemfile.lock` already satisfies the patched floor or open a dedicated remediation PR
+    - Close the alert on `main` or record scanner-refresh evidence showing why closure is pending
+
+<a id="ledger-p1-dependabot-alert-99-95-hono"></a>
+- [ ] P1: Reconcile Dependabot alerts `#99`-`#95` (`hono`) on `main`
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-DEPENDABOT-99-95-HONO
+  - Area: security / node / scanner-state
+  - Finding Type: stale alert reconciliation
+  - Reason: GitHub still reports five open `hono` alerts against `package-lock.json`, while the lockfile already shows `hono 4.12.12`. Reconcile each advisory against the current lockfile and determine whether a scanner refresh or a dedicated CVE-scoped follow-up PR is required.
+  - Links:
+    - `package-lock.json`
+    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/security/dependabot/99`
+    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/security/dependabot/98`
+    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/security/dependabot/97`
+    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/security/dependabot/96`
+    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/security/dependabot/95`
+  - DoD:
+    - Record per-alert advisory boundaries for `#99`-`#95`
+    - Prove whether `package-lock.json` already carries patched `hono` versions for each alert
+    - Close the alerts via scanner refresh or open dedicated CVE-scoped PRs where lockfile remediation is still required
+
+<a id="ledger-p1-dependabot-alert-94-hono-node-server"></a>
+- [ ] P1: Reconcile Dependabot alert `#94` (`@hono/node-server`) on `main`
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-DEPENDABOT-94-HONO-NODE-SERVER
+  - Area: security / node / scanner-state
+  - Finding Type: stale alert reconciliation
+  - Reason: GitHub still reports alert `#94` for `@hono/node-server` against `package-lock.json`, while the lockfile already shows `@hono/node-server 1.19.13`. Confirm whether the advisory is stale or whether additional remediation remains.
+  - Links:
+    - `package-lock.json`
+    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/security/dependabot/94`
+  - DoD:
+    - Capture the patched version/advisory boundary for alert `#94`
+    - Confirm whether `package-lock.json` already satisfies the patched floor or open a dedicated remediation PR
+    - Close the alert on `main` or record scanner-refresh evidence showing why closure is pending
+
+<a id="ledger-p1-dependabot-alert-93-92-vite"></a>
+- [ ] P1: Reconcile Dependabot alerts `#93`-`#92` (`vite`) on `main`
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-DEPENDABOT-93-92-VITE
+  - Area: security / frontend / scanner-state
+  - Finding Type: stale alert reconciliation
+  - Reason: GitHub still reports two open `vite` alerts against `frontend/package-lock.json`, while the lockfile already shows `vite 6.4.2`. Reconcile each advisory against the current frontend lockfile and determine whether a scanner refresh or a dedicated frontend remediation PR is required.
+  - Links:
+    - `frontend/package-lock.json`
+    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/security/dependabot/93`
+    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/security/dependabot/92`
+  - DoD:
+    - Record per-alert advisory boundaries for `#93` and `#92`
+    - Prove whether `frontend/package-lock.json` already carries patched `vite` versions for both alerts
+    - Close the alerts via scanner refresh or open dedicated CVE-scoped PRs where frontend remediation is still required
 
 <a id="ledger-p1-ai-reliability-experiment-sublane"></a>
 - [ ] P1: AI reliability experimentation sublane for logic + philosophy offline replay
