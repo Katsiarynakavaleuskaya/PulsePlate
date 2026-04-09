@@ -48,3 +48,10 @@ Retire this seam only when:
 - Positive: the repo preserves the fail-closed private-proxy contract.
 - Negative: a known advisory remains temporarily suppressed in the local
   pre-push gate until mirror sync completes.
+
+## Evidence
+
+- `.pre-commit-config.yaml:123-133` (`pip-audit` pre-push hook plus temporary `GHSA-p423-j2cm-9vmq` ignore)
+- `requirements-dev.in:21` (temporary mirror-lag floor note for `cryptography`)
+- `requirements.in:35`, `requirements.txt:39`, `requirements-ci-lite.txt:58`, `requirements-dev.txt:44`, `requirements-lock.txt:76` (tracked requirement surfaces remain on `46.0.6`)
+- `docs/roadmap/BACKLOG_LEDGER.md:339-351` (approved private-index lag, CI/Docker install-path blocker, and removal backlog)

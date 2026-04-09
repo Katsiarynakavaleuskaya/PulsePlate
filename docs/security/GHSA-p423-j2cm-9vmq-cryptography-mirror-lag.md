@@ -7,7 +7,7 @@
 - Package: `cryptography`
 - Public patched version: `46.0.7`
 - Temporary repo pin while the approved mirror lags: `46.0.6`
-- Remove-by: `9 May 2026`
+- Remove-by: `2026-05-09`
 - Backlog: `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-cryptography-private-index-bump`
 
 ## Context
@@ -59,10 +59,11 @@ Retire this seam only when all are true:
 
 ## Evidence Anchors
 
-- `.pre-commit-config.yaml`
-- `requirements.in`
-- `requirements.txt`
-- `requirements-ci-lite.txt`
-- `requirements-dev.txt`
-- `requirements-lock.txt`
-- `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-cryptography-private-index-bump`
+- `.pre-commit-config.yaml:123-133`
+- `requirements.in:35`
+- `requirements.txt:39`
+- `requirements-ci-lite.txt:58`
+- `requirements-dev.in:21`
+- `requirements-dev.txt:44`
+- `requirements-lock.txt:76`
+- `docs/roadmap/BACKLOG_LEDGER.md:339-351`
