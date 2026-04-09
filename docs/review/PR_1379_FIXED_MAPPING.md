@@ -66,6 +66,12 @@ Disposition: NOT-A-BUG
 Evidence: thread-level actionable comments from these aggregate bot reviews are mapped separately above; the remaining summary-level rollups do not introduce additional unresolved defects on current head beyond the already-dispositioned inline items.
 Reason: aggregate review summaries are advisory once their concrete inline comments are mapped, and the current branch head preserves the approved A1 runtime contract without widening `#1379` beyond insight fallback/readiness scope.
 
+## Current-Head Follow-up
+
+Disposition: FIXED
+Commit: 775c863f4
+Evidence: `tests/test_llm_extras.py` now covers the current-head `diff-coverage` tail reported by GitHub job `70690704857` for `llm.py` (`_parse_ollama_timeout` invalid-value fallback, double-failure Ollama ctor path, Perplexity lite fallback branches, and direct `get_provider` / `get_insight_provider` dispatch branches). Focused local `diff-cover` against `origin/main` passes at `97%` with `legacy_app.py` and `llm.py` both at `100%` diff coverage.
+
 ## Merge Readiness
 
 - [ ] Current-head CI green for PR branch head
