@@ -631,6 +631,7 @@ jobs:
                   tests/test_insight_error_hygiene.py \
                   tests/test_insight_vip_guard_api.py \
                   tests/test_insight_vip_monthly_quota_api.py \
+                  tests/test_llm_extras.py \
                   tests/test_philosophy_validation_integration.py \
                   tests/test_rate_limit_llm_and_exports_api.py
                 ;;
