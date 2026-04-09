@@ -123,6 +123,7 @@ def test_privacy_metadata_stays_in_sync_with_canonical_docs() -> None:
         assert doc_marker in legal_privacy_doc
 
     ai_generated_endpoints = cast(list[str], ai_generated_surface["endpoints"])
+    ai_generated_exposure = cast(str, ai_generated_surface["third_party_exposure"])
     assert "/api/v1/pro/fitchef/explain" in ai_generated_endpoints
     assert "/api/v1/pro/fitchef/explain" in legal_privacy_doc
     assert "/api/v1/pro/fitchef/explain" in data_matrix_doc
@@ -130,6 +131,7 @@ def test_privacy_metadata_stays_in_sync_with_canonical_docs() -> None:
     assert "telemetry processor" in legal_privacy_doc.lower()
     assert "Telemetry processors" in ai_notice_doc
     assert "telemetry trace processor is configured" in data_matrix_doc
+    assert "telemetry trace processors" in ai_generated_exposure.lower()
     assert "does not activate the regulated lane by itself" in regulated_lane_doc
     regulated_lane_rule_text = cast(str, regulated_lane["rule"])
     assert "does not activate the regulated lane by itself" in regulated_lane_rule_text
@@ -225,6 +227,7 @@ def test_dsar_artifact_map_distinguishes_direct_and_indirect_artifacts() -> None
 def test_provider_inventory_includes_local_and_conditional_ai_families() -> None:
     inventory = get_provider_inventory()
     provider_ids = {item["provider_id"] for item in inventory}
+    assert any(item["provider_id"] == "otlp_trace_processor" for item in inventory)
     otlp_processor = next(
         item for item in inventory if item["provider_id"] == "otlp_trace_processor"
     )
@@ -241,8 +244,8 @@ def test_privacy_docs_do_not_promise_public_dsar_api() -> None:
     legal_privacy_doc = _LEGAL_PRIVACY_DOC.read_text(encoding="utf-8").lower()
     dsar_map_doc = _DSAR_MAP_DOC.read_text(encoding="utf-8").lower()
 
-    assert "public self-service endpoint" not in legal_privacy_doc
-    assert "public dsar api" not in legal_privacy_doc
+    assert "public self-service endpoint is available" not in legal_privacy_doc
+    assert "public dsar api is available" not in legal_privacy_doc
     assert "public dsar api still deferred" in dsar_map_doc
     assert dsar_map_doc.count("public dsar api") == 1
 

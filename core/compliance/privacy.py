@@ -165,7 +165,8 @@ _PROCESSING_CATEGORIES: tuple[ProcessingCategory, ...] = (
         purpose="Generate wellness-oriented, automated AI responses and explanations",
         sensitivity="derived sensitive",
         third_party_exposure=(
-            "May involve configured provider families or self-hosted processors; "
+            "May involve configured provider families, self-hosted processors, or telemetry trace processors "
+            "when configured; "
             "local tracing stores fingerprint-only request metadata"
         ),
         retention=(
