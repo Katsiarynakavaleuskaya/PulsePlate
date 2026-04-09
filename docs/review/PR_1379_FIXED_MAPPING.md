@@ -72,6 +72,10 @@ Disposition: FIXED
 Commit: 775c863f4
 Evidence: `tests/test_llm_extras.py` now covers the current-head `diff-coverage` tail reported by GitHub job `70690704857` for `llm.py` (`_parse_ollama_timeout` invalid-value fallback, double-failure Ollama ctor path, Perplexity lite fallback branches, and direct `get_provider` / `get_insight_provider` dispatch branches). Focused local `diff-cover` against `origin/main` passes at `97%` with `legacy_app.py` and `llm.py` both at `100%` diff coverage.
 
+Disposition: FIXED
+Commit: ecf860d41
+Evidence: current-head `diff-coverage` job `70698849524` used the PR coverage artifact, so the fix had two parts on `ecf860d41`: `.github/workflows/ci.yml:631` now includes `tests/test_llm_extras.py` in the `insight_ai` contract/risk suite executed by `test-pr`, and `tests/test_legacy_app_diff_coverage.py:40` now covers the `/ready` warning branch when `llm.get_insight_runtime_readiness()` fails. Local reproduction of the PR artifact path (`tests/edges` + `tests/test_remaining_modules.py` + `insight_ai,openapi_contract,route_contract_safety`) now yields `legacy_app.py (100%)`, `llm.py (99.1%)`, total diff coverage `99%` against `origin/main`.
+
 ## Merge Readiness
 
 - [ ] Current-head CI green for PR branch head
