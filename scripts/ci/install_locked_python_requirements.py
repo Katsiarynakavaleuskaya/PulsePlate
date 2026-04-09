@@ -13,7 +13,7 @@ import subprocess  # nosec B404: subprocess is required for bounded pip/python i
 import sys
 import tempfile
 from pathlib import Path
-from typing import Iterator, Sequence
+from typing import Iterator, Sequence, cast
 from urllib.parse import urlparse
 from urllib.request import urlopen
 
@@ -301,19 +301,24 @@ def load_emergency_wheel_manifest(manifest_path: Path | None) -> list[dict[str, 
             raise RuntimeError(
                 "Emergency wheel artifacts require non-empty package/version/filename/url/sha256."
             )
-        parsed_url = urlparse(url)
+        package_text = cast(str, package).strip()
+        version_text = cast(str, version).strip()
+        filename_text = cast(str, filename).strip()
+        url_text = cast(str, url).strip()
+        sha256_text = cast(str, sha256).strip()
+        parsed_url = urlparse(url_text)
         hostname = (parsed_url.hostname or "").rstrip(".").lower()
         if parsed_url.scheme != "https" or hostname not in ALLOWED_EMERGENCY_WHEEL_HOSTS:
             raise RuntimeError(
-                "Emergency wheel artifacts must use approved https hosts only: " f"{url!r}"
+                "Emergency wheel artifacts must use approved https hosts only: " f"{url_text!r}"
             )
         normalized_artifacts.append(
             {
-                "package": package.strip(),
-                "version": version.strip(),
-                "filename": filename.strip(),
-                "url": url.strip(),
-                "sha256": _validate_sha256(sha256, filename=filename.strip()),
+                "package": package_text,
+                "version": version_text,
+                "filename": filename_text,
+                "url": url_text,
+                "sha256": _validate_sha256(sha256_text, filename=filename_text),
             }
         )
     return normalized_artifacts
