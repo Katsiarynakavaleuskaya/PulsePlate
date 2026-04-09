@@ -54,6 +54,12 @@ Disposition: FIXED
 Commit: 4546ab11f
 Evidence: cubic found two test-hygiene issues on the updated head, both fixed in `4546ab11f`: `tests/test_api.py` now uses `monkeypatch.setattr(llm, "get_insight_provider", ...)` instead of `@patch`, and `tests/conftest.py` now honors lazy `app.__getattr__` exports by falling back to `getattr(module, attr_name, None)` after `vars(module).get(...)`.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1379#pullrequestreview-4085380632 -> 1a9f2299c
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1379#discussion_r3060628115 -> 1a9f2299c
+Disposition: FIXED
+Commit: 1a9f2299c
+Evidence: latest CodeRabbit round is closed on `1a9f2299c`: `tests/test_api.py` removes the remaining `unittest.mock.patch` import and rewrites `test_compute_wht_ratio_round_exception` to use `monkeypatch.setattr(core.bmi.engine, "round", ...)`; `tests/test_insight_rag_response_fields.py` removes redundant manual `_disable_vip_monthly_quota(...)` / `_ensure_rate_limiting_disabled(...)` calls because the module autouse fixture already applies both seams for every test.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1379#pullrequestreview-4081288984
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1379#pullrequestreview-4082066018
 Disposition: NOT-A-BUG
