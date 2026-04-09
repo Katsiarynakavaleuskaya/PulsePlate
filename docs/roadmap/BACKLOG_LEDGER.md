@@ -335,6 +335,26 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Locked install + Docker production target succeed against the private index; `make verify` green
     - Advisory updated (remove-by closed or docs-only follow-up per backlog policy)
 
+<a id="ledger-p1-cryptography-private-index-bump"></a>
+- [ ] P1: Raise cryptography to >=46.0.7 after approved private index resolves patched wheels
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (supply-chain / dependency-security debt)
+  - Target PR: Follow-up after PR #1379
+  - Area: security / CI / dependencies
+  - Reason (EN): `pip-audit` requires `cryptography>=46.0.7` for `GHSA-p423-j2cm-9vmq` / `CVE-2026-39892`, but the approved private package proxy currently fails locked CI/Docker installs at `46.0.7`. The repo therefore carries a temporary advisory-scoped `pip-audit` seam while keeping the fail-closed private-index contract intact. (RU: patched версия есть на public upstream, но approved private mirror ещё не отдает её для shared CI/Docker install paths, поэтому нужен временный advisory-scoped seam до синка зеркала.)
+  - Links:
+    - `docs/security/GHSA-p423-j2cm-9vmq-cryptography-mirror-lag.md:1`
+    - `docs/architecture/ADR_PIP_AUDIT_CRYPTOGRAPHY_MIRROR_LAG_SEAM_2026-04-09.md:1`
+    - `.pre-commit-config.yaml:123`
+    - `requirements.txt:39`
+    - `requirements-ci-lite.txt:58`
+    - `requirements-lock.txt:76`
+  - DoD:
+    - approved private proxy resolves `cryptography==46.0.7` (or later safe version) on locked CI and Docker installs
+    - tracked requirement surfaces pin the safe version across runtime/dev/ci-lite/lock manifests
+    - `.pre-commit-config.yaml` no longer carries `--ignore-vuln GHSA-p423-j2cm-9vmq`
+    - `pre-commit run --hook-stage pre-push pip-audit --all-files`, canonical CI, and Docker smoke pass without the temporary seam
+
 <a id="ledger-p1-metatron-offensive-lab-out-of-band"></a>
 - [ ] P1: METATRON-class offensive lab — out-of-band governance and operator runbook
   - Owner: @katsiaryna_kavaleuskaya

@@ -126,6 +126,8 @@ repos:
         args:
           - --requirement
           - requirements.txt
+          - --ignore-vuln
+          - GHSA-p423-j2cm-9vmq
           - --strict
           - --timeout
           - '60'
