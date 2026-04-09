@@ -437,6 +437,37 @@ def test_download_with_sha256_cleans_partial_temp_files_on_stream_failure(
     assert list((tmp_path / "wheelhouse").iterdir()) == []
 
 
+def test_download_with_sha256_closes_temp_fd_when_urlopen_fails_immediately(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    observed_fdopen_calls: list[int] = []
+    original_fdopen = installer.os.fdopen
+
+    def tracking_fdopen(fd: int, mode: str, *args: object, **kwargs: object) -> object:
+        observed_fdopen_calls.append(fd)
+        return original_fdopen(fd, mode, *args, **kwargs)
+
+    def raise_urlopen(*args: object, **kwargs: object) -> object:
+        raise OSError("connect failed")
+
+    monkeypatch.setattr(installer.os, "fdopen", tracking_fdopen)
+    monkeypatch.setattr(installer, "urlopen", raise_urlopen)
+
+    destination = tmp_path / "wheelhouse" / "cryptography-46.0.7.whl"
+
+    with pytest.raises(OSError, match="connect failed"):
+        installer._download_with_sha256(
+            url="https://files.pythonhosted.org/packages/example/cryptography-46.0.7.whl",
+            destination=destination,
+            expected_sha256="a" * 64,
+        )
+
+    assert observed_fdopen_calls
+    assert destination.exists() is False
+    assert list((tmp_path / "wheelhouse").iterdir()) == []
+
+
 def test_build_wheelhouse_with_emergency_fallback_retries_only_after_proxy_failure(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
