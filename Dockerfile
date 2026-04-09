@@ -50,7 +50,7 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 
 # Copy requirements and install Python dependencies
 COPY requirements.txt requirements-dev.txt constraints.txt ./
-COPY scripts/ci/check_python_startup_hooks.py scripts/ci/install_locked_python_requirements.py /tmp/pulseplate-ci/
+COPY scripts/ci/check_python_startup_hooks.py scripts/ci/install_locked_python_requirements.py scripts/ci/emergency_python_wheels.json /tmp/pulseplate-ci/
 RUN --mount=type=cache,target=/root/.cache/pip \
     if [ -z "${PULSEPLATE_PYTHON_INDEX_URL:-}" ]; then \
       echo "PULSEPLATE_PYTHON_INDEX_URL is required for Docker builds." >&2; \
@@ -63,6 +63,7 @@ RUN --mount=type=cache,target=/root/.cache/pip \
         --guard-script /tmp/pulseplate-ci/check_python_startup_hooks.py \
         --constraints-file constraints.txt \
         --install-mode direct-proxy \
+        --emergency-wheel-manifest /tmp/pulseplate-ci/emergency_python_wheels.json \
         --index-url "${PULSEPLATE_PYTHON_INDEX_URL}" \
         --trusted-host "${PULSEPLATE_PYTHON_TRUSTED_HOST}"; \
     else \
@@ -72,6 +73,7 @@ RUN --mount=type=cache,target=/root/.cache/pip \
         --guard-script /tmp/pulseplate-ci/check_python_startup_hooks.py \
         --constraints-file constraints.txt \
         --install-mode direct-proxy \
+        --emergency-wheel-manifest /tmp/pulseplate-ci/emergency_python_wheels.json \
         --index-url "${PULSEPLATE_PYTHON_INDEX_URL}"; \
     fi && \
     # Remove setuptools from runtime image to fix GHSA-58pv-8j8x-9vj2 (jaraco.context vulnerability)
@@ -243,7 +245,7 @@ USER root
 # Install development dependencies
 # Copy both requirements files as requirements-dev.txt includes requirements.txt via -r
 COPY requirements.txt requirements-dev.txt constraints.txt ./
-COPY scripts/ci/check_python_startup_hooks.py scripts/ci/install_locked_python_requirements.py /tmp/pulseplate-ci/
+COPY scripts/ci/check_python_startup_hooks.py scripts/ci/install_locked_python_requirements.py scripts/ci/emergency_python_wheels.json /tmp/pulseplate-ci/
 # SECURITY NOTE: Do NOT uninstall setuptools/wheel in development stage.
 # They are required runtime dependencies of pip-tools for lockfile generation (pip-compile).
 # Security mitigation (GHSA-58pv-8j8x-9vj2) applies to runtime/production images only.
@@ -259,6 +261,7 @@ RUN if [ -z "${PULSEPLATE_PYTHON_INDEX_URL:-}" ]; then \
         --guard-script /tmp/pulseplate-ci/check_python_startup_hooks.py \
         --constraints-file constraints.txt \
         --install-dev \
+        --emergency-wheel-manifest /tmp/pulseplate-ci/emergency_python_wheels.json \
         --index-url "${PULSEPLATE_PYTHON_INDEX_URL}" \
         --trusted-host "${PULSEPLATE_PYTHON_TRUSTED_HOST}"; \
     else \
@@ -269,6 +272,7 @@ RUN if [ -z "${PULSEPLATE_PYTHON_INDEX_URL:-}" ]; then \
         --guard-script /tmp/pulseplate-ci/check_python_startup_hooks.py \
         --constraints-file constraints.txt \
         --install-dev \
+        --emergency-wheel-manifest /tmp/pulseplate-ci/emergency_python_wheels.json \
         --index-url "${PULSEPLATE_PYTHON_INDEX_URL}"; \
     fi
 

@@ -65,6 +65,68 @@ def disable_rate_limiting_for_test_app(app_instance: FastAPI) -> None:
             _disable_limiter_instance(captured)
 
 
+def override_rate_limit_identity_for_test_app(
+    app_instance: FastAPI,
+    *,
+    limiter_key: str,
+    monkeypatch: Any,
+) -> None:
+    """Pin route-level limiter identity to a deterministic key for one test app.
+
+    RU: Принудительно задаёт единый limiter key и отключает auto-check для теста.
+    EN: Forces a stable limiter key and disables auto-check for deterministic tests.
+    """
+
+    limiter_candidates = [
+        getattr(app_instance.state, "limiter", None),
+    ]
+
+    from app.security import rate_limit as rate_limit_mod
+
+    limiter_candidates.append(getattr(rate_limit_mod, "limiter", None))
+
+    for limiter in limiter_candidates:
+        if limiter is None:
+            continue
+        monkeypatch.setattr(
+            limiter,
+            "_key_func",
+            lambda request, key=limiter_key: key,
+            raising=False,
+        )
+        monkeypatch.setattr(limiter, "_auto_check", False, raising=False)
+        monkeypatch.setattr(
+            limiter,
+            "_check_request_limit",
+            lambda *args, **kwargs: None,
+            raising=False,
+        )
+
+    for route in app_instance.routes:
+        if not isinstance(route, APIRoute):
+            continue
+        endpoint = getattr(route, "endpoint", None)
+        if endpoint is None or not callable(endpoint):
+            continue
+        closure_nonlocals = inspect.getclosurevars(endpoint).nonlocals
+        for captured in closure_nonlocals.values():
+            if not hasattr(captured, "_key_func"):
+                continue
+            monkeypatch.setattr(
+                captured,
+                "_key_func",
+                lambda request, key=limiter_key: key,
+                raising=False,
+            )
+            monkeypatch.setattr(captured, "_auto_check", False, raising=False)
+            monkeypatch.setattr(
+                captured,
+                "_check_request_limit",
+                lambda *args, **kwargs: None,
+                raising=False,
+            )
+
+
 def get_client(**kwargs: Any) -> TestClient:
     """Create TestClient with canonical entrypoint (app.main:app).
 

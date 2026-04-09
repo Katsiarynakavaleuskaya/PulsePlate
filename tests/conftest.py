@@ -147,6 +147,11 @@ def _disable_singleton_rate_limiters() -> None:
         for attr_name in ("app", "main_app"):
             app_instance = vars(module).get(attr_name)
             if not isinstance(app_instance, FastAPI):
+                try:
+                    app_instance = getattr(module, attr_name, None)
+                except Exception:
+                    app_instance = None
+            if not isinstance(app_instance, FastAPI):
                 continue
 
             app_id = id(app_instance)

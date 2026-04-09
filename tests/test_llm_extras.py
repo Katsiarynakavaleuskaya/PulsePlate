@@ -191,6 +191,24 @@ def test_get_provider_perplexity_placeholder_key_uses_lite(
     assert getattr(provider, "name", "") == "perplexity"
 
 
+def test_get_insight_provider_none_branch(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("LLM_PROVIDER", "none")
+
+    provider = llm.get_insight_provider()
+
+    assert provider is None
+
+
+def test_get_insight_provider_stub_branch(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("LLM_PROVIDER", "stub")
+
+    provider = llm.get_insight_provider()
+
+    assert provider is not None
+    assert isinstance(provider, llm.StubProvider)
+    assert getattr(provider, "name", "") == "stub"
+
+
 def test_get_insight_runtime_readiness_perplexity_chain(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

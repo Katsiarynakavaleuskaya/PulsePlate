@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 from pathlib import Path
 from typing import NoReturn
-from unittest.mock import Mock, patch
+from unittest.mock import patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -265,20 +265,27 @@ def test_insight_runtime_chain_exhaustion_falls_back_to_stub(
     assert "Insight: test fallback" in data["insight"]
 
 
-@patch("llm.get_insight_provider")
 def test_api_insight_provider_generate_failure(
-    mock_get_provider: Mock,
     client: TestClient,
     vip_headers: dict[str, str],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Test coverage for provider.generate exception in insight endpoint."""
-    from unittest.mock import MagicMock
+    import llm
 
-    mock_provider = MagicMock()
-    mock_provider.name = "test"
-    mock_provider.generate.side_effect = Exception("Generate failed")
-    mock_get_provider.return_value = mock_provider
+    class _GenerateFailureProvider:
+        name = "test"
+
+        async def generate(self, text: str) -> str:
+            del text
+            raise Exception("Generate failed")
+
+    monkeypatch.setattr(
+        llm,
+        "get_insight_provider",
+        lambda: _GenerateFailureProvider(),
+        raising=True,
+    )
 
     # Deterministic env setup with auto-cleanup
     monkeypatch.setenv("FEATURE_INSIGHT", "true")
@@ -291,15 +298,15 @@ def test_api_insight_provider_generate_failure(
     assert "Generate failed" not in data.get("detail", "")
 
 
-@patch("llm.get_insight_provider")
 def test_api_insight_provider_none(
-    mock_get_provider: Mock,
     client: TestClient,
     vip_headers: dict[str, str],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Test coverage for provider is None in insight endpoint."""
-    mock_get_provider.return_value = None
+    import llm
+
+    monkeypatch.setattr(llm, "get_insight_provider", lambda: None, raising=True)
 
     # Deterministic env setup with auto-cleanup
     monkeypatch.setenv("FEATURE_INSIGHT", "true")

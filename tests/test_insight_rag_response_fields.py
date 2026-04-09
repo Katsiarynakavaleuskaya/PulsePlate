@@ -8,7 +8,6 @@ Covers: sources[], confidence, rag_used, hops, latency_ms in both
 from __future__ import annotations
 
 from dataclasses import dataclass
-import inspect
 from typing import Any, Generator, Optional
 from uuid import uuid4
 
@@ -17,7 +16,10 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from core.insight import philosophical_runtime as runtime_mod
-from tests._client import disable_rate_limiting_for_test_app
+from tests._client import (
+    disable_rate_limiting_for_test_app,
+    override_rate_limit_identity_for_test_app,
+)
 
 
 @dataclass
@@ -215,47 +217,15 @@ def _ensure_rate_limiting_disabled(
     app_instance: FastAPI,
 ) -> None:
     """Keep RAG contract tests isolated from dedicated 429 suites."""
-    from app.security import rate_limit as rate_limit_mod
-
     monkeypatch.delenv("RATE_LIMITING_IN_TESTS", raising=False)
     disable_rate_limiting_for_test_app(app_instance)
 
     limiter_key = f"rag-contract-{uuid4()}"
-    limiter_candidates = [
-        getattr(app_instance.state, "limiter", None),
-        getattr(rate_limit_mod, "limiter", None),
-    ]
-
-    for limiter in limiter_candidates:
-        if limiter is None:
-            continue
-        monkeypatch.setattr(
-            limiter, "_key_func", lambda request, key=limiter_key: key, raising=False
-        )
-        monkeypatch.setattr(limiter, "_auto_check", False, raising=False)
-        monkeypatch.setattr(
-            limiter,
-            "_check_request_limit",
-            lambda *args, **kwargs: None,
-            raising=False,
-        )
-
-    for route in app_instance.routes:
-        endpoint = getattr(route, "endpoint", None)
-        if endpoint is None:
-            continue
-
-        for captured in inspect.getclosurevars(endpoint).nonlocals.values():
-            if not hasattr(captured, "_key_func"):
-                continue
-            monkeypatch.setattr(captured, "_key_func", lambda request, key=limiter_key: key)
-            monkeypatch.setattr(captured, "_auto_check", False, raising=False)
-            monkeypatch.setattr(
-                captured,
-                "_check_request_limit",
-                lambda *args, **kwargs: None,
-                raising=False,
-            )
+    override_rate_limit_identity_for_test_app(
+        app_instance,
+        limiter_key=limiter_key,
+        monkeypatch=monkeypatch,
+    )
 
 
 def _disable_vip_monthly_quota(monkeypatch: pytest.MonkeyPatch) -> None:

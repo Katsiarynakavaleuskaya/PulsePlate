@@ -71,6 +71,36 @@ def test_ready_ok_exposes_echo_mode_without_secret_leak(
     assert insight_runtime["echo_mode_provider"] == "stub"
 
 
+def test_ready_falls_back_to_unavailable_runtime_when_insight_readiness_raises(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """RU: /ready fail-soft branch logs runtime error and keeps additive contract.
+
+    EN: /ready logs insight readiness failure and preserves the additive fallback payload.
+    """
+
+    def _raise_runtime_error() -> None:
+        raise RuntimeError("readiness boom")
+
+    import llm
+
+    monkeypatch.setattr(llm, "get_insight_runtime_readiness", _raise_runtime_error, raising=True)
+
+    with caplog.at_level("WARNING"), TestClient(cast(ASGIApp, app.app)) as client:
+        response = client.get("/ready")
+
+    assert response.status_code == 200
+    assert response.headers.get("content-type", "").startswith("application/json")
+    payload = response.json()
+    assert payload["status"] == "ok"
+    assert payload["insight_runtime"] == {"status": "unavailable"}
+    assert any(
+        "Insight runtime readiness unavailable on /ready" in record.message
+        for record in caplog.records
+    )
+
+
 @pytest.mark.parametrize("path", ["/health/db", "/ready"])
 def test_readiness_failure(monkeypatch: pytest.MonkeyPatch, path: str) -> None:
     """RU: Ошибка БД приводит к 503.

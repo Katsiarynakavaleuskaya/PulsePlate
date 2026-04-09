@@ -4,15 +4,19 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 from contextlib import contextmanager
+from datetime import date
 import json
 import os
+import re
 import subprocess  # nosec B404: subprocess is required for bounded pip/python invocations during locked installation (remove-by: 2026-07-31, ref: PR-litellm-hardening)
 import sys
 import tempfile
 from pathlib import Path
-from typing import Iterator, Sequence
+from typing import Iterator, Sequence, cast
 from urllib.parse import urlparse
+from urllib.request import urlopen
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_REQUIREMENTS_FILE = REPO_ROOT / "requirements.txt"
@@ -21,8 +25,10 @@ DEFAULT_TEST_REQUIREMENTS_FILE = REPO_ROOT / "requirements-test.txt"
 DEFAULT_CI_LITE_REQUIREMENTS_FILE = REPO_ROOT / "requirements-ci-lite.txt"
 DEFAULT_CONSTRAINTS_FILE = REPO_ROOT / "constraints.txt"
 DEFAULT_STARTUP_HOOK_GUARD_PATH = REPO_ROOT / "scripts" / "ci" / "check_python_startup_hooks.py"
+DEFAULT_EMERGENCY_WHEEL_MANIFEST = REPO_ROOT / "scripts" / "ci" / "emergency_python_wheels.json"
 APPROVED_INDEX_ENV_VAR = "PULSEPLATE_PYTHON_INDEX_URL"
 TRUSTED_HOST_ENV_VAR = "PULSEPLATE_PYTHON_TRUSTED_HOST"
+EMERGENCY_WHEEL_MANIFEST_ENV_VAR = "PULSEPLATE_PYTHON_EMERGENCY_WHEEL_MANIFEST"
 AMBIENT_INDEX_OVERRIDE_ENV_VARS: tuple[str, ...] = (
     "PIP_INDEX_URL",
     "PIP_EXTRA_INDEX_URL",
@@ -34,6 +40,7 @@ BLOCKED_INDEX_HOSTS: tuple[str, ...] = (
     "files.pythonhosted.org",
     "test.pypi.org",
 )
+ALLOWED_EMERGENCY_WHEEL_HOSTS: tuple[str, ...] = ("files.pythonhosted.org",)
 INSTALL_MODES: tuple[str, ...] = ("wheelhouse", "direct-proxy")
 REQUIREMENTS_PROFILES: tuple[str, ...] = (
     "runtime",
@@ -138,6 +145,15 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         help="Path to the startup-hook guard script used for static .pth scanning.",
     )
     parser.add_argument(
+        "--emergency-wheel-manifest",
+        type=Path,
+        help=(
+            "Optional JSON manifest for exact emergency wheel fallback. "
+            f"Defaults to ${EMERGENCY_WHEEL_MANIFEST_ENV_VAR} or "
+            f"{DEFAULT_EMERGENCY_WHEEL_MANIFEST} when present."
+        ),
+    )
+    parser.add_argument(
         "--index-url",
         help=f"Approved private package proxy URL. Defaults to ${APPROVED_INDEX_ENV_VAR}.",
     )
@@ -205,6 +221,198 @@ def validate_requirement_file(requirement_file: Path, *, label: str) -> Path:
     return requirement_file
 
 
+def resolve_emergency_wheel_manifest_path(manifest_path: Path | None) -> Path | None:
+    """Resolve the optional emergency wheel manifest from CLI/env/default path."""
+    if manifest_path is not None:
+        return manifest_path
+    env_path = os.environ.get(EMERGENCY_WHEEL_MANIFEST_ENV_VAR, "").strip()
+    if env_path:
+        return Path(env_path)
+    if DEFAULT_EMERGENCY_WHEEL_MANIFEST.exists():
+        return DEFAULT_EMERGENCY_WHEEL_MANIFEST
+    return None
+
+
+def _parse_iso_date(value: str, *, field_name: str) -> date:
+    """Parse YYYY-MM-DD date strings for time-boxed fallback manifests."""
+    if re.fullmatch(r"\d{4}-\d{2}-\d{2}", value) is None:
+        raise RuntimeError(
+            f"Emergency wheel manifest field {field_name!r} must use YYYY-MM-DD: {value!r}"
+        )
+    try:
+        return date.fromisoformat(value)
+    except ValueError as exc:
+        raise RuntimeError(
+            f"Emergency wheel manifest field {field_name!r} must use YYYY-MM-DD: {value!r}"
+        ) from exc
+
+
+def _validate_sha256(value: str, *, filename: str) -> str:
+    """Return a normalized sha256 digest or fail closed."""
+    digest = value.strip().lower()
+    if len(digest) != 64 or any(ch not in "0123456789abcdef" for ch in digest):
+        raise RuntimeError(
+            f"Emergency wheel manifest sha256 is invalid for {filename!r}: {value!r}"
+        )
+    return digest
+
+
+def load_emergency_wheel_manifest(manifest_path: Path | None) -> list[dict[str, str]]:
+    """Load and validate an optional exact-wheel fallback manifest."""
+    resolved_path = resolve_emergency_wheel_manifest_path(manifest_path)
+    if resolved_path is None:
+        return []
+    if not resolved_path.exists():
+        raise FileNotFoundError(f"Emergency wheel manifest not found: {resolved_path}")
+
+    try:
+        payload = json.loads(resolved_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(
+            f"Emergency wheel manifest is not valid JSON: {resolved_path}: {exc}"
+        ) from exc
+
+    if not isinstance(payload, dict):
+        raise RuntimeError("Emergency wheel manifest root must be a JSON object.")
+    if payload.get("schema_version") != 1:
+        raise RuntimeError("Emergency wheel manifest schema_version must equal 1.")
+
+    expires_at = payload.get("expires_at")
+    if not isinstance(expires_at, str) or not expires_at.strip():
+        raise RuntimeError("Emergency wheel manifest must define non-empty expires_at.")
+    if _parse_iso_date(expires_at, field_name="expires_at") < date.today():
+        raise RuntimeError(
+            "Emergency wheel manifest is expired; refresh the mirror or rotate the fallback: "
+            f"{resolved_path}"
+        )
+
+    artifacts = payload.get("artifacts")
+    if not isinstance(artifacts, list) or not artifacts:
+        raise RuntimeError("Emergency wheel manifest must define a non-empty artifacts list.")
+
+    normalized_artifacts: list[dict[str, str]] = []
+    for index, artifact in enumerate(artifacts):
+        if not isinstance(artifact, dict):
+            raise RuntimeError(f"Emergency wheel artifact #{index} must be an object.")
+        package = artifact.get("package")
+        version = artifact.get("version")
+        filename = artifact.get("filename")
+        url = artifact.get("url")
+        sha256 = artifact.get("sha256")
+        if not all(
+            isinstance(value, str) and value.strip()
+            for value in (package, version, filename, url, sha256)
+        ):
+            raise RuntimeError(
+                "Emergency wheel artifacts require non-empty package/version/filename/url/sha256."
+            )
+        package_text = cast(str, package).strip()
+        version_text = cast(str, version).strip()
+        filename_text = cast(str, filename).strip()
+        url_text = cast(str, url).strip()
+        sha256_text = cast(str, sha256).strip()
+        parsed_url = urlparse(url_text)
+        hostname = (parsed_url.hostname or "").rstrip(".").lower()
+        if parsed_url.scheme != "https" or hostname not in ALLOWED_EMERGENCY_WHEEL_HOSTS:
+            raise RuntimeError(
+                "Emergency wheel artifacts must use approved https hosts only: " f"{url_text!r}"
+            )
+        normalized_artifacts.append(
+            {
+                "package": package_text,
+                "version": version_text,
+                "filename": filename_text,
+                "url": url_text,
+                "sha256": _validate_sha256(sha256_text, filename=filename_text),
+            }
+        )
+    return normalized_artifacts
+
+
+def _requirement_line_requests_exact_version(line: str, *, package: str, version: str) -> bool:
+    """Return True when a requirements line pins package==version exactly."""
+    stripped = line.split("#", 1)[0].strip().lower()
+    if not stripped or stripped.startswith(("-r ", "--requirement ", "-c ", "--constraint ")):
+        return False
+    return stripped == f"{package.lower()}=={version.lower()}"
+
+
+def requirement_files_request_artifact(
+    requirement_files: Sequence[Path], *, package: str, version: str
+) -> bool:
+    """Return True when any selected requirements surface pins package==version."""
+    for requirement_file in requirement_files:
+        for line in requirement_file.read_text(encoding="utf-8").splitlines():
+            if _requirement_line_requests_exact_version(line, package=package, version=version):
+                return True
+    return False
+
+
+def _download_with_sha256(*, url: str, destination: Path, expected_sha256: str) -> None:
+    """Download an artifact and verify its sha256 before trusting it."""
+    digest = hashlib.sha256()
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    temp_file_descriptor, temp_file_name = tempfile.mkstemp(
+        dir=destination.parent,
+        prefix=f".{destination.name}.",
+        suffix=".tmp",
+    )
+    temp_path = Path(temp_file_name)
+    try:
+        with os.fdopen(temp_file_descriptor, "wb") as file_handle:
+            with urlopen(  # nosec B310: url host is allowlisted via load_emergency_wheel_manifest and payload is sha256-verified before use (remove-by: 2026-04-30, ref: PR-1378)
+                url,
+                timeout=60,
+            ) as response:
+                while True:
+                    chunk = response.read(1024 * 1024)
+                    if not chunk:
+                        break
+                    digest.update(chunk)
+                    file_handle.write(chunk)
+        actual_sha256 = digest.hexdigest()
+        if actual_sha256 != expected_sha256:
+            raise RuntimeError(
+                f"Emergency wheel sha256 mismatch for {destination.name}: "
+                f"expected {expected_sha256}, got {actual_sha256}"
+            )
+        temp_path.replace(destination)
+    except Exception:
+        temp_path.unlink(missing_ok=True)
+        raise
+
+
+def stage_emergency_wheels(
+    *,
+    requirement_files: Sequence[Path],
+    wheelhouse_dir: Path,
+    manifest_path: Path | None,
+) -> list[Path]:
+    """Download exact emergency wheels requested by the selected requirement files."""
+    staged_paths: list[Path] = []
+    for artifact in load_emergency_wheel_manifest(manifest_path):
+        if not requirement_files_request_artifact(
+            requirement_files,
+            package=artifact["package"],
+            version=artifact["version"],
+        ):
+            continue
+        wheelhouse_dir.mkdir(parents=True, exist_ok=True)
+        destination = wheelhouse_dir / artifact["filename"]
+        if destination.exists():
+            existing_sha256 = hashlib.sha256(destination.read_bytes()).hexdigest()
+            if existing_sha256 != artifact["sha256"]:
+                raise RuntimeError(f"Existing emergency wheel has unexpected sha256: {destination}")
+        else:
+            _download_with_sha256(
+                url=artifact["url"],
+                destination=destination,
+                expected_sha256=artifact["sha256"],
+            )
+        staged_paths.append(destination)
+    return staged_paths
+
+
 def build_pip_download_command(
     *,
     python_executable: str,
@@ -222,6 +430,8 @@ def build_pip_download_command(
         "download",
         "--only-binary",
         ":all:",
+        "--find-links",
+        str(wheelhouse_dir),
         "--dest",
         str(wheelhouse_dir),
         "--requirement",
@@ -266,6 +476,7 @@ def build_pip_proxy_install_command(
     constraints_file: Path | None,
     index_url: str,
     trusted_host: str | None,
+    find_links_dir: Path | None = None,
     allow_pip_download_cache: bool | None = None,
 ) -> list[str]:
     constraints_file = validate_constraints_file(constraints_file)
@@ -286,6 +497,8 @@ def build_pip_proxy_install_command(
         "--requirement",
         str(requirement_file),
     ]
+    if find_links_dir is not None:
+        command.extend(["--find-links", str(find_links_dir)])
     if not use_pip_cache:
         try:
             install_idx = command.index("install")
@@ -503,6 +716,7 @@ def install_from_proxy(
     constraints_file: Path | None,
     index_url: str,
     trusted_host: str | None,
+    find_links_dir: Path | None = None,
     allow_pip_download_cache: bool | None = None,
 ) -> None:
     for requirement_file in requirement_files:
@@ -513,6 +727,7 @@ def install_from_proxy(
                 constraints_file=constraints_file,
                 index_url=index_url,
                 trusted_host=trusted_host,
+                find_links_dir=find_links_dir,
                 allow_pip_download_cache=allow_pip_download_cache,
             )
         )
@@ -541,6 +756,85 @@ def build_wheelhouse(
         )
 
 
+def build_wheelhouse_with_emergency_fallback(
+    *,
+    python_executable: str,
+    requirement_files: Sequence[Path],
+    constraints_file: Path | None,
+    wheelhouse_dir: Path,
+    index_url: str,
+    trusted_host: str | None,
+    emergency_wheel_manifest: Path | None,
+) -> None:
+    """Retry wheelhouse build with staged emergency wheels only after proxy failure."""
+    try:
+        build_wheelhouse(
+            python_executable=python_executable,
+            requirement_files=requirement_files,
+            constraints_file=constraints_file,
+            wheelhouse_dir=wheelhouse_dir,
+            index_url=index_url,
+            trusted_host=trusted_host,
+        )
+    except RuntimeError:
+        staged_wheels = stage_emergency_wheels(
+            requirement_files=requirement_files,
+            wheelhouse_dir=wheelhouse_dir,
+            manifest_path=emergency_wheel_manifest,
+        )
+        if not staged_wheels:
+            raise
+        build_wheelhouse(
+            python_executable=python_executable,
+            requirement_files=requirement_files,
+            constraints_file=constraints_file,
+            wheelhouse_dir=wheelhouse_dir,
+            index_url=index_url,
+            trusted_host=trusted_host,
+        )
+
+
+def install_from_proxy_with_emergency_fallback(
+    *,
+    python_executable: str,
+    requirement_files: Sequence[Path],
+    constraints_file: Path | None,
+    index_url: str,
+    trusted_host: str | None,
+    emergency_wheelhouse_dir: Path,
+    emergency_wheel_manifest: Path | None,
+    allow_pip_download_cache: bool | None = None,
+) -> None:
+    """Retry proxy install with local emergency wheels only after the proxy fails."""
+    try:
+        install_from_proxy(
+            python_executable=python_executable,
+            requirement_files=requirement_files,
+            constraints_file=constraints_file,
+            index_url=index_url,
+            trusted_host=trusted_host,
+            find_links_dir=None,
+            allow_pip_download_cache=allow_pip_download_cache,
+        )
+    except RuntimeError:
+        staged_wheels = stage_emergency_wheels(
+            requirement_files=requirement_files,
+            wheelhouse_dir=emergency_wheelhouse_dir,
+            manifest_path=emergency_wheel_manifest,
+        )
+        if not staged_wheels:
+            raise
+        install_from_proxy(
+            python_executable=python_executable,
+            requirement_files=requirement_files,
+            constraints_file=constraints_file,
+            index_url=index_url,
+            trusted_host=trusted_host,
+            find_links_dir=emergency_wheelhouse_dir,
+            allow_pip_download_cache=allow_pip_download_cache,
+        )
+
+
 def install_with_guard(
     *,
     python_executable: str,
@@ -550,14 +844,16 @@ def install_with_guard(
     guard_script: Path,
     index_url: str,
     trusted_host: str | None,
+    emergency_wheel_manifest: Path | None,
 ) -> int:
-    build_wheelhouse(
+    build_wheelhouse_with_emergency_fallback(
         python_executable=python_executable,
         requirement_files=requirement_files,
         constraints_file=constraints_file,
         wheelhouse_dir=wheelhouse_dir,
         index_url=index_url,
         trusted_host=trusted_host,
+        emergency_wheel_manifest=emergency_wheel_manifest,
     )
 
     with staged_python_environment(python_executable) as staging_python:
@@ -594,63 +890,73 @@ def install_with_guard_from_proxy(
     guard_script: Path,
     index_url: str,
     trusted_host: str | None,
+    emergency_wheel_manifest: Path | None,
 ) -> int:
-    if docker_single_pass_locked_install_enabled():
-        if len(requirement_files) != 1:
-            print(
-                "ERROR: Docker single-pass locked install requires exactly one requirements file "
-                f"(got {len(requirement_files)}). Combine manifests or disable "
-                f"{DOCKER_SINGLE_PASS_LOCKED_INSTALL_ENV}.",
-                file=sys.stderr,
+    with tempfile.TemporaryDirectory(prefix="pulseplate-emergency-wheelhouse-") as temp_dir:
+        emergency_wheelhouse_dir = Path(temp_dir)
+
+        if docker_single_pass_locked_install_enabled():
+            if len(requirement_files) != 1:
+                print(
+                    "ERROR: Docker single-pass locked install requires exactly one requirements file "
+                    f"(got {len(requirement_files)}). Combine manifests or disable "
+                    f"{DOCKER_SINGLE_PASS_LOCKED_INSTALL_ENV}.",
+                    file=sys.stderr,
+                )
+                return 1
+            allow_cache = docker_pip_layer_cache_enabled()
+            install_from_proxy_with_emergency_fallback(
+                python_executable=python_executable,
+                requirement_files=requirement_files,
+                constraints_file=constraints_file,
+                index_url=index_url,
+                trusted_host=trusted_host,
+                emergency_wheelhouse_dir=emergency_wheelhouse_dir,
+                emergency_wheel_manifest=emergency_wheel_manifest,
+                allow_pip_download_cache=allow_cache,
             )
-            return 1
-        allow_cache = docker_pip_layer_cache_enabled()
-        install_from_proxy(
+            failure_lines = collect_startup_hook_failure_lines(
+                guard_script=guard_script,
+                python_executable=python_executable,
+            )
+            if failure_lines:
+                for line in failure_lines:
+                    print(line)
+                return 1
+            return 0
+
+        with staged_python_environment(python_executable) as staging_python:
+            install_from_proxy_with_emergency_fallback(
+                python_executable=staging_python,
+                requirement_files=requirement_files,
+                constraints_file=constraints_file,
+                index_url=index_url,
+                trusted_host=trusted_host,
+                emergency_wheelhouse_dir=emergency_wheelhouse_dir,
+                emergency_wheel_manifest=emergency_wheel_manifest,
+                allow_pip_download_cache=False,
+            )
+
+            failure_lines = collect_startup_hook_failure_lines(
+                guard_script=guard_script,
+                python_executable=staging_python,
+            )
+            if failure_lines:
+                for line in failure_lines:
+                    print(line)
+                return 1
+
+        install_from_proxy_with_emergency_fallback(
             python_executable=python_executable,
             requirement_files=requirement_files,
             constraints_file=constraints_file,
             index_url=index_url,
             trusted_host=trusted_host,
-            allow_pip_download_cache=allow_cache,
+            emergency_wheelhouse_dir=emergency_wheelhouse_dir,
+            emergency_wheel_manifest=emergency_wheel_manifest,
+            allow_pip_download_cache=docker_pip_layer_cache_enabled(),
         )
-        failure_lines = collect_startup_hook_failure_lines(
-            guard_script=guard_script,
-            python_executable=python_executable,
-        )
-        if failure_lines:
-            for line in failure_lines:
-                print(line)
-            return 1
         return 0
-
-    with staged_python_environment(python_executable) as staging_python:
-        install_from_proxy(
-            python_executable=staging_python,
-            requirement_files=requirement_files,
-            constraints_file=constraints_file,
-            index_url=index_url,
-            trusted_host=trusted_host,
-            allow_pip_download_cache=False,
-        )
-
-        failure_lines = collect_startup_hook_failure_lines(
-            guard_script=guard_script,
-            python_executable=staging_python,
-        )
-        if failure_lines:
-            for line in failure_lines:
-                print(line)
-            return 1
-
-    install_from_proxy(
-        python_executable=python_executable,
-        requirement_files=requirement_files,
-        constraints_file=constraints_file,
-        index_url=index_url,
-        trusted_host=trusted_host,
-        allow_pip_download_cache=docker_pip_layer_cache_enabled(),
-    )
-    return 0
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -698,6 +1004,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 guard_script=args.guard_script,
                 index_url=index_url,
                 trusted_host=trusted_host,
+                emergency_wheel_manifest=args.emergency_wheel_manifest,
             )
 
         if args.wheelhouse_dir is not None:
@@ -709,6 +1016,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 guard_script=args.guard_script,
                 index_url=index_url,
                 trusted_host=trusted_host,
+                emergency_wheel_manifest=args.emergency_wheel_manifest,
             )
 
         with tempfile.TemporaryDirectory(prefix="pulseplate-wheelhouse-") as temp_dir:
@@ -721,6 +1029,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 guard_script=args.guard_script,
                 index_url=index_url,
                 trusted_host=trusted_host,
+                emergency_wheel_manifest=args.emergency_wheel_manifest,
             )
     except (FileNotFoundError, RuntimeError) as exc:
         print(f"ERROR: locked install failed: {exc}")

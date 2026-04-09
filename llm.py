@@ -143,7 +143,14 @@ def _build_ollama_family_provider() -> ProviderBase:
             # EN: Preserve legacy positional retry for constructor compatibility seams.
             try:
                 return cast(ProviderBase, ollama_provider_cls(endpoint, model))
-            except Exception:
+            except Exception as exc:
+                logger.warning(
+                    "OllamaProvider construction failed; using OllamaLiteProvider "
+                    "(endpoint=%s, model=%s)",
+                    endpoint,
+                    model,
+                    exc_info=exc,
+                )
                 return OllamaLiteProvider()
 
     return OllamaLiteProvider()
@@ -195,7 +202,14 @@ def _decorate_provider_with_fallback(
     primary_name: str,
     fallback_builders: list[tuple[str, Callable[[], ProviderBase]]],
 ) -> ProviderBase:
-    """Attach deterministic fallback to the provider while preserving its public identity."""
+    """Attach deterministic fallback to the provider while preserving its public identity.
+
+    Dynamic contract added to ``provider``:
+    - ``active_provider_name``: ``str`` for the provider that actually produced the result
+    - ``primary_provider_name``: ``str`` for the configured primary provider family
+    - ``fallback_order``: ``list[str]`` with deterministic provider attempt order
+    - ``generate``: replaced async callable that walks the fallback chain fail-closed
+    """
 
     original_generate = provider.generate
     fallback_cache: dict[str, ProviderBase] = {}

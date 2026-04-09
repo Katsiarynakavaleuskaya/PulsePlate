@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-04-09",
+  "expires_at": "2026-04-30",
+  "reason": "Temporary exact-wheel fallback for cryptography 46.0.7 while the approved private proxy lags the patched upstream release.",
+  "artifacts": [
+    {
+      "package": "cryptography",
+      "version": "46.0.7",
+      "filename": "cryptography-46.0.7-cp311-abi3-manylinux2014_x86_64.manylinux_2_17_x86_64.whl",
+      "url": "https://files.pythonhosted.org/packages/4a/9a/1765afe9f572e239c3469f2cb429f3ba7b31878c893b246b4b2994ffe2fe/cryptography-46.0.7-cp311-abi3-manylinux2014_x86_64.manylinux_2_17_x86_64.whl",
+      "sha256": "5ad9ef796328c5e3c4ceed237a183f5d41d21150f972455a9d926593a1dcb308"
+    },
+    {
+      "package": "cryptography",
+      "version": "46.0.7",
+      "filename": "cryptography-46.0.7-cp311-abi3-manylinux_2_34_x86_64.whl",
+      "url": "https://files.pythonhosted.org/packages/c7/0b/333ddab4270c4f5b972f980adef4faa66951a4aaf646ca067af597f15563/cryptography-46.0.7-cp311-abi3-manylinux_2_34_x86_64.whl",
+      "sha256": "42a1e5f98abb6391717978baf9f90dc28a743b7d9be7f0751a6f56a75d14065b"
+    }
+  ]
+}
