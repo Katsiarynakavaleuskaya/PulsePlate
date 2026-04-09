@@ -32,7 +32,10 @@ policy change.
   `requirements-dev.txt`, `requirements-lock.txt`, and `constraints.txt`
   require `cryptography 46.0.7` / `>=46.0.7`.
 - **Fallback source of truth:** `scripts/ci/emergency_python_wheels.json:1`
-- **Fallback enforcement path:** `scripts/ci/install_locked_python_requirements.py:235`
+- **Atomic wheel verification:** `scripts/ci/install_locked_python_requirements.py:351`
+- **Fallback staging path:** `scripts/ci/install_locked_python_requirements.py:387`
+- **Wheelhouse retry after proxy miss:** `scripts/ci/install_locked_python_requirements.py:761`
+- **Direct-proxy retry after proxy miss:** `scripts/ci/install_locked_python_requirements.py:799`
 - **Shared CI wiring:** `.github/actions/python-setup/action.yml:55`
 - **Docker wiring:** `Dockerfile:248`
 
@@ -54,7 +57,10 @@ policy change.
 ## References
 
 - `scripts/ci/emergency_python_wheels.json:4`
-- `scripts/ci/install_locked_python_requirements.py:235`
+- `scripts/ci/install_locked_python_requirements.py:351`
+- `scripts/ci/install_locked_python_requirements.py:387`
+- `scripts/ci/install_locked_python_requirements.py:761`
+- `scripts/ci/install_locked_python_requirements.py:799`
 - `.github/actions/python-setup/action.yml:55`
 - `Dockerfile:248`
 - `docs/security/CVE-2026-26007-cryptography.md:1`

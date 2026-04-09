@@ -402,6 +402,155 @@ def test_stage_emergency_wheels_downloads_only_requested_exact_artifacts(
     ]
 
 
+def test_download_with_sha256_cleans_partial_temp_files_on_stream_failure(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    class BrokenResponse:
+        def __init__(self) -> None:
+            self._read_count = 0
+
+        def __enter__(self) -> BrokenResponse:
+            return self
+
+        def __exit__(self, exc_type: object, exc: object, tb: object) -> None:
+            return None
+
+        def read(self, size: int) -> bytes:
+            self._read_count += 1
+            if self._read_count == 1:
+                return b"partial-wheel"
+            raise OSError("network dropped")
+
+    monkeypatch.setattr(installer, "urlopen", lambda *args, **kwargs: BrokenResponse())
+
+    destination = tmp_path / "wheelhouse" / "cryptography-46.0.7.whl"
+
+    with pytest.raises(OSError, match="network dropped"):
+        installer._download_with_sha256(
+            url="https://files.pythonhosted.org/packages/example/cryptography-46.0.7.whl",
+            destination=destination,
+            expected_sha256="a" * 64,
+        )
+
+    assert destination.exists() is False
+    assert list((tmp_path / "wheelhouse").iterdir()) == []
+
+
+def test_build_wheelhouse_with_emergency_fallback_retries_only_after_proxy_failure(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    requirements = tmp_path / "requirements.txt"
+    requirements.write_text("cryptography==46.0.7\n", encoding="utf-8")
+    manifest = tmp_path / "emergency.json"
+    manifest.write_text(
+        json.dumps(
+            {
+                "generated_at": "2026-04-09",
+                "expires_at": "2099-12-31",
+                "artifacts": [
+                    {
+                        "package": "cryptography",
+                        "version": "46.0.7",
+                        "filename": "cryptography-46.0.7.whl",
+                        "url": "https://files.pythonhosted.org/packages/example/cryptography-46.0.7.whl",
+                        "sha256": "b" * 64,
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    observed_calls: list[Path] = []
+    build_attempts = {"count": 0}
+
+    def fake_build_wheelhouse(**kwargs: object) -> None:
+        build_attempts["count"] += 1
+        observed_calls.append(Path(kwargs["wheelhouse_dir"]))
+        if build_attempts["count"] == 1:
+            raise RuntimeError("proxy miss")
+
+    def fake_stage_emergency_wheels(**kwargs: object) -> list[Path]:
+        wheelhouse_dir = Path(kwargs["wheelhouse_dir"])
+        destination = wheelhouse_dir / "cryptography-46.0.7.whl"
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_bytes(b"wheel-bytes")
+        return [destination]
+
+    monkeypatch.setattr(installer, "build_wheelhouse", fake_build_wheelhouse)
+    monkeypatch.setattr(installer, "stage_emergency_wheels", fake_stage_emergency_wheels)
+
+    installer.build_wheelhouse_with_emergency_fallback(
+        python_executable="python",
+        requirement_files=[requirements],
+        constraints_file=None,
+        wheelhouse_dir=tmp_path / "wheelhouse",
+        index_url=APPROVED_PROXY_URL,
+        trusted_host=None,
+        emergency_wheel_manifest=manifest,
+    )
+
+    assert observed_calls == [tmp_path / "wheelhouse", tmp_path / "wheelhouse"]
+    assert build_attempts["count"] == 2
+
+
+def test_install_from_proxy_with_emergency_fallback_retries_with_find_links_after_proxy_failure(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    requirements = tmp_path / "requirements.txt"
+    requirements.write_text("cryptography==46.0.7\n", encoding="utf-8")
+    manifest = tmp_path / "emergency.json"
+    manifest.write_text(
+        json.dumps(
+            {
+                "generated_at": "2026-04-09",
+                "expires_at": "2099-12-31",
+                "artifacts": [
+                    {
+                        "package": "cryptography",
+                        "version": "46.0.7",
+                        "filename": "cryptography-46.0.7.whl",
+                        "url": "https://files.pythonhosted.org/packages/example/cryptography-46.0.7.whl",
+                        "sha256": "b" * 64,
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    observed_find_links: list[Path | None] = []
+
+    def fake_install_from_proxy(**kwargs: object) -> None:
+        find_links_dir = kwargs["find_links_dir"]
+        observed_find_links.append(None if find_links_dir is None else Path(find_links_dir))
+        if find_links_dir is None:
+            raise RuntimeError("proxy miss")
+
+    def fake_stage_emergency_wheels(**kwargs: object) -> list[Path]:
+        wheelhouse_dir = Path(kwargs["wheelhouse_dir"])
+        destination = wheelhouse_dir / "cryptography-46.0.7.whl"
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_bytes(b"wheel-bytes")
+        return [destination]
+
+    monkeypatch.setattr(installer, "install_from_proxy", fake_install_from_proxy)
+    monkeypatch.setattr(installer, "stage_emergency_wheels", fake_stage_emergency_wheels)
+
+    installer.install_from_proxy_with_emergency_fallback(
+        python_executable="python",
+        requirement_files=[requirements],
+        constraints_file=None,
+        index_url=APPROVED_PROXY_URL,
+        trusted_host=None,
+        emergency_wheelhouse_dir=tmp_path / "wheelhouse",
+        emergency_wheel_manifest=manifest,
+    )
+
+    assert observed_find_links == [None, tmp_path / "wheelhouse"]
+
+
 def test_build_pip_download_command_fails_when_constraints_file_is_missing(
     tmp_path: Path,
 ) -> None:
