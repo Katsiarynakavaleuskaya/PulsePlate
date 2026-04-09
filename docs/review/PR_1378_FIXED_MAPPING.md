@@ -21,6 +21,28 @@
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1378#discussion_r3056080077
   Disposition: NOT-A-BUG
   Evidence: `docs/security/CRYPTOGRAPHY_46_0_7_PRIVATE_INDEX_ADVISORY.md:1` keeps the patched `46.0.7` floor and documents the mirror-lag blocker; `docs/review/PR_1378_FIXED_MAPPING.md:20` keeps merge-readiness unchecked until current-head CI is green.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1378#pullrequestreview-4080339795
+  Disposition: NOT-A-BUG
+  Evidence: General Sourcery future-hardening suggestions only; current PR remains intentionally scoped to the active blocker documented in `docs/security/CRYPTOGRAPHY_46_0_7_PRIVATE_INDEX_ADVISORY.md:5` and the narrow-scope guard in `docs/review/PR_1378_FIXED_MAPPING.md:34`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1378#pullrequestreview-4080362047
+  Disposition: NOT-A-BUG
+  Evidence: Review-container URL only; its actionable items are already dispositioned at `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1378#discussion_r3056080059` and `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1378#discussion_r3056080077`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1378#pullrequestreview-4081271826
+  Disposition: FIXED
+  Commit: `d7bd8daba`
+  Evidence: `Dockerfile:248` now copies `scripts/ci/emergency_python_wheels.json`, and `Dockerfile:264` plus `Dockerfile:275` pass `--emergency-wheel-manifest` in both development-stage install branches.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1378#discussion_r3056871964
+  Disposition: FIXED
+  Commit: `d7bd8daba`
+  Evidence: `docs/security/CRYPTOGRAPHY_46_0_7_PRIVATE_INDEX_ADVISORY.md:17`, `docs/security/CRYPTOGRAPHY_46_0_7_PRIVATE_INDEX_ADVISORY.md:34`, and `docs/security/CRYPTOGRAPHY_46_0_7_PRIVATE_INDEX_ADVISORY.md:56` add concrete `file:line` anchors.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1378#pullrequestreview-4081276804
+  Disposition: FIXED
+  Commit: `d7bd8daba`
+  Evidence: The issue identified by cubic is closed by strict date-format enforcement at `scripts/ci/install_locked_python_requirements.py:236` and the regression test at `tests/test_install_locked_python_requirements.py:322`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1378#discussion_r3056876895
+  Disposition: FIXED
+  Commit: `d7bd8daba`
+  Evidence: `scripts/ci/install_locked_python_requirements.py:238` now rejects non-canonical date forms before parsing, and `tests/test_install_locked_python_requirements.py:345` asserts the failure mode.
 
 ## Merge Readiness
 
