@@ -1,107 +1,50 @@
-/* @vitest-environment jsdom */
-import "../../test/setup";
-import { beforeEach, expect, test } from "vitest";
-import { delay, http, HttpResponse } from "msw";
-import { server } from "../server";
+import { HttpHandler } from "msw";
+import type { RequestHandler } from "msw";
+import { expect, test } from "vitest";
+import { handlers } from "../handlers";
 
-const BASE_URL = "http://localhost";
+const LEGACY_RELEASE_PATHS = ["/api/purchase", "/api/restore"] as const;
+const HTTP_MATCH_METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"] as const;
+const LOCAL_RUNTIME_ORIGIN = "http://localhost";
 
-const matchesApiPath =
-  (expectedPathname: string) =>
-  ({ request }: { request: Request }): boolean =>
-    new URL(request.url).pathname === expectedPathname;
+const matchesLegacyReleasePath = async (
+  handler: RequestHandler,
+  legacyPath: string
+): Promise<boolean> => {
+  if (!(handler instanceof HttpHandler)) {
+    return false;
+  }
 
-function registerPurchaseHandlers(): void {
-  server.use(
-    http.post(matchesApiPath("/api/purchase"), async ({ request }) => {
-      await delay(300);
-      const errorParam = new URL(request.url).searchParams.get("error");
+  // RU: Проверяем реальный runtime matching MSW, чтобы regex/catch-all handlers тоже ловились.
+  // EN: Evaluate actual MSW runtime matching so regex/catch-all handlers are also detected.
+  for (const method of HTTP_MATCH_METHODS) {
+    const request = new Request(`${LOCAL_RUNTIME_ORIGIN}${legacyPath}`, { method });
+    const parsedResult = await handler.parse({ request });
+    const isMatch: boolean = await handler.predicate({ request, parsedResult });
 
-      if (errorParam === "network") {
-        return HttpResponse.error();
+    if (isMatch) {
+      return true;
+    }
+  }
+
+  return false;
+};
+
+test(
+  "shared MSW surface does not expose legacy purchase or restore release paths",
+  async (): Promise<void> => {
+    const exposedLegacyPaths: string[] = [];
+
+    for (const legacyPath of LEGACY_RELEASE_PATHS) {
+      const matchResults: boolean[] = await Promise.all(
+        handlers.map((handler): Promise<boolean> => matchesLegacyReleasePath(handler, legacyPath))
+      );
+
+      if (matchResults.some((isMatch): boolean => isMatch)) {
+        exposedLegacyPaths.push(legacyPath);
       }
-      if (errorParam === "server") {
-        return HttpResponse.json({ error: "Internal server error" }, { status: 500 });
-      }
-      if (errorParam === "payment") {
-        return HttpResponse.json(
-          { error: "Payment failed", code: "INSUFFICIENT_FUNDS" },
-          { status: 402 }
-        );
-      }
+    }
 
-      return HttpResponse.json({ status: "ok", entitlement: "premium" }, { status: 200 });
-    }),
-    http.post(matchesApiPath("/api/restore"), async ({ request }) => {
-      await delay(200);
-      const errorParam = new URL(request.url).searchParams.get("error");
-
-      if (errorParam === "network") {
-        return HttpResponse.error();
-      }
-      if (errorParam === "server") {
-        return HttpResponse.json({ error: "Restore service unavailable" }, { status: 503 });
-      }
-      if (errorParam === "not_found") {
-        return HttpResponse.json({ error: "No purchases found" }, { status: 404 });
-      }
-
-      return HttpResponse.json({ status: "ok", restored: true }, { status: 200 });
-    })
-  );
-}
-
-beforeEach(() => {
-  registerPurchaseHandlers();
-});
-
-test("msw /api/purchase responds ok", async () => {
-  const res = await fetch(`${BASE_URL}/api/purchase`, { method: "POST" });
-  const json = await res.json();
-  expect(json.status).toBe("ok");
-  expect(json.entitlement).toBe("premium");
-});
-
-test("msw /api/purchase handles server error", async () => {
-  const res = await fetch(`${BASE_URL}/api/purchase?error=server`, { method: "POST" });
-  expect(res.status).toBe(500);
-  const json = await res.json();
-  expect(json.error).toBe("Internal server error");
-});
-
-test("msw /api/purchase handles payment error", async () => {
-  const res = await fetch(`${BASE_URL}/api/purchase?error=payment`, { method: "POST" });
-  expect(res.status).toBe(402);
-  const json = await res.json();
-  expect(json.error).toBe("Payment failed");
-  expect(json.code).toBe("INSUFFICIENT_FUNDS");
-});
-
-test("msw /api/purchase handles network error", async () => {
-  await expect(fetch(`${BASE_URL}/api/purchase?error=network`, { method: "POST" })).rejects.toThrow();
-});
-
-test("msw /api/restore responds ok", async () => {
-  const res = await fetch(`${BASE_URL}/api/restore`, { method: "POST" });
-  const json = await res.json();
-  expect(json.status).toBe("ok");
-  expect(json.restored).toBe(true);
-});
-
-test("msw /api/restore handles server error", async () => {
-  const res = await fetch(`${BASE_URL}/api/restore?error=server`, { method: "POST" });
-  expect(res.status).toBe(503);
-  const json = await res.json();
-  expect(json.error).toBe("Restore service unavailable");
-});
-
-test("msw /api/restore handles not found error", async () => {
-  const res = await fetch(`${BASE_URL}/api/restore?error=not_found`, { method: "POST" });
-  expect(res.status).toBe(404);
-  const json = await res.json();
-  expect(json.error).toBe("No purchases found");
-});
-
-test("msw /api/restore handles network error", async () => {
-  await expect(fetch(`${BASE_URL}/api/restore?error=network`, { method: "POST" })).rejects.toThrow();
-});
+    expect(exposedLegacyPaths).toEqual([]);
+  }
+);

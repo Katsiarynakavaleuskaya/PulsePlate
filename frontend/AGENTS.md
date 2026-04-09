@@ -34,6 +34,8 @@
 - ✅ Use `api()` / `fetchBlob()` from `src/api/client.ts`
 - ✅ OpenAPI-generated types from `src/api/schema.ts`
 - ✅ Guards: `src/api/__tests__/thin-client-guards.test.ts` must stay green
+- ✅ Web premium truth must come only from canonical backend/store state; legacy mock
+  purchase/restore flows must stay out of shared release-path handlers and runtime-facing tests
 
 ### Canonical local checks
 
