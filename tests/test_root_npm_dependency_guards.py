@@ -18,6 +18,7 @@ from packaging.version import Version
 REPO_ROOT = Path(__file__).resolve().parents[1]
 ROOT_LOCK_JSON = REPO_ROOT / "package-lock.json"
 MIN_HONO_VERSION = Version("4.12.7")
+MIN_AXIOS_VERSION = Version("1.15.0")
 MIN_BRACE_EXPANSION_VERSION = Version("5.0.5")
 MIN_PATH_TO_REGEXP_VERSION = Version("8.4.0")
 
@@ -53,6 +54,34 @@ def test_root_lock_tracks_hono_as_mcp_sdk_transitive_dependency() -> None:
     hono_range = dependencies.get("hono")
     assert isinstance(hono_range, str), "package-lock.json: MCP SDK hono dependency missing"
     assert hono_range.strip(), "package-lock.json: MCP SDK hono dependency range missing"
+
+
+def test_root_lock_resolves_axios_to_safe_npm_release() -> None:
+    """RU/EN: Root lockfile must resolve axios from npm registry at the patched floor."""
+    package_lock = _load_json(ROOT_LOCK_JSON)
+    axios_pkg = package_lock.get("packages", {}).get("node_modules/axios", {})
+    lock_version = axios_pkg.get("version")
+    resolved = axios_pkg.get("resolved", "")
+
+    assert isinstance(lock_version, str), "package-lock.json: axios version missing"
+    assert Version(lock_version) >= MIN_AXIOS_VERSION
+    assert isinstance(resolved, str) and resolved, "package-lock.json: axios resolved missing"
+
+    parsed = urlparse(resolved)
+    assert parsed.scheme == "https", "axios lock resolution must use https"
+    assert parsed.netloc == "registry.npmjs.org", "axios must resolve from npm registry"
+    assert parsed.path.startswith("/axios/"), "axios lock resolution path mismatch"
+
+
+def test_root_lock_tracks_axios_under_agentguard_dependency_path() -> None:
+    """RU/EN: Dependency path should still show axios under @goplus/agentguard."""
+    package_lock = _load_json(ROOT_LOCK_JSON)
+    agentguard_pkg = package_lock.get("packages", {}).get("node_modules/@goplus/agentguard", {})
+    dependencies = agentguard_pkg.get("dependencies", {})
+
+    axios_range = dependencies.get("axios")
+    assert isinstance(axios_range, str), "package-lock.json: AgentGuard axios dependency missing"
+    assert axios_range.strip(), "package-lock.json: AgentGuard axios dependency range missing"
 
 
 def test_root_lock_resolves_brace_expansion_to_safe_npm_release() -> None:
