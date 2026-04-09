@@ -9,6 +9,7 @@
 Disposition: FIXED
 Commit: 194fa06a
 Evidence: `docs/roadmap/BACKLOG_LEDGER.md:127` now uses the concrete ledger closeout reference `PR #1380 (docs-only ledger closeout)` instead of free-text, so the `Target PR` field again conforms to the canonical `PR #<N>` / placeholder format.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1380#discussion_r3060348951 -> 194fa06a
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1380#pullrequestreview-4085079414 -> 194fa06a
 
 Disposition: NOT-A-BUG
