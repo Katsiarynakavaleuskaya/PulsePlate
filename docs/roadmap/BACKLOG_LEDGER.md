@@ -333,6 +333,27 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Locked install + Docker production target succeed against the private index; `make verify` green
     - Advisory updated (remove-by closed or docs-only follow-up per backlog policy)
 
+<a id="ledger-p1-cryptography-private-index-sync"></a>
+- [ ] P1: Keep `cryptography 46.0.7` security lane blocked until approved private index syncs a fixed wheel
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (security / supply-chain / CI blocker)
+  - Target PR: `PR #1378`
+  - Area: security / CI / dependencies
+  - Reason (EN): `repair/hono-security` correctly raises the repo floor to `cryptography 46.0.7`, but current-head GitHub Actions and Docker locked installs fail because the approved private Python index behind `PULSEPLATE_PYTHON_INDEX_URL` does not currently serve a matching `cryptography==46.0.7` artifact for the CI environment. The branch remains valid; the blocker is mirror availability, not a branch regression. (RU: security-ветка правильно поднимает floor до `46.0.7`, но CI/Docker падают, потому что одобренное приватное зеркало пока не отдаёт нужное колесо. Это блокер зеркала, а не ошибка ветки.)
+  - Links:
+    - `docs/security/CRYPTOGRAPHY_46_0_7_PRIVATE_INDEX_ADVISORY.md:1`
+    - `scripts/ci/install_locked_python_requirements.py`
+    - `.github/actions/python-setup/action.yml`
+    - `.github/workflows/ci.yml`
+    - `requirements.txt`
+    - `constraints.txt`
+    - `docs/review/PR_1378_FIXED_MAPPING.md`
+  - DoD:
+    - Approved private index serves `cryptography==46.0.7` or a higher safe release used by the branch
+    - Current-head locked install succeeds in shared CI and Docker lanes against the approved index
+    - `PR #1378` no longer needs to remain draft for mirror availability reasons
+    - Advisory doc is closed or updated in the same PR per backlog policy
+
 <a id="ledger-p1-metatron-offensive-lab-out-of-band"></a>
 - [ ] P1: METATRON-class offensive lab — out-of-band governance and operator runbook
   - Owner: @katsiaryna_kavaleuskaya
