@@ -6,11 +6,15 @@
 
 ## Fixed in Commit Mapping
 
+Disposition: FIXED
+Commit: 194fa06a
+Evidence: `docs/roadmap/BACKLOG_LEDGER.md:127` now uses the concrete ledger closeout reference `PR #1380 (docs-only ledger closeout)` instead of free-text, so the `Target PR` field again conforms to the canonical `PR #<N>` / placeholder format.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1380#pullrequestreview-4085079414 -> 194fa06a
+
 Disposition: NOT-A-BUG
-Evidence: `docs/review/PR_1380_FIXED_MAPPING.md`
-Reason: Initial post-open `qa-engineer-agent -> bug-hunter` pass found no actionable review comments on PR `#1380` at artifact creation time. Current bot issue comments are informational only: Sourcery posted a review guide, and CodeRabbit is still processing the PR.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1380#issuecomment-4217130173
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1380#issuecomment-4217130431
+Evidence: `docs/roadmap/BACKLOG_LEDGER.md:128`, `docs/roadmap/BACKLOG_LEDGER.md:132`
+Reason: Sourcery suggested stylistic shortening of the status/evidence text, but the current ledger keeps the canonical single-line `Status:` format used in this document and preserves explicit evidence anchors for audit traceability. This is readability feedback, not a correctness defect in the closeout record.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1380#pullrequestreview-4085070974
 
 ## Merge Readiness
 
