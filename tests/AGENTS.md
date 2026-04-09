@@ -414,7 +414,7 @@ pytest -q tests/test_repo_policy_guards.py
 
 - **Dependency vulnerability floor guard**: `tests/test_dependency_security_guard.py`
   - **What it enforces**:
-    - `cryptography` must stay at or above the non-vulnerable floor (`46.0.7`) in:
+    - `cryptography` must stay at or above the non-vulnerable floor (`46.0.6`) in:
       - `requirements.txt`
       - `requirements-dev.txt`
       - `requirements-lock.txt`

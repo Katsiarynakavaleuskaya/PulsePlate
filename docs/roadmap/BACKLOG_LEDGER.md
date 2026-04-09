@@ -334,14 +334,16 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Advisory updated (remove-by closed or docs-only follow-up per backlog policy)
 
 <a id="ledger-p1-cryptography-private-index-sync"></a>
-- [ ] P1: Keep `cryptography 46.0.7` security lane blocked until approved private index syncs a fixed wheel
+- [x] P1: Close `cryptography 46.0.7` mirror blocker via safe repin to `46.0.6`
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (security / supply-chain / CI blocker)
   - Target PR: `PR #1378`
+  - Status: ✅ Closed on `09 April 2026`
   - Area: security / CI / dependencies
-  - Reason (EN): `repair/hono-security` correctly raises the repo floor to `cryptography 46.0.7`, but current-head GitHub Actions and Docker locked installs fail because the approved private Python index behind `PULSEPLATE_PYTHON_INDEX_URL` does not currently serve a matching `cryptography==46.0.7` artifact for the CI environment. The branch remains valid; the blocker is mirror availability, not a branch regression. (RU: security-ветка правильно поднимает floor до `46.0.7`, но CI/Docker падают, потому что одобренное приватное зеркало пока не отдаёт нужное колесо. Это блокер зеркала, а не ошибка ветки.)
+  - Reason (EN): `repair/hono-security` briefly moved to exact `cryptography 46.0.7`, but current-head CI and Docker installs showed the approved private index lagged that upstream release. The canonical CVE floor for CVE-2026-26007 is `46.0.5`, so the branch was repinned to the still-safe exact release `46.0.6` to restore merge readiness without weakening the dependency guard. (RU: ветка временно ушла на точный `46.0.7`, но CI/Docker показали отставание приватного зеркала. Канонический безопасный минимум для CVE-2026-26007 — `46.0.5`, поэтому ветку вернули на безопасный `46.0.6`, чтобы восстановить merge readiness без ослабления security guard.)
   - Links:
     - `docs/security/CRYPTOGRAPHY_46_0_7_PRIVATE_INDEX_ADVISORY.md:1`
+    - `docs/security/CVE-2026-26007-cryptography.md:8`
     - `scripts/ci/install_locked_python_requirements.py`
     - `.github/actions/python-setup/action.yml`
     - `.github/workflows/ci.yml`
@@ -349,10 +351,10 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `constraints.txt`
     - `docs/review/PR_1378_FIXED_MAPPING.md`
   - DoD:
-    - Approved private index serves `cryptography==46.0.7` or a higher safe release used by the branch
-    - Current-head locked install succeeds in shared CI and Docker lanes against the approved index
-    - `PR #1378` no longer needs to remain draft for mirror availability reasons
-    - Advisory doc is closed or updated in the same PR per backlog policy
+    - [x] Branch uses an exact safe release (`46.0.6`) that remains above the canonical floor `46.0.5`
+    - [x] Advisory doc is closed/updated in the same PR
+    - [ ] Current-head locked install succeeds in shared CI and Docker lanes against the approved index
+    - [ ] `PR #1378` no longer needs to remain draft for dependency availability reasons
 
 <a id="ledger-p1-metatron-offensive-lab-out-of-band"></a>
 - [ ] P1: METATRON-class offensive lab — out-of-band governance and operator runbook
