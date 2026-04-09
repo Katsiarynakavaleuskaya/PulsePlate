@@ -20,8 +20,8 @@
 - [ ] All required checks pass (GitHub CI on current PR head after each push)
 - [ ] No unresolved review threads
 - [ ] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
-- [x] Pre-commit green
-- [x] `make verify` green locally
+- [ ] Pre-commit green
+- [ ] `make verify` green locally
 
 ### Scope Notes
 
