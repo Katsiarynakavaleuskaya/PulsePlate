@@ -9,6 +9,7 @@ from contextlib import contextmanager
 from datetime import date
 import json
 import os
+import re
 import subprocess  # nosec B404: subprocess is required for bounded pip/python invocations during locked installation (remove-by: 2026-07-31, ref: PR-litellm-hardening)
 import sys
 import tempfile
@@ -234,6 +235,10 @@ def resolve_emergency_wheel_manifest_path(manifest_path: Path | None) -> Path | 
 
 def _parse_iso_date(value: str, *, field_name: str) -> date:
     """Parse YYYY-MM-DD date strings for time-boxed fallback manifests."""
+    if re.fullmatch(r"\d{4}-\d{2}-\d{2}", value) is None:
+        raise RuntimeError(
+            f"Emergency wheel manifest field {field_name!r} must use YYYY-MM-DD: {value!r}"
+        )
     try:
         return date.fromisoformat(value)
     except ValueError as exc:

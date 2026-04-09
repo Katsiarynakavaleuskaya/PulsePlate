@@ -319,6 +319,33 @@ def test_load_emergency_wheel_manifest_rejects_expired_file(tmp_path: Path) -> N
         installer.load_emergency_wheel_manifest(manifest)
 
 
+def test_load_emergency_wheel_manifest_rejects_non_canonical_iso_date_format(
+    tmp_path: Path,
+) -> None:
+    manifest = tmp_path / "emergency.json"
+    manifest.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "expires_at": "20991231",
+                "artifacts": [
+                    {
+                        "package": "cryptography",
+                        "version": "46.0.7",
+                        "filename": "cryptography.whl",
+                        "url": "https://files.pythonhosted.org/packages/example/cryptography.whl",
+                        "sha256": "a" * 64,
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(RuntimeError, match="must use YYYY-MM-DD"):
+        installer.load_emergency_wheel_manifest(manifest)
+
+
 def test_stage_emergency_wheels_downloads_only_requested_exact_artifacts(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

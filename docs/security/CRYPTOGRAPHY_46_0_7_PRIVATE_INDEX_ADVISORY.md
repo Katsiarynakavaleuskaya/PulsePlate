@@ -14,7 +14,7 @@ for `cryptography 46.0.7`:
 - exact version: `46.0.7`
 - exact wheel filenames for `linux/amd64`
 - exact `sha256` digests
-- explicit expiry in `scripts/ci/emergency_python_wheels.json`
+- explicit expiry in `scripts/ci/emergency_python_wheels.json:4`
 
 This is a narrow security-hotfix intake path, not a broad `--extra-index-url`
 policy change.
@@ -31,10 +31,10 @@ policy change.
 - **Current branch pins:** `requirements.txt`, `requirements-ci-lite.txt`,
   `requirements-dev.txt`, `requirements-lock.txt`, and `constraints.txt`
   require `cryptography 46.0.7` / `>=46.0.7`.
-- **Fallback source of truth:** `scripts/ci/emergency_python_wheels.json`
-- **Fallback enforcement path:** `scripts/ci/install_locked_python_requirements.py`
-- **Shared CI wiring:** `.github/actions/python-setup/action.yml`
-- **Docker wiring:** `Dockerfile`
+- **Fallback source of truth:** `scripts/ci/emergency_python_wheels.json:1`
+- **Fallback enforcement path:** `scripts/ci/install_locked_python_requirements.py:235`
+- **Shared CI wiring:** `.github/actions/python-setup/action.yml:55`
+- **Docker wiring:** `Dockerfile:248`
 
 ## Operational decision
 
@@ -53,8 +53,8 @@ policy change.
 
 ## References
 
-- `scripts/ci/emergency_python_wheels.json`
-- `scripts/ci/install_locked_python_requirements.py`
-- `.github/actions/python-setup/action.yml`
-- `Dockerfile`
-- `docs/security/CVE-2026-26007-cryptography.md`
+- `scripts/ci/emergency_python_wheels.json:4`
+- `scripts/ci/install_locked_python_requirements.py:235`
+- `.github/actions/python-setup/action.yml:55`
+- `Dockerfile:248`
+- `docs/security/CVE-2026-26007-cryptography.md:1`
