@@ -52,7 +52,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0 (revenue continuity)
   - Target PR: PR #1182 (B1 baseline) -> PR #1295 (main bootstrap blocker) -> PR #1296 (activation/persistence closeout) -> PR-TBD-BILLING-ENTITLEMENT-ROUTING
-  - Status: B1 baseline closed (PR #1182); bootstrap blocker landed via PR #1295; activation + subscription persistence truth merged in PR #1296; next real closeout lane is entitlement routing. Evidence: `docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md`, `app/services/payments_activation.py:1`, `tests/test_paid_route_guards.py:1`. Entitlement routing remains separate: `ledger-p0-billing-entitlement-routing`.
+  - Status: B1 baseline closed (PR #1182); bootstrap blocker landed via PR #1295; activation + subscription persistence truth merged in PR #1296; current `main` carries the backend entitlement-routing runtime contract shipped in PR #1192, with the closeout packet in PR #1298 documenting that landed backend authz truth. Next active P0 release-truth lane: `ledger-p0-web-entitlement-truth`. Evidence: `docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md`, `app/services/payments_activation.py:1`, `app/middleware/api_tiers.py:225`, `app/bootstrap/startup_guards.py:25`, `tests/test_paid_route_guards.py:289`, `tests/test_paid_route_guards.py:311`.
   - Carryover: PR #1005 keeps only the `RUBY` -> `RU_BY` identifier cleanup so the ledger stays aligned with the existing payments contract naming.
   - Reason (EN): Current business reality requires region-adapted payment rails: iOS as primary automated channel, RU/BY payments via eRIP (QR to account) and SWIFT card transfer fallback. Canonical billing flow must support these rails before global providers expansion. (RU: Текущий источник оплат: iOS + RU/BY локальные каналы (ЕРИП/QR и SWIFT). Нужен канонический billing baseline под эту реальность до расширения на глобальные провайдеры.)
   - Links:
@@ -121,14 +121,25 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Tests prove repeated activation cannot create duplicate subscription state
 
 <a id="ledger-p0-billing-entitlement-routing"></a>
-- [ ] P0: Entitlement-backed routing after billing activation
+- [x] P0: Entitlement-backed routing after billing activation
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0
-  - Target PR: PR-TBD-BILLING-ENTITLEMENT-ROUTING
-  - Status: 📋 Next real PR after merged activation/persistence closeout in `#1296`
+  - Target PR: PR #1192 (runtime entitlement routing baseline) -> PR #1298 (docs/authz closeout packet) -> PR #1380 (docs-only ledger closeout)
+  - Status: ✅ Closed. Current `main` already carries the backend entitlement-routing runtime contract shipped in PR #1192; PR #1298 provides the closeout packet and governance evidence for that landed backend authz behavior. This docs-only lane reconciles the canonical ledger to shipped behavior and promotes `ledger-p0-web-entitlement-truth` as the next active P0 release-truth lane.
   - Area: backend / authz / routing
   - Finding Type: access-control gap
-  - Reason: The release spine still needs entitlement truth and protected routing after activation so paid users reach the correct guarded surfaces without client-side unlock shortcuts. Deploy/readiness audit also shows that production entitlement mode still needs a fail-closed contract for `SUBSCRIPTION_DB_ENABLED`, and RU/BY manual billing needs an explicit pre-entitlement/user-facing routing decision instead of relying on ambiguous PRO-only entrypoints.
+  - Reason: Closed by shipped backend entitlement-routing plus fail-closed startup/runtime guards; remaining web/frontend entitlement truth stays tracked under `ledger-p0-web-entitlement-truth`.
+  - Evidence:
+    - `docs/audit/PR4_ENTITLEMENT_ROUTING_CLOSEOUT_AUDIT_2026-04-02.md:22`
+    - `docs/audit/PR4_ENTITLEMENT_ROUTING_CLOSEOUT_AUDIT_2026-04-02.md:40`
+    - `docs/review/PR_1298_FIXED_MAPPING.md:43`
+    - `app/middleware/api_tiers.py:225`
+    - `app/middleware/api_tiers.py:364`
+    - `app/routers/billing.py:242`
+    - `app/bootstrap/startup_guards.py:25`
+    - `tests/test_paid_route_guards.py:289`
+    - `tests/test_paid_route_guards.py:311`
+    - `tests/test_pro_vip_route_dependency_guard.py:86`
   - Links:
     - `docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md`
     - `app/routers/billing.py`
@@ -192,6 +203,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0
   - Target PR: PR-TBD-WEB-ENTITLEMENT-TRUTH
+  - Status: 🟡 Next active P0 release-truth lane after closure of `ledger-p0-billing-entitlement-routing`
   - Area: frontend / monetization / thin-client
   - Finding Type: thin-client and release-trust gap
   - Reason: The live web surface still uses local premium state and mock-only purchase/restore flows, which breaks thin-client policy and can misstate monetization truth during release/readiness work.
