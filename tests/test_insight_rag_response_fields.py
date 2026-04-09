@@ -610,8 +610,6 @@ class TestInsightV1RAGFields:
         """insight text (echoed prompt) must not leak internal file paths."""
         import llm
 
-        _disable_vip_monthly_quota(monkeypatch)
-        _ensure_rate_limiting_disabled(monkeypatch, rag_client.app)
         monkeypatch.setenv("FEATURE_INSIGHT", "true")
         monkeypatch.setenv("FEATURE_RAG", "true")
         monkeypatch.setattr(llm, "get_insight_provider", lambda: _EchoProvider(), raising=True)
@@ -644,8 +642,6 @@ class TestInsightLegacyRAGFields:
     ) -> None:
         import llm
 
-        _disable_vip_monthly_quota(monkeypatch)
-        _ensure_rate_limiting_disabled(monkeypatch, rag_client.app)
         monkeypatch.setenv("FEATURE_INSIGHT", "true")
         monkeypatch.setenv("FEATURE_RAG", "true")
         monkeypatch.setattr(llm, "get_insight_provider", lambda: _EchoProvider(), raising=True)
@@ -674,8 +670,6 @@ class TestInsightLegacyRAGFields:
     ) -> None:
         import llm
 
-        _disable_vip_monthly_quota(monkeypatch)
-        _ensure_rate_limiting_disabled(monkeypatch, rag_client.app)
         monkeypatch.setenv("FEATURE_INSIGHT", "true")
         monkeypatch.setenv("FEATURE_RAG", "false")
         monkeypatch.setattr(llm, "get_insight_provider", lambda: _EchoProvider(), raising=True)

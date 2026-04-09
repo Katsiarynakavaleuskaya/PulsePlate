@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 from pathlib import Path
 from typing import NoReturn
-from unittest.mock import patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -358,26 +357,24 @@ def test_category_by_bmi_ru() -> None:
     assert bmi_category(32, "ru") == "Ожирение I степени"
 
 
-def test_compute_wht_ratio_round_exception() -> None:
+def test_compute_wht_ratio_round_exception(monkeypatch: pytest.MonkeyPatch) -> None:
     """
     Test that _compute_wht_ratio propagates round exceptions.
 
     _compute_wht_ratio should NOT catch generic exceptions raised by round().
     It must propagate them so callers/tests can detect unexpected failures.
     """
-    import builtins
-
-    import pytest
+    import core.bmi.engine as bmi_engine
     from core.bmi.engine import _compute_wht_ratio
 
     def boom(*args: object, **kwargs: object) -> None:
         raise RuntimeError("round exploded")
 
-    # Patch builtins.round used by the function
-    with patch.object(builtins, "round", boom):
-        # Must raise exception, not return None or value
-        with pytest.raises(RuntimeError, match="round exploded"):
-            _compute_wht_ratio(waist_cm=80.0, height_m=1.70)
+    monkeypatch.setattr(bmi_engine, "round", boom, raising=False)
+
+    # Must raise exception, not return None or value
+    with pytest.raises(RuntimeError, match="round exploded"):
+        _compute_wht_ratio(waist_cm=80.0, height_m=1.70)
 
 
 # Removed: test_v1_bmi_invalid_api_key and test_v1_bmi_no_api_key
