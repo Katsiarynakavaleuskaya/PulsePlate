@@ -1,7 +1,8 @@
 # Compliance Control Plane
 
 **Status:** Canonical compliance index
-**Last updated:** 2026-03-08
+**Last updated:** 2026-04-10
+**Policy version:** `2026-04-10.eu-first.v1`
 **Scope:** Backend + legal/docs + guards
 
 This directory is the compliance control-plane source of truth for the current

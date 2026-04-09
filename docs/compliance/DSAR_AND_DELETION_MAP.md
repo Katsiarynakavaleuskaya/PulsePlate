@@ -1,7 +1,7 @@
 # DSAR and Deletion Map
 
 **Status:** Canonical internal map
-**Last updated:** 2026-03-08
+**Last updated:** 2026-04-10
 
 This document describes what PulsePlate can currently export or delete for
 direct-user artifacts without promising a public self-service endpoint.

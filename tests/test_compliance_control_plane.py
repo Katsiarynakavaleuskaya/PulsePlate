@@ -39,8 +39,8 @@ _DSAR_MAP_DOC = _REPO_ROOT / "docs/compliance/DSAR_AND_DELETION_MAP.md"
 def test_privacy_payload_contains_additive_control_plane_fields() -> None:
     payload = build_privacy_endpoint_payload()
 
-    assert payload["policy_version"] == "2026-03-08.eu-first.v1"
-    assert payload["last_updated"] == "2026-03-08"
+    assert payload["policy_version"] == "2026-04-10.eu-first.v1"
+    assert payload["last_updated"] == "2026-04-10"
     assert isinstance(payload["providers"], list)
     assert isinstance(payload["processing_categories"], list)
     assert isinstance(payload["rights"], list)
@@ -131,6 +131,8 @@ def test_privacy_metadata_stays_in_sync_with_canonical_docs() -> None:
     assert "Telemetry processors" in ai_notice_doc
     assert "telemetry trace processor is configured" in data_matrix_doc
     assert "does not activate the regulated lane by itself" in regulated_lane_doc
+    regulated_lane_rule_text = cast(str, regulated_lane["rule"])
+    assert "does not activate the regulated lane by itself" in regulated_lane_rule_text
 
 
 def test_transparency_registry_covers_core_healthish_surfaces() -> None:
@@ -231,6 +233,7 @@ def test_provider_inventory_includes_local_and_conditional_ai_families() -> None
     assert "ollama_self_hosted" in provider_ids
     assert "xai_grok" in provider_ids
     assert otlp_processor["category"] == "telemetry_processor"
+    assert "non-reversible, deployment-local" in cast(str, otlp_processor["data_scope"])
     assert "never raw prompts or completions" in cast(str, otlp_processor["data_scope"])
 
 
@@ -239,7 +242,9 @@ def test_privacy_docs_do_not_promise_public_dsar_api() -> None:
     dsar_map_doc = _DSAR_MAP_DOC.read_text(encoding="utf-8").lower()
 
     assert "public self-service endpoint" not in legal_privacy_doc
+    assert "public dsar api" not in legal_privacy_doc
     assert "public dsar api still deferred" in dsar_map_doc
+    assert dsar_map_doc.count("public dsar api") == 1
 
 
 def test_dsar_timestamp_serializer_covers_none_and_aware_values() -> None:

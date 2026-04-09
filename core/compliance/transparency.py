@@ -100,7 +100,9 @@ _BLOCKED_REGULATED_LANE: dict[str, object] = {
     "rule": (
         "These scenarios require a separate regulated lane with consent segregation, "
         "storage segregation, redisclosure controls, and explicit legal approval. "
-        "Telemetry-only OTLP trace export of minimized metadata does not activate the regulated lane by itself."
+        "Telemetry-only OTLP trace export of minimized metadata does not activate the regulated lane by itself "
+        "when the export remains non-identifying, excludes regulated content, and stays within the configured "
+        "telemetry-control boundary."
     ),
 }
 

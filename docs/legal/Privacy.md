@@ -1,8 +1,8 @@
 # Privacy Policy
 
 **Status:** Canonical legal document
-**Last updated:** 2026-03-08
-**Policy version:** `2026-03-08.eu-first.v1`
+**Last updated:** 2026-04-10
+**Policy version:** `2026-04-10.eu-first.v1`
 **Scope:** All product tiers (FREE / PRO / VIP)
 **Markets:** CIS / EU / US
 **Positioning:** Consumer wellness product, not a clinical system
@@ -63,7 +63,7 @@
 - external provider family (например, xAI/Grok, OpenAI-compatible, Anthropic-compatible, Pico)
 - OTLP collector/vendor tracing processor, если задан `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` (telemetry processor, not an AI model provider)
 
-Конкретный processor зависит от deployment configuration. OTLP collector или tracing vendor создаёт дополнительный путь обработки и retention для trace metadata, который регулируется конфигурацией collector/vendored deployment. Retention и downstream processing у внешних processors регулируются их собственными условиями и настройками развертывания.
+Конкретный processor зависит от deployment configuration. OTLP collector или tracing vendor создаёт дополнительный путь обработки и retention для trace metadata, который регулируется конфигурацией collector/vendored deployment. Такой telemetry-only export сам по себе не активирует regulated lane, если trace metadata остаётся non-identifying, не включает regulated content и остаётся в пределах настроенного telemetry-control boundary. Retention и downstream processing у внешних processors регулируются их собственными условиями и настройками развертывания.
 
 ### Хранение и удаление
 
@@ -145,7 +145,7 @@ When AI features are enabled, requests may be processed by:
 - an external provider family (for example, xAI/Grok, OpenAI-compatible, Anthropic-compatible, or Pico)
 - an OTLP collector or tracing vendor processor when `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` is configured (a telemetry processor, not an AI model provider)
 
-The active processor depends on deployment configuration. An OTLP collector or tracing vendor adds a separate processing and retention path for trace metadata, governed by the collector or vendor deployment configuration. Retention and downstream processing at external processors are governed by the selected provider or deployment terms.
+The active processor depends on deployment configuration. An OTLP collector or tracing vendor adds a separate processing and retention path for trace metadata, governed by the collector or vendor deployment configuration. That telemetry-only export does not activate the regulated lane by itself when trace metadata remains non-identifying, excludes regulated content, and stays within the configured telemetry-control boundary. Retention and downstream processing at external processors are governed by the selected provider or deployment terms.
 
 ### Retention and Deletion
 
@@ -206,9 +206,9 @@ Cuando las funciones de AI están habilitadas, las solicitudes pueden ser proces
 - PulsePlate runtime local
 - una familia self-hosted (por ejemplo, Ollama-compatible)
 - una familia externa (por ejemplo, xAI/Grok, OpenAI-compatible, Anthropic-compatible o Pico)
-- un collector OTLP o processor de tracing vendor cuando `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` está configurado (un telemetry processor, no un proveedor de modelo de AI)
+- un collector OTLP o processor de tracing vendor cuando `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` está configurado (un procesador de telemetría, no un proveedor de modelo de AI)
 
-El processor activo depende de la configuración del deployment. Un collector OTLP o tracing vendor añade una ruta separada de procesamiento y retención para trace metadata, gobernada por la configuración del collector o vendor. La retención y el procesamiento downstream en processors externos se rigen por los términos del provider o deployment seleccionado.
+El processor activo depende de la configuración del deployment. Un collector OTLP o tracing vendor añade una ruta separada de procesamiento y retención para trace metadata, gobernada por la configuración del collector o vendor. Ese export telemetry-only no activa por sí solo el regulated lane cuando la trace metadata sigue siendo non-identifying, excluye regulated content y permanece dentro del telemetry-control boundary configurado. La retención y el procesamiento downstream en processors externos se rigen por los términos del provider o deployment seleccionado.
 
 ### Retención y Eliminación
 

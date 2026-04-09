@@ -9,8 +9,8 @@ from core.compliance.dsar import build_dsar_rights_summary, summarize_dsar_suppo
 from core.compliance.transparency import get_blocked_regulated_lane, get_transparency_registry
 from core.log_retention import get_retention_manager
 
-PRIVACY_POLICY_VERSION = "2026-03-08.eu-first.v1"
-PRIVACY_POLICY_LAST_UPDATED = "2026-03-08"
+PRIVACY_POLICY_VERSION = "2026-04-10.eu-first.v1"
+PRIVACY_POLICY_LAST_UPDATED = "2026-04-10"
 
 
 @dataclass(frozen=True)
@@ -105,7 +105,8 @@ _PROVIDER_INVENTORY: tuple[ProviderDisclosure, ...] = (
         role="Trace metadata export when telemetry is configured",
         data_scope=(
             "Fingerprint-only trace metadata, low-cardinality route/status/timing fields, "
-            "detector names, and encrypted vault pointer hashes; never raw prompts or completions"
+            "detector names, and non-reversible, deployment-local encrypted vault pointer hashes; "
+            "never raw prompts or completions"
         ),
         retention="Collector or vendor deployment policy when enabled",
         activation="Conditional, configuration-based",

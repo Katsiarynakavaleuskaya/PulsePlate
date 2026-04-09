@@ -1,8 +1,8 @@
 # Data Classification and Processing Matrix
 
 **Status:** Canonical
-**Last updated:** 2026-03-08
-**Policy version:** `2026-03-08.eu-first.v1`
+**Last updated:** 2026-04-10
+**Policy version:** `2026-04-10.eu-first.v1`
 
 This matrix is the canonical control-plane view for the current wellness runtime.
 
