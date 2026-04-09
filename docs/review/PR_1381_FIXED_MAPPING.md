@@ -6,7 +6,17 @@
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1381#pullrequestreview-4085529481 -> 96cd93f20
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1381#discussion_r3060753041 -> 96cd93f20
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1381#discussion_r3060753142 -> 96cd93f20
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1381#pullrequestreview-4085556378 -> 96cd93f20
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1381#discussion_r3060775789 -> 96cd93f20
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1381#discussion_r3060775806 -> 96cd93f20
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1381#discussion_r3060775809 -> 96cd93f20
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1381#discussion_r3060775815 -> 96cd93f20
+Disposition: FIXED
+Commit: 96cd93f20
+Evidence: `docs/roadmap/BACKLOG_LEDGER.md:205` and `docs/roadmap/BACKLOG_LEDGER.md:208` now use the concrete PR reference and consistent `release-truth` wording; `frontend/src/mocks/__tests__/purchase.test.ts:1-50` now checks runtime MSW matcher behavior across handler predicates instead of relying on `info.path` and adds explicit TypeScript annotations; `frontend/src/pages/Pro/__tests__/ProPaywallPage.test.tsx:59` adds the explicit async return type; `docs/review/PR_1381_FIXED_MAPPING.md:13-18` keeps merge-readiness checkboxes unchecked until the final merge cycle.
 
 ## Merge Readiness
 
