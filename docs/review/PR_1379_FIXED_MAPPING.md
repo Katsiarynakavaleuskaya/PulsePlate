@@ -26,7 +26,7 @@ Bot and human review threads must be dispositioned here before they are resolved
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1379#discussion_r3056910868 -> e85ca81d59cb2336913e83f48513f9627c03652b
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1379#discussion_r3056910886 -> e85ca81d59cb2336913e83f48513f9627c03652b
 Disposition: FIXED
-Commit: see mapping entries below
+Commit: e85ca81d59cb2336913e83f48513f9627c03652b
 Evidence: `llm.py` (insight-only fallback chain, timeout floor, isolated fallback builders, provider type hint); `core/insight/llm_provider_loader.py` (insight path uses `get_insight_provider()`); `app/services/insight_runtime.py` (fallback winner propagated into tracing/provider identity); `legacy_app.py` (`/ready` fail-soft runtime enrichment); `tests/test_llm_extras.py`, `tests/test_app_insight_runtime.py`, `tests/test_api.py`, `tests/test_health_db.py`, `tests/test_insight_error_hygiene.py`, `tests/test_insight_rag_response_fields.py`, `tests/test_philosophy_validation_integration.py`, `tests/test_rag_vector_feature_flag_guard.py`; local gates green via `pre-commit run --all-files` and `make verify` on commit `e85ca81d59cb2336913e83f48513f9627c03652b`.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1379#discussion_r3056888533 -> 62738b566
@@ -39,7 +39,7 @@ Evidence: `docs/review/PR_1379_FIXED_MAPPING.md` merge-readiness and discussion-
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1379#discussion_r3057611916 -> f206ce8e4
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1379#pullrequestreview-4082052885 -> f206ce8e4
 Disposition: FIXED
-Commit: see mapping entries below
+Commit: f206ce8e4
 Evidence: `docs/architecture/ADR_PIP_AUDIT_CRYPTOGRAPHY_MIRROR_LAG_SEAM_2026-04-09.md` now carries explicit `file:line` evidence anchors; `docs/security/GHSA-p423-j2cm-9vmq-cryptography-mirror-lag.md` now uses strict `YYYY-MM-DD` remove-by metadata and `file:line` evidence anchors; fixes shipped in commit `f206ce8e4`.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1379#pullrequestreview-4081288984
