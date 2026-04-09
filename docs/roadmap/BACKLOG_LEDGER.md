@@ -124,7 +124,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [x] P0: Entitlement-backed routing after billing activation
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0
-  - Target PR: PR #1192 (runtime entitlement routing baseline) -> PR #1298 (docs/authz closeout packet) -> current docs-only ledger closeout lane
+  - Target PR: PR #1192 (runtime entitlement routing baseline) -> PR #1298 (docs/authz closeout packet) -> PR #1380 (docs-only ledger closeout)
   - Status: ✅ Closed. Current `main` already carries the backend entitlement-routing runtime contract shipped in PR #1192; PR #1298 provides the closeout packet and governance evidence for that landed backend authz behavior. This docs-only lane reconciles the canonical ledger to shipped behavior and promotes `ledger-p0-web-entitlement-truth` as the next active P0 release-truth lane.
   - Area: backend / authz / routing
   - Finding Type: access-control gap
