@@ -14,6 +14,13 @@
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1378#issuecomment-4209832933
   Disposition: NOT-A-BUG
   Evidence: Informational Sourcery reviewer-guide comment only; no actionable finding or requested change.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1378#discussion_r3056080059
+  Disposition: FIXED
+  Commit: `08b4a6050`
+  Evidence: `docs/roadmap/BACKLOG_LEDGER.md` now adds anchor `ledger-p1-reconcile-open-dependabot-alerts` and splits child reconciliation lanes for alerts `#100`, `#99-#95`, `#94`, and `#93-#92`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1378#discussion_r3056080077
+  Disposition: NOT-A-BUG
+  Evidence: `docs/security/CRYPTOGRAPHY_46_0_7_PRIVATE_INDEX_ADVISORY.md:1` keeps the patched `46.0.7` floor and documents the mirror-lag blocker; `docs/review/PR_1378_FIXED_MAPPING.md:20` keeps merge-readiness unchecked until current-head CI is green.
 
 ## Merge Readiness
 
