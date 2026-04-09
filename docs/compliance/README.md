@@ -14,7 +14,7 @@ PulsePlate wellness runtime.
 - `AI_TRANSPARENCY_AND_PROFILING_NOTICE.md`
   - Canonical automated-analysis and wellness-boundary notices.
 - `PROVIDER_INVENTORY.md`
-  - Configurable processor families and their disclosure posture.
+  - Configurable AI provider and telemetry processor families with their disclosure posture.
 - `DSAR_AND_DELETION_MAP.md`
   - Internal artifact map for access/export/delete handling.
 - `US_REGULATED_LANE_RFC_42_CFR_PART_2.md`

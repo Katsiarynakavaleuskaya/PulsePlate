@@ -40,3 +40,7 @@ Re-open only when PulsePlate takes an explicit step toward:
 - regulated notes, records, or redisclosure-sensitive data
 
 Until then, the canonical product posture remains: **consumer wellness, EU-first privacy control plane, regulated US lane blocked**.
+
+## Clarification
+
+- Exporting minimized trace metadata to an OTLP collector or tracing vendor does not activate the regulated lane by itself.

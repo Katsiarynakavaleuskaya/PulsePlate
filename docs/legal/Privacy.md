@@ -61,7 +61,7 @@
 - локальным/runtime processing PulsePlate
 - self-hosted provider (например, Ollama-compatible)
 - external provider family (например, xAI/Grok, OpenAI-compatible, Anthropic-compatible, Pico)
-- OTLP collector/vendor tracing processor, если задан `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT`
+- OTLP collector/vendor tracing processor, если задан `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` (telemetry processor, not an AI model provider)
 
 Конкретный processor зависит от deployment configuration. OTLP collector или tracing vendor создаёт дополнительный путь обработки и retention для trace metadata, который регулируется конфигурацией collector/vendored deployment. Retention и downstream processing у внешних processors регулируются их собственными условиями и настройками развертывания.
 
@@ -143,7 +143,7 @@ When AI features are enabled, requests may be processed by:
 - PulsePlate local/runtime processing
 - a self-hosted provider family (for example, Ollama-compatible deployments)
 - an external provider family (for example, xAI/Grok, OpenAI-compatible, Anthropic-compatible, or Pico)
-- an OTLP collector or tracing vendor processor when `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` is configured
+- an OTLP collector or tracing vendor processor when `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` is configured (a telemetry processor, not an AI model provider)
 
 The active processor depends on deployment configuration. An OTLP collector or tracing vendor adds a separate processing and retention path for trace metadata, governed by the collector or vendor deployment configuration. Retention and downstream processing at external processors are governed by the selected provider or deployment terms.
 
@@ -206,7 +206,7 @@ Cuando las funciones de AI están habilitadas, las solicitudes pueden ser proces
 - PulsePlate runtime local
 - una familia self-hosted (por ejemplo, Ollama-compatible)
 - una familia externa (por ejemplo, xAI/Grok, OpenAI-compatible, Anthropic-compatible o Pico)
-- un collector OTLP o processor de tracing vendor cuando `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` está configurado
+- un collector OTLP o processor de tracing vendor cuando `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` está configurado (un telemetry processor, no un proveedor de modelo de AI)
 
 El processor activo depende de la configuración del deployment. Un collector OTLP o tracing vendor añade una ruta separada de procesamiento y retención para trace metadata, gobernada por la configuración del collector o vendor. La retención y el procesamiento downstream en processors externos se rigen por los términos del provider o deployment seleccionado.
 

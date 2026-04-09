@@ -99,6 +99,18 @@ _PROVIDER_INVENTORY: tuple[ProviderDisclosure, ...] = (
         activation="Conditional, configuration-based",
     ),
     ProviderDisclosure(
+        provider_id="otlp_trace_processor",
+        name="OTLP collector / tracing vendor",
+        category="telemetry_processor",
+        role="Trace metadata export when telemetry is configured",
+        data_scope=(
+            "Fingerprint-only trace metadata, low-cardinality route/status/timing fields, "
+            "detector names, and encrypted vault pointer hashes; never raw prompts or completions"
+        ),
+        retention="Collector or vendor deployment policy when enabled",
+        activation="Conditional, configuration-based",
+    ),
+    ProviderDisclosure(
         provider_id="pico",
         name="Pico provider family",
         category="external_processor",
@@ -240,7 +252,10 @@ def build_privacy_endpoint_payload() -> dict[str, object]:
                 "User-provided text queries and derived prompts for enabled AI surfaces; "
                 "PulsePlate-side tracing stores only HMAC fingerprints, lengths, and bounded usage metadata"
             ),
-            "recipients": "Configured provider families or self-hosted processors listed in provider inventory",
+            "recipients": (
+                "Configured provider families or self-hosted processors listed in provider inventory; "
+                "telemetry processors receive minimized trace metadata only when configured"
+            ),
             "retention_by_provider": "Varies by provider and deployment configuration",
             "legal_basis": "Product operation, legitimate interest, and surface-specific user action",
             "opt_out": "Do not use AI insight surfaces if you do not want your text processed by configured providers",

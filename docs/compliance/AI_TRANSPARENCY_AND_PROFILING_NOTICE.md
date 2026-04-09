@@ -36,6 +36,7 @@ PulsePlate treats health-adjacent AI features as **automated wellness analysis**
 - Analysis type: automated AI-assisted analysis
 - Boundary: wellness coaching only, not therapy, diagnosis, or clinical decision support
 - Runtime tracing: prompt and completion payloads are fingerprinted with HMAC and exported without raw text in v1
+- Telemetry processors: OTLP collectors or tracing vendors may receive minimized trace metadata when telemetry export is configured; they do not receive raw prompt or completion text in v1
 
 ### FitChef structured coaching
 
@@ -44,6 +45,7 @@ PulsePlate treats health-adjacent AI features as **automated wellness analysis**
 - Analysis type: automated AI-assisted wellness coaching structure
 - Boundary: wellness coaching only, not therapy, diagnosis, or clinical decision support
 - Runtime tracing: prompt and completion payloads are fingerprinted with HMAC and exported without raw text in v1
+- Telemetry processors: OTLP collectors or tracing vendors may receive minimized trace metadata when telemetry export is configured; they do not receive raw prompt or completion text in v1
 
 ## User Notice Contract
 
