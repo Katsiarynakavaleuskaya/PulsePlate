@@ -78,6 +78,16 @@ Disposition: NOT-A-BUG
 Evidence: Review-container URL only; its actionable items are dispositioned at `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1378#discussion_r3057542776`, `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1378#discussion_r3057542784`, and `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1378#discussion_r3057542798`.
 Reason: The review object itself carries no remaining independent action once its child findings are fixed and mapped.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1378#discussion_r3057780068
+Disposition: FIXED
+Commit: 381c91116
+Evidence: `scripts/ci/install_locked_python_requirements.py:351` and `scripts/ci/install_locked_python_requirements.py:362` now open the temp file descriptor before entering `urlopen(...)`, so an immediate network failure still closes the descriptor and cleans the temp file; `tests/test_install_locked_python_requirements.py:440` covers the immediate-failure path.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1378#pullrequestreview-4082255006
+Disposition: NOT-A-BUG
+Evidence: Review-container URL only; its actionable item is dispositioned at `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1378#discussion_r3057780068`.
+Reason: The review object itself carries no remaining independent action once its child finding is fixed and mapped.
+
 ## Merge Readiness
 
 - [ ] All required checks pass (GitHub CI on current PR head after each push)
