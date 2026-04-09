@@ -8,12 +8,16 @@ Covers: sources[], confidence, rag_used, hops, latency_ms in both
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Optional
+import inspect
+from typing import Any, Generator, Optional
+from uuid import uuid4
 
 import pytest
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from core.insight import philosophical_runtime as runtime_mod
+from tests._client import disable_rate_limiting_for_test_app
 
 
 @dataclass
@@ -186,6 +190,83 @@ class _EchoProvider:
 
     async def generate(self, text: str) -> str:
         return text
+
+
+@pytest.fixture
+def client(app: FastAPI) -> Generator[TestClient, None, None]:
+    """Use a unique client host per test to avoid shared rate-limit buckets."""
+    with TestClient(app, client=(f"rag-contract-{uuid4().hex}", 50000)) as test_client:
+        yield test_client
+
+
+def _ensure_rate_limiting_disabled(
+    monkeypatch: pytest.MonkeyPatch,
+    app_instance: FastAPI,
+) -> None:
+    """Keep RAG contract tests isolated from dedicated 429 suites."""
+    from app.security import rate_limit as rate_limit_mod
+
+    monkeypatch.delenv("RATE_LIMITING_IN_TESTS", raising=False)
+    disable_rate_limiting_for_test_app(app_instance)
+
+    limiter_key = f"rag-contract-{uuid4()}"
+    limiter_candidates = [
+        getattr(app_instance.state, "limiter", None),
+        getattr(rate_limit_mod, "limiter", None),
+    ]
+
+    for limiter in limiter_candidates:
+        if limiter is None:
+            continue
+        monkeypatch.setattr(
+            limiter, "_key_func", lambda request, key=limiter_key: key, raising=False
+        )
+        monkeypatch.setattr(limiter, "_auto_check", False, raising=False)
+        monkeypatch.setattr(
+            limiter,
+            "_check_request_limit",
+            lambda *args, **kwargs: None,
+            raising=False,
+        )
+
+    for route in app_instance.routes:
+        endpoint = getattr(route, "endpoint", None)
+        if endpoint is None:
+            continue
+
+        for captured in inspect.getclosurevars(endpoint).nonlocals.values():
+            if not hasattr(captured, "_key_func"):
+                continue
+            monkeypatch.setattr(captured, "_key_func", lambda request, key=limiter_key: key)
+            monkeypatch.setattr(captured, "_auto_check", False, raising=False)
+            monkeypatch.setattr(
+                captured,
+                "_check_request_limit",
+                lambda *args, **kwargs: None,
+                raising=False,
+            )
+
+
+def _disable_vip_monthly_quota(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep RAG contract tests focused on response schema, not quota state."""
+    import legacy_app
+
+    # RU: В этом файле проверяем контракт RAG-ответа, а не месячную VIP-квоту.
+    # EN: This file validates the RAG response contract, not VIP monthly quota enforcement.
+    monkeypatch.setattr(
+        legacy_app,
+        "_enforce_vip_llm_monthly_quota",
+        lambda *_args, **_kwargs: None,
+        raising=True,
+    )
+
+
+def _isolated_test_client(app_instance: FastAPI) -> TestClient:
+    """Create a per-test client identity to avoid inherited rate-limit keys."""
+    return TestClient(
+        app_instance,
+        client=(f"rag-contract-{uuid4().hex}", 50000),
+    )
 
 
 @dataclass
@@ -538,6 +619,8 @@ class TestInsightV1RAGFields:
         """insight text (echoed prompt) must not leak internal file paths."""
         import llm
 
+        _disable_vip_monthly_quota(monkeypatch)
+        _ensure_rate_limiting_disabled(monkeypatch, client.app)
         monkeypatch.setenv("FEATURE_INSIGHT", "true")
         monkeypatch.setenv("FEATURE_RAG", "true")
         monkeypatch.setattr(llm, "get_provider", lambda: _EchoProvider(), raising=True)
@@ -547,10 +630,15 @@ class TestInsightV1RAGFields:
             raising=True,
         )
 
-        resp = client.post("/api/v1/insight", json={"text": "What is BMI?"}, headers=vip_headers)
-        assert resp.status_code == 200
-        assert resp.headers.get("content-type", "").startswith("application/json")
-        data = resp.json()
+        with _isolated_test_client(client.app) as isolated_client:
+            resp = isolated_client.post(
+                "/api/v1/insight",
+                json={"text": "What is BMI?"},
+                headers=vip_headers,
+            )
+            assert resp.status_code == 200, resp.text
+            assert resp.headers.get("content-type", "").startswith("application/json")
+            data = resp.json()
         assert "Source:" not in data["insight"]
 
 
@@ -565,6 +653,8 @@ class TestInsightLegacyRAGFields:
     ) -> None:
         import llm
 
+        _disable_vip_monthly_quota(monkeypatch)
+        _ensure_rate_limiting_disabled(monkeypatch, client.app)
         monkeypatch.setenv("FEATURE_INSIGHT", "true")
         monkeypatch.setenv("FEATURE_RAG", "true")
         monkeypatch.setattr(llm, "get_provider", lambda: _EchoProvider(), raising=True)
@@ -574,10 +664,11 @@ class TestInsightLegacyRAGFields:
             raising=True,
         )
 
-        resp = client.post("/insight", json={"text": "test"}, headers=vip_headers)
-        assert resp.status_code == 200
-        assert resp.headers.get("content-type", "").startswith("application/json")
-        data = resp.json()
+        with _isolated_test_client(client.app) as isolated_client:
+            resp = isolated_client.post("/insight", json={"text": "test"}, headers=vip_headers)
+            assert resp.status_code == 200, resp.text
+            assert resp.headers.get("content-type", "").startswith("application/json")
+            data = resp.json()
         assert data["rag_used"] is True
         assert len(data["sources"]) == 2
         assert data["confidence"] == 0.75
@@ -592,14 +683,17 @@ class TestInsightLegacyRAGFields:
     ) -> None:
         import llm
 
+        _disable_vip_monthly_quota(monkeypatch)
+        _ensure_rate_limiting_disabled(monkeypatch, client.app)
         monkeypatch.setenv("FEATURE_INSIGHT", "true")
         monkeypatch.setenv("FEATURE_RAG", "false")
         monkeypatch.setattr(llm, "get_provider", lambda: _EchoProvider(), raising=True)
 
-        resp = client.post("/insight", json={"text": "test"}, headers=vip_headers)
-        assert resp.status_code == 200
-        assert resp.headers.get("content-type", "").startswith("application/json")
-        data = resp.json()
+        with _isolated_test_client(client.app) as isolated_client:
+            resp = isolated_client.post("/insight", json={"text": "test"}, headers=vip_headers)
+            assert resp.status_code == 200, resp.text
+            assert resp.headers.get("content-type", "").startswith("application/json")
+            data = resp.json()
         assert data["rag_used"] is False
         assert data["sources"] == []
         assert data["confidence"] is None

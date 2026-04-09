@@ -10,6 +10,43 @@ import pytest
 import llm
 
 
+class _FailingPerplexityProvider:
+    name = "perplexity"
+
+    def __init__(self, *, endpoint: str, model: str, api_key: str) -> None:
+        self.endpoint = endpoint
+        self.model = model
+        self.api_key = api_key
+
+    async def generate(self, text: str) -> str:
+        raise RuntimeError("perplexity down")
+
+
+class _FailingOllamaProvider:
+    name = "ollama"
+
+    def __init__(
+        self,
+        endpoint: str,
+        model: str,
+        timeout_s: float | None = None,
+        /,
+    ) -> None:
+        self.endpoint = endpoint
+        self.model = model
+        self.timeout_s = timeout_s
+
+    async def generate(self, text: str) -> str:
+        raise RuntimeError("ollama down")
+
+
+class _FailingPrimaryProvider:
+    name = "primary"
+
+    async def generate(self, text: str) -> str:
+        raise RuntimeError(f"primary failed: {text}")
+
+
 def test__with_name_handles_attribute_error() -> None:
     # У некоторых веток llm.py нет вспомогательной функции _with_name.
     # Some llm.py revisions do not expose the _with_name helper.
@@ -150,3 +187,92 @@ def test_get_provider_perplexity_placeholder_key_uses_lite(
     assert provider is not None
     assert isinstance(provider, llm.PerplexityLiteProvider)
     assert getattr(provider, "name", "") == "perplexity"
+
+
+def test_get_insight_runtime_readiness_perplexity_chain(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("LLM_PROVIDER", "perplexity")
+
+    readiness = llm.get_insight_runtime_readiness()
+
+    assert readiness["primary_provider"] == "perplexity"
+    assert readiness["fallback_order"] == ["perplexity", "ollama", "stub"]
+    assert readiness["feature_enabled"] is False
+    assert readiness["echo_mode_provider"] is None
+
+
+def test_get_insight_runtime_readiness_ollama_chain(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("LLM_PROVIDER", "ollama")
+
+    readiness = llm.get_insight_runtime_readiness()
+
+    assert readiness["primary_provider"] == "ollama"
+    assert readiness["fallback_order"] == ["ollama", "stub"]
+    assert readiness["feature_enabled"] is False
+    assert readiness["echo_mode_provider"] is None
+
+
+def test_get_insight_runtime_readiness_unknown_provider(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("LLM_PROVIDER", "unknown")
+
+    readiness = llm.get_insight_runtime_readiness()
+
+    assert readiness["primary_provider"] is None
+    assert readiness["fallback_order"] == []
+    assert readiness["feature_enabled"] is False
+    assert readiness["echo_mode_provider"] is None
+
+
+@pytest.mark.asyncio
+async def test_get_provider_perplexity_runtime_falls_back_to_ollama_family(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(llm, "PerplexityProvider", _FailingPerplexityProvider)
+    monkeypatch.setattr(llm, "OllamaProvider", None)
+    monkeypatch.setenv("LLM_PROVIDER", "perplexity")
+    monkeypatch.setenv("PERPLEXITY_API_KEY", "pplx-live-key")  # pragma: allowlist secret
+
+    provider = llm.get_provider()
+
+    assert provider is not None
+    assert getattr(provider, "name", "") == "perplexity"
+    assert getattr(provider, "fallback_order", []) == ["perplexity", "ollama", "stub"]
+
+    out = await provider.generate("ping")
+    assert out == "[ollama-lite] ping"
+    assert getattr(provider, "active_provider_name", "") == "ollama"
+
+
+@pytest.mark.asyncio
+async def test_get_provider_perplexity_runtime_falls_back_to_stub_when_chain_exhausted(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(llm, "PerplexityProvider", _FailingPerplexityProvider)
+    monkeypatch.setattr(llm, "OllamaProvider", _FailingOllamaProvider)
+    monkeypatch.setenv("LLM_PROVIDER", "perplexity")
+    monkeypatch.setenv("PERPLEXITY_API_KEY", "pplx-live-key")  # pragma: allowlist secret
+
+    provider = llm.get_provider()
+
+    assert provider is not None
+    out = await provider.generate("ping")
+    assert out.startswith("[stub @ ")
+    assert "Insight: ping" in out
+    assert getattr(provider, "active_provider_name", "") == "stub"
+
+
+@pytest.mark.asyncio
+async def test_decorate_provider_with_fallback_reraises_last_error_without_fallbacks() -> None:
+    provider = llm._decorate_provider_with_fallback(
+        provider=_FailingPrimaryProvider(),
+        primary_name="primary",
+        fallback_builders=[],
+    )
+
+    with pytest.raises(RuntimeError, match="primary failed: ping"):
+        await provider.generate("ping")

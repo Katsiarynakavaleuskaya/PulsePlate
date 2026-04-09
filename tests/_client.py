@@ -6,11 +6,23 @@ Prevents bypassing /metrics registration, middleware, and lifespan wiring.
 
 from __future__ import annotations
 
+import inspect
 import os
 from typing import Any
 
 from fastapi import FastAPI
+from fastapi.routing import APIRoute
 from fastapi.testclient import TestClient
+
+
+def _disable_limiter_instance(limiter_instance: object) -> None:
+    """Reset and disable a limiter-like instance when it exposes the expected API."""
+    reset_limiter = getattr(limiter_instance, "reset", None)
+    if callable(reset_limiter):
+        reset_limiter()
+
+    if hasattr(limiter_instance, "enabled"):
+        limiter_instance.enabled = False
 
 
 def disable_rate_limiting_for_test_app(app_instance: FastAPI) -> None:
@@ -27,11 +39,30 @@ def disable_rate_limiting_for_test_app(app_instance: FastAPI) -> None:
 
     shared_limiter = getattr(rate_limit_mod, "limiter", None)
     if shared_limiter is not None:
-        shared_limiter.enabled = False
+        _disable_limiter_instance(shared_limiter)
 
     limiter_on_state = getattr(app_instance.state, "limiter", None)
     if limiter_on_state is not None:
-        limiter_on_state.enabled = False
+        _disable_limiter_instance(limiter_on_state)
+
+    # RU: Некоторые reload-тесты оставляют limiter, захваченный декоратором маршрута.
+    # EN: Reload-heavy tests can leave a route decorator bound to a stale limiter instance.
+    seen_limiters: set[int] = set()
+    for route in app_instance.routes:
+        if not isinstance(route, APIRoute):
+            continue
+        endpoint = getattr(route, "endpoint", None)
+        if endpoint is None:
+            continue
+        closure_nonlocals = inspect.getclosurevars(endpoint).nonlocals
+        for captured in closure_nonlocals.values():
+            if not hasattr(captured, "reset") and not hasattr(captured, "enabled"):
+                continue
+            limiter_id = id(captured)
+            if limiter_id in seen_limiters:
+                continue
+            seen_limiters.add(limiter_id)
+            _disable_limiter_instance(captured)
 
 
 def get_client(**kwargs: Any) -> TestClient:

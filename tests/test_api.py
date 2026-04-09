@@ -193,6 +193,76 @@ def test_insight_import_failure(
     assert "boom" not in data.get("detail", "")
 
 
+class _FallbackPerplexityProvider:
+    name = "perplexity"
+
+    def __init__(self, *, endpoint: str, api_key: str, model: str) -> None:
+        self.endpoint = endpoint
+        self.api_key = api_key
+        self.model = model
+
+    async def generate(self, text: str) -> str:
+        raise RuntimeError("perplexity unavailable")
+
+
+class _FallbackOllamaProvider:
+    name = "ollama"
+
+    def __init__(self, endpoint: str, model: str) -> None:
+        self.endpoint = endpoint
+        self.model = model
+
+    async def generate(self, text: str) -> str:
+        raise RuntimeError("ollama unavailable")
+
+
+@pytest.mark.parametrize("path", ["/api/v1/insight", "/insight"])
+def test_insight_runtime_primary_failure_falls_back_to_ollama_family(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+    vip_headers: dict[str, str],
+    path: str,
+) -> None:
+    import llm
+
+    monkeypatch.setenv("FEATURE_INSIGHT", "true")
+    monkeypatch.setenv("LLM_PROVIDER", "perplexity")
+    monkeypatch.setenv("PERPLEXITY_API_KEY", "pplx-live-key")  # pragma: allowlist secret
+    monkeypatch.setattr(llm, "PerplexityProvider", _FallbackPerplexityProvider, raising=True)
+    monkeypatch.setattr(llm, "OllamaProvider", None, raising=True)
+
+    response = client.post(path, json={"text": "test fallback"}, headers=vip_headers)
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["provider"] == "ollama"
+    assert "[ollama-lite]" in data["insight"]
+
+
+@pytest.mark.parametrize("path", ["/api/v1/insight", "/insight"])
+def test_insight_runtime_chain_exhaustion_falls_back_to_stub(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+    vip_headers: dict[str, str],
+    path: str,
+) -> None:
+    import llm
+
+    monkeypatch.setenv("FEATURE_INSIGHT", "true")
+    monkeypatch.setenv("LLM_PROVIDER", "perplexity")
+    monkeypatch.setenv("PERPLEXITY_API_KEY", "pplx-live-key")  # pragma: allowlist secret
+    monkeypatch.setattr(llm, "PerplexityProvider", _FallbackPerplexityProvider, raising=True)
+    monkeypatch.setattr(llm, "OllamaProvider", _FallbackOllamaProvider, raising=True)
+
+    response = client.post(path, json={"text": "test fallback"}, headers=vip_headers)
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["provider"] == "stub"
+    assert data["insight"].startswith("[stub @ ")
+    assert "Insight: test fallback" in data["insight"]
+
+
 @patch("llm.get_provider")
 def test_api_insight_provider_generate_failure(
     mock_get_provider: Mock,

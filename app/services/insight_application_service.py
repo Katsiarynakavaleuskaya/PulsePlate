@@ -39,6 +39,23 @@ def _ensure_insight_text_length(prompt_text: str) -> str:
     return prompt_text
 
 
+def _resolve_effective_provider_name(
+    *,
+    runtime_provider_name: str,
+    prepared_provider: LLMProvider,
+) -> str:
+    """Return actual provider name after fallback without changing public contract."""
+
+    if runtime_provider_name == "philosophical_runtime":
+        return runtime_provider_name
+
+    active_provider_name = getattr(prepared_provider, "active_provider_name", None)
+    if isinstance(active_provider_name, str) and active_provider_name:
+        return active_provider_name
+
+    return runtime_provider_name
+
+
 async def execute_insight_request(
     req: Any,
     *,
@@ -89,8 +106,12 @@ async def execute_insight_request(
     )
     insight_text = runtime_result.insight[:INSIGHT_TEXT_MAX_LENGTH]
     source_items = [source_item_factory(**item) for item in runtime_result.source_dicts]
+    effective_provider_name = _resolve_effective_provider_name(
+        runtime_provider_name=runtime_result.provider_name,
+        prepared_provider=prepared_runtime.provider,
+    )
     return response_factory(
-        provider=runtime_result.provider_name,
+        provider=effective_provider_name,
         insight=insight_text,
         sources=source_items,
         confidence=runtime_result.confidence,
