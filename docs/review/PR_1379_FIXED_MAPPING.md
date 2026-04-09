@@ -42,6 +42,18 @@ Disposition: FIXED
 Commit: 4546ab11f
 Evidence: merge-through recovery aligned `#1379` with the current approved security/dependency baseline already present on `origin/main`; obsolete branch-local seam docs were removed and the active evidence now lives in `docs/security/CRYPTOGRAPHY_46_0_7_PRIVATE_INDEX_ADVISORY.md:1`, `docs/roadmap/BACKLOG_LEDGER.md:338`, `scripts/ci/emergency_python_wheels.json:1`, `.github/actions/python-setup/action.yml:55`, and `Dockerfile:248`.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1379#pullrequestreview-4083032445 -> 4546ab11f
+Disposition: FIXED
+Commit: 4546ab11f
+Evidence: CodeRabbit nitpicks were fixed on the recovery head: `app/services/insight_runtime.py` now emits `gen_ai.provider.name` on every call, `llm.py` logs the Ollama constructor fallback warning and documents the dynamic fallback attribute contract, and the closure-based rate-limiter patching was extracted into `tests/_client.py` and reused from `tests/test_insight_rag_response_fields.py`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1379#pullrequestreview-4083076599 -> 4546ab11f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1379#discussion_r3058530222 -> 4546ab11f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1379#discussion_r3058530227 -> 4546ab11f
+Disposition: FIXED
+Commit: 4546ab11f
+Evidence: cubic found two test-hygiene issues on the updated head, both fixed in `4546ab11f`: `tests/test_api.py` now uses `monkeypatch.setattr(llm, "get_insight_provider", ...)` instead of `@patch`, and `tests/conftest.py` now honors lazy `app.__getattr__` exports by falling back to `getattr(module, attr_name, None)` after `vars(module).get(...)`.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1379#pullrequestreview-4081288984
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1379#pullrequestreview-4082066018
 Disposition: NOT-A-BUG
