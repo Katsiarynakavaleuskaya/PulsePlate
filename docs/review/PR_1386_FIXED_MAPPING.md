@@ -15,6 +15,8 @@ Evidence: `docs/roadmap/BACKLOG_LEDGER.md` (bounded-packet grammar + explicit re
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1386#discussion_r3066878145 -> 3160f4317
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1386#pullrequestreview-4092637923 -> 355c02f0f
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1386#discussion_r3066884073 -> 355c02f0f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1386#pullrequestreview-4092779123 -> 6a8b0786f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1386#discussion_r3067019778 -> 6a8b0786f
 
 ## Merge Readiness
 
