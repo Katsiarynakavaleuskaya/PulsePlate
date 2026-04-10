@@ -31,13 +31,16 @@ _REPO_ROOT = Path(__file__).resolve().parents[1]
 _LEGAL_PRIVACY_DOC = _REPO_ROOT / "docs/legal/Privacy.md"
 _DATA_MATRIX_DOC = _REPO_ROOT / "docs/compliance/DATA_CLASSIFICATION_AND_PROCESSING_MATRIX.md"
 _AI_NOTICE_DOC = _REPO_ROOT / "docs/compliance/AI_TRANSPARENCY_AND_PROFILING_NOTICE.md"
+_PROVIDER_INVENTORY_DOC = _REPO_ROOT / "docs/compliance/PROVIDER_INVENTORY.md"
+_REGULATED_LANE_DOC = _REPO_ROOT / "docs/compliance/US_REGULATED_LANE_RFC_42_CFR_PART_2.md"
+_DSAR_MAP_DOC = _REPO_ROOT / "docs/compliance/DSAR_AND_DELETION_MAP.md"
 
 
 def test_privacy_payload_contains_additive_control_plane_fields() -> None:
     payload = build_privacy_endpoint_payload()
 
-    assert payload["policy_version"] == "2026-03-08.eu-first.v1"
-    assert payload["last_updated"] == "2026-03-08"
+    assert payload["policy_version"] == "2026-04-10.eu-first.v1"
+    assert payload["last_updated"] == "2026-04-10"
     assert isinstance(payload["providers"], list)
     assert isinstance(payload["processing_categories"], list)
     assert isinstance(payload["rights"], list)
@@ -69,6 +72,8 @@ def test_privacy_metadata_stays_in_sync_with_canonical_docs() -> None:
     legal_privacy_doc = _LEGAL_PRIVACY_DOC.read_text(encoding="utf-8")
     data_matrix_doc = _DATA_MATRIX_DOC.read_text(encoding="utf-8")
     ai_notice_doc = _AI_NOTICE_DOC.read_text(encoding="utf-8")
+    provider_inventory_doc = _PROVIDER_INVENTORY_DOC.read_text(encoding="utf-8")
+    regulated_lane_doc = _REGULATED_LANE_DOC.read_text(encoding="utf-8")
     retention_summary = cast(dict[str, object], payload["retention_summary"])
     regulated_lane = cast(dict[str, object], retention_summary["regulated_lane"])
     processing_categories = cast(list[dict[str, object]], payload["processing_categories"])
@@ -107,18 +112,29 @@ def test_privacy_metadata_stays_in_sync_with_canonical_docs() -> None:
         "openai_compatible": "OpenAI-compatible",
         "anthropic_compatible": "Anthropic-compatible",
         "ollama_self_hosted": "Ollama-compatible",
+        "otlp_trace_processor": "OTLP collector",
         "pico": "Pico",
     }
     providers = cast(list[dict[str, object]], payload["providers"])
     provider_ids = {cast(str, provider["provider_id"]) for provider in providers}
     for provider_id, doc_marker in provider_doc_markers.items():
         assert provider_id in provider_ids
+        assert doc_marker in provider_inventory_doc
         assert doc_marker in legal_privacy_doc
 
     ai_generated_endpoints = cast(list[str], ai_generated_surface["endpoints"])
+    ai_generated_exposure = cast(str, ai_generated_surface["third_party_exposure"])
     assert "/api/v1/pro/fitchef/explain" in ai_generated_endpoints
     assert "/api/v1/pro/fitchef/explain" in legal_privacy_doc
     assert "/api/v1/pro/fitchef/explain" in data_matrix_doc
+    assert "telemetry processor" in provider_inventory_doc.lower()
+    assert "telemetry processor" in legal_privacy_doc.lower()
+    assert "Telemetry processors" in ai_notice_doc
+    assert "telemetry trace processor is configured" in data_matrix_doc
+    assert "telemetry trace processors" in ai_generated_exposure.lower()
+    assert "does not activate the regulated lane by itself" in regulated_lane_doc
+    regulated_lane_rule_text = cast(str, regulated_lane["rule"])
+    assert "does not activate the regulated lane by itself" in regulated_lane_rule_text
 
 
 def test_transparency_registry_covers_core_healthish_surfaces() -> None:
@@ -211,10 +227,27 @@ def test_dsar_artifact_map_distinguishes_direct_and_indirect_artifacts() -> None
 def test_provider_inventory_includes_local_and_conditional_ai_families() -> None:
     inventory = get_provider_inventory()
     provider_ids = {item["provider_id"] for item in inventory}
+    assert any(item["provider_id"] == "otlp_trace_processor" for item in inventory)
+    otlp_processor = next(
+        item for item in inventory if item["provider_id"] == "otlp_trace_processor"
+    )
 
     assert "local_runtime" in provider_ids
     assert "ollama_self_hosted" in provider_ids
     assert "xai_grok" in provider_ids
+    assert otlp_processor["category"] == "telemetry_processor"
+    assert "non-reversible, deployment-local" in cast(str, otlp_processor["data_scope"])
+    assert "never raw prompts or completions" in cast(str, otlp_processor["data_scope"])
+
+
+def test_privacy_docs_do_not_promise_public_dsar_api() -> None:
+    legal_privacy_doc = _LEGAL_PRIVACY_DOC.read_text(encoding="utf-8").lower()
+    dsar_map_doc = _DSAR_MAP_DOC.read_text(encoding="utf-8").lower()
+
+    assert "public self-service endpoint is available" not in legal_privacy_doc
+    assert "public dsar api is available" not in legal_privacy_doc
+    assert "public dsar api still deferred" in dsar_map_doc
+    assert dsar_map_doc.count("public dsar api") == 1
 
 
 def test_dsar_timestamp_serializer_covers_none_and_aware_values() -> None:

@@ -1,8 +1,8 @@
 # AI Transparency and Profiling Notice
 
 **Status:** Canonical
-**Last updated:** 2026-03-08
-**Policy version:** `2026-03-08.eu-first.v1`
+**Last updated:** 2026-04-10
+**Policy version:** `2026-04-10.eu-first.v1`
 
 PulsePlate treats health-adjacent AI features as **automated wellness analysis**.
 
@@ -36,6 +36,7 @@ PulsePlate treats health-adjacent AI features as **automated wellness analysis**
 - Analysis type: automated AI-assisted analysis
 - Boundary: wellness coaching only, not therapy, diagnosis, or clinical decision support
 - Runtime tracing: prompt and completion payloads are fingerprinted with HMAC and exported without raw text in v1
+- Telemetry processors: OTLP collectors or tracing vendors may receive minimized trace metadata when telemetry export is configured; they do not receive raw prompt or completion text in v1
 
 ### FitChef structured coaching
 
@@ -44,6 +45,7 @@ PulsePlate treats health-adjacent AI features as **automated wellness analysis**
 - Analysis type: automated AI-assisted wellness coaching structure
 - Boundary: wellness coaching only, not therapy, diagnosis, or clinical decision support
 - Runtime tracing: prompt and completion payloads are fingerprinted with HMAC and exported without raw text in v1
+- Telemetry processors: OTLP collectors or tracing vendors may receive minimized trace metadata when telemetry export is configured; they do not receive raw prompt or completion text in v1
 
 ## User Notice Contract
 
@@ -69,3 +71,7 @@ These require a separate regulated lane with:
 - separate storage segregation
 - redisclosure controls
 - explicit legal/compliance approval
+
+Telemetry-only OTLP trace export of minimized metadata does not activate the regulated lane by itself when the
+export remains non-identifying, excludes regulated content, and stays within the configured telemetry-control
+boundary.

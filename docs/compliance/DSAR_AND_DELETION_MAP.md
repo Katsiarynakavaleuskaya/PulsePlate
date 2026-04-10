@@ -1,7 +1,7 @@
 # DSAR and Deletion Map
 
 **Status:** Canonical internal map
-**Last updated:** 2026-03-08
+**Last updated:** 2026-04-10
 
 This document describes what PulsePlate can currently export or delete for
 direct-user artifacts without promising a public self-service endpoint.
@@ -20,4 +20,5 @@ direct-user artifacts without promising a public self-service endpoint.
 - Support can service access/export/delete requests for direct-user SQL artifacts.
 - Internal runtime helpers now provide deterministic export coverage for `users`, plus bounded delete execution for `rag_feedback` and `user_knowledge` with an explicit account-delete plan.
 - Pseudonymous security artifacts and minimized audit artifacts are not exposed as public self-service assets.
+- External AI providers and telemetry processors are disclosed separately in the compliance control plane, but they are not direct-user self-service DSAR artifacts in the current runtime.
 - Deletion is implemented as row removal or retention-driven cleanup, not arbitrary in-place editing.
