@@ -13,7 +13,15 @@
 - [ ] All required checks pass
 - [ ] No unresolved review threads (re-check on current head before merge)
 - [ ] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
+
+## Validation Evidence
+
 - [x] Pre-commit green
 - [x] `make verify` green
 - [x] Mandatory post-open `qa-engineer-agent -> bug-hunter` pass completed
-- Scope: docs-only closeout for stale design-agent runtime bridge ledger state on `main`, limited to `docs/roadmap/BACKLOG_LEDGER.md` and the explicit preservation of optional unopened `design-agent PR4`.
+
+## Scope
+
+Docs-only closeout for stale design-agent runtime bridge ledger state on `main`,
+limited to `docs/roadmap/BACKLOG_LEDGER.md` and the explicit preservation of
+optional unopened `design-agent PR4`.
