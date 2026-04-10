@@ -8,6 +8,7 @@ that must stay available even when traffic bypasses the static edge shell.
 
 from __future__ import annotations
 
+import os
 from html import escape
 from typing import Iterable
 from urllib.parse import urljoin
@@ -24,6 +25,7 @@ PUBLIC_SITEMAP_PATHS: tuple[str, ...] = (
     "/terms",
     LEGACY_BMI_WEB_ROUTE,
 )
+PRODUCTION_DOMAIN_ENV: str = "PRODUCTION_DOMAIN"
 
 
 def _build_public_url(base_url: str, path: str) -> str:
@@ -59,11 +61,28 @@ def build_public_sitemap_xml(
     return f'<?xml version="1.0" encoding="UTF-8"?>{xml_body}'
 
 
+def resolve_public_sitemap_base_url(request: Request) -> str:
+    """Return the canonical base URL for sitemap generation.
+
+    RU: Если задан `PRODUCTION_DOMAIN`, используем его как канонический public host
+    и не зависим от временного bypass/direct-origin hostname.
+    EN: Prefer `PRODUCTION_DOMAIN` as the canonical public host so temporary
+    bypass or direct-origin probes cannot rewrite sitemap URLs.
+    """
+    configured_domain = os.getenv(PRODUCTION_DOMAIN_ENV, "").strip().strip("'\"")
+    if configured_domain:
+        configured_domain = configured_domain.removeprefix("https://").removeprefix("http://")
+        configured_domain = configured_domain.rstrip("/")
+        return f"https://{configured_domain}"
+
+    return str(request.base_url)
+
+
 async def serve_public_sitemap(request: Request) -> Response:
     """Serve `/sitemap.xml` from the application surface.
 
     RU: Endpoint остаётся доступным даже если edge/static shell временно дрейфует.
     EN: Keep the endpoint available even when the edge/static shell drifts.
     """
-    sitemap_xml = build_public_sitemap_xml(base_url=str(request.base_url))
+    sitemap_xml = build_public_sitemap_xml(base_url=resolve_public_sitemap_base_url(request))
     return Response(content=sitemap_xml, media_type="application/xml")

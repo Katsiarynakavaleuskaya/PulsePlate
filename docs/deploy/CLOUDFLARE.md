@@ -222,6 +222,79 @@ production contract. Если apex после снятия challenge всё ещ
 как положено, возвращайтесь к диагностике `Caddyfile.production` и synced
 frontend bundle.
 
+## Temporary private recovery with Cloudflare Access
+
+Если сайт ещё не готов к публичному доступу, прячьте `pulseplate.app` через
+**Cloudflare Access**, а не через ad-hoc код/Basic Auth на origin.
+
+- Тип приложения: `self_hosted`
+- Домен: `pulseplate.app`
+- Политика доступа: только owner/team emails
+- Для scripted private probes разрешён отдельный short-lived service token
+
+Рекомендуемый режим:
+
+1. Включить full-host Access на `pulseplate.app`.
+2. Выполнить merge-then-deploy recovery flow.
+3. Проверять apex и `/sitemap.xml` приватно через Access.
+4. Снимать Access только в момент публичного reopen.
+
+### Private verification while Access is ON
+
+`scripts/diagnose_web.sh` поддерживает optional Access service-token headers:
+
+```bash
+CF_ACCESS_CLIENT_ID=... \
+CF_ACCESS_CLIENT_SECRET=... \
+BASE_URL=https://pulseplate.app \
+bash scripts/diagnose_web.sh
+```
+
+Скрипт добавляет:
+
+- `CF-Access-Client-Id`
+- `CF-Access-Client-Secret`
+
+и проверяет, что `/api/v1/admin/status` остаётся backend/admin canary, а не
+падает в SPA shell.
+
+### Observatory / public scanners under Access
+
+Пока full-host Access или interstitial/challenge стоят перед apex:
+
+- **MDN Observatory не является release-truth**
+- header scanners измеряют Cloudflare interstitial / Access page, а не origin app
+- публичные curl/SSL scans используйте только после reopen
+
+## Public reopen contract (narrow temporary bypass)
+
+После приватной проверки снимайте full-host Access только вместе с узким
+temporary bypass для **public shell/discovery GET paths**:
+
+- `/`
+- SPA routes
+- `/assets/*`
+- `/favicon*`
+- `/sitemap.xml`
+- `/privacy`
+- `/terms`
+- `/legacy/bmi-calculator`
+
+Обязательно оставить защищёнными:
+
+- `/api*`
+- `/admin*`
+- `/ws*`
+- `/openapi.json`
+- `/health`
+- `/docs*`
+- `/redoc*`
+- `/debug_env`
+
+Правило bypass должно иметь TTL и быть задокументировано в incident/recovery PR.
+Если после снятия Access apex снова отдаёт challenge или неверный surface,
+возвращайте Access и повторяйте private verification, а не расширяйте bypass.
+
 ## ✅ Минимальный чеклист
 
 - [ ] SSL/TLS режим: **Full (strict)**

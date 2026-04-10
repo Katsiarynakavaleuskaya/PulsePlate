@@ -43,16 +43,26 @@ Typical drift symptoms:
 
 Canonical recovery order:
 
-1. Diff the production copies of `deploy/Caddyfile.production` and
+0. If the site must stay private, enable **full-host Cloudflare Access** first.
+   While Access or an interstitial is in front of the apex, public scanners
+   (MDN Observatory, header scans) are not release-truth.
+1. Merge the recovery PR first; recover from the merged repo/CI release bundle,
+   not from an ad-hoc workstation-only checkout.
+2. Diff the production copies of `deploy/Caddyfile.production` and
    `deploy/docker-compose.production.yaml` against the repo.
-2. Re-sync the production shell bundle:
+3. Re-sync the production shell bundle from the same merged commit / release bundle:
    - `deploy/Caddyfile.production`
    - `deploy/docker-compose.production.yaml`
    - sibling `frontend/` build context on the host (typically `/srv/frontend`)
-3. Rebuild/restart Caddy from the synced shell bundle.
-4. Re-run `BASE_URL=https://$PRODUCTION_DOMAIN bash scripts/diagnose_web.sh`.
-5. If `/sitemap.xml` still fails after edge recovery, deploy the new backend
+4. Pull the new production app image, run `alembic upgrade head`, rebuild Caddy,
+   and restart the stack from the synced shell bundle.
+5. Re-run `BASE_URL=https://$PRODUCTION_DOMAIN bash scripts/diagnose_web.sh`.
+   If Access is still ON, pass `CF_ACCESS_CLIENT_ID` and
+   `CF_ACCESS_CLIENT_SECRET` for private probes.
+6. If `/sitemap.xml` still fails after edge recovery, deploy the new backend
    image as well; the edge fix alone cannot add a missing FastAPI route.
+7. Remove full-host Access only after the private check passes, then reopen the
+   apex with a narrow temporary bypass for public shell/discovery GET paths only.
 
 ## Global release-readiness lock (required)
 
@@ -231,6 +241,27 @@ If public curl probes hit a Cloudflare challenge instead of the origin, run the
 same diagnosis against the synced production host and the repo copies first.
 Cloudflare may mask the underlying apex-routing drift, but it does not replace
 the repo-owned Caddy/compose/frontend contract.
+
+## Private verification under Access
+
+When Cloudflare Access protects the full host during recovery, use a short-lived
+service token for scripted probes:
+
+```bash
+CF_ACCESS_CLIENT_ID=... \
+CF_ACCESS_CLIENT_SECRET=... \
+BASE_URL=https://$PRODUCTION_DOMAIN \
+bash scripts/diagnose_web.sh
+```
+
+Expected private verification signals:
+
+- `/` returns the SPA shell
+- `/sitemap.xml` returns XML with `<urlset>`
+- `/api/v1/admin/status` remains a backend/admin canary (JSON auth/error, not SPA)
+- `/health` shows the new `git_sha`
+
+Do not treat Observatory / public header scans as authoritative until Access is removed.
 
 #### Remediation Matrix
 

@@ -38,6 +38,20 @@ curl -s https://pulseplate.app/ | head -40
 - production copies of `Caddyfile.production` / `docker-compose.production.yaml`
   расходятся с repo SoT
 
+Если full-host Cloudflare Access включён намеренно, публичные scans не являются
+release-truth: они видят Access/interstitial, а не origin app. Для private
+verification используй short-lived service token:
+
+```bash
+CF_ACCESS_CLIENT_ID=... \
+CF_ACCESS_CLIENT_SECRET=... \
+BASE_URL=https://pulseplate.app \
+bash scripts/diagnose_web.sh
+```
+
+Этот probe теперь включает admin canary (`/api/v1/admin/status`) и помогает
+поймать случайный публичный expose admin surface при reopen.
+
 ## Выполнить на Droplet (SSH)
 
 ### Вариант 1: Использовать server-side скрипт (рекомендуется)
@@ -129,7 +143,8 @@ grep PRODUCTION_DOMAIN /srv/pulseplate-production/.env
 curl -I https://pulseplate.app/
 
 # 2. Если challenge/interstitial есть — проверить Security Events в Cloudflare Dashboard
-# 3. Если origin healthy, а apex contract нарушен — синхронизировать shell bundle:
+# 3. Если origin healthy, а apex contract нарушен — синхронизировать shell bundle
+#    только из merged canonical tree / release bundle:
 scp deploy/Caddyfile.production user@your-droplet:/srv/pulseplate-production/Caddyfile.production
 scp deploy/docker-compose.production.yaml user@your-droplet:/srv/pulseplate-production/docker-compose.production.yaml
 rsync -az --delete frontend/ user@your-droplet:/srv/frontend/

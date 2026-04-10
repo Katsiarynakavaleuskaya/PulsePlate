@@ -12,7 +12,12 @@ BASE_URL="${BASE_URL:-}"
 CHECK_CADDY_CONFIG_ONLY=0
 SKIP_CADDY_VALIDATE=0
 TIMEOUT_SECONDS="${TIMEOUT_SECONDS:-15}"
+CF_ACCESS_CLIENT_ID="${CF_ACCESS_CLIENT_ID:-}"
+CF_ACCESS_CLIENT_SECRET="${CF_ACCESS_CLIENT_SECRET:-}"
+ADMIN_CANARY_PATH="${ADMIN_CANARY_PATH:-/api/v1/admin/status}"
 FAILURES=0
+ACCESS_HEADERS_ENABLED=0
+declare -a ACCESS_CURL_HEADERS=()
 
 usage() {
     cat <<'EOF'
@@ -28,6 +33,9 @@ Environment:
   BASE_URL                   Same as --base-url.
   PRODUCTION_DOMAIN          Used to derive https://<domain> when BASE_URL is omitted.
   TIMEOUT_SECONDS            Per-request curl timeout, default 15.
+  CF_ACCESS_CLIENT_ID        Optional Cloudflare Access service-token client id for private probes.
+  CF_ACCESS_CLIENT_SECRET    Optional Cloudflare Access service-token secret for private probes.
+  ADMIN_CANARY_PATH          Admin/backend canary path, default /api/v1/admin/status.
 EOF
 }
 
@@ -89,6 +97,24 @@ fail() {
     FAILURES=$((FAILURES + 1))
 }
 
+configure_private_probe_headers() {
+    if [[ -z "${CF_ACCESS_CLIENT_ID}" && -z "${CF_ACCESS_CLIENT_SECRET}" ]]; then
+        return 0
+    fi
+
+    if [[ -z "${CF_ACCESS_CLIENT_ID}" || -z "${CF_ACCESS_CLIENT_SECRET}" ]]; then
+        fail "CF_ACCESS_CLIENT_ID and CF_ACCESS_CLIENT_SECRET must be provided together for private Access probes."
+        return 1
+    fi
+
+    ACCESS_CURL_HEADERS=(
+        -H "CF-Access-Client-Id: ${CF_ACCESS_CLIENT_ID}"
+        -H "CF-Access-Client-Secret: ${CF_ACCESS_CLIENT_SECRET}"
+    )
+    ACCESS_HEADERS_ENABLED=1
+    pass "Cloudflare Access service-token headers enabled for private probes."
+}
+
 validate_caddy_config() {
     if [[ "${SKIP_CADDY_VALIDATE}" -eq 1 ]]; then
         warn "Skipping local Caddyfile validation by request."
@@ -135,15 +161,19 @@ curl_probe() {
     local status=""
     local content_type=""
 
-    status="$(
-        curl -sS \
-            --max-time "${TIMEOUT_SECONDS}" \
-            -D "${headers_file}" \
-            -o "${body_file}" \
-            -w '%{http_code}' \
-            "$@" \
-            "${url}"
-    )" || return 1
+    local -a curl_args=(
+        -sS
+        --max-time "${TIMEOUT_SECONDS}"
+        -D "${headers_file}"
+        -o "${body_file}"
+        -w '%{http_code}'
+    )
+
+    if [[ "${ACCESS_HEADERS_ENABLED}" -eq 1 ]]; then
+        curl_args+=("${ACCESS_CURL_HEADERS[@]}")
+    fi
+
+    status="$(curl "${curl_args[@]}" "$@" "${url}")" || return 1
 
     content_type="$(
         awk '
@@ -339,6 +369,9 @@ run_http_probes() {
 
     echo "== Edge routing probes =="
     echo "Base URL: ${BASE_URL}"
+    if [[ "${ACCESS_HEADERS_ENABLED}" -eq 1 ]]; then
+        echo "Private probe mode: Cloudflare Access service token headers enabled."
+    fi
 
     assert_html_200 "spa-root" "/"
     assert_html_200 "spa-bmi" "/bmi"
@@ -368,12 +401,14 @@ run_http_probes() {
     assert_not_spa_html "legacy-premium-targets-get" "/premium_targets"
     assert_not_spa_html "legacy-bmi-calculator-get" "/legacy/bmi-calculator"
     assert_json_backend "api-prefix" "/api/v1/does-not-exist"
+    assert_json_backend "admin-canary" "${ADMIN_CANARY_PATH}"
     assert_ws_not_spa
 }
 
 echo "PulsePlate web-shell diagnosis"
 echo "Repo root: ${REPO_ROOT}"
 
+configure_private_probe_headers
 validate_caddy_config
 
 if [[ "${CHECK_CADDY_CONFIG_ONLY}" -eq 0 ]]; then

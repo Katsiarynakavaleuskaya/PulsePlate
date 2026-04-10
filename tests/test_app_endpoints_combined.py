@@ -82,6 +82,22 @@ class TestHealthAndMonitoringEndpoints:
         assert "http://testserver/terms" in body
         assert "http://testserver/legacy/bmi-calculator" in body
 
+    def test_sitemap_endpoint_prefers_configured_production_domain(
+        self,
+        client: TestClient,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Configured production host wins over direct-origin/testserver hostnames."""
+        monkeypatch.setenv("PRODUCTION_DOMAIN", "pulseplate.app")
+
+        response = client.get("/sitemap.xml")
+
+        assert response.status_code == 200
+        body = response.text
+        assert "https://pulseplate.app/" in body
+        assert "https://pulseplate.app/privacy" in body
+        assert "http://testserver/" not in body
+
     def test_favicon_endpoint(self, client: TestClient) -> None:
         """Test /favicon.ico returns 200 OK, 204 No Content, or 404 if not found"""
         response = client.get("/favicon.ico")

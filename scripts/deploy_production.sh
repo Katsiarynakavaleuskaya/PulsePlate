@@ -216,6 +216,7 @@ sync_shell_bundle() {
 
   local source_frontend="$SHELL_BUNDLE_DIR/frontend"
   local source_caddyfile="$SHELL_BUNDLE_DIR/deploy/Caddyfile.production"
+  local source_compose="$SHELL_BUNDLE_DIR/deploy/$COMPOSE_FILE"
   local source_diagnose="$SHELL_BUNDLE_DIR/scripts/diagnose_web.sh"
   local shell_root
   shell_root="$(cd "$DEPLOY_DIR/.." && pwd)"
@@ -230,11 +231,17 @@ sync_shell_bundle() {
     exit 1
   fi
 
+  if [ ! -f "$source_compose" ]; then
+    echo "❌ SHELL_BUNDLE_DIR is missing deploy/$COMPOSE_FILE: $source_compose" >&2
+    exit 1
+  fi
+
   echo "Syncing production shell bundle from: $SHELL_BUNDLE_DIR"
   rm -rf "$shell_root/frontend"
   mkdir -p "$shell_root/frontend" "$shell_root/scripts"
   cp -R "$source_frontend/." "$shell_root/frontend/"
   cp "$source_caddyfile" "$DEPLOY_DIR/Caddyfile.production"
+  cp "$source_compose" "$DEPLOY_DIR/$COMPOSE_FILE"
   rm -f "$shell_root/scripts/diagnose_web.sh"
 
   if [ -f "$source_diagnose" ]; then
