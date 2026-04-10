@@ -12,55 +12,53 @@ Dependabot reported a resource-consumption issue in `brace-expansion` where a
 zero-step range such as `{1..2..0}` can hang the process and exhaust memory.
 The first patched version is `5.0.5`.
 
+## Status Update
+
+This historical remediation path was later superseded by removing the external
+`@goplus/agentguard` runtime dependency from the root npm graph. The current
+runtime scanner remains local at `tools/agentguard/scan_text.mjs`, so the old
+`@goplus/agentguard -> glob -> minimatch -> brace-expansion` chain is no
+longer part of the live root runtime graph.
+
 ## Root Cause
 
-The root npm graph brings in `brace-expansion` transitively:
+At the time of alert `#73`, the root npm graph brought in `brace-expansion`
+transitively through the external AgentGuard runtime path:
 
 - `package.json:29` — root direct dependency on `@goplus/agentguard`
 - `package-lock.json` — `@goplus/agentguard` depends on `glob`
 - `package-lock.json` — `glob` depends on `minimatch`
 - `package-lock.json` — resolved vulnerable `brace-expansion` node was `2.0.2`
 
-The initial lockfile-only attempt failed runtime smoke because `minimatch@9`
-expects the old `brace-expansion` default export shape. The final remediation
-therefore refreshes the direct `@goplus/agentguard` dependency and the
-`glob -> minimatch -> brace-expansion` chain together while also preserving the
-existing root `path-to-regexp` security floor required by the same runtime
-surface. This keeps the transitive graph internally consistent without
-reopening previously remediated npm advisories on the touched manifest/lockfile
-lane.
+That historical runtime path no longer exists in the current remediation lane,
+because the external `@goplus/agentguard` dependency was removed from the root
+graph and replaced by a local deterministic Node scanner.
 
 ## Remediation Implemented
 
-- Refreshed the root direct dependency on `@goplus/agentguard` to `^1.0.12`.
-- Added scoped root npm `overrides` entries so the AgentGuard runtime path
-  (`@goplus/agentguard -> glob -> minimatch -> brace-expansion`) resolves to a
-  compatible, patched set without forcing the same pins onto unrelated npm
-  consumers.
-- Preserved the `@modelcontextprotocol/sdk -> express -> router ->
-  path-to-regexp` override at `8.4.0` so the same runtime surface does not
-  regress into the separate router DoS advisories (`GHSA-j3q9-mxjg-w52f`,
-  `GHSA-27v5-c462-wpq7`).
-- Refreshed the root lockfile under the repo-canonical Node `22.22.1` runtime.
-- Kept the remediation scoped to package-manager metadata only; no Python or
-  bridge runtime code paths were modified.
-- Added deterministic root lockfile guards so `brace-expansion < 5.0.5` and
-  `path-to-regexp < 8.4.0` do not silently return in future updates.
+- Historical remediation for alert `#73` used npm dependency updates and
+  overrides to hold the `glob -> minimatch -> brace-expansion` chain at a safe
+  floor.
+- The current security lane supersedes that package-manager-only approach by
+  removing the external `@goplus/agentguard` runtime path entirely.
+- The live runtime scanner now stays local at `tools/agentguard/scan_text.mjs`,
+  while the root lockfile no longer carries the old `brace-expansion` path.
+- Deterministic root guards now enforce graph removal rather than the older
+  override-based runtime shape.
 
 ## Evidence Anchors
 
-- `package.json:28` — scoped override set keeps the patched npm graph and preserves `path-to-regexp=8.4.0`
-- `package-lock.json:828` — resolved `glob` / `minimatch` / `brace-expansion` chain updated
-- `package-lock.json` — `node_modules/path-to-regexp` remains at the secure floor after lock refresh
-- `tests/test_root_npm_dependency_guards.py:56` — deterministic regression guard
-- `docs/security/GHSA-f886-m6hf-6m8v-brace-expansion.md:43` — canonical remediation record
+- `docs/security/GHSA-f886-m6hf-6m8v-brace-expansion.md:12` — status update tying the old alert to the newer graph-removal remediation
+- `package.json` — root dependencies no longer include `@goplus/agentguard`
+- `package-lock.json` — no `node_modules/@goplus/agentguard` or `.../brace-expansion` runtime path remains
+- `tests/test_root_npm_dependency_guards.py` — deterministic regression guard for graph removal
 
 ## Validation
 
 ```bash
 npx -y -p node@22.22.1 -c 'npm install --package-lock-only'
 npx -y -p node@22.22.1 -c 'npm ci'
-npx -y -p node@22.22.1 -c 'npm ls brace-expansion minimatch glob path-to-regexp @goplus/agentguard'
+npx -y -p node@22.22.1 -c 'npm ls brace-expansion minimatch glob @goplus/agentguard'
 npx -y -p node@22.22.1 -c 'npm audit --package-lock-only --omit=dev'
 printf '{"text":"How can I build a steady breakfast habit?","filename":"payload.py"}' | npx -y -p node@22.22.1 node tools/agentguard/scan_text.mjs
 pytest -q tests/test_root_npm_dependency_guards.py
@@ -74,7 +72,6 @@ make verify
 - This is a runtime transitive dependency on a live security path
   (`tools/agentguard/scan_text.mjs` and the Python bridge around it), not dead
   tooling.
-- The first lockfile-only override failed live smoke with
-  `(0 , brace_expansion_1.default) is not a function`; this broader dependency
-  refresh is the smallest package-manager-only shape that preserves runtime
-  behavior.
+- The older package-manager-only fix path is preserved here as historical
+  context, but the current runtime protection comes from removing the external
+  dependency chain altogether.

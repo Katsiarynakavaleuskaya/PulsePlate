@@ -30,28 +30,6 @@ def require_feature(feature_key: str, reason: str) -> None:
     pytest.skip(reason)
 
 
-def _node_agentguard_dependency_available(node_binary: str) -> bool:
-    completed = subprocess.run(
-        [node_binary, "-e", 'require.resolve("@goplus/agentguard")'],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    if completed.returncode == 0:
-        return True
-
-    stderr = (completed.stderr or "").lower()
-    if "module_not_found" in stderr or "cannot find module" in stderr:
-        return False
-
-    pytest.fail(
-        "Node failed while checking @goplus/agentguard availability:\n"
-        f"exit code: {completed.returncode}\n"
-        f"stdout: {completed.stdout}\n"
-        f"stderr: {completed.stderr}"
-    )
-
-
 def test_scan_ai_agent_input_allows_benign_wellness_prompt(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -387,7 +365,7 @@ def test_scan_text_with_goplus_agentguard_returns_normalized_result(
 
 
 def test_scan_text_with_goplus_agentguard_live_runtime_smoke() -> None:
-    """Live Node scanner path must stay callable for the pinned dependency graph."""
+    """Live Node scanner path must stay callable for the local heuristic runtime."""
 
     from app.security import goplus_agentguard_bridge as bridge_mod
 
@@ -398,11 +376,6 @@ def test_scan_text_with_goplus_agentguard_live_runtime_smoke() -> None:
             "feature_disabled:goplus_scanner_runtime",
         )
         raise AssertionError("require_feature should always raise pytest skip")
-    if not _node_agentguard_dependency_available(node_binary):
-        require_feature(
-            "goplus_scanner_runtime",
-            "feature_disabled:goplus_scanner_runtime",
-        )
 
     result = scan_text_with_goplus_agentguard("How can I build a steady breakfast habit?")
     if result is None:

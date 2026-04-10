@@ -1,10 +1,9 @@
-"""Bridge to the verified GoPlus AgentGuard Node package.
+"""Bridge to the local Node-based agent guard scanner.
 
-RU: Тонкий subprocess-мост к `@goplus/agentguard`, чтобы Python-сервисы могли
-использовать верифицированный upstream scanner без сетевых вызовов во время
-сканирования.
-EN: Thin subprocess bridge to `@goplus/agentguard` so Python services can use
-the verified upstream scanner without network calls during scans.
+RU: Тонкий subprocess-мост к локальному Node-сканеру, чтобы Python-сервисы
+использовали детерминированную эвристику без внешнего npm runtime path.
+EN: Thin subprocess bridge to the local Node scanner so Python services can use
+deterministic heuristics without an external npm runtime dependency path.
 """
 
 from __future__ import annotations
@@ -33,7 +32,11 @@ RELEVANT_RISK_TAGS = frozenset(
 
 @dataclass(frozen=True)
 class GoPlusAgentGuardScanResult:
-    """Normalized scan result returned by the Node bridge."""
+    """Normalized scan result returned by the Node bridge.
+
+    RU: Историческое имя сохранено ради совместимости импортов.
+    EN: The legacy class name stays in place to preserve import compatibility.
+    """
 
     risk_level: str
     risk_tags: tuple[str, ...]
@@ -51,7 +54,7 @@ def scan_text_with_goplus_agentguard(
     *,
     filename: str = "payload.py",
 ) -> GoPlusAgentGuardScanResult | None:
-    """Run verified GoPlus AgentGuard if local Node runtime and dependency exist."""
+    """Run the local Node scanner when the runtime and script are available."""
 
     node_binary = shutil.which("node")
     if node_binary is None or not AGENTGUARD_SCAN_SCRIPT.exists():
