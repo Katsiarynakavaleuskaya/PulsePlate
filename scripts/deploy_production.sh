@@ -34,7 +34,6 @@ HEALTH_CURL_MAX_TIME_S="${HEALTH_CURL_MAX_TIME_S:-10}"
 
 COMPOSE_FILE="${COMPOSE_FILE:-}"
 RESOLVED_COMPOSE_FILE="${COMPOSE_FILE:-}"
-RESOLVED_COMPOSE_BUNDLE_FILE=""
 DEPLOY_DIR="${DEPLOY_DIR:-}"
 ENV_FILE="${ENV_FILE:-}"
 SHELL_BUNDLE_DIR="${SHELL_BUNDLE_DIR:-}"
@@ -147,10 +146,6 @@ elif [ -f "compose.yaml" ]; then
   compose_args=(-f "$RESOLVED_COMPOSE_FILE")
 fi
 
-if [ -n "$RESOLVED_COMPOSE_FILE" ]; then
-  RESOLVED_COMPOSE_BUNDLE_FILE="$(basename "$RESOLVED_COMPOSE_FILE")"
-fi
-
 if [ -z "$ENV_FILE" ]; then
   ENV_FILE="$DEPLOY_DIR/.env"
 fi
@@ -228,14 +223,37 @@ sync_shell_bundle() {
 
   local source_frontend="$SHELL_BUNDLE_DIR/frontend"
   local source_caddyfile="$SHELL_BUNDLE_DIR/deploy/Caddyfile.production"
-  local source_compose="$SHELL_BUNDLE_DIR/deploy/$RESOLVED_COMPOSE_BUNDLE_FILE"
+  local source_compose=""
   local source_diagnose="$SHELL_BUNDLE_DIR/scripts/diagnose_web.sh"
+  local target_compose=""
+  local compose_relative_path=""
   local shell_root
   shell_root="$(cd "$DEPLOY_DIR/.." && pwd)"
 
-  if [ -z "$RESOLVED_COMPOSE_BUNDLE_FILE" ]; then
+  if [ -z "$RESOLVED_COMPOSE_FILE" ]; then
     echo "❌ Could not resolve a compose filename for shell bundle sync" >&2
     exit 1
+  fi
+
+  if [[ "$RESOLVED_COMPOSE_FILE" = /* ]]; then
+    target_compose="$RESOLVED_COMPOSE_FILE"
+    case "$RESOLVED_COMPOSE_FILE" in
+      "$DEPLOY_DIR"/*)
+        compose_relative_path="${RESOLVED_COMPOSE_FILE#"$DEPLOY_DIR"/}"
+        ;;
+      *)
+        compose_relative_path="$(basename "$RESOLVED_COMPOSE_FILE")"
+        ;;
+    esac
+  else
+    compose_relative_path="${RESOLVED_COMPOSE_FILE#./}"
+    target_compose="$DEPLOY_DIR/$compose_relative_path"
+  fi
+
+  if [[ "$compose_relative_path" = deploy/* ]]; then
+    source_compose="$SHELL_BUNDLE_DIR/$compose_relative_path"
+  else
+    source_compose="$SHELL_BUNDLE_DIR/deploy/$compose_relative_path"
   fi
 
   if [ ! -d "$source_frontend" ]; then
@@ -249,16 +267,17 @@ sync_shell_bundle() {
   fi
 
   if [ ! -f "$source_compose" ]; then
-    echo "❌ SHELL_BUNDLE_DIR is missing deploy/$RESOLVED_COMPOSE_BUNDLE_FILE: $source_compose" >&2
+    echo "❌ SHELL_BUNDLE_DIR is missing $compose_relative_path: $source_compose" >&2
     exit 1
   fi
 
   echo "Syncing production shell bundle from: $SHELL_BUNDLE_DIR"
   rm -rf "$shell_root/frontend"
   mkdir -p "$shell_root/frontend" "$shell_root/scripts"
+  mkdir -p "$(dirname "$target_compose")"
   cp -R "$source_frontend/." "$shell_root/frontend/"
   cp "$source_caddyfile" "$DEPLOY_DIR/Caddyfile.production"
-  cp "$source_compose" "$DEPLOY_DIR/$RESOLVED_COMPOSE_BUNDLE_FILE"
+  cp "$source_compose" "$target_compose"
   rm -f "$shell_root/scripts/diagnose_web.sh"
 
   if [ -f "$source_diagnose" ]; then
