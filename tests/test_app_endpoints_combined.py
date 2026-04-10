@@ -10,6 +10,7 @@ These are "easy coverage" tests that cover basic monitoring endpoints and app pa
 
 import os
 import sys
+from xml.etree import ElementTree
 from fastapi.testclient import TestClient
 
 import app as apppkg
@@ -93,10 +94,19 @@ class TestHealthAndMonitoringEndpoints:
         response = client.get("/sitemap.xml")
 
         assert response.status_code == 200
-        body = response.text
-        assert "https://pulseplate.app/" in body
-        assert "https://pulseplate.app/privacy" in body
-        assert "http://testserver/" not in body
+        sitemap_root = ElementTree.fromstring(response.text)
+        namespace = {"sitemap": "http://www.sitemaps.org/schemas/sitemap/0.9"}
+        loc_values = {
+            loc.text
+            for loc in sitemap_root.findall("sitemap:url/sitemap:loc", namespace)
+            if loc.text is not None
+        }
+        assert loc_values == {
+            "https://pulseplate.app/",
+            "https://pulseplate.app/privacy",
+            "https://pulseplate.app/terms",
+            "https://pulseplate.app/legacy/bmi-calculator",
+        }
 
     def test_favicon_endpoint(self, client: TestClient) -> None:
         """Test /favicon.ico returns 200 OK, 204 No Content, or 404 if not found"""
