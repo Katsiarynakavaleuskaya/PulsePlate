@@ -207,7 +207,7 @@ git switch --detach origin/main
 scp deploy/Caddyfile.production ubuntu@64.226.117.163:/srv/pulseplate-production/Caddyfile.production
 scp deploy/docker-compose.production.yaml ubuntu@64.226.117.163:/srv/pulseplate-production/docker-compose.production.yaml
 rsync -az --delete frontend/ ubuntu@64.226.117.163:/srv/frontend/
-scp scripts/diagnose_web.sh ubuntu@64.226.117.163:/srv/scripts/diagnose_web.sh
+scp scripts/diagnose_web.sh ubuntu@64.226.117.163:/srv/pulseplate-production/scripts/diagnose_web.sh
 
 # На сервере: rebuild/restart только edge shell
 ssh ubuntu@64.226.117.163 '

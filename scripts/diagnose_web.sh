@@ -310,6 +310,35 @@ assert_json_backend() {
     pass "${label}: ${path} reached the backend JSON surface (status ${status})."
 }
 
+assert_admin_canary() {
+    local label="$1"
+    local path="$2"
+    local probe=""
+    probe="$(curl_probe "${label}" "${BASE_URL}${path}")" || {
+        fail "${label}: request to ${BASE_URL}${path} failed."
+        return
+    }
+
+    IFS='|' read -r status content_type _headers body_file <<<"${probe}"
+    if [[ "${status}" == "404" ]]; then
+        fail "${label}: ${path} returned 404, so the admin canary route is missing or misrouted."
+        return
+    fi
+    if [[ "${status}" =~ ^5 ]]; then
+        fail "${label}: backend probe returned server error ${status}."
+        return
+    fi
+    if [[ "${content_type}" != application/json* ]]; then
+        fail "${label}: expected backend JSON, got '${content_type:-<empty>}' ."
+        return
+    fi
+    if ! grep -Eq '^[[:space:]]*[\{\[]' "${body_file}"; then
+        fail "${label}: backend probe body does not look like JSON."
+        return
+    fi
+    pass "${label}: ${path} reached the admin/backend canary surface (status ${status})."
+}
+
 assert_xml_sitemap() {
     local label="$1"
     local path="$2"
@@ -401,7 +430,7 @@ run_http_probes() {
     assert_not_spa_html "legacy-premium-targets-get" "/premium_targets"
     assert_not_spa_html "legacy-bmi-calculator-get" "/legacy/bmi-calculator"
     assert_json_backend "api-prefix" "/api/v1/does-not-exist"
-    assert_json_backend "admin-canary" "${ADMIN_CANARY_PATH}"
+    assert_admin_canary "admin-canary" "${ADMIN_CANARY_PATH}"
     assert_ws_not_spa
 }
 

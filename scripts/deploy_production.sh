@@ -33,6 +33,8 @@ HEALTH_SLEEP_S="${HEALTH_SLEEP_S:-2}"
 HEALTH_CURL_MAX_TIME_S="${HEALTH_CURL_MAX_TIME_S:-10}"
 
 COMPOSE_FILE="${COMPOSE_FILE:-}"
+RESOLVED_COMPOSE_FILE="${COMPOSE_FILE:-}"
+RESOLVED_COMPOSE_BUNDLE_FILE=""
 DEPLOY_DIR="${DEPLOY_DIR:-}"
 ENV_FILE="${ENV_FILE:-}"
 SHELL_BUNDLE_DIR="${SHELL_BUNDLE_DIR:-}"
@@ -123,20 +125,30 @@ fi
 cd "$DEPLOY_DIR"
 
 compose_args=()
-if [ -n "$COMPOSE_FILE" ]; then
-  compose_args=(-f "$COMPOSE_FILE")
+if [ -n "$RESOLVED_COMPOSE_FILE" ]; then
+  compose_args=(-f "$RESOLVED_COMPOSE_FILE")
 elif [ -f "docker-compose.production.yaml" ]; then
-  compose_args=(-f "docker-compose.production.yaml")
+  RESOLVED_COMPOSE_FILE="docker-compose.production.yaml"
+  compose_args=(-f "$RESOLVED_COMPOSE_FILE")
 elif [ -f "docker-compose.production.yml" ]; then
-  compose_args=(-f "docker-compose.production.yml")
+  RESOLVED_COMPOSE_FILE="docker-compose.production.yml"
+  compose_args=(-f "$RESOLVED_COMPOSE_FILE")
 elif [ -f "docker-compose.yml" ]; then
-  compose_args=(-f "docker-compose.yml")
+  RESOLVED_COMPOSE_FILE="docker-compose.yml"
+  compose_args=(-f "$RESOLVED_COMPOSE_FILE")
 elif [ -f "docker-compose.yaml" ]; then
-  compose_args=(-f "docker-compose.yaml")
+  RESOLVED_COMPOSE_FILE="docker-compose.yaml"
+  compose_args=(-f "$RESOLVED_COMPOSE_FILE")
 elif [ -f "compose.yml" ]; then
-  compose_args=(-f "compose.yml")
+  RESOLVED_COMPOSE_FILE="compose.yml"
+  compose_args=(-f "$RESOLVED_COMPOSE_FILE")
 elif [ -f "compose.yaml" ]; then
-  compose_args=(-f "compose.yaml")
+  RESOLVED_COMPOSE_FILE="compose.yaml"
+  compose_args=(-f "$RESOLVED_COMPOSE_FILE")
+fi
+
+if [ -n "$RESOLVED_COMPOSE_FILE" ]; then
+  RESOLVED_COMPOSE_BUNDLE_FILE="$(basename "$RESOLVED_COMPOSE_FILE")"
 fi
 
 if [ -z "$ENV_FILE" ]; then
@@ -216,10 +228,15 @@ sync_shell_bundle() {
 
   local source_frontend="$SHELL_BUNDLE_DIR/frontend"
   local source_caddyfile="$SHELL_BUNDLE_DIR/deploy/Caddyfile.production"
-  local source_compose="$SHELL_BUNDLE_DIR/deploy/$COMPOSE_FILE"
+  local source_compose="$SHELL_BUNDLE_DIR/deploy/$RESOLVED_COMPOSE_BUNDLE_FILE"
   local source_diagnose="$SHELL_BUNDLE_DIR/scripts/diagnose_web.sh"
   local shell_root
   shell_root="$(cd "$DEPLOY_DIR/.." && pwd)"
+
+  if [ -z "$RESOLVED_COMPOSE_BUNDLE_FILE" ]; then
+    echo "❌ Could not resolve a compose filename for shell bundle sync" >&2
+    exit 1
+  fi
 
   if [ ! -d "$source_frontend" ]; then
     echo "❌ SHELL_BUNDLE_DIR is missing frontend/: $source_frontend" >&2
@@ -232,7 +249,7 @@ sync_shell_bundle() {
   fi
 
   if [ ! -f "$source_compose" ]; then
-    echo "❌ SHELL_BUNDLE_DIR is missing deploy/$COMPOSE_FILE: $source_compose" >&2
+    echo "❌ SHELL_BUNDLE_DIR is missing deploy/$RESOLVED_COMPOSE_BUNDLE_FILE: $source_compose" >&2
     exit 1
   fi
 
@@ -241,7 +258,7 @@ sync_shell_bundle() {
   mkdir -p "$shell_root/frontend" "$shell_root/scripts"
   cp -R "$source_frontend/." "$shell_root/frontend/"
   cp "$source_caddyfile" "$DEPLOY_DIR/Caddyfile.production"
-  cp "$source_compose" "$DEPLOY_DIR/$COMPOSE_FILE"
+  cp "$source_compose" "$DEPLOY_DIR/$RESOLVED_COMPOSE_BUNDLE_FILE"
   rm -f "$shell_root/scripts/diagnose_web.sh"
 
   if [ -f "$source_diagnose" ]; then
