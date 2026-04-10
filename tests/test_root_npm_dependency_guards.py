@@ -11,18 +11,10 @@ from __future__ import annotations
 import json
 from pathlib import Path
 from typing import Any, cast
-from urllib.parse import urlparse
-
-from packaging.version import Version
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 ROOT_PACKAGE_JSON = REPO_ROOT / "package.json"
 ROOT_LOCK_JSON = REPO_ROOT / "package-lock.json"
-MIN_HONO_VERSION = Version("4.12.7")
-MIN_AXIOS_VERSION = Version("1.15.0")
-MIN_PROXY_FROM_ENV_VERSION = Version("2.1.0")
-MIN_BRACE_EXPANSION_VERSION = Version("5.0.5")
-MIN_PATH_TO_REGEXP_VERSION = Version("8.4.0")
 
 
 def _load_json(path: Path) -> dict[str, Any]:
@@ -30,245 +22,131 @@ def _load_json(path: Path) -> dict[str, Any]:
     return cast(dict[str, Any], json.loads(path.read_text(encoding="utf-8")))
 
 
-def test_root_lock_resolves_hono_to_safe_npm_release() -> None:
-    """RU/EN: Root lockfile must resolve hono from npm registry at secure floor version."""
+def _require_dict_field(container: dict[str, Any], key: str, *, ctx: str) -> dict[str, Any]:
+    """RU/EN: Fail closed when an expected JSON object field is missing or malformed."""
+    value = container.get(key)
+    assert isinstance(value, dict), f"{ctx}: '{key}' must be a dict"
+    return cast(dict[str, Any], value)
+
+
+def _carrier_leaf_paths(packages: dict[str, Any], leaf_name: str) -> list[str]:
+    """RU/EN: Collect agentguard-scoped transitive paths that end with the requested leaf package."""
+    carrier_prefix = "node_modules/@goplus/agentguard/"
+    return [
+        package_path
+        for package_path in packages
+        if isinstance(package_path, str)
+        and package_path.startswith(carrier_prefix)
+        and package_path.endswith(f"/{leaf_name}")
+    ]
+
+
+def test_root_lock_removes_hono_runtime_path() -> None:
+    """RU/EN: Root lockfile must not carry a stale hono runtime path anymore."""
     package_lock = _load_json(ROOT_LOCK_JSON)
-    hono_pkg = package_lock.get("packages", {}).get("node_modules/hono", {})
-    lock_version = hono_pkg.get("version")
-    resolved = hono_pkg.get("resolved", "")
-
-    assert isinstance(lock_version, str), "package-lock.json: hono version missing"
-    assert Version(lock_version) >= MIN_HONO_VERSION
-    assert isinstance(resolved, str) and resolved, "package-lock.json: hono resolved missing"
-
-    parsed = urlparse(resolved)
-    assert parsed.scheme == "https", "hono lock resolution must use https"
-    assert parsed.netloc == "registry.npmjs.org", "hono must resolve from npm registry"
-    assert parsed.path.startswith("/hono/"), "hono lock resolution path mismatch"
+    packages = _require_dict_field(package_lock, "packages", ctx="package-lock.json")
+    assert (
+        "node_modules/hono" not in packages
+    ), "package-lock.json: stale hono path must stay absent"
 
 
-def test_root_lock_tracks_hono_as_mcp_sdk_transitive_dependency() -> None:
-    """RU/EN: Dependency path should still show hono under @modelcontextprotocol/sdk."""
+def test_root_lock_removes_mcp_sdk_runtime_path() -> None:
+    """RU/EN: Root lockfile must not keep stale MCP SDK runtime packages after graph cleanup."""
     package_lock = _load_json(ROOT_LOCK_JSON)
-    mcp_sdk_pkg = package_lock.get("packages", {}).get("node_modules/@modelcontextprotocol/sdk", {})
-    dependencies = mcp_sdk_pkg.get("dependencies", {})
-
-    hono_range = dependencies.get("hono")
-    assert isinstance(hono_range, str), "package-lock.json: MCP SDK hono dependency missing"
-    assert hono_range.strip(), "package-lock.json: MCP SDK hono dependency range missing"
+    packages = _require_dict_field(package_lock, "packages", ctx="package-lock.json")
+    assert (
+        "node_modules/@modelcontextprotocol/sdk" not in packages
+    ), "package-lock.json: stale @modelcontextprotocol/sdk path must stay absent"
 
 
-def test_root_lock_resolves_axios_to_safe_npm_release() -> None:
-    """RU/EN: Root lockfile must resolve every axios entry from npm registry at the patched floor."""
-    package_lock = _load_json(ROOT_LOCK_JSON)
-    packages = package_lock.get("packages", {})
-
-    assert isinstance(packages, dict), "package-lock.json: 'packages' must be a dict"
-
-    axios_entries = {
-        package_path: package_data
-        for package_path, package_data in packages.items()
-        if (
-            isinstance(package_path, str)
-            and package_path.endswith("/axios")
-            and isinstance(package_data, dict)
-        )
-    }
-
-    assert axios_entries, "package-lock.json: no axios entries found in packages map"
-
-    for package_path, axios_pkg in axios_entries.items():
-        lock_version = axios_pkg.get("version")
-        resolved = axios_pkg.get("resolved", "")
-
-        assert isinstance(lock_version, str), f"{package_path}: axios version missing"
-        assert Version(lock_version) >= MIN_AXIOS_VERSION
-        assert isinstance(resolved, str) and resolved, f"{package_path}: axios resolved missing"
-
-        parsed = urlparse(resolved)
-        assert parsed.scheme == "https", f"{package_path}: axios lock resolution must use https"
-        assert (
-            parsed.netloc == "registry.npmjs.org"
-        ), f"{package_path}: axios must resolve from npm registry"
-        assert parsed.path.startswith(
-            "/axios/"
-        ), f"{package_path}: axios lock resolution path mismatch"
-
-
-def test_root_lock_tracks_axios_under_agentguard_dependency_path() -> None:
-    """RU/EN: Dependency path should still show axios under @goplus/agentguard."""
-    package_lock = _load_json(ROOT_LOCK_JSON)
-    agentguard_pkg = package_lock.get("packages", {}).get("node_modules/@goplus/agentguard", {})
-    dependencies = agentguard_pkg.get("dependencies", {})
-
-    axios_range = dependencies.get("axios")
-    assert isinstance(axios_range, str), "package-lock.json: AgentGuard axios dependency missing"
-    assert axios_range.strip(), "package-lock.json: AgentGuard axios dependency range missing"
-
-
-def test_root_manifest_pins_axios_override_under_agentguard() -> None:
-    """RU/EN: Root manifest should keep the canonical scoped override for axios."""
+def test_root_manifest_removes_external_agentguard_runtime_dependency() -> None:
+    """RU/EN: Root manifest must not reintroduce the unresolved AgentGuard npm path."""
     package_manifest = _load_json(ROOT_PACKAGE_JSON)
-    overrides = package_manifest.get("overrides", {})
-    agentguard_overrides = overrides.get("@goplus/agentguard", {})
-
-    assert isinstance(overrides, dict), "package.json: overrides section missing"
-    assert isinstance(
-        agentguard_overrides, dict
-    ), "package.json: @goplus/agentguard override block missing"
+    dependencies = _require_dict_field(package_manifest, "dependencies", ctx="package.json")
+    overrides = _require_dict_field(package_manifest, "overrides", ctx="package.json")
     assert (
-        agentguard_overrides.get("axios") == "1.15.0"
-    ), "package.json: axios override under @goplus/agentguard must pin 1.15.0"
+        "@goplus/agentguard" not in dependencies
+    ), "package.json: external @goplus/agentguard dependency must stay removed"
+    assert (
+        "@goplus/agentguard" not in overrides
+    ), "package.json: stale @goplus/agentguard override block must stay removed"
 
 
-def test_root_lock_resolves_proxy_from_env_to_paired_safe_release() -> None:
-    """RU/EN: Root lockfile must keep the paired proxy-from-env floor required by patched axios."""
+def test_root_lock_removes_external_agentguard_and_axios_runtime_path() -> None:
+    """RU/EN: Root lockfile must not carry the unresolved AgentGuard -> axios path."""
     package_lock = _load_json(ROOT_LOCK_JSON)
-    packages = package_lock.get("packages", {})
-
-    assert isinstance(packages, dict), "package-lock.json: 'packages' must be a dict"
-
-    proxy_entries = {
-        package_path: package_data
-        for package_path, package_data in packages.items()
-        if (
-            isinstance(package_path, str)
-            and package_path.endswith("/proxy-from-env")
-            and isinstance(package_data, dict)
-        )
-    }
-
-    assert proxy_entries, "package-lock.json: no proxy-from-env entries found in packages map"
-
-    for package_path, proxy_pkg in proxy_entries.items():
-        lock_version = proxy_pkg.get("version")
-        resolved = proxy_pkg.get("resolved", "")
-
-        assert isinstance(lock_version, str), f"{package_path}: proxy-from-env version missing"
-        assert Version(lock_version) >= MIN_PROXY_FROM_ENV_VERSION
-        assert (
-            isinstance(resolved, str) and resolved
-        ), f"{package_path}: proxy-from-env resolved missing"
-
-        parsed = urlparse(resolved)
-        assert (
-            parsed.scheme == "https"
-        ), f"{package_path}: proxy-from-env lock resolution must use https"
-        assert (
-            parsed.netloc == "registry.npmjs.org"
-        ), f"{package_path}: proxy-from-env must resolve from npm registry"
-        assert parsed.path.startswith(
-            "/proxy-from-env/"
-        ), f"{package_path}: proxy-from-env lock resolution path mismatch"
+    packages = _require_dict_field(package_lock, "packages", ctx="package-lock.json")
+    assert (
+        "node_modules/@goplus/agentguard" not in packages
+    ), "package-lock.json: @goplus/agentguard entry must stay removed"
+    assert not _carrier_leaf_paths(
+        packages, "axios"
+    ), "package-lock.json: @goplus/agentguard/.../axios runtime path must stay absent"
 
 
-def test_root_lock_resolves_brace_expansion_to_safe_npm_release() -> None:
-    """RU/EN: Root lockfile must resolve all brace-expansion entries to the patched npm floor."""
+def test_root_lock_removes_brace_expansion_runtime_path() -> None:
+    """RU/EN: Root lockfile must not carry historical AgentGuard-scoped brace-expansion paths."""
     package_lock = _load_json(ROOT_LOCK_JSON)
-    packages = package_lock.get("packages", {})
-
-    assert isinstance(packages, dict), "package-lock.json: 'packages' must be a dict"
-
-    brace_expansion_entries = {
-        package_path: package_data
-        for package_path, package_data in packages.items()
-        if (
-            isinstance(package_path, str)
-            and package_path.endswith("/brace-expansion")
-            and isinstance(package_data, dict)
-        )
-    }
-
-    assert (
-        brace_expansion_entries
-    ), "package-lock.json: no brace-expansion entries found in packages map"
-
-    for package_path, brace_expansion_pkg in brace_expansion_entries.items():
-        lock_version = brace_expansion_pkg.get("version")
-        resolved = brace_expansion_pkg.get("resolved", "")
-
-        assert isinstance(lock_version, str), f"{package_path}: brace-expansion version missing"
-        assert Version(lock_version) >= MIN_BRACE_EXPANSION_VERSION
-        assert isinstance(resolved, str) and resolved, f"{package_path}: resolved tarball missing"
-
-        parsed = urlparse(resolved)
-        assert parsed.scheme == "https", f"{package_path}: lock resolution must use https"
-        assert (
-            parsed.netloc == "registry.npmjs.org"
-        ), f"{package_path}: must resolve from npm registry"
-        assert parsed.path.startswith(
-            "/brace-expansion/"
-        ), f"{package_path}: brace-expansion lock resolution path mismatch"
+    packages = _require_dict_field(package_lock, "packages", ctx="package-lock.json")
+    assert not _carrier_leaf_paths(
+        packages, "brace-expansion"
+    ), "package-lock.json: @goplus/agentguard/.../brace-expansion runtime path must stay absent"
 
 
-def test_root_lock_tracks_brace_expansion_under_agentguard_dependency_path() -> None:
-    """RU/EN: Dependency path must stay rooted at AgentGuard -> glob -> minimatch."""
+def test_root_lock_removes_path_to_regexp_runtime_path() -> None:
+    """RU/EN: Root lockfile must not carry path-to-regexp after graph cleanup."""
     package_lock = _load_json(ROOT_LOCK_JSON)
-    agentguard_pkg = package_lock.get("packages", {}).get("node_modules/@goplus/agentguard", {})
-    glob_pkg = package_lock.get("packages", {}).get("node_modules/glob", {})
-    minimatch_pkg = package_lock.get("packages", {}).get("node_modules/minimatch", {})
-
-    agentguard_dependencies = agentguard_pkg.get("dependencies", {})
-    glob_dependencies = glob_pkg.get("dependencies", {})
-    minimatch_dependencies = minimatch_pkg.get("dependencies", {})
-
-    glob_range = agentguard_dependencies.get("glob")
-    minimatch_range = glob_dependencies.get("minimatch")
-    brace_expansion_range = minimatch_dependencies.get("brace-expansion")
-
+    packages = _require_dict_field(package_lock, "packages", ctx="package-lock.json")
     assert (
-        isinstance(glob_range, str) and glob_range.strip()
-    ), "package-lock.json: AgentGuard glob dependency missing"
-    assert (
-        isinstance(minimatch_range, str) and minimatch_range.strip()
-    ), "package-lock.json: glob minimatch dependency missing"
-    assert (
-        isinstance(brace_expansion_range, str) and brace_expansion_range.strip()
-    ), "package-lock.json: minimatch brace-expansion dependency missing"
+        "node_modules/path-to-regexp" not in packages
+    ), "package-lock.json: path-to-regexp runtime path must stay absent"
 
 
-def test_root_lock_resolves_path_to_regexp_to_safe_npm_release() -> None:
-    """RU/EN: Root lockfile must keep path-to-regexp at the secure runtime floor."""
+def test_root_lock_tracks_current_cspell_runtime_chain() -> None:
+    """RU/EN: Keep the current cspell runtime chain explicit and free of stale path-to-regexp deps."""
     package_lock = _load_json(ROOT_LOCK_JSON)
-    path_to_regexp_pkg = package_lock.get("packages", {}).get("node_modules/path-to-regexp", {})
-    lock_version = path_to_regexp_pkg.get("version")
-    resolved = path_to_regexp_pkg.get("resolved", "")
+    packages = _require_dict_field(package_lock, "packages", ctx="package-lock.json")
+    cspell_pkg = _require_dict_field(
+        packages, "node_modules/cspell", ctx="package-lock.json packages"
+    )
+    cspell_glob_pkg = _require_dict_field(
+        packages, "node_modules/cspell-glob", ctx="package-lock.json packages"
+    )
+    tinyglobby_pkg = _require_dict_field(
+        packages, "node_modules/tinyglobby", ctx="package-lock.json packages"
+    )
 
-    assert isinstance(lock_version, str), "package-lock.json: path-to-regexp version missing"
-    assert Version(lock_version) >= MIN_PATH_TO_REGEXP_VERSION
-    assert (
-        isinstance(resolved, str) and resolved
-    ), "package-lock.json: path-to-regexp resolved missing"
+    cspell_dependencies = _require_dict_field(
+        cspell_pkg, "dependencies", ctx="package-lock.json node_modules/cspell"
+    )
+    cspell_glob_dependencies = _require_dict_field(
+        cspell_glob_pkg, "dependencies", ctx="package-lock.json node_modules/cspell-glob"
+    )
+    tinyglobby_dependencies = _require_dict_field(
+        tinyglobby_pkg, "dependencies", ctx="package-lock.json node_modules/tinyglobby"
+    )
 
-    parsed = urlparse(resolved)
-    assert parsed.scheme == "https", "path-to-regexp lock resolution must use https"
-    assert parsed.netloc == "registry.npmjs.org", "path-to-regexp must resolve from npm registry"
-    assert parsed.path.startswith(
-        "/path-to-regexp/"
-    ), "path-to-regexp lock resolution path mismatch"
-
-
-def test_root_lock_tracks_path_to_regexp_under_mcp_sdk_runtime_path() -> None:
-    """RU/EN: Runtime chain must keep the express router path-to-regexp dependency visible."""
-    package_lock = _load_json(ROOT_LOCK_JSON)
-    mcp_sdk_pkg = package_lock.get("packages", {}).get("node_modules/@modelcontextprotocol/sdk", {})
-    express_pkg = package_lock.get("packages", {}).get("node_modules/express", {})
-    router_pkg = package_lock.get("packages", {}).get("node_modules/router", {})
-
-    mcp_sdk_dependencies = mcp_sdk_pkg.get("dependencies", {})
-    express_dependencies = express_pkg.get("dependencies", {})
-    router_dependencies = router_pkg.get("dependencies", {})
-
-    express_range = mcp_sdk_dependencies.get("express")
-    router_range = express_dependencies.get("router")
-    path_to_regexp_range = router_dependencies.get("path-to-regexp")
+    cspell_glob_range = cspell_dependencies.get("cspell-glob")
+    tinyglobby_range = cspell_dependencies.get("tinyglobby")
+    picomatch_from_cspell_glob = cspell_glob_dependencies.get("picomatch")
+    picomatch_from_tinyglobby = tinyglobby_dependencies.get("picomatch")
+    fdir_from_tinyglobby = tinyglobby_dependencies.get("fdir")
 
     assert (
-        isinstance(express_range, str) and express_range.strip()
-    ), "package-lock.json: MCP SDK express dependency missing"
+        isinstance(cspell_glob_range, str) and cspell_glob_range.strip()
+    ), "package-lock.json: cspell cspell-glob dependency missing"
     assert (
-        isinstance(router_range, str) and router_range.strip()
-    ), "package-lock.json: express router dependency missing"
+        isinstance(tinyglobby_range, str) and tinyglobby_range.strip()
+    ), "package-lock.json: cspell tinyglobby dependency missing"
     assert (
-        isinstance(path_to_regexp_range, str) and path_to_regexp_range.strip()
-    ), "package-lock.json: router path-to-regexp dependency missing"
+        isinstance(picomatch_from_cspell_glob, str) and picomatch_from_cspell_glob.strip()
+    ), "package-lock.json: cspell-glob picomatch dependency missing"
+    assert (
+        isinstance(picomatch_from_tinyglobby, str) and picomatch_from_tinyglobby.strip()
+    ), "package-lock.json: tinyglobby picomatch dependency missing"
+    assert (
+        isinstance(fdir_from_tinyglobby, str) and fdir_from_tinyglobby.strip()
+    ), "package-lock.json: tinyglobby fdir dependency missing"
+    assert (
+        "path-to-regexp" not in tinyglobby_dependencies
+    ), "package-lock.json: tinyglobby must not reintroduce path-to-regexp"

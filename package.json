@@ -26,28 +26,10 @@
   },
   "homepage": "https://github.com/Katsiarynakavaleuskaya/PulsePlate#readme",
   "overrides": {
-    "@goplus/agentguard": {
-      "axios": "1.15.0",
-      "glob": "13.0.6"
-    },
-    "glob": {
-      "minimatch": "10.2.4"
-    },
-    "minimatch": {
-      "brace-expansion": "5.0.5"
-    },
-    "@modelcontextprotocol/sdk": {
-      "express": {
-        "router": {
-          "path-to-regexp": "8.4.0"
-        }
-      }
-    },
     "smol-toml": "1.6.1",
     "yaml": "2.8.3"
   },
   "dependencies": {
-    "@goplus/agentguard": "^1.0.12",
     "docx": "^9.6.1",
     "pptxgenjs": "^4.0.1",
     "thesvg": "^2.0.1"
