@@ -783,6 +783,68 @@ class TestRetrieveAndValidateRag:
         assert "Question: What is wellness?" in result.formatted_prompt
         assert "Answer:" in result.formatted_prompt
 
+    @pytest.mark.asyncio
+    async def test_empty_formatted_context_returns_fail_safe_non_rag_result(self) -> None:
+        """Empty formatted context must not mark the result as RAG-used."""
+        chunks = [_make_chunk("c1", content="Knowledge about wellness.", score=0.9)]
+        rag_ctx = _make_rag_context(chunks=chunks, hops=2, latency_ms=75)
+
+        with (
+            patch(
+                "asyncio.to_thread",
+                new_callable=AsyncMock,
+                return_value=rag_ctx,
+            ),
+            patch("core.rag.vector_rag.retrieve_context_structured"),
+            patch(
+                "core.rag.formatting.format_rag_chunks_for_prompt",
+                return_value="   ",
+            ),
+        ):
+            result = await retrieve_and_validate_rag(
+                "What is wellness?", philo_validation_enabled=False
+            )
+
+        assert result.rag_actually_used is False
+        assert result.formatted_prompt == "What is wellness?"
+        assert result.chunks == []
+        assert result.confidence is None
+        assert result.hops == 2
+        assert result.latency_ms == 75
+
+    @pytest.mark.asyncio
+    async def test_empty_redacted_context_returns_fail_safe_non_rag_result(self) -> None:
+        """Redaction that removes all context must collapse to a non-RAG result."""
+        chunks = [_make_chunk("c1", content="Knowledge about wellness.", score=0.9)]
+        rag_ctx = _make_rag_context(chunks=chunks, hops=3, latency_ms=60)
+
+        with (
+            patch(
+                "asyncio.to_thread",
+                new_callable=AsyncMock,
+                return_value=rag_ctx,
+            ),
+            patch("core.rag.vector_rag.retrieve_context_structured"),
+            patch(
+                "core.rag.formatting.format_rag_chunks_for_prompt",
+                return_value="Knowledge about wellness.",
+            ),
+            patch(
+                "core.insight.safety.redact_rag_context_for_insight",
+                return_value="",
+            ),
+        ):
+            result = await retrieve_and_validate_rag(
+                "What is wellness?", philo_validation_enabled=False
+            )
+
+        assert result.rag_actually_used is False
+        assert result.formatted_prompt == "What is wellness?"
+        assert result.chunks == []
+        assert result.confidence is None
+        assert result.hops == 3
+        assert result.latency_ms == 60
+
 
 def test_format_rag_chunks_for_prompt_sanitizes_injection_lines() -> None:
     """Prompt formatting must strip embedded prompt-injection content."""
@@ -843,3 +905,31 @@ def test_build_rag_source_dicts_skips_empty_sanitized_chunks() -> None:
     assert len(result) == 1
     assert result[0]["chunk_id"] == "safe"
     assert result[0]["preview"] == "Helpful reframing technique."
+
+
+def test_simple_rag_skips_chunks_that_become_empty_after_redaction(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Simple RAG fallback must drop chunks removed by final redaction."""
+    import core.rag.simple_rag as simple_rag
+
+    monkeypatch.setattr(
+        simple_rag,
+        "_get_index",
+        lambda: [
+            ("docs/unsafe.md", "unsafe chunk"),
+            ("docs/safe.md", "safe chunk"),
+        ],
+    )
+    monkeypatch.setattr(simple_rag, "_score", lambda query, chunk: 0.9)
+    monkeypatch.setattr(simple_rag, "MIN_CHUNK_SCORE", 0.0)
+    monkeypatch.setattr(
+        simple_rag,
+        "redact_chunk_content",
+        lambda content: "" if content == "unsafe chunk" else content,
+    )
+
+    result = simple_rag.retrieve_context_structured("query", max_chunks=2)
+
+    assert len(result.chunks) == 1
+    assert result.chunks[0].content == "safe chunk"

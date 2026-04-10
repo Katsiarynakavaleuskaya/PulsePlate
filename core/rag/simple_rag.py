@@ -198,20 +198,24 @@ def retrieve_context_structured(
     )
     limit = max(1, min(max_chunks, MAX_SOURCES_IN_RESPONSE))
     top = [x for x in scored[:limit] if x[2] >= MIN_CHUNK_SCORE]
-    chunks = [
-        RAGChunk(
-            chunk_id=f"{Path(src).relative_to(ROOT) if Path(src).is_relative_to(ROOT) else Path(src).name}:{i}",
-            file=(
-                str(Path(src).relative_to(ROOT))
-                if Path(src).is_relative_to(ROOT)
-                else Path(src).name
-            ),
-            content=redact_chunk_content(ch[:MAX_CHUNK_SIZE_CHARS]),
-            score=sc,
-            hop=1,
+    chunks: list[RAGChunk] = []
+    for i, (src, ch, sc) in enumerate(top, 1):
+        redacted_content = redact_chunk_content(ch[:MAX_CHUNK_SIZE_CHARS]).strip()
+        if not redacted_content:
+            continue
+        chunks.append(
+            RAGChunk(
+                chunk_id=f"{Path(src).relative_to(ROOT) if Path(src).is_relative_to(ROOT) else Path(src).name}:{i}",
+                file=(
+                    str(Path(src).relative_to(ROOT))
+                    if Path(src).is_relative_to(ROOT)
+                    else Path(src).name
+                ),
+                content=redacted_content,
+                score=sc,
+                hop=1,
+            )
         )
-        for i, (src, ch, sc) in enumerate(top, 1)
-    ]
     confidence = sum(c.score for c in chunks) / len(chunks) if chunks else 0.0
     latency_ms = int((time.perf_counter() - start) * 1000)
     return RAGContext(

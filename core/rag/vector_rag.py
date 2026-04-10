@@ -18,7 +18,7 @@ import logging
 import math
 import threading
 import time
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, SupportsFloat, cast
 
 from app.utils.feature_flags import is_rag_vector_enabled
 from core.data_sanitizer import sanitize_rag_markdown
@@ -114,6 +114,53 @@ def _has_expected_embedding_dimensions(query_embedding: list[float]) -> bool:
         )
         return False
     return True
+
+
+def _normalize_embedding_vector(values: object) -> list[float] | None:
+    """Return a finite embedding vector with the configured dimensions."""
+
+    if not isinstance(values, (list, tuple)):
+        return None
+
+    numeric_values: list[float] = []
+    for value in values:
+        candidate: str | int | float | SupportsFloat
+        if isinstance(value, (str, int, float)):
+            candidate = value
+        elif hasattr(value, "__float__"):
+            candidate = cast(SupportsFloat, value)
+        else:
+            return None
+        try:
+            numeric = float(candidate)
+        except (TypeError, ValueError):
+            return None
+        numeric_values.append(numeric)
+
+    if not _has_expected_embedding_dimensions(numeric_values):
+        return None
+    if not all(math.isfinite(value) for value in numeric_values):
+        return None
+    return numeric_values
+
+
+def _normalize_similarity(value: object) -> float | None:
+    """Return a finite similarity score or ``None`` for malformed payloads."""
+
+    candidate: str | int | float | SupportsFloat
+    if isinstance(value, (str, int, float)):
+        candidate = value
+    elif hasattr(value, "__float__"):
+        candidate = cast(SupportsFloat, value)
+    else:
+        return None
+    try:
+        numeric = float(candidate)
+    except (TypeError, ValueError):
+        return None
+    if not math.isfinite(numeric):
+        return None
+    return numeric
 
 
 # ---------------------------------------------------------------------------
@@ -229,15 +276,19 @@ def _retrieve_vector_sqlite(
 
     scored: list[tuple[Any, float]] = []
 
-    if not _has_expected_embedding_dimensions(query_embedding):
+    normalized_query_embedding = _normalize_embedding_vector(query_embedding)
+    if normalized_query_embedding is None:
         return []
+    query_embedding = normalized_query_embedding
 
     for row in rows:
         try:
-            stored = json.loads(row.embedding)
-            if len(stored) != EMBEDDING_DIMENSIONS:
+            stored = _normalize_embedding_vector(json.loads(row.embedding))
+            if stored is None:
                 continue
             sim = _cosine_similarity(query_embedding, stored)
+            if not math.isfinite(sim):
+                continue
             scored.append((row, sim))
         except (json.JSONDecodeError, TypeError):
             continue
@@ -271,9 +322,10 @@ def _retrieve_vector_from_db(
     query_vectors = provider.encode([query])
     if not query_vectors:
         return _empty_context(query, agent_id, user_tier, start)
-    query_embedding = query_vectors[0]
-    if not _has_expected_embedding_dimensions(query_embedding):
+    normalized_query_embedding = _normalize_embedding_vector(query_vectors[0])
+    if normalized_query_embedding is None:
         return _empty_context(query, agent_id, user_tier, start)
+    query_embedding = normalized_query_embedding
 
     from core.db import session_scope
 
@@ -302,17 +354,23 @@ def _retrieve_vector_from_db(
     # Filter by minimum score and build RAGChunks
     chunks: list[RAGChunk] = []
     for i, (row, similarity) in enumerate(results, 1):
-        if similarity < MIN_VECTOR_SCORE:
+        normalized_similarity = _normalize_similarity(similarity)
+        if normalized_similarity is None or normalized_similarity < MIN_VECTOR_SCORE:
             continue
-        sanitized_content = sanitize_rag_markdown(str(row.content))[:MAX_CHUNK_SIZE_CHARS].strip()
+        row_id = getattr(row, "id", None)
+        row_content = getattr(row, "content", None)
+        if row_id is None or row_content is None:
+            continue
+        sanitized_content = sanitize_rag_markdown(str(row_content))[:MAX_CHUNK_SIZE_CHARS].strip()
         if not sanitized_content:
             continue
+        row_source = getattr(row, "source", None)
         chunks.append(
             RAGChunk(
-                chunk_id=f"uk:{row.id}:{i}",
-                file=row.source or "user_knowledge",
+                chunk_id=f"uk:{row_id}:{i}",
+                file=str(row_source).strip() if row_source else "user_knowledge",
                 content=sanitized_content,
-                score=round(similarity, 4),
+                score=round(normalized_similarity, 4),
                 hop=1,
             )
         )

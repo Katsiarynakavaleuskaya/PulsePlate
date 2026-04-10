@@ -91,6 +91,82 @@ class TestCosineSimilarity:
         assert _cosine_similarity([0.0, 0.0], [0.0, 0.0]) == 0.0
 
 
+class _FloatableValue:
+    """Simple float-like test helper."""
+
+    def __init__(self, value: float) -> None:
+        self.value = value
+
+    def __float__(self) -> float:
+        return self.value
+
+
+class _BrokenFloatValue:
+    """Float-like helper that raises during conversion."""
+
+    def __float__(self) -> float:
+        raise ValueError("broken float")
+
+
+class TestNormalizationHelpers:
+    """Unit tests for embedding and similarity normalization helpers."""
+
+    def test_normalize_embedding_vector_rejects_non_sequence(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from core.rag import vector_rag
+
+        monkeypatch.setattr(vector_rag, "EMBEDDING_DIMENSIONS", 3)
+
+        assert vector_rag._normalize_embedding_vector("not-a-vector") is None
+
+    def test_normalize_embedding_vector_accepts_float_like_values(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from core.rag import vector_rag
+
+        monkeypatch.setattr(vector_rag, "EMBEDDING_DIMENSIONS", 3)
+
+        normalized = vector_rag._normalize_embedding_vector(
+            [_FloatableValue(1.0), _FloatableValue(0.0), _FloatableValue(0.5)]
+        )
+
+        assert normalized == [1.0, 0.0, 0.5]
+
+    def test_normalize_embedding_vector_rejects_unsupported_items(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from core.rag import vector_rag
+
+        monkeypatch.setattr(vector_rag, "EMBEDDING_DIMENSIONS", 3)
+
+        assert vector_rag._normalize_embedding_vector([1.0, object(), 0.0]) is None
+
+    def test_normalize_embedding_vector_rejects_broken_float_values(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from core.rag import vector_rag
+
+        monkeypatch.setattr(vector_rag, "EMBEDDING_DIMENSIONS", 3)
+
+        assert vector_rag._normalize_embedding_vector([1.0, _BrokenFloatValue(), 0.0]) is None
+
+    def test_normalize_similarity_accepts_float_like_values(self) -> None:
+        from core.rag import vector_rag
+
+        assert vector_rag._normalize_similarity(_FloatableValue(0.8)) == pytest.approx(0.8)
+
+    def test_normalize_similarity_rejects_unsupported_values(self) -> None:
+        from core.rag import vector_rag
+
+        assert vector_rag._normalize_similarity(object()) is None
+
+    def test_normalize_similarity_rejects_broken_float_values(self) -> None:
+        from core.rag import vector_rag
+
+        assert vector_rag._normalize_similarity(_BrokenFloatValue()) is None
+
+
 class TestVectorRetrievalFallback:
     """Vector retrieval falls back to Jaccard when disabled or on failure."""
 
@@ -235,6 +311,53 @@ class TestVectorRetrievalSQLite:
 
         results = vector_rag._retrieve_vector_sqlite(query_vec, 5, fake_session, subject_id=7)
         assert len(results) == 0
+
+    def test_retrieve_vector_sqlite_skips_non_finite_stored_embeddings(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Rows with non-finite stored embeddings must be ignored."""
+        from core.rag import vector_rag
+
+        monkeypatch.setattr(vector_rag, "EMBEDDING_DIMENSIONS", 3)
+
+        class _Row:
+            def __init__(self, id: int, embedding: str) -> None:
+                self.id = id
+                self.content = "doc"
+                self.source = "src"
+                self.embedding = embedding
+
+        rows = [_Row(1, json.dumps([1.0, float("nan"), 0.0]))]
+
+        fake_session = MagicMock()
+        fake_session.execute.return_value.fetchall.return_value = rows
+
+        results = vector_rag._retrieve_vector_sqlite([1.0, 0.0, 0.0], 5, fake_session, subject_id=7)
+        assert results == []
+
+    def test_retrieve_vector_sqlite_skips_non_finite_similarity(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Rows yielding non-finite cosine similarity must be ignored."""
+        from core.rag import vector_rag
+
+        monkeypatch.setattr(vector_rag, "EMBEDDING_DIMENSIONS", 3)
+        monkeypatch.setattr(vector_rag, "_cosine_similarity", lambda *_args: float("inf"))
+
+        class _Row:
+            def __init__(self, id: int, embedding: str) -> None:
+                self.id = id
+                self.content = "doc"
+                self.source = "src"
+                self.embedding = embedding
+
+        fake_session = MagicMock()
+        fake_session.execute.return_value.fetchall.return_value = [
+            _Row(1, json.dumps([1.0, 0.0, 0.0]))
+        ]
+
+        results = vector_rag._retrieve_vector_sqlite([1.0, 0.0, 0.0], 5, fake_session, subject_id=7)
+        assert results == []
 
     def test_retrieve_vector_sqlite_binds_subject_id(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """SQLite retrieval binds subject_id to prevent cross-tenant leaks."""
@@ -703,6 +826,51 @@ class TestRetrieveContextStructuredVectorSuccess:
         assert len(ctx.chunks) == 1
         assert ctx.chunks[0].content == "vector result"
 
+    def test_vector_success_skips_malformed_rows_without_poisoning_whole_result(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Malformed result rows should be skipped while valid rows still surface."""
+        import core.rag.vector_rag as vector_rag
+
+        monkeypatch.setattr(vector_rag, "EMBEDDING_DIMENSIONS", 3)
+
+        class _Row:
+            def __init__(self, row_id: int | None, content: str | None, source: str | None) -> None:
+                self.id = row_id
+                self.content = content
+                self.source = source
+
+        fake_provider = MagicMock()
+        fake_provider.encode.return_value = [[1.0, 0.0, 0.0]]
+        vector_rag._embedding_provider = fake_provider
+
+        fake_session = MagicMock()
+        fake_session.bind.dialect.name = "postgresql"
+
+        from contextlib import contextmanager
+
+        @contextmanager
+        def _fake_session_scope() -> Iterator[MagicMock]:
+            yield fake_session
+
+        monkeypatch.setattr("core.db.session_scope", _fake_session_scope)
+        monkeypatch.setattr(
+            vector_rag,
+            "_retrieve_vector_postgres",
+            lambda *a, **k: [
+                (_Row(1, "valid content", "doc.md"), 0.92),
+                (_Row(None, "missing id", "bad.md"), 0.99),
+                (_Row(3, None, "bad2.md"), 0.95),
+                (_Row(4, "bad score", "bad3.md"), float("nan")),
+            ],
+        )
+
+        ctx = vector_rag._retrieve_vector_from_db("test", 4, None, None, 21)
+
+        assert len(ctx.chunks) == 1
+        assert ctx.chunks[0].content == "valid content"
+        vector_rag._embedding_provider = None
+
 
 class TestQueryEmbeddingValidation:
     """Test query embedding dimension validation in SQLite path."""
@@ -729,6 +897,35 @@ class TestQueryEmbeddingValidation:
         # 2-dim query vs 3-dim expected — guard should reject
         results = vector_rag._retrieve_vector_sqlite([1.0, 0.0], 5, fake_session, subject_id=7)
         assert results == []
+
+    def test_non_finite_query_embedding_returns_empty_context(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Non-finite query embeddings must fail closed before DB vector search."""
+        from contextlib import contextmanager
+
+        from core.rag import vector_rag
+
+        monkeypatch.setattr(vector_rag, "EMBEDDING_DIMENSIONS", 3)
+
+        fake_provider = MagicMock()
+        fake_provider.encode.return_value = [[1.0, float("inf"), 0.0]]
+        vector_rag._embedding_provider = fake_provider
+
+        fake_session = MagicMock()
+        fake_session.bind.dialect.name = "postgresql"
+
+        @contextmanager
+        def _fake_session_scope() -> Iterator[MagicMock]:
+            yield fake_session
+
+        monkeypatch.setattr("core.db.session_scope", _fake_session_scope)
+
+        ctx = vector_rag._retrieve_vector_from_db("test", 3, None, None, 21)
+
+        assert ctx.chunks == []
+        fake_session.execute.assert_not_called()
+        vector_rag._embedding_provider = None
 
 
 class TestCorpusFilteringVectorRag:
