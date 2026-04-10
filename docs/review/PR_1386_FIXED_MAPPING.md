@@ -6,7 +6,15 @@
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+Disposition: FIXED
+Commit: see mapping entries below
+Evidence: `docs/roadmap/BACKLOG_LEDGER.md` (bounded-packet grammar + explicit realignment-packet link), `docs/review/PR_1386_FIXED_MAPPING.md` (validation evidence alignment + dedicated scope section)
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1386#pullrequestreview-4092631389 -> 3160f4317
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1386#discussion_r3066878140 -> 3160f4317
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1386#discussion_r3066878145 -> 3160f4317
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1386#pullrequestreview-4092637923 -> 355c02f0f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1386#discussion_r3066884073 -> 355c02f0f
 
 ## Merge Readiness
 
