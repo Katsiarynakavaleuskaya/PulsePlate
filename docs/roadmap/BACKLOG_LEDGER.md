@@ -289,11 +289,11 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Web and iOS clients link to the published policy paths consistently
     - Published text stays aligned with runtime wellness/compliance posture
 <a id="ledger-p0-insight-fallback-chain"></a>
-- [ ] P0: Insight fallback chain + echo-mode readiness visibility
+- [x] P0: Insight fallback chain + echo-mode readiness visibility
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0 (VIP reliability)
   - Target PR: PR `#1379`
-  - Status: 🟡 In review
+  - Status: ✅ Merged (PR #1379, 2026-04-10; merge commit `1ddf8c6778ca1f13c2bfce2e052db5409e8d06ba`)
   - Reason (EN): Master checklist items #2 and #4 require deterministic behavior when primary LLM/provider path is unavailable and explicit operator visibility for fallback/echo mode.
   - Links:
     - docs/roadmap/P0_MASTER_CHECKLIST_PHASE_FIT_TRIAGE_2026-03-05.md
@@ -1436,15 +1436,16 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Area: AI / RAG / runtime hardening
   - Finding Type: follow-through runtime slice
   - Status: 📋 Planned
-  - Reason (EN): The execution spine already calls for a dedicated runtime RAG hardening slice, but the backlog still tracks the work only indirectly through scattered vector/refactor debt and follow-through wording. This item creates one canonical anchor for retrieval-path hardening, deterministic confidence recomputation, and response-contract-safe cleanup.
+  - Reason (EN): The execution spine already calls for a dedicated runtime RAG hardening slice, but live `main` has already landed deterministic final-confidence recomputation in orchestration and removed part of the older raw-SQL/refactor framing. This item is now the canonical anchor for residual degraded-path hardening, retrieval-source cleanup, and response-contract-safe fail-safe behavior.
   - Links:
     - `docs/roadmap/PulsePlate_P0_P1_Execution_Document_2026-03-30.md`
     - `docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md`
+    - `docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md`
     - `docs/contracts/RAG_CONTRACT.md`
     - `core/rag/vector_rag.py`
   - DoD:
     - Retrieval hardening has one canonical backlog anchor
-    - Confidence recomputation and retrieval-path cleanup are documented as runtime follow-through
+    - Degraded retrieval paths and fail-safe prompt preservation are documented as runtime follow-through
     - No new semantic/vector surface expansion is implied by this item alone
     - Public response contracts remain additive and stable
 
@@ -1527,22 +1528,26 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Validation evidence owner: [P1 Scientific reliability publication pipeline](#ledger-p1-scientific-reliability-pipeline)
     - Integration tests pass (end-to-end philosophical validation + speed optimization pipeline)
 
-
-- [ ] P1: PRO monthly quota for LLM endpoints (parity with VIP)
+<a id="ledger-p1-pro-monthly-quota-ledger-reconciliation"></a>
+- [ ] P1: Reconcile PRO monthly quota ledger with live runtime truth
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (AGENTS.md requires monthly quota before any LLM provider call)
-  - Target PR: TBD (infrastructure extension from PR-647 VIP quota)
-  - Status: 📋 Planned
-  - Reason (EN): PR-942 CBT insight endpoint added rate limiting but monthly quota enforcement exists only for VIP tier (PR-647). PRO-tier LLM endpoints (CBT insight, future agents) need equivalent quota infrastructure. Currently AGENTS.md mandates "All LLM endpoints MUST enforce server-side monthly hard quota before any provider call" but only VIP has implementation.
+  - Target PR: `docs/ai-runtime-ledger-reconciliation`
+  - Status: 🟡 In progress (docs/code reconciliation after live runtime landed)
+  - Reason (EN): Live `main` already contains tier-aware LLM monthly quota machinery for both `PRO` and `VIP`, startup validation for both envs, and quota-before-provider enforcement on the PRO CBT path. The backlog wording is now stale and must be reconciled so the train does not reopen a runtime-from-scratch quota PR that the codebase already materially passed.
   - Links:
-    - `app/security/llm_monthly_quota.py` (VIP-only implementation)
+    - `app/security/llm_monthly_quota.py`
+    - `app/bootstrap/startup_guards.py`
+    - `app/routers/cbt_insight.py`
+    - `app/services/fitchef_runtime.py`
+    - `docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md`
     - `docs/audit/PR_647_VIP_LLM_MONTHLY_QUOTA_AUDIT.md`
-    - `app/routers/cbt_insight.py` (PRO endpoint without monthly quota)
+    - `docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md`
+    - `tests/test_cbt_insight_api.py`
   - DoD:
-    - Extend llm_monthly_quota.py to support PRO tier (separate table or unified with tier column)
-    - CBT insight endpoint calls quota check before provider.generate()
-    - Startup guards validate required PRO quota env before release/runtime boot
-    - Deterministic tests for PRO quota enforcement
+    - Ledger and epic wording no longer describe PRO quota as VIP-only missing functionality
+    - Live code/test evidence for PRO quota parity is linked from the backlog item
+    - Any true residual quota debt is captured as a separate narrow follow-up instead of reopening a full parity lane
 
 
 <a id="ledger-p1-recursive-methods"></a>
