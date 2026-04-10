@@ -9,14 +9,21 @@ Bot and human review threads must be dispositioned below when actionable comment
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+Disposition: FIXED
+Commit: ea218498c
+Evidence: `scripts/deploy_production.sh` (autodetected compose bundle sync), `scripts/diagnose_web.sh` (404 admin-canary hard fail), `deploy/WORKFLOW.md` (production scripts path), `tests/test_app_endpoints_combined.py` (deterministic sitemap assertions + public_discovery coverage), `tests/test_deploy_contract_scripts.py`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1385#discussion_r3066824729 -> ea218498c
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1385#discussion_r3066957607 -> ea218498c
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1385#discussion_r3066967048 -> ea218498c
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1385#discussion_r3066967058 -> ea218498c
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1385#discussion_r3066967065 -> ea218498c
 
 ## Merge Readiness
 
 - [ ] Current-head CI green for PR branch head
 - [ ] Required checks complete (no pending jobs)
 - [ ] All review threads resolved on GitHub after disposition updates
-- [ ] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
+- [x] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
 
 ### Scope Notes
 
