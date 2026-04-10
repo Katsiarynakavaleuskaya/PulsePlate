@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 from pathlib import Path
 from typing import NoReturn
-from unittest.mock import Mock, patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -193,20 +192,99 @@ def test_insight_import_failure(
     assert "boom" not in data.get("detail", "")
 
 
-@patch("llm.get_provider")
+class _FallbackPerplexityProvider:
+    name = "perplexity"
+
+    def __init__(self, *, endpoint: str, api_key: str, model: str) -> None:
+        self.endpoint = endpoint
+        self.api_key = api_key
+        self.model = model
+
+    async def generate(self, text: str) -> str:
+        raise RuntimeError("perplexity unavailable")
+
+
+class _FallbackOllamaProvider:
+    name = "ollama"
+
+    def __init__(self, endpoint: str, model: str) -> None:
+        self.endpoint = endpoint
+        self.model = model
+
+    async def generate(self, text: str) -> str:
+        raise RuntimeError("ollama unavailable")
+
+
+@pytest.mark.parametrize("path", ["/api/v1/insight", "/insight"])
+def test_insight_runtime_primary_failure_falls_back_to_ollama_family(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+    vip_headers: dict[str, str],
+    path: str,
+) -> None:
+    import llm
+
+    monkeypatch.setenv("FEATURE_INSIGHT", "true")
+    monkeypatch.setenv("LLM_PROVIDER", "perplexity")
+    monkeypatch.setenv("PERPLEXITY_API_KEY", "pplx-live-key")  # pragma: allowlist secret
+    monkeypatch.setattr(llm, "PerplexityProvider", _FallbackPerplexityProvider, raising=True)
+    monkeypatch.setattr(llm, "OllamaProvider", None, raising=True)
+
+    response = client.post(path, json={"text": "test fallback"}, headers=vip_headers)
+
+    assert response.status_code == 200
+    assert response.headers.get("content-type", "").startswith("application/json")
+    data = response.json()
+    assert data["provider"] == "ollama"
+    assert "[ollama-lite]" in data["insight"]
+
+
+@pytest.mark.parametrize("path", ["/api/v1/insight", "/insight"])
+def test_insight_runtime_chain_exhaustion_falls_back_to_stub(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+    vip_headers: dict[str, str],
+    path: str,
+) -> None:
+    import llm
+
+    monkeypatch.setenv("FEATURE_INSIGHT", "true")
+    monkeypatch.setenv("LLM_PROVIDER", "perplexity")
+    monkeypatch.setenv("PERPLEXITY_API_KEY", "pplx-live-key")  # pragma: allowlist secret
+    monkeypatch.setattr(llm, "PerplexityProvider", _FallbackPerplexityProvider, raising=True)
+    monkeypatch.setattr(llm, "OllamaProvider", _FallbackOllamaProvider, raising=True)
+
+    response = client.post(path, json={"text": "test fallback"}, headers=vip_headers)
+
+    assert response.status_code == 200
+    assert response.headers.get("content-type", "").startswith("application/json")
+    data = response.json()
+    assert data["provider"] == "stub"
+    assert data["insight"].startswith("[stub @ ")
+    assert "Insight: test fallback" in data["insight"]
+
+
 def test_api_insight_provider_generate_failure(
-    mock_get_provider: Mock,
     client: TestClient,
     vip_headers: dict[str, str],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Test coverage for provider.generate exception in insight endpoint."""
-    from unittest.mock import MagicMock
+    import llm
 
-    mock_provider = MagicMock()
-    mock_provider.name = "test"
-    mock_provider.generate.side_effect = Exception("Generate failed")
-    mock_get_provider.return_value = mock_provider
+    class _GenerateFailureProvider:
+        name = "test"
+
+        async def generate(self, text: str) -> str:
+            del text
+            raise Exception("Generate failed")
+
+    monkeypatch.setattr(
+        llm,
+        "get_insight_provider",
+        lambda: _GenerateFailureProvider(),
+        raising=True,
+    )
 
     # Deterministic env setup with auto-cleanup
     monkeypatch.setenv("FEATURE_INSIGHT", "true")
@@ -219,15 +297,15 @@ def test_api_insight_provider_generate_failure(
     assert "Generate failed" not in data.get("detail", "")
 
 
-@patch("llm.get_provider")
 def test_api_insight_provider_none(
-    mock_get_provider: Mock,
     client: TestClient,
     vip_headers: dict[str, str],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Test coverage for provider is None in insight endpoint."""
-    mock_get_provider.return_value = None
+    import llm
+
+    monkeypatch.setattr(llm, "get_insight_provider", lambda: None, raising=True)
 
     # Deterministic env setup with auto-cleanup
     monkeypatch.setenv("FEATURE_INSIGHT", "true")
@@ -279,26 +357,24 @@ def test_category_by_bmi_ru() -> None:
     assert bmi_category(32, "ru") == "Ожирение I степени"
 
 
-def test_compute_wht_ratio_round_exception() -> None:
+def test_compute_wht_ratio_round_exception(monkeypatch: pytest.MonkeyPatch) -> None:
     """
     Test that _compute_wht_ratio propagates round exceptions.
 
     _compute_wht_ratio should NOT catch generic exceptions raised by round().
     It must propagate them so callers/tests can detect unexpected failures.
     """
-    import builtins
-
-    import pytest
+    import core.bmi.engine as bmi_engine
     from core.bmi.engine import _compute_wht_ratio
 
     def boom(*args: object, **kwargs: object) -> None:
         raise RuntimeError("round exploded")
 
-    # Patch builtins.round used by the function
-    with patch.object(builtins, "round", boom):
-        # Must raise exception, not return None or value
-        with pytest.raises(RuntimeError, match="round exploded"):
-            _compute_wht_ratio(waist_cm=80.0, height_m=1.70)
+    monkeypatch.setattr(bmi_engine, "round", boom, raising=False)
+
+    # Must raise exception, not return None or value
+    with pytest.raises(RuntimeError, match="round exploded"):
+        _compute_wht_ratio(waist_cm=80.0, height_m=1.70)
 
 
 # Removed: test_v1_bmi_invalid_api_key and test_v1_bmi_no_api_key

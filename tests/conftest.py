@@ -138,10 +138,26 @@ def _block_external_network_in_ci(monkeypatch: pytest.MonkeyPatch) -> None:
 @pytest.fixture(autouse=True)
 def _disable_singleton_rate_limiters() -> None:
     """Keep shared singleton app limiter state disabled before each test."""
-    for module_name in ("app.main", "app", "legacy_app"):
-        module = sys.modules.get(module_name)
-        app_instance = getattr(module, "app", None) if module is not None else None
-        if isinstance(app_instance, FastAPI):
+    seen_app_ids: set[int] = set()
+
+    for module in tuple(sys.modules.values()):
+        if module is None:
+            continue
+
+        for attr_name in ("app", "main_app"):
+            app_instance = vars(module).get(attr_name)
+            if not isinstance(app_instance, FastAPI):
+                try:
+                    app_instance = getattr(module, attr_name, None)
+                except Exception:
+                    app_instance = None
+            if not isinstance(app_instance, FastAPI):
+                continue
+
+            app_id = id(app_instance)
+            if app_id in seen_app_ids:
+                continue
+            seen_app_ids.add(app_id)
             disable_rate_limiting_for_test_app(app_instance)
 
 

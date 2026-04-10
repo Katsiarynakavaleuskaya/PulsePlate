@@ -1157,7 +1157,7 @@ async def database_health(session: Session = Depends(get_session)) -> Dict[str, 
 
 
 @app.get("/ready", include_in_schema=False)
-async def ready(session: Session = Depends(get_session)) -> Dict[str, str]:
+async def ready(session: Session = Depends(get_session)) -> Dict[str, object]:
     """RU: Readiness probe (alias для /health/db).
 
     EN: Readiness probe for orchestrators (alias for /health/db).
@@ -1166,7 +1166,22 @@ async def ready(session: Session = Depends(get_session)) -> Dict[str, str]:
     Use this for Kubernetes/Docker readiness checks.
     Hidden from OpenAPI — semantics live in /health/db.
     """
-    return await database_health(session=session)
+    readiness_payload = await database_health(session=session)
+    insight_runtime: dict[str, object] = {"status": "unavailable"}
+
+    try:
+        # RU: Добавляем только безопасную runtime-видимость для insight без секретов.
+        # EN: Add only safe insight runtime visibility without leaking secrets.
+        from llm import get_insight_runtime_readiness
+
+        insight_runtime = get_insight_runtime_readiness()
+    except Exception as exc:
+        logger.warning("Insight runtime readiness unavailable on /ready: %s", exc)
+
+    return {
+        **readiness_payload,
+        "insight_runtime": insight_runtime,
+    }
 
 
 # ---------- Helpers ----------

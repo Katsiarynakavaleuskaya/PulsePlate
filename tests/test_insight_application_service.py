@@ -190,3 +190,68 @@ async def test_execute_insight_request_rejects_oversized_prompt(
     assert "prepare_kwargs" not in observed
     assert exc_info.value.status_code == status.HTTP_413_CONTENT_TOO_LARGE
     assert exc_info.value.detail == "Prompt too long"
+
+
+@pytest.mark.asyncio
+async def test_execute_insight_request_prefers_active_fallback_provider_name(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Service response must expose the actual fallback winner, not wrapper metadata."""
+
+    @dataclass
+    class _Request:
+        text: str
+
+    prepared_runtime = SimpleNamespace(
+        runtime=object(),
+        provider=SimpleNamespace(active_provider_name="stub"),
+        decision=SimpleNamespace(route_type=SimpleNamespace(value="deep_reasoning")),
+        transparency_notice=InsightTransparencyNotice(
+            surface_id="ai_generated_insight",
+            wellness_boundary="Wellness only.",
+        ),
+    )
+
+    async def _fake_generate_traced_insight(**kwargs: object) -> object:
+        return SimpleNamespace(
+            insight="generated insight",
+            provider_name="perplexity",
+            source_dicts=[],
+            confidence=0.9,
+            rag_used=False,
+            hops=0,
+            latency_ms=5,
+            metadata=SimpleNamespace(
+                route_type="deep_reasoning",
+                depth_used=1,
+                verification_rate=0.0,
+                falsifiability_rate=0.0,
+                contradiction_count=0,
+                reason_codes=[],
+                optimization_applied=False,
+            ),
+        )
+
+    monkeypatch.setattr(
+        "app.services.insight_application_service.prepare_insight_runtime",
+        lambda **kwargs: prepared_runtime,
+        raising=True,
+    )
+    monkeypatch.setattr(
+        "app.services.insight_application_service.generate_traced_insight",
+        _fake_generate_traced_insight,
+        raising=True,
+    )
+
+    response = await execute_insight_request(
+        _Request(text="hello"),
+        route_path="/api/v1/insight",
+        user_tier="VIP",
+        input_guard=lambda text: None,
+        provider_loader=lambda: _FakeProvider(),
+        transparency_loader=lambda: ("ai_generated_insight", "Wellness only."),
+        response_factory=lambda **payload: dict(payload),
+        source_item_factory=lambda **payload: dict(payload),
+    )
+
+    assert response["provider"] == "stub"

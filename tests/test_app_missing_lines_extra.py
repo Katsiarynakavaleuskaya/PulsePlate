@@ -90,7 +90,7 @@ class TestAppMissingLinesExtra:
 
         with (
             patch.dict(os.environ, {"FEATURE_INSIGHT": "maybe"}, clear=False),
-            patch("llm.get_provider", return_value=_Stub()),
+            patch("llm.get_insight_provider", return_value=_Stub()),
         ):
             r = self.client.post(
                 "/insight", json={"text": "x"}, headers={"X-API-Key": TEST_KEY_VIP}

@@ -37,6 +37,35 @@ async def test_terms_wrapper_matches_canonical_helper() -> None:
     assert await legacy_app.terms() == build_terms_endpoint_payload().model_dump()
 
 
+@pytest.mark.asyncio
+async def test_readiness_logs_warning_when_insight_runtime_probe_fails(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Cover `/ready` fallback when insight runtime readiness probe raises."""
+
+    async def _database_health_stub(*, session: Any) -> dict[str, Any]:
+        assert session is None
+        return {"status": "ok"}
+
+    def _raise_runtime_probe() -> dict[str, Any]:
+        raise RuntimeError("insight runtime boom")
+
+    import llm
+
+    monkeypatch.setattr(legacy_app, "database_health", _database_health_stub)
+    monkeypatch.setattr(llm, "get_insight_runtime_readiness", _raise_runtime_probe)
+
+    with caplog.at_level(logging.WARNING):
+        payload = await legacy_app.ready(session=None)
+
+    assert payload["status"] == "ok"
+    assert payload["insight_runtime"] == {"status": "unavailable"}
+    assert any(
+        "Insight runtime readiness unavailable" in record.message for record in caplog.records
+    )
+
+
 def test_export_pdf_generic_requires_api_key() -> None:
     """Security: /api/v1/export/pdf must not be unauthenticated."""
     client = TestClient(legacy_app.app)
@@ -313,7 +342,7 @@ async def test_insight_v1_rag_path_builds_prompt(monkeypatch: pytest.MonkeyPatch
     # Patch llm.get_provider import inside legacy_app endpoints
     import llm
 
-    monkeypatch.setattr(llm, "get_provider", lambda: _Provider())
+    monkeypatch.setattr(llm, "get_insight_provider", lambda: _Provider())
 
     # Patch retrieve_context_structured to return a context with chunks
     import core.rag.vector_rag as vector_rag
@@ -371,7 +400,7 @@ async def test_insight_v1_trims_prompt_text(monkeypatch: pytest.MonkeyPatch) -> 
 
     import llm
 
-    monkeypatch.setattr(llm, "get_provider", lambda: _Provider())
+    monkeypatch.setattr(llm, "get_insight_provider", lambda: _Provider())
 
     # Mock the orchestration to return a prompt longer than max length
     from core.rag.orchestration import RAGOrchestrationResult
@@ -415,7 +444,7 @@ async def test_legacy_insight_rag_path_trims(monkeypatch: pytest.MonkeyPatch) ->
 
     import llm
 
-    monkeypatch.setattr(llm, "get_provider", lambda: _Provider())
+    monkeypatch.setattr(llm, "get_insight_provider", lambda: _Provider())
     import core.rag.vector_rag as vector_rag
     from dataclasses import dataclass
     from typing import Optional
@@ -474,7 +503,7 @@ async def test_legacy_insight_trims_prompt_text(monkeypatch: pytest.MonkeyPatch)
 
     import llm
 
-    monkeypatch.setattr(llm, "get_provider", lambda: _Provider())
+    monkeypatch.setattr(llm, "get_insight_provider", lambda: _Provider())
 
     # Mock the orchestration to return a prompt longer than max length
     from core.rag.orchestration import RAGOrchestrationResult

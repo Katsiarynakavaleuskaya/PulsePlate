@@ -292,11 +292,13 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P0: Insight fallback chain + echo-mode readiness visibility
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0 (VIP reliability)
-  - Target PR: PR-TBD-INSIGHT-FALLBACK-CHAIN
-  - Status: 📋 Planned
+  - Target PR: PR `#1379`
+  - Status: 🟡 In review
   - Reason (EN): Master checklist items #2 and #4 require deterministic behavior when primary LLM/provider path is unavailable and explicit operator visibility for fallback/echo mode.
   - Links:
     - docs/roadmap/P0_MASTER_CHECKLIST_PHASE_FIT_TRIAGE_2026-03-05.md
+    - docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md
+    - docs/review/PR_1379_FIXED_MAPPING.md
     - llm.py
     - app/routers/vip.py
     - app/main.py

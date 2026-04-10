@@ -7,7 +7,8 @@ from __future__ import annotations
 import importlib
 import logging
 import os
-from typing import Optional, cast
+from collections.abc import Awaitable, Callable
+from typing import Any, Optional, cast
 
 from core.time_utils import isoformat_utc
 from providers import ProviderBase
@@ -19,6 +20,8 @@ _PLACEHOLDER_API_KEYS = {
     "changeme",
     "your_api_key_here",
 }
+_DEFAULT_OLLAMA_TIMEOUT = 1.5
+_MIN_OLLAMA_TIMEOUT = 0.1
 
 
 def _load_optional_provider(module_name: str, class_name: str) -> type[ProviderBase] | None:
@@ -79,66 +82,278 @@ class StubProvider(ProviderBase):
         return f"[stub @ {dt}] Insight: {text}"
 
 
-def get_provider():
+def _normalized_llm_provider() -> str:
+    """Return normalized LLM provider value from env."""
+
+    return (os.getenv("LLM_PROVIDER") or "").strip().lower()
+
+
+def _parse_ollama_timeout() -> float:
+    """Parse Ollama timeout from env with safe fallback."""
+
+    raw_timeout = os.getenv("OLLAMA_TIMEOUT", str(_DEFAULT_OLLAMA_TIMEOUT))
+    try:
+        timeout = float(raw_timeout)
+    except ValueError as exc:
+        logger.warning(
+            "Invalid OLLAMA_TIMEOUT '%s', defaulting to %.1f: %s",
+            raw_timeout,
+            _DEFAULT_OLLAMA_TIMEOUT,
+            exc,
+        )
+        return _DEFAULT_OLLAMA_TIMEOUT
+
+    if timeout < _MIN_OLLAMA_TIMEOUT:
+        logger.warning(
+            "OLLAMA_TIMEOUT '%s' below minimum %.1f; defaulting to %.1f",
+            raw_timeout,
+            _MIN_OLLAMA_TIMEOUT,
+            _DEFAULT_OLLAMA_TIMEOUT,
+        )
+        return _DEFAULT_OLLAMA_TIMEOUT
+
+    return timeout
+
+
+def _build_stub_provider() -> ProviderBase:
+    """Return terminal local stub provider."""
+
+    return StubProvider()
+
+
+def _build_ollama_family_provider() -> ProviderBase:
+    """Return Ollama-family provider with current real-or-lite semantics."""
+
+    if OllamaProvider is not None:
+        ollama_provider_cls: Any = OllamaProvider
+        endpoint = os.getenv("OLLAMA_ENDPOINT", "http://localhost:11434")
+        model = os.getenv("OLLAMA_MODEL", "llama3.1:8b")
+        timeout_s = _parse_ollama_timeout()
+        try:
+            return cast(
+                ProviderBase,
+                ollama_provider_cls(
+                    endpoint=endpoint,
+                    model=model,
+                    timeout_s=timeout_s,
+                ),
+            )
+        except Exception:
+            # RU: Сохраняем старый positional retry для совместимости с legacy ctor seams.
+            # EN: Preserve legacy positional retry for constructor compatibility seams.
+            try:
+                return cast(ProviderBase, ollama_provider_cls(endpoint, model))
+            except Exception as exc:
+                logger.warning(
+                    "OllamaProvider construction failed; using OllamaLiteProvider "
+                    "(endpoint=%s, model=%s)",
+                    endpoint,
+                    model,
+                    exc_info=exc,
+                )
+                return OllamaLiteProvider()
+
+    return OllamaLiteProvider()
+
+
+def _build_perplexity_family_provider() -> ProviderBase:
+    """Return Perplexity-family provider with current real-or-lite semantics."""
+
+    if PerplexityProvider is not None:
+        perplexity_provider_cls: Any = PerplexityProvider
+        api_key = os.getenv("PERPLEXITY_API_KEY", "")
+        model = os.getenv("PERPLEXITY_MODEL", "sonar")
+        endpoint = os.getenv("PERPLEXITY_ENDPOINT", "https://api.perplexity.ai")
+
+        normalized_api_key = api_key.strip()
+        if not normalized_api_key or normalized_api_key.lower() in _PLACEHOLDER_API_KEYS:
+            return PerplexityLiteProvider()
+
+        try:
+            return cast(
+                ProviderBase,
+                perplexity_provider_cls(
+                    endpoint=endpoint,
+                    api_key=normalized_api_key,
+                    model=model,
+                ),
+            )
+        except Exception:
+            return PerplexityLiteProvider()
+
+    return PerplexityLiteProvider()
+
+
+def _provider_chain_names(provider_value: str) -> list[str]:
+    """Return deterministic fallback order for readiness visibility."""
+
+    if provider_value == "perplexity":
+        return ["perplexity", "ollama", "stub"]
+    if provider_value == "ollama":
+        return ["ollama", "stub"]
+    if provider_value == "stub":
+        return ["stub"]
+    return []
+
+
+def _decorate_provider_with_fallback(
+    *,
+    provider: ProviderBase,
+    primary_name: str,
+    fallback_builders: list[tuple[str, Callable[[], ProviderBase]]],
+) -> ProviderBase:
+    """Attach deterministic fallback to the provider while preserving its public identity.
+
+    Dynamic contract added to ``provider``:
+    - ``active_provider_name``: ``str`` for the provider that actually produced the result
+    - ``primary_provider_name``: ``str`` for the configured primary provider family
+    - ``fallback_order``: ``list[str]`` with deterministic provider attempt order
+    - ``generate``: replaced async callable that walks the fallback chain fail-closed
+    """
+
+    original_generate = provider.generate
+    fallback_cache: dict[str, ProviderBase] = {}
+
+    setattr(provider, "active_provider_name", getattr(provider, "name", primary_name))
+    setattr(provider, "primary_provider_name", primary_name)
+    setattr(
+        provider,
+        "fallback_order",
+        [primary_name, *[provider_name for provider_name, _ in fallback_builders]],
+    )
+
+    async def _generate_with_fallback(text: str) -> str:
+        last_error: Exception | None = None
+        provider_attempts: list[tuple[str, Callable[[str], Awaitable[str]], ProviderBase]] = [
+            (
+                primary_name,
+                original_generate,
+                provider,
+            )
+        ]
+
+        for provider_name, builder in fallback_builders:
+            fallback_provider = fallback_cache.get(provider_name)
+            if fallback_provider is None:
+                try:
+                    fallback_provider = builder()
+                except Exception as exc:
+                    logger.warning(
+                        "Insight fallback builder '%s' failed; skipping provider",
+                        provider_name,
+                        exc_info=exc,
+                    )
+                    continue
+                fallback_cache[provider_name] = fallback_provider
+            provider_attempts.append(
+                (
+                    provider_name,
+                    fallback_provider.generate,
+                    fallback_provider,
+                )
+            )
+
+        for provider_name, generate_fn, candidate_provider in provider_attempts:
+            try:
+                result = await generate_fn(text)
+            except Exception as exc:
+                last_error = exc
+                logger.warning(
+                    "Insight provider '%s' failed, falling back to next provider",
+                    provider_name,
+                    exc_info=exc,
+                )
+                continue
+
+            setattr(
+                provider,
+                "active_provider_name",
+                str(getattr(candidate_provider, "name", provider_name)),
+            )
+            setattr(
+                provider,
+                "name",
+                str(getattr(candidate_provider, "name", provider_name)),
+            )
+            return result
+
+        if last_error is None:  # pragma: no cover
+            raise RuntimeError("Insight fallback chain is empty")
+        raise last_error
+
+    setattr(provider, "generate", _generate_with_fallback)
+    return provider
+
+
+def get_insight_runtime_readiness() -> dict[str, object]:
+    """Return safe readiness metadata for the insight runtime."""
+
+    provider_value = _normalized_llm_provider()
+    fallback_order = _provider_chain_names(provider_value)
+    supported_primary = provider_value if fallback_order else None
+    echo_mode_provider = "stub" if provider_value == "stub" else None
+
+    return {
+        "feature_enabled": (os.getenv("FEATURE_INSIGHT", "false").strip().lower())
+        in {"1", "true", "on", "yes"},
+        "primary_provider": supported_primary,
+        "fallback_order": fallback_order,
+        "echo_mode_provider": echo_mode_provider,
+    }
+
+
+def get_provider() -> ProviderBase | None:
     """Возвращает провайдер по переменной окружения LLM_PROVIDER.
 
     Если переменная пустая/неизвестная — возвращает None
-    (а не Ollama по умолчанию)."""
-    val = (os.getenv("LLM_PROVIDER") or "").strip().lower()
+    (а не implicit stub)."""
+    val = _normalized_llm_provider()
 
     if val in {"", "none", "no"}:
         return None
 
     if val == "stub":
-        return StubProvider()
+        return _build_stub_provider()
 
     if val == "ollama":
-        if OllamaProvider is not None:
-            endpoint = os.getenv("OLLAMA_ENDPOINT", "http://localhost:11434")
-            model = os.getenv("OLLAMA_MODEL", "llama3.1:8b")
-            # малый таймаут, чтобы даже при misconfig не висеть
-            # EN: Parse timeout with error handling for invalid env var values
-            # RU: Парсим таймаут с обработкой ошибок для невалидных значений env var
-            raw_timeout = os.getenv("OLLAMA_TIMEOUT", "1.5")
-            try:
-                timeout_s = float(raw_timeout)
-            except ValueError as e:
-                timeout_s = 1.5
-                logger.warning("Invalid OLLAMA_TIMEOUT '%s', defaulting to 1.5: %s", raw_timeout, e)
-            try:
-                return OllamaProvider(endpoint=endpoint, model=model, timeout_s=timeout_s)
-            except Exception:
-                # Fallback to positional args if keyword args fail (консистентно с GrokProvider)
-                try:
-                    return OllamaProvider(endpoint, model)
-                except Exception:
-                    # If both fail, return lite provider
-                    return OllamaLiteProvider()
-        else:
-            # Fallback when real provider unavailable
-            return OllamaLiteProvider()
+        return _build_ollama_family_provider()
 
     if val == "perplexity":
-        if PerplexityProvider is not None:
-            api_key = os.getenv("PERPLEXITY_API_KEY", "")
-            model = os.getenv("PERPLEXITY_MODEL", "sonar")
-            endpoint = os.getenv("PERPLEXITY_ENDPOINT", "https://api.perplexity.ai")
+        return _build_perplexity_family_provider()
 
-            normalized_api_key = api_key.strip()
-            if not normalized_api_key or normalized_api_key.lower() in _PLACEHOLDER_API_KEYS:
-                return PerplexityLiteProvider()
+    # неизвестное значение — считаем, что провайдера нет
+    return None
 
-            try:
-                # Perplexity uses OpenAI-compatible init signature; we keep a single
-                # constructor path (no positional retry) to avoid silently masking
-                # schema/auth mistakes and to fail-closed into lite fallback.
-                return PerplexityProvider(
-                    endpoint=endpoint, api_key=normalized_api_key, model=model
-                )
-            except Exception:
-                return PerplexityLiteProvider()
-        else:
-            return PerplexityLiteProvider()
+
+def get_insight_provider() -> ProviderBase | None:
+    """Return insight-specific provider with deterministic runtime fallback chain."""
+
+    val = _normalized_llm_provider()
+
+    if val in {"", "none", "no"}:
+        return None
+
+    if val == "stub":
+        return _build_stub_provider()
+
+    if val == "ollama":
+        return _decorate_provider_with_fallback(
+            provider=_build_ollama_family_provider(),
+            primary_name="ollama",
+            fallback_builders=[
+                ("stub", _build_stub_provider),
+            ],
+        )
+
+    if val == "perplexity":
+        return _decorate_provider_with_fallback(
+            provider=_build_perplexity_family_provider(),
+            primary_name="perplexity",
+            fallback_builders=[
+                ("ollama", _build_ollama_family_provider),
+                ("stub", _build_stub_provider),
+            ],
+        )
 
     # неизвестное значение — считаем, что провайдера нет
     return None

@@ -54,6 +54,17 @@ class TracedInsightProvider:
                 result = await result
             if not isinstance(result, str):
                 raise TypeError("Insight provider must return a string response")
+            actual_provider_name = str(
+                getattr(self._provider, "active_provider_name", self.name),
+            )
+            set_attributes(
+                span,
+                **{
+                    "gen_ai.provider.name": actual_provider_name,
+                },
+            )
+            if actual_provider_name != self.name:
+                self.name = actual_provider_name
             finalize_llm_span(span, result)
             return result
 
