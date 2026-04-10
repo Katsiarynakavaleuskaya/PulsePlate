@@ -105,7 +105,7 @@ Create one explicit umbrella item so Codex does not re-derive sequencing from sc
   - `ai-bounded-context-packet`
 - link existing items:
   - insight fallback chain
-  - PRO monthly quota parity
+  - PRO monthly quota ledger reconciliation
   - ai bounded context extraction
   - llm reliability security gates
   - philosophical logic
@@ -147,7 +147,7 @@ Make provider fallback deterministic and expose fallback / echo mode in readines
 
 ---
 
-## PR-A1b — PRO monthly quota parity
+## PR-A1b — PRO monthly quota ledger reconciliation
 #### Title
 `docs(roadmap): reconcile landed PRO quota truth before deeper runtime rollout`
 
