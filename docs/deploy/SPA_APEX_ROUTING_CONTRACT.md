@@ -66,7 +66,8 @@ Keep these surfaces edge-protected during the reopen window:
 - `/admin*`
 - `/ws*`
 - `/openapi.json`
-- `/health`
+- `/health*`
+- `/ready`
 - `/docs*`
 - `/redoc*`
 - `/debug_env`
