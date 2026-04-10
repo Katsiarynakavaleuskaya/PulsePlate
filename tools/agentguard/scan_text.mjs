@@ -99,6 +99,27 @@ async function readStdinJson() {
 }
 
 /**
+ * RU/EN: Reject malformed bridge payloads so the scanner fails closed on invalid stdin.
+ * @param {unknown} payload
+ * @returns {{ text: string, filename?: string }}
+ */
+function requireScannerInput(payload) {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    throw new Error("Scanner input must be a JSON object.");
+  }
+
+  if (typeof payload.text !== "string") {
+    throw new Error("Scanner input field 'text' must be a string.");
+  }
+
+  if ("filename" in payload && payload.filename != null && typeof payload.filename !== "string") {
+    throw new Error("Scanner input field 'filename' must be a string when provided.");
+  }
+
+  return payload;
+}
+
+/**
  * RU/EN: Normalize text before applying heuristic detection rules.
  * @param {string} text
  * @returns {string}
@@ -156,8 +177,8 @@ function buildScanResult(text) {
 }
 
 async function main() {
-  const payload = await readStdinJson();
-  const text = typeof payload?.text === "string" ? payload.text : "";
+  const payload = requireScannerInput(await readStdinJson());
+  const { text } = payload;
   const result = buildScanResult(text);
   process.stdout.write(JSON.stringify(result));
 }
