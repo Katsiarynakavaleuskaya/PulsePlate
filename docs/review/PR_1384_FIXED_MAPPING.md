@@ -5,7 +5,12 @@
 - [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
-- No actionable review comments
+
+Disposition: FIXED
+Commit: `6a287324d`
+Evidence: `tools/agentguard/scan_text.mjs:3`, `tools/agentguard/scan_text.mjs:131`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1384#discussion_r3064221691 -> 6a287324d
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1384#pullrequestreview-4089576004 -> 6a287324d
 
 ## Merge Readiness
 
