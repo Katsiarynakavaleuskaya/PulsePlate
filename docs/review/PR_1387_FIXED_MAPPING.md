@@ -2,12 +2,12 @@
 
 ## Discussion Thread Pass
 
-- [ ] Discussion-thread pass completed
-- [ ] Fixed in commit mapping completed
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
 
-Pending post-open review activity.
+- No actionable review comments
 
 ## Merge Readiness
 
@@ -16,7 +16,7 @@ Pending post-open review activity.
 - [ ] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
 - [x] Pre-commit green on latest push
 - [ ] `make verify` green where required for merge
-- [ ] Mandatory post-open **qa-engineer-agent** pass completed
+- [x] Mandatory post-open **qa-engineer-agent** pass completed
 - [ ] Mandatory post-open **bug-hunter** pass completed
 - [x] **backend-engineer** scoped review completed (`Mencius`)
 - [x] **security-auditor** scoped review completed (`Boole`)
