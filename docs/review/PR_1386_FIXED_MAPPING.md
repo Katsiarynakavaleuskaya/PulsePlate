@@ -25,7 +25,8 @@ Evidence: `docs/roadmap/BACKLOG_LEDGER.md` (bounded-packet grammar + explicit re
 ## Validation Evidence
 
 - [x] Pre-commit green
-- [x] `make verify` green
+- [x] Docs-only tail validated via docs gates, `pre-commit run --all-files`, and no-op diff-cover on the final delta
+- [ ] Fresh current-head `make verify` rerun completed
 - [x] Mandatory post-open `qa-engineer-agent -> bug-hunter` pass completed
 
 ## Scope
