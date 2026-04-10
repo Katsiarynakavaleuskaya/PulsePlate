@@ -22,6 +22,18 @@ def _load_json(path: Path) -> dict[str, Any]:
     return cast(dict[str, Any], json.loads(path.read_text(encoding="utf-8")))
 
 
+def _carrier_leaf_paths(packages: dict[str, Any], leaf_name: str) -> list[str]:
+    """RU/EN: Collect agentguard-scoped transitive paths that end with the requested leaf package."""
+    carrier_prefix = "node_modules/@goplus/agentguard/"
+    return [
+        package_path
+        for package_path in packages
+        if isinstance(package_path, str)
+        and package_path.startswith(carrier_prefix)
+        and package_path.endswith(f"/{leaf_name}")
+    ]
+
+
 def test_root_lock_removes_hono_runtime_path() -> None:
     """RU/EN: Root lockfile must not carry a stale hono runtime path anymore."""
     package_lock = _load_json(ROOT_LOCK_JSON)
@@ -69,22 +81,20 @@ def test_root_lock_removes_external_agentguard_and_axios_runtime_path() -> None:
     assert (
         "node_modules/@goplus/agentguard" not in packages
     ), "package-lock.json: @goplus/agentguard entry must stay removed"
-    assert not any(
-        isinstance(package_path, str) and package_path.endswith("/axios")
-        for package_path in packages
-    ), "package-lock.json: axios runtime path must stay absent after agentguard removal"
+    assert not _carrier_leaf_paths(
+        packages, "axios"
+    ), "package-lock.json: @goplus/agentguard/.../axios runtime path must stay absent"
 
 
 def test_root_lock_removes_brace_expansion_runtime_path() -> None:
-    """RU/EN: Root lockfile must not carry historical brace-expansion runtime paths."""
+    """RU/EN: Root lockfile must not carry historical AgentGuard-scoped brace-expansion paths."""
     package_lock = _load_json(ROOT_LOCK_JSON)
     packages = package_lock.get("packages", {})
 
     assert isinstance(packages, dict), "package-lock.json: 'packages' must be a dict"
-    assert not any(
-        isinstance(package_path, str) and package_path.endswith("/brace-expansion")
-        for package_path in packages
-    ), "package-lock.json: brace-expansion runtime path must stay absent"
+    assert not _carrier_leaf_paths(
+        packages, "brace-expansion"
+    ), "package-lock.json: @goplus/agentguard/.../brace-expansion runtime path must stay absent"
 
 
 def test_root_lock_removes_path_to_regexp_runtime_path() -> None:

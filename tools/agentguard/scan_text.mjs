@@ -1,5 +1,20 @@
 #!/usr/bin/env node
 
+/**
+ * RU/EN: JSON stdin contract for the local scanner bridge.
+ * @typedef {{ text?: string, filename?: string }} ScannerInput
+ */
+
+/**
+ * RU/EN: Allowed severity levels emitted by the local heuristic scanner.
+ * @typedef {"low" | "critical"} ScanRiskLevel
+ */
+
+/**
+ * RU/EN: Stable JSON result shape consumed by the Python bridge.
+ * @typedef {{ risk_level: ScanRiskLevel, risk_tags: string[], summary: string }} ScanResult
+ */
+
 const ZERO_WIDTH_OR_BIDI_RE = /[\u200b-\u200f\u202a-\u202e\u2060-\u206f\ufeff]/u;
 const SUSPICIOUS_ASCII_FOLDS = ["curl", "wget", "bash", "powershell", "ignore previous instructions"];
 const CYRILLIC_HOMOGLYPHS = new Map([
@@ -70,6 +85,10 @@ const RISK_RULES = [
   },
 ];
 
+/**
+ * RU/EN: Read JSON payload from stdin and keep the bridge input contract explicit.
+ * @returns {Promise<ScannerInput>}
+ */
 async function readStdinJson() {
   const chunks = [];
   for await (const chunk of process.stdin) {
@@ -79,6 +98,11 @@ async function readStdinJson() {
   return JSON.parse(raw);
 }
 
+/**
+ * RU/EN: Normalize text before applying heuristic detection rules.
+ * @param {string} text
+ * @returns {string}
+ */
 function normalizeForDetection(text) {
   const normalized = text.normalize("NFKC");
   return [...normalized]
@@ -86,8 +110,14 @@ function normalizeForDetection(text) {
     .join("");
 }
 
+/**
+ * RU/EN: Build the stable scanner result without changing the bridge JSON schema.
+ * @param {string} text
+ * @returns {ScanResult}
+ */
 function buildScanResult(text) {
   const normalizedText = normalizeForDetection(text);
+  /** @type {Set<string>} */
   const riskTags = new Set();
 
   if (ZERO_WIDTH_OR_BIDI_RE.test(text)) {

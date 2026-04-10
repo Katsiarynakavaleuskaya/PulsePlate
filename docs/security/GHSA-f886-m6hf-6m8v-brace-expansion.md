@@ -48,10 +48,10 @@ graph and replaced by a local deterministic Node scanner.
 
 ## Evidence Anchors
 
-- `docs/security/GHSA-f886-m6hf-6m8v-brace-expansion.md:12` — status update tying the old alert to the newer graph-removal remediation
-- `package.json` — root dependencies no longer include `@goplus/agentguard`
-- `package-lock.json` — no `node_modules/@goplus/agentguard` or `.../brace-expansion` runtime path remains
-- `tests/test_root_npm_dependency_guards.py` — deterministic regression guard for graph removal
+- `docs/security/GHSA-f886-m6hf-6m8v-brace-expansion.md:15` — status update tying the old alert to the newer graph-removal remediation
+- `tools/agentguard/scan_text.mjs:158` — live runtime scanner stays local and no longer loads the external AgentGuard npm runtime
+- `tests/test_root_npm_dependency_guards.py:59` — root manifest guard enforces that `@goplus/agentguard` stays out of the runtime dependency graph
+- `tests/test_root_npm_dependency_guards.py:89` — carrier-scoped lockfile guard enforces that the removed `@goplus/agentguard/.../brace-expansion` runtime path stays absent
 
 ## Validation
 
