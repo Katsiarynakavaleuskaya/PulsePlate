@@ -12,6 +12,13 @@ Evidence: `tools/agentguard/scan_text.mjs:3`, `tools/agentguard/scan_text.mjs:13
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1384#discussion_r3064221691 -> 6a287324d
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1384#pullrequestreview-4089576004 -> 6a287324d
 
+Disposition: FIXED
+Commit: `bdaf54d04`
+Evidence: `docs/security/GHSA-f886-m6hf-6m8v-brace-expansion.md:51`, `tests/test_root_npm_dependency_guards.py:25`, `tools/agentguard/scan_text.mjs:3`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1384#discussion_r3064250154 -> bdaf54d04
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1384#discussion_r3064250155 -> bdaf54d04
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1384#discussion_r3064250158 -> bdaf54d04
+
 ## Merge Readiness
 
 - [ ] All required checks pass
