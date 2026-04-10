@@ -686,7 +686,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Active design-system docs continue to reference one governance path only
 
 <a id="ledger-p1-design-agent-runtime-pr-chain"></a>
-- [x] P1: Coordinator-led design-agent runtime PR chain (PR1-PR4)
+- [ ] P1: Coordinator-led design-agent runtime PR chain (PR1-PR4)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (design-runtime productization and orchestration)
   - Target PR: PR `#1219` (merged realignment bridge) -> `PR-TBD-DESIGN-AGENT-PR4` (reserved `worktree/design-agent-pr4-creative-research`, bounded packet still required before any future opening)
