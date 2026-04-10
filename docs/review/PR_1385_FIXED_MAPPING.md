@@ -25,6 +25,11 @@ Commit: 8862ba28b
 Evidence: `docs/deploy/SPA_APEX_ROUTING_CONTRACT.md` (temporary reopen contract keeps `/health*` and `/ready` edge-protected)
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1385#discussion_r3066979099 -> 8862ba28b
 
+Disposition: FIXED
+Commit: 556655280
+Evidence: `scripts/deploy_production.sh` (shell-bundle compose sync preserves the actual compose target path), `tests/test_deploy_contract_scripts.py` (`COMPOSE_FILE=deploy/...` regression coverage)
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1385#discussion_r3067165839 -> 556655280
+
 ## Merge Readiness
 
 - [ ] Current-head CI green for PR branch head
