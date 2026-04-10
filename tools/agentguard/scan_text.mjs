@@ -1,9 +1,5 @@
 #!/usr/bin/env node
 
-import fs from "node:fs/promises";
-import os from "node:os";
-import path from "node:path";
-
 const ZERO_WIDTH_OR_BIDI_RE = /[\u200b-\u200f\u202a-\u202e\u2060-\u206f\ufeff]/u;
 const SUSPICIOUS_ASCII_FOLDS = ["curl", "wget", "bash", "powershell", "ignore previous instructions"];
 const CYRILLIC_HOMOGLYPHS = new Map([
@@ -74,18 +70,6 @@ const RISK_RULES = [
   },
 ];
 
-function sanitizeFilename(filename) {
-  const fallback = "payload.py";
-  if (typeof filename !== "string" || filename.trim() === "") {
-    return fallback;
-  }
-  const sanitized = filename.replace(/[^a-zA-Z0-9._-]/g, "_");
-  if (sanitized === "" || sanitized === "." || sanitized === "..") {
-    return fallback;
-  }
-  return sanitized;
-}
-
 async function readStdinJson() {
   const chunks = [];
   for await (const chunk of process.stdin) {
@@ -144,17 +128,8 @@ function buildScanResult(text) {
 async function main() {
   const payload = await readStdinJson();
   const text = typeof payload?.text === "string" ? payload.text : "";
-  const filename = sanitizeFilename(payload?.filename);
-  const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "pulseplate-agentguard-"));
-  const targetFile = path.join(tmpDir, filename);
-
-  try {
-    await fs.writeFile(targetFile, text, "utf8");
-    const result = buildScanResult(text);
-    process.stdout.write(JSON.stringify(result));
-  } finally {
-    await fs.rm(tmpDir, { recursive: true, force: true });
-  }
+  const result = buildScanResult(text);
+  process.stdout.write(JSON.stringify(result));
 }
 
 main().catch((error) => {
