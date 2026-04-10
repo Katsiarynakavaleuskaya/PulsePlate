@@ -19,8 +19,15 @@ Evidence: `docs/security/GHSA-f886-m6hf-6m8v-brace-expansion.md:51`, `tests/test
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1384#discussion_r3064250155 -> bdaf54d04
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1384#discussion_r3064250158 -> bdaf54d04
 
+Disposition: FIXED
+Commit: 82741de4c
+Evidence: `tests/test_root_npm_dependency_guards.py:25`, `tests/test_root_npm_dependency_guards.py:108`, `tools/agentguard/scan_text.mjs:101`, `tools/agentguard/scan_text.mjs:179`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1384#discussion_r3064380466 -> 82741de4c
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1384#discussion_r3064380470 -> 82741de4c
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1384#pullrequestreview-4089748114 -> 82741de4c
+
 Disposition: NOT-A-BUG
-Evidence: `tests/test_root_npm_dependency_guards.py:111` intentionally keeps the current cspell runtime chain explicit while still enforcing the security invariant that `path-to-regexp` is absent; the concrete actionable inline comments from this aggregate review were fixed in `bdaf54d04` and are mapped above.
+Evidence: `tests/test_root_npm_dependency_guards.py:105` intentionally keeps the current cspell runtime chain explicit while still enforcing the security invariant that `path-to-regexp` is absent; the concrete actionable inline comments from this aggregate review were fixed in `bdaf54d04` and are mapped above.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1384#pullrequestreview-4089605073
 
 Disposition: NOT-A-BUG
