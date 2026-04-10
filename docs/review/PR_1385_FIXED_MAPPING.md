@@ -34,4 +34,4 @@ Bot and human review threads must be dispositioned below when actionable comment
 
 ## Deferred / Follow-ups
 
-- If Cloudflare token scope is later expanded to zone firewall/ruleset management, automate the narrow temporary reopen bypass as a separate ops lane instead of widening the current Access-only contract.
+- `docs/roadmap/BACKLOG_LEDGER.md#ledger-p2-cloudflare-narrow-reopen-automation` — automate the documented narrow temporary reopen bypass once Cloudflare zone firewall/ruleset permissions are available.
