@@ -188,6 +188,35 @@ curl -fsS https://pulseplate.app/health | jq .
 }
 ```
 
+### Emergency apex shell recovery (DigitalOcean + Cloudflare drift)
+
+Если production apex внезапно уходит в белый экран, JSON probe или пустой shell,
+не чини это руками только в Cloudflare. Сначала восстанови repo-owned shell
+bundle на origin.
+
+```bash
+# Локально: синхронизировать production shell bundle на сервер
+scp deploy/Caddyfile.production ubuntu@64.226.117.163:/srv/pulseplate-production/Caddyfile.production
+scp deploy/docker-compose.production.yaml ubuntu@64.226.117.163:/srv/pulseplate-production/docker-compose.production.yaml
+rsync -az --delete frontend/ ubuntu@64.226.117.163:/srv/frontend/
+
+# На сервере: rebuild/restart только edge shell
+ssh ubuntu@64.226.117.163 '
+  cd /srv/pulseplate-production &&
+  bash scripts/redeploy_caddy.sh
+'
+```
+
+После этого:
+
+```bash
+BASE_URL=https://pulseplate.app bash scripts/diagnose_web.sh
+```
+
+Если apex shell восстановился, а `/sitemap.xml` всё ещё не XML, значит edge уже
+здоров, но backend image ещё не содержит нужный route. В этом случае нужен
+отдельный deploy нового app image, а не очередная ручная правка Cloudflare.
+
 ---
 
 ## 🧠 Ментальная модель

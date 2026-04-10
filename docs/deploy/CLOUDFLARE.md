@@ -181,6 +181,47 @@
 
 **Используйте этот токен** для любых автоматизированных DNS операций.
 
+## Edge challenge / white-screen triage
+
+Если пользователь видит белый экран или пустой apex, а origin при этом выглядит
+healthy, сначала разделите инцидент на два класса:
+
+1. **Cloudflare edge challenge / interstitial**
+2. **Origin drift (Caddy / compose / frontend shell bundle)**
+
+### Как распознать Cloudflare-side инцидент
+
+- `curl` к public URL получает `403`, `challenge`, `cf-mitigated`, `Ray ID` или
+  interstitial HTML вместо ответа origin
+- Cloudflare **Security Events** показывает срабатывание конкретного rule / WAF
+  expression / challenge
+- Origin `https://<host>/health` или host-local `docker compose ps` остаются healthy
+
+### Что смотреть в Dashboard
+
+- **Security** → **Events**: найти `Ray ID`, rule ID, action (`challenge`, `managed_challenge`, `block`)
+- **Security** → **WAF**: проверить последние rule changes
+- **SSL/TLS** и **DNS**: убедиться, что нет параллельной topology drift
+
+### Допустимая manual mitigation
+
+- Временно ослабить конкретное challenge rule только для узкого path / method /
+  IP / country scope
+- Зафиксировать изменение в repo docs/runbook в тот же день
+- После mitigation обязательно перепроверить, не маскируется ли под этим real
+  origin drift (`deploy/Caddyfile.production`, `deploy/docker-compose.production.yaml`, `/srv/frontend`)
+
+### Недопустимая mitigation
+
+- Отключать Cloudflare proxy целиком без incident justification
+- Переводить SSL mode в `Flexible`
+- Оставлять dashboard-only knowledge без repo follow-up
+
+Cloudflare может скрыть реальную проблему с origin, но не заменяет repo-owned
+production contract. Если apex после снятия challenge всё ещё не отдаёт shell/XML
+как положено, возвращайтесь к диагностике `Caddyfile.production` и synced
+frontend bundle.
+
 ## ✅ Минимальный чеклист
 
 - [ ] SSL/TLS режим: **Full (strict)**

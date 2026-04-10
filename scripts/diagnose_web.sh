@@ -280,6 +280,35 @@ assert_json_backend() {
     pass "${label}: ${path} reached the backend JSON surface (status ${status})."
 }
 
+assert_xml_sitemap() {
+    local label="$1"
+    local path="$2"
+    local probe=""
+    probe="$(curl_probe "${label}" "${BASE_URL}${path}")" || {
+        fail "${label}: request to ${BASE_URL}${path} failed."
+        return
+    }
+
+    IFS='|' read -r status content_type _headers body_file <<<"${probe}"
+    if [[ "${status}" != "200" ]]; then
+        fail "${label}: expected HTTP 200, got ${status}."
+        return
+    fi
+    if [[ "${content_type}" != application/xml* && "${content_type}" != text/xml* ]]; then
+        fail "${label}: expected XML sitemap content-type, got '${content_type:-<empty>}' ."
+        return
+    fi
+    if looks_like_spa_shell "${body_file}"; then
+        fail "${label}: ${path} fell through to the SPA shell."
+        return
+    fi
+    if ! grep -q "<urlset" "${body_file}"; then
+        fail "${label}: response body does not look like a sitemap."
+        return
+    fi
+    pass "${label}: ${path} reaches the XML sitemap surface."
+}
+
 assert_ws_not_spa() {
     local label="websocket-upgrade"
     local probe=""
@@ -319,6 +348,7 @@ run_http_probes() {
 
     assert_json_200 "health-json" "/health"
     assert_json_backend "openapi-json" "/openapi.json"
+    assert_xml_sitemap "sitemap-xml" "/sitemap.xml"
     assert_json_backend \
         "legacy-bmi-post" \
         "/bmi" \

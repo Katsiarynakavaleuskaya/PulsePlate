@@ -37,6 +37,7 @@ Caddy evaluates **POST**, then **OPTIONS**, then **GET** (legacy-only paths), th
 | `/metrics` | Prometheus |
 | `/ws*` | WebSocket foundation |
 | `/docs*`, `/redoc*`, `/openapi.json` | OpenAPI / docs |
+| `/sitemap.xml` | Public discovery XML; must reach FastAPI, not SPA fallback |
 | `/admin*` | Admin |
 | `/privacy`, `/terms` | Legal JSON endpoints (no SPA route today) |
 | `/legacy*` | FastAPI-only legacy surfaces (embedded HTML BMI UI: registered in `app/main.py`, template `app/bootstrap/legacy_bmi_web_html.py`) |
@@ -69,6 +70,7 @@ When traffic hits **FastAPI only** (port `8000`, misconfigured clients, internal
 
 - **MIME (through Caddy):** `GET /` returns SPA `text/html` from static `file_server`; `GET /health` returns JSON (via proxy).
 - **Direct API:** `GET /` on uvicorn returns JSON probe (`app/bootstrap/direct_api_root.py:18`); legacy HTML UI: `GET /legacy/bmi-calculator` (proxied via `/legacy*` in `deploy/Caddyfile.production:42`).
+- **Discovery XML:** `GET /sitemap.xml` must be proxied to FastAPI and return XML, not `index.html`.
 - **Deep link:** `GET /bmi`, `GET /profile`, `GET /plate`, and `GET /progress` serve SPA `index.html`; `GET /plan` (no SPA route) is proxied to the app.
 - **Legacy POST:** `POST /bmi` (and peers) reaches FastAPI (not static 405 from `file_server`).
 - **OpenAPI:** `GET /openapi.json` proxied (200, JSON).

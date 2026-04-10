@@ -69,6 +69,19 @@ class TestHealthAndMonitoringEndpoints:
         assert "BMI Calculator" in content
         assert "form" in content.lower()
 
+    def test_sitemap_endpoint_serves_public_routes(self, client: TestClient) -> None:
+        """Test /sitemap.xml serves the canonical public discovery surface."""
+        response = client.get("/sitemap.xml")
+        assert response.status_code == 200
+        assert response.headers["content-type"].startswith("application/xml")
+
+        body = response.text
+        assert '<?xml version="1.0" encoding="UTF-8"?>' in body
+        assert "http://testserver/" in body
+        assert "http://testserver/privacy" in body
+        assert "http://testserver/terms" in body
+        assert "http://testserver/legacy/bmi-calculator" in body
+
     def test_favicon_endpoint(self, client: TestClient) -> None:
         """Test /favicon.ico returns 200 OK, 204 No Content, or 404 if not found"""
         response = client.get("/favicon.ico")

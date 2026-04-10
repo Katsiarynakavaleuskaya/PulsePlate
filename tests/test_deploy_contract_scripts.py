@@ -830,6 +830,11 @@ case "$method:$url" in
     content_type="application/json"
     payload='{"ok": true}'
     ;;
+  GET:https://pulseplate.test/sitemap.xml)
+    status="200"
+    content_type="application/xml"
+    payload='<?xml version="1.0" encoding="UTF-8"?><urlset><url><loc>https://pulseplate.test/</loc></url></urlset>'
+    ;;
   POST:https://pulseplate.test/bmi)
     status="422"
     content_type="application/json"
@@ -884,6 +889,7 @@ printf '%s' "$status"
 
     assert "PASS: spa-bmi: /bmi serves the SPA shell with HTTP 200." in completed.stdout
     assert "PASS: health-json: /health reaches the JSON backend surface." in completed.stdout
+    assert "PASS: sitemap-xml: /sitemap.xml reaches the XML sitemap surface." in completed.stdout
     assert (
         "PASS: legacy-bmi-post: /bmi reached the backend JSON surface (status 422)."
         in completed.stdout

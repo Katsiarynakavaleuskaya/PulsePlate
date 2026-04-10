@@ -27,6 +27,33 @@ If `PROD_DEPLOY_MODE` is unset, CD remains build-only even when production image
 are published to GHCR. Any value other than `ssh` or `self-hosted` is treated as
 invalid and fails the production config resolution step.
 
+## Apex / white-screen drift signature
+
+When the site apex unexpectedly shows a white screen, direct API JSON, or an
+empty shell, treat it as **production drift first**, not as a React-only bug.
+
+Typical drift symptoms:
+
+- `GET /` at the public apex no longer serves the baked SPA shell from Caddy
+- `GET /sitemap.xml` returns HTML, SPA fallback, or `404` instead of XML
+- The production host copy of `Caddyfile.production` or
+  `docker-compose.production.yaml` no longer matches the repo source of truth
+- Cloudflare challenge/proxy behavior obscures curl-based diagnosis, while the
+  origin is still misrouting apex traffic underneath
+
+Canonical recovery order:
+
+1. Diff the production copies of `deploy/Caddyfile.production` and
+   `deploy/docker-compose.production.yaml` against the repo.
+2. Re-sync the production shell bundle:
+   - `deploy/Caddyfile.production`
+   - `deploy/docker-compose.production.yaml`
+   - sibling `frontend/` build context on the host (typically `/srv/frontend`)
+3. Rebuild/restart Caddy from the synced shell bundle.
+4. Re-run `BASE_URL=https://$PRODUCTION_DOMAIN bash scripts/diagnose_web.sh`.
+5. If `/sitemap.xml` still fails after edge recovery, deploy the new backend
+   image as well; the edge fix alone cannot add a missing FastAPI route.
+
 ## Global release-readiness lock (required)
 
 Deployment jobs in CD are additionally gated by:
@@ -199,6 +226,11 @@ If `https://pulseplate.app` works but `https://www.pulseplate.app` returns `525`
 3. `deploy/Caddyfile.production` contains a dedicated `www` vhost that can issue a certificate and redirect to apex.
 4. Cloudflare SSL mode remains `Full (strict)` and the origin is serving a valid certificate for both apex and `www`.
 5. Only after the public-side check confirms drift, run `bash scripts/diagnose_production.sh` on the origin server to inspect Caddy/container/certificate state.
+
+If public curl probes hit a Cloudflare challenge instead of the origin, run the
+same diagnosis against the synced production host and the repo copies first.
+Cloudflare may mask the underlying apex-routing drift, but it does not replace
+the repo-owned Caddy/compose/frontend contract.
 
 #### Remediation Matrix
 
