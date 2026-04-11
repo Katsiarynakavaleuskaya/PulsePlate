@@ -62,7 +62,9 @@ export function PlateStoryHarness({
   sessionState,
   children,
 }: PropsWithChildren<{ sessionState: PlateSessionState }>): JSX.Element {
-  useLayoutEffect(() => installPlateSessionStub(sessionState), [sessionState]);
+  useLayoutEffect(() => {
+    return installPlateSessionStub(sessionState);
+  }, [sessionState]);
 
   return (
     <MemoryRouter initialEntries={['/plate']}>

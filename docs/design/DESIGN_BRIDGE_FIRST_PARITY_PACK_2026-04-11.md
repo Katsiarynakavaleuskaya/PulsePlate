@@ -73,7 +73,7 @@ sections are grouped by surface instead of by a single CTA.
   - simulator sanity under scheme `PulsePlate`
 - Repo test evidence:
   - `build_sim` passed through Build iOS Apps tooling on simulator `iPhone 17`
-  - current-head PR `CI` run `24284045587` completed success for `iOS unit tests (xcodebuild)` and `iOS UI smoke (xcodebuild)`
+  - current-head PR `CI` run `24284045587` completed successfully for `iOS unit tests (xcodebuild)` and `iOS UI smoke (xcodebuild)`
   - app relaunched with screenshot-mode scenario `core_value`
   - accessibility snapshot returned `AXLabel: "Главный экран"`
   - simulator screenshot captured as local evidence artifact

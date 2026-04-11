@@ -94,7 +94,7 @@ than acting as a docs-only bridge.
 
 ## Acceptance packet contract
 
-`qa-engineer-agent` must return all of the following before review-ready is
+`qa-engineer-agent` must return the following before review-ready is
 claimed:
 
 - acceptance checklist
@@ -146,7 +146,7 @@ For this lane, `bug-hunter` is specifically checking:
 
 ### 2. Open PR
 
-- Keep the PR in `draft` until all of the following are true:
+- Keep the PR in `draft` until the following are true:
   - preflight pair passed
   - packet exists
   - first evidence bundle exists for the current lane scope
