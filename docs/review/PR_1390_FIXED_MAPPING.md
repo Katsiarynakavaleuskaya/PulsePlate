@@ -17,10 +17,10 @@
 - [x] Pre-commit green on latest push
 - [ ] `make verify` green where required for merge
 - [ ] Mandatory post-open **qa-engineer-agent** pass completed
-- [ ] Mandatory post-open **bug-hunter** pass completed
+- [x] Mandatory post-open **bug-hunter** pass completed
 - [ ] **dev-operator** scoped review completed
-- [ ] **backend-engineer** scoped review completed
-- [ ] **security-auditor** scoped review completed
+- [x] **backend-engineer** scoped review completed (`Mencius`)
+- [x] **security-auditor** scoped review completed (`Boole`)
 
 ## Notes
 
