@@ -24,6 +24,17 @@ Evidence: `frontend/src/pages/Plate.stories.tsx` runtime-narrows `sessionState` 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1391#pullrequestreview-4094079985 -> 0aa92fedb
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1391#discussion_r3068417797 -> 0aa92fedb
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1391#discussion_r3068013070 -> 7098293c0
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1391#discussion_r3068013072 -> 7098293c0
+Disposition: FIXED
+Commit: 7098293c0
+Evidence: `frontend/src/pages/Plate.storySupport.tsx` installs the session stub from `useLayoutEffect` before child effects run, and `frontend/src/pages/__tests__/Plate.storyHarness.test.tsx` now asserts the visible premium links without `hidden: true`, so the unlocked parity story fails closed if it regresses to the paywalled preview.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1391#discussion_r3068011020
+Disposition: NOT-A-BUG
+Evidence: `frontend/src/api/client.ts:176`, `frontend/src/api/client.ts:276`, and `frontend/src/api/__tests__/client.test.ts:198` show the only call site uses `normalizeApiUrl(getApiBase(), PRO_SESSION_PATH)` and the client test asserts the exact request URL `http://test-api.com/api/v1/pro/session`, so this Storybook stub does not receive query-string or trailing-slash variants on the governed parity path.
+Reason: The concern identified by Sourcery is hypothetical for this lane, but the actual governed call path is exact and already regression-covered, so broadening the matcher here would add surface area without improving the representative parity contract.
+
 ## Merge Readiness
 
 - [ ] All required checks pass
