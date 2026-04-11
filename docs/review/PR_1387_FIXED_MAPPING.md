@@ -35,19 +35,25 @@ Evidence: `docs/review/PR_1387_FIXED_MAPPING.md:34`, `docs/review/PR_1387_FIXED_
 
 ## Merge Readiness
 
-- [ ] All required checks pass (current head)
-- [ ] No unresolved review threads (re-check before merge)
-- [ ] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
+- [x] All required checks pass (current head)
+- [x] No unresolved review threads (re-check before merge)
+- [x] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
 - [x] Required docs commit present: `docs(agents): update instructions`
 - [x] Pre-commit green on latest push
-- [ ] `make verify` green where required for merge
+- [x] `make verify` green where required for merge
 - [x] Mandatory post-open **qa-engineer-agent** pass completed
-- [ ] Mandatory post-open **bug-hunter** pass completed
+- [x] Mandatory post-open **bug-hunter** pass completed (latest-head artifact/body/runtime diff re-review found no blocking findings beyond the already-mapped bridge/test comments)
 - [x] **backend-engineer** scoped review completed (`Mencius`)
 - [x] **security-auditor** scoped review completed (`Boole`)
 
 ## Notes
 
-Draft PR only. Review-thread mapping now covers the latest actionable bot
-feedback. Re-check current-head checks and unresolved threads again after the
-next push before marking merge readiness complete.
+Current-head strict wrappers are green on this lane: `make verify`, review-thread
+disposition, and merge-readiness all pass on the latest branch head. Narrative
+lock for this PR: the slowdown was not "the last 2-3 PRs broke Python tests" —
+an older py313 sequential-only CI contract amplified a pre-existing expensive
+Node subprocess hot path in `app/security/goplus_agentguard_bridge.py`. `#1384`
+made the local Node scanner the active runtime/test seam on `main`; `#1387`
+remains the root-fix lane because it removes that live bridge cost from the
+default test runtime. `tests/conftest.py` already sets `TESTING=true` during
+pytest bootstrap, so current evidence does not justify a separate CI env patch.
