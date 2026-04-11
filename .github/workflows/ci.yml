@@ -660,6 +660,7 @@ jobs:
               route_contract_safety)
                 add_suite \
                   tests/test_api.py \
+                  tests/test_app_endpoints_combined.py \
                   tests/test_app_error_handling_combined.py \
                   tests/test_app_extended_coverage.py \
                   tests/test_creative_research_eval_contract.py \
