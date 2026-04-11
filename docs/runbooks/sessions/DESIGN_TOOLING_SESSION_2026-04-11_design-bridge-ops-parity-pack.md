@@ -34,17 +34,17 @@
 - Created/updated external artifact ID: not applicable
 - Created/updated node/frame/page ID: not applicable
 - Lifecycle status: `registered`
-- Push/read status: `validated_for_web`, `blocked_for_ios_capture`
+- Push/read status: `validated_for_web`, `validated_for_ios`
 
 ## Validation
 
 - Visual parity status: partial
+- Gate status: local validation complete
 - Naming convention status: pass
 - Layer hygiene status: pass
 - Canonical source precedence status: pass
 - Web evidence status: pass
-- iOS evidence status: blocked by existing compile errors on current `origin/main`
-  descendant branch
+- iOS evidence status: pass
 
 ## Security Check
 
@@ -103,13 +103,32 @@
 - Command 8: `xcodebuildmcp build_sim` for workspace `ios/PulsePlate.xcworkspace`,
   scheme `PulsePlate`, simulator `iPhone 17`
 - Output lines:
-  - `error: type 'Color' has no member 'navy'`
-  - `ios/PulsePlate/AppStore/AppStoreScreenshotContext.swift:307:27`
-  - `error: type 'Color' has no member 'appPrimary'`
-  - `ios/PulsePlate/Extensions/Color+Assets.swift:39:21`
-  - `error: type 'Color' has no member 'navy'`
-  - `ios/PulsePlate/Extensions/Color+Assets.swift:78:31`
-- Exit code: non-zero (compile blocked before screenshot capture)
+  - `iOS Simulator Build build succeeded for scheme PulsePlate`
+  - `warning: stored property 'userDefaults' of 'Sendable'-conforming struct 'DefaultProfileProvider' has non-Sendable type 'UserDefaults'`
+  - `warning: concurrently-executed local function 'sum' must be marked as '@Sendable'`
+- Exit code: `0`
+
+- Command 9: `xcodebuildmcp launch_app_sim` with screenshot-mode args/env
+- Arguments:
+  - `-appstore-screenshot-mode`
+  - `-appstore-screenshot-scenario`
+  - `core_value`
+- Environment:
+  - `APPSTORE_SCREENSHOT_MODE=1`
+- Output lines:
+  - `App launched successfully in simulator E127FF74-95E2-4FE8-8D5F-B98C7417E4C5`
+  - `Accessibility hierarchy retrieved successfully`
+  - `AXLabel: "Главный экран"`
+  - `Screenshot captured: /var/folders/.../screenshot_optimized_483a016e-5f6f-493f-bcdc-310b62b65051.jpg`
+- Exit code: `0`
+
+- Command 10: `make verify`
+- Output lines:
+  - `✅ Verify-окружение готово`
+  - `✅ Типы корректны`
+  - `✅ Diff-coverage соответствует требованиям`
+  - `🎉 Все проверки пройдены! Ready for push.`
+- Exit code: `0`
 
 ## Review Surfaces Captured
 
@@ -121,6 +140,9 @@
 - Story-level regression evidence:
   - `frontend/src/pages/Plate.storySupport.tsx`
   - `frontend/src/pages/__tests__/Plate.storyHarness.test.tsx`
+- iOS simulator evidence:
+  - `HomeView` rendered via `AppStoreScreenshotContext` scenario `core_value`
+  - accessibility label: `Главный экран`
 - Existing supporting pattern stories:
   - `frontend/src/components/cta/HomeOpenSetupCta.stories.tsx`
   - `frontend/src/components/cta/ProgressExportPdfButton.stories.tsx`
@@ -129,6 +151,5 @@
 
 - Next iteration variant: `design_bridge_ops_v2`
 - Blockers:
-  - iOS screenshot evidence cannot be captured until the current color-token
-    compile errors are fixed in the iOS runtime
+  - none for the representative parity-pack surfaces in this lane
 - Owner: @katsiaryna_kavaleuskaya

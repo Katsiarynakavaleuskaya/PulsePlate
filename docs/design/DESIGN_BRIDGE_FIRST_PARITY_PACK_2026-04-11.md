@@ -1,6 +1,6 @@
 # Design Bridge First Parity Pack
 
-- Status: Partial evidence captured
+- Status: Evidence captured
 - Date: 2026-04-11
 - Owner: @katsiaryna_kavaleuskaya
 - Packet source: `docs/orchestration/DESIGN_BRIDGE_OPERATIONALIZATION_PACKET_2026-04-11.md`
@@ -72,19 +72,19 @@ sections are grouped by surface instead of by a single CTA.
 - iOS verification path:
   - simulator sanity under scheme `PulsePlate`
 - Repo test evidence:
-  - `build_sim` attempted through Build iOS Apps tooling on simulator
-    `iPhone 17`
+  - `build_sim` passed through Build iOS Apps tooling on simulator `iPhone 17`
+  - app relaunched with screenshot-mode scenario `core_value`
+  - accessibility snapshot returned `AXLabel: "Главный экран"`
+  - simulator screenshot captured as local evidence artifact
 - Token/variant reference:
   - PulsePlate runtime design tokens
 - Design review reference:
   - `docs/runbooks/sessions/DESIGN_TOOLING_SESSION_2026-04-11_design-bridge-ops-parity-pack.md`
 - Known gaps:
-  - screenshot/snapshot evidence blocked by existing compile errors:
-    - `ios/PulsePlate/AppStore/AppStoreScreenshotContext.swift:307`
-    - `ios/PulsePlate/Extensions/Color+Assets.swift:39`
-    - `ios/PulsePlate/Extensions/Color+Assets.swift:78`
+  - simulator evidence is captured against deterministic screenshot-mode state,
+    not a live backend-backed production session
 - Release decision:
-  - blocked_by_existing_ios_compile_errors
+  - evidence_ready_for_review
 
 ### Surface: `web.plate`
 
@@ -143,18 +143,18 @@ sections are grouped by surface instead of by a single CTA.
 ## 6. Current Lane Decision
 
 The first evidence bundle exists and is sufficient to open the operational
-draft PR only:
+draft PR:
 
 - `web.plate` evidence captured
 - `web.progress` evidence captured
-- `ios.home` evidence attempted and blocked by current iOS compile drift
+- `ios.home` evidence captured
 
-This means the lane may open as a draft operational evidence/governance PR with
-the iOS blocker explicitly declared, but it is not allowed to claim:
+This means the lane can keep moving as an operational evidence/governance PR,
+but it is still not allowed to claim:
 
 - review-ready status
 - full cross-platform parity
-- completed iOS capture evidence
+- merge-ready status
 
-until the iOS compile blockers are fixed in a separate follow-up or in this
-branch before merge.
+until the mandatory post-open `qa-engineer-agent -> bug-hunter` loop and final
+PR governance checks are completed on the current head.
