@@ -733,6 +733,41 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - No PR in the chain introduces public API changes or live self-modifying
       UI without a separate approved follow-up
 
+<a id="ledger-p1-design-bridge-operationalization-pr21"></a>
+- [ ] P1: PR21 design-bridge operationalization lane (preflight + capture + first parity pack)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (design-ops evidence pipeline)
+  - Target PR: PR-TBD (`feat/design-bridge-ops-parity-pack`)
+  - Status: 📋 Planned from merged bridge baseline on `main`
+  - Area: docs / orchestration / design / runbooks / frontend / ios
+  - Finding Type: operational follow-on after merged bridge baseline
+  - Reason: Wave 7 defines a follow-on lane after the merged realignment bridge
+    so the design bridge becomes an executable evidence pipeline instead of
+    remaining principle-only documentation. This lane is separate from the
+    colleague-owned bridge-closeout PR `#1386`, keeps Cloudflare preview
+    advisory-only, and does not consume the reserved `design-agent PR4` slot.
+  - Links:
+    - `docs/roadmap/PulsePlate_P0_P1_Execution_Document_2026-03-30.md`
+    - `docs/orchestration/DESIGN_BRIDGE_OPERATIONALIZATION_PACKET_2026-04-11.md`
+    - `docs/design/PENPOT_STORYBOOK_BRIDGE.md`
+    - `docs/runbooks/DESIGN_TOOLING_OPERATING_MODEL.md`
+    - `frontend/src/stories/PulsePlateDesignSystemGuidelines.mdx`
+    - `docs/design/DESIGN_BRIDGE_FIRST_PARITY_PACK_2026-04-11.md`
+    - `docs/runbooks/sessions/DESIGN_TOOLING_SESSION_2026-04-11_design-bridge-ops-parity-pack.md`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-design-agent-runtime-pr-chain`
+  - DoD:
+    - One canonical packet defines the design-bridge operationalization lane,
+      role order, sync points, and merge path
+    - Web review evidence is explicitly Storybook-first and points to real
+      Storybook/MDX surfaces in repo
+    - iOS evidence is explicitly simulator-based for workspace
+      `ios/PulsePlate.xcworkspace` and scheme `PulsePlate`
+    - The first parity pack is limited to representative baseline surfaces:
+      `ios.home`, `web.plate`, `web.progress`
+    - Cloudflare preview/deploy remains non-blocking and outside merge truth
+    - The lane does not edit or reinterpret the colleague-owned closeout work
+      around PR `#1386`
+
 <a id="ledger-p1-design-execution-adapter-seam"></a>
 - [ ] P1: Design execution adapter seam promotion beyond local artifact lane
   - Owner: @katsiaryna_kavaleuskaya

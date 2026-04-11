@@ -211,6 +211,33 @@ Every governed session must capture:
 
 Use `docs/runbooks/FIGMA_MCP_SESSION_EVIDENCE_TEMPLATE.md`.
 
+## 7a. PR21 design-bridge operationalization baseline
+
+The `PR21` design-bridge operationalization lane is a governed evidence path,
+not a runtime mutation lane.
+
+Required evidence contract for that lane:
+
+- preflight:
+  - `python3 scripts/orchestration/check_preflight.py`
+  - `python3 scripts/orchestration/check_agent_consistency.py`
+- web review source:
+  - Storybook-first, with repo-native stories/MDX as the canonical review
+    surface
+- iOS review source:
+  - simulator-based verification for `ios/PulsePlate.xcworkspace` using scheme
+    `PulsePlate`
+- representative first parity pack only:
+  - `ios.home`
+  - `web.plate`
+  - `web.progress`
+- Cloudflare preview/deploy:
+  - advisory only
+  - never part of merge truth for this lane
+
+The canonical field-level contract for this lane lives in
+`docs/orchestration/DESIGN_BRIDGE_OPERATIONALIZATION_PACKET_2026-04-11.md`.
+
 ## 8. Promotion Rules
 
 - `Notion` content may become project memory only through KPP promotion into git.
