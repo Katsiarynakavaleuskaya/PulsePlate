@@ -11,6 +11,12 @@ on:
       - "package.json"
       - "package-lock.json"
       - ".github/workflows/npm-dependency-submission.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/npm-dependency-submission.yml"
   workflow_dispatch:
 
 permissions:
