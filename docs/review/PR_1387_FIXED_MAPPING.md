@@ -8,10 +8,11 @@
 ## Fixed in Commit Mapping
 
 Disposition: NOT-A-BUG
-Evidence: `scripts/orchestration/review_mapping_artifact.py:31` and `scripts/orchestration/review_mapping_artifact.py:106` require the exact lowercase checkbox text `- [x] Fixed in commit mapping completed`; changing the artifact to Sourcery's preferred capitalization breaks the canonical phase2 gate. The remaining review-level suggestions about extra debug logging or moving the gating wrapper are advisory, not correctness bugs for this PR lane.
-Reason: Sourcery's capitalization suggestion conflicts with the enforced phase2 artifact contract, so keeping the canonical lowercase checkbox is required repo behavior rather than an unresolved defect.
+Evidence: `scripts/orchestration/review_mapping_artifact.py:31` and `scripts/orchestration/review_mapping_artifact.py:106` require the exact lowercase checkbox text `- [x] Fixed in commit mapping completed`, while `scripts/orchestration/check_review_threads_disposition.py:107` and `scripts/orchestration/check_review_threads_disposition.py:347` explicitly accept FIXED commit proofs in the 7–40 hex SHA range. Changing the artifact to Sourcery's preferred capitalization would break the canonical phase2 gate, and expanding `e3a883693` to 40 chars is optional hardening rather than a repo-policy defect.
+Reason: Both bot nitpicks conflict with or exceed the enforced repository contract, so the artifact stays on the canonical lowercase checkbox text and on an accepted 9-character commit SHA shorthand.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1387#discussion_r3067642298
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1387#pullrequestreview-4093446469
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1387#pullrequestreview-4093460979
 
 Disposition: FIXED
 Commit: e3a883693
