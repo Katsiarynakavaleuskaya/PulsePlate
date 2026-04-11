@@ -972,7 +972,7 @@ def test_build_rag_source_dicts_skips_empty_sanitized_chunks() -> None:
 def test_simple_rag_skips_chunks_that_become_empty_after_redaction(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Simple RAG fallback must drop chunks removed by final redaction."""
+    """Simple RAG fallback must backfill lower-ranked safe chunks after redaction."""
     import core.rag.simple_rag as simple_rag
 
     monkeypatch.setattr(
@@ -983,7 +983,11 @@ def test_simple_rag_skips_chunks_that_become_empty_after_redaction(
             ("docs/safe.md", "safe chunk"),
         ],
     )
-    monkeypatch.setattr(simple_rag, "_score", lambda query, chunk: 0.9)
+    monkeypatch.setattr(
+        simple_rag,
+        "_score",
+        lambda query, chunk: 0.9 if chunk == "unsafe chunk" else 0.4,
+    )
     monkeypatch.setattr(simple_rag, "MIN_CHUNK_SCORE", 0.0)
     monkeypatch.setattr(
         simple_rag,
@@ -991,7 +995,7 @@ def test_simple_rag_skips_chunks_that_become_empty_after_redaction(
         lambda content: "" if content == "unsafe chunk" else content,
     )
 
-    result = simple_rag.retrieve_context_structured("query", max_chunks=2)
+    result = simple_rag.retrieve_context_structured("query", max_chunks=1)
 
     assert len(result.chunks) == 1
     assert result.chunks[0].content == "safe chunk"

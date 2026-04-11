@@ -195,6 +195,12 @@ class TestNormalizationHelpers:
 
         assert vector_rag._normalize_similarity(_BrokenFloatValue()) is None
 
+    @pytest.mark.parametrize("value", [float("nan"), float("inf"), float("-inf")])
+    def test_normalize_similarity_rejects_non_finite_values(self, value: float) -> None:
+        from core.rag import vector_rag
+
+        assert vector_rag._normalize_similarity(value) is None
+
 
 class TestVectorRetrievalFallback:
     """Vector retrieval falls back to Jaccard when disabled or on failure."""
