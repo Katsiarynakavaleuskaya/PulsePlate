@@ -13,24 +13,24 @@ Current `main` already contains:
 - landed PRO/VIP tier-aware monthly quota machinery
 - deterministic orchestration confidence recomputation
 
-The remaining active train is:
-1. docs reconciliation after merged `A1`
-2. `A2` residual RAG hardening
-3. `A3` bounded-context packet
-4. `A4` bounded-context extraction
-5. `A5` reliability/security gates
+The remaining runtime prerequisites are tracked by canonical PR/backlog anchors:
+1. `PR-A1b` and [`ledger-p1-pro-monthly-quota-ledger-reconciliation`](./BACKLOG_LEDGER.md#ledger-p1-pro-monthly-quota-ledger-reconciliation)
+2. `PR-A2` and [`ledger-p1-rag-hardening-followthrough`](./BACKLOG_LEDGER.md#ledger-p1-rag-hardening-followthrough)
+3. `PR-A3` and [`ledger-p1-ai-bounded-context-packet`](./BACKLOG_LEDGER.md#ledger-p1-ai-bounded-context-packet)
+4. `PR-A4` and [`ledger-p1-ai-bounded-context-extraction`](./BACKLOG_LEDGER.md#ledger-p1-ai-bounded-context-extraction)
+5. `PR-A5` and [`ledger-p1-llm-reliability-security-gates`](./BACKLOG_LEDGER.md#ledger-p1-llm-reliability-security-gates)
 
 Semantic cache can be considered only **after** those runtime rails are closed.
 
 ## Hard Gate
 
-Do **not** start semantic cache work before all of the following are true:
+Do **not** start semantic cache work before all the following are true:
 
-1. `A1` merged and reconciled in docs/backlog
-2. `A2` closed
-3. `A3` closed
-4. `A4` closed
-5. at least `A5` reliability/security gates closed
+1. `PR-A1b` is reconciled in docs/backlog via [`ledger-p1-pro-monthly-quota-ledger-reconciliation`](./BACKLOG_LEDGER.md#ledger-p1-pro-monthly-quota-ledger-reconciliation)
+2. `PR-A2` is closed via [`ledger-p1-rag-hardening-followthrough`](./BACKLOG_LEDGER.md#ledger-p1-rag-hardening-followthrough)
+3. `PR-A3` is closed via [`ledger-p1-ai-bounded-context-packet`](./BACKLOG_LEDGER.md#ledger-p1-ai-bounded-context-packet)
+4. `PR-A4` is closed via [`ledger-p1-ai-bounded-context-extraction`](./BACKLOG_LEDGER.md#ledger-p1-ai-bounded-context-extraction)
+5. at least `PR-A5` is closed via [`ledger-p1-llm-reliability-security-gates`](./BACKLOG_LEDGER.md#ledger-p1-llm-reliability-security-gates)
 
 ## Rail Boundary
 

@@ -1532,7 +1532,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Reconcile PRO monthly quota ledger with live runtime truth
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (AGENTS.md requires monthly quota before any LLM provider call)
-  - Target PR: `docs/ai-runtime-ledger-reconciliation`
+  - Target PR: PR #1388
   - Status: 🟡 In progress (docs/code reconciliation after live runtime landed)
   - Reason (EN): Live `main` already contains tier-aware LLM monthly quota machinery for both `PRO` and `VIP`, startup validation for both envs, and quota-before-provider enforcement on the PRO CBT path. The backlog wording is now stale and must be reconciled so the train does not reopen a runtime-from-scratch quota PR that the codebase already materially passed.
   - Links:
