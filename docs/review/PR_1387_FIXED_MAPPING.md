@@ -27,10 +27,11 @@ Evidence: `app/security/goplus_agentguard_bridge.py:33`, `app/security/goplus_ag
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1387#pullrequestreview-4093450789 -> e3a883693
 
 Disposition: FIXED
-Commit: 372193eb1
-Evidence: `AGENTS.md:1207`, `AGENTS.md:2091`, `app/AGENTS.md:298`, `tests/AGENTS.md:525`
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1387#discussion_r3067658197 -> 372193eb1
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1387#pullrequestreview-4093462354 -> 372193eb1
+Commit: 0644dc260
+Evidence: `docs/review/PR_1387_FIXED_MAPPING.md:34`, `docs/review/PR_1387_FIXED_MAPPING.md:35`, `app/AGENTS.md:298`, `tests/AGENTS.md:525`, and `git log --oneline origin/main..HEAD` includes `372193eb1 docs(agents): update instructions`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1387#discussion_r3067658197 -> 0644dc260
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1387#pullrequestreview-4093462354 -> 0644dc260
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1387#pullrequestreview-4093464046 -> 0644dc260
 
 ## Merge Readiness
 
