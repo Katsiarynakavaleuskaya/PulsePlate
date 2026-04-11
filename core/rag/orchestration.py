@@ -118,6 +118,38 @@ def _resolve_confidence(
     return _mean_chunk_score(chunks_to_use)
 
 
+def _has_context_text(value: object) -> bool:
+    """Return whether a context payload is a non-empty string."""
+
+    return isinstance(value, str) and bool(value.strip())
+
+
+def _non_rag_result(
+    prompt_input: str,
+    *,
+    rag_ctx_hops: int,
+    rag_ctx_latency_ms: int,
+    warnings: list[str],
+    chunks_retrieved: int,
+    chunks_filtered: int,
+    recursive_executed: bool,
+) -> RAGOrchestrationResult:
+    """Return a non-RAG result when no usable context survives to output."""
+
+    return RAGOrchestrationResult(
+        chunks=[],
+        formatted_prompt=prompt_input,
+        rag_actually_used=False,
+        confidence=None,
+        hops=rag_ctx_hops,
+        latency_ms=rag_ctx_latency_ms,
+        warnings=warnings,
+        chunks_retrieved=chunks_retrieved,
+        chunks_filtered=chunks_filtered,
+        recursive_executed=recursive_executed,
+    )
+
+
 async def retrieve_and_validate_rag(
     prompt_input: str,
     max_chunks: int = 3,
@@ -240,13 +272,10 @@ async def _run_orchestration(
 
         # If no chunks survived validation
         if not chunks_to_use:
-            return RAGOrchestrationResult(
-                chunks=[],
-                formatted_prompt=prompt_input,
-                rag_actually_used=False,
-                confidence=None,
-                hops=rag_ctx.hops,
-                latency_ms=rag_ctx.latency_ms,
+            return _non_rag_result(
+                prompt_input,
+                rag_ctx_hops=rag_ctx.hops,
+                rag_ctx_latency_ms=rag_ctx.latency_ms,
                 warnings=warnings,
                 chunks_retrieved=len(rag_ctx.chunks),
                 chunks_filtered=chunks_filtered,
@@ -261,7 +290,27 @@ async def _run_orchestration(
         from core.insight.safety import redact_rag_context_for_insight
 
         raw_context = format_rag_chunks_for_prompt(chunks_to_use)
+        if not _has_context_text(raw_context):
+            return _non_rag_result(
+                prompt_input,
+                rag_ctx_hops=rag_ctx.hops,
+                rag_ctx_latency_ms=rag_ctx.latency_ms,
+                warnings=warnings,
+                chunks_retrieved=len(rag_ctx.chunks),
+                chunks_filtered=chunks_filtered,
+                recursive_executed=recursive_executed,
+            )
         redacted_context = redact_rag_context_for_insight(raw_context)
+        if not _has_context_text(redacted_context):
+            return _non_rag_result(
+                prompt_input,
+                rag_ctx_hops=rag_ctx.hops,
+                rag_ctx_latency_ms=rag_ctx.latency_ms,
+                warnings=warnings,
+                chunks_retrieved=len(rag_ctx.chunks),
+                chunks_filtered=chunks_filtered,
+                recursive_executed=recursive_executed,
+            )
         formatted_prompt = _build_prompt_with_context(prompt_input, redacted_context)
 
         return RAGOrchestrationResult(
