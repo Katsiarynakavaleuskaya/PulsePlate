@@ -105,7 +105,7 @@ Create one explicit umbrella item so Codex does not re-derive sequencing from sc
   - `ai-bounded-context-packet`
 - link existing items:
   - insight fallback chain
-  - PRO monthly quota parity
+  - PRO monthly quota ledger reconciliation
   - ai bounded context extraction
   - llm reliability security gates
   - philosophical logic
@@ -147,50 +147,57 @@ Make provider fallback deterministic and expose fallback / echo mode in readines
 
 ---
 
-## PR-A1b — PRO monthly quota parity
+## PR-A1b — PRO monthly quota ledger reconciliation
 #### Title
-`feat(ai-runtime): enforce PRO monthly quota before provider calls`
+`docs(roadmap): reconcile landed PRO quota truth before deeper runtime rollout`
 
 #### Backlog target
-existing PRO monthly quota item
+`ledger-p1-pro-monthly-quota-ledger-reconciliation`
 
 #### Goal
-Close the remaining quota gap before deeper LLM/RAG rollout.
+Reconcile the execution spine with live `main`, where tier-aware PRO/VIP quota machinery is already materially landed.
 
 #### In scope
-- PRO quota enforcement for CBT insight and future PRO LLM surfaces
-- 429 tests
-- fail-closed startup / config checks if needed
+- docs/backlog correction after merged `A1`
+- live-runtime evidence links for landed PRO quota machinery
+- isolate any true residual quota debt into a separate narrow follow-up if discovered
 
 #### Reason for placement
-Recursive / philosophy rollout increases call amplification. Quota parity must exist before deeper rollout.
+Recursive / philosophy rollout still depends on quota parity, but `main` already implements the core parity seam. The remaining work is reconciliation, not a fresh runtime-from-scratch PR.
+
+#### Deferred optimization note
+Any semantic-cache work remains governed by
+`docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md`
+and is explicitly outside `A1b` and `A2`.
 
 ---
 
 ## PR-A2 — RAG hardening follow-through
 #### Title
-`feat(rag): harden retrieval path and recompute confidence deterministically`
+`feat(rag): harden degraded retrieval paths and keep contracts additive`
 
 #### Backlog target
 new `ledger-p1-rag-hardening-followthrough`
 
 #### Goal
-Turn the scattered RAG technical debt into one bounded runtime hardening lane.
+Turn the residual RAG technical debt into one bounded runtime hardening lane without reopening already-landed work.
 
 #### In scope
 - vector query hardening
-- confidence recomputation
+- degraded retrieval / fail-safe behavior
 - retrieval-source weighting cleanup
-- SQL assembly hardening / refactor where needed
+- malformed vector / embedding row handling
 - deterministic response reasons
 
 #### Out of scope
 - workforce wiki
 - broad UX changes
 - giant multimodal expansion
+- semantic cache
+- Redis / GPTCache rollout
 
 #### DoD
-- confidence is recomputed deterministically from retrieval/verification evidence
+- degraded retrieval collapses fail-safe without corrupting the prompt contract
 - vector path is safer and more maintainable
 - no response-contract regressions
 
@@ -476,7 +483,7 @@ Build the PulsePlate RAG/LLM/Karpathy line as two separate but coordinated rails
 1. **Product AI runtime rail (canonical)**
    - PR-A0 docs/backlog umbrella
    - PR-A1 insight fallback chain
-   - PR-A1b PRO monthly quota parity
+   - PR-A1b docs reconciliation for already-landed PRO quota truth
    - PR-A2 RAG hardening follow-through
    - PR-A3 AI bounded-context packet
    - PR-A4 AI bounded-context extraction
@@ -490,6 +497,9 @@ Build the PulsePlate RAG/LLM/Karpathy line as two separate but coordinated rails
    - PR-B0 launcher/bootstrap hardening
    - PR-B1 advisory wiki compiler v1
    - PR-B2 advisory wiki semantics hardening
+
+Semantic cache is a later optimization gate on the product AI runtime rail only.
+See `docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md`.
    - PR-B3 optional query/lint enrichment
    - PR-B4 optional reference-corpus policy
 
