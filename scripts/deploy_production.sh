@@ -125,6 +125,10 @@ cd "$DEPLOY_DIR"
 
 compose_args=()
 if [ -n "$RESOLVED_COMPOSE_FILE" ]; then
+  if [ ! -f "$RESOLVED_COMPOSE_FILE" ]; then
+    echo "❌ RESOLVED_COMPOSE_FILE does not exist: $RESOLVED_COMPOSE_FILE" >&2
+    exit 1
+  fi
   compose_args=(-f "$RESOLVED_COMPOSE_FILE")
 elif [ -f "deploy/docker-compose.production.yaml" ]; then
   RESOLVED_COMPOSE_FILE="deploy/docker-compose.production.yaml"

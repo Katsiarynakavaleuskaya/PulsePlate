@@ -258,6 +258,55 @@ printf 'docker %s\\n' "$*" >> "{log_file}"
     assert not log_file.exists()
 
 
+def test_deploy_production_fails_fast_when_resolved_compose_file_is_missing(tmp_path: Path) -> None:
+    project_dir = tmp_path / "production"
+    bin_dir = tmp_path / "bin"
+    log_file = tmp_path / "deploy.log"
+    project_dir.mkdir()
+    bin_dir.mkdir()
+    (project_dir / ".env").write_text(
+        "\n".join(
+            [
+                "DATABASE_URL=postgresql+psycopg://pulseplate:secret@db.example.com:25060/pulseplate",  # pragma: allowlist secret
+                "PRODUCTION_DOMAIN=pulseplate.test",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    docker_stub = f"""#!/usr/bin/env bash
+set -euo pipefail
+printf 'docker %s\\n' "$*" >> "{log_file}"
+"""
+    _write_executable(bin_dir / "docker", docker_stub)
+
+    env = os.environ.copy()
+    env["PATH"] = f"{bin_dir}:{env['PATH']}"
+    env["DOCKER_BIN"] = str(bin_dir / "docker")
+    env["DEPLOY_DIR"] = str(project_dir)
+    env["ENV_FILE"] = str(project_dir / ".env")
+    env["COMPOSE_FILE"] = str(project_dir / "missing-compose.yaml")
+    env["IMAGE_REF"] = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:test"
+    env["TAG"] = "prod-vtest"
+
+    completed = subprocess.run(
+        [str(REPO_ROOT / "scripts/deploy_production.sh"), "--preflight-only"],
+        cwd=str(REPO_ROOT),
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert completed.returncode == 1
+    assert (
+        f"RESOLVED_COMPOSE_FILE does not exist: {project_dir / 'missing-compose.yaml'}"
+        in completed.stderr
+    )
+    assert not log_file.exists()
+
+
 def test_deploy_production_logs_in_to_ghcr_with_resolved_docker_binary(tmp_path: Path) -> None:
     project_dir = tmp_path / "production"
     docker_home = tmp_path / "docker-home"
