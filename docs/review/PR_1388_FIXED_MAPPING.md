@@ -9,14 +9,12 @@ Bot and human review threads must be dispositioned here before they are resolved
 
 ## Fixed in Commit Mapping
 
-- Disposition: FIXED
-  - Review: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1388#pullrequestreview-4092906211
-  - Commit: `6532b2eb7`
-  - Evidence: `docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md` now references canonical PR/backlog anchors instead of hard-coded Wave 6 ordering.
-- Disposition: FIXED
-  - Review: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1388#pullrequestreview-4092911955
-  - Commit: `6532b2eb7`
-  - Evidence: `docs/roadmap/BACKLOG_LEDGER.md` uses `PR #1388` for the quota reconciliation lane, and `docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md` updates the `all the following` wording.
+Disposition: FIXED
+Commit: 6532b2eb7
+Evidence: `docs/roadmap/BACKLOG_LEDGER.md` now records `Target PR: PR #1388`, while `docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md` switches the semantic-cache gate to canonical backlog/PR anchors and applies the requested `all the following` wording cleanup.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1388#discussion_r3067157223 -> 6532b2eb7
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1388#pullrequestreview-4092906211 -> 6532b2eb7
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1388#pullrequestreview-4092911955 -> 6532b2eb7
 
 ## Merge Readiness
 
