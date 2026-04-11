@@ -44,6 +44,11 @@ Evidence: `docs/review/PR_1390_FIXED_MAPPING.md:45`, `docs/review/PR_1390_FIXED_
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1390#pullrequestreview-4093732799 -> 585614781
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1390#discussion_r3068008378 -> 585614781
 
+Disposition: NOT-A-BUG
+Evidence: `docs/review/PR_1390_FIXED_MAPPING.md:10`, `docs/review/PR_1390_FIXED_MAPPING.md:38`, `docs/review/PR_1390_FIXED_MAPPING.md:42`
+Reason: This CodeRabbit review is a duplicate summary of the already-closed suggestion to add a `discussion_r...` URL to the NOT-A-BUG proof. Re-introducing `discussion_r3067846377` into the NOT-A-BUG block would recreate the same mixed-disposition conflict that was fixed in `30d87dfc9`, because that discussion URL is already mapped under the separate FIXED disposition for the earlier thread.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1390#pullrequestreview-4093738726
+
 ## Merge Readiness
 
 - [ ] All required checks pass (current head)
