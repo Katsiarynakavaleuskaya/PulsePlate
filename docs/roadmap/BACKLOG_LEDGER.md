@@ -767,6 +767,10 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Cloudflare preview/deploy remains non-blocking and outside merge truth
     - The lane does not edit or reinterpret the colleague-owned closeout work
       around PR `#1386`
+    - Draft PR may open with web evidence complete and an explicit iOS verifier
+      blocker recorded in the packet/session artifact, but review-ready and
+      merge-ready status still require the iOS blocker to be resolved or
+      dispositioned
 
 <a id="ledger-p1-design-execution-adapter-seam"></a>
 - [ ] P1: Design execution adapter seam promotion beyond local artifact lane

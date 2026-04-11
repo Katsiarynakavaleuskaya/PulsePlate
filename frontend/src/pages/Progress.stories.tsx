@@ -6,7 +6,7 @@ import { DesignSystemCanvas, PanelShell } from '../components/design-system/shar
 import Progress from './Progress';
 
 const meta: Meta<typeof Progress> = {
-  title: 'PulsePlate/Pages/Progress',
+  title: 'PulsePlate/Parity Pack/Progress',
   component: Progress,
   render: (): JSX.Element => (
     <MemoryRouter initialEntries={['/progress']}>

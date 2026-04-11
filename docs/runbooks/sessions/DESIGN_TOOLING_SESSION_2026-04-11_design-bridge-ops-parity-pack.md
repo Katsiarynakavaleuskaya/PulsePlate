@@ -78,14 +78,20 @@
   - `Test Files  1 passed (1)`
 - Exit code: `0`
 
-- Command 5: `cd frontend && npm run build && npm run build-storybook`
+- Command 5: `cd frontend && npm run test -- src/pages/__tests__/Plate.storyHarness.test.tsx`
+- Output lines:
+  - `✓ src/pages/__tests__/Plate.storyHarness.test.tsx (1 test)`
+  - `Test Files  1 passed (1)`
+- Exit code: `0`
+
+- Command 6: `cd frontend && npm run build && npm run build-storybook`
 - Output lines:
   - `✓ built in 2.18s` (`vite build`)
   - `✓ built in 7.04s` (`storybook build`)
   - `Output directory: .../frontend/storybook-static`
 - Exit code: `0`
 
-- Command 6: `xcodebuildmcp build_sim` for workspace `ios/PulsePlate.xcworkspace`,
+- Command 7: `xcodebuildmcp build_sim` for workspace `ios/PulsePlate.xcworkspace`,
   scheme `PulsePlate`, simulator `iPhone 17`
 - Output lines:
   - `error: type 'Color' has no member 'navy'`
@@ -103,6 +109,8 @@
 - Web parity stories:
   - `frontend/src/pages/Plate.stories.tsx`
   - `frontend/src/pages/Progress.stories.tsx`
+- Story-level regression evidence:
+  - `frontend/src/pages/__tests__/Plate.storyHarness.test.tsx`
 - Existing supporting pattern stories:
   - `frontend/src/components/cta/HomeOpenSetupCta.stories.tsx`
   - `frontend/src/components/cta/ProgressExportPdfButton.stories.tsx`

@@ -8,6 +8,10 @@ import { DesignSystemCanvas, PanelShell } from '../components/design-system/shar
 import Plate from './Plate';
 
 type PlateSessionState = 'pro' | 'locked';
+const STORYBOOK_API_BASE = 'https://storybook.pulseplate.local';
+
+let activePlateStorySessionState: PlateSessionState | null = null;
+let restorePlateStorySessionStub: (() => void) | null = null;
 
 function buildSessionPayload(sessionState: PlateSessionState): ProSessionStatus | null {
   if (sessionState === 'locked') {
@@ -22,40 +26,57 @@ function buildSessionPayload(sessionState: PlateSessionState): ProSessionStatus 
   };
 }
 
+function installPlateStorySessionStub(sessionState: PlateSessionState): void {
+  if (activePlateStorySessionState === sessionState && restorePlateStorySessionStub) {
+    return;
+  }
+
+  restorePlateStorySessionStub?.();
+
+  const originalFetch = window.fetch.bind(window);
+
+  // RU: Подменяем API base и fetch синхронно до mount дочернего Story.
+  // EN: Install API base and fetch stub synchronously before the child Story mounts.
+  setApiClientDependencies({
+    getStoredApiKey: () => null,
+    clearStoredApiKey: () => undefined,
+    apiBase: STORYBOOK_API_BASE,
+  });
+
+  window.fetch = (async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+    const requestUrl = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
+    if (requestUrl.endsWith('/api/v1/pro/session')) {
+      const payload = buildSessionPayload(sessionState);
+      const status = payload ? 200 : 401;
+      return new Response(payload ? JSON.stringify(payload) : null, {
+        status,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    return originalFetch(input, init);
+  }) as typeof window.fetch;
+
+  activePlateStorySessionState = sessionState;
+  restorePlateStorySessionStub = () => {
+    window.fetch = originalFetch;
+    setApiClientDependencies(null);
+    activePlateStorySessionState = null;
+    restorePlateStorySessionStub = null;
+  };
+}
+
 function PlateStoryHarness({
   sessionState,
   children,
 }: PropsWithChildren<{ sessionState: PlateSessionState }>): JSX.Element {
+  installPlateStorySessionStub(sessionState);
+
   useEffect(() => {
-    const originalFetch = window.fetch.bind(window);
-
-    // RU: Подменяем API base и fetch только внутри Storybook harness.
-    // EN: Stub API base and fetch inside Storybook harness only.
-    setApiClientDependencies({
-      getStoredApiKey: () => null,
-      clearStoredApiKey: () => undefined,
-      apiBase: 'https://storybook.pulseplate.local',
-    });
-
-    window.fetch = (async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
-      const requestUrl = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
-      if (requestUrl.endsWith('/api/v1/pro/session')) {
-        const payload = buildSessionPayload(sessionState);
-        const status = payload ? 200 : 401;
-        return new Response(payload ? JSON.stringify(payload) : null, {
-          status,
-          headers: { 'Content-Type': 'application/json' },
-        });
-      }
-
-      return originalFetch(input, init);
-    }) as typeof window.fetch;
-
     return () => {
-      window.fetch = originalFetch;
-      setApiClientDependencies(null);
+      restorePlateStorySessionStub?.();
     };
-  }, [sessionState]);
+  }, []);
 
   return (
     <MemoryRouter initialEntries={['/plate']}>
@@ -75,7 +96,7 @@ function PlateStoryHarness({
 }
 
 const meta = {
-  title: 'PulsePlate/Pages/Plate',
+  title: 'PulsePlate/Parity Pack/Plate',
   component: Plate,
   render: (): JSX.Element => <Plate />,
   decorators: [

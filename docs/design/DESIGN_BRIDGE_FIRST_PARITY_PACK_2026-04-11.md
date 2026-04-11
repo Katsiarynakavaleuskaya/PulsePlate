@@ -27,6 +27,7 @@ reserved `design-agent PR4` slot.
   - `frontend/src/stories/PulsePlateDesignSystemGuidelines.mdx`
 - Evidence lane:
   - Storybook-first review
+  - page-level parity stories are secondary evidence surfaces only
 - Representative target surfaces:
   - `web.plate`
   - `web.progress`
@@ -92,7 +93,10 @@ sections are grouped by surface instead of by a single CTA.
 - Storybook review path:
   - `frontend/src/pages/Plate.stories.tsx`
 - Repo test evidence:
-  - `npm run test -- src/pages/__tests__/Plate.test.tsx`
+  - Page regression evidence:
+    - `npm run test -- src/pages/__tests__/Plate.test.tsx`
+  - Story-harness evidence:
+    - `npm run test -- src/pages/__tests__/Plate.storyHarness.test.tsx`
   - `npm run build`
   - `npm run build-storybook`
 - Token/variant reference:
@@ -113,7 +117,8 @@ sections are grouped by surface instead of by a single CTA.
 - Storybook review path:
   - `frontend/src/pages/Progress.stories.tsx`
 - Repo test evidence:
-  - `npm run test -- src/pages/__tests__/Progress.test.tsx`
+  - Page regression evidence:
+    - `npm run test -- src/pages/__tests__/Progress.test.tsx`
   - `npm run build`
   - `npm run build-storybook`
 - Token/variant reference:

@@ -234,6 +234,10 @@ Required evidence contract for that lane:
 - Cloudflare preview/deploy:
   - advisory only
   - never part of merge truth for this lane
+- parity-pack page stories:
+  - secondary evidence surface only
+  - not the canonical design-system source of truth
+  - use dedicated Storybook namespace `PulsePlate/Parity Pack/*`
 
 The canonical field-level contract for this lane lives in
 `docs/orchestration/DESIGN_BRIDGE_OPERATIONALIZATION_PACKET_2026-04-11.md`.
