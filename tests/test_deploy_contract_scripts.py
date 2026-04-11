@@ -703,6 +703,83 @@ printf 'curl %s\\n' "$*" >> "{log_file}"
     )
 
 
+def test_deploy_production_uses_deploy_env_file_for_absolute_deploy_compose_path(
+    tmp_path: Path,
+) -> None:
+    project_dir = tmp_path / "production"
+    deploy_dir = project_dir / "deploy"
+    compose_file = deploy_dir / "docker-compose.production.yaml"
+    bin_dir = tmp_path / "bin"
+    log_file = tmp_path / "deploy.log"
+    project_dir.mkdir()
+    deploy_dir.mkdir()
+    bin_dir.mkdir()
+    compose_file.write_text("services: {}\n", encoding="utf-8")
+    (deploy_dir / ".env").write_text(
+        "\n".join(
+            [
+                "DATABASE_URL=postgresql+psycopg://pulseplate:secret@db.example.com:25060/pulseplate",  # pragma: allowlist secret
+                "PRODUCTION_DOMAIN=pulseplate.test",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    docker_stub = f"""#!/usr/bin/env bash
+set -euo pipefail
+printf 'docker %s\\n' "$*" >> "{log_file}"
+case "$*" in
+  *"compose --env-file "*"/deploy/.env -f {compose_file} ps -q app"*)
+    printf 'app-id\\n'
+    ;;
+  *"inspect --format "*)
+    printf 'healthy\\n'
+    ;;
+  *"ps --format "*)
+    printf 'CONTAINER ID\\n'
+    ;;
+esac
+"""
+    curl_stub = f"""#!/usr/bin/env bash
+set -euo pipefail
+printf 'curl %s\\n' "$*" >> "{log_file}"
+"""
+    sleep_stub = "#!/usr/bin/env bash\nset -euo pipefail\n"
+    _write_executable(bin_dir / "docker", docker_stub)
+    _write_executable(bin_dir / "curl", curl_stub)
+    _write_executable(bin_dir / "sleep", sleep_stub)
+
+    env = os.environ.copy()
+    env["PATH"] = f"{bin_dir}:{env['PATH']}"
+    env["DOCKER_BIN"] = str(bin_dir / "docker")
+    env["DEPLOY_DIR"] = str(project_dir)
+    env["COMPOSE_FILE"] = str(compose_file)
+    env.pop("ENV_FILE", None)
+    env["IMAGE_REF"] = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:test"
+    env["TAG"] = "prod-vtest"
+
+    subprocess.run(
+        [str(REPO_ROOT / "scripts/deploy_production.sh")],
+        cwd=str(REPO_ROOT),
+        env=env,
+        text=True,
+        capture_output=True,
+        check=True,
+    )
+
+    log_lines = log_file.read_text(encoding="utf-8").splitlines()
+    assert any(
+        "compose --env-file" in line and f"{deploy_dir / '.env'} -f {compose_file} pull app" in line
+        for line in log_lines
+    )
+    assert any(
+        "compose --env-file" in line
+        and f"{deploy_dir / '.env'} -f {compose_file} up -d --remove-orphans caddy" in line
+        for line in log_lines
+    )
+
+
 def test_deploy_production_rejects_compose_file_outside_deploy_dir_during_shell_sync(
     tmp_path: Path,
 ) -> None:
@@ -1181,7 +1258,7 @@ case "$method:$url" in
   GET:https://pulseplate.test/health|GET:https://pulseplate.test/openapi.json)
     status="200"
     content_type="application/json"
-    payload='{{"ok": true}}'
+    payload='{"ok": true}'
     ;;
   GET:https://pulseplate.test/sitemap.xml)
     status="200"

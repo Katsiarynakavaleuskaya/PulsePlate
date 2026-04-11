@@ -153,7 +153,7 @@ elif [ -f "compose.yaml" ]; then
 fi
 
 if [ -z "$ENV_FILE" ]; then
-  if [[ "$RESOLVED_COMPOSE_FILE" = deploy/* ]]; then
+  if [[ "$RESOLVED_COMPOSE_FILE" = deploy/* || "$RESOLVED_COMPOSE_FILE" = "$DEPLOY_DIR"/deploy/* ]]; then
     ENV_FILE="$DEPLOY_DIR/deploy/.env"
   else
     ENV_FILE="$DEPLOY_DIR/.env"
