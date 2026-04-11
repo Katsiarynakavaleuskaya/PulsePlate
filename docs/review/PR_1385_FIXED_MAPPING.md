@@ -29,11 +29,11 @@ Disposition: FIXED
 Commit: 556655280
 Evidence: `scripts/deploy_production.sh` (shell-bundle compose sync preserves the actual compose target path), `tests/test_deploy_contract_scripts.py` (`COMPOSE_FILE=deploy/...` regression coverage)
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1385#discussion_r3067165839 -> 556655280
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1385#discussion_r3067175262 -> 556655280
 
 Disposition: FIXED
 Commit: a062111c6
 Evidence: `scripts/deploy_production.sh` (autodetects canonical `deploy/docker-compose.production.yaml` + `deploy/.env`, rejects compose sync targets outside `DEPLOY_DIR`), `tests/test_deploy_contract_scripts.py`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1385#discussion_r3067175262 -> a062111c6
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1385#discussion_r3067185585 -> a062111c6
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1385#discussion_r3067187995 -> a062111c6
 
