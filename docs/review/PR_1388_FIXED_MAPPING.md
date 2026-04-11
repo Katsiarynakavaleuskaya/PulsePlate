@@ -9,7 +9,14 @@ Bot and human review threads must be dispositioned here before they are resolved
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- Disposition: FIXED
+  - Review: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1388#pullrequestreview-4092906211
+  - Commit: `6532b2eb7`
+  - Evidence: `docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md` now references canonical PR/backlog anchors instead of hard-coded Wave 6 ordering.
+- Disposition: FIXED
+  - Review: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1388#pullrequestreview-4092911955
+  - Commit: `6532b2eb7`
+  - Evidence: `docs/roadmap/BACKLOG_LEDGER.md` uses `PR #1388` for the quota reconciliation lane, and `docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md` updates the `all the following` wording.
 
 ## Merge Readiness
 
