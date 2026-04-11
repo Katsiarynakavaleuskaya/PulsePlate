@@ -38,6 +38,12 @@ Evidence: `docs/review/PR_1390_FIXED_MAPPING.md:11`
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1390#pullrequestreview-4093614475 -> 30d87dfc9
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1390#discussion_r3067853149 -> 30d87dfc9
 
+Disposition: FIXED
+Commit: 585614781
+Evidence: `docs/review/PR_1390_FIXED_MAPPING.md:45`, `docs/review/PR_1390_FIXED_MAPPING.md:52`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1390#pullrequestreview-4093732799 -> 585614781
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1390#discussion_r3068008378 -> 585614781
+
 ## Merge Readiness
 
 - [ ] All required checks pass (current head)
