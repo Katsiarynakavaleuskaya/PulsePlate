@@ -364,30 +364,6 @@ class TestVectorRetrievalSQLite:
         results = vector_rag._retrieve_vector_sqlite([1.0, 0.0, 0.0], 5, fake_session, subject_id=7)
         assert results == []
 
-    def test_retrieve_vector_sqlite_skips_non_finite_similarity(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        """Rows yielding non-finite cosine similarity must be ignored."""
-        from core.rag import vector_rag
-
-        monkeypatch.setattr(vector_rag, "EMBEDDING_DIMENSIONS", 3)
-        monkeypatch.setattr(vector_rag, "_cosine_similarity", lambda *_args: float("inf"))
-
-        class _Row:
-            def __init__(self, id: int, embedding: str) -> None:
-                self.id = id
-                self.content = "doc"
-                self.source = "src"
-                self.embedding = embedding
-
-        fake_session = MagicMock()
-        fake_session.execute.return_value.fetchall.return_value = [
-            _Row(1, json.dumps([1.0, 0.0, 0.0]))
-        ]
-
-        results = vector_rag._retrieve_vector_sqlite([1.0, 0.0, 0.0], 5, fake_session, subject_id=7)
-        assert results == []
-
     def test_retrieve_vector_sqlite_binds_subject_id(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """SQLite retrieval binds subject_id to prevent cross-tenant leaks."""
         from core.rag import vector_rag

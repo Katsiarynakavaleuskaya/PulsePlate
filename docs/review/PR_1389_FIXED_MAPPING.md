@@ -9,18 +9,20 @@ Bot and human review threads must be dispositioned here before they are resolved
 
 ## Fixed in Commit Mapping
 
-- Disposition: FIXED
-  - Review: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1389#pullrequestreview-4092907452
-  - Commit: `5199ad601`
-  - Evidence: `core/rag/vector_rag.py` now accepts generic non-string `Sequence` inputs and rejects `bool`, while `tests/test_vector_rag.py` uses `monkeypatch` for embedding-provider state.
-- Disposition: FIXED
-  - Review: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1389#pullrequestreview-4092912806
-  - Commit: `5199ad601`
-  - Evidence: `core/rag/orchestration.py` treats non-string formatted/redacted context as empty fail-safe input, covered by new non-string tests in `tests/test_rag_orchestration.py`.
-- Disposition: FIXED
-  - Review: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1389#pullrequestreview-4092917113
-  - Commit: `5199ad601`
-  - Evidence: `core/rag/vector_rag.py` explicitly rejects boolean embedding elements, keeping malformed vectors fail-closed.
+Disposition: FIXED
+Commit: 5199ad601
+Evidence: `core/rag/vector_rag.py` now accepts generic non-string `Sequence` inputs, rejects boolean embedding elements fail-closed, and `core/rag/orchestration.py` collapses non-string formatted/redacted context to the non-RAG fail-safe path. Coverage in `tests/test_vector_rag.py` and `tests/test_rag_orchestration.py` was expanded in the same commit.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1389#discussion_r3067158270 -> 5199ad601
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1389#discussion_r3067162837 -> 5199ad601
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1389#pullrequestreview-4092907452 -> 5199ad601
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1389#pullrequestreview-4092912806 -> 5199ad601
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1389#pullrequestreview-4092917113 -> 5199ad601
+
+Disposition: FIXED
+Commit: see mapping entries below
+Evidence: `tests/test_vector_rag.py` drops the synthetic non-finite-similarity test that only reached the guard by monkeypatching `vector_rag._cosine_similarity`; the remaining stored-embedding finiteness coverage preserves the fail-closed contract without violating the repo guard against monkeypatching core compute helpers.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1389#discussion_r3067287563
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1389#pullrequestreview-4093037095
 
 ## Merge Readiness
 
