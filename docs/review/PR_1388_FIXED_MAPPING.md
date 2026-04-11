@@ -16,6 +16,11 @@ Evidence: `docs/roadmap/BACKLOG_LEDGER.md` now records `Target PR: PR #1388`, wh
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1388#pullrequestreview-4092906211 -> 6532b2eb7
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1388#pullrequestreview-4092911955 -> 6532b2eb7
 
+Disposition: NOT-A-BUG
+Evidence: `docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md` now keeps `PR-B2`, `PR-B3`, and `PR-B4` contiguous, while the semantic-cache gate note sits under `PR-A1b` instead of splitting the Karpathy rail list. The Codex inline note targeted an earlier intermediate layout that is no longer present on the current branch head.
+Reason: Outdated diff snapshot; current roadmap structure already preserves contiguous Karpathy rail ordering.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1388#discussion_r3067151594
+
 ## Merge Readiness
 
 - [ ] Current-head CI green for PR branch head
