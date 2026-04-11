@@ -8,7 +8,7 @@
 ## Fixed in Commit Mapping
 
 Disposition: NOT-A-BUG
-Evidence: `.github/workflows/ci.yml:811`, `.github/workflows/ci.yml:939`, `docs/roadmap/BACKLOG_LEDGER.md:8732`, `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1390#discussion_r3067846377`
+Evidence: `.github/workflows/ci.yml:811`, `.github/workflows/ci.yml:939`, `docs/roadmap/BACKLOG_LEDGER.md:8732`
 Reason: Sourcery's DRY extraction and `::notice::` prefix suggestions are advisory, but this PR is intentionally a narrow stopgap stabilization lane. Keeping the timing diagnostics inline inside the canonical `CI` workflow is consistent with the current scope, while root-cause retirement remains tracked in `ledger-p1-py313-main-ci-stall-root-cause`.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1390#pullrequestreview-4093556786
 
