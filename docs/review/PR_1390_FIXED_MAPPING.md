@@ -26,6 +26,12 @@ Evidence: `docs/review/PR_1390_FIXED_MAPPING.md` now replaces the ambiguous plac
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1390#pullrequestreview-4093558245 -> 43ee565af
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1390#discussion_r3067778134 -> 43ee565af
 
+Disposition: FIXED
+Commit: dff54de3e
+Evidence: `docs/review/PR_1390_FIXED_MAPPING.md:11`, `docs/review/PR_1390_FIXED_MAPPING.md:13`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1390#pullrequestreview-4093609339 -> dff54de3e
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1390#discussion_r3067846377 -> dff54de3e
+
 ## Merge Readiness
 
 - [ ] All required checks pass (current head)
