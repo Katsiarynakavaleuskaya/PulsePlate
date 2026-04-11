@@ -30,6 +30,7 @@ RELEVANT_RISK_TAGS = frozenset(
     }
 )
 TEST_RUNTIME_ENV = "TESTING"
+PYTEST_RUNTIME_ENV = "PYTEST_CURRENT_TEST"
 TEST_RUNTIME_OPT_IN_ENV = "GOPLUS_AGENTGUARD_IN_TESTS"
 
 
@@ -69,8 +70,10 @@ def scan_text_with_goplus_agentguard(
     # дорогие Node subprocess-вызовы на каждый guarded request.
     # EN: In tests the bridge is disabled by default so the full suite does not
     # spawn expensive Node subprocesses for every guarded request.
-    if _is_truthy(os.getenv(TEST_RUNTIME_ENV)) and not _is_truthy(
-        os.getenv(TEST_RUNTIME_OPT_IN_ENV)
+    if (
+        _is_truthy(os.getenv(TEST_RUNTIME_ENV))
+        and os.getenv(PYTEST_RUNTIME_ENV)
+        and not _is_truthy(os.getenv(TEST_RUNTIME_OPT_IN_ENV))
     ):
         return None
 

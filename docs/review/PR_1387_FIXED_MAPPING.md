@@ -3,11 +3,11 @@
 ## Discussion Thread Pass
 
 - [x] Discussion-thread pass completed
-- [x] Fixed in commit mapping completed
+- [x] Fixed in Commit Mapping completed
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- Review comments identified; disposition mapping is added after the fixing commit.
 
 ## Merge Readiness
 
@@ -23,5 +23,6 @@
 
 ## Notes
 
-Draft PR only. This artifact is initialized before post-open QA / bug-hunter
-review and before any review-thread disposition mapping exists.
+Draft PR only. This artifact was initialized before the final bug-hunter pass
+and before review-thread disposition mapping exists; the checklist above must
+be refreshed again after the latest review activity.
