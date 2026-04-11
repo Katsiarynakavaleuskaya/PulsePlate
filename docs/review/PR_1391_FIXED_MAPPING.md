@@ -21,6 +21,8 @@ Evidence: `frontend/src/pages/Plate.stories.tsx` runtime-narrows `sessionState` 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1391#discussion_r3068057762 -> 7098293c0
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1391#pullrequestreview-4094077543 -> 0aa92fedb
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1391#pullrequestreview-4094078592 -> 0aa92fedb
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1391#pullrequestreview-4094079985 -> 0aa92fedb
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1391#discussion_r3068417797 -> 0aa92fedb
 
 ## Merge Readiness
 
