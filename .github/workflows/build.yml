@@ -46,6 +46,7 @@ jobs:
           build-args: |
             PULSEPLATE_PYTHON_INDEX_URL=${{ secrets.PULSEPLATE_PYTHON_INDEX_URL || vars.PULSEPLATE_PYTHON_INDEX_URL }}
             PULSEPLATE_PYTHON_TRUSTED_HOST=${{ secrets.PULSEPLATE_PYTHON_TRUSTED_HOST || vars.PULSEPLATE_PYTHON_TRUSTED_HOST }}
+            PULSEPLATE_REQUIREMENTS_FILE=requirements-ci-lite.txt
           platforms: linux/amd64
           push: false
           load: true
