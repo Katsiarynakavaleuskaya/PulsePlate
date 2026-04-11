@@ -95,6 +95,19 @@ Rules:
 - The follow-up remediation lane is explicitly separated from this preparatory
   workflow/docs PR
 
+## docs(agents) Instruction Sync
+
+- This PR carries the required `docs(agents): update instructions` sync for the
+  workflow and agent-behavior changes introduced by the bundled reconciliation
+  lane.
+- Mandatory lane order for this packet is
+  `agent-coordinator, security-auditor, backend-engineer, architecture-specialist (conditional), qa-engineer-agent -> bug-hunter`.
+- Scoped workflow addition remains
+  `.github/workflows/npm-dependency-submission.yml`, limited to root npm graph
+  refresh evidence for `package.json` and `package-lock.json`.
+- The follow-up remediation lane stays separate from this packet and must carry
+  any future root npm dependency churn or lockfile remediation work.
+
 ## Evidence Requirements
 
 - Live alert queries:
