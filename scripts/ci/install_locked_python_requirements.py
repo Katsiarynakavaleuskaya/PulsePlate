@@ -48,6 +48,8 @@ REQUIREMENTS_PROFILES: tuple[str, ...] = (
     "runtime-test",
     "ci-lite",
 )
+PIP_NETWORK_RETRIES = 5
+PIP_NETWORK_TIMEOUT_SECONDS = 60
 DOCKER_SINGLE_PASS_LOCKED_INSTALL_ENV = "PULSEPLATE_DOCKER_SINGLE_PASS_LOCKED_INSTALL"  # nosec B105: public env key contract, not a password (remove-by: 2026-12-31, ref: PR-docker-gha-buildx-pip-cache)
 DOCKER_PIP_LAYER_CACHE_ENV = "PULSEPLATE_DOCKER_PIP_LAYER_CACHE"
 
@@ -428,6 +430,10 @@ def build_pip_download_command(
         "-m",
         "pip",
         "download",
+        "--retries",
+        str(PIP_NETWORK_RETRIES),
+        "--timeout",
+        str(PIP_NETWORK_TIMEOUT_SECONDS),
         "--only-binary",
         ":all:",
         "--find-links",
@@ -490,6 +496,10 @@ def build_pip_proxy_install_command(
         "-m",
         "pip",
         "install",
+        "--retries",
+        str(PIP_NETWORK_RETRIES),
+        "--timeout",
+        str(PIP_NETWORK_TIMEOUT_SECONDS),
         "--only-binary",
         ":all:",
         "--index-url",
