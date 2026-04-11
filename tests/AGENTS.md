@@ -522,6 +522,11 @@ If tempted to:
   and `test_test_pro_access_coverage.py`.
 - `TESTING=true` must be set before importing `app`
   (handled centrally in `pytest_configure`).
+- Tests that intentionally exercise the live GoPlus/AgentGuard bridge must opt
+  in with `monkeypatch.setenv("GOPLUS_AGENTGUARD_IN_TESTS", "true")`; pytest's
+  own `PYTEST_CURRENT_TEST` marker is the only allowed broad signal for the
+  default bridge bypass, so `TESTING=true` alone must not suppress the live
+  runtime path.
 - If a test imports symbols from `app`,
   a guard-test must assert their presence.
 
