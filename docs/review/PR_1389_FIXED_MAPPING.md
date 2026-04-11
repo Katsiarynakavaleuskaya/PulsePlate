@@ -26,6 +26,12 @@ Evidence: `tests/test_vector_rag.py` drops the synthetic non-finite-similarity t
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1389#pullrequestreview-4093037095 -> 74f0c0ede
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1389#pullrequestreview-4093178566 -> 74f0c0ede
 
+Disposition: FIXED
+Commit: 65a4a4c4b
+Evidence: `core/rag/simple_rag.py` now keeps scanning ranked candidates until it fills the requested limit with non-empty redacted chunks, so lower-ranked safe chunks backfill when earlier results redact to empty; `tests/test_rag_orchestration.py` covers the backfill path at `max_chunks=1`, and `tests/test_vector_rag.py` adds direct `_normalize_similarity()` assertions for `nan`/`inf`/`-inf`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1389#discussion_r3067155700 -> 65a4a4c4b
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1389#pullrequestreview-4093250775 -> 65a4a4c4b
+
 ## Merge Readiness
 
 - [ ] Current-head CI green for PR branch head
