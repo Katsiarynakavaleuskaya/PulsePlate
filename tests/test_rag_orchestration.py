@@ -813,6 +813,35 @@ class TestRetrieveAndValidateRag:
         assert result.latency_ms == 75
 
     @pytest.mark.asyncio
+    async def test_non_string_formatted_context_returns_fail_safe_non_rag_result(self) -> None:
+        """Non-string formatted context must collapse to a non-RAG result."""
+        chunks = [_make_chunk("c1", content="Knowledge about wellness.", score=0.9)]
+        rag_ctx = _make_rag_context(chunks=chunks, hops=2, latency_ms=75)
+
+        with (
+            patch(
+                "asyncio.to_thread",
+                new_callable=AsyncMock,
+                return_value=rag_ctx,
+            ),
+            patch("core.rag.vector_rag.retrieve_context_structured"),
+            patch(
+                "core.rag.formatting.format_rag_chunks_for_prompt",
+                return_value=["unexpected-context"],
+            ),
+        ):
+            result = await retrieve_and_validate_rag(
+                "What is wellness?", philo_validation_enabled=False
+            )
+
+        assert result.rag_actually_used is False
+        assert result.formatted_prompt == "What is wellness?"
+        assert result.chunks == []
+        assert result.confidence is None
+        assert result.hops == 2
+        assert result.latency_ms == 75
+
+    @pytest.mark.asyncio
     async def test_empty_redacted_context_returns_fail_safe_non_rag_result(self) -> None:
         """Redaction that removes all context must collapse to a non-RAG result."""
         chunks = [_make_chunk("c1", content="Knowledge about wellness.", score=0.9)]
@@ -832,6 +861,39 @@ class TestRetrieveAndValidateRag:
             patch(
                 "core.insight.safety.redact_rag_context_for_insight",
                 return_value="",
+            ),
+        ):
+            result = await retrieve_and_validate_rag(
+                "What is wellness?", philo_validation_enabled=False
+            )
+
+        assert result.rag_actually_used is False
+        assert result.formatted_prompt == "What is wellness?"
+        assert result.chunks == []
+        assert result.confidence is None
+        assert result.hops == 3
+        assert result.latency_ms == 60
+
+    @pytest.mark.asyncio
+    async def test_non_string_redacted_context_returns_fail_safe_non_rag_result(self) -> None:
+        """Non-string redacted context must collapse to a non-RAG result."""
+        chunks = [_make_chunk("c1", content="Knowledge about wellness.", score=0.9)]
+        rag_ctx = _make_rag_context(chunks=chunks, hops=3, latency_ms=60)
+
+        with (
+            patch(
+                "asyncio.to_thread",
+                new_callable=AsyncMock,
+                return_value=rag_ctx,
+            ),
+            patch("core.rag.vector_rag.retrieve_context_structured"),
+            patch(
+                "core.rag.formatting.format_rag_chunks_for_prompt",
+                return_value="Knowledge about wellness.",
+            ),
+            patch(
+                "core.insight.safety.redact_rag_context_for_insight",
+                return_value={"unexpected": "context"},
             ),
         ):
             result = await retrieve_and_validate_rag(

@@ -118,6 +118,12 @@ def _resolve_confidence(
     return _mean_chunk_score(chunks_to_use)
 
 
+def _has_context_text(value: object) -> bool:
+    """Return whether a context payload is a non-empty string."""
+
+    return isinstance(value, str) and bool(value.strip())
+
+
 def _non_rag_result(
     prompt_input: str,
     *,
@@ -284,7 +290,7 @@ async def _run_orchestration(
         from core.insight.safety import redact_rag_context_for_insight
 
         raw_context = format_rag_chunks_for_prompt(chunks_to_use)
-        if not raw_context.strip():
+        if not _has_context_text(raw_context):
             return _non_rag_result(
                 prompt_input,
                 rag_ctx_hops=rag_ctx.hops,
@@ -295,7 +301,7 @@ async def _run_orchestration(
                 recursive_executed=recursive_executed,
             )
         redacted_context = redact_rag_context_for_insight(raw_context)
-        if not redacted_context.strip():
+        if not _has_context_text(redacted_context):
             return _non_rag_result(
                 prompt_input,
                 rag_ctx_hops=rag_ctx.hops,

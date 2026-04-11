@@ -18,6 +18,7 @@ import logging
 import math
 import threading
 import time
+from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any, SupportsFloat, cast
 
 from app.utils.feature_flags import is_rag_vector_enabled
@@ -119,11 +120,13 @@ def _has_expected_embedding_dimensions(query_embedding: list[float]) -> bool:
 def _normalize_embedding_vector(values: object) -> list[float] | None:
     """Return a finite embedding vector with the configured dimensions."""
 
-    if not isinstance(values, (list, tuple)):
+    if isinstance(values, (str, bytes, bytearray)) or not isinstance(values, Sequence):
         return None
 
     numeric_values: list[float] = []
     for value in values:
+        if isinstance(value, bool):
+            return None
         candidate: str | int | float | SupportsFloat
         if isinstance(value, (str, int, float)):
             candidate = value
