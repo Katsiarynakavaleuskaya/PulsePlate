@@ -66,32 +66,41 @@
   - `All agent docs are consistent`
 - Exit code: `0`
 
-- Command 3: `cd frontend && npm run test -- src/pages/__tests__/Plate.test.tsx`
+- Command 3: `pre-commit run --all-files`
+- Output lines:
+  - `black (format)...........................................................Passed`
+  - `bandit (security, changed files only)....................................Passed`
+  - `frontend tests (vitest)..................................................Passed`
+  - `backend tests (pytest, changed files)....................................Passed`
+  - `ios syntax check (swift).................................................Passed`
+- Exit code: `0`
+
+- Command 4: `cd frontend && npm run test -- src/pages/__tests__/Plate.test.tsx`
 - Output lines:
   - `✓ src/pages/__tests__/Plate.test.tsx (6 tests)`
   - `Test Files  1 passed (1)`
 - Exit code: `0`
 
-- Command 4: `cd frontend && npm run test -- src/pages/__tests__/Progress.test.tsx`
+- Command 5: `cd frontend && npm run test -- src/pages/__tests__/Progress.test.tsx`
 - Output lines:
   - `✓ src/pages/__tests__/Progress.test.tsx (2 tests)`
   - `Test Files  1 passed (1)`
 - Exit code: `0`
 
-- Command 5: `cd frontend && npm run test -- src/pages/__tests__/Plate.storyHarness.test.tsx`
+- Command 6: `cd frontend && npm run test -- src/pages/__tests__/Plate.storyHarness.test.tsx`
 - Output lines:
   - `✓ src/pages/__tests__/Plate.storyHarness.test.tsx (1 test)`
   - `Test Files  1 passed (1)`
 - Exit code: `0`
 
-- Command 6: `cd frontend && npm run build && npm run build-storybook`
+- Command 7: `cd frontend && npm run build && npm run build-storybook`
 - Output lines:
-  - `✓ built in 2.18s` (`vite build`)
-  - `✓ built in 7.04s` (`storybook build`)
+  - `✓ built in ...` (`vite build`)
+  - `✓ built in ...` (`storybook build`)
   - `Output directory: .../frontend/storybook-static`
 - Exit code: `0`
 
-- Command 7: `xcodebuildmcp build_sim` for workspace `ios/PulsePlate.xcworkspace`,
+- Command 8: `xcodebuildmcp build_sim` for workspace `ios/PulsePlate.xcworkspace`,
   scheme `PulsePlate`, simulator `iPhone 17`
 - Output lines:
   - `error: type 'Color' has no member 'navy'`
@@ -110,6 +119,7 @@
   - `frontend/src/pages/Plate.stories.tsx`
   - `frontend/src/pages/Progress.stories.tsx`
 - Story-level regression evidence:
+  - `frontend/src/pages/Plate.storySupport.tsx`
   - `frontend/src/pages/__tests__/Plate.storyHarness.test.tsx`
 - Existing supporting pattern stories:
   - `frontend/src/components/cta/HomeOpenSetupCta.stories.tsx`

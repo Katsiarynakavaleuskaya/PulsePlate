@@ -737,7 +737,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: PR21 design-bridge operationalization lane (preflight + capture + first parity pack)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (design-ops evidence pipeline)
-  - Target PR: PR-TBD (`feat/design-bridge-ops-parity-pack`)
+  - Target PR: PR #1391 (`feat/design-bridge-ops-parity-pack`)
   - Status: 📋 Planned from merged bridge baseline on `main`
   - Area: docs / orchestration / design / runbooks / frontend / ios
   - Finding Type: operational follow-on after merged bridge baseline

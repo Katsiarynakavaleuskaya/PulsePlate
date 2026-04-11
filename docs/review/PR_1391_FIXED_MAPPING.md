@@ -6,9 +6,7 @@
 
 ## Fixed in Commit Mapping
 
-Disposition: NOT-A-BUG
-Evidence: Draft PR opened for the PR21 operationalization lane before human/bot review. No actionable review threads exist yet to classify as `FIXED`, `NOT-A-BUG`, or `DEFERRED`.
-Reason: This artifact is created at PR-open time to satisfy the canonical governance bundle; mapping entries will be appended once review URLs exist.
+- No actionable review comments
 
 ## Merge Readiness
 
@@ -18,4 +16,4 @@ Reason: This artifact is created at PR-open time to satisfy the canonical govern
 - [ ] Pre-commit green
 - [ ] `make verify` green
 - [ ] Mandatory post-open `qa-engineer-agent -> bug-hunter` pass completed
-Notes: PR #1391 remains draft-only. Web evidence is captured, but the iOS verifier is still blocked by existing compile drift and no review-thread mappings exist yet.
+Notes: PR #1391 remains draft-only. This artifact exists at PR-open time to satisfy the canonical governance bundle; review-thread URLs and commit mappings will be appended only after human or bot review appears on the current head. Web evidence is captured, but the iOS verifier is still blocked by existing compile drift.
