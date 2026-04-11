@@ -9,13 +9,14 @@
 ## Fixed in Commit Mapping
 
 Disposition: FIXED
-Commit: PENDING_REVIEW_ARTIFACT_FIX_SHA
+Commit: aaa3217ea
 Evidence: `docs/review/PR_1392_FIXED_MAPPING.md` now carries the canonical
 disposition/proof structure plus `## Merge Readiness`, so the artifact itself
 is no longer the merge-governance gap identified by CodeRabbit.
 Reason: The inline CodeRabbit thread requested the repo-standard mapping/proof
-structure for this artifact; this governance-only follow-up addresses that ask.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1392#discussion_r3068172124 -> PENDING_REVIEW_ARTIFACT_FIX_SHA
+structure for this artifact; commit `aaa3217ea` is the governance-only
+follow-up that addresses that ask.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1392#discussion_r3068172124 -> aaa3217ea
 
 Disposition: NOT-A-BUG
 Evidence: The only actionable CodeRabbit finding in the aggregate review body is
