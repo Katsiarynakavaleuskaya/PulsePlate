@@ -689,8 +689,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Coordinator-led design-agent runtime PR chain (PR1-PR4)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (design-runtime productization and orchestration)
-  - Target PR: PR `#1219` (realignment bridge) -> `PR-TBD-DESIGN-AGENT-PR4` (reserved `worktree/design-agent-pr4-creative-research`)
-  - Status: 🚧 Baseline PR1-PR3 realized in `main`; realignment bridge pending
+  - Target PR: PR `#1219` (merged realignment bridge) -> `PR-TBD-DESIGN-AGENT-PR4` (reserved `worktree/design-agent-pr4-creative-research`, with a bounded packet still required before any future opening)
+  - Status: ✅ Baseline PR1-PR3 and the realignment bridge are merged in `main`; design-agent PR4 remains optional, unopened, and explicitly reserved
   - Area: scripts / orchestration / design-runtime / docs
   - Finding Type: initiative umbrella and sequencing contract
   - Reason: PulsePlate already has a governed code-native design runtime, but the
@@ -703,6 +703,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     review-ready.
   - Links:
     - `docs/design/DESIGN_AGENT_RUNTIME_PR_CHAIN.md`
+    - `docs/orchestration/DESIGN_AGENT_RUNTIME_REALIGNMENT_PACKET.md`
     - `docs/library/brainstorm/2026-03-21_design-agent-runtime-pr-chain.md`
     - `docs/library/research/2026-03-21_design-agent-runtime-pr-chain_evidence.md`
     - `docs/library/decisions/ADR_DESIGN_AGENT_RUNTIME_PR_CHAIN_2026-03-21.md`
