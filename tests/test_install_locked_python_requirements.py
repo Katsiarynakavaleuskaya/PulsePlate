@@ -178,6 +178,13 @@ def test_build_pip_download_command_uses_constraint_when_present(tmp_path: Path)
     )
 
     assert command[:4] == ["python", "-m", "pip", "download"]
+    download_idx = command.index("download")
+    assert command[download_idx + 1 : download_idx + 5] == [
+        "--retries",
+        str(installer.PIP_NETWORK_RETRIES),
+        "--timeout",
+        str(installer.PIP_NETWORK_TIMEOUT_SECONDS),
+    ]
     assert "--only-binary" in command
     assert ":all:" in command
     assert "--find-links" in command
@@ -218,7 +225,13 @@ def test_build_pip_proxy_install_command_uses_approved_proxy_without_cache(
 
     assert command[:4] == ["python", "-m", "pip", "install"]
     install_idx = command.index("install")
-    assert command[install_idx + 1] == "--no-cache-dir"
+    assert command[install_idx + 1 : install_idx + 5] == [
+        "--no-cache-dir",
+        "--retries",
+        str(installer.PIP_NETWORK_RETRIES),
+        "--timeout",
+    ]
+    assert command[install_idx + 5] == str(installer.PIP_NETWORK_TIMEOUT_SECONDS)
     assert "--only-binary" in command
     assert ":all:" in command
     assert "--index-url" in command
@@ -243,6 +256,13 @@ def test_build_pip_proxy_install_command_omits_no_cache_dir_when_cache_allowed(
     )
 
     assert "--no-cache-dir" not in command
+    install_idx = command.index("install")
+    assert command[install_idx + 1 : install_idx + 5] == [
+        "--retries",
+        str(installer.PIP_NETWORK_RETRIES),
+        "--timeout",
+        str(installer.PIP_NETWORK_TIMEOUT_SECONDS),
+    ]
 
 
 def test_build_pip_proxy_install_command_supports_find_links(tmp_path: Path) -> None:
