@@ -12,6 +12,7 @@ Bot and human review threads must be dispositioned below when actionable comment
 Disposition: FIXED
 Commit: ea218498c
 Evidence: `scripts/deploy_production.sh` (autodetected compose bundle sync), `scripts/diagnose_web.sh` (404 admin-canary hard fail), `deploy/WORKFLOW.md` (production scripts path), `tests/test_app_endpoints_combined.py` (deterministic sitemap assertions + public_discovery coverage), `tests/test_deploy_contract_scripts.py`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1385#pullrequestreview-4092727607 -> ea218498c
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1385#discussion_r3066824729 -> ea218498c
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1385#discussion_r3066957607 -> ea218498c
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1385#discussion_r3066979098 -> ea218498c
@@ -22,7 +23,8 @@ Evidence: `scripts/deploy_production.sh` (autodetected compose bundle sync), `sc
 
 Disposition: FIXED
 Commit: 8862ba28b
-Evidence: `docs/deploy/SPA_APEX_ROUTING_CONTRACT.md` (temporary reopen contract keeps `/health*` and `/ready` edge-protected)
+Evidence: `docs/deploy/SPA_APEX_ROUTING_CONTRACT.md` (temporary reopen contract keeps `/health*` and `/ready` edge-protected), final closure of cubic review `pullrequestreview-4092738799` after earlier inline recovery fixes landed in `ea218498c`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1385#pullrequestreview-4092738799 -> 8862ba28b
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1385#discussion_r3066979099 -> 8862ba28b
 
 Disposition: FIXED
@@ -33,6 +35,9 @@ Evidence: `scripts/deploy_production.sh` (shell-bundle compose sync preserves th
 Disposition: FIXED
 Commit: a062111c6
 Evidence: `scripts/deploy_production.sh` (autodetects canonical `deploy/docker-compose.production.yaml` + `deploy/.env`, rejects compose sync targets outside `DEPLOY_DIR`), `tests/test_deploy_contract_scripts.py`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1385#pullrequestreview-4092928735 -> a062111c6
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1385#pullrequestreview-4092938795 -> a062111c6
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1385#pullrequestreview-4092941266 -> a062111c6
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1385#discussion_r3067175262 -> a062111c6
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1385#discussion_r3067185585 -> a062111c6
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1385#discussion_r3067187995 -> a062111c6
@@ -40,8 +45,21 @@ Evidence: `scripts/deploy_production.sh` (autodetects canonical `deploy/docker-c
 Disposition: FIXED
 Commit: 63b775fd6
 Evidence: `scripts/deploy_production.sh` (default `ENV_FILE` selection now handles absolute `COMPOSE_FILE` paths under `$DEPLOY_DIR/deploy/*`), `tests/test_deploy_contract_scripts.py` (absolute deploy compose regression coverage, valid JSON curl stub payload)
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1385#pullrequestreview-4093040042 -> 63b775fd6
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1385#pullrequestreview-4093041205 -> 63b775fd6
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1385#discussion_r3067290930 -> 63b775fd6
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1385#discussion_r3067292082 -> 63b775fd6
+
+Disposition: FIXED
+Commit: 327f5d4a0
+Evidence: `scripts/deploy_production.sh` now fails fast when `RESOLVED_COMPOSE_FILE` points to a missing file, `tests/test_deploy_contract_scripts.py` locks the preflight contract, and this commit is the final closure for CodeRabbit review `pullrequestreview-4092919899`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1385#pullrequestreview-4092919899 -> 327f5d4a0
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1385#discussion_r3067307203
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1385#pullrequestreview-4093057434
+Disposition: NOT-A-BUG
+Evidence: `tests/test_deploy_contract_scripts.py:1268`, `tests/test_deploy_contract_scripts.py:1310`
+Reason: `curl_stub` is a plain triple-quoted string, not an f-string, so the JSON braces in `payload='{\"ok\": true}'` are literal shell-script content and do not require `{{ ... }}` escaping.
 
 ## Merge Readiness
 
