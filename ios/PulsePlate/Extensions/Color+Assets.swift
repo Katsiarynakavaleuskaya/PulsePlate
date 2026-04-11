@@ -3,8 +3,10 @@ import SwiftUI
 // MARK: - Color Assets Extension
 extension Color {
     // MARK: - Brand Colors
-    // RU: Не полагаемся на implicit Xcode-generated Color members.
-    // EN: Avoid relying on implicit Xcode-generated Color members for asset colors.
+    // RU: Держим явные alias для стабильной совместимости между версиями Xcode.
+    // Автогенерацию asset symbol extensions отключаем в project settings.
+    // EN: Keep explicit aliases for stable compatibility across Xcode versions.
+    // Asset symbol extension autogeneration is disabled in project settings.
     static let navy = PPDesignTokens.Brand.navy
     static let appPrimary = PPDesignTokens.Brand.blue
     static let accent = PPDesignTokens.Brand.green
