@@ -57,3 +57,7 @@ made the local Node scanner the active runtime/test seam on `main`; `#1387`
 remains the root-fix lane because it removes that live bridge cost from the
 default test runtime. `tests/conftest.py` already sets `TESTING=true` during
 pytest bootstrap, so current evidence does not justify a separate CI env patch.
+Latest PR-side `CI` rerun `24288236911` is green, and `main` is stabilized after
+merge `#1392` with green `CI` run `24286369504`. `gh pr checks 1387` may still
+show historical failed push run `24281080918`, but that failure is superseded
+history rather than current-head PR truth.
