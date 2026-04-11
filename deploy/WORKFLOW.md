@@ -188,6 +188,78 @@ curl -fsS https://pulseplate.app/health | jq .
 }
 ```
 
+### Emergency apex shell recovery (DigitalOcean + Cloudflare drift)
+
+Если production apex внезапно уходит в белый экран, JSON probe или пустой shell,
+не чини это руками только в Cloudflare. Сначала восстанови repo-owned shell
+bundle на origin.
+
+**Жёсткое правило:** emergency shell sync разрешён только из **merged canonical
+tree** (`origin/main` / release commit) или из CI-produced release bundle.
+Нельзя копировать `deploy/` и `frontend/` с произвольного локального dirty checkout.
+
+```bash
+# Локально: перейти на merged canonical tree
+git fetch origin main
+git switch --detach origin/main
+
+# С этого checkout синхронизировать production shell bundle на сервер
+scp deploy/Caddyfile.production ubuntu@64.226.117.163:/srv/pulseplate-production/Caddyfile.production
+scp deploy/docker-compose.production.yaml ubuntu@64.226.117.163:/srv/pulseplate-production/docker-compose.production.yaml
+rsync -az --delete frontend/ ubuntu@64.226.117.163:/srv/frontend/
+scp scripts/diagnose_web.sh ubuntu@64.226.117.163:/srv/pulseplate-production/scripts/diagnose_web.sh
+
+# На сервере: rebuild/restart только edge shell
+ssh ubuntu@64.226.117.163 '
+  cd /srv/pulseplate-production &&
+  bash scripts/redeploy_caddy.sh
+'
+```
+
+После этого:
+
+```bash
+BASE_URL=https://pulseplate.app bash scripts/diagnose_web.sh
+```
+
+Если host всё ещё скрыт за full-host Cloudflare Access, используй private probe:
+
+```bash
+CF_ACCESS_CLIENT_ID=... \
+CF_ACCESS_CLIENT_SECRET=... \
+BASE_URL=https://pulseplate.app \
+bash scripts/diagnose_web.sh
+```
+
+Если apex shell восстановился, а `/sitemap.xml` всё ещё не XML, значит edge уже
+здоров, но backend image ещё не содержит нужный route. В этом случае нужен
+отдельный deploy нового app image, а не очередная ручная правка Cloudflare.
+
+### Public reopen after private recovery
+
+Когда private verification прошла, снимай full-host Access не "в ноль", а вместе
+с narrow temporary bypass только для публичных GET surfaces:
+
+- `/`
+- SPA routes
+- `/assets/*`
+- `/favicon*`
+- `/sitemap.xml`
+- `/privacy`
+- `/terms`
+- `/legacy/bmi-calculator`
+
+Не ослабляй:
+
+- `/api*`
+- `/admin*`
+- `/ws*`
+- `/openapi.json`
+- `/health`
+- `/docs*`
+- `/redoc*`
+- `/debug_env`
+
 ---
 
 ## 🧠 Ментальная модель
@@ -196,7 +268,7 @@ curl -fsS https://pulseplate.app/health | jq .
 | ------------------ | ---------------------------------------------- | --------------------------------------- |
 | **Cursor**         | Код, фиксы, коммиты, PR                       | Правка на сервере                       |
 | **GitHub Actions** | Автоматическая сборка Docker image             | Ручная сборка                           |
-| **DigitalOcean**   | `docker compose pull app` + one-shot `alembic upgrade head` + `build caddy` + `up` + `diagnose_web.sh` (см. `scripts/redeploy_caddy.sh`) | Правка кода, git clone, изменение файлов |
+| **DigitalOcean**   | `docker compose pull app` + one-shot `alembic upgrade head` + `build caddy` + `up` + `diagnose_web.sh` (см. `scripts/redeploy_caddy.sh`) | Правка кода, git clone, shell sync из unmerged/dirty checkout |
 
 ---
 

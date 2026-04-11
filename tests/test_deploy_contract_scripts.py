@@ -258,6 +258,55 @@ printf 'docker %s\\n' "$*" >> "{log_file}"
     assert not log_file.exists()
 
 
+def test_deploy_production_fails_fast_when_resolved_compose_file_is_missing(tmp_path: Path) -> None:
+    project_dir = tmp_path / "production"
+    bin_dir = tmp_path / "bin"
+    log_file = tmp_path / "deploy.log"
+    project_dir.mkdir()
+    bin_dir.mkdir()
+    (project_dir / ".env").write_text(
+        "\n".join(
+            [
+                "DATABASE_URL=postgresql+psycopg://pulseplate:secret@db.example.com:25060/pulseplate",  # pragma: allowlist secret
+                "PRODUCTION_DOMAIN=pulseplate.test",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    docker_stub = f"""#!/usr/bin/env bash
+set -euo pipefail
+printf 'docker %s\\n' "$*" >> "{log_file}"
+"""
+    _write_executable(bin_dir / "docker", docker_stub)
+
+    env = os.environ.copy()
+    env["PATH"] = f"{bin_dir}:{env['PATH']}"
+    env["DOCKER_BIN"] = str(bin_dir / "docker")
+    env["DEPLOY_DIR"] = str(project_dir)
+    env["ENV_FILE"] = str(project_dir / ".env")
+    env["COMPOSE_FILE"] = str(project_dir / "missing-compose.yaml")
+    env["IMAGE_REF"] = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:test"
+    env["TAG"] = "prod-vtest"
+
+    completed = subprocess.run(
+        [str(REPO_ROOT / "scripts/deploy_production.sh"), "--preflight-only"],
+        cwd=str(REPO_ROOT),
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert completed.returncode == 1
+    assert (
+        f"RESOLVED_COMPOSE_FILE does not exist: {project_dir / 'missing-compose.yaml'}"
+        in completed.stderr
+    )
+    assert not log_file.exists()
+
+
 def test_deploy_production_logs_in_to_ghcr_with_resolved_docker_binary(tmp_path: Path) -> None:
     project_dir = tmp_path / "production"
     docker_home = tmp_path / "docker-home"
@@ -373,6 +422,10 @@ def test_deploy_production_syncs_shell_bundle_and_prunes_stale_shell_files(tmp_p
         'pulseplate.test {\n    respond "ok"\n}\n',
         encoding="utf-8",
     )
+    (shell_bundle_dir / "deploy" / "docker-compose.production.yaml").write_text(
+        "services:\n  caddy:\n    image: caddy:2.10.2\n",
+        encoding="utf-8",
+    )
     (shell_bundle_dir / "scripts").mkdir()
     (shell_bundle_dir / "scripts" / "diagnose_web.sh").write_text(
         "#!/usr/bin/env bash\nprintf 'bundle-diagnose\\n'\n", encoding="utf-8"
@@ -434,10 +487,432 @@ printf 'curl %s\\n' "$*" >> "{log_file}"
         .read_text(encoding="utf-8")
         .startswith("pulseplate.test")
     )
+    assert (project_dir / "docker-compose.production.yaml").read_text(
+        encoding="utf-8"
+    ) == "services:\n  caddy:\n    image: caddy:2.10.2\n"
     assert not (shell_root / "frontend" / "stale.txt").exists()
     assert (shell_root / "scripts" / "diagnose_web.sh").read_text(
         encoding="utf-8"
     ) == "#!/usr/bin/env bash\nprintf 'bundle-diagnose\\n'\n"
+
+
+def test_deploy_production_syncs_shell_bundle_with_autodetected_compose_file(
+    tmp_path: Path,
+) -> None:
+    project_dir = tmp_path / "production"
+    shell_root = project_dir.parent
+    shell_bundle_dir = tmp_path / "shell-bundle"
+    bin_dir = tmp_path / "bin"
+    log_file = tmp_path / "deploy.log"
+    project_dir.mkdir()
+    shell_bundle_dir.mkdir()
+    bin_dir.mkdir()
+    (project_dir / "docker-compose.production.yaml").write_text("services: {}\n", encoding="utf-8")
+    (project_dir / ".env").write_text(
+        "DATABASE_URL=postgresql+psycopg://pulseplate:secret@db.example.com:25060/pulseplate\n",  # pragma: allowlist secret
+        encoding="utf-8",
+    )
+    (shell_bundle_dir / "frontend").mkdir()
+    (shell_bundle_dir / "frontend" / "bundle-marker.txt").write_text(
+        "frontend-sync\n", encoding="utf-8"
+    )
+    (shell_bundle_dir / "deploy").mkdir()
+    (shell_bundle_dir / "deploy" / "Caddyfile.production").write_text(
+        'pulseplate.test {\n    respond "ok"\n}\n',
+        encoding="utf-8",
+    )
+    (shell_bundle_dir / "deploy" / "docker-compose.production.yaml").write_text(
+        "services:\n  caddy:\n    image: caddy:2.10.2\n",
+        encoding="utf-8",
+    )
+    (shell_bundle_dir / "scripts").mkdir()
+    (shell_bundle_dir / "scripts" / "diagnose_web.sh").write_text(
+        "#!/usr/bin/env bash\nprintf 'bundle-diagnose\\n'\n", encoding="utf-8"
+    )
+    (shell_root / "scripts").mkdir()
+
+    docker_stub = f"""#!/usr/bin/env bash
+set -euo pipefail
+printf 'docker %s\\n' "$*" >> "{log_file}"
+case "$*" in
+  *"compose --env-file "*"-f docker-compose.production.yaml ps -q app"*)
+    printf 'app-id\\n'
+    ;;
+  *"inspect --format "*)
+    printf 'healthy\\n'
+    ;;
+  *"ps --format "*)
+    printf 'CONTAINER ID\\n'
+    ;;
+esac
+"""
+    curl_stub = f"""#!/usr/bin/env bash
+set -euo pipefail
+printf 'curl %s\\n' "$*" >> "{log_file}"
+"""
+    sleep_stub = "#!/usr/bin/env bash\nset -euo pipefail\n"
+    _write_executable(bin_dir / "docker", docker_stub)
+    _write_executable(bin_dir / "curl", curl_stub)
+    _write_executable(bin_dir / "sleep", sleep_stub)
+
+    env = os.environ.copy()
+    env["PATH"] = f"{bin_dir}:{env['PATH']}"
+    env["DOCKER_BIN"] = str(bin_dir / "docker")
+    env["DEPLOY_DIR"] = str(project_dir)
+    env["ENV_FILE"] = str(project_dir / ".env")
+    env.pop("COMPOSE_FILE", None)
+    env["IMAGE_REF"] = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:test"
+    env["TAG"] = "prod-vtest"
+    env["PRODUCTION_DOMAIN"] = "pulseplate.test"
+    env["SHELL_BUNDLE_DIR"] = str(shell_bundle_dir)
+
+    subprocess.run(
+        [str(REPO_ROOT / "scripts/deploy_production.sh")],
+        cwd=str(REPO_ROOT),
+        env=env,
+        text=True,
+        capture_output=True,
+        check=True,
+    )
+
+    assert (project_dir / "docker-compose.production.yaml").read_text(
+        encoding="utf-8"
+    ) == "services:\n  caddy:\n    image: caddy:2.10.2\n"
+    assert (shell_root / "scripts" / "diagnose_web.sh").read_text(
+        encoding="utf-8"
+    ) == "#!/usr/bin/env bash\nprintf 'bundle-diagnose\\n'\n"
+
+
+def test_deploy_production_syncs_shell_bundle_with_relative_compose_subpath(
+    tmp_path: Path,
+) -> None:
+    project_dir = tmp_path / "production"
+    shell_root = project_dir.parent
+    shell_bundle_dir = tmp_path / "shell-bundle"
+    bin_dir = tmp_path / "bin"
+    log_file = tmp_path / "deploy.log"
+    project_dir.mkdir()
+    (project_dir / "deploy").mkdir()
+    shell_bundle_dir.mkdir()
+    bin_dir.mkdir()
+    (project_dir / "deploy" / "docker-compose.production.yaml").write_text(
+        "services: {}\n",
+        encoding="utf-8",
+    )
+    (project_dir / ".env").write_text(
+        "DATABASE_URL=postgresql+psycopg://pulseplate:secret@db.example.com:25060/pulseplate\n",  # pragma: allowlist secret
+        encoding="utf-8",
+    )
+    (shell_bundle_dir / "frontend").mkdir()
+    (shell_bundle_dir / "frontend" / "bundle-marker.txt").write_text(
+        "frontend-sync\n", encoding="utf-8"
+    )
+    (shell_bundle_dir / "deploy").mkdir()
+    (shell_bundle_dir / "deploy" / "Caddyfile.production").write_text(
+        'pulseplate.test {\n    respond "ok"\n}\n',
+        encoding="utf-8",
+    )
+    (shell_bundle_dir / "deploy" / "docker-compose.production.yaml").write_text(
+        "services:\n  app:\n    image: ghcr.io/example/pulseplate:test\n",
+        encoding="utf-8",
+    )
+    (shell_bundle_dir / "scripts").mkdir()
+    (shell_bundle_dir / "scripts" / "diagnose_web.sh").write_text(
+        "#!/usr/bin/env bash\nprintf 'bundle-diagnose\\n'\n", encoding="utf-8"
+    )
+    (shell_root / "scripts").mkdir()
+
+    docker_stub = f"""#!/usr/bin/env bash
+set -euo pipefail
+printf 'docker %s\\n' "$*" >> "{log_file}"
+case "$*" in
+  *"compose --env-file "*"-f deploy/docker-compose.production.yaml ps -q app"*)
+    printf 'app-id\\n'
+    ;;
+  *"inspect --format "*)
+    printf 'healthy\\n'
+    ;;
+  *"ps --format "*)
+    printf 'CONTAINER ID\\n'
+    ;;
+esac
+"""
+    curl_stub = f"""#!/usr/bin/env bash
+set -euo pipefail
+printf 'curl %s\\n' "$*" >> "{log_file}"
+"""
+    sleep_stub = "#!/usr/bin/env bash\nset -euo pipefail\n"
+    _write_executable(bin_dir / "docker", docker_stub)
+    _write_executable(bin_dir / "curl", curl_stub)
+    _write_executable(bin_dir / "sleep", sleep_stub)
+
+    env = os.environ.copy()
+    env["PATH"] = f"{bin_dir}:{env['PATH']}"
+    env["DOCKER_BIN"] = str(bin_dir / "docker")
+    env["DEPLOY_DIR"] = str(project_dir)
+    env["ENV_FILE"] = str(project_dir / ".env")
+    env["COMPOSE_FILE"] = "deploy/docker-compose.production.yaml"
+    env["IMAGE_REF"] = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:test"
+    env["TAG"] = "prod-vtest"
+    env["PRODUCTION_DOMAIN"] = "pulseplate.test"
+    env["SHELL_BUNDLE_DIR"] = str(shell_bundle_dir)
+
+    subprocess.run(
+        [str(REPO_ROOT / "scripts/deploy_production.sh")],
+        cwd=str(REPO_ROOT),
+        env=env,
+        text=True,
+        capture_output=True,
+        check=True,
+    )
+
+    assert (project_dir / "deploy" / "docker-compose.production.yaml").read_text(
+        encoding="utf-8"
+    ) == "services:\n  app:\n    image: ghcr.io/example/pulseplate:test\n"
+    assert (shell_root / "scripts" / "diagnose_web.sh").read_text(
+        encoding="utf-8"
+    ) == "#!/usr/bin/env bash\nprintf 'bundle-diagnose\\n'\n"
+
+
+def test_deploy_production_autodetects_deploy_subdir_compose_and_env_file(
+    tmp_path: Path,
+) -> None:
+    project_dir = tmp_path / "production"
+    deploy_dir = project_dir / "deploy"
+    bin_dir = tmp_path / "bin"
+    log_file = tmp_path / "deploy.log"
+    project_dir.mkdir()
+    deploy_dir.mkdir()
+    bin_dir.mkdir()
+    (deploy_dir / "docker-compose.production.yaml").write_text("services: {}\n", encoding="utf-8")
+    (deploy_dir / ".env").write_text(
+        "\n".join(
+            [
+                "DATABASE_URL=postgresql+psycopg://pulseplate:secret@db.example.com:25060/pulseplate",  # pragma: allowlist secret
+                "PRODUCTION_DOMAIN=pulseplate.test",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    docker_stub = f"""#!/usr/bin/env bash
+set -euo pipefail
+printf 'docker %s\\n' "$*" >> "{log_file}"
+case "$*" in
+  *"compose --env-file "*"/deploy/.env -f deploy/docker-compose.production.yaml ps -q app"*)
+    printf 'app-id\\n'
+    ;;
+  *"inspect --format "*)
+    printf 'healthy\\n'
+    ;;
+  *"ps --format "*)
+    printf 'CONTAINER ID\\n'
+    ;;
+esac
+"""
+    curl_stub = f"""#!/usr/bin/env bash
+set -euo pipefail
+printf 'curl %s\\n' "$*" >> "{log_file}"
+"""
+    sleep_stub = "#!/usr/bin/env bash\nset -euo pipefail\n"
+    _write_executable(bin_dir / "docker", docker_stub)
+    _write_executable(bin_dir / "curl", curl_stub)
+    _write_executable(bin_dir / "sleep", sleep_stub)
+
+    env = os.environ.copy()
+    env["PATH"] = f"{bin_dir}:{env['PATH']}"
+    env["DOCKER_BIN"] = str(bin_dir / "docker")
+    env["DEPLOY_DIR"] = str(project_dir)
+    env.pop("COMPOSE_FILE", None)
+    env.pop("ENV_FILE", None)
+    env["IMAGE_REF"] = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:test"
+    env["TAG"] = "prod-vtest"
+
+    subprocess.run(
+        [str(REPO_ROOT / "scripts/deploy_production.sh")],
+        cwd=str(REPO_ROOT),
+        env=env,
+        text=True,
+        capture_output=True,
+        check=True,
+    )
+
+    log_lines = log_file.read_text(encoding="utf-8").splitlines()
+    assert any(
+        "compose --env-file" in line
+        and f"{deploy_dir / '.env'} -f deploy/docker-compose.production.yaml pull app" in line
+        for line in log_lines
+    )
+    assert any(
+        "compose --env-file" in line
+        and f"{deploy_dir / '.env'} -f deploy/docker-compose.production.yaml up -d --remove-orphans caddy"
+        in line
+        for line in log_lines
+    )
+
+
+def test_deploy_production_uses_deploy_env_file_for_absolute_deploy_compose_path(
+    tmp_path: Path,
+) -> None:
+    project_dir = tmp_path / "production"
+    deploy_dir = project_dir / "deploy"
+    compose_file = deploy_dir / "docker-compose.production.yaml"
+    bin_dir = tmp_path / "bin"
+    log_file = tmp_path / "deploy.log"
+    project_dir.mkdir()
+    deploy_dir.mkdir()
+    bin_dir.mkdir()
+    compose_file.write_text("services: {}\n", encoding="utf-8")
+    (deploy_dir / ".env").write_text(
+        "\n".join(
+            [
+                "DATABASE_URL=postgresql+psycopg://pulseplate:secret@db.example.com:25060/pulseplate",  # pragma: allowlist secret
+                "PRODUCTION_DOMAIN=pulseplate.test",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    docker_stub = f"""#!/usr/bin/env bash
+set -euo pipefail
+printf 'docker %s\\n' "$*" >> "{log_file}"
+case "$*" in
+  *"compose --env-file "*"/deploy/.env -f {compose_file} ps -q app"*)
+    printf 'app-id\\n'
+    ;;
+  *"inspect --format "*)
+    printf 'healthy\\n'
+    ;;
+  *"ps --format "*)
+    printf 'CONTAINER ID\\n'
+    ;;
+esac
+"""
+    curl_stub = f"""#!/usr/bin/env bash
+set -euo pipefail
+printf 'curl %s\\n' "$*" >> "{log_file}"
+"""
+    sleep_stub = "#!/usr/bin/env bash\nset -euo pipefail\n"
+    _write_executable(bin_dir / "docker", docker_stub)
+    _write_executable(bin_dir / "curl", curl_stub)
+    _write_executable(bin_dir / "sleep", sleep_stub)
+
+    env = os.environ.copy()
+    env["PATH"] = f"{bin_dir}:{env['PATH']}"
+    env["DOCKER_BIN"] = str(bin_dir / "docker")
+    env["DEPLOY_DIR"] = str(project_dir)
+    env["COMPOSE_FILE"] = str(compose_file)
+    env.pop("ENV_FILE", None)
+    env["IMAGE_REF"] = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:test"
+    env["TAG"] = "prod-vtest"
+
+    subprocess.run(
+        [str(REPO_ROOT / "scripts/deploy_production.sh")],
+        cwd=str(REPO_ROOT),
+        env=env,
+        text=True,
+        capture_output=True,
+        check=True,
+    )
+
+    log_lines = log_file.read_text(encoding="utf-8").splitlines()
+    assert any(
+        "compose --env-file" in line and f"{deploy_dir / '.env'} -f {compose_file} pull app" in line
+        for line in log_lines
+    )
+    assert any(
+        "compose --env-file" in line
+        and f"{deploy_dir / '.env'} -f {compose_file} up -d --remove-orphans caddy" in line
+        for line in log_lines
+    )
+
+
+def test_deploy_production_rejects_compose_file_outside_deploy_dir_during_shell_sync(
+    tmp_path: Path,
+) -> None:
+    project_dir = tmp_path / "production"
+    shell_root = project_dir.parent
+    shell_bundle_dir = tmp_path / "shell-bundle"
+    outside_dir = tmp_path / "outside"
+    bin_dir = tmp_path / "bin"
+    log_file = tmp_path / "deploy.log"
+    project_dir.mkdir()
+    shell_bundle_dir.mkdir()
+    outside_dir.mkdir()
+    bin_dir.mkdir()
+    (project_dir / ".env").write_text(
+        "\n".join(
+            [
+                "DATABASE_URL=postgresql+psycopg://pulseplate:secret@db.example.com:25060/pulseplate",  # pragma: allowlist secret
+                "PRODUCTION_DOMAIN=pulseplate.test",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    (outside_dir / "docker-compose.production.yaml").write_text("services: {}\n", encoding="utf-8")
+    (shell_bundle_dir / "frontend").mkdir()
+    (shell_bundle_dir / "frontend" / "bundle-marker.txt").write_text(
+        "frontend-sync\n", encoding="utf-8"
+    )
+    (shell_bundle_dir / "deploy").mkdir()
+    (shell_bundle_dir / "deploy" / "Caddyfile.production").write_text(
+        'pulseplate.test {\n    respond "ok"\n}\n',
+        encoding="utf-8",
+    )
+    (shell_bundle_dir / "scripts").mkdir()
+    (shell_bundle_dir / "scripts" / "diagnose_web.sh").write_text(
+        "#!/usr/bin/env bash\nprintf 'bundle-diagnose\\n'\n", encoding="utf-8"
+    )
+    (shell_root / "scripts").mkdir()
+
+    docker_stub = f"""#!/usr/bin/env bash
+set -euo pipefail
+printf 'docker %s\\n' "$*" >> "{log_file}"
+case "$*" in
+  *"ps -q app"*)
+    printf 'app-id\\n'
+    ;;
+  *"inspect --format "*)
+    printf 'healthy\\n'
+    ;;
+  *"ps --format "*)
+    printf 'CONTAINER ID\\n'
+    ;;
+esac
+"""
+    curl_stub = f"""#!/usr/bin/env bash
+set -euo pipefail
+printf 'curl %s\\n' "$*" >> "{log_file}"
+"""
+    sleep_stub = "#!/usr/bin/env bash\nset -euo pipefail\n"
+    _write_executable(bin_dir / "docker", docker_stub)
+    _write_executable(bin_dir / "curl", curl_stub)
+    _write_executable(bin_dir / "sleep", sleep_stub)
+
+    env = os.environ.copy()
+    env["PATH"] = f"{bin_dir}:{env['PATH']}"
+    env["DOCKER_BIN"] = str(bin_dir / "docker")
+    env["DEPLOY_DIR"] = str(project_dir)
+    env["ENV_FILE"] = str(project_dir / ".env")
+    env["COMPOSE_FILE"] = str(outside_dir / "docker-compose.production.yaml")
+    env["IMAGE_REF"] = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:test"
+    env["TAG"] = "prod-vtest"
+    env["SHELL_BUNDLE_DIR"] = str(shell_bundle_dir)
+
+    completed = subprocess.run(
+        [str(REPO_ROOT / "scripts/deploy_production.sh")],
+        cwd=str(REPO_ROOT),
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert completed.returncode == 1
+    assert "COMPOSE_FILE must stay within DEPLOY_DIR" in completed.stderr
 
 
 def test_deploy_production_exits_non_zero_when_migrations_fail(tmp_path: Path) -> None:
@@ -539,6 +1014,10 @@ def test_deploy_production_keeps_shell_bundle_untouched_when_migrations_fail(
     (shell_bundle_dir / "deploy").mkdir()
     (shell_bundle_dir / "deploy" / "Caddyfile.production").write_text(
         'pulseplate.test {\n    respond "ok"\n}\n',
+        encoding="utf-8",
+    )
+    (shell_bundle_dir / "deploy" / "docker-compose.production.yaml").write_text(
+        "services:\n  caddy:\n    image: caddy:2.10.2\n",
         encoding="utf-8",
     )
     (shell_bundle_dir / "scripts").mkdir()
@@ -830,6 +1309,11 @@ case "$method:$url" in
     content_type="application/json"
     payload='{"ok": true}'
     ;;
+  GET:https://pulseplate.test/sitemap.xml)
+    status="200"
+    content_type="application/xml"
+    payload='<?xml version="1.0" encoding="UTF-8"?><urlset><url><loc>https://pulseplate.test/</loc></url></urlset>'
+    ;;
   POST:https://pulseplate.test/bmi)
     status="422"
     content_type="application/json"
@@ -844,6 +1328,11 @@ case "$method:$url" in
     status="404"
     content_type="application/json"
     payload='{"detail": "not found"}'
+    ;;
+  GET:https://pulseplate.test/api/v1/admin/status)
+    status="403"
+    content_type="application/json"
+    payload='{"detail": "forbidden"}'
     ;;
   GET:https://pulseplate.test/legacy/bmi-calculator)
     status="200"
@@ -884,6 +1373,7 @@ printf '%s' "$status"
 
     assert "PASS: spa-bmi: /bmi serves the SPA shell with HTTP 200." in completed.stdout
     assert "PASS: health-json: /health reaches the JSON backend surface." in completed.stdout
+    assert "PASS: sitemap-xml: /sitemap.xml reaches the XML sitemap surface." in completed.stdout
     assert (
         "PASS: legacy-bmi-post: /bmi reached the backend JSON surface (status 422)."
         in completed.stdout
@@ -899,8 +1389,279 @@ printf '%s' "$status"
         "PASS: api-prefix: /api/v1/does-not-exist reached the backend JSON surface"
         in completed.stdout
     )
+    assert (
+        "PASS: admin-canary: /api/v1/admin/status reached the admin/backend canary surface"
+        in completed.stdout
+    )
     assert "PASS: websocket-upgrade: /ws did not fall through to SPA" in completed.stdout
     assert "Summary: all requested checks passed." in completed.stdout
+
+
+def test_diagnose_web_uses_cloudflare_access_service_token_headers(tmp_path: Path) -> None:
+    bin_dir = tmp_path / "bin"
+    log_file = tmp_path / "diag-access.log"
+    bin_dir.mkdir()
+
+    docker_stub = "#!/usr/bin/env bash\nset -euo pipefail\nexit 0\n"
+    curl_stub = f"""#!/usr/bin/env bash
+set -euo pipefail
+printf 'curl %s\\n' "$*" >> "{log_file}"
+headers=""
+body=""
+url=""
+method="GET"
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -X)
+      method="$2"
+      shift 2
+      ;;
+    -D)
+      headers="$2"
+      shift 2
+      ;;
+    -o)
+      body="$2"
+      shift 2
+      ;;
+    http://*|https://*)
+      url="$1"
+      shift
+      ;;
+    *)
+      shift
+      ;;
+  esac
+done
+
+status="418"
+content_type="text/plain"
+payload="unexpected"
+case "$method:$url" in
+  GET:https://pulseplate.test/|GET:https://pulseplate.test/bmi|GET:https://pulseplate.test/profile|GET:https://pulseplate.test/plate|GET:https://pulseplate.test/progress)
+    status="200"
+    content_type="text/html; charset=utf-8"
+    payload='<!doctype html><html><body><div id="root"></div></body></html>'
+    ;;
+  GET:https://pulseplate.test/health|GET:https://pulseplate.test/openapi.json)
+    status="200"
+    content_type="application/json"
+    payload='{{"ok": true}}'
+    ;;
+  GET:https://pulseplate.test/sitemap.xml)
+    status="200"
+    content_type="application/xml"
+    payload='<?xml version="1.0" encoding="UTF-8"?><urlset><url><loc>https://pulseplate.test/</loc></url></urlset>'
+    ;;
+  POST:https://pulseplate.test/bmi)
+    status="422"
+    content_type="application/json"
+    payload='{{"detail": "validation"}}'
+    ;;
+  OPTIONS:https://pulseplate.test/bmi)
+    status="405"
+    content_type="application/json"
+    payload='{{"detail": "Method Not Allowed"}}'
+    ;;
+  GET:https://pulseplate.test/plan|GET:https://pulseplate.test/insight|GET:https://pulseplate.test/premium_bmr|GET:https://pulseplate.test/premium_targets|GET:https://pulseplate.test/api/v1/does-not-exist)
+    status="404"
+    content_type="application/json"
+    payload='{{"detail": "not found"}}'
+    ;;
+  GET:https://pulseplate.test/api/v1/admin/status)
+    status="403"
+    content_type="application/json"
+    payload='{{"detail": "forbidden"}}'
+    ;;
+  GET:https://pulseplate.test/legacy/bmi-calculator)
+    status="200"
+    content_type="text/html; charset=utf-8"
+    payload='<!doctype html><html><body><h1>Legacy calculator</h1></body></html>'
+    ;;
+  GET:https://pulseplate.test/ws)
+    status="400"
+    content_type="text/plain"
+    payload='upgrade required'
+    ;;
+esac
+
+printf 'HTTP/1.1 %s Stub\\nContent-Type: %s\\n\\n' "$status" "$content_type" > "$headers"
+printf '%s' "$payload" > "$body"
+printf '%s' "$status"
+"""
+    _write_executable(bin_dir / "docker", docker_stub)
+    _write_executable(bin_dir / "curl", curl_stub)
+
+    env = os.environ.copy()
+    env["PATH"] = f"{bin_dir}:{env['PATH']}"
+    env["CF_ACCESS_CLIENT_ID"] = "client-id"
+    env["CF_ACCESS_CLIENT_SECRET"] = "client-secret"  # pragma: allowlist secret
+
+    completed = subprocess.run(
+        [
+            "bash",
+            str(REPO_ROOT / "scripts/diagnose_web.sh"),
+            "--skip-caddy-validate",
+            "--base-url",
+            "https://pulseplate.test",
+        ],
+        cwd=str(REPO_ROOT),
+        env=env,
+        text=True,
+        capture_output=True,
+        check=True,
+    )
+
+    log_output = log_file.read_text(encoding="utf-8")
+    assert "-H CF-Access-Client-Id: client-id" in log_output
+    assert "-H CF-Access-Client-Secret: client-secret" in log_output
+    assert (
+        "PASS: Cloudflare Access service-token headers enabled for private probes."
+        in completed.stdout
+    )
+
+
+def test_diagnose_web_fails_when_admin_canary_route_is_missing(tmp_path: Path) -> None:
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+
+    docker_stub = "#!/usr/bin/env bash\nset -euo pipefail\nexit 0\n"
+    curl_stub = """#!/usr/bin/env bash
+set -euo pipefail
+headers=""
+body=""
+url=""
+method="GET"
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -X)
+      method="$2"
+      shift 2
+      ;;
+    -D)
+      headers="$2"
+      shift 2
+      ;;
+    -o)
+      body="$2"
+      shift 2
+      ;;
+    http://*|https://*)
+      url="$1"
+      shift
+      ;;
+    *)
+      shift
+      ;;
+  esac
+done
+
+status="418"
+content_type="text/plain"
+payload="unexpected"
+case "$method:$url" in
+  GET:https://pulseplate.test/|GET:https://pulseplate.test/bmi|GET:https://pulseplate.test/profile|GET:https://pulseplate.test/plate|GET:https://pulseplate.test/progress)
+    status="200"
+    content_type="text/html; charset=utf-8"
+    payload='<!doctype html><html><body><div id="root"></div></body></html>'
+    ;;
+  GET:https://pulseplate.test/health|GET:https://pulseplate.test/openapi.json)
+    status="200"
+    content_type="application/json"
+    payload='{"ok": true}'
+    ;;
+  GET:https://pulseplate.test/sitemap.xml)
+    status="200"
+    content_type="application/xml"
+    payload='<?xml version="1.0" encoding="UTF-8"?><urlset><url><loc>https://pulseplate.test/</loc></url></urlset>'
+    ;;
+  POST:https://pulseplate.test/bmi)
+    status="422"
+    content_type="application/json"
+    payload='{"detail": "validation"}'
+    ;;
+  OPTIONS:https://pulseplate.test/bmi)
+    status="405"
+    content_type="application/json"
+    payload='{"detail": "Method Not Allowed"}'
+    ;;
+  GET:https://pulseplate.test/plan|GET:https://pulseplate.test/insight|GET:https://pulseplate.test/premium_bmr|GET:https://pulseplate.test/premium_targets|GET:https://pulseplate.test/api/v1/does-not-exist|GET:https://pulseplate.test/api/v1/admin/status)
+    status="404"
+    content_type="application/json"
+    payload='{"detail": "not found"}'
+    ;;
+  GET:https://pulseplate.test/legacy/bmi-calculator)
+    status="200"
+    content_type="text/html; charset=utf-8"
+    payload='<!doctype html><html><body><h1>Legacy calculator</h1></body></html>'
+    ;;
+  GET:https://pulseplate.test/ws)
+    status="400"
+    content_type="text/plain"
+    payload='upgrade required'
+    ;;
+esac
+
+printf 'HTTP/1.1 %s Stub\\nContent-Type: %s\\n\\n' "$status" "$content_type" > "$headers"
+printf '%s' "$payload" > "$body"
+printf '%s' "$status"
+"""
+    _write_executable(bin_dir / "docker", docker_stub)
+    _write_executable(bin_dir / "curl", curl_stub)
+
+    env = os.environ.copy()
+    env["PATH"] = f"{bin_dir}:{env['PATH']}"
+
+    completed = subprocess.run(
+        [
+            "bash",
+            str(REPO_ROOT / "scripts/diagnose_web.sh"),
+            "--skip-caddy-validate",
+            "--base-url",
+            "https://pulseplate.test",
+        ],
+        cwd=str(REPO_ROOT),
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert completed.returncode == 1
+    assert (
+        "FAIL: admin-canary: /api/v1/admin/status returned 404, so the admin canary route is missing or misrouted."
+        in completed.stdout
+    )
+
+
+def test_diagnose_web_rejects_partial_cloudflare_access_service_token_env(
+    tmp_path: Path,
+) -> None:
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+
+    docker_stub = "#!/usr/bin/env bash\nset -euo pipefail\nexit 0\n"
+    _write_executable(bin_dir / "docker", docker_stub)
+
+    env = os.environ.copy()
+    env["PATH"] = f"{bin_dir}:{env['PATH']}"
+    env["CF_ACCESS_CLIENT_ID"] = "client-id"
+    env.pop("CF_ACCESS_CLIENT_SECRET", None)
+
+    completed = subprocess.run(
+        ["bash", str(REPO_ROOT / "scripts/diagnose_web.sh"), "--check-caddy-config-only"],
+        cwd=str(REPO_ROOT),
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert completed.returncode == 1
+    assert (
+        "FAIL: CF_ACCESS_CLIENT_ID and CF_ACCESS_CLIENT_SECRET must be provided together"
+        in completed.stdout
+    )
 
 
 def test_diagnose_web_fails_without_base_url_for_http_probes(tmp_path: Path) -> None:

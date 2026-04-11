@@ -24,6 +24,7 @@ from app.bootstrap.direct_api_root import (
 from app.bootstrap.food_search import register_food_search_backend
 from app.bootstrap.metrics import register_metrics
 from app.bootstrap.pro_contracts import register_pro_contract_routes
+from app.bootstrap.public_discovery import SITEMAP_ROUTE_PATH, serve_public_sitemap
 from app.bootstrap.telemetry import register_request_telemetry
 from app.bootstrap.tracing import register_tracing
 from app.routers.creative_research_internal import router as creative_research_internal_router
@@ -162,6 +163,13 @@ def ensure_canonical_app_bootstrap(target_app: FastAPI) -> FastAPI:
             methods=["GET"],
             include_in_schema=False,
             response_class=HTMLResponse,
+        )
+    if not _route_has_endpoint(target_app, SITEMAP_ROUTE_PATH, "GET", serve_public_sitemap):
+        target_app.add_api_route(
+            SITEMAP_ROUTE_PATH,
+            serve_public_sitemap,
+            methods=["GET"],
+            include_in_schema=False,
         )
     register_food_search_backend(app)
     register_metrics(app)

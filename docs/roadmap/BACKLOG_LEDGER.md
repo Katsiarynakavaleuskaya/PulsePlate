@@ -3064,6 +3064,26 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 
 ### P2
 
+<a id="ledger-p2-cloudflare-narrow-reopen-automation"></a>
+- [ ] P2: Cloudflare narrow reopen automation after Access-based private recovery
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2 (edge ops / recovery ergonomics)
+  - Target PR: PR-TBD-CLOUDFLARE-NARROW-REOPEN-AUTOMATION
+  - Status: 📋 Deferred from PR `#1385`
+  - Area: edge / Cloudflare / deploy
+  - Reason (EN): PR `#1385` now supports a private-first recovery flow and successfully provisions full-host Cloudflare Access for `pulseplate.app`, but the current Cloudflare token scope cannot manage zone firewall/settings/ruleset endpoints (`9109 Unauthorized`). The documented narrow temporary public bypass for shell/discovery GET paths therefore remains a dashboard/manual ops step until zone-scope automation permissions are expanded.
+  - Links:
+    - `docs/deploy/CLOUDFLARE.md`
+    - `docs/deploy/SPA_APEX_ROUTING_CONTRACT.md`
+    - `deploy/PRODUCTION.md`
+    - `deploy/WORKFLOW.md`
+    - `docs/review/PR_1385_FIXED_MAPPING.md`
+  - DoD:
+    - Expanded Cloudflare token scope (or approved alternative auth path) can read/write the zone firewall/ruleset surfaces needed for temporary reopen controls
+    - Automation applies the documented narrow allowlist only to shell/discovery GET paths without weakening `/api*`, `/admin*`, `/ws*`, `/openapi.json`, `/health`, `/docs*`, `/redoc*`, or `/debug_env`
+    - Rollback path restores full-host Access or removes the temporary bypass deterministically
+    - Operational runbook includes exact verification steps before and after public reopen
+
 <a id="ledger-p2-legacy-app-direct-root-get-policy"></a>
 - [ ] P2: Policy for `GET /` on FastAPI when clients bypass Caddy (direct `app:8000` / uvicorn)
   - Owner: @katsiaryna_kavaleuskaya

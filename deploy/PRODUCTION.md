@@ -27,6 +27,43 @@ If `PROD_DEPLOY_MODE` is unset, CD remains build-only even when production image
 are published to GHCR. Any value other than `ssh` or `self-hosted` is treated as
 invalid and fails the production config resolution step.
 
+## Apex / white-screen drift signature
+
+When the site apex unexpectedly shows a white screen, direct API JSON, or an
+empty shell, treat it as **production drift first**, not as a React-only bug.
+
+Typical drift symptoms:
+
+- `GET /` at the public apex no longer serves the baked SPA shell from Caddy
+- `GET /sitemap.xml` returns HTML, SPA fallback, or `404` instead of XML
+- The production host copy of `Caddyfile.production` or
+  `docker-compose.production.yaml` no longer matches the repo source of truth
+- Cloudflare challenge/proxy behavior obscures curl-based diagnosis, while the
+  origin is still misrouting apex traffic underneath
+
+Canonical recovery order:
+
+0. If the site must stay private, enable **full-host Cloudflare Access** first.
+   While Access or an interstitial is in front of the apex, public scanners
+   (MDN Observatory, header scans) are not release-truth.
+1. Merge the recovery PR first; recover from the merged repo/CI release bundle,
+   not from an ad-hoc workstation-only checkout.
+2. Diff the production copies of `deploy/Caddyfile.production` and
+   `deploy/docker-compose.production.yaml` against the repo.
+3. Re-sync the production shell bundle from the same merged commit / release bundle:
+   - `deploy/Caddyfile.production`
+   - `deploy/docker-compose.production.yaml`
+   - sibling `frontend/` build context on the host (typically `/srv/frontend`)
+4. Pull the new production app image, run `alembic upgrade head`, rebuild Caddy,
+   and restart the stack from the synced shell bundle.
+5. Re-run `BASE_URL=https://$PRODUCTION_DOMAIN bash scripts/diagnose_web.sh`.
+   If Access is still ON, pass `CF_ACCESS_CLIENT_ID` and
+   `CF_ACCESS_CLIENT_SECRET` for private probes.
+6. If `/sitemap.xml` still fails after edge recovery, deploy the new backend
+   image as well; the edge fix alone cannot add a missing FastAPI route.
+7. Remove full-host Access only after the private check passes, then reopen the
+   apex with a narrow temporary bypass for public shell/discovery GET paths only.
+
 ## Global release-readiness lock (required)
 
 Deployment jobs in CD are additionally gated by:
@@ -199,6 +236,32 @@ If `https://pulseplate.app` works but `https://www.pulseplate.app` returns `525`
 3. `deploy/Caddyfile.production` contains a dedicated `www` vhost that can issue a certificate and redirect to apex.
 4. Cloudflare SSL mode remains `Full (strict)` and the origin is serving a valid certificate for both apex and `www`.
 5. Only after the public-side check confirms drift, run `bash scripts/diagnose_production.sh` on the origin server to inspect Caddy/container/certificate state.
+
+If public curl probes hit a Cloudflare challenge instead of the origin, run the
+same diagnosis against the synced production host and the repo copies first.
+Cloudflare may mask the underlying apex-routing drift, but it does not replace
+the repo-owned Caddy/compose/frontend contract.
+
+## Private verification under Access
+
+When Cloudflare Access protects the full host during recovery, use a short-lived
+service token for scripted probes:
+
+```bash
+CF_ACCESS_CLIENT_ID=... \
+CF_ACCESS_CLIENT_SECRET=... \
+BASE_URL=https://$PRODUCTION_DOMAIN \
+bash scripts/diagnose_web.sh
+```
+
+Expected private verification signals:
+
+- `/` returns the SPA shell
+- `/sitemap.xml` returns XML with `<urlset>`
+- `/api/v1/admin/status` remains a backend/admin canary (JSON auth/error, not SPA)
+- `/health` shows the new `git_sha`
+
+Do not treat Observatory / public header scans as authoritative until Access is removed.
 
 #### Remediation Matrix
 

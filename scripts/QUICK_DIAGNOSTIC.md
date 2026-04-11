@@ -1,4 +1,4 @@
-# Quick Diagnostic for Cloudflare 521 Error
+# Quick Diagnostic for Public Edge Incidents (`521` / `525` / white screen / challenge)
 
 ## Вариант 0: публичная проверка из локального repo
 
@@ -13,6 +13,44 @@ python3 scripts/check_domain_tls.py --domain pulseplate.app
 - `www` отдаёт `301/302/307/308` на `https://pulseplate.app`
 
 Если script показывает `www ... 525`, переходите к origin-side диагностике ниже.
+Если public apex вместо origin-ответа отдаёт Cloudflare challenge / interstitial,
+сначала проверьте Cloudflare Security Events и только потом origin-side drift.
+
+## Вариант 0b: быстро отличить edge challenge от origin drift
+
+Проверьте public response headers/body:
+
+```bash
+curl -I https://pulseplate.app/
+curl -s https://pulseplate.app/ | head -40
+```
+
+Признаки **Cloudflare challenge**:
+
+- `cf-mitigated`
+- `server: cloudflare`
+- interstitial/challenge HTML вместо app response
+
+Признаки **origin drift**:
+
+- apex отдаёт JSON probe FastAPI вместо SPA shell
+- `/sitemap.xml` отдаёт HTML shell или `404`, хотя backend contract уже есть
+- production copies of `Caddyfile.production` / `docker-compose.production.yaml`
+  расходятся с repo SoT
+
+Если full-host Cloudflare Access включён намеренно, публичные scans не являются
+release-truth: они видят Access/interstitial, а не origin app. Для private
+verification используй short-lived service token:
+
+```bash
+CF_ACCESS_CLIENT_ID=... \
+CF_ACCESS_CLIENT_SECRET=... \
+BASE_URL=https://pulseplate.app \
+bash scripts/diagnose_web.sh
+```
+
+Этот probe теперь включает admin canary (`/api/v1/admin/status`) и помогает
+поймать случайный публичный expose admin surface при reopen.
 
 ## Выполнить на Droplet (SSH)
 
@@ -97,6 +135,23 @@ grep PRODUCTION_DOMAIN /srv/pulseplate-production/.env
 ```
 
 ## Типичные проблемы
+
+### Проблема: Public apex white screen / Cloudflare challenge
+
+```bash
+# 1. Проверить Cloudflare-side symptom
+curl -I https://pulseplate.app/
+
+# 2. Если challenge/interstitial есть — проверить Security Events в Cloudflare Dashboard
+# 3. Если origin healthy, а apex contract нарушен — синхронизировать shell bundle
+#    только из merged canonical tree / release bundle:
+scp deploy/Caddyfile.production user@your-droplet:/srv/pulseplate-production/Caddyfile.production
+scp deploy/docker-compose.production.yaml user@your-droplet:/srv/pulseplate-production/docker-compose.production.yaml
+rsync -az --delete frontend/ user@your-droplet:/srv/frontend/
+
+# 4. Затем пересобрать/restart caddy
+ssh user@your-droplet 'cd /srv/pulseplate-production && bash scripts/redeploy_caddy.sh'
+```
 
 ### Проблема: Caddyfile не найден
 ```bash
