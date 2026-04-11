@@ -42,14 +42,14 @@ Evidence: `docs/review/PR_1390_FIXED_MAPPING.md:11`
 
 - [ ] All required checks pass (current head)
 - [ ] No unresolved review threads (re-check before merge)
-- [x] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
-- [x] Pre-commit green on latest push
-- [x] `make verify` green where required for merge
-- [x] Mandatory post-open **qa-engineer-agent** pass completed (current diff re-review kept scope limited to CI timeout stabilization plus canonical governance artifacts)
-- [x] Mandatory post-open **bug-hunter** pass completed (one actionable failure-safe timestamp defect was found in the workflow lane and fixed in `25c9f7c4e`; no second blocker surfaced on the remaining narrow diff)
-- [x] **dev-operator** scoped review completed (current-head CI/wrapper triage confirms this lane is stopgap stabilization, not the root-cause retirement slice)
-- [x] **backend-engineer** scoped review completed (`Mencius`)
-- [x] **security-auditor** scoped review completed (`Boole`)
+- [ ] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
+- [ ] Pre-commit green on latest push
+- [ ] `make verify` green where required for merge
+- [ ] Mandatory post-open **qa-engineer-agent** pass completed (current diff re-review kept scope limited to CI timeout stabilization plus canonical governance artifacts)
+- [ ] Mandatory post-open **bug-hunter** pass completed (one actionable failure-safe timestamp defect was found in the workflow lane and fixed in `25c9f7c4e`; no second blocker surfaced on the remaining narrow diff)
+- [ ] **dev-operator** scoped review completed (current-head CI/wrapper triage confirms this lane is stopgap stabilization, not the root-cause retirement slice)
+- [ ] **backend-engineer** scoped review completed (`Mencius`)
+- [ ] **security-auditor** scoped review completed (`Boole`)
 
 ## Notes
 
