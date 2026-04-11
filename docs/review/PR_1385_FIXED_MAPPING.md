@@ -61,6 +61,12 @@ Disposition: NOT-A-BUG
 Evidence: `tests/test_deploy_contract_scripts.py:1268`, `tests/test_deploy_contract_scripts.py:1310`
 Reason: `curl_stub` is a plain triple-quoted string, not an f-string, so the JSON braces in `payload='{\"ok\": true}'` are literal shell-script content and do not require `{{ ... }}` escaping.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1385#discussion_r3067334662
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1385#pullrequestreview-4093080148
+Disposition: NOT-A-BUG
+Evidence: `scripts/deploy_production.sh:35`, `scripts/deploy_production.sh:36`, `scripts/deploy_production.sh:127`, `tests/test_deploy_contract_scripts.py:259`, `pytest -q tests/test_deploy_contract_scripts.py -k resolved_compose_file_is_missing`
+Reason: The script initializes `RESOLVED_COMPOSE_FILE` from `COMPOSE_FILE` at startup and fails fast before preflight continues when that resolved path does not exist, so the added test matches the deployed contract rather than asserting unreachable behavior.
+
 ## Merge Readiness
 
 - [ ] Current-head CI green for PR branch head
