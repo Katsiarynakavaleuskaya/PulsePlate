@@ -736,7 +736,7 @@ jobs:
   test-feature:
     if: github.event_name == 'push' && (startsWith(github.ref, 'refs/heads/feat/') || startsWith(github.ref, 'refs/heads/fix/') || startsWith(github.ref, 'refs/heads/feature/'))
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 90
     permissions:
       contents: read
       actions: write
@@ -815,14 +815,17 @@ jobs:
           else
             PYTEST_XDIST_ARGS=(-n 4 --dist=loadscope)
           fi
+          echo "TEST_STEP_STARTED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
           python -c "import sys; print('PY', sys.version)"
           echo "PYTEST_XDIST_ARGS=${PYTEST_XDIST_ARGS[*]}"
-          python -X faulthandler -m pytest \
+          time python -X faulthandler -m pytest \
             "${PYTEST_XDIST_ARGS[@]}" \
             -m "not slow" \
+            --durations=25 \
             --cov=. --cov-report=xml --cov-report=term-missing --cov-fail-under=97 \
             --junitxml=tests/results.xml -o junit_family=legacy \
             tests
+          echo "TEST_STEP_FINISHED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
       - name: Clean Python cache (post-test)
         if: always()
@@ -850,14 +853,20 @@ jobs:
   test-main:
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: ${{ matrix.timeout-minutes }}
     permissions:
       contents: read
       actions: write
     strategy:
       fail-fast: false
       matrix:
-        python-version: ['3.11', '3.12', '3.13']
+        include:
+          - python-version: '3.11'
+            timeout-minutes: 60
+          - python-version: '3.12'
+            timeout-minutes: 60
+          - python-version: '3.13'
+            timeout-minutes: 90
 
     steps:
       - name: Checkout
@@ -934,14 +943,17 @@ jobs:
           else
             PYTEST_XDIST_ARGS=(-n 4 --dist=loadscope)
           fi
+          echo "TEST_STEP_STARTED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
           python -c "import sys; print('PY', sys.version)"
           echo "PYTEST_XDIST_ARGS=${PYTEST_XDIST_ARGS[*]}"
-          python -X faulthandler -m pytest \
+          time python -X faulthandler -m pytest \
             "${PYTEST_XDIST_ARGS[@]}" \
             -m "not slow" \
+            --durations=25 \
             --cov=. --cov-report=xml --cov-report=term-missing --cov-fail-under=97 \
             --junitxml=tests/results.xml -o junit_family=legacy \
             tests
+          echo "TEST_STEP_FINISHED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
       - name: Clean Python cache (post-test)
         if: always()

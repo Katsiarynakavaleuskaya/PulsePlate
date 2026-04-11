@@ -8701,6 +8701,36 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - the PR description states that the change is prevention hardening, not proof of compromise
     - post-open review uses `qa-engineer-agent -> bug-hunter`
 
-**Last updated:** 2026-03-26 (LiteLLM supply-chain hardening follow-up)
+<a id="ledger-p1-py313-main-ci-stall-root-cause"></a>
+- [ ] P1: Root-cause Python 3.13 CI slowdown and retire timeout stopgap
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (CI stability / main-branch readiness)
+  - Target PR: PR-TBD-PY313-CI-STALL-ROOT-CAUSE
+  - Status: Opened on 11 April 2026
+  - Reason: Current-head feature and `main` CI runs both show a pathological
+    Python 3.13 slowdown in canonical `CI`. `test-feature (3.13)` reached the
+    60-minute job timeout in run `24266451930`, and earlier `main` evidence
+    showed `test-main (3.13)` materially outliving `3.11` and `3.12`. The
+    immediate mitigation is a py3.13-scoped timeout increase plus deterministic
+    duration diagnostics in `.github/workflows/ci.yml`, but the underlying
+    cause remains unresolved and must be isolated before the stopgap can be
+    removed.
+  - Links:
+    - `.github/workflows/ci.yml`
+    - `RUNBOOK_AGENT.md`
+    - `docs/orchestration/TIER1_CI_CD_PR_SERIES_RUNBOOK.md`
+    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/24266451930/job/70862392048`
+  - DoD:
+    - a representative current-head feature or `main` run shows Python 3.13
+      tests completing without unexplained pathological slowdown
+    - the slowest Python 3.13 tests or setup segment are identified from
+      deterministic diagnostics
+    - the py3.13-specific timeout increase is either justified with documented
+      evidence or removed
+    - canonical `CI` returns to stable green without manual rerun dependence
+    - any remaining workflow debt is documented explicitly rather than hidden
+      inside the stopgap
+
+**Last updated:** 2026-04-11 (py3.13 CI slowdown follow-up)
 **Maintainer:** @katsiaryna_kavaleuskaya
 <!-- markdownlint-enable MD013 -->
