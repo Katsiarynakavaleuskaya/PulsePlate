@@ -16,4 +16,4 @@
 - [ ] Pre-commit green
 - [ ] `make verify` green
 - [ ] Mandatory post-open `qa-engineer-agent -> bug-hunter` pass completed
-Notes: PR #1391 remains draft-only. This artifact exists at PR-open time to satisfy the canonical governance bundle; review-thread URLs and commit mappings will be appended only after human or bot review appears on the current head. Web evidence is captured, but the iOS verifier is still blocked by existing compile drift.
+Notes: PR #1391 remains draft-only. This artifact exists at PR-open time to satisfy the canonical governance bundle; review-thread URLs and commit mappings will be appended only after human or bot review appears on the current head. Representative parity evidence is now captured for `ios.home`, `web.plate`, and `web.progress`; remaining blockers are the mandatory post-open `qa-engineer-agent -> bug-hunter` loop plus current-head governance and CI passes.
