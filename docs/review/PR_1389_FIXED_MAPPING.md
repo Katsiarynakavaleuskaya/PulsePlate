@@ -19,10 +19,10 @@ Evidence: `core/rag/vector_rag.py` now accepts generic non-string `Sequence` inp
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1389#pullrequestreview-4092917113 -> 5199ad601
 
 Disposition: FIXED
-Commit: see mapping entries below
+Commit: 74f0c0ede
 Evidence: `tests/test_vector_rag.py` drops the synthetic non-finite-similarity test that only reached the guard by monkeypatching `vector_rag._cosine_similarity`; the remaining stored-embedding finiteness coverage preserves the fail-closed contract without violating the repo guard against monkeypatching core compute helpers.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1389#discussion_r3067287563
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1389#pullrequestreview-4093037095
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1389#discussion_r3067287563 -> 74f0c0ede
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1389#pullrequestreview-4093037095 -> 74f0c0ede
 
 ## Merge Readiness
 
