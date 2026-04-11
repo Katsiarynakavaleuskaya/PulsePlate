@@ -625,6 +625,170 @@ printf 'curl %s\\n' "$*" >> "{log_file}"
     ) == "#!/usr/bin/env bash\nprintf 'bundle-diagnose\\n'\n"
 
 
+def test_deploy_production_autodetects_deploy_subdir_compose_and_env_file(
+    tmp_path: Path,
+) -> None:
+    project_dir = tmp_path / "production"
+    deploy_dir = project_dir / "deploy"
+    bin_dir = tmp_path / "bin"
+    log_file = tmp_path / "deploy.log"
+    project_dir.mkdir()
+    deploy_dir.mkdir()
+    bin_dir.mkdir()
+    (deploy_dir / "docker-compose.production.yaml").write_text("services: {}\n", encoding="utf-8")
+    (deploy_dir / ".env").write_text(
+        "\n".join(
+            [
+                "DATABASE_URL=postgresql+psycopg://pulseplate:secret@db.example.com:25060/pulseplate",  # pragma: allowlist secret
+                "PRODUCTION_DOMAIN=pulseplate.test",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    docker_stub = f"""#!/usr/bin/env bash
+set -euo pipefail
+printf 'docker %s\\n' "$*" >> "{log_file}"
+case "$*" in
+  *"compose --env-file "*"/deploy/.env -f deploy/docker-compose.production.yaml ps -q app"*)
+    printf 'app-id\\n'
+    ;;
+  *"inspect --format "*)
+    printf 'healthy\\n'
+    ;;
+  *"ps --format "*)
+    printf 'CONTAINER ID\\n'
+    ;;
+esac
+"""
+    curl_stub = f"""#!/usr/bin/env bash
+set -euo pipefail
+printf 'curl %s\\n' "$*" >> "{log_file}"
+"""
+    sleep_stub = "#!/usr/bin/env bash\nset -euo pipefail\n"
+    _write_executable(bin_dir / "docker", docker_stub)
+    _write_executable(bin_dir / "curl", curl_stub)
+    _write_executable(bin_dir / "sleep", sleep_stub)
+
+    env = os.environ.copy()
+    env["PATH"] = f"{bin_dir}:{env['PATH']}"
+    env["DOCKER_BIN"] = str(bin_dir / "docker")
+    env["DEPLOY_DIR"] = str(project_dir)
+    env.pop("COMPOSE_FILE", None)
+    env.pop("ENV_FILE", None)
+    env["IMAGE_REF"] = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:test"
+    env["TAG"] = "prod-vtest"
+
+    subprocess.run(
+        [str(REPO_ROOT / "scripts/deploy_production.sh")],
+        cwd=str(REPO_ROOT),
+        env=env,
+        text=True,
+        capture_output=True,
+        check=True,
+    )
+
+    log_lines = log_file.read_text(encoding="utf-8").splitlines()
+    assert any(
+        "compose --env-file" in line
+        and f"{deploy_dir / '.env'} -f deploy/docker-compose.production.yaml pull app" in line
+        for line in log_lines
+    )
+    assert any(
+        "compose --env-file" in line
+        and f"{deploy_dir / '.env'} -f deploy/docker-compose.production.yaml up -d --remove-orphans caddy"
+        in line
+        for line in log_lines
+    )
+
+
+def test_deploy_production_rejects_compose_file_outside_deploy_dir_during_shell_sync(
+    tmp_path: Path,
+) -> None:
+    project_dir = tmp_path / "production"
+    shell_root = project_dir.parent
+    shell_bundle_dir = tmp_path / "shell-bundle"
+    outside_dir = tmp_path / "outside"
+    bin_dir = tmp_path / "bin"
+    log_file = tmp_path / "deploy.log"
+    project_dir.mkdir()
+    shell_bundle_dir.mkdir()
+    outside_dir.mkdir()
+    bin_dir.mkdir()
+    (project_dir / ".env").write_text(
+        "\n".join(
+            [
+                "DATABASE_URL=postgresql+psycopg://pulseplate:secret@db.example.com:25060/pulseplate",  # pragma: allowlist secret
+                "PRODUCTION_DOMAIN=pulseplate.test",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    (outside_dir / "docker-compose.production.yaml").write_text("services: {}\n", encoding="utf-8")
+    (shell_bundle_dir / "frontend").mkdir()
+    (shell_bundle_dir / "frontend" / "bundle-marker.txt").write_text(
+        "frontend-sync\n", encoding="utf-8"
+    )
+    (shell_bundle_dir / "deploy").mkdir()
+    (shell_bundle_dir / "deploy" / "Caddyfile.production").write_text(
+        'pulseplate.test {\n    respond "ok"\n}\n',
+        encoding="utf-8",
+    )
+    (shell_bundle_dir / "scripts").mkdir()
+    (shell_bundle_dir / "scripts" / "diagnose_web.sh").write_text(
+        "#!/usr/bin/env bash\nprintf 'bundle-diagnose\\n'\n", encoding="utf-8"
+    )
+    (shell_root / "scripts").mkdir()
+
+    docker_stub = f"""#!/usr/bin/env bash
+set -euo pipefail
+printf 'docker %s\\n' "$*" >> "{log_file}"
+case "$*" in
+  *"ps -q app"*)
+    printf 'app-id\\n'
+    ;;
+  *"inspect --format "*)
+    printf 'healthy\\n'
+    ;;
+  *"ps --format "*)
+    printf 'CONTAINER ID\\n'
+    ;;
+esac
+"""
+    curl_stub = f"""#!/usr/bin/env bash
+set -euo pipefail
+printf 'curl %s\\n' "$*" >> "{log_file}"
+"""
+    sleep_stub = "#!/usr/bin/env bash\nset -euo pipefail\n"
+    _write_executable(bin_dir / "docker", docker_stub)
+    _write_executable(bin_dir / "curl", curl_stub)
+    _write_executable(bin_dir / "sleep", sleep_stub)
+
+    env = os.environ.copy()
+    env["PATH"] = f"{bin_dir}:{env['PATH']}"
+    env["DOCKER_BIN"] = str(bin_dir / "docker")
+    env["DEPLOY_DIR"] = str(project_dir)
+    env["ENV_FILE"] = str(project_dir / ".env")
+    env["COMPOSE_FILE"] = str(outside_dir / "docker-compose.production.yaml")
+    env["IMAGE_REF"] = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:test"
+    env["TAG"] = "prod-vtest"
+    env["SHELL_BUNDLE_DIR"] = str(shell_bundle_dir)
+
+    completed = subprocess.run(
+        [str(REPO_ROOT / "scripts/deploy_production.sh")],
+        cwd=str(REPO_ROOT),
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert completed.returncode == 1
+    assert "COMPOSE_FILE must stay within DEPLOY_DIR" in completed.stderr
+
+
 def test_deploy_production_exits_non_zero_when_migrations_fail(tmp_path: Path) -> None:
     project_dir = tmp_path / "production"
     bin_dir = tmp_path / "bin"

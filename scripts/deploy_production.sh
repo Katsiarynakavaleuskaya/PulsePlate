@@ -126,6 +126,12 @@ cd "$DEPLOY_DIR"
 compose_args=()
 if [ -n "$RESOLVED_COMPOSE_FILE" ]; then
   compose_args=(-f "$RESOLVED_COMPOSE_FILE")
+elif [ -f "deploy/docker-compose.production.yaml" ]; then
+  RESOLVED_COMPOSE_FILE="deploy/docker-compose.production.yaml"
+  compose_args=(-f "$RESOLVED_COMPOSE_FILE")
+elif [ -f "deploy/docker-compose.production.yml" ]; then
+  RESOLVED_COMPOSE_FILE="deploy/docker-compose.production.yml"
+  compose_args=(-f "$RESOLVED_COMPOSE_FILE")
 elif [ -f "docker-compose.production.yaml" ]; then
   RESOLVED_COMPOSE_FILE="docker-compose.production.yaml"
   compose_args=(-f "$RESOLVED_COMPOSE_FILE")
@@ -147,7 +153,11 @@ elif [ -f "compose.yaml" ]; then
 fi
 
 if [ -z "$ENV_FILE" ]; then
-  ENV_FILE="$DEPLOY_DIR/.env"
+  if [[ "$RESOLVED_COMPOSE_FILE" = deploy/* ]]; then
+    ENV_FILE="$DEPLOY_DIR/deploy/.env"
+  else
+    ENV_FILE="$DEPLOY_DIR/.env"
+  fi
 fi
 
 if [ ! -f "$ENV_FILE" ]; then
@@ -236,17 +246,24 @@ sync_shell_bundle() {
   fi
 
   if [[ "$RESOLVED_COMPOSE_FILE" = /* ]]; then
-    target_compose="$RESOLVED_COMPOSE_FILE"
     case "$RESOLVED_COMPOSE_FILE" in
       "$DEPLOY_DIR"/*)
         compose_relative_path="${RESOLVED_COMPOSE_FILE#"$DEPLOY_DIR"/}"
+        target_compose="$RESOLVED_COMPOSE_FILE"
         ;;
       *)
-        compose_relative_path="$(basename "$RESOLVED_COMPOSE_FILE")"
+        echo "❌ COMPOSE_FILE must stay within DEPLOY_DIR: $RESOLVED_COMPOSE_FILE" >&2
+        exit 1
         ;;
     esac
   else
     compose_relative_path="${RESOLVED_COMPOSE_FILE#./}"
+    case "$compose_relative_path" in
+      ""|"."|..|../*|*/../*|*/..)
+        echo "❌ COMPOSE_FILE must stay within DEPLOY_DIR: $RESOLVED_COMPOSE_FILE" >&2
+        exit 1
+        ;;
+    esac
     target_compose="$DEPLOY_DIR/$compose_relative_path"
   fi
 
