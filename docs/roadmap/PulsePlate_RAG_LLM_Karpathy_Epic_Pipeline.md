@@ -270,6 +270,8 @@ Make AI quality drift detectable before merge/release.
 - prompt-injection adversarial tests
 - privacy-sensitive evaluation
 - philosophy_validator in release/CI path where appropriate
+- canonical gate source: `docs/orchestration/contracts/AI_RUNTIME_GATE_CONTRACT.md`
+- canonical launcher: `scripts/orchestration/ai_runtime_gate_bundle.py`
 
 #### DoD
 - explicit evaluation package exists

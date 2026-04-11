@@ -6,6 +6,31 @@ EN: Put sanitization/guardrails here so `legacy_app.py` remains a thin shim.
 
 from __future__ import annotations
 
+import re
+
+from core.pii_redaction import redact_pii_from_text
+
+_SOURCE_LINE_PREFIX = "# Source:"
+_IDENTITY_MARKER_RE = re.compile(
+    r"\b("
+    r"subject[_ -]?id|user[_ -]?id|tenant[_ -]?id|member[_ -]?id|customer[_ -]?id|"
+    r"account[_ -]?id|client[_ -]?id|session[_ -]?id|api[_ -]?key"
+    r")\s*[:=]\s*[^\s,;]+",
+    re.IGNORECASE,
+)
+
+
+def _redact_runtime_identity_markers(text: str) -> str:
+    """Redact structured identity markers that should never reach the prompt path.
+
+    RU: Скрываем технические identity markers (`subject_id`, `tenant_id`, `api_key`)
+    до сборки prompt/source preview, чтобы retrieval-контекст не тащил tenant-specific truth.
+    EN: Hide structured identity markers before prompt/source preview assembly so
+    retrieval context cannot leak tenant-specific truth into AI surfaces.
+    """
+
+    return _IDENTITY_MARKER_RE.sub("[IDENTITY_REDACTED]", text)
+
 
 def redact_rag_context_for_insight(ctx: str) -> str:
     """Redact internal source metadata from RAG context before sending to LLM.
@@ -17,7 +42,10 @@ def redact_rag_context_for_insight(ctx: str) -> str:
 
     lines: list[str] = []
     for line in ctx.splitlines():
-        if line.lstrip().startswith("# Source:"):
+        if line.lstrip().startswith(_SOURCE_LINE_PREFIX):
             continue
         lines.append(line)
-    return "\n".join(lines).strip()
+    without_sources = "\n".join(lines).strip()
+    without_pii = redact_pii_from_text(without_sources) or ""
+    without_identity_markers = _redact_runtime_identity_markers(without_pii)
+    return without_identity_markers.strip()
