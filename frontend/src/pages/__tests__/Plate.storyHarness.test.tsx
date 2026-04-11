@@ -22,7 +22,7 @@ describe('Plate story harness parity', () => {
       expect(screen.getByText('Premium Nutrition Controls')).toBeInTheDocument();
     });
 
-    expect(screen.getByRole('link', { name: 'Configure Setup', hidden: true })).toHaveAttribute('href', '/setup');
-    expect(screen.getByRole('link', { name: 'View Progress', hidden: true })).toHaveAttribute('href', '/progress');
+    expect(screen.getByRole('link', { name: 'Configure Setup' })).toHaveAttribute('href', '/setup');
+    expect(screen.getByRole('link', { name: 'View Progress' })).toHaveAttribute('href', '/progress');
   });
 });

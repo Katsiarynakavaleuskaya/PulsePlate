@@ -141,7 +141,7 @@ For this lane, `bug-hunter` is specifically checking:
 ### 1. Pre-open
 
 - coordinator confirms isolated worktree and preflight pass
-- docs changes are scoped to packet, backlog item, and evidence artifacts
+- operationalization work stays scoped to the packet, backlog item, and related evidence artifacts
 - parity pack stays limited to `ios.home`, `web.plate`, `web.progress`
 
 ### 2. Open PR

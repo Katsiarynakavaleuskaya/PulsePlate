@@ -4,13 +4,16 @@ import '../i18n';
 import { PlateStoryHarness, type PlateSessionState } from './Plate.storySupport';
 import Plate from './Plate';
 
+const resolveSessionState = (value: unknown): PlateSessionState =>
+  value === 'locked' ? 'locked' : 'pro';
+
 const meta = {
   title: 'PulsePlate/Parity Pack/Plate',
   component: Plate,
   render: (): JSX.Element => <Plate />,
   decorators: [
     (Story, context): JSX.Element => (
-      <PlateStoryHarness sessionState={(context.parameters.sessionState as PlateSessionState | undefined) ?? 'pro'}>
+      <PlateStoryHarness sessionState={resolveSessionState(context.parameters.sessionState)}>
         <Story />
       </PlateStoryHarness>
     ),
