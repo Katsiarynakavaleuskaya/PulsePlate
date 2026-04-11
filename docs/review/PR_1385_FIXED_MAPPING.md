@@ -37,6 +37,12 @@ Evidence: `scripts/deploy_production.sh` (autodetects canonical `deploy/docker-c
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1385#discussion_r3067185585 -> a062111c6
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1385#discussion_r3067187995 -> a062111c6
 
+Disposition: FIXED
+Commit: 63b775fd6
+Evidence: `scripts/deploy_production.sh` (default `ENV_FILE` selection now handles absolute `COMPOSE_FILE` paths under `$DEPLOY_DIR/deploy/*`), `tests/test_deploy_contract_scripts.py` (absolute deploy compose regression coverage, valid JSON curl stub payload)
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1385#discussion_r3067290930 -> 63b775fd6
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1385#discussion_r3067292082 -> 63b775fd6
+
 ## Merge Readiness
 
 - [ ] Current-head CI green for PR branch head
