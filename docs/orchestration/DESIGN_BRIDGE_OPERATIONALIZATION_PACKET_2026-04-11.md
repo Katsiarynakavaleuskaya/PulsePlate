@@ -83,7 +83,7 @@ than acting as a docs-only bridge.
 ### SP2: Evidence contract alignment
 
 - web review source is explicitly Storybook-first
-- iOS review source is explicitly simulator-based
+- iOS review source is simulator-based
 - parity pack is limited to representative baseline surfaces only
 
 ### SP3: Review-governance alignment
