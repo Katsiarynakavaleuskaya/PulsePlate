@@ -818,6 +818,7 @@ jobs:
           echo "TEST_STEP_STARTED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
           python -c "import sys; print('PY', sys.version)"
           echo "PYTEST_XDIST_ARGS=${PYTEST_XDIST_ARGS[*]}"
+          set +e
           time python -X faulthandler -m pytest \
             "${PYTEST_XDIST_ARGS[@]}" \
             -m "not slow" \
@@ -825,7 +826,10 @@ jobs:
             --cov=. --cov-report=xml --cov-report=term-missing --cov-fail-under=97 \
             --junitxml=tests/results.xml -o junit_family=legacy \
             tests
+          test_exit_code=$?
+          set -e
           echo "TEST_STEP_FINISHED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          exit "$test_exit_code"
 
       - name: Clean Python cache (post-test)
         if: always()
@@ -946,6 +950,7 @@ jobs:
           echo "TEST_STEP_STARTED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
           python -c "import sys; print('PY', sys.version)"
           echo "PYTEST_XDIST_ARGS=${PYTEST_XDIST_ARGS[*]}"
+          set +e
           time python -X faulthandler -m pytest \
             "${PYTEST_XDIST_ARGS[@]}" \
             -m "not slow" \
@@ -953,7 +958,10 @@ jobs:
             --cov=. --cov-report=xml --cov-report=term-missing --cov-fail-under=97 \
             --junitxml=tests/results.xml -o junit_family=legacy \
             tests
+          test_exit_code=$?
+          set -e
           echo "TEST_STEP_FINISHED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          exit "$test_exit_code"
 
       - name: Clean Python cache (post-test)
         if: always()
