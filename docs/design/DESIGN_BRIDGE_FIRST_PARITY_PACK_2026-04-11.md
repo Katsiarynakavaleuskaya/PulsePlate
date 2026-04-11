@@ -47,6 +47,12 @@ reserved `design-agent PR4` slot.
 
 ## 3. Packet Fields
 
+This artifact reuses the CTA review packet structure from
+`docs/design/PENPOT_CTA_REVIEW_PACKET_TEMPLATE.md`, but widens the same field
+contract from one CTA to three representative baseline surfaces for the parity
+lane. It remains template-compatible at the field level even though the
+sections are grouped by surface instead of by a single CTA.
+
 1. `surface_id`
 2. `runtime ownership path`
 3. `storybook review path` or `ios verification path`
@@ -132,12 +138,18 @@ reserved `design-agent PR4` slot.
 ## 6. Current Lane Decision
 
 The first evidence bundle exists and is sufficient to open the operational
-draft PR:
+draft PR only:
 
 - `web.plate` evidence captured
 - `web.progress` evidence captured
 - `ios.home` evidence attempted and blocked by current iOS compile drift
 
-This means the lane is reviewable as an operational evidence/governance PR, but
-it is not allowed to claim full cross-platform parity until the iOS compile
-blockers are fixed in a separate follow-up or in this branch before merge.
+This means the lane may open as a draft operational evidence/governance PR with
+the iOS blocker explicitly declared, but it is not allowed to claim:
+
+- review-ready status
+- full cross-platform parity
+- completed iOS capture evidence
+
+until the iOS compile blockers are fixed in a separate follow-up or in this
+branch before merge.

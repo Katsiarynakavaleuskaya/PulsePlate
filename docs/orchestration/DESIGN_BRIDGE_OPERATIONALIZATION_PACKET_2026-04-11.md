@@ -4,7 +4,7 @@
 - Coordinator: `agent-coordinator`
 - PR intent: operational evidence lane for the design bridge after the merged
   realignment baseline
-- PR title: `feat(design-ops): operationalize bridge preflight and first parity pack`
+- PR title: `feat(design-ops): operationalize bridge preflight, capture, and first parity pack`
 
 ## Decision question
 
@@ -146,11 +146,21 @@ For this lane, `bug-hunter` is specifically checking:
 
 ### 2. Open PR
 
+- Keep the PR in `draft` until all of the following are true:
+  - preflight pair passed
+  - packet exists
+  - first evidence bundle exists for the current lane scope
 - PR body declares design-ops / evidence-only scope
 - PR body states that:
   - the lane does not touch the colleague-owned bridge-closeout PR `#1386`
   - the lane does not consume the reserved `design-agent PR4` slot
   - Cloudflare remains advisory only
+- After the PR number exists, create the standard governance artifact:
+  - `docs/review/PR_<N>_FIXED_MAPPING.md`
+- Mirror the required governance sections into the PR body:
+  - `Discussion Thread Pass`
+  - `Fixed in Commit Mapping`
+  - `Merge Readiness`
 
 ### 3. Post-open review loop
 
