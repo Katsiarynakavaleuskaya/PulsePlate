@@ -19,14 +19,19 @@ removed the external root runtime path `@goplus/agentguard -> axios`, but the
 live GitHub alert and repo SBOM still reported the stale vulnerable graph on
 `10 April 2026`.
 
+Historical note: the stale-alert hypothesis recorded here does not match the
+clean-`main` evidence re-verified on `11 April 2026` for PR `#1394`. Keep this
+file for provenance only; use the bundled successor packet as the corrected SoT.
+
 ## Current-Head Truth
 
 - Local repo state:
-  - `package.json` no longer declares `@goplus/agentguard`
-  - `package-lock.json` no longer contains live root runtime entries for
-    `@goplus/agentguard` or `axios`
+  - `package.json` still declares `@goplus/agentguard ^1.0.12`
+  - `package-lock.json` still contains
+    `node_modules/@goplus/agentguard 1.0.12`
+  - `package-lock.json` still contains `node_modules/axios 1.13.6`
 - Guard evidence:
-  - `tests/test_root_npm_dependency_guards.py`
+  - `tests/test_root_npm_dependency_guards.py:97`
   - `tests/test_remaining_modules.py`
 - Live GitHub state on `10 April 2026`:
   - Dependabot alert `#105` remained `open`
@@ -91,7 +96,8 @@ Mandatory post-open review lane remains `qa-engineer-agent -> bug-hunter`.
   graph refresh, do not open a synthetic remediation PR. Open a narrow
   reconciliation/evidence PR only if documentation or audit artifacts still
   need to land.
-- If current-head `main` finishes green and the alert remains `open`, open a
-  replacement PR on top of `origin/main` with the minimum reconciliation or
-  scanner-refresh change needed to close the stale GitHub graph state.
+- If current-head `main` still shows the live `@goplus/agentguard -> axios`
+  path, do not reuse this stale-alert assumption. Open a replacement PR on top
+  of `origin/main` with the minimum runtime remediation needed to remove or
+  replace that path, then use graph refresh as the proof loop.
 - Do not reuse the already-merged PR `#1384` lane for new review activity.

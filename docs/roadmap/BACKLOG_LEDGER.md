@@ -2972,15 +2972,16 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Target PR: PR-TBD-DEPENDABOT-AXIOS-105-106-RECONCILIATION
   - Area: security / node / scanner-state
   - Finding Type: stale alert reconciliation
-  - Reason: On `10 April 2026`, GitHub still reports alert `#105`
-    (`GHSA-3p68-rc4w-qgx5`, `CVE-2025-62718`) against root `package-lock.json`,
-    while the merged root remediation removed the external
-    `@goplus/agentguard -> axios` runtime path from the local lockfile and
-    guard tests. GitHub repo SBOM still reports `@goplus/agentguard 1.0.12`
-    and `axios 1.13.6`, so the remaining risk appears to be dependency-graph
-    drift rather than a proven live runtime carrier in current `main`. Alert
-    `#105` is handled together with alert `#106` in one bundled reconciliation
-    lane.
+  - Reason: Clean-main verification for PR `#1394` showed that root
+    `package.json` still declares `@goplus/agentguard ^1.0.12` and root
+    `package-lock.json` still contains both
+    `node_modules/@goplus/agentguard 1.0.12` and `node_modules/axios 1.13.6`.
+    That means alert `#105` is not yet proven stale relative to current repo
+    truth. This bundled lane first formalizes coordinator ownership, adds the
+    repo-owned root npm dependency submission workflow, and records corrected
+    evidence so the follow-up remediation PR can remove or replace the live
+    carrier path with minimum scope. Alert `#105` is handled together with alert
+    `#106` in one bundled reconciliation lane.
   - Links:
     - `package.json`
     - `package-lock.json`
@@ -2990,8 +2991,10 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/security/dependabot/105`
   - DoD:
     - Re-check live alert state, SBOM state, and current-head `main` workflow completion after the latest merge
-    - Prove whether current repo truth already satisfies the patched floor without a live root runtime carrier
-    - If GitHub graph still disagrees, land the minimum scanner-refresh/reconciliation PR needed to close the stale alert without reopening broad npm dependency churn
+    - Prove whether a follow-up runtime remediation removes the live root
+      `@goplus/agentguard -> axios` carrier on current `main`
+    - Use the repo-owned npm dependency submission lane as the post-remediation
+      graph-refresh proof loop
 
 <a id="ledger-p1-dependabot-alert-106-axios"></a>
 - [ ] P1: Reconcile Dependabot alert `#106` (`axios`) on `main`
@@ -3000,12 +3003,13 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Target PR: PR-TBD-DEPENDABOT-AXIOS-105-106-RECONCILIATION
   - Area: security / node / scanner-state
   - Finding Type: stale alert reconciliation
-  - Reason: On `11 April 2026`, GitHub still reports alert `#106`
-    (`GHSA-fvcv-3m26-pcqx`, `CVE-2026-40175`) against root `package-lock.json`
-    with patched floor `axios >= 1.15.0`, while the local root lockfile still
-    shows no live `axios` or `@goplus/agentguard` runtime path. This alert is
-    bundled with alert `#105` into one coordinator-owned reconciliation lane so
-    the repo can refresh GitHub graph truth without speculative root npm churn.
+  - Reason: On clean `origin/main`, root `package.json` and root
+    `package-lock.json` still show the live `@goplus/agentguard -> axios`
+    runtime path (`@goplus/agentguard 1.0.12`, `axios 1.13.6`), so alert `#106`
+    is not yet proven stale relative to current repo truth. This alert is
+    bundled with alert `#105` into one coordinator-owned lane that lands the
+    repo-owned npm dependency submission workflow and corrected evidence first,
+    then hands off to a minimum follow-up remediation PR.
   - Links:
     - `package.json`
     - `package-lock.json`
@@ -3015,8 +3019,10 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/security/dependabot/106`
   - DoD:
     - Re-check live alert state, SBOM state, and current-head `main` workflow completion after the latest merge
-    - Prove whether current repo truth already satisfies the patched floor without a live root runtime carrier
-    - If GitHub graph still disagrees, land the minimum scanner-refresh/reconciliation PR needed to close the stale alert without reopening broad npm dependency churn
+    - Prove whether a follow-up runtime remediation removes the live root
+      `@goplus/agentguard -> axios` carrier on current `main`
+    - Use the repo-owned npm dependency submission lane as the post-remediation
+      graph-refresh proof loop
 
 <a id="ledger-p1-dependabot-alert-100-addressable"></a>
 - [ ] P1: Reconcile Dependabot alert `#100` (`addressable`) on `main`

@@ -15,20 +15,36 @@ vulnerable packages. It is repeated **desynchronization** between:
 
 ## Observed Facts
 
-### Shared `axios` drift: alerts `#105` + `#106`
+### Shared `axios` alert state: alerts `#105` + `#106`
 
 - GitHub Dependabot alert `#105` (`axios`, `GHSA-3p68-rc4w-qgx5`,
   `CVE-2025-62718`) remained `open`.
 - GitHub Dependabot alert `#106` (`axios`, `GHSA-fvcv-3m26-pcqx`,
   `CVE-2026-40175`) remained `open`.
 - GitHub still points both alerts to root `package-lock.json`.
-- Local root graph evidence does not show `axios` in `package-lock.json`.
-- Local root graph evidence does not show `@goplus/agentguard` in
-  `package-lock.json`.
-- Guard tests already enforce the removed runtime path.
+- Clean `main` repo evidence still shows a live root npm carrier:
+  - `package.json:49` — root dependency still declares
+    `@goplus/agentguard ^1.0.12`
+  - `package-lock.json:627` — root lockfile still contains
+    `node_modules/@goplus/agentguard 1.0.12`
+  - `package-lock.json:634` — `@goplus/agentguard` still declares
+    `axios ^1.6.7`
+  - `package-lock.json:784` — root lockfile still contains
+    `node_modules/axios 1.13.6`
+- Runtime bridge evidence also still points to the external package:
+  - `tools/agentguard/scan_text.mjs:6` — imports `SkillScanner` from
+    `@goplus/agentguard`
+  - `tools/agentguard/scan_text.mjs:39` — instantiates `SkillScanner`
+- Guard tests currently prove that the AgentGuard dependency chain still exists,
+  not that it was removed:
+  - `tests/test_root_npm_dependency_guards.py:97`
 - GitHub repo SBOM still reported:
   - `@goplus/agentguard 1.0.12`
   - `axios 1.13.6`
+
+Current conclusion: on clean `origin/main`, GitHub's alert/SBOM view is still
+aligned with repo manifests and the root lockfile. The earlier stale-alert /
+graph-drift framing is therefore not yet proven for this alert family.
 
 ### Config asymmetry before repo-owned npm refresh
 
@@ -59,26 +75,34 @@ vulnerable packages. It is repeated **desynchronization** between:
 
 ## Root Cause Classes
 
-### 1. GitHub dependency graph / SBOM lag
+### 1. Current clean-`main` truth still carries the live root npm path
 
-The strongest current signal is the mismatch between committed lockfiles and the
-live GitHub SBOM. This means a successfully merged remediation PR is not always
-enough to make GitHub immediately agree with repo truth.
+Before calling the alert family "stale", the repo must first verify current
+`main`. On clean `origin/main`, the root manifest, root lockfile, and runtime
+bridge still carry the `@goplus/agentguard -> axios` path. That means the
+current blocker is not purely SBOM lag.
 
-### 2. Historically missing npm-specific repo-managed dependency submission lane
+### 2. Historical stale-alert framing was opened before current-head truth was re-verified
+
+The repo already had a broader stale-alert family open, but this specific
+`axios` bundle inherited that framing too early. The clean-main recheck shows
+that the `#105` / `#106` hypothesis must be corrected back to "live path still
+present until proven otherwise".
+
+### 3. Historically missing npm-specific repo-managed dependency submission lane
 
 Python dependency submission was explicit and repo-managed while npm lacked an
-equivalent lane when this audit was opened. That asymmetry left GitHub graph
-refresh for Node surfaces dependent on ambient GitHub parsing rather than an
-explicit repo-owned submission contract.
+equivalent lane when this audit was opened. That asymmetry still matters as a
+process gap because the repo needs an explicit post-remediation graph-refresh
+loop once the actual runtime fix lands.
 
-### 3. Partial Dependabot ecosystem coverage
+### 4. Partial Dependabot ecosystem coverage
 
 Dependabot configuration currently expresses only `pip` updates. Even when npm
 alerts are visible in GitHub, the repo does not yet own a symmetrical
 Dependabot/update/submission strategy across all active package ecosystems.
 
-### 4. Narrow PRs without synchronized graph-refresh proof
+### 5. Narrow PRs without synchronized graph-refresh proof
 
 Narrow remediation is still the correct default for security work. The missing
 piece is an explicit post-merge proof loop for dependency-graph convergence.
@@ -119,16 +143,19 @@ direct causes of the remaining `axios` alert family (`#105` + `#106`).
 ## Recommended Prevention Follow-Ups
 
 1. Keep the root npm dependency submission lane narrow and repo-owned so GitHub
-   graph refresh is explicit rather than ambient.
-2. Extend the stale-alert reconciliation ledger with alert-family-specific child
-   items whenever GitHub graph state diverges from repo truth.
-3. After every narrow dependency remediation PR, require a post-merge
+   graph refresh is explicit rather than ambient after the runtime dependency
+   fix lands.
+2. Require a clean-`main` manifest/lockfile recheck before classifying an alert
+   as dependency-graph drift.
+3. Extend the stale-alert reconciliation ledger with alert-family-specific child
+   items whenever GitHub graph state actually diverges from repo truth.
+4. After every narrow dependency remediation PR, require a post-merge
    dependency-graph recheck:
    - alert state,
    - SBOM/package view,
    - current-head workflow completion.
-4. Keep security PRs narrow, but attach a recurring-drift audit whenever the
-   repo is already patched and GitHub still reports the old graph.
+5. Keep security PRs narrow, but do not use a recurring-drift audit as a
+   substitute for fixing a still-live runtime dependency path.
 
 ## Decision Log
 
@@ -136,5 +163,6 @@ direct causes of the remaining `axios` alert family (`#105` + `#106`).
 - The repo should not treat every repeated alert as a signal to perform broad
   package churn.
 - The first question is always whether GitHub is wrong about current repo truth.
-- For alerts `#105` + `#106`, the current narrow lane answer is "refresh graph
-  truth first, then re-evaluate."
+- For alerts `#105` + `#106`, the clean-main answer in this PR is:
+  "current repo truth still carries the live path; add the repo-owned npm
+  submission lane now, then open the minimum remediation follow-up."
