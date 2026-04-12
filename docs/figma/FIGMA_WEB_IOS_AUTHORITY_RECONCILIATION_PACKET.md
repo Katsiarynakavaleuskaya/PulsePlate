@@ -100,7 +100,8 @@ tooling disagree.
      `docs/figma/PULSEPLATE_V3_DESIGN_SYSTEM_RECONCILIATION.md:6-10`,
      `docs/figma/PULSEPLATE_V3_DESIGN_SYSTEM_RECONCILIATION.md:38-54`
    - Make/prototype reference lane:
-     `docs/audit/HOME_PLATE_PROGRESS_AUDIT_RUNBOOK_2026-02-17.md:110-115`
+     `docs/runbooks/FIGMA_MCP_RUNTIME_MATRIX.md:65-69`,
+     `docs/audit/PR_781_HOME_PLATE_PROGRESS_AUDIT_RUNBOOK_2026-02-17.md:166-167`
 7. `umcCk7TtO760DJ3N6M7mvh` as `spec_index_only`
    (`docs/figma/FIGMA_DESIGN_URL_NODEID_CAPTURE_HPP.md:87-102`,
    `docs/figma/orchestration/sessions/2026-03-07_code_connect_blocker_evidence/01_MCP_STATUS.md:5-11`)
@@ -222,10 +223,16 @@ Hard rules:
   non-blocking while blockers remained
   (`docs/architecture/ADR_PENPOT_STORYBOOK_BRIDGE_FALLBACK_SEAM_2026-03-07.md:30-42`).
 - **March 11-12, 2026:** Figma MCP runtime evidence confirmed live metadata,
-  screenshots, and design-push capability; `AhyS6u4dZXMRHVUDO3Cfn6` was created
-  and normalized as `ios prototype v2`, while Code Connect remained blocked and
-  non-authoritative
-  (`docs/runbooks/sessions/FIGMA_MCP_SESSION_2026-03-11_ios-prototype-check.md:146-240`).
+  screenshots, and design-push capability
+  (`docs/runbooks/sessions/FIGMA_MCP_SESSION_2026-03-11_ios-prototype-check.md:33-60`,
+  `docs/runbooks/sessions/FIGMA_MCP_SESSION_2026-03-11_ios-prototype-check.md:96-114`);
+  `AhyS6u4dZXMRHVUDO3Cfn6` was created and normalized as `ios prototype v2`
+  (`docs/runbooks/sessions/FIGMA_MCP_SESSION_2026-03-11_ios-prototype-check.md:146-240`,
+  `docs/runbooks/sessions/FIGMA_MCP_SESSION_2026-03-11_ios-prototype-check.md:378-395`);
+  Code Connect remained blocked and non-authoritative
+  (`docs/runbooks/sessions/FIGMA_MCP_SESSION_2026-03-11_ios-prototype-check.md:42-50`,
+  `docs/runbooks/sessions/FIGMA_MCP_SESSION_2026-03-11_ios-prototype-check.md:96-123`,
+  `docs/runbooks/sessions/FIGMA_MCP_SESSION_2026-03-11_ios-prototype-check.md:374-395`).
 - **April 11, 2026:** this packet locks the current delivery model to explicit
   Code Connect bypass and fixes the split authority model across web `v3`, iOS
   `v2`, Make, and spec/index surfaces (`PR #1407`).
