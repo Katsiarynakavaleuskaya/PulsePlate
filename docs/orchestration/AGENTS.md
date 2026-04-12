@@ -13,6 +13,17 @@ Scope: `docs/orchestration/**`
   - advisory: `architecture-specialist`
   - optional consult: `creative-designer`, `frontend-engineer`
   - mandatory post-open lane: `qa-engineer-agent -> bug-hunter`
+- For the design-bridge operationalization lane (`PR21` evidence pipeline):
+  - primary: `agent-coordinator`
+  - execution order:
+    - `creative-designer`
+    - `frontend-engineer`
+    - `qa-engineer-agent`
+  - advisory: `cursor-specialist-agent`
+  - optional consult: `architecture-specialist`
+  - mandatory post-open lane: `qa-engineer-agent -> bug-hunter`
+  - canonical packet:
+    - [`docs/orchestration/DESIGN_BRIDGE_OPERATIONALIZATION_PACKET_2026-04-11.md`](./DESIGN_BRIDGE_OPERATIONALIZATION_PACKET_2026-04-11.md)
 - For the Tier 1 CI/CD consolidation wave:
   - primary: `agent-coordinator`
   - secondary: `backend-engineer`
