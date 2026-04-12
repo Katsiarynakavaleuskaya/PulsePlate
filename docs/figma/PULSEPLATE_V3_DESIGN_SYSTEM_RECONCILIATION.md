@@ -6,6 +6,10 @@
 **File Identity:** `qJBtE5J6efmavcHCm6SF0O` (`PulsePlate_v3`)
 **Clean Canonical Figma File:** `2JDwOByQIbcPgp93FDzHii`
 **Clean Canonical Figma URL:** <https://www.figma.com/design/2JDwOByQIbcPgp93FDzHii>
+**Cross-file authority lock:** `qJBtE5J6efmavcHCm6SF0O` = `reference_only`;
+`2JDwOByQIbcPgp93FDzHii` = `canonical_execution`
+**Current delivery model:** explicit Code Connect bypass; see
+`docs/figma/FIGMA_WEB_IOS_AUTHORITY_RECONCILIATION_PACKET.md`
 
 ## 1. Purpose
 
@@ -48,15 +52,17 @@ Decision:
 - `PulsePlate_v3` stays `audit/reference only`
 - the clean file `2JDwOByQIbcPgp93FDzHii` is the execution lane for this phase
 
-### 2.2 Code Connect is explicitly out of scope for Phase 1
+### 2.2 Current lane delivery bypasses Code Connect completely
 
-Direct Code Connect activation is not required for this package.
+For the current web/iOS reconciliation lane, Code Connect is not required,
+not planned, and not gating for this package.
 
 For this phase:
 
-- repo-native design system and bridge workflow are primary
-- Storybook/component inventory remain the canonical web review lane
-- any future Code Connect work must be handled in a separate follow-up packet
+- repo-native design system remains primary
+- Storybook/component inventory remain repo-backed review surfaces only
+- existing Code Connect docs are historical reference only for this lane
+- workspace seat or Code Connect availability is not a blocker here
 
 ### 2.3 Canonical file rollover / re-key rule
 
@@ -89,10 +95,10 @@ disagree.
    - `ios/PulsePlate/DesignSystem/DesignTokens.swift`
    - `ios/PulsePlate/Assets.xcassets/`
    - `ios/PulsePlate/Extensions/Color+Assets.swift`
-4. Storybook and governed component inventory
+4. Storybook and governed component inventory as repo-backed review surfaces only
 5. clean Figma file `2JDwOByQIbcPgp93FDzHii` as design-intent execution lane
 6. current `PulsePlate_v3` as audit/reference only
-7. FIGR AI as optional read-only ideation lane only
+7. Figma AI / FIGR / capture tooling as advisory evidence only
 
 Hard rule:
 
@@ -238,7 +244,7 @@ Fail conditions:
 ### 9.1 Aligned
 
 - repo token pipeline is governed and explicit
-- Storybook is already the canonical web review lane
+- Storybook is already a repo-backed web review surface
 - repo component vocabulary exists and is usable for clean-file mapping
 - `PulsePlate_v3` contains at least one trustworthy foundations frame (`35:148`)
 
@@ -269,7 +275,7 @@ Fail conditions:
 ### 9.6 Needs vocabulary decision
 
 - Welcome Gate step rail / progress indicator naming and ownership
-- membrane annotation blocks and index markers
+- membrane annotation blocks and annotation markers
 - archive treatment for `PulsePlate_v3` reference frames
 
 ## 10. Blocker Classes
@@ -306,21 +312,24 @@ Execute in this order:
 6. add state variants and review notes
 7. only then decide whether follow-up surfaces should be added
 
-## 13. FIGR AI Lane Policy
+## 13. AI-Assisted Evidence Policy
 
-FIGR AI is allowed only as an optional read-only ideation lane.
+Figma AI / FIGR may assist only as advisory evidence tooling.
 
 Approved uses:
 
 - exploring onboarding/welcome prototype variations
 - gathering alternative layout ideas
 - comparing conceptual gate compositions
+- token extraction, microcopy drafting, and proposal scaffolding drafts
+- screenshot-assisted analysis against repo-backed expectations
 
 Forbidden uses:
 
 - replacing repo or Figma SoT
 - generating authoritative tokens/components directly
-- bypassing repo review by pasting FIGR output into production lanes unchanged
+- promoting file or node authority
+- bypassing repo review by pasting AI output into production lanes unchanged
 
 Reference URLs:
 
@@ -335,7 +344,7 @@ The clean file passes Phase 1 only when all are true:
 - MCP validation succeeds for known-good clean-file frames
 - no unmanaged local Figma styles remain
 - each governed component maps to a repo primitive or documented missing primitive
-- Storybook/component docs remain the canonical web review surface
+- Storybook/component docs remain repo-backed review surfaces for comparison and evidence
 - Welcome Gate hierarchy matches `Pulse Membrane` rules
 - mascot provenance rules pass
 - target-size and accessibility rules are explicit
@@ -348,7 +357,7 @@ Follow-up work is intentionally split:
 - PR A: docs + reconciliation packet + indices
 - PR B: repo token/component parity cleanup
 - PR C: clean Figma foundations/components/welcome-gate execution
-- PR D: optional mapping annex or future bridge readiness only if needed
+- PR D: optional historical annex only if needed
 
 The follow-up execution package is tracked in:
 
