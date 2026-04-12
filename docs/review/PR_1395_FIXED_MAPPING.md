@@ -8,7 +8,7 @@
 ## Fixed in Commit Mapping
 
 Disposition: FIXED
-Commit: 8d5f7e7bb
+Commit: see mapping entries below
 Evidence: `core/insight/safety.py:13`, `core/insight/safety.py:45`, `scripts/orchestration/ai_runtime_gate_bundle.py:55`, `tests/test_ai_runtime_gate_bundle.py:12`, `tests/test_ai_runtime_gate_bundle.py:42`, `tests/test_rag_orchestration.py:979`, `tests/test_rag_orchestration.py:1021`
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1395#discussion_r3069184041 -> 8d5f7e7bb
