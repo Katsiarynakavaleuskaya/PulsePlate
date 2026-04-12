@@ -306,5 +306,5 @@ def test_docker_ci_build_jobs_use_ci_lite_requirements_profile() -> None:
 
     assert "PULSEPLATE_REQUIREMENTS_FILE=requirements-ci-lite.txt" in docker_image_build_args
     assert "PULSEPLATE_REQUIREMENTS_FILE=requirements-ci-lite.txt" in docker_smoke_build_args
-    assert "PULSEPLATE_REQUIREMENTS_FILE=requirements-ci-lite.txt" in local_build_args
+    assert "PULSEPLATE_REQUIREMENTS_FILE" not in local_build_args
     assert "PULSEPLATE_REQUIREMENTS_FILE" not in publish_build_args
