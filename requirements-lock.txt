@@ -489,7 +489,7 @@ scipy==1.17.1
     #   -c requirements.txt
     #   scikit-learn
     #   sentence-transformers
-sentence-transformers==5.3.0
+sentence-transformers==5.4.0
     # via
     #   -c requirements.txt
     #   -r requirements.in
@@ -566,7 +566,7 @@ typer==0.24.1
     #   -c requirements.txt
     #   huggingface-hub
     #   transformers
-types-pyyaml==6.0.12.20250915
+types-pyyaml==6.0.12.20260408
     # via -r requirements-dev.in
 typing-extensions==4.15.0
     # via

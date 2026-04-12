@@ -2,7 +2,7 @@
   "schema_version": 1,
   "generated_at": "2026-04-09",
   "expires_at": "2026-04-30",
-  "reason": "Temporary exact-wheel fallback for active dependency PRs while the approved private proxy lags patched upstream releases.",
+  "reason": "Temporary exact-wheel fallback for cryptography, pytest, and sentence-transformers while the approved private proxy lags patched upstream releases used by active dependency PRs.",
   "artifacts": [
     {
       "package": "cryptography",
@@ -24,6 +24,13 @@
       "filename": "pytest-9.0.3-py3-none-any.whl",
       "url": "https://files.pythonhosted.org/packages/d4/24/a372aaf5c9b7208e7112038812994107bc65a84cd00e0354a88c2c77a617/pytest-9.0.3-py3-none-any.whl",
       "sha256": "2c5efc453d45394fdd706ade797c0a81091eccd1d6e4bccfcd476e2b8e0ab5d9"
+    },
+    {
+      "package": "sentence-transformers",
+      "version": "5.4.0",
+      "filename": "sentence_transformers-5.4.0-py3-none-any.whl",
+      "url": "https://files.pythonhosted.org/packages/5a/d4/58f3e1308c8d15cae83407bd651542b62155a2b3248e0290a724e80fd124/sentence_transformers-5.4.0-py3-none-any.whl",
+      "sha256": "4e5ac9a19244153f3f4074d898e664990408d7b077fb1d1d0dc9cb8a9316feac"
     }
   ]
 }
