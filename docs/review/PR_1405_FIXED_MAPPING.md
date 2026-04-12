@@ -8,36 +8,54 @@ Bot and human review threads must be dispositioned below when actionable comment
 
 ## Fixed in Commit Mapping
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1405#issuecomment-4231850181 -> 4cd8a3465
-  - Disposition: FIXED
-  - Commit: 4cd8a3465
-  - Evidence: `.github/workflows/ci.yml` widened iOS push predicates to include `refs/heads/feature/`; `tests/test_ci_workflow_pr_size_governance_contract.py` added alias guard.
+Disposition: FIXED
+Commit: 4cd8a3465
+Evidence: `.github/workflows/ci.yml` widened iOS push predicates to include `refs/heads/feature/`; `tests/test_ci_workflow_pr_size_governance_contract.py` added alias guard.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1405#pullrequestreview-4095309985 -> 1d59be0ae
-  - Disposition: FIXED
-  - Evidence: `tests/test_ci_workflow_pr_size_governance_contract.py` now uses parsed workflow branches + membership assertions; `scripts/ci/install_locked_python_requirements.py` stages exact constraint pins once per staging pass; `tests/test_install_locked_python_requirements.py` covers the single-read path.
+Disposition: FIXED
+Commit: 1d59be0ae
+Evidence: `tests/test_ci_workflow_pr_size_governance_contract.py` now uses parsed workflow branches + membership assertions; `scripts/ci/install_locked_python_requirements.py` stages exact constraint pins once per staging pass; `tests/test_install_locked_python_requirements.py` covers the single-read path.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1405#discussion_r3069803570 -> 0883a87e5
-  - Disposition: FIXED
-  - Evidence: `.github/workflows/ci.yml` now runs unit tests inside `ios-tests`; `ios-ui-smoke` remains UI-only; `tests/test_ci_workflow_pr_size_governance_contract.py` guards the split.
+Disposition: FIXED
+Commit: 0883a87e5
+Evidence: `.github/workflows/ci.yml` now runs unit tests inside `ios-tests`; `ios-ui-smoke` remains UI-only; `tests/test_ci_workflow_pr_size_governance_contract.py` guards the split.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1405#discussion_r3069803573 -> 20e5127a2
-  - Disposition: FIXED
-  - Evidence: `docs/review/PR_1405_FIXED_MAPPING.md` now records internal review and bot fixes explicitly; merge-readiness bot-mapping checkbox remains unchecked until the final pass.
+Disposition: FIXED
+Commit: 20e5127a2
+Evidence: `docs/review/PR_1405_FIXED_MAPPING.md` now records internal review and bot fixes explicitly; merge-readiness bot-mapping checkbox remains unchecked until the final pass.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1405#pullrequestreview-4095329850
-  - Disposition: NOT-A-BUG
-  - Evidence: This summary review does not introduce independent work beyond `discussion_r3069803570`, `discussion_r3069803573`, and the already-fixed nit-level follow-ups landed in `1d59be0ae`.
+Disposition: NOT-A-BUG
+Evidence: This summary review does not introduce independent work beyond `discussion_r3069803570`, `discussion_r3069803573`, and the already-fixed nit-level follow-ups landed in `1d59be0ae`.
+Reason: The actionable parts of this summary review are already mapped as separate inline review comments, so the review summary itself does not require an additional code change.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1405#discussion_r3069811515 -> a4a3f8ddf
-  - Disposition: FIXED
-  - Evidence: `tests/test_ci_workflow_pr_size_governance_contract.py` now asserts full push-event routing tokens for `test-feature` and `coverage-feature`, plus smoke/contract/coverage step wiring.
+Disposition: FIXED
+Commit: a4a3f8ddf
+Evidence: `tests/test_ci_workflow_pr_size_governance_contract.py` now asserts full push-event routing tokens for `test-feature` and `coverage-feature`, plus smoke/contract/coverage step wiring.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1405#discussion_r3069811517 -> a4a3f8ddf
-  - Disposition: FIXED
-  - Evidence: `tests/test_ci_workflow_pr_size_governance_contract.py` now asserts `pull_request`, `feat/`, `fix/`, `feature/`, and `main` tokens for both `ios-tests` and `ios-ui-smoke`.
+Disposition: FIXED
+Commit: a4a3f8ddf
+Evidence: `tests/test_ci_workflow_pr_size_governance_contract.py` now asserts `pull_request`, `feat/`, `fix/`, `feature/`, and `main` tokens for both `ios-tests` and `ios-ui-smoke`.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1405#pullrequestreview-4095339675 -> a4a3f8ddf
-  - Disposition: FIXED
-  - Evidence: The summary review's two actionable findings are both closed by the strengthened workflow-contract assertions landed in `a4a3f8ddf`.
+Disposition: FIXED
+Commit: a4a3f8ddf
+Evidence: The summary review's two actionable findings are both closed by the strengthened workflow-contract assertions landed in `a4a3f8ddf`.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1405#discussion_r3069786949 -> a4a3f8ddf
-  - Disposition: FIXED
-  - Evidence: `tests/test_ci_workflow_pr_size_governance_contract.py` asserts parsed YAML branch membership via `_load_ci_workflow()` and `issubset(...)`, so workflow formatting changes no longer make the test brittle.
+Disposition: FIXED
+Commit: a4a3f8ddf
+Evidence: `tests/test_ci_workflow_pr_size_governance_contract.py` asserts parsed YAML branch membership via `_load_ci_workflow()` and `issubset(...)`, so workflow formatting changes no longer make the test brittle.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1405#discussion_r3069786946
-  - Disposition: NOT-A-BUG
-  - Evidence: Coverage merge truth is still enforced by the canonical PR lane `diff-coverage` job in `.github/workflows/ci.yml` plus the repo hard gate in `AGENTS.md`; the feature-push fast-feedback lane only publishes coverage artifacts and is intentionally not the merge blocker.
+Disposition: NOT-A-BUG
+Evidence: Coverage merge truth is still enforced by the canonical PR lane `diff-coverage` job in `.github/workflows/ci.yml` plus the repo hard gate in `AGENTS.md`; the feature-push fast-feedback lane only publishes coverage artifacts and is intentionally not the merge blocker.
+Reason: This comment assumes the feature-push fast-feedback job is itself the merge gate, but in this repository merge readiness is decided by the canonical PR lane and `diff-coverage`, not by the non-blocking feature-branch push lane.
 
 ## Merge Readiness
 - [ ] Current-head CI green for PR branch head
