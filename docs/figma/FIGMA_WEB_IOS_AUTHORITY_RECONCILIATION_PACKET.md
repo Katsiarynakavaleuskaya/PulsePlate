@@ -235,7 +235,8 @@ Hard rules:
   `docs/runbooks/sessions/FIGMA_MCP_SESSION_2026-03-11_ios-prototype-check.md:374-395`).
 - **April 11, 2026:** this packet locks the current delivery model to explicit
   Code Connect bypass and fixes the split authority model across web `v3`, iOS
-  `v2`, Make, and spec/index surfaces (`PR #1407`).
+  `v2`, Make, and spec/index surfaces (`PR #1407`,
+  `docs/review/PR_1407_FIXED_MAPPING.md:63-86`).
 
 ## 11. Acceptance Contract
 
