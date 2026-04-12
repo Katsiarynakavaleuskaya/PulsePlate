@@ -35,6 +35,26 @@ Disposition: FIXED
 Commit: `ce398d846`
 Evidence: the authority packet now addresses the new CodeRabbit review summary by adding exact source anchors in the reference model and explicit supporting evidence references in the decision log while keeping scope docs-only.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1407#discussion_r3070097524 -> b7a0fea32
+Disposition: FIXED
+Commit: `b7a0fea32`
+Evidence: `docs/figma/FIGMA_WEB_IOS_AUTHORITY_RECONCILIATION_PACKET.md` now records exact `file:line` anchors for the precedence-critical repo mirrors and lane packets, including the web `canonical_execution`, iOS `implementation_safe`, legacy `reference_only`, and `spec_index_only` evidence surfaces.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1407#discussion_r3070099294 -> b7a0fea32
+Disposition: FIXED
+Commit: `b7a0fea32`
+Evidence: `docs/figma/FIGMA_WEB_IOS_AUTHORITY_RECONCILIATION_PACKET.md` now cites `docs/figma/FIGMA_DESIGN_URL_NODEID_CAPTURE_HPP.md:87-102` for the February 19 design/spec + stale `1:72` history claim, which is the repo source that actually records the `umcCk7TtO760DJ3N6M7mvh` capture lineage.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1407#pullrequestreview-4095649482 -> b7a0fea32
+Disposition: FIXED
+Commit: `b7a0fea32`
+Evidence: the latest CodeRabbit review summary is addressed by the same packet update: precedence bullets now carry exact `file:line` anchors, and the readability nit is resolved by shortening the hard-rule wording to `read-only for authority`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1407#pullrequestreview-4095651529 -> b7a0fea32
+Disposition: FIXED
+Commit: `b7a0fea32`
+Evidence: cubic found the unverifiable February 19 citation; the packet now points that decision-log claim to `docs/figma/FIGMA_DESIGN_URL_NODEID_CAPTURE_HPP.md:87-102`, which preserves direct evidence for the stale `1:72` / `umc...` history.
+
 ## Merge Readiness
 
 - [ ] Current-head CI green for PR branch head
