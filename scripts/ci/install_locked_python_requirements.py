@@ -350,6 +350,30 @@ def requirement_files_request_artifact(
     return False
 
 
+def requirement_surfaces_request_artifact(
+    requirement_files: Sequence[Path],
+    *,
+    constraints_file: Path | None,
+    package: str,
+    version: str,
+) -> bool:
+    """Return True when selected requirement surfaces or constraints pin package==version."""
+    if requirement_files_request_artifact(
+        requirement_files,
+        package=package,
+        version=version,
+    ):
+        return True
+
+    validated_constraints_file = validate_constraints_file(constraints_file)
+    if validated_constraints_file is None:
+        return False
+    for line in validated_constraints_file.read_text(encoding="utf-8").splitlines():
+        if _requirement_line_requests_exact_version(line, package=package, version=version):
+            return True
+    return False
+
+
 def _download_with_sha256(*, url: str, destination: Path, expected_sha256: str) -> None:
     """Download an artifact and verify its sha256 before trusting it."""
     digest = hashlib.sha256()
@@ -387,14 +411,16 @@ def _download_with_sha256(*, url: str, destination: Path, expected_sha256: str) 
 def stage_emergency_wheels(
     *,
     requirement_files: Sequence[Path],
+    constraints_file: Path | None,
     wheelhouse_dir: Path,
     manifest_path: Path | None,
 ) -> list[Path]:
     """Download exact emergency wheels requested by the selected requirement files."""
     staged_paths: list[Path] = []
     for artifact in load_emergency_wheel_manifest(manifest_path):
-        if not requirement_files_request_artifact(
+        if not requirement_surfaces_request_artifact(
             requirement_files,
+            constraints_file=constraints_file,
             package=artifact["package"],
             version=artifact["version"],
         ):
@@ -789,6 +815,7 @@ def build_wheelhouse_with_emergency_fallback(
     except RuntimeError:
         staged_wheels = stage_emergency_wheels(
             requirement_files=requirement_files,
+            constraints_file=constraints_file,
             wheelhouse_dir=wheelhouse_dir,
             manifest_path=emergency_wheel_manifest,
         )
@@ -829,6 +856,7 @@ def install_from_proxy_with_emergency_fallback(
     except RuntimeError:
         staged_wheels = stage_emergency_wheels(
             requirement_files=requirement_files,
+            constraints_file=constraints_file,
             wheelhouse_dir=emergency_wheelhouse_dir,
             manifest_path=emergency_wheel_manifest,
         )

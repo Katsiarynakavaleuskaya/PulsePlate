@@ -2,7 +2,7 @@
   "schema_version": 1,
   "generated_at": "2026-04-09",
   "expires_at": "2026-04-30",
-  "reason": "Temporary exact-wheel fallback for cryptography 46.0.7 and ruff 0.15.10 while the approved private proxy lags the required upstream wheels.",
+  "reason": "Temporary exact-wheel fallback for cryptography 46.0.7, ruff 0.15.10, and types-pyyaml 6.0.12.20260408 while the approved private proxy lags the required upstream wheels.",
   "artifacts": [
     {
       "package": "cryptography",
@@ -24,6 +24,13 @@
       "filename": "ruff-0.15.10-py3-none-manylinux_2_17_x86_64.manylinux2014_x86_64.whl",
       "url": "https://files.pythonhosted.org/packages/bc/bb/7ddb00a83760ff4a83c4e2fc231fd63937cc7317c10c82f583302e0f6586/ruff-0.15.10-py3-none-manylinux_2_17_x86_64.manylinux2014_x86_64.whl",
       "sha256": "51cb8cc943e891ba99989dd92d61e29b1d231e14811db9be6440ecf25d5c1609"
+    },
+    {
+      "package": "types-pyyaml",
+      "version": "6.0.12.20260408",
+      "filename": "types_pyyaml-6.0.12.20260408-py3-none-any.whl",
+      "url": "https://files.pythonhosted.org/packages/1c/f0/c391068b86abb708882c6d75a08cd7d25b2c7227dab527b3a3685a3c635b/types_pyyaml-6.0.12.20260408-py3-none-any.whl",
+      "sha256": "fbc42037d12159d9c801ebfcc79ebd28335a7c13b08a4cfbc6916df78fee9384"
     }
   ]
 }
