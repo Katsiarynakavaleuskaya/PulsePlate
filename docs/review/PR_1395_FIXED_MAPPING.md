@@ -7,7 +7,17 @@
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+Disposition: FIXED
+Commit: 8d5f7e7bb
+Evidence: `core/insight/safety.py:13`, `core/insight/safety.py:45`, `scripts/orchestration/ai_runtime_gate_bundle.py:55`, `tests/test_ai_runtime_gate_bundle.py:12`, `tests/test_ai_runtime_gate_bundle.py:42`, `tests/test_rag_orchestration.py:979`, `tests/test_rag_orchestration.py:1021`
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1395#discussion_r3069184041 -> 8d5f7e7bb
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1395#discussion_r3069184742 -> 8d5f7e7bb
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1395#discussion_r3069187071 -> 8d5f7e7bb
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1395#discussion_r3069187072 -> 8d5f7e7bb
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1395#discussion_r3069187074 -> 8d5f7e7bb
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1395#pullrequestreview-4094794714 -> 8d5f7e7bb
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1395#pullrequestreview-4094797302 -> 8d5f7e7bb
 
 ## Merge Readiness
 
