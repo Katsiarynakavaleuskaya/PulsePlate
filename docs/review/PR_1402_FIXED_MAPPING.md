@@ -5,8 +5,17 @@
 - [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1402#pullrequestreview-4094866103 -> 95158a8d6
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1402#discussion_r3069267988 -> 95158a8d6
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1402#pullrequestreview-4094866103
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1402#discussion_r3069267988
+Disposition: FIXED
+Commit: 95158a8d6
+Evidence: docs/review/PR_1402_FIXED_MAPPING.md local validation note uses `VENV_PYTHON=.venv/bin/python`, not an absolute `/Users/...` path.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1402#pullrequestreview-4094868024
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1402#discussion_r3069270438
+Disposition: FIXED
+Commit: 95158a8d6
+Evidence: docs/review/PR_1402_FIXED_MAPPING.md local validation note uses `VENV_PYTHON=.venv/bin/python`, not an absolute `/Users/...` path.
 
 ## Merge Readiness
 - [ ] All required checks pass
