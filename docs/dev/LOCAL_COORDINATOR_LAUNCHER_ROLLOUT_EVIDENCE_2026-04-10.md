@@ -4,8 +4,12 @@
 
 - Machine: opted-in local operator machine
 - Wrapper path: `~/.local/bin/pulseplate-coordinator-launch.sh`
-- Repo worktree: `worktrees/fix-coordinator-role-agent-rollout`
+- Repo worktree: `<repo-root>/worktrees/fix-coordinator-role-agent-rollout`
 - Template source: `docs/templates/pulseplate-coordinator-launch.example.sh`
+- Closeout PR: `PR #1408`
+- Closeout commit: `43f4dd6855ed19b791f736bb2e12be3fa5fb9508`
+- Wrapper state for smokes: synced to the canonical repo template before all
+  four runs
 
 ## Host-local sync
 
@@ -13,7 +17,7 @@
 - Found drift in flag parsing: the installed wrapper was missing explicit value checks for
   `--goal`, `--task-class`, `--pr-phase`, `--requested-agent`, and `--path`.
 - Synced the installed wrapper to the canonical template.
-- Post-sync verification: `cmp -s ~/.local/bin/pulseplate-coordinator-launch.sh docs/templates/pulseplate-coordinator-launch.example.sh` → `TEMPLATE_SYNCED`.
+- Post-sync verification: `cmp -s ~/.local/bin/pulseplate-coordinator-launch.sh docs/templates/pulseplate-coordinator-launch.example.sh` → exit code `0` (files identical).
 
 ## Smoke Results
 
@@ -37,6 +41,14 @@ Result:
 - Primary agent: `cursor-specialist-agent`.
 - Reviewer: `qa-engineer-agent`.
 
+Output excerpt:
+
+```text
+check_preflight.py --mode analyze: PASS
+primary_agent=cursor-specialist-agent reviewer=qa-engineer-agent
+task_packet=artifacts/orchestration/task_packets/3e9e83d8e2c5.json
+```
+
 ### Smoke 2
 
 Command:
@@ -57,6 +69,14 @@ Result:
 - Task packet emitted: `artifacts/orchestration/task_packets/39b5396fd243.json`.
 - Requested agents preserved in packet order: `["qa-engineer-agent", "bug-hunter"]`.
 - Primary agent resolved to `qa-engineer-agent`.
+
+Output excerpt:
+
+```text
+requested_agents=["qa-engineer-agent","bug-hunter"]
+primary_agent=qa-engineer-agent
+task_packet=artifacts/orchestration/task_packets/39b5396fd243.json
+```
 
 ### Smoke 3
 
@@ -80,13 +100,26 @@ Result:
 - Packet shows normalized requested agents: `["qa-engineer-agent", "bug-hunter"]`.
 - Duplicate `qa-engineer-agent` did not crash the wrapper and was deduplicated with first-seen order preserved.
 
+Output excerpt:
+
+```text
+requested_agents=["qa-engineer-agent","qa-engineer-agent","bug-hunter"]
+normalized_requested_agents=["qa-engineer-agent","bug-hunter"]
+task_packet=artifacts/orchestration/task_packets/f1fccd7106b8.json
+```
+
 ### Smoke 4
+
+Working directory:
+
+- `<repo-root>/worktrees/fix-coordinator-role-agent-rollout`
 
 Command:
 
 ```bash
+REPO_ROOT="<repo-root>"
 env PATH="/usr/bin:/bin:/usr/sbin:/sbin" \
-  VENV_PYTHON="../../.venv/bin/python" \
+  VENV_PYTHON="$REPO_ROOT/.venv/bin/python" \
   bash -lc 'command -v pulseplate-coordinator-launch.sh >/dev/null 2>&1 && echo LAUNCHER_VISIBLE || echo LAUNCHER_HIDDEN; make validate-min'
 ```
 
@@ -95,6 +128,14 @@ Result:
 - `pulseplate-coordinator-launch.sh` was hidden from `PATH`: `LAUNCHER_HIDDEN`.
 - `make validate-min` passed.
 - Normal repo workflow remained usable without the launcher in `PATH`.
+
+Output excerpt:
+
+```text
+LAUNCHER_HIDDEN
+make validate-min
+PASS
+```
 
 ## Conclusion
 
