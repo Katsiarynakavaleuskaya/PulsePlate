@@ -98,3 +98,17 @@ def test_feature_push_jobs_use_changes_gate_and_smoke_risk_topology() -> None:
     assert isinstance(coverage_feature, dict)
     assert coverage_feature["needs"] == ["changes", "test-feature"]
     assert "needs.changes.outputs.run_backend_blocking == 'true'" in coverage_feature["if"]
+
+
+def test_feature_branch_alias_stays_in_sync_for_ios_push_jobs() -> None:
+    workflow = _load_ci_workflow()
+    jobs = workflow["jobs"]
+    assert isinstance(jobs, dict)
+
+    ios_tests = jobs["ios-tests"]
+    assert isinstance(ios_tests, dict)
+    assert "refs/heads/feature/" in ios_tests["if"]
+
+    ios_ui_smoke = jobs["ios-ui-smoke"]
+    assert isinstance(ios_ui_smoke, dict)
+    assert "refs/heads/feature/" in ios_ui_smoke["if"]

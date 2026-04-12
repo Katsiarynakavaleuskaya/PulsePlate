@@ -1270,7 +1270,7 @@ jobs:
     if: |
       needs.changes.outputs.ios == 'true' && (
         github.event_name == 'pull_request' ||
-        (github.event_name == 'push' && (startsWith(github.ref, 'refs/heads/feat/') || startsWith(github.ref, 'refs/heads/fix/') || github.ref == 'refs/heads/main'))
+        (github.event_name == 'push' && (startsWith(github.ref, 'refs/heads/feat/') || startsWith(github.ref, 'refs/heads/fix/') || startsWith(github.ref, 'refs/heads/feature/') || github.ref == 'refs/heads/main'))
       )
     needs: [changes]
     steps:
@@ -1642,7 +1642,7 @@ jobs:
     if: |
       needs.changes.outputs.ios == 'true' && (
         github.event_name == 'pull_request' ||
-        (github.event_name == 'push' && (startsWith(github.ref, 'refs/heads/feat/') || startsWith(github.ref, 'refs/heads/fix/') || github.ref == 'refs/heads/main'))
+        (github.event_name == 'push' && (startsWith(github.ref, 'refs/heads/feat/') || startsWith(github.ref, 'refs/heads/fix/') || startsWith(github.ref, 'refs/heads/feature/') || github.ref == 'refs/heads/main'))
       )
     needs: [changes]
     steps:
