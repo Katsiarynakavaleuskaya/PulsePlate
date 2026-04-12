@@ -15,5 +15,5 @@
 - [ ] Required checks complete (no pending jobs)
 - [ ] All review threads resolved on GitHub after disposition updates
 - [ ] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
-- [x] Pre-commit green on latest pushed head
+- [ ] Pre-commit green on latest pushed head
 - [ ] `make verify` green on latest pushed head

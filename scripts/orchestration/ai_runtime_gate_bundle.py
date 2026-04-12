@@ -49,16 +49,12 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Print the canonical test nodes without executing them.",
     )
-    parser.add_argument(
-        "pytest_args",
-        nargs="*",
-        help="Optional extra pytest arguments appended after the canonical node list.",
-    )
     return parser
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    args = _build_arg_parser().parse_args(list(argv) if argv is not None else None)
+    parser = _build_arg_parser()
+    args, extra_pytest_args = parser.parse_known_args(list(argv) if argv is not None else None)
     if args.list:
         for node in AI_RUNTIME_GATE_TEST_NODES:
             print(node)
@@ -66,7 +62,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     import pytest
 
-    return run_gate_bundle(pytest_runner=pytest.main, extra_args=args.pytest_args)
+    return run_gate_bundle(pytest_runner=pytest.main, extra_args=extra_pytest_args)
 
 
 if __name__ == "__main__":

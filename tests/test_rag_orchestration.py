@@ -976,6 +976,25 @@ def test_redact_rag_context_for_insight_redacts_pii_and_identity_markers() -> No
     assert "Grounding routine for anxious mornings." in result
 
 
+def test_redact_rag_context_for_insight_redacts_quoted_identity_markers_and_case_variants() -> None:
+    """Prompt-path redaction must handle lowercase source labels and quoted markers."""
+
+    result = redact_rag_context_for_insight(
+        (
+            "# source: docs/private_note.md\n"
+            '"tenant_id":"vip-42"\n'
+            '"api_key" = "secret-token"\n'  # pragma: allowlist secret
+            "Grounded breathing guidance."
+        )
+    )
+
+    assert "# source:" not in result.lower()
+    assert "vip-42" not in result
+    assert "secret-token" not in result
+    assert result.count("[IDENTITY_REDACTED]") >= 2
+    assert "Grounded breathing guidance." in result
+
+
 def test_build_rag_source_dicts_redacts_pii_and_identity_markers_in_preview() -> None:
     """Source previews must not leak PII or tenant-linked identifiers."""
 
@@ -984,6 +1003,29 @@ def test_build_rag_source_dicts_redacts_pii_and_identity_markers_in_preview() ->
             content=(
                 "Coach note: coach@example.com\n"
                 "tenant_id=vip-42\n"
+                "Gentle routine for stressful mornings."
+            )
+        )
+    ]
+
+    result = build_rag_source_dicts(chunks)
+
+    assert result[0]["preview"]
+    assert "coach@example.com" not in result[0]["preview"]
+    assert "[EMAIL_REDACTED]" in result[0]["preview"]
+    assert "vip-42" not in result[0]["preview"]
+    assert "[IDENTITY_REDACTED]" in result[0]["preview"]
+    assert "Gentle routine for stressful mornings." in result[0]["preview"]
+
+
+def test_build_rag_source_dicts_redacts_serialized_identity_markers_in_preview() -> None:
+    """Serialized preview payloads must redact quoted identity markers and emails."""
+
+    chunks = [
+        _make_chunk(
+            content=(
+                '"coach_email":"coach@example.com"\n'
+                '"tenant_id":"vip-42"\n'
                 "Gentle routine for stressful mornings."
             )
         )

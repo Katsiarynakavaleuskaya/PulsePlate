@@ -10,12 +10,12 @@ import re
 
 from core.pii_redaction import redact_pii_from_text
 
-_SOURCE_LINE_PREFIX = "# Source:"
+_SOURCE_LINE_PREFIX = "# source:"
 _IDENTITY_MARKER_RE = re.compile(
-    r"\b("
+    r"(?<!\w)([\"']?)("
     r"subject[_ -]?id|user[_ -]?id|tenant[_ -]?id|member[_ -]?id|customer[_ -]?id|"
     r"account[_ -]?id|client[_ -]?id|session[_ -]?id|api[_ -]?key"
-    r")\s*[:=]\s*[^\s,;]+",
+    r")\1\s*[:=]\s*(?:\"[^\"\n]*\"|'[^'\n]*'|[^\s,;]+)",
     re.IGNORECASE,
 )
 
@@ -42,7 +42,7 @@ def redact_rag_context_for_insight(ctx: str) -> str:
 
     lines: list[str] = []
     for line in ctx.splitlines():
-        if line.lstrip().startswith(_SOURCE_LINE_PREFIX):
+        if line.lstrip().lower().startswith(_SOURCE_LINE_PREFIX):
             continue
         lines.append(line)
     without_sources = "\n".join(lines).strip()
