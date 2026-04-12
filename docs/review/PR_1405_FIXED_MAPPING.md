@@ -23,6 +23,15 @@ Bot and human review threads must be dispositioned below when actionable comment
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1405#pullrequestreview-4095329850
   - Disposition: NOT-A-BUG
   - Evidence: This summary review does not introduce independent work beyond `discussion_r3069803570`, `discussion_r3069803573`, and the already-fixed nit-level follow-ups landed in `1d59be0ae`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1405#discussion_r3069811515 -> a4a3f8ddf
+  - Disposition: FIXED
+  - Evidence: `tests/test_ci_workflow_pr_size_governance_contract.py` now asserts full push-event routing tokens for `test-feature` and `coverage-feature`, plus smoke/contract/coverage step wiring.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1405#discussion_r3069811517 -> a4a3f8ddf
+  - Disposition: FIXED
+  - Evidence: `tests/test_ci_workflow_pr_size_governance_contract.py` now asserts `pull_request`, `feat/`, `fix/`, `feature/`, and `main` tokens for both `ios-tests` and `ios-ui-smoke`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1405#pullrequestreview-4095339675 -> a4a3f8ddf
+  - Disposition: FIXED
+  - Evidence: The summary review's two actionable findings are both closed by the strengthened workflow-contract assertions landed in `a4a3f8ddf`.
 
 ## Merge Readiness
 - [ ] Current-head CI green for PR branch head
