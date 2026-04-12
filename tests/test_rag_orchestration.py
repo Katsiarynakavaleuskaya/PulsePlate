@@ -19,6 +19,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from core.rag.contracts import RAGChunk, RAGContext
+from core.insight.safety import redact_rag_context_for_insight
 from core.rag.formatting import build_rag_source_dicts, format_rag_chunks_for_prompt
 from core.rag.orchestration import (
     RAGOrchestrationResult,
@@ -953,6 +954,91 @@ def test_build_rag_source_dicts_sanitizes_preview_content() -> None:
     result = build_rag_source_dicts(chunks)
 
     assert result[0]["preview"] == "Helpful reframing technique."
+
+
+def test_redact_rag_context_for_insight_redacts_pii_and_identity_markers() -> None:
+    """Prompt-path redaction must strip source metadata plus PII/identity markers."""
+
+    result = redact_rag_context_for_insight(
+        (
+            "# Source: docs/private_note.md (score=0.91)\n"
+            "Reach out via coach@example.com.\n"
+            "subject_id: 42\n"
+            "Grounding routine for anxious mornings."
+        )
+    )
+
+    assert "# Source:" not in result
+    assert "coach@example.com" not in result
+    assert "[EMAIL_REDACTED]" in result
+    assert "subject_id: 42" not in result
+    assert "[IDENTITY_REDACTED]" in result
+    assert "Grounding routine for anxious mornings." in result
+
+
+def test_redact_rag_context_for_insight_redacts_quoted_identity_markers_and_case_variants() -> None:
+    """Prompt-path redaction must handle lowercase source labels and quoted markers."""
+
+    result = redact_rag_context_for_insight(
+        (
+            "# source: docs/private_note.md\n"
+            '"tenant_id":"vip-42"\n'
+            '"api_key" = "secret-token"\n'  # pragma: allowlist secret
+            "Grounded breathing guidance."
+        )
+    )
+
+    assert "# source:" not in result.lower()
+    assert "vip-42" not in result
+    assert "secret-token" not in result
+    assert result.count("[IDENTITY_REDACTED]") >= 2
+    assert "Grounded breathing guidance." in result
+
+
+def test_build_rag_source_dicts_redacts_pii_and_identity_markers_in_preview() -> None:
+    """Source previews must not leak PII or tenant-linked identifiers."""
+
+    chunks = [
+        _make_chunk(
+            content=(
+                "Coach note: coach@example.com\n"
+                "tenant_id=vip-42\n"
+                "Gentle routine for stressful mornings."
+            )
+        )
+    ]
+
+    result = build_rag_source_dicts(chunks)
+
+    assert result[0]["preview"]
+    assert "coach@example.com" not in result[0]["preview"]
+    assert "[EMAIL_REDACTED]" in result[0]["preview"]
+    assert "vip-42" not in result[0]["preview"]
+    assert "[IDENTITY_REDACTED]" in result[0]["preview"]
+    assert "Gentle routine for stressful mornings." in result[0]["preview"]
+
+
+def test_build_rag_source_dicts_redacts_serialized_identity_markers_in_preview() -> None:
+    """Serialized preview payloads must redact quoted identity markers and emails."""
+
+    chunks = [
+        _make_chunk(
+            content=(
+                '"coach_email":"coach@example.com"\n'
+                '"tenant_id":"vip-42"\n'
+                "Gentle routine for stressful mornings."
+            )
+        )
+    ]
+
+    result = build_rag_source_dicts(chunks)
+
+    assert result[0]["preview"]
+    assert "coach@example.com" not in result[0]["preview"]
+    assert "[EMAIL_REDACTED]" in result[0]["preview"]
+    assert "vip-42" not in result[0]["preview"]
+    assert "[IDENTITY_REDACTED]" in result[0]["preview"]
+    assert "Gentle routine for stressful mornings." in result[0]["preview"]
 
 
 def test_build_rag_source_dicts_skips_empty_sanitized_chunks() -> None:

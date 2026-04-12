@@ -1313,6 +1313,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `docs/security/SECURITY_POSTURE.md`
     - `docs/analytics/README.md`
     - `docs/innovation/INNOVATION_EVALUATION_FRAMEWORK.md`
+    - `docs/orchestration/contracts/AI_RUNTIME_GATE_CONTRACT.md`
+    - `scripts/orchestration/ai_runtime_gate_bundle.py`
     - `core/insight/philosophy_validator.py`
     - `AGENTS.md`
   - DoD:
