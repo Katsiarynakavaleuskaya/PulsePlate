@@ -32,6 +32,21 @@ This packet follows the coordinator-owned role order for the lane:
 6. `qa-engineer-agent`
 7. `bug-hunter`
 
+Reference model:
+
+- root `AGENTS.md` coordinator-first rule
+- `docs/orchestration/workflow.md`
+
+Lane expectations:
+
+- `agent-coordinator` owns scope, routing, and final packet authority
+- `figma-designer` validates design-surface intent and file/key usage
+- `prompt-engineer` constrains AI-assisted evidence and prompt-side drift
+- `ios-specialist` validates iOS `v2` implementation-safe interpretation
+- `frontend-engineer` validates web `v3` execution-lane implications
+- `qa-engineer-agent` verifies reviewability and acceptance evidence
+- `bug-hunter` performs the mandatory post-open adversarial pass
+
 No role in this chain may be skipped without an explicit coordinator packet
 update.
 
@@ -200,6 +215,14 @@ Hard rules:
 
 This lane is aligned only when all are true:
 
+- web authority = `2JDwOByQIbcPgp93FDzHii` and only that surface is treated as
+  `canonical_execution`
+- iOS authority = `AhyS6u4dZXMRHVUDO3Cfn6` and only as
+  `implementation_safe`
+- spec/index and Make surfaces are used only for lookup, provenance, or
+  comparison
+- Code Connect remains bypassed for this lane unless a future coordinator
+  packet explicitly reopens it
 - readers cannot confuse web `v3` execution authority with iOS `v2`
   implementation-safe reference
 - `umcCk7TtO760DJ3N6M7mvh` is never described as a full canonical design file

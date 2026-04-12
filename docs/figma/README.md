@@ -121,8 +121,12 @@ Historical reference only for the current delivery model:
 10. If session is complex, record decisions in
     `docs/figma/orchestration/sessions/`.
 
-Code Connect is not part of the current recommended workflow. Historical Code
-Connect docs may be consulted only when auditing earlier blocker evidence.
+Code Connect is not part of the current recommended workflow for the
+web/iOS authority reconciliation lane covered by this folder.
+If a future task explicitly reopens Code Connect activation, mapping
+maintenance, or capture refresh under a coordinator-owned packet, use the
+dedicated runbook and bridge docs for that scoped task instead of treating this
+lane-scoped bypass as a repo-wide ban.
 
 ## Canonical project links
 
