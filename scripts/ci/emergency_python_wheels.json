@@ -2,7 +2,7 @@
   "schema_version": 1,
   "generated_at": "2026-04-09",
   "expires_at": "2026-04-30",
-  "reason": "Temporary exact-wheel fallback for cryptography and sentence-transformers while the approved private proxy lags the patched upstream releases used by active dependency PRs.",
+  "reason": "Temporary exact-wheel fallback for cryptography, sentence-transformers, and transformers while the approved private proxy lags the patched upstream releases used by active dependency PRs.",
   "artifacts": [
     {
       "package": "cryptography",
@@ -24,6 +24,13 @@
       "filename": "sentence_transformers-5.4.0-py3-none-any.whl",
       "url": "https://files.pythonhosted.org/packages/5a/d4/58f3e1308c8d15cae83407bd651542b62155a2b3248e0290a724e80fd124/sentence_transformers-5.4.0-py3-none-any.whl",
       "sha256": "4e5ac9a19244153f3f4074d898e664990408d7b077fb1d1d0dc9cb8a9316feac"
+    },
+    {
+      "package": "transformers",
+      "version": "5.5.3",
+      "filename": "transformers-5.5.3-py3-none-any.whl",
+      "url": "https://files.pythonhosted.org/packages/a1/0b/f8524551ab2d896dfaca74ddb70a4453d515bbf4ab5451c100c7788ae155/transformers-5.5.3-py3-none-any.whl",
+      "sha256": "e48f3ec31dd96505e96e66b63a1e43e1ad7a65749e108d9227caaf51051cdb02"
     }
   ]
 }
