@@ -60,6 +60,41 @@ Disposition: FIXED
 Commit: `f496aeba5`
 Evidence: `docs/figma/FIGMA_WEB_IOS_AUTHORITY_RECONCILIATION_PACKET.md` now upgrades the March 7 and March 11-12 decision-log citations from filename-only references to exact `file:line` anchors, matching the packet's evidence-driven citation contract.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1407#pullrequestreview-4095662684 -> 58df72145
+Disposition: FIXED
+Commit: `58df72145`
+Evidence: cubic found that the Make/prototype `reference_only` citation relied on audit assumptions; `docs/figma/FIGMA_WEB_IOS_AUTHORITY_RECONCILIATION_PACKET.md` now points that lane to `docs/runbooks/FIGMA_MCP_RUNTIME_MATRIX.md:65-69` and `docs/audit/PR_781_HOME_PLATE_PROGRESS_AUDIT_RUNBOOK_2026-02-17.md:166-167`, which record the normalized `reference_only` policy and the `MrztJU3CQtxhADBbtAsWJ6` blank-scaffold status directly.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1407#pullrequestreview-4095668818 -> 58df72145
+Disposition: FIXED
+Commit: `58df72145`
+Evidence: cubic found that the March 11-12 anchor no longer covered every asserted fact; the packet now splits that decision-log entry into separate `file:line` citations for live metadata/design-push discovery, `ios prototype v2` normalization, and the Code Connect blocked/non-authoritative state.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1407#discussion_r3070112628 -> 58df72145
+Disposition: FIXED
+Commit: `58df72145`
+Evidence: the precedence section no longer relies on `docs/audit/HOME_PLATE_PROGRESS_AUDIT_RUNBOOK_2026-02-17.md:110-115`; it now cites repo sources that explicitly support `MrztJU3CQtxhADBbtAsWJ6` as a `reference_only` / scaffold-only surface.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1407#discussion_r3070116391 -> 58df72145
+Disposition: FIXED
+Commit: `58df72145`
+Evidence: commit `58df72145` adds the requested `docs(agents): ...` entry to the PR history and its body names the affected lane roles (`agent-coordinator`, `figma-designer`, `prompt-engineer`, `ios-specialist`, `frontend-engineer`, `qa-engineer-agent`, `bug-hunter`) while tightening the packet's coordinator-owned authority guidance.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1407#discussion_r3070117904 -> 58df72145
+Disposition: FIXED
+Commit: `58df72145`
+Evidence: the March 11-12 decision-log sentence now uses split anchors instead of a single over-broad range, so each clause about MCP metadata, design push, `ios prototype v2`, and Code Connect blocker status is backed by the cited lines.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1407#pullrequestreview-4095667009 -> c51c9e38f
+Disposition: FIXED
+Commit: `c51c9e38f`
+Evidence: the branch now contains the required `docs(agents): tighten figma authority evidence` commit and the packet's April 11 decision-log entry now cites `docs/review/PR_1407_FIXED_MAPPING.md:63-86`, giving the review summary both the required workflow-doc commit in history and the requested concrete fixed-mapping audit anchor.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1407#discussion_r3070116393 -> c51c9e38f
+Disposition: FIXED
+Commit: `c51c9e38f`
+Evidence: `docs/figma/FIGMA_WEB_IOS_AUTHORITY_RECONCILIATION_PACKET.md` now appends `docs/review/PR_1407_FIXED_MAPPING.md:63-86` to the April 11, 2026 entry, so the delivery-model lock references a concrete `file:line` evidence artifact instead of only `PR #1407`.
+
 ## Merge Readiness
 
 - [ ] Current-head CI green for PR branch head
