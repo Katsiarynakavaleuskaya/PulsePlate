@@ -13,4 +13,4 @@
 - [ ] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
 - [x] Pre-commit green
 - [ ] `make verify` green
-Notes: This replacement PR supersedes stale Dependabot PR #1397. Local validation on branch head `304abcb3c` passed for `pre-commit run --all-files`, `pytest -q tests/test_repo_policy_guards.py`, and `make validate-min VENV_PYTHON=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python`. The replacement lane keeps the diff scoped to `requirements-dev.in`, `requirements-dev.txt`, and `requirements-lock.txt`, with only `ruff 0.15.9 -> 0.15.10` and no runtime/CUDA drift.
+Notes: This replacement PR supersedes stale Dependabot PR #1397. Local validation on branch head `304abcb3c` passed for `pre-commit run --all-files`, `pytest -q tests/test_repo_policy_guards.py`, and `make validate-min VENV_PYTHON=.venv/bin/python`. The replacement lane keeps the diff scoped to `requirements-dev.in`, `requirements-dev.txt`, and `requirements-lock.txt`, with only `ruff 0.15.9 -> 0.15.10` and no runtime/CUDA drift.
