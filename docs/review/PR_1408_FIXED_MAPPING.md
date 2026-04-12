@@ -45,6 +45,11 @@ Disposition: FIXED
 Commit: `3d56e749b`
 Evidence: the ledger closeout now points to concrete `PR #1408`, which resolves the PR-traceability issue identified by cubic.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1408#pullrequestreview-4095636617 -> 9d87500f2
+Disposition: FIXED
+Commit: `9d87500f2`
+Evidence: `docs/roadmap/BACKLOG_LEDGER.md` now keeps the launcher-rollout item open, marks the status as in progress, and states that closure happens only after PR `#1408` merges via a docs-only follow-up, which matches the ledger closure rule called out by CodeRabbit.
+
 ## Merge Readiness
 
 - [ ] Current-head CI green for PR branch head
