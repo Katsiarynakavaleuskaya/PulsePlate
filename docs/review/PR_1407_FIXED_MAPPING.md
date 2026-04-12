@@ -55,6 +55,11 @@ Disposition: FIXED
 Commit: `b7a0fea32`
 Evidence: cubic found the unverifiable February 19 citation; the packet now points that decision-log claim to `docs/figma/FIGMA_DESIGN_URL_NODEID_CAPTURE_HPP.md:87-102`, which preserves direct evidence for the stale `1:72` / `umc...` history.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1407#pullrequestreview-4095660120 -> f496aeba5
+Disposition: FIXED
+Commit: `f496aeba5`
+Evidence: `docs/figma/FIGMA_WEB_IOS_AUTHORITY_RECONCILIATION_PACKET.md` now upgrades the March 7 and March 11-12 decision-log citations from filename-only references to exact `file:line` anchors, matching the packet's evidence-driven citation contract.
+
 ## Merge Readiness
 
 - [ ] Current-head CI green for PR branch head
