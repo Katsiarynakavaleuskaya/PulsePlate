@@ -78,17 +78,32 @@ tooling disagree.
 
 1. repo code, docs, tests, runtime contracts, and governed design docs
 2. repo token and component mirrors
-   - `frontend/src/styles/tokens.css`
-   - `frontend/src/styles/tokens.ts`
-   - `frontend/.storybook/`
-   - `ios/PulsePlate/Assets.xcassets/`
-   - `ios/PulsePlate/Extensions/Color+Assets.swift`
+   - canonical token mirror: `frontend/src/styles/tokens.css:10-199`
+   - canonical token mirror: `frontend/src/styles/tokens.ts:7-217`
+   - repo-backed review surface: `frontend/.storybook/main.ts:4-21`
+   - repo-backed review surface: `frontend/.storybook/preview.ts:1-18`
+   - iOS asset mirror: `ios/PulsePlate/Assets.xcassets/AppPrimary.colorset/Contents.json:1-38`
+   - iOS token bridge: `ios/PulsePlate/Extensions/Color+Assets.swift:4-49`
 3. this packet plus the lane-specific reconciliation packets
-4. `2JDwOByQIbcPgp93FDzHii` for governed web/design-system execution
-5. `AhyS6u4dZXMRHVUDO3Cfn6` for implementation-safe iOS reconciliation
+   - web/design-system authority lock: `docs/figma/PULSEPLATE_V3_DESIGN_SYSTEM_RECONCILIATION.md:6-12`
+   - web/design-system execution lane: `docs/figma/PULSEPLATE_V3_DESIGN_SYSTEM_RECONCILIATION.md:50-53`
+   - iOS implementation-safe lane: `docs/figma/FIGMA_IOS_PROTOTYPE_V2_RECONCILIATION.md:10-15`
+   - spec/index stale-evidence registry: `docs/figma/FIGMA_DESIGN_URL_NODEID_CAPTURE_HPP.md:87-102`
+4. `2JDwOByQIbcPgp93FDzHii` as `canonical_execution`
+   (`docs/figma/PULSEPLATE_V3_DESIGN_SYSTEM_RECONCILIATION.md:7-10`,
+   `docs/figma/FITCHEF_BRAND_REFERENCE_HANDOFF.md:29-42`)
+5. `AhyS6u4dZXMRHVUDO3Cfn6` as `implementation_safe`
+   (`docs/figma/FIGMA_IOS_PROTOTYPE_V2_RECONCILIATION.md:10-15`)
 6. `qJBtE5J6efmavcHCm6SF0O` and `MrztJU3CQtxhADBbtAsWJ6` as
    `reference_only`
+   - legacy `v3` audit/reference lane:
+     `docs/figma/PULSEPLATE_V3_DESIGN_SYSTEM_RECONCILIATION.md:6-10`,
+     `docs/figma/PULSEPLATE_V3_DESIGN_SYSTEM_RECONCILIATION.md:38-54`
+   - Make/prototype reference lane:
+     `docs/audit/HOME_PLATE_PROGRESS_AUDIT_RUNBOOK_2026-02-17.md:110-115`
 7. `umcCk7TtO760DJ3N6M7mvh` as `spec_index_only`
+   (`docs/figma/FIGMA_DESIGN_URL_NODEID_CAPTURE_HPP.md:87-102`,
+   `docs/figma/orchestration/sessions/2026-03-07_code_connect_blocker_evidence/01_MCP_STATUS.md:5-11`)
 8. Figma AI, Figma Make, MCP captures, internal bridge systems, web terminal,
    and Cursor terminal as auxiliary evidence only
 
@@ -138,7 +153,7 @@ They also cannot seed a future activation lane by implication.
 
 Hard rules:
 
-- bridge tooling is read-only with respect to authority
+- bridge tooling is read-only for authority
 - web terminal, Cursor terminal, and MCP cannot promote file or node authority
 - design review references are tool-neutral traceability artifacts only
 
@@ -201,7 +216,7 @@ Hard rules:
 - **February 19, 2026:** browser/OpenClaw-era capture evidence recorded
   `umcCk7TtO760DJ3N6M7mvh` as a design/spec surface with unresolved critical
   node capture and only stale `1:72` history; this remains historical evidence,
-  not current authority (`docs/runbooks/sessions/FIGMA_MCP_SESSION_2026-02-19_make-pulseplate-smoke.md`).
+  not current authority (`docs/figma/FIGMA_DESIGN_URL_NODEID_CAPTURE_HPP.md:87-102`).
 - **March 7, 2026:** the accepted Penpot + Storybook fallback seam confirmed
   repo-native web review sources and kept Code Connect non-canonical and
   non-blocking while blockers remained
