@@ -2705,13 +2705,13 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - No embeddings, vector DB, or product-runtime coupling are introduced by this policy item
 
 <a id="ledger-p2-local-launcher-rollout-for-coordinator-first-automation"></a>
-- [x] P2: Local launcher rollout for coordinator-first automation
+- [ ] P2: Local launcher rollout for coordinator-first automation
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2
-  - Target PR: PR #1348 + PR #1350 (landed); PR #1370 (repo companion: runbook + sanitized wrapper example + entry-doc sync + core TypeGuard mypy fix); PR #1408 (host smoke evidence + backlog closeout)
+  - Target PR: PR #1348 + PR #1350 (landed); PR #1370 (repo companion: runbook + sanitized wrapper example + entry-doc sync + core TypeGuard mypy fix); PR #1408 (host smoke evidence); docs-only closeout PR TBD after `#1408` merge
   - Area: local tooling / launcher / Codex runtime
   - Finding Type: non-repo rollout follow-up
-  - Status (EN): Completed. Companion PR #1370 added the repo-side runbook and sanitized wrapper example; host smoke evidence was recorded on 10 April 2026 for one opted-in machine in `docs/dev/LOCAL_COORDINATOR_LAUNCHER_ROLLOUT_EVIDENCE_2026-04-10.md`.
+  - Status (EN): In progress. Companion PR #1370 added the repo-side runbook and sanitized wrapper example; host smoke evidence was recorded on 10 April 2026 for one opted-in machine in `docs/dev/LOCAL_COORDINATOR_LAUNCHER_ROLLOUT_EVIDENCE_2026-04-10.md`. Keep this item open until PR `#1408` is merged, then close it via a docs-only follow-up per the ledger closure rule.
   - Reason: Repo docs and deterministic engines alone cannot force raw session auto-start. A machine-local launcher or wrapper must wire preflight, bootstrap, and compatible runtime settings without pretending that `~/.codex/config.toml` is repo source of truth.
   - Links:
     - `docs/orchestration/AUTOMATION_READINESS_MATRIX.md`

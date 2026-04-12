@@ -141,4 +141,4 @@ PASS
 
 - The coordinator-first launcher path is working on at least one opted-in machine.
 - The remaining gap was host-local wrapper drift, not a missing repo-side coordinator / role-agent implementation.
-- The backlog rollout item can be closed using this evidence.
+- This evidence is sufficient for the post-merge docs-only ledger closeout step.
