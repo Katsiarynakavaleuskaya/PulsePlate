@@ -59,7 +59,7 @@ Reason: This comment assumes the feature-push fast-feedback job is itself the me
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1405#discussion_r3069834607
 Disposition: FIXED
-Commit: PENDING
+Commit: 8b1c87519
 Evidence: `.github/workflows/ci.yml` now fails closed when `../scripts/ios_test_targets.sh` returns an empty `ONLY_TESTING` list, and `tests/test_ci_workflow_pr_size_governance_contract.py` asserts the new error guard.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1405#pullrequestreview-4095368028
