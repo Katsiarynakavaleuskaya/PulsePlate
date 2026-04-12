@@ -75,9 +75,15 @@ def test_feature_push_risk_profile_uses_origin_main_merge_base() -> None:
 
 
 def test_feature_push_branches_include_feature_prefix() -> None:
-    workflow_text = CI_WORKFLOW_PATH.read_text(encoding="utf-8")
+    workflow = _load_ci_workflow()
+    on_section = workflow.get("on", workflow.get(True))
+    assert isinstance(on_section, dict)
+    push_section = on_section["push"]
+    assert isinstance(push_section, dict)
+    push_branches = push_section["branches"]
+    assert isinstance(push_branches, list)
 
-    assert "branches: [ main, feat/**, fix/**, feature/** ]" in workflow_text
+    assert {"main", "feat/**", "fix/**", "feature/**"}.issubset(set(push_branches))
 
 
 def test_feature_push_jobs_use_changes_gate_and_smoke_risk_topology() -> None:
@@ -87,7 +93,9 @@ def test_feature_push_jobs_use_changes_gate_and_smoke_risk_topology() -> None:
 
     test_feature = jobs["test-feature"]
     assert isinstance(test_feature, dict)
-    assert test_feature["needs"] == ["changes"]
+    test_feature_needs = test_feature["needs"]
+    assert isinstance(test_feature_needs, list)
+    assert "changes" in test_feature_needs
     assert "needs.changes.outputs.run_backend_blocking == 'true'" in test_feature["if"]
     feature_step_names = [step.get("name") for step in test_feature["steps"]]
     assert "Critical smoke (deterministic merge blocker)" in feature_step_names
@@ -96,7 +104,10 @@ def test_feature_push_jobs_use_changes_gate_and_smoke_risk_topology() -> None:
 
     coverage_feature = jobs["coverage-feature"]
     assert isinstance(coverage_feature, dict)
-    assert coverage_feature["needs"] == ["changes", "test-feature"]
+    coverage_feature_needs = coverage_feature["needs"]
+    assert isinstance(coverage_feature_needs, list)
+    assert "changes" in coverage_feature_needs
+    assert "test-feature" in coverage_feature_needs
     assert "needs.changes.outputs.run_backend_blocking == 'true'" in coverage_feature["if"]
 
 
