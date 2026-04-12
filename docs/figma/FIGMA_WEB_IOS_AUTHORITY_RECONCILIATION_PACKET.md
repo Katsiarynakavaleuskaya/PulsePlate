@@ -34,8 +34,10 @@ This packet follows the coordinator-owned role order for the lane:
 
 Reference model:
 
-- root `AGENTS.md` coordinator-first rule
-- `docs/orchestration/workflow.md`
+- `AGENTS.md:348-361` (`Role-Agent Order Contract` defining
+  coordinator-owned mandatory role order)
+- `docs/orchestration/workflow.md:52-68` (workflow integration of the
+  coordinator-first requirement and role-agent order constraint)
 
 Lane expectations:
 
@@ -199,17 +201,19 @@ Hard rules:
 - **February 19, 2026:** browser/OpenClaw-era capture evidence recorded
   `umcCk7TtO760DJ3N6M7mvh` as a design/spec surface with unresolved critical
   node capture and only stale `1:72` history; this remains historical evidence,
-  not current authority.
+  not current authority (`docs/runbooks/sessions/FIGMA_MCP_SESSION_2026-02-19_make-pulseplate-smoke.md`).
 - **March 7, 2026:** the accepted Penpot + Storybook fallback seam confirmed
   repo-native web review sources and kept Code Connect non-canonical and
-  non-blocking while blockers remained.
+  non-blocking while blockers remained
+  (`docs/architecture/ADR_PENPOT_STORYBOOK_BRIDGE_FALLBACK_SEAM_2026-03-07.md`).
 - **March 11-12, 2026:** Figma MCP runtime evidence confirmed live metadata,
   screenshots, and design-push capability; `AhyS6u4dZXMRHVUDO3Cfn6` was created
   and normalized as `ios prototype v2`, while Code Connect remained blocked and
-  non-authoritative.
+  non-authoritative
+  (`docs/runbooks/sessions/FIGMA_MCP_SESSION_2026-03-11_ios-prototype-check.md`).
 - **April 11, 2026:** this packet locks the current delivery model to explicit
   Code Connect bypass and fixes the split authority model across web `v3`, iOS
-  `v2`, Make, and spec/index surfaces.
+  `v2`, Make, and spec/index surfaces (`PR #1407`).
 
 ## 11. Acceptance Contract
 
