@@ -7,6 +7,7 @@ import re
 from pathlib import Path
 
 import pytest
+import yaml
 
 import scripts.ci.install_locked_python_requirements as locked_installer
 
@@ -144,7 +145,11 @@ def test_canonical_ci_and_docker_use_supply_chain_guardrails() -> None:
     assert "install_locked_python_requirements.py" in docker_text
     assert "ARG PULSEPLATE_PYTHON_INDEX_URL" in docker_text
     assert "constraints.txt" in docker_text
+    assert "requirements-ci-lite.txt" in docker_text
     assert '--index-url "${PULSEPLATE_PYTHON_INDEX_URL}"' in docker_text
+    assert 'ARG PULSEPLATE_REQUIREMENTS_FILE="requirements.txt"' in docker_text
+    assert "requirements.txt|requirements-ci-lite.txt" in docker_text
+    assert '--requirements-file "${PULSEPLATE_REQUIREMENTS_FILE}"' in docker_text
     assert APPROVED_PROXY_ENV_EXPRESSION in ci_text
     assert APPROVED_TRUSTED_HOST_EXPRESSION in ci_text
     assert APPROVED_PROXY_ENV_EXPRESSION in security_text
@@ -152,6 +157,7 @@ def test_canonical_ci_and_docker_use_supply_chain_guardrails() -> None:
     assert "PULSEPLATE_PYTHON_INDEX_URL: ${PULSEPLATE_PYTHON_INDEX_URL:?" in compose_text
     assert "PULSEPLATE_PYTHON_TRUSTED_HOST: ${PULSEPLATE_PYTHON_TRUSTED_HOST:-}" in compose_text
     assert "--build-arg PULSEPLATE_PYTHON_INDEX_URL" in makefile_text
+    assert "!requirements-ci-lite.txt" in dockerignore_text
     assert "!constraints.txt" in dockerignore_text
     assert "!scripts/ci/check_python_startup_hooks.py" in dockerignore_text
     assert "!scripts/ci/install_locked_python_requirements.py" in dockerignore_text
@@ -263,3 +269,42 @@ def test_ci_lite_dependency_profile_excludes_ml_gpu_stack() -> None:
     assert "triton==" not in requirements_ci_lite
     assert "cuda-bindings==" not in requirements_ci_lite
     assert "nvidia-cublas-cu12==" not in requirements_ci_lite
+
+
+def test_docker_ci_build_jobs_use_ci_lite_requirements_profile() -> None:
+    docker_image_workflow = yaml.safe_load(
+        (REPO_ROOT / ".github" / "workflows" / "docker-image.yml").read_text(encoding="utf-8")
+    )
+    docker_smoke_workflow = yaml.safe_load(
+        (REPO_ROOT / ".github" / "workflows" / "docker-openapi-smoke.yml").read_text(
+            encoding="utf-8"
+        )
+    )
+    build_workflow = yaml.safe_load(
+        (REPO_ROOT / ".github" / "workflows" / "build.yml").read_text(encoding="utf-8")
+    )
+
+    def _build_args_for_step(workflow: dict[str, object], job_name: str, step_name: str) -> str:
+        steps = workflow["jobs"][job_name]["steps"]
+        for step in steps:
+            if step.get("name") == step_name:
+                return step["with"]["build-args"]
+        raise AssertionError(f"Missing workflow step: {job_name}.{step_name}")
+
+    docker_image_build_args = _build_args_for_step(
+        docker_image_workflow, "build", "Build the Docker image"
+    )
+    docker_smoke_build_args = _build_args_for_step(
+        docker_smoke_workflow, "smoke", "Build Docker image"
+    )
+    local_build_args = _build_args_for_step(
+        build_workflow, "build", "Build Docker image (local, for tests)"
+    )
+    publish_build_args = _build_args_for_step(
+        build_workflow, "publish", "Build and push Docker image"
+    )
+
+    assert "PULSEPLATE_REQUIREMENTS_FILE=requirements-ci-lite.txt" in docker_image_build_args
+    assert "PULSEPLATE_REQUIREMENTS_FILE=requirements-ci-lite.txt" in docker_smoke_build_args
+    assert "PULSEPLATE_REQUIREMENTS_FILE" not in local_build_args
+    assert "PULSEPLATE_REQUIREMENTS_FILE" not in publish_build_args
