@@ -220,12 +220,12 @@ Hard rules:
 - **March 7, 2026:** the accepted Penpot + Storybook fallback seam confirmed
   repo-native web review sources and kept Code Connect non-canonical and
   non-blocking while blockers remained
-  (`docs/architecture/ADR_PENPOT_STORYBOOK_BRIDGE_FALLBACK_SEAM_2026-03-07.md`).
+  (`docs/architecture/ADR_PENPOT_STORYBOOK_BRIDGE_FALLBACK_SEAM_2026-03-07.md:30-42`).
 - **March 11-12, 2026:** Figma MCP runtime evidence confirmed live metadata,
   screenshots, and design-push capability; `AhyS6u4dZXMRHVUDO3Cfn6` was created
   and normalized as `ios prototype v2`, while Code Connect remained blocked and
   non-authoritative
-  (`docs/runbooks/sessions/FIGMA_MCP_SESSION_2026-03-11_ios-prototype-check.md`).
+  (`docs/runbooks/sessions/FIGMA_MCP_SESSION_2026-03-11_ios-prototype-check.md:146-240`).
 - **April 11, 2026:** this packet locks the current delivery model to explicit
   Code Connect bypass and fixes the split authority model across web `v3`, iOS
   `v2`, Make, and spec/index surfaces (`PR #1407`).
