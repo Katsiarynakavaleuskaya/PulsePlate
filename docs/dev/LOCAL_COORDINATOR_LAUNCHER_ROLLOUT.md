@@ -117,6 +117,8 @@ This smoke validates normalization, not crash-on-duplicate.
 
 - Remove or rename the wrapper; remove `~/.local/bin` from `PATH` for a test shell.
 - Confirm normal repo workflows still work (`make validate-min`, or your usual commands).
+- If you are running Smoke 4 from a clean worktree without a local `.venv`, either run `make venv`
+  first or point `VENV_PYTHON` at a valid repo venv before `make validate-min`.
 - Baseline repository state must remain valid (wrapper is host-only).
 
 ## Post-merge git flow (operator)
