@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import re
 
 import yaml
 
@@ -17,6 +18,21 @@ def _extract_section(workflow_text: str, start_anchor: str, end_anchor: str) -> 
     section_tail = workflow_text.split(start_anchor, maxsplit=1)[1]
     assert end_anchor in section_tail, f"Missing workflow anchor after {start_anchor}: {end_anchor}"
     return section_tail.split(end_anchor, maxsplit=1)[0]
+
+
+def _extract_job_section(workflow_text: str, job_anchor: str) -> str:
+    """Return a top-level GitHub Actions job block bounded by the next job or EOF."""
+
+    assert job_anchor in workflow_text, f"Missing workflow anchor: {job_anchor}"
+    start_index = workflow_text.index(job_anchor)
+    section_tail = workflow_text[start_index + len(job_anchor) :]
+    next_job_match = re.search(r"\n  [A-Za-z0-9][A-Za-z0-9_-]*:\n", section_tail)
+    end_index = (
+        start_index + len(job_anchor) + next_job_match.start()
+        if next_job_match
+        else len(workflow_text)
+    )
+    return workflow_text[start_index:end_index]
 
 
 def _load_ci_workflow() -> dict[str, object]:
@@ -162,13 +178,8 @@ def test_feature_branch_alias_stays_in_sync_for_ios_push_jobs() -> None:
 
 def test_ios_unit_tests_stay_in_blocking_ios_job() -> None:
     workflow_text = CI_WORKFLOW_PATH.read_text(encoding="utf-8")
-    ios_tests_section = _extract_section(
-        workflow_text,
-        "  ios-tests:",
-        "\n  # iOS UI smoke (minimal, separate signal from unit tests)",
-    )
-    assert "  ios-ui-smoke:" in workflow_text
-    ios_ui_smoke_section = workflow_text.split("  ios-ui-smoke:", maxsplit=1)[1]
+    ios_tests_section = _extract_job_section(workflow_text, "  ios-tests:")
+    ios_ui_smoke_section = _extract_job_section(workflow_text, "  ios-ui-smoke:")
 
     assert 'ONLY_TESTING="$(../scripts/ios_test_targets.sh)"' in ios_tests_section
     assert "::error::ONLY_TESTING is empty" in ios_tests_section
