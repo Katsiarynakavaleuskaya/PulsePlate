@@ -2705,17 +2705,18 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - No embeddings, vector DB, or product-runtime coupling are introduced by this policy item
 
 <a id="ledger-p2-local-launcher-rollout-for-coordinator-first-automation"></a>
-- [ ] P2: Local launcher rollout for coordinator-first automation
+- [x] P2: Local launcher rollout for coordinator-first automation
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2
-  - Target PR: PR #1348 + PR #1350 (landed); PR #1370 (repo companion: runbook + sanitized wrapper example + entry-doc sync + core TypeGuard mypy fix); host install remains operator-owned outside git
+  - Target PR: PR #1348 + PR #1350 (landed); PR #1370 (repo companion: runbook + sanitized wrapper example + entry-doc sync + core TypeGuard mypy fix); PR-TBD-fix-coordinator-role-agent-rollout (host smoke evidence + backlog closeout)
   - Area: local tooling / launcher / Codex runtime
   - Finding Type: non-repo rollout follow-up
-  - Status (EN): Companion PR #1370 adds `docs/dev/LOCAL_COORDINATOR_LAUNCHER_ROLLOUT.md`, `docs/templates/pulseplate-coordinator-launch.example.sh`, and aligned onboarding pointers. **Do not check this item complete** until host smoke evidence is recorded (per runbook “Smoke checks” + “Evidence and backlog”) on at least one opted-in machine—not markdown alone.
+  - Status (EN): Completed. Companion PR #1370 added the repo-side runbook and sanitized wrapper example; host smoke evidence was recorded on 10 April 2026 for one opted-in machine in `docs/dev/LOCAL_COORDINATOR_LAUNCHER_ROLLOUT_EVIDENCE_2026-04-10.md`.
   - Reason: Repo docs and deterministic engines alone cannot force raw session auto-start. A machine-local launcher or wrapper must wire preflight, bootstrap, and compatible runtime settings without pretending that `~/.codex/config.toml` is repo source of truth.
   - Links:
     - `docs/orchestration/AUTOMATION_READINESS_MATRIX.md`
     - `docs/dev/LOCAL_COORDINATOR_LAUNCHER_ROLLOUT.md`
+    - `docs/dev/LOCAL_COORDINATOR_LAUNCHER_ROLLOUT_EVIDENCE_2026-04-10.md`
     - `docs/templates/pulseplate-coordinator-launch.example.sh`
     - `docs/templates/codex.config.example.toml`
     - `scripts/orchestration/local_session_bootstrap.sh`
