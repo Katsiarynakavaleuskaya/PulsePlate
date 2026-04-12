@@ -18,6 +18,12 @@ Bot and human review threads must be dispositioned below when actionable comment
 - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1405#discussion_r3069803570` -> `0883a87e5`
   - Disposition: FIXED
   - Evidence: `.github/workflows/ci.yml` now runs unit tests inside `ios-tests`; `ios-ui-smoke` remains UI-only; `tests/test_ci_workflow_pr_size_governance_contract.py` guards the split.
+- `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1405#discussion_r3069803573` -> `20e5127a2`
+  - Disposition: FIXED
+  - Evidence: `docs/review/PR_1405_FIXED_MAPPING.md` now records internal review and bot fixes explicitly; merge-readiness bot-mapping checkbox remains unchecked until the final pass.
+- `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1405#pullrequestreview-4095329850`
+  - Disposition: NOT-A-BUG
+  - Evidence: This summary review does not introduce independent work beyond `discussion_r3069803570`, `discussion_r3069803573`, and the already-fixed nit-level follow-ups landed in `1d59be0ae`.
 
 ## Merge Readiness
 - [ ] Current-head CI green for PR branch head
