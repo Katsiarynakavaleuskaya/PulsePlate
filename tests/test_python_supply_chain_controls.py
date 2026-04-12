@@ -242,7 +242,7 @@ def test_ci_workflow_uses_single_direct_proxy_python_install_path_per_job() -> N
 def test_test_dependency_profile_is_split_from_dev_tooling() -> None:
     requirements_test = (REPO_ROOT / "requirements-test.txt").read_text(encoding="utf-8")
 
-    assert "pytest==8.4.2" in requirements_test
+    assert "pytest==9.0.3" in requirements_test
     assert "pytest-cov==7.1.0" in requirements_test
     assert "pytest-xdist==3.8.0" in requirements_test
     assert "coverage[toml]==7.13.5" in requirements_test

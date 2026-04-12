@@ -2,7 +2,7 @@
   "schema_version": 1,
   "generated_at": "2026-04-09",
   "expires_at": "2026-04-30",
-  "reason": "Temporary exact-wheel fallback for cryptography 46.0.7, sentence-transformers 5.4.0, ruff 0.15.10, and types-pyyaml 6.0.12.20260408 while the approved private proxy lags the required upstream wheels.",
+  "reason": "Temporary exact-wheel fallback for cryptography, pytest, faker, hypothesis, sentence-transformers, ruff, types-pyyaml, and transformers while the approved private proxy lags the patched upstream releases used by active dependency PRs.",
   "artifacts": [
     {
       "package": "cryptography",
@@ -17,6 +17,27 @@
       "filename": "cryptography-46.0.7-cp311-abi3-manylinux_2_34_x86_64.whl",
       "url": "https://files.pythonhosted.org/packages/c7/0b/333ddab4270c4f5b972f980adef4faa66951a4aaf646ca067af597f15563/cryptography-46.0.7-cp311-abi3-manylinux_2_34_x86_64.whl",
       "sha256": "42a1e5f98abb6391717978baf9f90dc28a743b7d9be7f0751a6f56a75d14065b"
+    },
+    {
+      "package": "pytest",
+      "version": "9.0.3",
+      "filename": "pytest-9.0.3-py3-none-any.whl",
+      "url": "https://files.pythonhosted.org/packages/d4/24/a372aaf5c9b7208e7112038812994107bc65a84cd00e0354a88c2c77a617/pytest-9.0.3-py3-none-any.whl",
+      "sha256": "2c5efc453d45394fdd706ade797c0a81091eccd1d6e4bccfcd476e2b8e0ab5d9"
+    },
+    {
+      "package": "faker",
+      "version": "40.13.0",
+      "filename": "faker-40.13.0-py3-none-any.whl",
+      "url": "https://files.pythonhosted.org/packages/da/8a/708103325edff16a0b0e004de0d37db8ba216a32713948c64d71f6d4a4c2/faker-40.13.0-py3-none-any.whl",
+      "sha256": "c1298fd0d819b3688fb5fd358c4ba8f56c7c8c740b411fd3dbd8e30bf2c05019"
+    },
+    {
+      "package": "hypothesis",
+      "version": "6.151.12",
+      "filename": "hypothesis-6.151.12-py3-none-any.whl",
+      "url": "https://files.pythonhosted.org/packages/0e/5a/6cecf134b631050a1f8605096adbe812483b60790d951470989d39b56860/hypothesis-6.151.12-py3-none-any.whl",
+      "sha256": "37d4f3a768365c30571b11dfd7a6857a12173d933010b2c4ab65619f1b5952c5"
     },
     {
       "package": "sentence-transformers",
@@ -38,6 +59,13 @@
       "filename": "types_pyyaml-6.0.12.20260408-py3-none-any.whl",
       "url": "https://files.pythonhosted.org/packages/1c/f0/c391068b86abb708882c6d75a08cd7d25b2c7227dab527b3a3685a3c635b/types_pyyaml-6.0.12.20260408-py3-none-any.whl",
       "sha256": "fbc42037d12159d9c801ebfcc79ebd28335a7c13b08a4cfbc6916df78fee9384"
+    },
+    {
+      "package": "transformers",
+      "version": "5.5.3",
+      "filename": "transformers-5.5.3-py3-none-any.whl",
+      "url": "https://files.pythonhosted.org/packages/a1/0b/f8524551ab2d896dfaca74ddb70a4453d515bbf4ab5451c100c7788ae155/transformers-5.5.3-py3-none-any.whl",
+      "sha256": "e48f3ec31dd96505e96e66b63a1e43e1ad7a65749e108d9227caaf51051cdb02"
     }
   ]
 }

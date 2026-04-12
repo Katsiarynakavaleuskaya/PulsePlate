@@ -14,7 +14,7 @@
 **`requirements-dev.txt`** - Development and testing tools
 ```bash
 -r requirements.txt  # Includes all production deps
-pytest==8.4.2
+pytest==9.0.3
 pytest-cov==7.0.0
 ...
 ```
@@ -28,7 +28,7 @@ pytest>=8.3         # Dev tools with minimum versions
 
 **`constraints.txt`** - Exact versions for reproducible dev environments
 ```bash
-pytest==8.4.2
+pytest==9.0.3
 black==25.9.0
 ...
 ```
