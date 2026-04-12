@@ -3888,6 +3888,27 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Success criterion: no new failures on current main; no false negatives on existing codebase
 
 
+<a id="ledger-p2-detect-secrets-allowlist-followup-pr1406"></a>
+- [ ] P2: Detect-secrets allowlist follow-up after PR #1406 baseline rebuild
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR-TBD
+  - Area: tooling / security hygiene / maintainability
+  - Finding Type: deferred follow-up (CodeRabbit PR #1406)
+  - Reason: PR #1406 is an emergency baseline-rebuild hotfix to unblock `lint` on `main`. Source-level allowlisting for intentional placeholders and test fixtures is valid follow-up work, but it would widen scope across multiple files and is not required to restore current detect-secrets parity.
+  - Links:
+    - `docs/review/PR_1406_FIXED_MAPPING.md`
+    - `.secrets.baseline`
+    - `.env.example`
+    - `frontend/public/mockServiceWorker.js`
+    - `tests/`
+  - DoD:
+    - Identify recurring intentional placeholders/test fixtures that can use the repo-approved allowlist marker or equivalent exclusion
+    - Regenerate `.secrets.baseline` after source tagging so intentional entries are removed where supported
+    - `pre-commit run detect-secrets --all-files` stays green
+    - Future baseline diffs for the same fixtures are materially smaller and easier to review
+
+
 - [ ] P2: Frontend and iOS explainer surfaces on current journey pages
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2 (rendering follow-up)
