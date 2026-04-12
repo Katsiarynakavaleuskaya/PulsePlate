@@ -1,0 +1,174 @@
+"""Migration coverage for the foods catalog foundation revision.
+
+RU: Проверки миграции foundation-слоя для foods/restaurants.
+EN: Smoke and contract checks for the foods/restaurants foundation migration.
+"""
+
+from __future__ import annotations
+
+import os
+from pathlib import Path
+import subprocess
+import sys
+
+from sqlalchemy import create_engine, inspect
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+ALEMBIC_INI = REPO_ROOT / "alembic.ini"
+SCRIPT_LOCATION_REWRITE = f"script_location = {REPO_ROOT / 'alembic'}"
+FOUNDATION_REVISION = "202604120001"
+TRIGRAM_SEAM_REVISION = "202604060001"
+MIGRATION_PATH = REPO_ROOT / "alembic" / "versions" / "202604120001_add_foods_catalog_foundation.py"
+
+
+def _write_temp_alembic_ini(tmp_path: Path) -> Path:
+    temp_alembic_ini = tmp_path / "alembic.ini"
+    temp_alembic_ini.write_text(
+        ALEMBIC_INI.read_text(encoding="utf-8").replace(
+            "script_location = alembic",
+            SCRIPT_LOCATION_REWRITE,
+        ),
+        encoding="utf-8",
+    )
+    return temp_alembic_ini
+
+
+def _run_alembic(config_path: Path, repo_root: Path, revision: str, env: dict[str, str]) -> None:
+    completed = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            (
+                "import sys; "
+                "config_path, repo_root, revision = sys.argv[1], sys.argv[2], sys.argv[3]; "
+                "from alembic.config import main; "
+                "sys.path.append(repo_root); "
+                'main(argv=["-c", config_path, "upgrade", revision], prog="alembic")'
+            ),
+            str(config_path),
+            str(repo_root),
+            revision,
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+        cwd=str(tmp_path := config_path.parent),
+        env=env,
+    )
+    assert completed.returncode == 0, completed.stderr
+
+
+def _run_alembic_downgrade(
+    config_path: Path,
+    repo_root: Path,
+    revision: str,
+    env: dict[str, str],
+) -> None:
+    completed = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            (
+                "import sys; "
+                "config_path, repo_root, revision = sys.argv[1], sys.argv[2], sys.argv[3]; "
+                "from alembic.config import main; "
+                "sys.path.append(repo_root); "
+                'main(argv=["-c", config_path, "downgrade", revision], prog="alembic")'
+            ),
+            str(config_path),
+            str(repo_root),
+            revision,
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+        cwd=str(config_path.parent),
+        env=env,
+    )
+    assert completed.returncode == 0, completed.stderr
+
+
+def test_foods_catalog_foundation_migration_sqlite_smoke(tmp_path: Path, monkeypatch) -> None:
+    db_path = tmp_path / "foods-foundation.sqlite3"
+    database_url = f"sqlite:///{db_path}"
+    temp_alembic_ini = _write_temp_alembic_ini(tmp_path)
+
+    monkeypatch.setenv("DATABASE_URL", database_url)
+    env = os.environ.copy()
+    env["DATABASE_URL"] = database_url
+    env.pop("PYTHONPATH", None)
+
+    _run_alembic(temp_alembic_ini, REPO_ROOT, "head", env)
+
+    engine = create_engine(database_url)
+    try:
+        inspector = inspect(engine)
+        tables = set(inspector.get_table_names())
+        foods_columns = {column["name"] for column in inspector.get_columns("foods")}
+        restaurant_columns = {column["name"] for column in inspector.get_columns("restaurants")}
+        menu_columns = {column["name"] for column in inspector.get_columns("restaurant_menu_items")}
+    finally:
+        engine.dispose()
+
+    assert "foods" in tables
+    assert "restaurants" in tables
+    assert "restaurant_menu_items" in tables
+    assert {"id", "canonical_name", "group_name", "gtin", "nutrition_confidence"} <= foods_columns
+    assert {"id", "name", "source", "updated_at"} <= restaurant_columns
+    assert {"id", "restaurant_id", "food_id", "item_name", "source"} <= menu_columns
+
+
+def test_foods_catalog_foundation_migration_sqlite_downgrade_cycle(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    db_path = tmp_path / "foods-foundation-cycle.sqlite3"
+    database_url = f"sqlite:///{db_path}"
+    temp_alembic_ini = _write_temp_alembic_ini(tmp_path)
+
+    monkeypatch.setenv("DATABASE_URL", database_url)
+    env = os.environ.copy()
+    env["DATABASE_URL"] = database_url
+    env.pop("PYTHONPATH", None)
+
+    _run_alembic(temp_alembic_ini, REPO_ROOT, "head", env)
+    _run_alembic_downgrade(temp_alembic_ini, REPO_ROOT, TRIGRAM_SEAM_REVISION, env)
+
+    engine = create_engine(database_url)
+    try:
+        inspector = inspect(engine)
+        tables_after_downgrade = set(inspector.get_table_names())
+    finally:
+        engine.dispose()
+
+    assert "foods" not in tables_after_downgrade
+    assert "restaurants" not in tables_after_downgrade
+    assert "restaurant_menu_items" not in tables_after_downgrade
+
+    _run_alembic(temp_alembic_ini, REPO_ROOT, FOUNDATION_REVISION, env)
+
+    engine = create_engine(database_url)
+    try:
+        inspector = inspect(engine)
+        tables_after_reupgrade = set(inspector.get_table_names())
+    finally:
+        engine.dispose()
+
+    assert "foods" in tables_after_reupgrade
+    assert "restaurants" in tables_after_reupgrade
+    assert "restaurant_menu_items" in tables_after_reupgrade
+
+
+def test_foods_catalog_foundation_migration_contract_text() -> None:
+    migration_text = MIGRATION_PATH.read_text(encoding="utf-8")
+
+    assert "op.create_table(" in migration_text
+    assert '"foods"' in migration_text
+    assert '"restaurants"' in migration_text
+    assert '"restaurant_menu_items"' in migration_text
+    assert "CREATE EXTENSION IF NOT EXISTS pg_trgm" in migration_text
+    assert "ix_foods_canonical_name_gin_trgm" in migration_text
+    assert "ix_foods_group_name_gin_trgm" in migration_text
+    assert "ix_foods_brand_gin_trgm" in migration_text
+    assert "food_items" not in migration_text
+    assert "rename_table" not in migration_text

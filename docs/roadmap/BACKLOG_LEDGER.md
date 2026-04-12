@@ -4872,6 +4872,28 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Carryover/deferred mapping is documented in this ledger
 
 
+<a id="ledger-p1-foods-postgres-foundation-followthrough"></a>
+- [ ] P1: Foods PostgreSQL foundation follow-through (ETL, importer rewiring, runtime cutover)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-FOODS-POSTGRES-FOLLOWTHROUGH
+  - Status: 📋 Planned
+  - Area: backend / data platform / restaurant ingestion
+  - Finding Type: post-foundation execution gap
+  - Reason: The additive Alembic foundation lane intentionally creates `foods`, `restaurants`, and `restaurant_menu_items` without changing the current SQLite/local-first runtime, ETL path, or MenuStat importer. Those operational changes must land later as a separate follow-through wave instead of widening the foundation PR.
+  - Links:
+    - `docs/orchestration/FOODS_CATALOG_FOUNDATION_PR_A_TASK_PACKET_2026-04-12.md`
+    - `app/services/food_store.py`
+    - `scripts/build_food_db.py`
+    - `app/services/restaurant_store.py`
+    - `scripts/import_restaurant_menu.py`
+  - DoD:
+    - PostgreSQL foods/catalog backfill or snapshot promotion path is defined and tested
+    - Restaurant importer rewiring targets the new relational tables with deterministic compatibility coverage
+    - Runtime contract decision is explicit: keep SQLite as baseline or switch reads to PostgreSQL behind a governed rollout
+    - Search / catalog follow-up lanes reference the same canonical table source without parallel schema drift
+
+
 - [x] Backend: Fix deprecated `/api/nutrition/{date_str}` legacy alias to enforce `require_pro_tier` (auth bypass risk)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0 (security)
