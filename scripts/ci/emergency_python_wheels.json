@@ -2,7 +2,7 @@
   "schema_version": 1,
   "generated_at": "2026-04-09",
   "expires_at": "2026-04-30",
-  "reason": "Temporary exact-wheel fallback for cryptography 46.0.7 while the approved private proxy lags the patched upstream release.",
+  "reason": "Temporary exact-wheel fallback for cryptography and transformers while the approved private proxy lags the patched upstream releases used by active dependency PRs.",
   "artifacts": [
     {
       "package": "cryptography",
@@ -17,6 +17,13 @@
       "filename": "cryptography-46.0.7-cp311-abi3-manylinux_2_34_x86_64.whl",
       "url": "https://files.pythonhosted.org/packages/c7/0b/333ddab4270c4f5b972f980adef4faa66951a4aaf646ca067af597f15563/cryptography-46.0.7-cp311-abi3-manylinux_2_34_x86_64.whl",
       "sha256": "42a1e5f98abb6391717978baf9f90dc28a743b7d9be7f0751a6f56a75d14065b"
+    },
+    {
+      "package": "transformers",
+      "version": "5.5.3",
+      "filename": "transformers-5.5.3-py3-none-any.whl",
+      "url": "https://files.pythonhosted.org/packages/a1/0b/f8524551ab2d896dfaca74ddb70a4453d515bbf4ab5451c100c7788ae155/transformers-5.5.3-py3-none-any.whl",
+      "sha256": "e48f3ec31dd96505e96e66b63a1e43e1ad7a65749e108d9227caaf51051cdb02"
     }
   ]
 }
