@@ -2,7 +2,7 @@
   "schema_version": 1,
   "generated_at": "2026-04-09",
   "expires_at": "2026-04-30",
-  "reason": "Temporary exact-wheel fallback for cryptography, pytest, and sentence-transformers while the approved private proxy lags patched upstream releases used by active dependency PRs.",
+  "reason": "Temporary exact-wheel fallback for cryptography, pytest, faker, hypothesis, sentence-transformers, and transformers while the approved private proxy lags the patched upstream releases used by active dependency PRs.",
   "artifacts": [
     {
       "package": "cryptography",
@@ -26,11 +26,32 @@
       "sha256": "2c5efc453d45394fdd706ade797c0a81091eccd1d6e4bccfcd476e2b8e0ab5d9"
     },
     {
+      "package": "faker",
+      "version": "40.13.0",
+      "filename": "faker-40.13.0-py3-none-any.whl",
+      "url": "https://files.pythonhosted.org/packages/da/8a/708103325edff16a0b0e004de0d37db8ba216a32713948c64d71f6d4a4c2/faker-40.13.0-py3-none-any.whl",
+      "sha256": "c1298fd0d819b3688fb5fd358c4ba8f56c7c8c740b411fd3dbd8e30bf2c05019"
+    },
+    {
+      "package": "hypothesis",
+      "version": "6.151.12",
+      "filename": "hypothesis-6.151.12-py3-none-any.whl",
+      "url": "https://files.pythonhosted.org/packages/0e/5a/6cecf134b631050a1f8605096adbe812483b60790d951470989d39b56860/hypothesis-6.151.12-py3-none-any.whl",
+      "sha256": "37d4f3a768365c30571b11dfd7a6857a12173d933010b2c4ab65619f1b5952c5"
+    },
+    {
       "package": "sentence-transformers",
       "version": "5.4.0",
       "filename": "sentence_transformers-5.4.0-py3-none-any.whl",
       "url": "https://files.pythonhosted.org/packages/5a/d4/58f3e1308c8d15cae83407bd651542b62155a2b3248e0290a724e80fd124/sentence_transformers-5.4.0-py3-none-any.whl",
       "sha256": "4e5ac9a19244153f3f4074d898e664990408d7b077fb1d1d0dc9cb8a9316feac"
+    },
+    {
+      "package": "transformers",
+      "version": "5.5.3",
+      "filename": "transformers-5.5.3-py3-none-any.whl",
+      "url": "https://files.pythonhosted.org/packages/a1/0b/f8524551ab2d896dfaca74ddb70a4453d515bbf4ab5451c100c7788ae155/transformers-5.5.3-py3-none-any.whl",
+      "sha256": "e48f3ec31dd96505e96e66b63a1e43e1ad7a65749e108d9227caaf51051cdb02"
     }
   ]
 }

@@ -110,7 +110,7 @@ email-validator==2.3.0
     #   -r requirements.in
 execnet==2.1.2
     # via pytest-xdist
-faker==40.12.0
+faker==40.13.0
     # via -r requirements-dev.in
 fastapi==0.135.1
     # via
@@ -168,7 +168,7 @@ huggingface-hub==1.5.0
     #   sentence-transformers
     #   tokenizers
     #   transformers
-hypothesis==6.151.10
+hypothesis==6.151.12
     # via -r requirements-dev.in
 identify==2.6.18
     # via pre-commit
@@ -556,7 +556,7 @@ tqdm==4.67.1
     #   openai
     #   sentence-transformers
     #   transformers
-transformers==5.5.0
+transformers==5.5.3
     # via
     #   -c requirements.txt
     #   -r requirements.in
