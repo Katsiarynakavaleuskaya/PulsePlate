@@ -14,8 +14,8 @@ Evidence: docs/review/PR_1402_FIXED_MAPPING.md local validation note uses `VENV_
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1402#pullrequestreview-4094868024
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1402#discussion_r3069270438
 Disposition: FIXED
-Commit: 95158a8d6
-Evidence: docs/review/PR_1402_FIXED_MAPPING.md local validation note uses `VENV_PYTHON=.venv/bin/python`, not an absolute `/Users/...` path.
+Commit: 2399e6b32
+Evidence: docs/review/PR_1402_FIXED_MAPPING.md now keeps the validation snippet machine-agnostic with `VENV_PYTHON=$VENV_PYTHON`, repo-local default `.venv/bin/python`, and an explicit ban on workstation-specific absolute paths.
 
 ## Merge Readiness
 - [ ] All required checks pass
