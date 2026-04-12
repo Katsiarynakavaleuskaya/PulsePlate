@@ -25,6 +25,13 @@ def _load_ci_workflow() -> dict[str, object]:
     return workflow
 
 
+def _assert_contains_all_tokens(expression: str, expected_tokens: tuple[str, ...]) -> None:
+    """Assert that a workflow expression keeps all required routing tokens."""
+
+    for token in expected_tokens:
+        assert token in expression
+
+
 def test_pr_size_governance_uses_pull_request_head_sha() -> None:
     """Guard against merge-SHA inflation in PR-size governance diff calculation."""
 
@@ -90,13 +97,22 @@ def test_feature_push_jobs_use_changes_gate_and_smoke_risk_topology() -> None:
     workflow = _load_ci_workflow()
     jobs = workflow["jobs"]
     assert isinstance(jobs, dict)
+    feature_push_tokens = (
+        "github.event_name == 'push'",
+        "refs/heads/feat/",
+        "refs/heads/fix/",
+        "refs/heads/feature/",
+    )
 
     test_feature = jobs["test-feature"]
     assert isinstance(test_feature, dict)
     test_feature_needs = test_feature["needs"]
     assert isinstance(test_feature_needs, list)
     assert "changes" in test_feature_needs
-    assert "needs.changes.outputs.run_backend_blocking == 'true'" in test_feature["if"]
+    test_feature_if = test_feature["if"]
+    assert isinstance(test_feature_if, str)
+    _assert_contains_all_tokens(test_feature_if, feature_push_tokens)
+    assert "needs.changes.outputs.run_backend_blocking == 'true'" in test_feature_if
     feature_step_names = [step.get("name") for step in test_feature["steps"]]
     assert "Critical smoke (deterministic merge blocker)" in feature_step_names
     assert "Contract and risk suites" in feature_step_names
@@ -108,21 +124,40 @@ def test_feature_push_jobs_use_changes_gate_and_smoke_risk_topology() -> None:
     assert isinstance(coverage_feature_needs, list)
     assert "changes" in coverage_feature_needs
     assert "test-feature" in coverage_feature_needs
-    assert "needs.changes.outputs.run_backend_blocking == 'true'" in coverage_feature["if"]
+    coverage_feature_if = coverage_feature["if"]
+    assert isinstance(coverage_feature_if, str)
+    _assert_contains_all_tokens(coverage_feature_if, feature_push_tokens)
+    assert "needs.changes.outputs.run_backend_blocking == 'true'" in coverage_feature_if
+    coverage_feature_step_names = [step.get("name") for step in coverage_feature["steps"]]
+    assert (
+        "Download coverage artifact (Python ${{ env.COVERAGE_PY }})" in coverage_feature_step_names
+    )
+    assert "Upload to Codecov" in coverage_feature_step_names
 
 
 def test_feature_branch_alias_stays_in_sync_for_ios_push_jobs() -> None:
     workflow = _load_ci_workflow()
     jobs = workflow["jobs"]
     assert isinstance(jobs, dict)
+    ios_routing_tokens = (
+        "github.event_name == 'pull_request'",
+        "refs/heads/feat/",
+        "refs/heads/fix/",
+        "refs/heads/feature/",
+        "refs/heads/main",
+    )
 
     ios_tests = jobs["ios-tests"]
     assert isinstance(ios_tests, dict)
-    assert "refs/heads/feature/" in ios_tests["if"]
+    ios_tests_if = ios_tests["if"]
+    assert isinstance(ios_tests_if, str)
+    _assert_contains_all_tokens(ios_tests_if, ios_routing_tokens)
 
     ios_ui_smoke = jobs["ios-ui-smoke"]
     assert isinstance(ios_ui_smoke, dict)
-    assert "refs/heads/feature/" in ios_ui_smoke["if"]
+    ios_ui_smoke_if = ios_ui_smoke["if"]
+    assert isinstance(ios_ui_smoke_if, str)
+    _assert_contains_all_tokens(ios_ui_smoke_if, ios_routing_tokens)
 
 
 def test_ios_unit_tests_stay_in_blocking_ios_job() -> None:
