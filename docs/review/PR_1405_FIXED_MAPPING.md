@@ -32,6 +32,12 @@ Bot and human review threads must be dispositioned below when actionable comment
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1405#pullrequestreview-4095339675 -> a4a3f8ddf
   - Disposition: FIXED
   - Evidence: The summary review's two actionable findings are both closed by the strengthened workflow-contract assertions landed in `a4a3f8ddf`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1405#discussion_r3069786949 -> a4a3f8ddf
+  - Disposition: FIXED
+  - Evidence: `tests/test_ci_workflow_pr_size_governance_contract.py` asserts parsed YAML branch membership via `_load_ci_workflow()` and `issubset(...)`, so workflow formatting changes no longer make the test brittle.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1405#discussion_r3069786946
+  - Disposition: NOT-A-BUG
+  - Evidence: Coverage merge truth is still enforced by the canonical PR lane `diff-coverage` job in `.github/workflows/ci.yml` plus the repo hard gate in `AGENTS.md`; the feature-push fast-feedback lane only publishes coverage artifacts and is intentionally not the merge blocker.
 
 ## Merge Readiness
 - [ ] Current-head CI green for PR branch head
