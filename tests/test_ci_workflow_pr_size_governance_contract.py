@@ -123,3 +123,18 @@ def test_feature_branch_alias_stays_in_sync_for_ios_push_jobs() -> None:
     ios_ui_smoke = jobs["ios-ui-smoke"]
     assert isinstance(ios_ui_smoke, dict)
     assert "refs/heads/feature/" in ios_ui_smoke["if"]
+
+
+def test_ios_unit_tests_stay_in_blocking_ios_job() -> None:
+    workflow_text = CI_WORKFLOW_PATH.read_text(encoding="utf-8")
+    ios_tests_section = _extract_section(
+        workflow_text,
+        "  ios-tests:",
+        "\n  # iOS UI smoke (minimal, separate signal from unit tests)",
+    )
+    assert "  ios-ui-smoke:" in workflow_text
+    ios_ui_smoke_section = workflow_text.split("  ios-ui-smoke:", maxsplit=1)[1]
+
+    assert 'ONLY_TESTING="$(../scripts/ios_test_targets.sh)"' in ios_tests_section
+    assert '"xcodebuild", "test-without-building"' in ios_tests_section
+    assert 'ONLY_TESTING="$(../scripts/ios_test_targets.sh)"' not in ios_ui_smoke_section

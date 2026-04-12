@@ -1634,6 +1634,45 @@ jobs:
               sys.exit(e.returncode)
           PY
 
+          # Step 2: Run unit tests in the blocking iOS lane
+          echo "=== Running unit tests (timeout: 15 minutes) ==="
+          ONLY_TESTING="$(../scripts/ios_test_targets.sh)"
+          export ONLY_TESTING
+          python3 - << 'PY'
+          import os
+          import subprocess
+          import sys
+
+          destination = os.environ.get("DESTINATION", "")
+          if not destination:
+              print("::error::DESTINATION is empty", file=sys.stderr)
+              sys.exit(1)
+
+          tests = [t.strip() for t in os.environ.get("ONLY_TESTING", "").split(",") if t.strip()]
+          only_flags = [f"-only-testing:{t}" for t in tests]
+
+          cmd = [
+              "xcodebuild", "test-without-building",
+              "-project", "PulsePlate.xcodeproj",
+              "-scheme", "PulsePlate",
+              "-skip-testing:PulsePlateUITests",
+          ] + only_flags + [
+              "-destination", destination,
+              "-derivedDataPath", ".derivedData",
+              "-clonedSourcePackagesDirPath", ".derivedData/SourcePackages",
+              "-enableCodeCoverage", "NO",
+              "-parallel-testing-enabled", "NO"
+          ]
+
+          try:
+              subprocess.run(cmd, timeout=900, check=True)
+          except subprocess.TimeoutExpired:
+              print("::error::xcodebuild unit tests timed out after 15 minutes", file=sys.stderr)
+              sys.exit(1)
+          except subprocess.CalledProcessError as e:
+              sys.exit(e.returncode)
+          PY
+
   # iOS UI smoke (minimal, separate signal from unit tests)
   ios-ui-smoke:
     name: iOS UI smoke (xcodebuild)
@@ -1952,45 +1991,6 @@ jobs:
               subprocess.run(cmd, timeout=900, check=True)
           except subprocess.TimeoutExpired:
               print("::error::xcodebuild UI smoke timed out after 15 minutes", file=sys.stderr)
-              sys.exit(1)
-          except subprocess.CalledProcessError as e:
-              sys.exit(e.returncode)
-          PY
-
-          # Step 2: Run unit tests (only when UI smoke passes)
-          echo "=== Running tests (timeout: 15 minutes) ==="
-          ONLY_TESTING="$(../scripts/ios_test_targets.sh)"
-          export ONLY_TESTING
-          python3 - << 'PY'
-          import subprocess
-          import sys
-          import os
-
-          destination = os.environ.get("DESTINATION", "")
-          if not destination:
-              print("::error::DESTINATION is empty", file=sys.stderr)
-              sys.exit(1)
-
-          tests = [t.strip() for t in os.environ.get("ONLY_TESTING", "").split(",") if t.strip()]
-          only_flags = [f"-only-testing:{t}" for t in tests]
-
-          cmd = [
-              "xcodebuild", "test-without-building",
-              "-project", "PulsePlate.xcodeproj",
-              "-scheme", "PulsePlate",
-              "-skip-testing:PulsePlateUITests",
-          ] + only_flags + [
-              "-destination", destination,
-              "-derivedDataPath", ".derivedData",
-              "-clonedSourcePackagesDirPath", ".derivedData/SourcePackages",
-              "-enableCodeCoverage", "NO",
-              "-parallel-testing-enabled", "NO"
-          ]
-
-          try:
-              result = subprocess.run(cmd, timeout=900, check=True)  # 15 minutes
-          except subprocess.TimeoutExpired:
-              print("::error::xcodebuild test timed out after 15 minutes", file=sys.stderr)
               sys.exit(1)
           except subprocess.CalledProcessError as e:
               sys.exit(e.returncode)
