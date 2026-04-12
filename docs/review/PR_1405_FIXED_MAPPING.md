@@ -7,17 +7,27 @@
 Bot and human review threads must be dispositioned below when actionable comments appear; resolve conversations on GitHub only after mapping per `AGENTS.md`.
 
 ## Fixed in Commit Mapping
-- No actionable review comments
+- Internal review lane: feature/* push did not widen iOS push gates
+  - Disposition: FIXED
+  - Commit: `4cd8a3465`
+  - Evidence: `.github/workflows/ci.yml` widened iOS push predicates to include `refs/heads/feature/`; `tests/test_ci_workflow_pr_size_governance_contract.py` added alias guard.
+  - Thread URL: `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1405#issuecomment-4231850181`
+- `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1405#pullrequestreview-4095309985` -> `1d59be0ae`
+  - Disposition: FIXED
+  - Evidence: `tests/test_ci_workflow_pr_size_governance_contract.py` now uses parsed workflow branches + membership assertions; `scripts/ci/install_locked_python_requirements.py` stages exact constraint pins once per staging pass; `tests/test_install_locked_python_requirements.py` covers the single-read path.
+- `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1405#discussion_r3069803570` -> `0883a87e5`
+  - Disposition: FIXED
+  - Evidence: `.github/workflows/ci.yml` now runs unit tests inside `ios-tests`; `ios-ui-smoke` remains UI-only; `tests/test_ci_workflow_pr_size_governance_contract.py` guards the split.
 
 ## Merge Readiness
 - [ ] Current-head CI green for PR branch head
 - [ ] Required checks complete (no pending jobs)
 - [ ] All review threads resolved on GitHub after disposition updates
-- [x] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
+- [ ] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
 
 ### Scope Notes
-- This PR is draft and intentionally scoped to CI semantics only for feature/fix push lanes.
-- Current live CI also shows an unrelated `build-and-test` locked-install failure on Python 3.13 package resolution (`cryptography` / `ruff`), which does not originate from this PR's workflow-routing changes.
+- This PR is intentionally scoped to CI semantics only for feature/fix push lanes plus follow-up review fixes that preserve that scope.
+- Post-review follow-up commits `1d59be0ae` and `0883a87e5` close workflow-contract brittleness and restore the intended blocking/non-blocking iOS split.
 - PR merge-truth remains unchanged: `test-pr` and `test-main` semantics are intentionally preserved in this lane.
 
 ### Local Verification
