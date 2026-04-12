@@ -9,6 +9,9 @@ Design artifact:
 
 - Figma file: `ios prototype v2`
 - file key: `AhyS6u4dZXMRHVUDO3Cfn6`
+- authority status: `implementation_safe`
+- rule: `AhyS6u4dZXMRHVUDO3Cfn6` is implementation-safe only; it remains
+  repo-subordinate and cannot define behavior, tokens, or flow
 
 Repo sources used:
 
@@ -118,19 +121,13 @@ Repo sources used:
   captures.
 - Keep VIP entry inside paywall and weekly-plan follow-up surfaces.
 - Do not introduce a standalone `VIP` shortcut on `Home`.
-- Keep the March 11, 2026 MCP session log as blocker-era evidence; future Code
-  Connect activation runs must create a new dated session log instead of
-  mutating the original baseline.
+- Keep the March 11-12, 2026 MCP session logs as normalization evidence only;
+  any later review pass must remain evidence-only and must not redefine repo truth.
 
 ## Next Promotion Path
 
 1. If a future MCP refresh changes top-level frame IDs again, re-capture `BMI`
    and `Onboarding` and refresh the canonical `screen ID -> nodeId` map.
 2. Reconcile `Weekly Plan` and `Shopping List` further against runtime empty/error states.
-3. If Code Connect becomes available, use
-   `docs/figma/FIGMA_IOS_PROTOTYPE_V2_CODE_CONNECT_READINESS.md` and map the
-   reconciled frames rather than the raw prototype file, while linking the new
-   activation session log back to
-   `docs/runbooks/sessions/FIGMA_MCP_SESSION_2026-03-11_ios-prototype-check.md`.
-4. Keep the `screen ID -> nodeId` map current whenever a new MCP capture
+3. Keep the `screen ID -> nodeId` map current whenever a new MCP capture
    refresh changes top-level frame IDs.
