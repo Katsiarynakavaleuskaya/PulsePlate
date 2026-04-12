@@ -422,6 +422,73 @@ def test_stage_emergency_wheels_downloads_only_requested_exact_artifacts(
     ]
 
 
+def test_stage_emergency_wheels_downloads_requested_artifacts_across_multiple_packages(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    requirements = tmp_path / "requirements-dev.txt"
+    requirements.write_text(
+        "cryptography==46.0.7\nruff==0.15.10\nopenai==2.29.0\n",
+        encoding="utf-8",
+    )
+    manifest = tmp_path / "emergency.json"
+    manifest.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "expires_at": "2099-12-31",
+                "artifacts": [
+                    {
+                        "package": "cryptography",
+                        "version": "46.0.7",
+                        "filename": "cryptography-46.0.7.whl",
+                        "url": "https://files.pythonhosted.org/packages/example/cryptography-46.0.7.whl",
+                        "sha256": "b" * 64,
+                    },
+                    {
+                        "package": "ruff",
+                        "version": "0.15.10",
+                        "filename": "ruff-0.15.10-manylinux.whl",
+                        "url": "https://files.pythonhosted.org/packages/example/ruff-0.15.10-manylinux.whl",
+                        "sha256": "c" * 64,
+                    },
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    observed_downloads: list[tuple[str, Path, str]] = []
+
+    def fake_download(*, url: str, destination: Path, expected_sha256: str) -> None:
+        observed_downloads.append((url, destination, expected_sha256))
+        destination.write_bytes(b"wheel-bytes")
+
+    monkeypatch.setattr(installer, "_download_with_sha256", fake_download)
+
+    staged = installer.stage_emergency_wheels(
+        requirement_files=[requirements],
+        wheelhouse_dir=tmp_path / "wheelhouse",
+        manifest_path=manifest,
+    )
+
+    assert [path.name for path in staged] == [
+        "cryptography-46.0.7.whl",
+        "ruff-0.15.10-manylinux.whl",
+    ]
+    assert observed_downloads == [
+        (
+            "https://files.pythonhosted.org/packages/example/cryptography-46.0.7.whl",
+            tmp_path / "wheelhouse" / "cryptography-46.0.7.whl",
+            "b" * 64,
+        ),
+        (
+            "https://files.pythonhosted.org/packages/example/ruff-0.15.10-manylinux.whl",
+            tmp_path / "wheelhouse" / "ruff-0.15.10-manylinux.whl",
+            "c" * 64,
+        ),
+    ]
+
+
 def test_download_with_sha256_cleans_partial_temp_files_on_stream_failure(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
