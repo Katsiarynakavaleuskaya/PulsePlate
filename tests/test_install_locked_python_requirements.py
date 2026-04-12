@@ -408,6 +408,7 @@ def test_stage_emergency_wheels_downloads_only_requested_exact_artifacts(
 
     staged = installer.stage_emergency_wheels(
         requirement_files=[requirements],
+        constraints_file=None,
         wheelhouse_dir=tmp_path / "wheelhouse",
         manifest_path=manifest,
     )
@@ -420,6 +421,207 @@ def test_stage_emergency_wheels_downloads_only_requested_exact_artifacts(
             "b" * 64,
         )
     ]
+
+
+def test_stage_emergency_wheels_downloads_requested_artifacts_across_multiple_packages(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    requirements = tmp_path / "requirements-dev.txt"
+    requirements.write_text(
+        "cryptography==46.0.7\nruff==0.15.10\ntypes-pyyaml==6.0.12.20260408\nopenai==2.29.0\n",
+        encoding="utf-8",
+    )
+    manifest = tmp_path / "emergency.json"
+    manifest.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "expires_at": "2099-12-31",
+                "artifacts": [
+                    {
+                        "package": "cryptography",
+                        "version": "46.0.7",
+                        "filename": "cryptography-46.0.7.whl",
+                        "url": "https://files.pythonhosted.org/packages/example/cryptography-46.0.7.whl",
+                        "sha256": "b" * 64,
+                    },
+                    {
+                        "package": "ruff",
+                        "version": "0.15.10",
+                        "filename": "ruff-0.15.10-manylinux.whl",
+                        "url": "https://files.pythonhosted.org/packages/example/ruff-0.15.10-manylinux.whl",
+                        "sha256": "c" * 64,
+                    },
+                    {
+                        "package": "types-pyyaml",
+                        "version": "6.0.12.20260408",
+                        "filename": "types_pyyaml-6.0.12.20260408-py3-none-any.whl",
+                        "url": "https://files.pythonhosted.org/packages/example/types_pyyaml-6.0.12.20260408-py3-none-any.whl",
+                        "sha256": "d" * 64,
+                    },
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    observed_downloads: list[tuple[str, Path, str]] = []
+
+    def fake_download(*, url: str, destination: Path, expected_sha256: str) -> None:
+        observed_downloads.append((url, destination, expected_sha256))
+        destination.write_bytes(b"wheel-bytes")
+
+    monkeypatch.setattr(installer, "_download_with_sha256", fake_download)
+
+    staged = installer.stage_emergency_wheels(
+        requirement_files=[requirements],
+        constraints_file=None,
+        wheelhouse_dir=tmp_path / "wheelhouse",
+        manifest_path=manifest,
+    )
+
+    assert [path.name for path in staged] == [
+        "cryptography-46.0.7.whl",
+        "ruff-0.15.10-manylinux.whl",
+        "types_pyyaml-6.0.12.20260408-py3-none-any.whl",
+    ]
+    assert observed_downloads == [
+        (
+            "https://files.pythonhosted.org/packages/example/cryptography-46.0.7.whl",
+            tmp_path / "wheelhouse" / "cryptography-46.0.7.whl",
+            "b" * 64,
+        ),
+        (
+            "https://files.pythonhosted.org/packages/example/ruff-0.15.10-manylinux.whl",
+            tmp_path / "wheelhouse" / "ruff-0.15.10-manylinux.whl",
+            "c" * 64,
+        ),
+        (
+            "https://files.pythonhosted.org/packages/example/types_pyyaml-6.0.12.20260408-py3-none-any.whl",
+            tmp_path / "wheelhouse" / "types_pyyaml-6.0.12.20260408-py3-none-any.whl",
+            "d" * 64,
+        ),
+    ]
+
+
+def test_stage_emergency_wheels_downloads_artifacts_requested_via_constraints(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    requirements = tmp_path / "requirements-dev.txt"
+    requirements.write_text("openai==2.29.0\n", encoding="utf-8")
+    constraints = tmp_path / "constraints.txt"
+    constraints.write_text("types-pyyaml==6.0.12.20260408\n", encoding="utf-8")
+    manifest = tmp_path / "emergency.json"
+    manifest.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "expires_at": "2099-12-31",
+                "artifacts": [
+                    {
+                        "package": "types-pyyaml",
+                        "version": "6.0.12.20260408",
+                        "filename": "types_pyyaml-6.0.12.20260408-py3-none-any.whl",
+                        "url": "https://files.pythonhosted.org/packages/example/types_pyyaml-6.0.12.20260408-py3-none-any.whl",
+                        "sha256": "d" * 64,
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    observed_downloads: list[tuple[str, Path, str]] = []
+
+    def fake_download(*, url: str, destination: Path, expected_sha256: str) -> None:
+        observed_downloads.append((url, destination, expected_sha256))
+        destination.write_bytes(b"wheel-bytes")
+
+    monkeypatch.setattr(installer, "_download_with_sha256", fake_download)
+
+    staged = installer.stage_emergency_wheels(
+        requirement_files=[requirements],
+        constraints_file=constraints,
+        wheelhouse_dir=tmp_path / "wheelhouse",
+        manifest_path=manifest,
+    )
+
+    assert [path.name for path in staged] == ["types_pyyaml-6.0.12.20260408-py3-none-any.whl"]
+    assert observed_downloads == [
+        (
+            "https://files.pythonhosted.org/packages/example/types_pyyaml-6.0.12.20260408-py3-none-any.whl",
+            tmp_path / "wheelhouse" / "types_pyyaml-6.0.12.20260408-py3-none-any.whl",
+            "d" * 64,
+        )
+    ]
+
+
+def test_stage_emergency_wheels_reads_constraints_surface_once_for_multiple_artifacts(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    requirements = tmp_path / "requirements-dev.txt"
+    requirements.write_text("openai==2.29.0\n", encoding="utf-8")
+    constraints = tmp_path / "constraints.txt"
+    constraints.write_text(
+        "ruff==0.15.10\ntypes-pyyaml==6.0.12.20260408\n",
+        encoding="utf-8",
+    )
+    manifest = tmp_path / "emergency.json"
+    manifest.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "expires_at": "2099-12-31",
+                "artifacts": [
+                    {
+                        "package": "ruff",
+                        "version": "0.15.10",
+                        "filename": "ruff-0.15.10-manylinux.whl",
+                        "url": "https://files.pythonhosted.org/packages/example/ruff-0.15.10-manylinux.whl",
+                        "sha256": "c" * 64,
+                    },
+                    {
+                        "package": "types-pyyaml",
+                        "version": "6.0.12.20260408",
+                        "filename": "types_pyyaml-6.0.12.20260408-py3-none-any.whl",
+                        "url": "https://files.pythonhosted.org/packages/example/types_pyyaml-6.0.12.20260408-py3-none-any.whl",
+                        "sha256": "d" * 64,
+                    },
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    observed_downloads: list[tuple[str, Path, str]] = []
+    constraint_reads = 0
+    original_read_text = Path.read_text
+
+    def fake_download(*, url: str, destination: Path, expected_sha256: str) -> None:
+        observed_downloads.append((url, destination, expected_sha256))
+        destination.write_bytes(b"wheel-bytes")
+
+    def counting_read_text(self: Path, *args: object, **kwargs: object) -> str:
+        nonlocal constraint_reads
+        if self == constraints:
+            constraint_reads += 1
+        return original_read_text(self, *args, **kwargs)
+
+    monkeypatch.setattr(installer, "_download_with_sha256", fake_download)
+    monkeypatch.setattr(Path, "read_text", counting_read_text)
+
+    staged = installer.stage_emergency_wheels(
+        requirement_files=[requirements],
+        constraints_file=constraints,
+        wheelhouse_dir=tmp_path / "wheelhouse",
+        manifest_path=manifest,
+    )
+
+    assert [path.name for path in staged] == [
+        "ruff-0.15.10-manylinux.whl",
+        "types_pyyaml-6.0.12.20260408-py3-none-any.whl",
+    ]
+    assert constraint_reads == 1
 
 
 def test_download_with_sha256_cleans_partial_temp_files_on_stream_failure(

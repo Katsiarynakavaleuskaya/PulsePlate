@@ -339,15 +339,57 @@ def _requirement_line_requests_exact_version(line: str, *, package: str, version
     return stripped == f"{package.lower()}=={version.lower()}"
 
 
+def _collect_exact_requirement_pins(lines: Sequence[str]) -> set[str]:
+    """Return normalized exact-package pins from requirement-like lines."""
+    exact_pins: set[str] = set()
+    for line in lines:
+        stripped = line.split("#", 1)[0].strip().lower()
+        if not stripped or stripped.startswith(("-r ", "--requirement ", "-c ", "--constraint ")):
+            continue
+        if "==" not in stripped:
+            continue
+        exact_pins.add(stripped)
+    return exact_pins
+
+
+def _load_exact_requirement_pins(requirement_file: Path) -> set[str]:
+    """Read one requirement surface once and collect exact pins."""
+    return _collect_exact_requirement_pins(
+        requirement_file.read_text(encoding="utf-8").splitlines()
+    )
+
+
 def requirement_files_request_artifact(
     requirement_files: Sequence[Path], *, package: str, version: str
 ) -> bool:
     """Return True when any selected requirements surface pins package==version."""
+    expected_pin = f"{package.lower()}=={version.lower()}"
     for requirement_file in requirement_files:
-        for line in requirement_file.read_text(encoding="utf-8").splitlines():
-            if _requirement_line_requests_exact_version(line, package=package, version=version):
-                return True
+        if expected_pin in _load_exact_requirement_pins(requirement_file):
+            return True
     return False
+
+
+def requirement_surfaces_request_artifact(
+    requirement_files: Sequence[Path],
+    *,
+    constraints_file: Path | None,
+    package: str,
+    version: str,
+) -> bool:
+    """Return True when selected requirement surfaces or constraints pin package==version."""
+    expected_pin = f"{package.lower()}=={version.lower()}"
+    if requirement_files_request_artifact(
+        requirement_files,
+        package=package,
+        version=version,
+    ):
+        return True
+
+    validated_constraints_file = validate_constraints_file(constraints_file)
+    if validated_constraints_file is None:
+        return False
+    return expected_pin in _load_exact_requirement_pins(validated_constraints_file)
 
 
 def _download_with_sha256(*, url: str, destination: Path, expected_sha256: str) -> None:
@@ -387,16 +429,28 @@ def _download_with_sha256(*, url: str, destination: Path, expected_sha256: str) 
 def stage_emergency_wheels(
     *,
     requirement_files: Sequence[Path],
+    constraints_file: Path | None,
     wheelhouse_dir: Path,
     manifest_path: Path | None,
 ) -> list[Path]:
     """Download exact emergency wheels requested by the selected requirement files."""
+    requested_requirement_pins: set[str] = set()
+    for requirement_file in requirement_files:
+        requested_requirement_pins.update(_load_exact_requirement_pins(requirement_file))
+
+    validated_constraints_file = validate_constraints_file(constraints_file)
+    requested_constraint_pins = (
+        _load_exact_requirement_pins(validated_constraints_file)
+        if validated_constraints_file is not None
+        else set()
+    )
+
     staged_paths: list[Path] = []
     for artifact in load_emergency_wheel_manifest(manifest_path):
-        if not requirement_files_request_artifact(
-            requirement_files,
-            package=artifact["package"],
-            version=artifact["version"],
+        expected_pin = f"{artifact['package'].lower()}=={artifact['version'].lower()}"
+        if (
+            expected_pin not in requested_requirement_pins
+            and expected_pin not in requested_constraint_pins
         ):
             continue
         wheelhouse_dir.mkdir(parents=True, exist_ok=True)
@@ -789,6 +843,7 @@ def build_wheelhouse_with_emergency_fallback(
     except RuntimeError:
         staged_wheels = stage_emergency_wheels(
             requirement_files=requirement_files,
+            constraints_file=constraints_file,
             wheelhouse_dir=wheelhouse_dir,
             manifest_path=emergency_wheel_manifest,
         )
@@ -829,6 +884,7 @@ def install_from_proxy_with_emergency_fallback(
     except RuntimeError:
         staged_wheels = stage_emergency_wheels(
             requirement_files=requirement_files,
+            constraints_file=constraints_file,
             wheelhouse_dir=emergency_wheelhouse_dir,
             manifest_path=emergency_wheel_manifest,
         )

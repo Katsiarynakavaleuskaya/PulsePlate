@@ -2,7 +2,7 @@
   "schema_version": 1,
   "generated_at": "2026-04-09",
   "expires_at": "2026-04-30",
-  "reason": "Temporary exact-wheel fallback for cryptography, pytest, faker, hypothesis, sentence-transformers, and transformers while the approved private proxy lags the patched upstream releases used by active dependency PRs.",
+  "reason": "Temporary exact-wheel fallback for cryptography, pytest, faker, hypothesis, sentence-transformers, ruff, types-pyyaml, and transformers while the approved private proxy lags the patched upstream releases used by active dependency PRs.",
   "artifacts": [
     {
       "package": "cryptography",
@@ -45,6 +45,20 @@
       "filename": "sentence_transformers-5.4.0-py3-none-any.whl",
       "url": "https://files.pythonhosted.org/packages/5a/d4/58f3e1308c8d15cae83407bd651542b62155a2b3248e0290a724e80fd124/sentence_transformers-5.4.0-py3-none-any.whl",
       "sha256": "4e5ac9a19244153f3f4074d898e664990408d7b077fb1d1d0dc9cb8a9316feac"
+    },
+    {
+      "package": "ruff",
+      "version": "0.15.10",
+      "filename": "ruff-0.15.10-py3-none-manylinux_2_17_x86_64.manylinux2014_x86_64.whl",
+      "url": "https://files.pythonhosted.org/packages/bc/bb/7ddb00a83760ff4a83c4e2fc231fd63937cc7317c10c82f583302e0f6586/ruff-0.15.10-py3-none-manylinux_2_17_x86_64.manylinux2014_x86_64.whl",
+      "sha256": "51cb8cc943e891ba99989dd92d61e29b1d231e14811db9be6440ecf25d5c1609"
+    },
+    {
+      "package": "types-pyyaml",
+      "version": "6.0.12.20260408",
+      "filename": "types_pyyaml-6.0.12.20260408-py3-none-any.whl",
+      "url": "https://files.pythonhosted.org/packages/1c/f0/c391068b86abb708882c6d75a08cd7d25b2c7227dab527b3a3685a3c635b/types_pyyaml-6.0.12.20260408-py3-none-any.whl",
+      "sha256": "fbc42037d12159d9c801ebfcc79ebd28335a7c13b08a4cfbc6916df78fee9384"
     },
     {
       "package": "transformers",

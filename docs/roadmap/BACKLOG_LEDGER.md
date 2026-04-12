@@ -414,6 +414,9 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Priority: P1
   - Target PR: PR-TBD-CI-INSTALL-PROFILE-SPLIT
   - Area: CI / Python dependencies / supply-chain
+  - Status note: Re-evaluate only after `fix/ci-feature-fast-feedback` lands and
+    representative feature/fix push runs still miss the target feedback budget.
+    Do not use this item to reopen security or proxy hardening regressions.
   - Reason: The emergency unblock PR stabilizes `main` by removing duplicate Python installs and forcing `direct-proxy` in canonical CI lanes, but it intentionally leaves the heavy ML/GPU dependency surface in the base runtime lock. A follow-up PR must split tooling/runtime install profiles and move `torch` / `sentence-transformers` / `nvidia-*` out of the default CI surface where possible.
   - Links:
     - `.github/actions/python-setup/action.yml`
@@ -8830,6 +8833,11 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Priority: P1 (CI stability / main-branch readiness)
   - Target PR: PR-TBD-PY313-CI-STALL-ROOT-CAUSE
   - Status: Opened on 11 April 2026
+  - Status note: The feature/fix push feedback split is being handled in
+    `fix/ci-feature-fast-feedback`. Do not close this item when that PR lands;
+    the remaining `test-main (3.13)` root cause and timeout-stopgap retirement
+    stay tracked here until canonical `main` evidence is green without the
+    temporary 90-minute buffer.
   - Reason: Current-head feature and `main` CI runs both show a pathological
     Python 3.13 slowdown in canonical `CI`. `test-feature (3.13)` reached the
     60-minute job timeout in run `24266451930`, and earlier `main` evidence
@@ -8854,6 +8862,52 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - any remaining workflow debt is documented explicitly rather than hidden
       inside the stopgap
 
-**Last updated:** 2026-04-11 (py3.13 CI slowdown follow-up)
+<a id="ledger-p2-canonical-ci-shard-map-redesign"></a>
+- [ ] P2: Redesign shard map before any canonical CI shard rollout
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2 (test topology hardening)
+  - Target PR: PR-TBD-CI-SHARD-MAP-REDESIGN
+  - Status: Opened on 12 April 2026
+  - Reason: Existing shard patterns are not exhaustive enough for canonical CI
+    truth and would silently omit a large portion of the test surface if
+    promoted directly.
+  - Links:
+    - `pytest_sharding.py`
+    - `.github/workflows/ci.yml`
+  - DoD:
+    - every shard selection rule is coverage-audited against the current test
+      inventory
+    - shard topology has deterministic completeness guards
+    - no shard rollout reaches canonical CI without an explicit completeness
+      proof
+
+<a id="ledger-p2-ci-contract-risk-helper-extraction"></a>
+- [ ] P2: Centralize duplicated contract/risk suite map before next CI topology pass
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2 (CI maintainability / workflow drift prevention)
+  - Target PR: PR-TBD-CI-CONTRACT-RISK-HELPER
+  - Status: Opened on 12 April 2026
+  - Status note: `fix/ci-feature-fast-feedback` intentionally keeps the duplicated
+    workflow-local suite map so the merge-conflict + fail-closed stabilization
+    stays small. Do not reopen PR 1405 for this refactor.
+  - Reason: `.github/workflows/ci.yml` currently carries two copies of the
+    `CONTRACT_RISK_GROUPS` -> pytest-target expansion logic across `test-pr`
+    and `test-feature`. This is acceptable for the current fast-feedback
+    stabilization, but it creates future drift risk and should be replaced by a
+    single shared helper before the next CI topology change.
+  - Links:
+    - `.github/workflows/ci.yml`
+    - `scripts/ci/ci_risk_profile.py`
+    - `docs/review/PR_1405_FIXED_MAPPING.md`
+  - DoD:
+    - one canonical helper expands `CONTRACT_RISK_GROUPS` into a deterministic,
+      sorted pytest target list
+    - `test-pr` and `test-feature` consume the same helper instead of duplicating
+      the group map in YAML
+    - unknown groups still fail closed with a non-zero exit
+    - empty selections remain an explicit no-op with stable logs
+    - workflow contract tests cover the shared helper wiring end to end
+
+**Last updated:** 2026-04-12 (feature-branch CI feedback routing follow-up)
 **Maintainer:** @katsiaryna_kavaleuskaya
 <!-- markdownlint-enable MD013 -->
