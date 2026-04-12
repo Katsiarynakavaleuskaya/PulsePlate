@@ -67,6 +67,11 @@ Disposition: DEFERRED
 Backlog: `docs/roadmap/BACKLOG_LEDGER.md#ledger-p2-ci-contract-risk-helper-extraction`
 Evidence: The inline correctness bug from this review is fixed separately in `discussion_r3069834607`; the remaining suite-map centralization request is intentionally tracked as follow-up refactor work.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1405#pullrequestreview-4095401062 -> 38bc7fb31
+Disposition: FIXED
+Commit: 38bc7fb31
+Evidence: `tests/test_ci_workflow_pr_size_governance_contract.py` now uses `_extract_job_section(...)` to bound both `ios-tests` and `ios-ui-smoke` job slices to the current job block, removing the brittle unbounded split called out in the review.
+
 ## Merge Readiness
 - [ ] Current-head CI green for PR branch head
 - [ ] Required checks complete (no pending jobs)
