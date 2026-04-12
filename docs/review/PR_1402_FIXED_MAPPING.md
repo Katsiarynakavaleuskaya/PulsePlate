@@ -5,7 +5,8 @@
 - [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1402#pullrequestreview-4094866103 -> 95158a8d6
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1402#discussion_r3069267988 -> 95158a8d6
 
 ## Merge Readiness
 - [ ] All required checks pass
