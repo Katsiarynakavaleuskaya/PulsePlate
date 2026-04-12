@@ -24,6 +24,12 @@ Evidence: `frontend/src/pages/Plate.stories.tsx` runtime-narrows `sessionState` 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1391#pullrequestreview-4094079985 -> 0aa92fedb
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1391#discussion_r3068417797 -> 0aa92fedb
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1391#discussion_r3068414419 -> 4aa4373ad
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1391#discussion_r3068414420 -> 4aa4373ad
+Disposition: FIXED
+Commit: 4aa4373ad
+Evidence: `frontend/src/pages/Plate.storySupport.tsx` now returns the disposer from `useLayoutEffect(() => installPlateSessionStub(sessionState), [sessionState])`, so the stubbed `window.fetch` and API dependencies are reset on unmount or session changes, and `docs/design/DESIGN_BRIDGE_FIRST_PARITY_PACK_2026-04-11.md` rephrases the CI evidence line to `completed successfully`.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1391#discussion_r3068013070 -> 7098293c0
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1391#discussion_r3068013072 -> 7098293c0
 Disposition: FIXED
