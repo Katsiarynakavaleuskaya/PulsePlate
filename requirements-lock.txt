@@ -489,7 +489,7 @@ scipy==1.17.1
     #   -c requirements.txt
     #   scikit-learn
     #   sentence-transformers
-sentence-transformers==5.3.0
+sentence-transformers==5.4.0
     # via
     #   -c requirements.txt
     #   -r requirements.in

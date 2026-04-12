@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 import subprocess
 from types import SimpleNamespace
@@ -307,6 +308,7 @@ def test_scan_text_with_goplus_agentguard_handles_subprocess_and_payload_failure
 
     from app.security import goplus_agentguard_bridge as bridge_mod
 
+    monkeypatch.setenv(bridge_mod.TEST_RUNTIME_OPT_IN_ENV, "true")
     monkeypatch.setattr(bridge_mod, "AGENTGUARD_SCAN_SCRIPT", Path(__file__))
     monkeypatch.setattr(bridge_mod.shutil, "which", lambda name: "/usr/bin/node")
 
@@ -340,6 +342,7 @@ def test_scan_text_with_goplus_agentguard_returns_normalized_result(
 
     from app.security import goplus_agentguard_bridge as bridge_mod
 
+    monkeypatch.setenv(bridge_mod.TEST_RUNTIME_OPT_IN_ENV, "true")
     monkeypatch.setattr(bridge_mod, "AGENTGUARD_SCAN_SCRIPT", Path(__file__))
     monkeypatch.setattr(bridge_mod.shutil, "which", lambda name: "/usr/bin/node")
     monkeypatch.setattr(
@@ -364,7 +367,37 @@ def test_scan_text_with_goplus_agentguard_returns_normalized_result(
     assert result.should_block is True
 
 
-def test_scan_text_with_goplus_agentguard_live_runtime_smoke() -> None:
+def test_scan_text_with_goplus_agentguard_skips_live_node_bridge_by_default_in_tests(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """TESTING=true should avoid expensive live Node subprocess calls by default."""
+
+    from app.security import goplus_agentguard_bridge as bridge_mod
+
+    monkeypatch.setenv(bridge_mod.TEST_RUNTIME_ENV, "true")
+    monkeypatch.setenv(
+        bridge_mod.PYTEST_RUNTIME_ENV,
+        "tests/test_agent_input_guard.py::"
+        "test_scan_text_with_goplus_agentguard_skips_live_node_bridge_by_default_in_tests "
+        "(call)",
+    )
+    monkeypatch.delenv(bridge_mod.TEST_RUNTIME_OPT_IN_ENV, raising=False)
+    monkeypatch.setattr(bridge_mod, "AGENTGUARD_SCAN_SCRIPT", Path(__file__))
+    monkeypatch.setattr(bridge_mod.shutil, "which", lambda name: "/usr/bin/node")
+    monkeypatch.setattr(
+        bridge_mod.subprocess,
+        "run",
+        lambda *args, **kwargs: pytest.fail(
+            "subprocess.run must stay disabled by default in tests"
+        ),
+    )
+
+    assert scan_text_with_goplus_agentguard("payload") is None
+
+
+def test_scan_text_with_goplus_agentguard_live_runtime_smoke(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Live Node scanner path must stay callable for the local heuristic runtime."""
 
     from app.security import goplus_agentguard_bridge as bridge_mod
@@ -377,6 +410,7 @@ def test_scan_text_with_goplus_agentguard_live_runtime_smoke() -> None:
         )
         raise AssertionError("require_feature should always raise pytest skip")
 
+    monkeypatch.setenv(bridge_mod.TEST_RUNTIME_OPT_IN_ENV, "true")
     result = scan_text_with_goplus_agentguard("How can I build a steady breakfast habit?")
     if result is None:
         pytest.fail(

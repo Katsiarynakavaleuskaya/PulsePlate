@@ -13,6 +13,7 @@ ARG BUILDPLATFORM
 ARG TARGETPLATFORM
 ARG PULSEPLATE_PYTHON_INDEX_URL
 ARG PULSEPLATE_PYTHON_TRUSTED_HOST=""
+ARG PULSEPLATE_REQUIREMENTS_FILE="requirements.txt"
 
 # Install system dependencies for building (curl removed - not needed)
 RUN apt-get update && apt-get install -y \
@@ -49,17 +50,24 @@ RUN --mount=type=cache,target=/root/.cache/pip \
     fi
 
 # Copy requirements and install Python dependencies
-COPY requirements.txt requirements-dev.txt constraints.txt ./
+COPY requirements.txt requirements-ci-lite.txt requirements-dev.txt constraints.txt ./
 COPY scripts/ci/check_python_startup_hooks.py scripts/ci/install_locked_python_requirements.py scripts/ci/emergency_python_wheels.json /tmp/pulseplate-ci/
 RUN --mount=type=cache,target=/root/.cache/pip \
     if [ -z "${PULSEPLATE_PYTHON_INDEX_URL:-}" ]; then \
       echo "PULSEPLATE_PYTHON_INDEX_URL is required for Docker builds." >&2; \
       exit 1; \
     fi; \
+    case "${PULSEPLATE_REQUIREMENTS_FILE}" in \
+      requirements.txt|requirements-ci-lite.txt) ;; \
+      *) \
+        echo "Unsupported Docker requirements profile: ${PULSEPLATE_REQUIREMENTS_FILE}" >&2; \
+        exit 1; \
+        ;; \
+    esac; \
     if [ -n "${PULSEPLATE_PYTHON_TRUSTED_HOST:-}" ]; then \
       /opt/venv/bin/python /tmp/pulseplate-ci/install_locked_python_requirements.py \
         --python-executable /opt/venv/bin/python \
-        --requirements-file requirements.txt \
+        --requirements-file "${PULSEPLATE_REQUIREMENTS_FILE}" \
         --guard-script /tmp/pulseplate-ci/check_python_startup_hooks.py \
         --constraints-file constraints.txt \
         --install-mode direct-proxy \
@@ -69,7 +77,7 @@ RUN --mount=type=cache,target=/root/.cache/pip \
     else \
       /opt/venv/bin/python /tmp/pulseplate-ci/install_locked_python_requirements.py \
         --python-executable /opt/venv/bin/python \
-        --requirements-file requirements.txt \
+        --requirements-file "${PULSEPLATE_REQUIREMENTS_FILE}" \
         --guard-script /tmp/pulseplate-ci/check_python_startup_hooks.py \
         --constraints-file constraints.txt \
         --install-mode direct-proxy \

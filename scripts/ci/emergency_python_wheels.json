@@ -2,7 +2,7 @@
   "schema_version": 1,
   "generated_at": "2026-04-09",
   "expires_at": "2026-04-30",
-  "reason": "Temporary exact-wheel fallback for cryptography 46.0.7, ruff 0.15.10, and types-pyyaml 6.0.12.20260408 while the approved private proxy lags the required upstream wheels.",
+  "reason": "Temporary exact-wheel fallback for cryptography 46.0.7, sentence-transformers 5.4.0, ruff 0.15.10, and types-pyyaml 6.0.12.20260408 while the approved private proxy lags the required upstream wheels.",
   "artifacts": [
     {
       "package": "cryptography",
@@ -17,6 +17,13 @@
       "filename": "cryptography-46.0.7-cp311-abi3-manylinux_2_34_x86_64.whl",
       "url": "https://files.pythonhosted.org/packages/c7/0b/333ddab4270c4f5b972f980adef4faa66951a4aaf646ca067af597f15563/cryptography-46.0.7-cp311-abi3-manylinux_2_34_x86_64.whl",
       "sha256": "42a1e5f98abb6391717978baf9f90dc28a743b7d9be7f0751a6f56a75d14065b"
+    },
+    {
+      "package": "sentence-transformers",
+      "version": "5.4.0",
+      "filename": "sentence_transformers-5.4.0-py3-none-any.whl",
+      "url": "https://files.pythonhosted.org/packages/5a/d4/58f3e1308c8d15cae83407bd651542b62155a2b3248e0290a724e80fd124/sentence_transformers-5.4.0-py3-none-any.whl",
+      "sha256": "4e5ac9a19244153f3f4074d898e664990408d7b077fb1d1d0dc9cb8a9316feac"
     },
     {
       "package": "ruff",

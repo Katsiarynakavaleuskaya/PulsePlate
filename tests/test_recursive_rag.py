@@ -909,6 +909,54 @@ def test_hop_vector_cache_hits_on_revisited_query_across_hops(
     assert calls["n"] == 2
 
 
+def test_hop_vector_cache_is_request_scoped_only(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Request-scoped memo must not leak hits across separate runtime invocations."""
+    import core.rag.recursive_retrieval as recursive
+
+    monkeypatch.setattr(recursive, "MAX_RAG_HOPS", 3)
+    monkeypatch.setattr(recursive, "MAX_REFINEMENT_PASSES", 5)
+    monkeypatch.setattr(recursive, "MAX_VERIFICATION_QUERIES", 0)
+    monkeypatch.setattr(recursive, "MIN_CONFIDENCE_GAIN_PER_HOP", -1.0)
+
+    calls = {"n": 0}
+
+    def _fake_retrieve(query: str, **_: Any) -> RAGContext:
+        calls["n"] += 1
+        return _ctx(
+            query,
+            [
+                RAGChunk(
+                    chunk_id=f"doc-{len(query)}",
+                    file="doc.md",
+                    content=f"fiber vegetables nutrition guidance token{len(query)}",
+                    score=0.7,
+                )
+            ],
+            confidence=0.7,
+        )
+
+    def _fake_refine(current: str, *_args: Any, **_kwargs: Any) -> str:
+        if current == "first":
+            return "second"
+        if current == "second":
+            return "first"
+        return current
+
+    monkeypatch.setattr("core.rag.vector_rag.retrieve_context_structured", _fake_retrieve)
+    monkeypatch.setattr(recursive, "_refine_query", _fake_refine)
+
+    first = retrieve_recursive_context_structured("first", optimization_enabled=True)
+    second = retrieve_recursive_context_structured("first", optimization_enabled=True)
+
+    assert first.optimization_stats is not None
+    assert second.optimization_stats is not None
+    assert first.optimization_stats["hop_vector_retrieve_calls"] == 2
+    assert second.optimization_stats["hop_vector_retrieve_calls"] == 2
+    assert calls["n"] == 4
+
+
 def test_hop_vector_cache_disabled_when_optimization_flag_off(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

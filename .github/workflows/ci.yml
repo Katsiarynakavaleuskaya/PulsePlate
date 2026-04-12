@@ -1649,6 +1649,12 @@ jobs:
               sys.exit(1)
 
           tests = [t.strip() for t in os.environ.get("ONLY_TESTING", "").split(",") if t.strip()]
+          if not tests:
+              print(
+                  "::error::ONLY_TESTING is empty — no test targets were found",
+                  file=sys.stderr,
+              )
+              sys.exit(1)
           only_flags = [f"-only-testing:{t}" for t in tests]
 
           cmd = [

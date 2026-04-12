@@ -57,6 +57,16 @@ Disposition: NOT-A-BUG
 Evidence: Coverage merge truth is still enforced by the canonical PR lane `diff-coverage` job in `.github/workflows/ci.yml` plus the repo hard gate in `AGENTS.md`; the feature-push fast-feedback lane only publishes coverage artifacts and is intentionally not the merge blocker.
 Reason: This comment assumes the feature-push fast-feedback job is itself the merge gate, but in this repository merge readiness is decided by the canonical PR lane and `diff-coverage`, not by the non-blocking feature-branch push lane.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1405#discussion_r3069834607
+Disposition: FIXED
+Commit: PENDING
+Evidence: `.github/workflows/ci.yml` now fails closed when `../scripts/ios_test_targets.sh` returns an empty `ONLY_TESTING` list, and `tests/test_ci_workflow_pr_size_governance_contract.py` asserts the new error guard.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1405#pullrequestreview-4095368028
+Disposition: DEFERRED
+Backlog: `docs/roadmap/BACKLOG_LEDGER.md#ledger-p2-ci-contract-risk-helper-extraction`
+Evidence: The inline correctness bug from this review is fixed separately in `discussion_r3069834607`; the remaining suite-map centralization request is intentionally tracked as follow-up refactor work.
+
 ## Merge Readiness
 - [ ] Current-head CI green for PR branch head
 - [ ] Required checks complete (no pending jobs)

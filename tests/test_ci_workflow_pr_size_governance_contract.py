@@ -171,5 +171,7 @@ def test_ios_unit_tests_stay_in_blocking_ios_job() -> None:
     ios_ui_smoke_section = workflow_text.split("  ios-ui-smoke:", maxsplit=1)[1]
 
     assert 'ONLY_TESTING="$(../scripts/ios_test_targets.sh)"' in ios_tests_section
+    assert "::error::ONLY_TESTING is empty" in ios_tests_section
+    assert "no test targets were found" in ios_tests_section
     assert '"xcodebuild", "test-without-building"' in ios_tests_section
     assert 'ONLY_TESTING="$(../scripts/ios_test_targets.sh)"' not in ios_ui_smoke_section

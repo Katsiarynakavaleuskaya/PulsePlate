@@ -293,6 +293,10 @@ Avoid `# type: ignore[no-any-return]` and prefer typed locals over `cast()`.
   missing symbols are forwarded via `__getattr__`.
 - Feature flags (e.g. exports) may be evaluated at import time; tests must set
   `TESTING=true` before importing `app`/`legacy_app` (handled in `tests/conftest.py`).
+- AgentGuard runtime/test bypasses must not key off `TESTING=true` alone:
+  live bridge suppression is allowed only for pytest-scoped execution
+  (`PYTEST_CURRENT_TEST` present), while targeted bridge coverage must opt in
+  explicitly via `GOPLUS_AGENTGUARD_IN_TESTS=true`.
 
 ## app package public surface contract
 
