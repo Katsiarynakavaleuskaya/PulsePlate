@@ -2,7 +2,7 @@
   "schema_version": 1,
   "generated_at": "2026-04-09",
   "expires_at": "2026-04-30",
-  "reason": "Temporary exact-wheel fallback for cryptography, faker, and hypothesis while the approved private proxy lags the patched upstream releases used by active dependency PRs.",
+  "reason": "Temporary exact-wheel fallback for cryptography, faker, hypothesis, and sentence-transformers while the approved private proxy lags the patched upstream releases used by active dependency PRs.",
   "artifacts": [
     {
       "package": "cryptography",
@@ -31,6 +31,13 @@
       "filename": "hypothesis-6.151.12-py3-none-any.whl",
       "url": "https://files.pythonhosted.org/packages/0e/5a/6cecf134b631050a1f8605096adbe812483b60790d951470989d39b56860/hypothesis-6.151.12-py3-none-any.whl",
       "sha256": "37d4f3a768365c30571b11dfd7a6857a12173d933010b2c4ab65619f1b5952c5"
+    },
+    {
+      "package": "sentence-transformers",
+      "version": "5.4.0",
+      "filename": "sentence_transformers-5.4.0-py3-none-any.whl",
+      "url": "https://files.pythonhosted.org/packages/5a/d4/58f3e1308c8d15cae83407bd651542b62155a2b3248e0290a724e80fd124/sentence_transformers-5.4.0-py3-none-any.whl",
+      "sha256": "4e5ac9a19244153f3f4074d898e664990408d7b077fb1d1d0dc9cb8a9316feac"
     }
   ]
 }
