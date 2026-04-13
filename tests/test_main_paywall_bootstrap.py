@@ -41,13 +41,21 @@ def _prepare_bootstrap_dependencies(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(app_main.realtime_ws, "router", APIRouter())
 
 
+def _bootstrap_temp_app(app: FastAPI) -> FastAPI:
+    original_app = app_main.app
+    try:
+        return app_main.ensure_canonical_app_bootstrap(app)
+    finally:
+        app_main.app = original_app
+
+
 def test_paywall_route_registration_is_idempotent(monkeypatch: pytest.MonkeyPatch) -> None:
     _prepare_bootstrap_dependencies(monkeypatch)
 
     app = FastAPI()
 
-    app_main.ensure_canonical_app_bootstrap(app)
-    app_main.ensure_canonical_app_bootstrap(app)
+    _bootstrap_temp_app(app)
+    _bootstrap_temp_app(app)
 
     paywall_routes = [
         route
@@ -70,4 +78,4 @@ def test_paywall_route_registration_rejects_foreign_handler(
         return {"status": "foreign"}
 
     with pytest.raises(RuntimeError, match="Duplicate /api/v1/internal/paywall/events route"):
-        app_main.ensure_canonical_app_bootstrap(app)
+        _bootstrap_temp_app(app)
