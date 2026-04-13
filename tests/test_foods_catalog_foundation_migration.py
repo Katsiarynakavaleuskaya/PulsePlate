@@ -6,6 +6,7 @@ EN: Smoke and contract checks for the foods/restaurants foundation migration.
 
 from __future__ import annotations
 
+import configparser
 import os
 from pathlib import Path
 import subprocess
@@ -16,21 +17,19 @@ from sqlalchemy import create_engine, inspect
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 ALEMBIC_INI = REPO_ROOT / "alembic.ini"
-SCRIPT_LOCATION_REWRITE = f"script_location = {REPO_ROOT / 'alembic'}"
 FOUNDATION_REVISION = "202604120001"
 TRIGRAM_SEAM_REVISION = "202604060001"
 MIGRATION_PATH = REPO_ROOT / "alembic" / "versions" / "202604120001_add_foods_catalog_foundation.py"
+ALEMBIC_SUBPROCESS_TIMEOUT_SECONDS = 60
 
 
 def _write_temp_alembic_ini(tmp_path: Path) -> Path:
     temp_alembic_ini = tmp_path / "alembic.ini"
-    temp_alembic_ini.write_text(
-        ALEMBIC_INI.read_text(encoding="utf-8").replace(
-            "script_location = alembic",
-            SCRIPT_LOCATION_REWRITE,
-        ),
-        encoding="utf-8",
-    )
+    parser = configparser.ConfigParser()
+    parser.read(ALEMBIC_INI, encoding="utf-8")
+    parser["alembic"]["script_location"] = str(REPO_ROOT / "alembic")
+    with temp_alembic_ini.open("w", encoding="utf-8") as temp_file:
+        parser.write(temp_file)
     return temp_alembic_ini
 
 
@@ -67,8 +66,13 @@ def _run_alembic_command(
         text=True,
         cwd=str(config_path.parent),
         env=env,
+        timeout=ALEMBIC_SUBPROCESS_TIMEOUT_SECONDS,
     )
-    assert completed.returncode == 0, completed.stderr
+    assert completed.returncode == 0, (
+        f"Alembic command failed: {verb} {revision}\n"
+        f"STDERR:\n{completed.stderr}\n"
+        f"STDOUT:\n{completed.stdout}"
+    )
 
 
 def _fk_signature(
