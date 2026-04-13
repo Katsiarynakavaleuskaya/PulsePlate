@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-04-13",
-  "expires_at": "2026-05-15",
-  "reason": "Temporary exact-wheel fallback for cryptography, pytest, faker, hypothesis, sentence-transformers, ruff, types-pyyaml, transformers, and pillow while the approved private proxy lags the patched upstream releases used by active dependency PRs.",
+  "generated_at": "2026-04-09",
+  "expires_at": "2026-04-30",
+  "reason": "Temporary exact-wheel fallback for cryptography, pillow, pytest, faker, hypothesis, sentence-transformers, ruff, types-pyyaml, and transformers while the approved private proxy lags the patched upstream releases used by active dependency PRs.",
   "artifacts": [
     {
       "package": "cryptography",
@@ -17,6 +17,13 @@
       "filename": "cryptography-46.0.7-cp311-abi3-manylinux_2_34_x86_64.whl",
       "url": "https://files.pythonhosted.org/packages/c7/0b/333ddab4270c4f5b972f980adef4faa66951a4aaf646ca067af597f15563/cryptography-46.0.7-cp311-abi3-manylinux_2_34_x86_64.whl",
       "sha256": "42a1e5f98abb6391717978baf9f90dc28a743b7d9be7f0751a6f56a75d14065b"
+    },
+    {
+      "package": "pillow",
+      "version": "12.2.0",
+      "filename": "pillow-12.2.0-cp313-cp313-manylinux2014_x86_64.manylinux_2_17_x86_64.whl",
+      "url": "https://files.pythonhosted.org/packages/a8/68/b93e09e5e8549019e61acf49f65b1a8530765a7f812c77a7461bca7e4494/pillow-12.2.0-cp313-cp313-manylinux2014_x86_64.manylinux_2_17_x86_64.whl",
+      "sha256": "03f6fab9219220f041c74aeaa2939ff0062bd5c364ba9ce037197f4c6d498cd9"
     },
     {
       "package": "pytest",
@@ -70,44 +77,9 @@
     {
       "package": "pillow",
       "version": "12.2.0",
-      "filename": "pillow-12.2.0-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.whl",
-      "url": "https://files.pythonhosted.org/packages/d3/f1/00b7278c7dd52b17ad4329153748f87b6756ec195ff786c2bdf12518337d/pillow-12.2.0-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.whl",
-      "sha256": "8bd7903a5f2a4545f6fd5935c90058b89d30045568985a71c79f5fd6edf9b91e"
-    },
-    {
-      "package": "pillow",
-      "version": "12.2.0",
-      "filename": "pillow-12.2.0-cp311-cp311-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl",
-      "url": "https://files.pythonhosted.org/packages/e9/bd/e51a61b1054f09437acfbc2ff9106c30d1eb76bc1453d428399946781253/pillow-12.2.0-cp311-cp311-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl",
-      "sha256": "e74473c875d78b8e9d5da2a70f7099549f9eb37ded4e2f6a463e60125bccd176"
-    },
-    {
-      "package": "pillow",
-      "version": "12.2.0",
-      "filename": "pillow-12.2.0-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl",
-      "url": "https://files.pythonhosted.org/packages/e9/9e/c05e19657fd57841e476be1ab46c4d501bffbadbafdc31a6d665f8b737b6/pillow-12.2.0-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl",
-      "sha256": "b86024e52a1b269467a802258c25521e6d742349d760728092e1bc2d135b4d76"
-    },
-    {
-      "package": "pillow",
-      "version": "12.2.0",
-      "filename": "pillow-12.2.0-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl",
-      "url": "https://files.pythonhosted.org/packages/43/e3/fdc657359e919462369869f1c9f0e973f353f9a9ee295a39b1fea8ee1a77/pillow-12.2.0-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl",
-      "sha256": "62f5409336adb0663b7caa0da5c7d9e7bdbaae9ce761d34669420c2a801b2780"
-    },
-    {
-      "package": "pillow",
-      "version": "12.2.0",
       "filename": "pillow-12.2.0-cp313-cp313-manylinux2014_x86_64.manylinux_2_17_x86_64.whl",
       "url": "https://files.pythonhosted.org/packages/a8/68/b93e09e5e8549019e61acf49f65b1a8530765a7f812c77a7461bca7e4494/pillow-12.2.0-cp313-cp313-manylinux2014_x86_64.manylinux_2_17_x86_64.whl",
       "sha256": "03f6fab9219220f041c74aeaa2939ff0062bd5c364ba9ce037197f4c6d498cd9"
-    },
-    {
-      "package": "pillow",
-      "version": "12.2.0",
-      "filename": "pillow-12.2.0-cp313-cp313-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl",
-      "url": "https://files.pythonhosted.org/packages/67/ee/21d4e8536afd1a328f01b359b4d3997b291ffd35a237c877b331c1c3b71c/pillow-12.2.0-cp313-cp313-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl",
-      "sha256": "eedf4b74eda2b5a4b2b2fb4c006d6295df3bf29e459e198c90ea48e130dc75c3"
     }
   ]
 }

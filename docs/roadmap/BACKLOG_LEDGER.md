@@ -29,23 +29,27 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 ### P0
 
 <a id="ledger-p0-self-hosted-postgres-droplet-foundation"></a>
-- [ ] P0: Self-hosted Postgres Droplet Foundation
+- [x] P0: Self-hosted Postgres Droplet Foundation
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0 (deployment-safety blocker)
-  - Target PR: TBD (branch `infra/p0-self-hosted-postgres-droplet`)
+  - Target PR: PR `#1417` (`docs/close-postgres-droplet-foundation-ledger`)
   - Area: infra / database / deploy
-  - Reason: Promote Postgres from optional/profile-gated to canonical prod DB on Droplet. Insert narrow infra-wave between B1 and B2; Batch B remains active. SQLite stays dev/test fallback only.
+  - Status: Closed by repo/runtime evidence reconciliation. Managed PostgreSQL is the canonical default production lane; self-hosted PostgreSQL on the Droplet remains the supported lane B. No new infra implementation PR is required before Foods B2.
+  - Reason: The repo already carries both production lanes, the required environment contract, and backup/restore operational assets. This item stayed open only because the backlog wording drifted behind the shipped deploy/runtime truth. SQLite remains dev/test fallback only.
   - Links:
     - docs/deploy/POSTGRES_SELF_HOSTED_DROPLET.md
+    - deploy/docker-compose.production.yaml
     - deploy/docker-compose.production.selfhosted.yaml
     - deploy/systemd/pulseplate-postgres-backup.service.example
+    - deploy/systemd/pulseplate-postgres-backup.timer.example
     - scripts/ops/postgres_backup.sh
-    - core/db_fallback.py
+    - scripts/ops/postgres_restore.sh
+    - .env.example
   - DoD:
-    - Dedicated self-hosted compose: `postgres` without published 5432; `app` `depends_on` postgres + health condition; managed lane unchanged in `deploy/docker-compose.production.yaml`
-    - No dev-only password; `DATABASE_URL` + `POSTGRES_*` required per `.env.example`
-    - Backup/restore documented; host `scripts/ops/postgres_backup.sh` + optional systemd timer examples
-    - Runbook documents both lanes (managed vs self-hosted), migrations, Caddy build, health checks
+    - Backlog wording no longer claims an open infra implementation wave that is already present in repo
+    - Closure evidence points to the canonical two-lane runbook, both production compose files, backup/restore assets, and `.env.example`
+    - Deploy/docs canon is explicit that managed PostgreSQL is the default production lane and self-hosted PostgreSQL is the supported lane B
+    - Foods sequencing no longer treats this item as the mandatory implementation blocker ahead of B2
 
 <a id="ledger-p0-payments-ruby-ios"></a>
 - [ ] P0: Payment rails for RU/BY + iOS-first monetization baseline
@@ -377,24 +381,25 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Advisory updated (remove-by closed or docs-only follow-up per backlog policy)
 
 <a id="ledger-p1-cryptography-private-index-sync"></a>
-- [ ] P1: Remove temporary `cryptography 46.0.7` emergency wheel fallback after approved mirror sync
+- [ ] P1: Retire active emergency wheel manifest entries after approved mirror sync
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (security / supply-chain / CI blocker)
-  - Target PR: `PR-TBD` (follow-up after `PR #1378`)
-  - Status: Active as of `09 April 2026`
+  - Target PR: `PR-TBD` (follow-up after `PR #1418`)
+  - Status: Active as of `13 April 2026`
   - Area: security / CI / dependencies
-  - Reason (EN): `repair/hono-security` must stay on the patched exact release `cryptography 46.0.7`, but current-head CI and Docker installs showed the approved private index lagged that upstream release. `PR #1378` therefore adds a time-boxed exact-wheel fallback with pinned `sha256` digests instead of a vulnerable repin or a broad public-index bypass. Remove this fallback as soon as the approved mirror serves `46.0.7` natively. (RU: `repair/hono-security` должен остаться на исправленном точном релизе `cryptography 46.0.7`, но CI/Docker показали отставание приватного зеркала. Поэтому `PR #1378` добавляет временный exact-wheel fallback с pinned `sha256`, а не уязвимый репин и не широкий bypass на публичный индекс. Удалить fallback сразу после того, как одобренное зеркало начнёт отдавать `46.0.7` нативно.)
+  - Reason (EN): The repo must stay on patched exact releases while the approved private index catches up, and the current emergency wheel manifest still covers multiple active CI/bootstrap dependencies (including `cryptography 46.0.7`, `pillow 12.2.0`, `pytest 9.0.3`, `faker 40.13.0`, `hypothesis 6.151.12`, `ruff 0.15.10`, `types-pyyaml 6.0.12.20260408`, `sentence-transformers 5.4.0`, and `transformers 5.5.3`). `PR #1378` and `PR #1418` extend that time-boxed exact-wheel fallback with pinned `sha256` digests instead of a vulnerable repin or a broad public-index bypass. Retire the manifest only after the approved mirror serves every still-active fallback entry natively. (RU: Репозиторий должен оставаться на исправленных точных релизах, пока одобренное приватное зеркало догоняет апстрим, и текущий emergency wheel manifest всё ещё покрывает несколько активных CI/bootstrap зависимостей (включая `cryptography 46.0.7`, `pillow 12.2.0`, `pytest 9.0.3`, `faker 40.13.0`, `hypothesis 6.151.12`, `ruff 0.15.10`, `types-pyyaml 6.0.12.20260408`, `sentence-transformers 5.4.0` и `transformers 5.5.3`). `PR #1378` и `PR #1418` расширяют этот временный exact-wheel fallback с pinned `sha256`, а не уязвимым репином и не широким bypass на публичный индекс. Удалять manifest можно только после того, как одобренное зеркало начнёт отдавать все ещё активные fallback-entry нативно.)
   - Links:
     - `docs/security/CRYPTOGRAPHY_46_0_7_PRIVATE_INDEX_ADVISORY.md:1`
+    - `docs/security/GHSA-whj4-6x5x-4v2j-pillow.md:1`
     - `scripts/ci/emergency_python_wheels.json`
     - `scripts/ci/install_locked_python_requirements.py`
     - `.github/actions/python-setup/action.yml`
     - `Dockerfile`
   - DoD:
-    - [ ] Approved private proxy serves `cryptography 46.0.7` without the emergency fallback manifest
+    - [ ] Approved private proxy serves every still-active `scripts/ci/emergency_python_wheels.json` entry without manifest fallbacks
     - [ ] `scripts/ci/emergency_python_wheels.json` is removed from canonical CI/Docker paths
     - [ ] Locked install, Docker build, and `make verify` succeed with the private proxy alone
-    - [ ] Advisory is updated to mark the emergency fallback retired
+    - [ ] Security advisories are updated to mark the emergency fallback retired
 
 <a id="ledger-p1-pillow-private-index-sync"></a>
 - [ ] P1: Remove temporary `pillow 12.2.0` emergency wheel fallback after approved mirror sync
@@ -4737,25 +4742,33 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - The change introduces no runtime, schema, or OpenAPI behavior
 
 <a id="ledger-p1-foods-postgres-foundation-followthrough"></a>
-- [ ] P1: Foods PostgreSQL foundation follow-through (ETL, importer rewiring, runtime cutover)
+- [ ] P1: Foods PostgreSQL follow-through train (B1 closed -> B2 next, B3 deferred)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-TBD-FOODS-POSTGRES-FOLLOWTHROUGH
-  - Status: 📋 Planned
+  - Target PR: PR-B1 (`feat/pr-b1-foods-offline-etl-postgres`) -> PR-B2 (`feat/pr-b2-restaurant-relational-bridge`); B3 runtime cutover stays deferred outside B2
+  - Status: 🚧 Active after merged B1; B2 is the next implementation lane, while B3 runtime cutover remains deferred outside B2
   - Area: backend / data platform / restaurant ingestion
   - Finding Type: post-foundation execution gap
-  - Reason: The additive Alembic foundation lane intentionally creates `foods`, `restaurant_chains`, and `restaurant_menu_items` without changing the current SQLite/local-first runtime, ETL path, or MenuStat importer. Those operational changes must land later as a separate follow-through wave instead of widening the foundation PR.
+  - Reason: The additive Alembic foundation lane intentionally creates `foods`, `restaurant_chains`, and `restaurant_menu_items` without changing the current SQLite/local-first runtime, ETL path, or MenuStat importer. The governed follow-through now continues from merged B1 directly into B2 because the Postgres deploy foundation is already present in repo and closed separately as a docs/governance reconciliation lane. B2 rewires restaurant ingestion into the relational catalog; B3 keeps runtime read-switch / cutover out of B2 as its own deferred rollout lane.
+  - Sequence:
+    - B1: offline snapshot promotion from `data/food.sqlite::foods` into PostgreSQL `foods` with deterministic upsert/report coverage and no runtime/importer drift
+    - B2: bridge `scripts/import_restaurant_menu.py` and restaurant persistence toward `restaurant_chains` / `restaurant_menu_items` additively, without runtime cutover
+    - B3 (deferred): decide and govern any runtime read-switch / PostgreSQL cutover as a later dedicated lane
   - Links:
     - `docs/orchestration/FOODS_CATALOG_FOUNDATION_PR_A_TASK_PACKET_2026-04-12.md`
+    - `docs/orchestration/FOODS_POSTGRES_PROMOTION_PR_B1_TASK_PACKET_2026-04-13.md`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p0-self-hosted-postgres-droplet-foundation`
+    - `docs/deploy/POSTGRES_SELF_HOSTED_DROPLET.md`
     - `app/services/food_store.py`
     - `scripts/build_food_db.py`
     - `app/services/restaurant_store.py`
     - `scripts/import_restaurant_menu.py`
   - DoD:
-    - PostgreSQL foods/catalog backfill or snapshot promotion path is defined and tested
-    - Restaurant importer rewiring targets the new relational tables with deterministic compatibility coverage
-    - Runtime contract decision is explicit: keep SQLite as baseline or switch reads to PostgreSQL behind a governed rollout
-    - Search / catalog follow-up lanes reference the same canonical table source without parallel schema drift
+    - B1 packet and backlog sequencing explicitly lock the first executable lane to deterministic SQLite snapshot promotion into PostgreSQL `foods`
+    - Backlog sequencing explicitly marks B2 as the next active food implementation lane after merged B1
+    - B2 scope is explicit: restaurant importer rewiring targets `restaurant_chains` / `restaurant_menu_items` with deterministic compatibility coverage and no runtime cutover claim
+    - B3 runtime cutover / read-switch remains explicitly deferred outside B2
+    - Search / catalog follow-up lanes continue to reference the same canonical PostgreSQL table source without parallel schema drift
 
 <a id="ledger-p1-foods-foundation-downgrade-ownership"></a>
 - [ ] P1: Make foods foundation downgrade ownership-aware for pre-existing catalog objects
