@@ -26,13 +26,6 @@
       "sha256": "03f6fab9219220f041c74aeaa2939ff0062bd5c364ba9ce037197f4c6d498cd9"
     },
     {
-      "package": "pillow",
-      "version": "12.2.0",
-      "filename": "pillow-12.2.0-cp313-cp313-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl",
-      "url": "https://files.pythonhosted.org/packages/67/ee/21d4e8536afd1a328f01b359b4d3997b291ffd35a237c877b331c1c3b71c/pillow-12.2.0-cp313-cp313-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl",
-      "sha256": "eedf4b74eda2b5a4b2b2fb4c006d6295df3bf29e459e198c90ea48e130dc75c3"
-    },
-    {
       "package": "pytest",
       "version": "9.0.3",
       "filename": "pytest-9.0.3-py3-none-any.whl",
