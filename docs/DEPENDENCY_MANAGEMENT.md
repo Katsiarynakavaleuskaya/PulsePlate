@@ -67,8 +67,9 @@ Canonical contract for shared CI/Docker/bootstrap paths:
 - Public package hosts such as `pypi.org`, `files.pythonhosted.org`, and `test.pypi.org` are rejected by the shared installer.
 - Ambient overrides such as `PIP_INDEX_URL` / `PIP_EXTRA_INDEX_URL` are rejected for canonical installs.
 - Time-boxed exceptions must stay exact and manifest-driven. Current example:
-  `scripts/ci/emergency_python_wheels.json` permits only the patched
-  `cryptography 46.0.7` Linux wheels with pinned `sha256` digests until the
+  `scripts/ci/emergency_python_wheels.json` currently carries a broader,
+  repo-approved fallback set (including `cryptography 46.0.7`, `pillow 12.2.0`,
+  and other active CI/bootstrap wheels) with pinned `sha256` digests until the
   approved proxy catches up.
 
 **Note**: The temporary wheelhouse is no longer the final control. The repo now fails closed unless dependency resolution goes through the approved private proxy. Artifact quarantine and promotion review still live outside the repo as infrastructure controls.
