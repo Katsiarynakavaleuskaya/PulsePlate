@@ -31,7 +31,20 @@ Disposition: FIXED
 Commit: 6d1e7d2e1
 Evidence: [docs/review/PR_1416_FIXED_MAPPING.md](./PR_1416_FIXED_MAPPING.md#L1)
 Reason: Merge-readiness checkboxes were reset to unchecked and the artifact now uses thread-specific mapping evidence instead of the earlier ambiguous review-level references.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1416#discussion_r3074806376
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1416#discussion_r3074806376 -> 6d1e7d2e1
+
+Disposition: FIXED
+Commit: adbfbe91c
+Evidence: [frontend/src/lib/analytics.ts](../../frontend/src/lib/analytics.ts#L37)
+Reason: The paywall analytics client import cache now resets after a transient dynamic-import failure, so the next exposure post can recover instead of reusing a poisoned rejected promise.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1416#discussion_r3074827076 -> adbfbe91c
+
+Disposition: FIXED
+Commit: ee85df1b0
+Evidence: [docs/review/PR_1416_FIXED_MAPPING.md](./PR_1416_FIXED_MAPPING.md#L8)
+Reason: Canonical evidence links in the PR 1416 artifact were normalized to repository-relative markdown targets, removing local absolute filesystem paths from the review record.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1416#discussion_r3074827084 -> ee85df1b0
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1416#discussion_r3074827088 -> ee85df1b0
 
 ## Merge Readiness
 - [ ] All required checks pass
