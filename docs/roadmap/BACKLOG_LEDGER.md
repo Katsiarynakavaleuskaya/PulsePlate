@@ -8980,6 +8980,29 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - ADR exit criteria are satisfied and the seam is retired
     - The security note is updated or closed with final remediation evidence
 
+<a id="ledger-p1-bump-pillow-prepush-baseline"></a>
+- [ ] P1: Bump Pillow to clear pre-push pip-audit baseline
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (dependency security / pre-push unblock follow-up)
+  - Target PR: follow-up after `feat/codex-skills-alignment-passive`
+  - Status: Opened on 14 April 2026
+  - Reason: opening the Codex skills alignment draft PR is currently blocked by
+    a repo-wide pre-push `pip-audit` failure on `pillow==12.1.1`
+    (`GHSA-whj4-6x5x-4v2j`, fixed in `12.2.0`). The blocker is unrelated to the
+    skills-alignment diff, but must be tracked explicitly before using
+    `git push --no-verify` to publish the draft PR branch.
+  - Links:
+    - `requirements.txt`
+    - `requirements-lock.txt`
+    - `requirements-ci-lite.txt`
+    - `.pre-commit-config.yaml`
+    - `git push` pre-push hook output on branch `feat/codex-skills-alignment-passive`
+  - DoD:
+    - `requirements.txt`, `requirements-lock.txt`, and `requirements-ci-lite.txt`
+      pin a patched Pillow release
+    - `pre-commit run --hook-stage pre-push pip-audit --all-files` passes
+    - the temporary `--no-verify` exception is no longer needed for this branch class
+
 <a id="ledger-p1-unyank-numpy-runtime-pin"></a>
 - [ ] P1: Replace yanked numpy runtime pin with a non-yanked release
   - Owner: @katsiaryna_kavaleuskaya
