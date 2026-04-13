@@ -34,6 +34,18 @@ let paywallExposurePostPromise:
     }>
   | null = null;
 
+function loadPaywallExposureClient(): Promise<{
+  postPaywallExposureEvent: (payload: PaywallExposurePayload) => Promise<void>;
+}> {
+  paywallExposurePostPromise ??= import("../api/client").catch((error: AnalyticsError) => {
+    // RU: Сбрасываем кэш после transient failure, чтобы следующая попытка могла восстановиться.
+    // EN: Reset the cached import after a transient failure so the next attempt can recover.
+    paywallExposurePostPromise = null;
+    throw error;
+  });
+  return paywallExposurePostPromise;
+}
+
 function createRandomId(): string {
   if (typeof globalThis.crypto?.randomUUID === "function") {
     return globalThis.crypto.randomUUID();
@@ -89,9 +101,7 @@ export function logPaywallExposure(payload: PaywallExposurePayload): void {
 
   // RU: Analytics never blocks paywall UX; transport errors are fail-open.
   // EN: Analytics must never block paywall UX; transport errors are fail-open.
-  paywallExposurePostPromise ??= import("../api/client");
-
-  void paywallExposurePostPromise
+  void loadPaywallExposureClient()
     .then(({ postPaywallExposureEvent }) => postPaywallExposureEvent(payload))
     .catch(logError);
 }
