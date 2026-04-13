@@ -359,6 +359,7 @@ class TestInsightV1RAGFields:
             headers=vip_headers,
         )
         assert resp.status_code == 200
+        assert resp.headers.get("content-type", "").startswith("application/json")
         data = resp.json()
         assert data["rag_used"] is False
         assert data["sources"] == []
@@ -395,6 +396,7 @@ class TestInsightV1RAGFields:
             headers=vip_headers,
         )
         assert resp.status_code == 200
+        assert resp.headers.get("content-type", "").startswith("application/json")
         data = resp.json()
         assert data["rag_used"] is False
         assert data["sources"] == []
@@ -760,6 +762,7 @@ class TestInsightLegacyRAGFields:
         with _isolated_test_client(rag_client.app) as isolated_client:
             resp = isolated_client.post("/insight", json={"text": "test"}, headers=vip_headers)
             assert resp.status_code == 200, resp.text
+            assert resp.headers.get("content-type", "").startswith("application/json")
             data = resp.json()
 
         assert data["rag_used"] is False

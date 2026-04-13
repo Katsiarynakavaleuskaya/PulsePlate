@@ -400,7 +400,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Remove temporary `pillow 12.2.0` emergency wheel fallback after approved mirror sync
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (security / supply-chain / CI blocker)
-  - Target PR: `PR #1415`
+  - Target PR: `PR-TBD` (follow-up after `PR #1415`)
   - Status: Active as of `13 April 2026`
   - Area: security / CI / dependencies
   - Reason (EN): `feat/rag-hardening-followthrough` must stay on the patched exact release `pillow 12.2.0`, but current-head CI and Docker installs showed the approved private index lagged that upstream release and exposed only `12.1.1`. `PR #1415` therefore adds a time-boxed exact-wheel fallback with pinned `sha256` digests instead of a vulnerable repin or a broad public-index bypass. Remove this fallback as soon as the approved mirror serves `12.2.0` natively. (RU: ветка должна остаться на исправленном точном релизе `pillow 12.2.0`, но CI/Docker показали отставание приватного зеркала и наличие только `12.1.1`. Поэтому `PR #1415` добавляет временный exact-wheel fallback с pinned `sha256`, а не уязвимый репин и не широкий bypass на публичный индекс. Удалить fallback сразу после того, как одобренное зеркало начнёт отдавать `12.2.0` нативно.)
