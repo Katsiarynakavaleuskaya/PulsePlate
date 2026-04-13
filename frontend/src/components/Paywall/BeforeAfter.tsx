@@ -1,7 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { KeyboardEvent as ReactKeyboardEvent } from "react";
 import { useTranslation } from "react-i18next";
-import { Events, log } from "../../lib/analytics";
+import {
+  Events,
+  createAnalyticsEventId,
+  logLegacyPaywallExposure,
+} from "../../lib/analytics";
 import { useFocusTrap } from "../../lib/useFocusTrap";
 
 type Props = {
@@ -11,6 +15,7 @@ type Props = {
   processingLabel?: string;
   purchaseDisabled?: boolean;
   source?: string;
+  triggerReason?: string;
   via?: string;
 };
 
@@ -41,6 +46,7 @@ const plans = [
  * @param onClose - Callback invoked when the dialog should close (Escape key or Cancel).
  * @param onPurchase - Optional callback invoked when the primary purchase CTA is activated.
  * @param source - Optional identifier for analytics `source` (defaults to `"unknown"`).
+ * @param triggerReason - Optional identifier for analytics `triggerReason` (defaults to `"unknown"`).
  * @param via - Optional identifier for analytics `via` (defaults to `"paywall"`).
  * @returns The React element for the paywall dialog.
  */
@@ -51,44 +57,55 @@ export default function BeforeAfter({
   processingLabel,
   purchaseDisabled = false,
   source = "unknown",
+  triggerReason = "unknown",
   via = "paywall",
 }: Props) {
   const { t } = useTranslation();
   const [isPurchasing, setIsPurchasing] = useState(false);
   const [purchaseError, setPurchaseError] = useState<string | null>(null);
+  const exposureIdRef = useRef<string>(createAnalyticsEventId());
   const dialogRef = useRef<HTMLDivElement | null>(null);
   const primaryButtonRef = useRef<HTMLButtonElement | null>(null);
   const cancelButtonRef = useRef<HTMLButtonElement | null>(null);
   const trap = useFocusTrap(dialogRef);
+
+  const logPaywallEvent = useCallback(
+    (event: string, metadata?: Record<string, unknown>) => {
+      try {
+        logLegacyPaywallExposure(event, {
+          client_event_id: createAnalyticsEventId(),
+          exposure_id: exposureIdRef.current,
+          source_surface: source,
+          trigger_reason: triggerReason,
+          via,
+          metadata,
+        });
+      } catch {
+        // Ignore analytics errors.
+      }
+    },
+    [source, triggerReason, via]
+  );
 
   const handleKeyDown = useCallback(
     (event: ReactKeyboardEvent<HTMLDivElement>) => {
       if (event.key === "Escape") {
         event.preventDefault();
         event.stopPropagation();
-        try {
-          log(Events.PURCHASE_CANCEL, { source, via });
-        } catch {
-            // Ignore analytics errors
-        }
+        logPaywallEvent(Events.PURCHASE_CANCEL, { dismissal_method: "escape" });
         onClose();
         return;
       }
 
       trap(event);
     },
-    [onClose, trap, source, via]
+    [logPaywallEvent, onClose, trap]
   );
 
   // Analytics effect - separate from focus management
   useEffect(() => {
-    try {
-      // Ensure analytics errors never break the paywall rendering
-      log(Events.PAYWALL_VIEW, { source, via });
-    } catch {
-      // swallow analytics SDK errors
-    }
-  }, [source, via]);
+    logPaywallEvent(Events.PAYWALL_VIEW);
+  }, [logPaywallEvent]);
 
   // Body scroll lock effect - only on mount/unmount
   useEffect(() => {
@@ -195,12 +212,7 @@ export default function BeforeAfter({
             onClick={async () => {
               if (purchaseDisabled || isPurchasing) return;
               setPurchaseError(null);
-              // Fire-and-forget analytics before invoking callback
-              try {
-                log(Events.PURCHASE_ATTEMPT, { source, via });
-              } catch {
-                // Ignore analytics errors
-              }
+              logPaywallEvent(Events.PURCHASE_ATTEMPT);
               try {
                 setIsPurchasing(true);
                 await onPurchase?.();
@@ -230,11 +242,7 @@ export default function BeforeAfter({
             style={{ minHeight: 44 }}
             data-testid="paywall-cancel"
             onClick={() => {
-              try {
-                log(Events.PURCHASE_CANCEL, { source, via });
-              } catch {
-                // Ignore analytics errors
-              }
+              logPaywallEvent(Events.PURCHASE_CANCEL, { dismissal_method: "cancel_button" });
               onClose();
             }}
           >

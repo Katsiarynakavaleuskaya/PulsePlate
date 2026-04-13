@@ -335,8 +335,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Planning-flow monetization wave over the canonical FREE -> PRO -> VIP ladder
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-TBD-DOCS-MONETIZATION-PLANNING-WAVE-BOOTSTRAP -> PR-TBD-MONETIZATION-TRIGGER-ENGINE-V1 -> PR-TBD-PLANNING-PAYWALL-EXPOSURE-LEDGER -> PR-TBD-PLANNING-NEXT-BEST-ACTION-CONSUMERS
-  - Status: 🟡 Active epic. Bootstrap governance opens the wave on `2026-04-13` (`America/New_York`); runtime execution begins with PR-1 `feat(growth): add intervention trigger engine v1`.
+  - Target PR: PR-TBD-DOCS-MONETIZATION-PLANNING-WAVE-BOOTSTRAP -> PR-TBD-MONETIZATION-TRIGGER-ENGINE-V1 -> PR-TBD-PLANNING-PAYWALL-EXPOSURE-LEDGER (`feat(analytics): add paywall exposure ledger`) -> PR-TBD-PLANNING-NEXT-BEST-ACTION-CONSUMERS
+  - Status: 🟡 Active epic. Bootstrap governance opens the wave on `2026-04-13` (`America/New_York`); runtime execution begins with PR-1 `feat(growth): add intervention trigger engine v1`. Active follow-up lane: PR-2 `feat(analytics): add paywall exposure ledger` on branch `feat/paywall-exposure-ledger`, scoped strictly to instrumentation-only measurement.
   - Area: product / growth / monetization / planning flow
   - Finding Type: monetization value-capture orchestration
   - Reason (EN): `origin/main` already closed the backend monetization spine through merged PRs `#1296` (`2026-04-02`), `#1312` (`2026-04-03`), and `#1381` (`2026-04-09`). The next profitable lane is not another receipt/entitlement rewrite; it is deterministic monetization over the planning-first journey `BMI -> targets -> daily plate -> weekly plan -> export/recipe follow-through`. The epic must stay thin-client-safe, additive, and worktree-isolated so billing/provider modernization does not get reopened by accident. (RU: Биллинг-спайн уже закрыт на `main`; следующий шаг — monetization поверх planning flow, а не новый receipt/entitlement PR.)

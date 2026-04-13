@@ -14,6 +14,7 @@ import hashlib
 import hmac
 import httpx
 import json
+import logging
 from typing import Any, overload
 from uuid import uuid4
 
@@ -45,6 +46,8 @@ from app.schemas.payments import (
     SubscriptionTier,
     SubscriptionTierValue,
 )
+from app.schemas.paywall_analytics import PaywallExposureEventName
+from app.services.paywall_exposure_ledger import record_activation_lifecycle_event
 from app.services import subscriptions as subscriptions_store
 from core.billing_policy import manual_monthly_entitlement_expires_at
 from core.db import get_session_factory
@@ -57,6 +60,8 @@ APPLE_EXPIRED_RECEIPT_STATUS = 21006
 APPLE_VERIFY_TIMEOUT_SECONDS = 10.0
 APPLE_ETC_GMT_DATETIME_FORMAT = "%Y-%m-%d %H:%M:%S Etc/GMT"
 _LEGACY_ISSUER_PREFIX = "subject:"
+
+logger = logging.getLogger(__name__)
 
 
 class ActivationAccessForbiddenError(PermissionError):
@@ -126,6 +131,32 @@ def _utc_now() -> datetime:
     """Return timezone-aware UTC timestamp."""
 
     return datetime.now(timezone.utc)
+
+
+def _record_activation_lifecycle_event_best_effort(
+    *,
+    event_name: PaywallExposureEventName,
+    normalized: NormalizedActivation,
+    subject_id: int,
+) -> None:
+    """Persist activation analytics without risking the paid activation path.
+
+    RU: Ledger telemetry не должна ломать canonical activation flow.
+    EN: Ledger telemetry must never break the canonical activation flow.
+    """
+
+    try:
+        record_activation_lifecycle_event(
+            event_name=event_name,
+            normalized=normalized,
+            subject_id=subject_id,
+        )
+    except Exception:
+        logger.warning(
+            "paywall exposure ledger write failed for activation lifecycle event=%s",
+            event_name.value,
+            exc_info=True,
+        )
 
 
 def _hash_payload(payload: dict[str, Any]) -> str:
@@ -1328,6 +1359,12 @@ def activate_subscription(
                 return existing_response, False
             return existing_response
 
+        _record_activation_lifecycle_event_best_effort(
+            event_name=PaywallExposureEventName.upgrade_started,
+            normalized=normalized,
+            subject_id=resolved_user_id,
+        )
+
         subscription = subscriptions_store.get_subscription_for_user_source(
             session=session,
             user_id=resolved_user_id,
@@ -1366,6 +1403,12 @@ def activate_subscription(
         session.commit()
         session.refresh(audit)
         session.refresh(subscription)
+
+        _record_activation_lifecycle_event_best_effort(
+            event_name=PaywallExposureEventName.upgrade_completed,
+            normalized=normalized,
+            subject_id=resolved_user_id,
+        )
 
         response = _to_response(
             activation_id=audit.id,
