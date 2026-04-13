@@ -326,9 +326,10 @@ pgvector==0.4.2
     # via
     #   -c requirements.txt
     #   -r requirements.in
-pillow==12.1.1
+pillow==12.2.0
     # via
     #   -c requirements.txt
+    #   -r requirements.in
     #   matplotlib
     #   reportlab
 pip-api==0.0.34
