@@ -1,28 +1,37 @@
 # PR 1416 — Fixed in Commit Mapping
 
 ## Discussion Thread Pass
-- [x] Discussion Thread pass completed
+- [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
 Disposition: FIXED
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1416#pullrequestreview-4100747870 -> bba685ea0
+Commit: see mapping entries below
 Evidence: [tests/test_payments_activation_paywall_events.py](/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/worktrees/feat-paywall-exposure-ledger/tests/test_payments_activation_paywall_events.py:63), [frontend/src/lib/analytics.ts](/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/worktrees/feat-paywall-exposure-ledger/frontend/src/lib/analytics.ts:24)
-Reason: Added deterministic activation lineage assertions and memoized the hidden paywall ingestion client import so the analytics seam remains fail-open without repeated module-loading overhead.
+Reason: Sourcery follow-ups for deterministic activation lineage assertions and memoized hidden-ingestion import were fixed in earlier review passes.
 
-Disposition: DEFERRED
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1416#pullrequestreview-4100747870
-Backlog: [docs/roadmap/BACKLOG_LEDGER.md](/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/worktrees/feat-paywall-exposure-ledger/docs/roadmap/BACKLOG_LEDGER.md:338)
-Reason: Cross-layer contract centralization/generation is valid follow-up work, but it is outside this PR's instrumentation-only scope lock.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1416#discussion_r3074758628 -> bba685ea0
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1416#discussion_r3074758638 -> 055c113b5
 
 Disposition: FIXED
-- Sourcery nit on `Discussion Thread Pass` wording addressed in this artifact update.
+Commit: see mapping entries below
+Evidence: [app/schemas/paywall_analytics.py](/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/worktrees/feat-paywall-exposure-ledger/app/schemas/paywall_analytics.py:39), [app/routers/paywall_analytics.py](/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/worktrees/feat-paywall-exposure-ledger/app/routers/paywall_analytics.py:35), [app/main.py](/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/worktrees/feat-paywall-exposure-ledger/app/main.py:205), [app/services/paywall_exposure_ledger.py](/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/worktrees/feat-paywall-exposure-ledger/app/services/paywall_exposure_ledger.py:143), [tests/test_paywall_exposure_ledger_api.py](/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/worktrees/feat-paywall-exposure-ledger/tests/test_paywall_exposure_ledger_api.py:74), [tests/test_paywall_exposure_ledger_service.py](/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/worktrees/feat-paywall-exposure-ledger/tests/test_paywall_exposure_ledger_service.py:93), [tests/test_main_paywall_bootstrap.py](/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/worktrees/feat-paywall-exposure-ledger/tests/test_main_paywall_bootstrap.py:43)
+Reason: Hardened the hidden paywall ledger path by splitting client/server event enums, requiring trusted first-party provenance or authenticated context, enforcing correct route ownership during bootstrap, removing raw payment identifiers from analytics metadata, making the Alembic revision deterministic, and adding targeted coverage for the new branches.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1416#discussion_r3074768785 -> db3446f6e
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1416#discussion_r3074805532 -> db3446f6e
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1416#discussion_r3074805537 -> db3446f6e
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1416#discussion_r3074806360 -> db3446f6e
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1416#discussion_r3074806365 -> db3446f6e
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1416#discussion_r3074806369 -> db3446f6e
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1416#discussion_r3074806372 -> db3446f6e
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1416#discussion_r3074806387 -> db3446f6e
 
 ## Merge Readiness
 - [ ] All required checks pass
 - [ ] No unresolved review threads (re-check on current head before merge)
 - [ ] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
-- [x] Pre-commit green
-- [x] `make verify` green
+- [ ] Pre-commit green
+- [ ] `make verify` green
 
-Notes: Initial PR open state for paywall exposure ledger instrumentation. Local validation passed on commit `bab299463` after `python3 scripts/orchestration/check_preflight.py`, `python3 scripts/orchestration/check_agent_consistency.py`, `pre-commit run --all-files`, and `make verify`. Update this artifact before resolving any actionable review thread.
+Notes: `db3446f6e` passed targeted pytest, changed-file pre-commit, and accelerated changed-line diff-cover (`98%`). Full `make verify` / CI current-head status must be re-checked on the final merge cycle before any merge claim.
