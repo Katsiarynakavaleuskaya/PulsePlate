@@ -43,7 +43,8 @@ def upgrade() -> None:
             ALTER COLUMN embedding TYPE vector(768)
             USING (
                 CASE
-                    WHEN embedding IS NULL OR embedding = '' THEN NULL
+                    WHEN embedding IS NULL THEN NULL
+                    WHEN NULLIF(regexp_replace(embedding, '\\s+', '', 'g'), '') IS NULL THEN NULL
                     ELSE regexp_replace(embedding, '\\s+', '', 'g')::vector(768)
                 END
             )
