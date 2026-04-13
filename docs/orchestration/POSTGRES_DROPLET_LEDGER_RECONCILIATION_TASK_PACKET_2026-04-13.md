@@ -27,7 +27,19 @@ next active food implementation step explicit as `PR-B2`.
 - `docs/deploy/POSTGRES_SELF_HOSTED_DROPLET.md`
 - `deploy/docker-compose.production.yaml`
 - `deploy/docker-compose.production.selfhosted.yaml`
+- `deploy/systemd/pulseplate-postgres-backup.service.example`
+- `deploy/systemd/pulseplate-postgres-backup.timer.example`
+- `scripts/ops/postgres_backup.sh`
+- `scripts/ops/postgres_restore.sh`
 - `.env.example`
+
+## Canonical Lane Labels
+
+- `lane A`: managed PostgreSQL default production lane
+- `lane B`: self-hosted PostgreSQL on the Droplet as the supported operational
+  alternative
+- `next active food implementation lane`: the next execution lane after merged
+  `PR-B1`, which this packet defines as `PR-B2`
 
 ## PR Metadata
 
