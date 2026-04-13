@@ -15,6 +15,8 @@ Implement it as a **separate advisory compiled-memory workforce rail**, while th
 | Rail B1 | `P2: Karpathy-style advisory wiki umbrella` | Advisory workforce compiled memory | local operator memory, advisory wiki/compiler/query-lint/reference-corpus controls | product RAG replacement, DB/runtime/API source of truth, public response-contract logic |
 | Rail B2 | `P2: Plugin/control-plane families umbrella` | Advisory plugin/control-plane families | GitHub governance/CI review truth, Cloudflare preview/deploy control-plane, Figma design execution/review evidence, Hugging Face research/model-eval tooling | product runtime truth, public response-contract logic, semantic cache, bounded-context ownership |
 
+For the continuous bootstrap lane `PR-S0 -> PR-A5`, `docs/orchestration/WAVE6_AI_RUNTIME_AND_ADVISORY_SERIES_PACKET_2026-04-13.md` is the canonical series SoT. This roadmap epic defers to that packet whenever sequencing, rail-boundary, or semantic-cache-gating wording diverges.
+
 ### Rail A — Product AI runtime (canonical)
 Purpose:
 - insight fallback reliability
@@ -552,8 +554,8 @@ Build the PulsePlate RAG/LLM/Karpathy line as three separate but coordinated rai
    - PR-B1 advisory wiki compiler v1
    - PR-B2 advisory wiki semantics hardening
 
-Semantic cache is a later optimization gate on the product AI runtime rail only.
-See `docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md`.
+   Semantic cache is a later optimization gate on the product AI runtime rail only.
+   See `docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md`.
    - PR-B3 optional query/lint enrichment
    - PR-B4 optional reference-corpus policy
 
