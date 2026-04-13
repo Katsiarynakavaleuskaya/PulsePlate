@@ -2,6 +2,8 @@
 
 **Evidence (compose):** `deploy/docker-compose.production.yaml:22` (managed `DATABASE_URL`), `deploy/docker-compose.production.selfhosted.yaml:49` (synthesized `DATABASE_URL` from `POSTGRES_*`), `deploy/docker-compose.staging.yaml:42` (Caddy `--forwarded-allow-ips` pattern).
 
+**Canonical deployment note:** Production defaults to **managed PostgreSQL** (lane A). Self-hosted PostgreSQL on the Droplet remains a supported operational alternative (**lane B**) and should not be treated as a separate required implementation wave when the repo already carries both lanes.
+
 ## Lane A — Managed PostgreSQL (default production)
 
 - **Compose:** `deploy/docker-compose.production.yaml`

@@ -15,10 +15,12 @@ runtime cutover, or restaurant importer rewiring.
 - This packet owns only **PR-B1**.
 - The execution train is fixed as:
   - `PR-B1`: foods snapshot promotion into PostgreSQL `foods`
-  - `ledger-p0-self-hosted-postgres-droplet-foundation`
   - `PR-B2`: restaurant relational bridge
   - `B3` deferred: runtime read-switch / cutover
-- `PR-B2` must not start execution until the infra blocker closes on `main`.
+- The former Postgres deploy-foundation blocker is now closed separately via
+  repo/runtime evidence reconciliation; it is not a remaining implementation
+  gate ahead of `PR-B2`.
+- `PR-B2` is the next active implementation lane after merged `PR-B1`.
 
 ## Source of Truth
 
@@ -123,4 +125,4 @@ Mandatory post-open review lane remains: `qa-engineer-agent -> bug-hunter`.
 - Promotion uses deterministic `ON CONFLICT(id)` upsert semantics
 - JSON-shaped fields are validated and preserved deterministically
 - The lane introduces no runtime/importer/schema/OpenAPI drift
-- `PR-B2` remains blocked on the self-hosted Droplet foundation closeout
+- `PR-B2` is the next active food implementation lane after merged `PR-B1`; runtime cutover remains deferred to `B3`

@@ -29,23 +29,27 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 ### P0
 
 <a id="ledger-p0-self-hosted-postgres-droplet-foundation"></a>
-- [ ] P0: Self-hosted Postgres Droplet Foundation
+- [x] P0: Self-hosted Postgres Droplet Foundation
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0 (deployment-safety blocker)
-  - Target PR: TBD (branch `infra/p0-self-hosted-postgres-droplet`)
+  - Target PR: PR `#1417` (`docs/close-postgres-droplet-foundation-ledger`)
   - Area: infra / database / deploy
-  - Reason: Promote Postgres from optional/profile-gated to canonical prod DB on Droplet. Insert narrow infra-wave between B1 and B2; Batch B remains active. SQLite stays dev/test fallback only.
+  - Status: Closed by repo/runtime evidence reconciliation. Managed PostgreSQL is the canonical default production lane; self-hosted PostgreSQL on the Droplet remains the supported lane B. No new infra implementation PR is required before Foods B2.
+  - Reason: The repo already carries both production lanes, the required environment contract, and backup/restore operational assets. This item stayed open only because the backlog wording drifted behind the shipped deploy/runtime truth. SQLite remains dev/test fallback only.
   - Links:
     - docs/deploy/POSTGRES_SELF_HOSTED_DROPLET.md
+    - deploy/docker-compose.production.yaml
     - deploy/docker-compose.production.selfhosted.yaml
     - deploy/systemd/pulseplate-postgres-backup.service.example
+    - deploy/systemd/pulseplate-postgres-backup.timer.example
     - scripts/ops/postgres_backup.sh
-    - core/db_fallback.py
+    - scripts/ops/postgres_restore.sh
+    - .env.example
   - DoD:
-    - Dedicated self-hosted compose: `postgres` without published 5432; `app` `depends_on` postgres + health condition; managed lane unchanged in `deploy/docker-compose.production.yaml`
-    - No dev-only password; `DATABASE_URL` + `POSTGRES_*` required per `.env.example`
-    - Backup/restore documented; host `scripts/ops/postgres_backup.sh` + optional systemd timer examples
-    - Runbook documents both lanes (managed vs self-hosted), migrations, Caddy build, health checks
+    - Backlog wording no longer claims an open infra implementation wave that is already present in repo
+    - Closure evidence points to the canonical two-lane runbook, both production compose files, backup/restore assets, and `.env.example`
+    - Deploy/docs canon is explicit that managed PostgreSQL is the default production lane and self-hosted PostgreSQL is the supported lane B
+    - Foods sequencing no longer treats this item as the mandatory implementation blocker ahead of B2
 
 <a id="ledger-p0-payments-ruby-ios"></a>
 - [ ] P0: Payment rails for RU/BY + iOS-first monetization baseline
@@ -4717,17 +4721,16 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - The change introduces no runtime, schema, or OpenAPI behavior
 
 <a id="ledger-p1-foods-postgres-foundation-followthrough"></a>
-- [ ] P1: Foods PostgreSQL follow-through train (B1 -> infra -> B2, B3 deferred)
+- [ ] P1: Foods PostgreSQL follow-through train (B1 closed -> B2 next, B3 deferred)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-B1 (`feat/pr-b1-foods-offline-etl-postgres`) -> `ledger-p0-self-hosted-postgres-droplet-foundation` -> PR-B2 (`feat/pr-b2-restaurant-relational-bridge`); B3 runtime cutover stays deferred outside B2
-  - Status: 📋 Planned
+  - Target PR: PR-B1 (`feat/pr-b1-foods-offline-etl-postgres`) -> PR-B2 (`feat/pr-b2-restaurant-relational-bridge`); B3 runtime cutover stays deferred outside B2
+  - Status: 🚧 Active after merged B1; B2 is the next implementation lane, while B3 runtime cutover remains deferred outside B2
   - Area: backend / data platform / restaurant ingestion
   - Finding Type: post-foundation execution gap
-  - Reason: The additive Alembic foundation lane intentionally creates `foods`, `restaurant_chains`, and `restaurant_menu_items` without changing the current SQLite/local-first runtime, ETL path, or MenuStat importer. The canonical follow-through now executes as a governed train: B1 promotes the existing SQLite snapshot into PostgreSQL `foods`; the self-hosted Droplet foundation lands as a narrow infra blocker before any importer bridge; B2 rewires restaurant ingestion into the relational catalog; B3 keeps runtime read-switch / cutover out of B2 as its own deferred rollout lane.
+  - Reason: The additive Alembic foundation lane intentionally creates `foods`, `restaurant_chains`, and `restaurant_menu_items` without changing the current SQLite/local-first runtime, ETL path, or MenuStat importer. The governed follow-through now continues from merged B1 directly into B2 because the Postgres deploy foundation is already present in repo and closed separately as a docs/governance reconciliation lane. B2 rewires restaurant ingestion into the relational catalog; B3 keeps runtime read-switch / cutover out of B2 as its own deferred rollout lane.
   - Sequence:
     - B1: offline snapshot promotion from `data/food.sqlite::foods` into PostgreSQL `foods` with deterministic upsert/report coverage and no runtime/importer drift
-    - Infra wave: close `ledger-p0-self-hosted-postgres-droplet-foundation` before any restaurant bridge or runtime claims
     - B2: bridge `scripts/import_restaurant_menu.py` and restaurant persistence toward `restaurant_chains` / `restaurant_menu_items` additively, without runtime cutover
     - B3 (deferred): decide and govern any runtime read-switch / PostgreSQL cutover as a later dedicated lane
   - Links:
@@ -4741,7 +4744,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `scripts/import_restaurant_menu.py`
   - DoD:
     - B1 packet and backlog sequencing explicitly lock the first executable lane to deterministic SQLite snapshot promotion into PostgreSQL `foods`
-    - The self-hosted Droplet foundation remains the blocking infra step between B1 and B2, with no direct B1 -> B2 execution path
+    - Backlog sequencing explicitly marks B2 as the next active food implementation lane after merged B1
     - B2 scope is explicit: restaurant importer rewiring targets `restaurant_chains` / `restaurant_menu_items` with deterministic compatibility coverage and no runtime cutover claim
     - B3 runtime cutover / read-switch remains explicitly deferred outside B2
     - Search / catalog follow-up lanes continue to reference the same canonical PostgreSQL table source without parallel schema drift
