@@ -400,7 +400,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Remove temporary `Pillow 12.2.0` emergency wheel fallback after approved mirror sync
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (security / supply-chain / CI blocker)
-  - Target PR: `PR #1416`
+  - Target PR: `PR-TBD` (follow-up after `PR #1416`)
   - Status: Active as of `13 April 2026`
   - Area: security / CI / dependencies
   - Reason (EN): `feat/paywall-exposure-ledger` must stay on the patched exact release `Pillow 12.2.0` for `GHSA-whj4-6x5x-4v2j`, but current-head CI and Docker installs showed the approved private index lagged that upstream release. `PR #1416` therefore adds a time-boxed exact-wheel fallback with pinned `sha256` digests instead of a vulnerable repin or a broad public-index bypass. Remove this fallback as soon as the approved mirror serves `12.2.0` natively. (RU: `feat/paywall-exposure-ledger` должен остаться на исправленном точном релизе `Pillow 12.2.0`, но CI/Docker показали отставание приватного зеркала. Поэтому `PR #1416` добавляет временный exact-wheel fallback с pinned `sha256`, а не уязвимый репин и не широкий bypass на публичный индекс. Удалить fallback сразу после того, как одобренное зеркало начнёт отдавать `12.2.0` нативно.)
