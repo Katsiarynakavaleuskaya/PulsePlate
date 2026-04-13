@@ -36,6 +36,16 @@ Disposition: NOT-A-BUG
 Reason: This Cubic review URL only aggregates the same Pillow runtime-gap finding already fixed at thread level and does not require an additional code or docs change beyond that mapped thread.
 Evidence: See the mapped FIXED entries for `discussion_r3075824090` and `discussion_r3075858495` above.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1415#discussion_r3076040654 -> b1d7274f7
+Disposition: FIXED
+Commit: b1d7274f7
+Evidence: `scripts/ci/emergency_python_wheels.json:22` is now the single remaining `pillow==12.2.0` emergency wheel entry; the duplicate block previously repeated at lines `77-83` has been removed so fallback staging cannot select the same wheel twice.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1415#pullrequestreview-4102176336
+Disposition: NOT-A-BUG
+Reason: This CodeRabbit review URL is the aggregate container for the already-dispositioned inline finding and does not introduce an extra unfixed delta beyond `discussion_r3076040654`.
+Evidence: See the FIXED mapping for `discussion_r3076040654` above.
+
 ## Merge Readiness
 - [ ] All required checks pass
 - [ ] No unresolved review threads (re-check on current head before merge)
