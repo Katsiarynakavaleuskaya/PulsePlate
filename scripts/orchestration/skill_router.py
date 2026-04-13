@@ -560,7 +560,9 @@ SKILL_RULES: tuple[SkillRule, ...] = (
         min_score=4,
         domain_weights={"qa": 1},
         keywords=(
-            "gh",
+            "gh pr checks",
+            "gh run",
+            "gh workflow",
             "github actions",
             "pr checks",
             "pull request checks",

@@ -13,7 +13,7 @@ Options:
   --unlink          Remove installed skills from destination.
   --list            Print source skills and destination install status.
   --target <name>   Install target: official -> ~/.agents/skills (default),
-                    compat -> $CODEX_HOME/skills (~/.codex/skills).
+                    compat -> $CODEX_HOME/skills (or $HOME/.codex/skills when CODEX_HOME is unset).
   --dest <path>     Destination skills directory override. Use for temp validation
                     or explicit custom install roots.
   --no-cybersec     Install only PulsePlate skills (skip cybersecurity skills).

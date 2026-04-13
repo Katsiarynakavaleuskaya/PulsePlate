@@ -81,6 +81,19 @@ def test_install_codex_skills_supports_explicit_compat_target(tmp_path: Path) ->
     assert not installed_skill.exists()
 
 
+def test_install_codex_skills_help_clarifies_compat_fallback_when_codex_home_is_overridden(
+    tmp_path: Path,
+) -> None:
+    """Help text should explain that ~/.codex is only the fallback when CODEX_HOME is unset."""
+
+    result = _run_installer(tmp_path, "--help")
+
+    assert (
+        "compat -> $CODEX_HOME/skills (or $HOME/.codex/skills when CODEX_HOME is unset)."
+        in result.stdout
+    )
+
+
 def test_install_codex_skills_supports_explicit_custom_destination(tmp_path: Path) -> None:
     """Explicit --dest should use a custom target without touching default install roots."""
 

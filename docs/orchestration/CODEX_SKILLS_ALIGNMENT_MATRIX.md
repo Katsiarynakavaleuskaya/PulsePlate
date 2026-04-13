@@ -100,7 +100,7 @@ Allowed in this alignment wave:
 
 - improve deterministic skill discovery,
 - improve additive routing quality,
-- document have/conditional/missing skill coverage,
+- document current/conditional/missing skill coverage,
 - record missing custom skills in backlog.
 
 Not allowed in this alignment wave:

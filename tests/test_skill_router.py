@@ -819,6 +819,19 @@ def test_skill_router_selects_github_comment_skill_for_review_threads() -> None:
     assert "gh-address-comments" in skills
 
 
+def test_skill_router_keeps_gh_fix_ci_out_of_generic_github_cli_tasks() -> None:
+    """Generic gh CLI usage should not route into the CI-specific GitHub helper."""
+
+    skills = select_recommended_skills(
+        goal="Use gh issue list to inspect open product backlog issues",
+        task_class="Documentation",
+        candidate_paths=["docs/roadmap/BACKLOG_LEDGER.md"],
+        domain="docs",
+    )
+
+    assert "gh-fix-ci" not in skills
+
+
 def test_skill_router_keeps_pr_helpers_conditional_outside_pr_governance() -> None:
     """PR helper skills should stay conditional when the task is not in PR lane yet."""
 
