@@ -10,7 +10,13 @@ Bot and human review threads must be dispositioned here before they are resolved
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1411#pullrequestreview-4097593582 -> 195b4eb02
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1411#discussion_r3071956741 -> 195b4eb02
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1411#pullrequestreview-4097620032 -> 195b4eb02
+
+Disposition: FIXED
+Commit: 195b4eb02
+Evidence: docs/roadmap/BACKLOG_LEDGER.md:2652; docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md:18; docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md:557
 
 ## Merge Readiness
 
