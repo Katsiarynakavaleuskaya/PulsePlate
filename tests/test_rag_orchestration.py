@@ -118,6 +118,27 @@ class TestRetrieveAndValidateRag:
     """Tests for main orchestration function."""
 
     @pytest.mark.asyncio
+    async def test_none_retrieval_context_returns_empty_fail_safe_result(self) -> None:
+        """`None` retrieval output must fail closed to an empty fail-safe result."""
+        with (
+            patch(
+                "asyncio.to_thread",
+                new_callable=AsyncMock,
+                return_value=None,
+            ),
+            patch("core.rag.vector_rag.retrieve_context_structured"),
+        ):
+            result = await retrieve_and_validate_rag("test prompt")
+
+        assert result.rag_actually_used is False
+        assert result.chunks == []
+        assert result.formatted_prompt == "test prompt"
+        assert result.confidence is None
+        assert result.hops == 0
+        assert result.latency_ms == 0
+        assert result.degraded_reason == RAGDegradedReason.ORCHESTRATION_EXCEPTION
+
+    @pytest.mark.asyncio
     async def test_no_chunks_retrieved_returns_empty(self) -> None:
         """When RAG returns no chunks, result has rag_actually_used=False."""
         rag_ctx = _make_rag_context(chunks=[], hops=2, latency_ms=100)
