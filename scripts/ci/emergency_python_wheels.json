@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-04-09",
-  "expires_at": "2026-04-30",
-  "reason": "Temporary exact-wheel fallback for cryptography, pytest, faker, hypothesis, sentence-transformers, ruff, types-pyyaml, and transformers while the approved private proxy lags the patched upstream releases used by active dependency PRs.",
+  "generated_at": "2026-04-13",
+  "expires_at": "2026-05-15",
+  "reason": "Temporary exact-wheel fallback for cryptography, pytest, faker, hypothesis, sentence-transformers, ruff, types-pyyaml, transformers, and pillow while the approved private proxy lags the patched upstream releases used by active dependency PRs.",
   "artifacts": [
     {
       "package": "cryptography",
@@ -66,6 +66,20 @@
       "filename": "transformers-5.5.3-py3-none-any.whl",
       "url": "https://files.pythonhosted.org/packages/a1/0b/f8524551ab2d896dfaca74ddb70a4453d515bbf4ab5451c100c7788ae155/transformers-5.5.3-py3-none-any.whl",
       "sha256": "e48f3ec31dd96505e96e66b63a1e43e1ad7a65749e108d9227caaf51051cdb02"
+    },
+    {
+      "package": "pillow",
+      "version": "12.2.0",
+      "filename": "pillow-12.2.0-cp313-cp313-manylinux2014_x86_64.manylinux_2_17_x86_64.whl",
+      "url": "https://files.pythonhosted.org/packages/a8/68/b93e09e5e8549019e61acf49f65b1a8530765a7f812c77a7461bca7e4494/pillow-12.2.0-cp313-cp313-manylinux2014_x86_64.manylinux_2_17_x86_64.whl",
+      "sha256": "03f6fab9219220f041c74aeaa2939ff0062bd5c364ba9ce037197f4c6d498cd9"
+    },
+    {
+      "package": "pillow",
+      "version": "12.2.0",
+      "filename": "pillow-12.2.0-cp313-cp313-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl",
+      "url": "https://files.pythonhosted.org/packages/67/ee/21d4e8536afd1a328f01b359b4d3997b291ffd35a237c877b331c1c3b71c/pillow-12.2.0-cp313-cp313-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl",
+      "sha256": "eedf4b74eda2b5a4b2b2fb4c006d6295df3bf29e459e198c90ea48e130dc75c3"
     }
   ]
 }

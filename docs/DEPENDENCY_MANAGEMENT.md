@@ -66,10 +66,10 @@ Canonical contract for shared CI/Docker/bootstrap paths:
 - GitHub Actions source these values from `secrets` first and fall back to repository `vars`, so an emergency secret override can immediately replace a stale repository-level default without editing every workflow file.
 - Public package hosts such as `pypi.org`, `files.pythonhosted.org`, and `test.pypi.org` are rejected by the shared installer.
 - Ambient overrides such as `PIP_INDEX_URL` / `PIP_EXTRA_INDEX_URL` are rejected for canonical installs.
-- Time-boxed exceptions must stay exact and manifest-driven. Current example:
-  `scripts/ci/emergency_python_wheels.json` permits only the patched
-  `cryptography 46.0.7` Linux wheels with pinned `sha256` digests until the
-  approved proxy catches up.
+- Time-boxed exceptions must stay exact and manifest-driven. Current approved
+  emergency wheels live only in `scripts/ci/emergency_python_wheels.json` with
+  pinned `sha256` digests, allowlisted hosts, and an explicit expiry date until
+  the approved proxy catches up.
 
 **Note**: The temporary wheelhouse is no longer the final control. The repo now fails closed unless dependency resolution goes through the approved private proxy. Artifact quarantine and promotion review still live outside the repo as infrastructure controls.
 
