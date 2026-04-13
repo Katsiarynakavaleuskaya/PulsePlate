@@ -4664,6 +4664,45 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - The artifact is explicitly framed as a stable docs-only audit for merged PR `#673` and PR `#674`
     - The change introduces no runtime, schema, or OpenAPI behavior
 
+<a id="ledger-p1-foods-postgres-foundation-followthrough"></a>
+- [ ] P1: Foods PostgreSQL foundation follow-through (ETL, importer rewiring, runtime cutover)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-FOODS-POSTGRES-FOLLOWTHROUGH
+  - Status: 📋 Planned
+  - Area: backend / data platform / restaurant ingestion
+  - Finding Type: post-foundation execution gap
+  - Reason: The additive Alembic foundation lane intentionally creates `foods`, `restaurant_chains`, and `restaurant_menu_items` without changing the current SQLite/local-first runtime, ETL path, or MenuStat importer. Those operational changes must land later as a separate follow-through wave instead of widening the foundation PR.
+  - Links:
+    - `docs/orchestration/FOODS_CATALOG_FOUNDATION_PR_A_TASK_PACKET_2026-04-12.md`
+    - `app/services/food_store.py`
+    - `scripts/build_food_db.py`
+    - `app/services/restaurant_store.py`
+    - `scripts/import_restaurant_menu.py`
+  - DoD:
+    - PostgreSQL foods/catalog backfill or snapshot promotion path is defined and tested
+    - Restaurant importer rewiring targets the new relational tables with deterministic compatibility coverage
+    - Runtime contract decision is explicit: keep SQLite as baseline or switch reads to PostgreSQL behind a governed rollout
+    - Search / catalog follow-up lanes reference the same canonical table source without parallel schema drift
+
+<a id="ledger-p1-foods-foundation-downgrade-ownership"></a>
+- [ ] P1: Make foods foundation downgrade ownership-aware for pre-existing catalog objects
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-FOODS-FOUNDATION-DOWNGRADE-OWNERSHIP
+  - Status: 📋 Planned
+  - Area: backend / migrations / PostgreSQL
+  - Finding Type: downgrade symmetry / object ownership
+  - Reason: Revision `202604120001` now guards upgrade-time creation of `foods` and companion indexes when a supported colocated catalog shape already exists, but the downgrade path still assumes ownership of those objects. A follow-up lane must make the downgrade ownership-aware so rolling back the revision does not drop pre-existing `foods`/index artifacts that were not created by this revision.
+  - Links:
+    - `alembic/versions/202604120001_add_foods_catalog_foundation.py`
+    - `docs/orchestration/FOODS_CATALOG_FOUNDATION_PR_A_TASK_PACKET_2026-04-12.md`
+    - `docs/review/PR_1409_FIXED_MAPPING.md`
+  - DoD:
+    - Downgrade behavior is explicit for both clean-room and pre-existing `foods` catalog shapes
+    - The revision no longer drops pre-existing `foods`/index artifacts that it did not create
+    - Migration tests cover both the clean-room downgrade cycle and the pre-existing-table ownership scenario
+
 ## Completed Items
 
 Entries are sorted by priority, then theme, then title. Theme uses `Area:` when present and a deterministic title/domain fallback otherwise.
