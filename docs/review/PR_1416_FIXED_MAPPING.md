@@ -46,6 +46,12 @@ Reason: Canonical evidence links in the PR 1416 artifact were normalized to repo
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1416#discussion_r3074827084 -> ee85df1b0
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1416#discussion_r3074827088 -> ee85df1b0
 
+Disposition: FIXED
+Commit: 0769efdf6
+Evidence: [tests/test_main_paywall_bootstrap.py](../../tests/test_main_paywall_bootstrap.py#L44)
+Reason: The bootstrap helper test now restores `app_main.app` after exercising temporary `FastAPI` instances, preventing module-singleton contamination across later tests.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1416#discussion_r3075310789 -> 0769efdf6
+
 ## Merge Readiness
 - [ ] All required checks pass
 - [ ] No unresolved review threads (re-check on current head before merge)
