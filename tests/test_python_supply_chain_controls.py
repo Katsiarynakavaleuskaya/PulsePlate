@@ -231,11 +231,10 @@ def test_security_scan_workflow_uses_ci_lite_direct_proxy_setup() -> None:
         if step.get("name") == "Install security tooling"
     )
     install_script = install_step["run"]
-    assert "bandit==" not in install_script
-    assert (
-        'python -m pip install "${pip_index_args[@]}" "safety>=3.7.0" -c constraints.txt'
-        in install_script
-    )
+    assert '"bandit==1.8.6"' in install_script
+    assert '"safety>=3.7.0"' in install_script
+    assert 'python -m pip install "${pip_index_args[@]}"' in install_script
+    assert "-c constraints.txt" in install_script
 
 
 @pytest.mark.parametrize(
@@ -262,13 +261,6 @@ def test_ci_workflow_uses_single_direct_proxy_python_install_path_per_job() -> N
     )
     jobs = ci_workflow["jobs"]
 
-    def _python_setup_step(job_name: str) -> dict[str, object]:
-        steps = jobs[job_name]["steps"]
-        for step in steps:
-            if step.get("uses") == "./.github/actions/python-setup":
-                return step
-        raise AssertionError(f"Missing python-setup step for job: {job_name}")
-
     direct_proxy_jobs = (
         "lint",
         "security",
@@ -279,16 +271,16 @@ def test_ci_workflow_uses_single_direct_proxy_python_install_path_per_job() -> N
         "test-main",
     )
     for job_name in direct_proxy_jobs:
-        setup_step = _python_setup_step(job_name)
+        setup_step = _python_setup_step(".github/workflows/ci.yml", job_name)
         assert setup_step["with"]["install-mode"] == "direct-proxy"
 
     for job_name in ("lint", "security", "openapi-sync", "diff-coverage"):
-        setup_step = _python_setup_step(job_name)
+        setup_step = _python_setup_step(".github/workflows/ci.yml", job_name)
         assert setup_step["with"]["requirements-profile"] == "ci-lite"
         assert "install-dev-deps" not in setup_step["with"]
 
     for job_name in ("test-pr", "test-feature", "test-main"):
-        setup_step = _python_setup_step(job_name)
+        setup_step = _python_setup_step(".github/workflows/ci.yml", job_name)
         assert setup_step["with"]["requirements-profile"] == "runtime-test"
         assert "install-test-deps" not in setup_step["with"]
         assert all(step.get("name") != "Install dependencies" for step in jobs[job_name]["steps"])

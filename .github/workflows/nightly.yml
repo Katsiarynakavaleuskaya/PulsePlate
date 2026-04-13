@@ -46,6 +46,7 @@ jobs:
           install-mode: direct-proxy
 
       - name: Show installed Python packages
+        if: matrix.shard_id == 1
         run: pip list
 
       - name: Run linting
