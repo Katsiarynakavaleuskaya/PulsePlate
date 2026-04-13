@@ -28,6 +28,12 @@ const legacyPaywallEventMap: Partial<Record<string, PaywallExposureEventName>> =
   purchase_attempt: "cta_clicked",
 };
 
+let paywallExposurePostPromise:
+  | Promise<{
+      postPaywallExposureEvent: (payload: PaywallExposurePayload) => Promise<void>;
+    }>
+  | null = null;
+
 function createRandomId(): string {
   if (typeof globalThis.crypto?.randomUUID === "function") {
     return globalThis.crypto.randomUUID();
@@ -83,7 +89,9 @@ export function logPaywallExposure(payload: PaywallExposurePayload): void {
 
   // RU: Analytics never blocks paywall UX; transport errors are fail-open.
   // EN: Analytics must never block paywall UX; transport errors are fail-open.
-  void import("../api/client")
+  paywallExposurePostPromise ??= import("../api/client");
+
+  void paywallExposurePostPromise
     .then(({ postPaywallExposureEvent }) => postPaywallExposureEvent(payload))
     .catch(logError);
 }

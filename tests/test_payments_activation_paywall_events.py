@@ -8,6 +8,11 @@ from sqlalchemy import delete, select
 from app.models import PaywallExposureLedger
 from app.schemas.payments import ActivateSubscriptionRequest
 from app.services import payments_activation
+from app.services.paywall_exposure_ledger import (
+    _stable_activation_exposure_id,
+    _stable_server_event_id,
+)
+from app.schemas.paywall_analytics import PaywallExposureEventName
 from core import db as core_db
 
 
@@ -64,11 +69,24 @@ def test_activation_records_upgrade_started_and_completed() -> None:
     payload = ActivateSubscriptionRequest.model_validate(
         _manual_payload(source_reference="ERIP-LEDGER-START-1")
     )
+    normalized = payments_activation._normalize_activation(payload=payload)
 
     payments_activation.activate_subscription(payload=payload, user_id=101)
 
     rows = _load_rows()
     assert [row.event_name for row in rows] == ["upgrade_started", "upgrade_completed"]
+    assert rows[0].exposure_id == rows[1].exposure_id
+    assert rows[0].client_event_id == _stable_server_event_id(
+        idempotency_key=normalized.idempotency_key,
+        event_name=PaywallExposureEventName.upgrade_started,
+    )
+    assert rows[1].client_event_id == _stable_server_event_id(
+        idempotency_key=normalized.idempotency_key,
+        event_name=PaywallExposureEventName.upgrade_completed,
+    )
+    assert rows[0].exposure_id == _stable_activation_exposure_id(
+        idempotency_key=normalized.idempotency_key
+    )
     assert rows[0].source_surface == "erip_qr"
     assert rows[0].trigger_reason == "activation_flow"
     assert rows[1].source_surface == "erip_qr"
@@ -79,12 +97,22 @@ def test_activation_replay_does_not_duplicate_upgrade_completed() -> None:
     payload = ActivateSubscriptionRequest.model_validate(
         _manual_payload(source_reference="ERIP-LEDGER-REPLAY-1")
     )
+    normalized = payments_activation._normalize_activation(payload=payload)
 
     payments_activation.activate_subscription(payload=payload, user_id=202)
     payments_activation.activate_subscription(payload=payload, user_id=202)
 
     rows = _load_rows()
     assert [row.event_name for row in rows] == ["upgrade_started", "upgrade_completed"]
+    assert rows[0].exposure_id == rows[1].exposure_id
+    assert rows[0].client_event_id == _stable_server_event_id(
+        idempotency_key=normalized.idempotency_key,
+        event_name=PaywallExposureEventName.upgrade_started,
+    )
+    assert rows[1].client_event_id == _stable_server_event_id(
+        idempotency_key=normalized.idempotency_key,
+        event_name=PaywallExposureEventName.upgrade_completed,
+    )
 
 
 def test_activation_succeeds_when_ledger_write_fails(
