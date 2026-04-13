@@ -12,7 +12,6 @@ Disposition: FIXED
 Commit: 9238ac69c275412547bbb1aa521f7e41833607d1
 Evidence: `alembic/versions/202604120001_add_foods_catalog_foundation.py:72`; `alembic/versions/202604120001_add_foods_catalog_foundation.py:80`; `alembic/versions/202604120001_add_foods_catalog_foundation.py:134`; `alembic/versions/202604120001_add_foods_catalog_foundation.py:157`; `tests/test_foods_catalog_foundation_migration.py:37`; `tests/test_foods_catalog_foundation_migration.py:89`; `tests/test_foods_catalog_foundation_migration.py:157`; `docs/orchestration/FOODS_CATALOG_FOUNDATION_PR_A_TASK_PACKET_2026-04-12.md:69`; `docs/roadmap/BACKLOG_LEDGER.md:4666`
 Reason: The foundation migration now guards pre-existing `foods`, uses repo-aligned `restaurant_chains` / `chain_id`, keeps `Numeric` defaults self-documenting, pins the migration tests to `FOUNDATION_REVISION`, validates non-trigram indexes plus FK fidelity, updates the PostgreSQL proof instructions to the stamped sequence, and moves the deferred follow-through item back under Open Items. The `foods` guard and stamped-proof corrections were also identified by cubic.
-
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1409#pullrequestreview-4095728810 -> 9238ac69c275412547bbb1aa521f7e41833607d1
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1409#pullrequestreview-4095731022 -> 9238ac69c275412547bbb1aa521f7e41833607d1
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1409#pullrequestreview-4095734627 -> 9238ac69c275412547bbb1aa521f7e41833607d1
@@ -30,33 +29,35 @@ Reason: The foundation migration now guards pre-existing `foods`, uses repo-alig
 Disposition: NOT-A-BUG
 Evidence: `alembic/versions/202604120001_add_foods_catalog_foundation.py:191`; `docs/deploy/POSTGRES_SELF_HOSTED_DROPLET.md:81`; `docs/architecture/ADR_SEARCH_PGTRGM_CANDIDATES_LANE_P2.md:16`
 Reason: The `pg_trgm` extension call is intentional and matches the accepted Phase 1 PostgreSQL candidate-index lane. Managed-provider privilege limits are handled operationally by pre-enabling `pg_trgm`; this foundation revision only replays the already-approved extension/index seam after `foods` exists.
-
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1409#discussion_r3070193191
 
 Disposition: NOT-A-BUG
 Evidence: `tests/test_foods_catalog_foundation_migration.py:37`; `tests/test_foods_catalog_foundation_migration.py:97`; `tests/test_foods_catalog_foundation_migration.py:178`; `alembic/env.py:33`
 Reason: The migration tests run every Alembic step in a fresh subprocess and inspect the SQLite database through direct `create_engine(...)` calls in the parent process. No cached `core.db` engine or `SessionLocal` state is reused across upgrade/downgrade steps, so resetting module globals in this test would be redundant.
-
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1409#pullrequestreview-4095832513
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1409#discussion_r3070311540
 
 Disposition: NOT-A-BUG
 Evidence: `AGENTS.md:5`; `AGENTS.md:8`; `tests/test_foods_catalog_foundation_migration.py:37`
 Reason: CodeRabbit's walkthrough "Docstring Coverage" warning is advisory and not part of the repository's hard merge gates. The touched helper introduced in this PR already has a bilingual docstring; the remaining warning does not indicate a merge-blocking regression in this lane.
-
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1409#issuecomment-4232685869
 
 Disposition: FIXED
 Commit: f9c01e61ae3fd8c66bd0e1e006ec16b79b080ff8
 Evidence: `tests/test_foods_catalog_foundation_migration.py:61`
 Reason: The Alembic helper no longer uses an unused walrus assignment in `cwd=...`, which removes the unnecessary local binding raised by the latest CodeRabbit nitpick review.
-
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1409#pullrequestreview-4097398310 -> f9c01e61ae3fd8c66bd0e1e006ec16b79b080ff8
+
+Disposition: FIXED
+Commit: 234ac55fc725f07a7a8cda57290da3eacad6e192
+Evidence: `tests/test_foods_catalog_foundation_migration.py:20`; `tests/test_foods_catalog_foundation_migration.py:44`
+Reason: The Alembic test helper now rewrites `alembic.ini` via `configparser` instead of a fragile text replace, adds a bounded subprocess timeout, and includes both `stdout` and `stderr` in assertion failures. This resolves the new CodeRabbit review summary and the still-open inline timeout thread.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1409#pullrequestreview-4097507045 -> 234ac55fc725f07a7a8cda57290da3eacad6e192
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1409#discussion_r3071879769 -> 234ac55fc725f07a7a8cda57290da3eacad6e192
 
 Disposition: DEFERRED
 Backlog: `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-foods-foundation-downgrade-ownership`
 Reason: cubic identified a real downgrade-symmetry gap after the upgrade-time existence guards were added. Fixing it correctly requires an ownership-aware migration design plus additional downgrade tests for pre-existing catalog shapes, which is broader than the current PR-A foundation scope and is now tracked as an explicit follow-up.
-
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1409#pullrequestreview-4097403512
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1409#discussion_r3071783807
 
