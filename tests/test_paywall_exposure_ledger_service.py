@@ -1,10 +1,14 @@
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 import pytest
 from sqlalchemy import delete, select
+from sqlalchemy.exc import IntegrityError
 
 from app.models import PaywallExposureLedger
 from app.schemas.paywall_analytics import PaywallExposureEventName
+from app.services import paywall_exposure_ledger
 from app.services.paywall_exposure_ledger import (
     PaywallExposureAuthContext,
     PaywallExposureRecordInput,
@@ -97,3 +101,69 @@ def test_record_paywall_exposure_event_is_idempotent() -> None:
 
     rows = _load_rows()
     assert len(rows) == 1
+
+
+def test_record_paywall_exposure_event_recovers_from_integrity_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    existing_row = SimpleNamespace(id="existing-row")
+
+    class _ExecuteResult:
+        def __init__(self, row: object | None) -> None:
+            self._row = row
+
+        def scalar_one_or_none(self) -> object | None:
+            return self._row
+
+    class _FakeSession:
+        def __init__(self) -> None:
+            self._execute_calls = 0
+            self.rollback_called = False
+            self.closed = False
+
+        def execute(self, _statement: object) -> _ExecuteResult:
+            self._execute_calls += 1
+            if self._execute_calls == 1:
+                return _ExecuteResult(None)
+            return _ExecuteResult(existing_row)
+
+        def add(self, _row: object) -> None:
+            return None
+
+        def commit(self) -> None:
+            raise IntegrityError("insert", {}, RuntimeError("duplicate"))
+
+        def refresh(self, _row: object) -> None:
+            return None
+
+        def rollback(self) -> None:
+            self.rollback_called = True
+
+        def expunge(self, _row: object) -> None:
+            return None
+
+        def close(self) -> None:
+            self.closed = True
+
+    fake_session = _FakeSession()
+    monkeypatch.setattr(
+        paywall_exposure_ledger,
+        "get_session_factory",
+        lambda: lambda: fake_session,
+    )
+
+    row, created = record_paywall_exposure_event(
+        record=PaywallExposureRecordInput(
+            client_event_id="svc-event-0003",
+            exposure_id="svc-exposure-0003",
+            event_name=PaywallExposureEventName.dismissed,
+            source_surface="bmi_soft_paywall",
+            trigger_reason="post_bmi_result",
+        ),
+        auth_context=PaywallExposureAuthContext(),
+    )
+
+    assert created is False
+    assert row is existing_row
+    assert fake_session.rollback_called is True
+    assert fake_session.closed is True

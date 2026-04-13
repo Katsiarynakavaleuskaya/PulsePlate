@@ -43,6 +43,14 @@ class PaywallExposureEventName(str, Enum):
     upgrade_completed = "upgrade_completed"
 
 
+class ClientPaywallExposureEventName(str, Enum):
+    """Client-authored paywall event names allowed on the hidden ingestion route."""
+
+    shown = "shown"
+    dismissed = "dismissed"
+    cta_clicked = "cta_clicked"
+
+
 class PaywallExposureEventRequest(BaseModel):
     """Client-reported paywall exposure payload."""
 
@@ -50,7 +58,7 @@ class PaywallExposureEventRequest(BaseModel):
 
     client_event_id: IdentifierString
     exposure_id: IdentifierString
-    event_name: PaywallExposureEventName
+    event_name: ClientPaywallExposureEventName
     source_surface: SlugString
     trigger_reason: SlugString
     via: SlugString | None = None

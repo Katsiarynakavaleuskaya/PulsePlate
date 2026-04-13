@@ -91,6 +91,11 @@ def test_activation_records_upgrade_started_and_completed() -> None:
     assert rows[0].trigger_reason == "activation_flow"
     assert rows[1].source_surface == "erip_qr"
     assert rows[1].trigger_reason == "activation_flow"
+    assert rows[0].metadata_json is not None
+    assert rows[0].metadata_json["has_source_reference"] is True
+    assert rows[0].metadata_json["has_external_txn_id"] is False
+    assert "source_reference" not in rows[0].metadata_json
+    assert "external_txn_id" not in rows[0].metadata_json
 
 
 def test_activation_replay_does_not_duplicate_upgrade_completed() -> None:

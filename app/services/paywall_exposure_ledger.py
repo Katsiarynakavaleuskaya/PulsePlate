@@ -151,9 +151,9 @@ def _activation_metadata(
         "subscription_tier": normalized.tier.value,
         "subscription_status": normalized.status.value,
         "platform": normalized.platform.value,
-        "source_reference": normalized.source_reference,
         "product_id": normalized.product_id,
-        "external_txn_id": normalized.external_txn_id,
+        "has_source_reference": normalized.source_reference is not None,
+        "has_external_txn_id": normalized.external_txn_id is not None,
         "reconcile_status": normalized.reconcile_status.value,
         "requested_plan": normalized.requested_plan.value if normalized.requested_plan else None,
     }
