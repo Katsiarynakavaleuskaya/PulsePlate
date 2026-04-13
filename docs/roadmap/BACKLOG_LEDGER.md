@@ -1454,7 +1454,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Wave 6 AI runtime umbrella
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (AI differentiation sequencing)
-  - Target PR: PR-TBD-WAVE6-AI-RUNTIME-UMBRELLA
+  - Target PR: PR-S0
   - Area: AI / roadmap / execution spine
   - Finding Type: epic normalization
   - Status: 📋 Planned
@@ -1463,13 +1463,17 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `docs/roadmap/PulsePlate_P0_P1_Execution_Document_2026-03-30.md`
     - `docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md`
     - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p0-insight-fallback-chain`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-pro-monthly-quota-ledger-reconciliation`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-rag-hardening-followthrough`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-ai-bounded-context-packet`
     - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-ai-bounded-context-extraction`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-llm-reliability-security-gates`
     - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-philosophical-logic`
     - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-recursive-methods`
     - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-scientific-reliability-pipeline`
   - DoD:
     - One umbrella item exists for the product AI runtime rail
-    - Wave 6 order is explicit and pointer-based
+    - Wave 6 order is explicit and pointer-based through `A1b -> A5` for the current closure cycle
     - Runtime AI rail is kept separate from the Karpathy workforce/wiki rail
     - Existing child items remain authoritative and are not duplicated as competing SoT
 
@@ -1517,7 +1521,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Consolidate coordinator-first docs SoT and rail summary table
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-TBD-GOVERNANCE-DOC-SOT-CONSOLIDATION
+  - Target PR: PR-S0
   - Area: docs / orchestration / roadmap
   - Finding Type: review follow-up
   - Status: 📋 Planned
@@ -2624,7 +2628,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P2: Karpathy-style advisory wiki umbrella
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2
-  - Target PR: PR-TBD-KARPATHY-ADVISORY-WIKI-UMBRELLA
+  - Target PR: PR-S0
   - Area: orchestration / workforce memory / roadmap
   - Finding Type: umbrella canonicalization
   - Reason (EN): The workforce compiled-memory line now has launcher/bootstrap, compiler, and hardening slices, but the backlog still lacks one explicit umbrella item that marks it as a separate advisory rail rather than an accidental side-project or product-RAG substitute. (RU: У workforce compiled-memory линии уже есть launcher/bootstrap, compiler и hardening slices, но в backlog нет одного umbrella-item, который бы фиксировал её как отдельный advisory rail, а не побочный side-project или замену product RAG.)
@@ -2637,6 +2641,27 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - One canonical umbrella entry exists for the advisory workforce rail
     - The rail is explicitly marked non-canonical and non-product-facing
     - Existing launcher/compiler slices are linked as children or prerequisites
+
+<a id="ledger-p2-plugin-control-plane-families-umbrella"></a>
+- [ ] P2: Plugin/control-plane families umbrella
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR-S0
+  - Area: orchestration / advisory control-plane / roadmap
+  - Finding Type: umbrella canonicalization
+  - Reason (EN): GitHub, Cloudflare, Figma, and Hugging Face already appear across governance, edge, design, and research lanes, but they are not yet grouped under one explicit advisory/control-plane umbrella. Without a dedicated umbrella, later agents can accidentally pull plugin families into product runtime truth or semantic-cache planning. (RU: GitHub, Cloudflare, Figma и Hugging Face уже встречаются в governance, edge, design и research линиях, но пока не собраны под одним umbrella-item как advisory/control-plane rail. Без этого later agents могут случайно втянуть plugin families в product runtime truth или в планирование semantic cache.)
+  - Links:
+    - `docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md`
+    - `docs/orchestration/WAVE6_AI_RUNTIME_AND_ADVISORY_SERIES_PACKET_2026-04-13.md`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p2-karpathy-style-advisory-wiki-umbrella`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p2-cloudflare-narrow-reopen-automation`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-pulseplate-v3-clean-figma-execution`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p2-local-workforce-pr-d-advisory-wiki-compiler`
+  - DoD:
+    - One canonical umbrella entry exists for plugin/control-plane families
+    - GitHub, Cloudflare, Figma, and Hugging Face are explicitly mapped as advisory/control-plane families
+    - The umbrella states these families do not become product runtime truth implicitly
+    - The umbrella states plugin families do not authorize semantic-cache rollout or bounded-context ownership by themselves
 
 <a id="ledger-p2-local-workforce-pr-d-advisory-wiki-compiler"></a>
 - [ ] P2: Local workforce PR-D — advisory wiki compiler over local support plane
