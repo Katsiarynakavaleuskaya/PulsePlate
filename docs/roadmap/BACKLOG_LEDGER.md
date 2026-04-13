@@ -203,7 +203,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0
   - Target PR: PR `#1381`
-  - Status: ✅ Closed. PR `#1381` (`feat(frontend): move web premium truth to canonical backend/store state`) merged on `2026-04-09` (`America/New_York`). Current `main` keeps canonical web entitlement truth on `/api/v1/pro/session`, release-path mocks no longer institutionalize `/api/purchase` or `/api/restore`, and web checkout remains thin-client-safe / fail-closed instead of pretending browser-side purchase success.
+  - Status: ✅ Closed. PR `#1381` (`feat(frontend): move web premium truth to canonical backend/store state`) merged on `2026-04-09` (`America/New_York`). Exception approved by KK on `2026-04-13`: the docs-only closeout was intentionally batched into the monetization planning-wave bootstrap after merged-state verification across the monetization backbone. Current `main` keeps canonical web entitlement truth on `/api/v1/pro/session`, release-path mocks no longer institutionalize `/api/purchase` or `/api/restore`, and web checkout remains thin-client-safe / fail-closed instead of pretending browser-side purchase success.
   - Area: frontend / monetization / thin-client
   - Finding Type: thin-client and release-truth gap
   - Reason: This release-truth lane is no longer an active runtime gap. `origin/main` already consumes canonical backend/store session truth on the web surface, so remaining monetization work must move to planning-flow value capture instead of reopening entitlement plumbing.
@@ -220,33 +220,6 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Mock-only `/api/purchase` / `/api/restore` flows are removed from release path or explicitly gated to dev-only
     - Thin-client guards and targeted frontend tests cover the new source-of-truth path
     - Funnel/recovery UX stays additive and contract-safe
-
-<a id="ledger-p1-planning-flow-monetization-wave"></a>
-- [ ] P1: Planning-flow monetization wave over the canonical FREE -> PRO -> VIP ladder
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P1
-  - Target PR: PR-TBD-DOCS-MONETIZATION-PLANNING-WAVE-BOOTSTRAP -> PR-TBD-MONETIZATION-TRIGGER-ENGINE-V1 -> PR-TBD-PLANNING-PAYWALL-EXPOSURE-LEDGER -> PR-TBD-PLANNING-NEXT-BEST-ACTION-CONSUMERS
-  - Status: 🟡 Active epic. Bootstrap governance opens the wave on `2026-04-13` (`America/New_York`); runtime execution begins with PR-1 `feat(growth): add intervention trigger engine v1`.
-  - Area: product / growth / monetization / planning flow
-  - Finding Type: monetization value-capture orchestration
-  - Reason (EN): `origin/main` already closed the backend monetization spine through merged PRs `#1296` (`2026-04-02`), `#1312` (`2026-04-03`), and `#1381` (`2026-04-09`). The next profitable lane is not another receipt/entitlement rewrite; it is deterministic monetization over the planning-first journey `BMI -> targets -> daily plate -> weekly plan -> export/recipe follow-through`. The epic must stay thin-client-safe, additive, and worktree-isolated so billing/provider modernization does not get reopened by accident. (RU: Биллинг-спайн уже закрыт на `main`; следующий шаг — monetization поверх planning flow, а не новый receipt/entitlement PR.)
-  - Links:
-    - `README.md`
-    - `docs/contracts/PRODUCT_TIER_MAP.md`
-    - `docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md`
-    - `docs/orchestration/MONETIZATION_PLANNING_WAVE_PR_SERIES_RUNBOOK.md`
-    - `docs/orchestration/MONETIZATION_PLANNING_WAVE_TASK_PACKET_2026-04-13.md`
-    - `app/routers/bmi.py`
-    - `app/routers/pro.py`
-    - `frontend/src/lib/usePremium.ts`
-    - `frontend/src/lib/paywallPurchase.ts`
-  - DoD:
-    - Bootstrap docs PR reconciles stale ledger wording and records the monetization PR train under explicit coordinator-owned governance
-    - PR-1 adds backend-owned `next_best_action` hints on canonical BMI / PRO planning surfaces without touching billing, provider verification, or client-side pricing truth
-    - PR-2 adds deterministic planning paywall exposure ledger instrumentation aligned to `docs/analytics/*` canon
-    - PR-3 consumes backend `next_best_action` hints on web/iOS while preserving fail-closed web checkout semantics
-    - Every PR in the wave runs from a fresh `worktree`, merges only after current-head merge-readiness passes, then fast-forward syncs local `main` before the next PR starts
-    - Follow-up surfaces (`paywall-copy-alignment`, CBT premium packaging, business-wave follow-through) remain explicitly deferred until after PR-3
 
 <a id="ledger-p0-web-progress-contract"></a>
 - [x] P0: Web progress route must not ship demo-grade health data
@@ -357,6 +330,33 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - No duplicate or conflicting ownership across active worktrees
 
 ### P1
+
+<a id="ledger-p1-planning-flow-monetization-wave"></a>
+- [ ] P1: Planning-flow monetization wave over the canonical FREE -> PRO -> VIP ladder
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-DOCS-MONETIZATION-PLANNING-WAVE-BOOTSTRAP -> PR-TBD-MONETIZATION-TRIGGER-ENGINE-V1 -> PR-TBD-PLANNING-PAYWALL-EXPOSURE-LEDGER -> PR-TBD-PLANNING-NEXT-BEST-ACTION-CONSUMERS
+  - Status: 🟡 Active epic. Bootstrap governance opens the wave on `2026-04-13` (`America/New_York`); runtime execution begins with PR-1 `feat(growth): add intervention trigger engine v1`.
+  - Area: product / growth / monetization / planning flow
+  - Finding Type: monetization value-capture orchestration
+  - Reason (EN): `origin/main` already closed the backend monetization spine through merged PRs `#1296` (`2026-04-02`), `#1312` (`2026-04-03`), and `#1381` (`2026-04-09`). The next profitable lane is not another receipt/entitlement rewrite; it is deterministic monetization over the planning-first journey `BMI -> targets -> daily plate -> weekly plan -> export/recipe follow-through`. The epic must stay thin-client-safe, additive, and worktree-isolated so billing/provider modernization does not get reopened by accident. (RU: Биллинг-спайн уже закрыт на `main`; следующий шаг — monetization поверх planning flow, а не новый receipt/entitlement PR.)
+  - Links:
+    - `README.md`
+    - `docs/contracts/PRODUCT_TIER_MAP.md`
+    - `docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md`
+    - `docs/orchestration/MONETIZATION_PLANNING_WAVE_PR_SERIES_RUNBOOK.md`
+    - `docs/orchestration/MONETIZATION_PLANNING_WAVE_TASK_PACKET_2026-04-13.md`
+    - `app/routers/bmi.py`
+    - `app/routers/pro.py`
+    - `frontend/src/lib/usePremium.ts`
+    - `frontend/src/lib/paywallPurchase.ts`
+  - DoD:
+    - Bootstrap docs PR reconciles stale ledger wording and records the monetization PR train under explicit coordinator-owned governance
+    - PR-1 adds backend-owned `next_best_action` hints on canonical BMI / PRO planning surfaces without touching billing, provider verification, or client-side pricing truth
+    - PR-2 adds deterministic planning paywall exposure ledger instrumentation aligned to `docs/analytics/*` canon
+    - PR-3 consumes backend `next_best_action` hints on web/iOS while preserving fail-closed web checkout semantics
+    - Every PR in the wave runs from a fresh `worktree`, merges only after current-head merge-readiness passes, then fast-forward syncs local `main` before the next PR starts
+    - Follow-up surfaces (`paywall-copy-alignment`, CBT premium packaging, business-wave follow-through) remain explicitly deferred until after PR-3
 
 <a id="ledger-p1-fonttools-private-index-bump"></a>
 - [ ] P1: Bump fonttools to >=4.62.0 after private Python index mirrors fixed wheels (remove Safety ignore 88739)

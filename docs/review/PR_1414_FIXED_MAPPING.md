@@ -11,6 +11,6 @@
 - [ ] All required checks pass
 - [ ] No unresolved review threads (re-check on current head before merge)
 - [ ] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
-- [x] Pre-commit green
-- [x] `make verify` green
+- [ ] Pre-commit green
+- [ ] `make verify` green
 Notes: This docs-only bootstrap PR establishes the planning-flow monetization wave governance baseline and keeps runtime, checkout, billing, provider, and client-contract code unchanged. Local validation on branch head `8b06f3f6e` passed for `python3 scripts/orchestration/check_preflight.py`, `python3 scripts/orchestration/check_agent_consistency.py`, `pre-commit run --all-files`, and `make verify`.
