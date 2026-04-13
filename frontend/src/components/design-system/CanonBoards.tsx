@@ -231,7 +231,7 @@ export function IOSFoundationTokensBoard(): JSX.Element {
   return (
     <PanelShell
       className="border-white/10 bg-[rgba(255,255,255,0.04)] shadow-[0_30px_80px_rgba(0,0,0,0.28)]"
-      subtitle="Figma node 35:148 translated into the repo-native Storybook review surface."
+      subtitle="Repo-native Storybook review surface aligned to the canonical iOS foundation token lane."
       title="PP iOS Foundation Tokens v1"
     >
       <div className="space-y-6">
@@ -346,7 +346,7 @@ export function BrandCanonBoard(): JSX.Element {
   return (
     <PanelShell
       className="border-white/10 bg-[rgba(255,255,255,0.04)] shadow-[0_30px_80px_rgba(0,0,0,0.28)]"
-      subtitle="Figma node 61:77 translated into canonical brand-governance surfaces for Storybook."
+      subtitle="Canonical brand-governance Storybook surface aligned to repo-truth asset evidence."
       title="PP Brand + FitChef Logo Canon v1"
     >
       <div

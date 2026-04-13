@@ -30,7 +30,7 @@ export function DesignSystemOverview() {
               assets, and Storybook documentation aligned to the current token source of truth.
             </p>
             <div className="mt-6 flex flex-wrap gap-3">
-              <span className="rounded-full bg-white/[0.06] px-3 py-2 text-sm text-white/70">Figma node 96:33</span>
+              <span className="rounded-full bg-white/[0.06] px-3 py-2 text-sm text-white/70">Canonical repo-backed review surface</span>
               <span className="rounded-full bg-[rgba(212,175,55,0.12)] px-3 py-2 text-sm text-[var(--pp-gold)]">
                 Real brand assets imported
               </span>
