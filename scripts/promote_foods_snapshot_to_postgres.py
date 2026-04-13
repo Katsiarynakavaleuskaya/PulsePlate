@@ -65,7 +65,6 @@ FOODS_COLUMN_ALLOWLIST: tuple[str, ...] = (
     "nutrition_confidence",
     "nutrition_nutrient_confidence_json",
 )
-REQUIRED_SOURCE_COLUMNS: frozenset[str] = frozenset(FOODS_COLUMN_ALLOWLIST)
 REQUIRED_TARGET_COLUMNS: frozenset[str] = frozenset(FOODS_COLUMN_ALLOWLIST)
 JsonContainerType: TypeAlias = type[list[Any]] | type[dict[str, Any]]
 
@@ -194,7 +193,7 @@ def _connect_sqlite(path: Path) -> Iterator[sqlite3.Connection]:
 
 def _build_pg_engine(pg_url: str) -> Engine:
     """Create and validate a PostgreSQL SQLAlchemy engine."""
-    engine = create_engine(pg_url, future=True, pool_pre_ping=True)
+    engine = create_engine(pg_url, pool_pre_ping=True)
     if engine.dialect.name != "postgresql":
         engine.dispose()
         raise PromotionError(

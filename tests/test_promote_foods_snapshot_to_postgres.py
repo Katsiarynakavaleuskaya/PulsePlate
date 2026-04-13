@@ -212,7 +212,7 @@ def _sample_source_rows() -> list[dict[str, object]]:
             "source_priority": 10,
             "version_date": "2026-04-12T12:00:00+00:00",
             "price_per_100g": 0.49,
-            "nutrition_inputs_json": {"serving_basis": "100g", "source": "usda"},
+            "nutrition_inputs_json": [{"serving_basis": "100g", "source": "usda"}],
             "nutrition_provenance_json": {"provider": "usda", "pipeline": "build_food_db"},
             "nutrition_confidence": 0.981,
             "nutrition_nutrient_confidence_json": {"kcal": 0.99, "fiber_g": 0.97},
@@ -243,10 +243,12 @@ def _sample_source_rows() -> list[dict[str, object]]:
             "source_priority": 5,
             "version_date": "2026-04-12T12:00:00+00:00",
             "price_per_100g": 1.09,
-            "nutrition_inputs_json": {
-                "serving_basis": "100g",
-                "package_size_g": 450,
-            },
+            "nutrition_inputs_json": [
+                {
+                    "serving_basis": "100g",
+                    "package_size_g": 450,
+                },
+            ],
             "nutrition_provenance_json": {
                 "provider": "off",
                 "pipeline": "build_food_db",
@@ -540,7 +542,7 @@ def test_main_forwards_cli_arguments_to_promotion_function(
         ],
     )
 
-    assert result in (0, None)
+    assert result == 0
     assert str(captured["sqlite_path"]) == str(sqlite_path)
     assert str(captured["pg_url"]) == test_pg_url
     assert captured["batch_size"] == 7
