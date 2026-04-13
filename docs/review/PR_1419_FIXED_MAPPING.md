@@ -61,7 +61,7 @@ Reason: The review-summary URL does not add a separate defect beyond the individ
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1419#discussion_r3076054197 -> a17be2149
 Disposition: FIXED
 Commit: a17be2149
-Evidence: `docs/review/PR_1419_FIXED_MAPPING.md:14-54` in commit `a17be2149` replaced the blanket `- No actionable review comments` placeholder with explicit per-thread FIXED / NOT-A-BUG dispositions and proof, satisfying the review-governance contract for this PR.
+Evidence: `docs/review/PR_1419_FIXED_MAPPING.md:14-54` in commit `a17be2149` replaced the blanket "no-open-findings" placeholder with explicit per-thread FIXED / NOT-A-BUG dispositions and proof, satisfying the review-governance contract for this PR.
 
 ## Merge Readiness
 
