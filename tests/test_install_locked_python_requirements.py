@@ -12,6 +12,19 @@ import pytest
 import scripts.ci.install_locked_python_requirements as installer
 
 APPROVED_PROXY_URL = "https://packages.example.internal/simple"
+REPO_ROOT = Path(__file__).resolve().parents[1]
+
+
+def test_repo_emergency_manifest_covers_active_ci_lite_security_fallbacks() -> None:
+    manifest = json.loads(
+        (REPO_ROOT / "scripts/ci/emergency_python_wheels.json").read_text(encoding="utf-8")
+    )
+    artifacts = {(item["package"], item["version"]) for item in manifest["artifacts"]}
+    requirements_ci_lite = (REPO_ROOT / "requirements-ci-lite.txt").read_text(encoding="utf-8")
+
+    assert ("cryptography", "46.0.7") in artifacts
+    assert ("pillow", "12.2.0") in artifacts
+    assert "pillow==12.2.0" in requirements_ci_lite
 
 
 @pytest.fixture(autouse=True)
