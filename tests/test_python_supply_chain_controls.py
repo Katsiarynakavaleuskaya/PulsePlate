@@ -35,6 +35,25 @@ APPROVED_TRUSTED_HOST_EXPRESSION = (
 PIP_INSTALL_PATTERN = re.compile(r"\b\S*python\S*\s+-m\s+pip\s+install\b")
 
 
+def _load_workflow(path: str) -> dict[str, object]:
+    """Load a GitHub Actions workflow as structured YAML."""
+    return yaml.safe_load((REPO_ROOT / path).read_text(encoding="utf-8"))
+
+
+def _workflow_steps(path: str, job_name: str) -> list[dict[str, object]]:
+    """Return workflow steps for a specific job."""
+    workflow = _load_workflow(path)
+    return workflow["jobs"][job_name]["steps"]
+
+
+def _python_setup_step(path: str, job_name: str) -> dict[str, object]:
+    """Return the canonical python-setup step for a workflow job."""
+    for step in _workflow_steps(path, job_name):
+        if step.get("uses") == "./.github/actions/python-setup":
+            return step
+    raise AssertionError(f"Missing python-setup step for {path}:{job_name}")
+
+
 def test_dependency_security_schema_blocks_known_bad_litellm_versions() -> None:
     schema = json.loads(
         (REPO_ROOT / "tests" / "fixtures" / "dependency_security_schema.json").read_text(
@@ -197,6 +216,42 @@ def test_no_canonical_workflow_uses_unscoped_public_pip_install() -> None:
                 continue
             context = "\n".join(lines[max(0, index - 6) : index + 1])
             assert "PULSEPLATE_PYTHON_INDEX_URL" in context
+
+
+def test_security_scan_workflow_uses_ci_lite_direct_proxy_setup() -> None:
+    setup_step = _python_setup_step(".github/workflows/security.yml", "bandit")
+
+    assert setup_step["with"]["python-version"] == "3.13.6"
+    assert setup_step["with"]["requirements-profile"] == "ci-lite"
+    assert setup_step["with"]["install-mode"] == "direct-proxy"
+
+    install_step = next(
+        step
+        for step in _workflow_steps(".github/workflows/security.yml", "bandit")
+        if step.get("name") == "Install security tooling"
+    )
+    install_script = install_step["run"]
+    assert "bandit==" not in install_script
+    assert (
+        'python -m pip install "${pip_index_args[@]}" "safety>=3.7.0" -c constraints.txt'
+        in install_script
+    )
+
+
+@pytest.mark.parametrize(
+    "job_name", ("test", "performance-test", "integration-test", "coverage-merge")
+)
+def test_nightly_workflow_jobs_use_runtime_dev_direct_proxy_setup(job_name: str) -> None:
+    setup_step = _python_setup_step(".github/workflows/nightly.yml", job_name)
+
+    assert setup_step["with"]["python-version"] == "3.13"
+    assert setup_step["with"]["requirements-profile"] == "runtime-dev"
+    assert setup_step["with"]["install-mode"] == "direct-proxy"
+
+    assert all(
+        "install_locked_python_requirements.py" not in step.get("run", "")
+        for step in _workflow_steps(".github/workflows/nightly.yml", job_name)
+    )
 
 
 def test_ci_workflow_uses_single_direct_proxy_python_install_path_per_job() -> None:

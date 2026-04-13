@@ -30,12 +30,6 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Set up Python
-        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
-        with:
-          python-version: '3.13'
-          cache: 'pip'
-
       - name: Install system dependencies
         run: |
           sudo apt-get update
@@ -44,10 +38,15 @@ jobs:
             build-essential \
             python3-dev
 
-      - name: Install Python dependencies
-        run: |
-          python scripts/ci/install_locked_python_requirements.py --python-executable python --constraints-file constraints.txt --install-dev
-          pip list
+      - name: Setup Python environment
+        uses: ./.github/actions/python-setup
+        with:
+          python-version: '3.13'
+          requirements-profile: runtime-dev
+          install-mode: direct-proxy
+
+      - name: Show installed Python packages
+        run: pip list
 
       - name: Run linting
         if: matrix.shard_id == 1  # Run once (shard 1 only) - codebase-wide check
@@ -258,15 +257,12 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - name: Set up Python
-        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+      - name: Setup Python environment
+        uses: ./.github/actions/python-setup
         with:
           python-version: '3.13'
-          cache: 'pip'
-
-      - name: Install dependencies
-        run: |
-          python scripts/ci/install_locked_python_requirements.py --python-executable python --constraints-file constraints.txt --install-dev
+          requirements-profile: runtime-dev
+          install-mode: direct-proxy
 
       - name: Run performance tests
         env:
@@ -311,22 +307,12 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - name: Set up Python
-        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+      - name: Setup Python environment
+        uses: ./.github/actions/python-setup
         with:
           python-version: '3.13'
-          cache: 'pip'
-
-      - name: Install dependencies
-        run: |
-          set -euo pipefail
-          : "${PULSEPLATE_PYTHON_INDEX_URL:?Set PULSEPLATE_PYTHON_INDEX_URL to the approved private package proxy URL.}"
-          pip_index_args=(--index-url "$PULSEPLATE_PYTHON_INDEX_URL")
-          if [[ -n "${PULSEPLATE_PYTHON_TRUSTED_HOST:-}" ]]; then
-            pip_index_args+=(--trusted-host "$PULSEPLATE_PYTHON_TRUSTED_HOST")
-          fi
-          python scripts/ci/install_locked_python_requirements.py --python-executable python --constraints-file constraints.txt --install-dev
-          python -m pip install "${pip_index_args[@]}" psycopg2-binary -c constraints.txt
+          requirements-profile: runtime-dev
+          install-mode: direct-proxy
 
       - name: Run integration tests
         env:
@@ -385,11 +371,12 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - name: Set up Python
-        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+      - name: Setup Python environment
+        uses: ./.github/actions/python-setup
         with:
           python-version: '3.13'
-          cache: 'pip'
+          requirements-profile: runtime-dev
+          install-mode: direct-proxy
 
       - name: Download coverage artifacts
         uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.6.2
@@ -421,17 +408,6 @@ jobs:
             echo "ERROR: Expected ${expected_count} binary .coverage data files, found ${file_count}."
             exit 1
           fi
-
-      - name: Install coverage
-        run: |
-          set -euo pipefail
-          : "${PULSEPLATE_PYTHON_INDEX_URL:?Set PULSEPLATE_PYTHON_INDEX_URL to the approved private package proxy URL.}"
-          pip_index_args=(--index-url "$PULSEPLATE_PYTHON_INDEX_URL")
-          if [[ -n "${PULSEPLATE_PYTHON_TRUSTED_HOST:-}" ]]; then
-            pip_index_args+=(--trusted-host "$PULSEPLATE_PYTHON_TRUSTED_HOST")
-          fi
-          python -m pip install "${pip_index_args[@]}" --upgrade pip
-          python -m pip install "${pip_index_args[@]}" coverage -c constraints.txt
 
       - name: Combine coverage and generate report
         run: |
