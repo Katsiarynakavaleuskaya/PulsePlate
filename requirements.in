@@ -19,6 +19,8 @@ python-multipart>=0.0.20,<1.0.0
 slowapi>=0.1.9,<1.0.0
 tenacity>=9.1.2,<10.0.0
 matplotlib>=3.10.7,<4.0.0
+# Security floor: GHSA-whj4-6x5x-4v2j
+pillow>=12.2.0,<13.0.0
 # Pin matches CI PULSEPLATE mirror (`--only-binary`): mirror currently ships cp313 numpy 2.4.0.
 # 2.4.0 is yanked on public PyPI; an explicit == pin keeps pip-compile and locked CI installs aligned.
 numpy==2.4.0
