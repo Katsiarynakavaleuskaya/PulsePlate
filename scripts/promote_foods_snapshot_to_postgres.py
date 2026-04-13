@@ -20,7 +20,7 @@ import json
 import sqlite3
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, TypeAlias, cast
 
 from sqlalchemy import MetaData, Table, bindparam, create_engine, inspect, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -67,11 +67,13 @@ FOODS_COLUMN_ALLOWLIST: tuple[str, ...] = (
 )
 REQUIRED_SOURCE_COLUMNS: frozenset[str] = frozenset(FOODS_COLUMN_ALLOWLIST)
 REQUIRED_TARGET_COLUMNS: frozenset[str] = frozenset(FOODS_COLUMN_ALLOWLIST)
-JSON_COLUMN_TYPES: dict[str, type[list[Any]] | type[dict[str, Any]]] = {
+JsonContainerType: TypeAlias = type[list[Any]] | type[dict[str, Any]]
+
+JSON_COLUMN_TYPES: dict[str, JsonContainerType] = {
     "flags": list,
     "nutrition_inputs_json": list,
-    "nutrition_provenance_json": dict,
-    "nutrition_nutrient_confidence_json": dict,
+    "nutrition_provenance_json": cast(JsonContainerType, dict),
+    "nutrition_nutrient_confidence_json": cast(JsonContainerType, dict),
 }
 LEGACY_OPTIONAL_SOURCE_COLUMNS: frozenset[str] = frozenset(
     {
@@ -243,7 +245,7 @@ def _normalize_json_column(
     row_id: str,
     column_name: str,
     raw_value: Any,
-    expected_type: type[list[Any]] | type[dict[str, Any]],
+    expected_type: JsonContainerType,
 ) -> list[Any] | dict[str, Any]:
     """Parse and validate JSON-encoded source columns."""
     if raw_value is None:
@@ -263,7 +265,7 @@ def _normalize_json_column(
             f"Row {row_id!r} column {column_name!r} must decode to "
             f"{expected_type.__name__}, got {type(parsed).__name__}."
         )
-    return parsed
+    return cast(list[Any] | dict[str, Any], parsed)
 
 
 def _normalize_source_row(row: sqlite3.Row) -> dict[str, Any]:
