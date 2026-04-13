@@ -44,6 +44,9 @@ Reasons:
   target and returned a blank screenshot during validation on March 26, 2026
 - valid child frames in the same file do resolve, for example `35:148`
   (`PP_iOS_Foundation_Tokens_v1`)
+- later supplemental session evidence also resolved `node-id=16:4` as
+  `03_iOS_Onboarding`, but that remains provenance only and does not replace the
+  historical `16:11` invalid-target note
 - the file contains useful design intent, but not a stable enough node-level
   structure to serve as the canonical clean build surface
 
