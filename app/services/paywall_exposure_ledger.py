@@ -65,7 +65,8 @@ def _get_existing_by_client_event_id(
     statement = select(PaywallExposureLedger).where(
         PaywallExposureLedger.client_event_id == client_event_id,
     )
-    return session.execute(statement).scalar_one_or_none()
+    row: PaywallExposureLedger | None = session.execute(statement).scalar_one_or_none()
+    return row
 
 
 def _detach_row(session: Session, row: PaywallExposureLedger) -> PaywallExposureLedger:
