@@ -7,12 +7,11 @@ EN: Deterministic harness for offline foods snapshot -> PostgreSQL promotion.
 from __future__ import annotations
 
 from dataclasses import dataclass
-import importlib.util
 import json
 import os
 from pathlib import Path
+import runpy
 import sqlite3
-import sys
 import uuid
 
 import pytest
@@ -164,6 +163,22 @@ class RawJsonText:
     value: str
 
 
+class ScriptModuleProxy:
+    """Expose a runpy namespace as a mutable module-like object."""
+
+    def __init__(self, namespace: dict[str, object]) -> None:
+        object.__setattr__(self, "_namespace", namespace)
+
+    def __getattr__(self, name: str) -> object:
+        try:
+            return self._namespace[name]
+        except KeyError as exc:  # pragma: no cover - defensive parity with modules
+            raise AttributeError(name) from exc
+
+    def __setattr__(self, name: str, value: object) -> None:
+        self._namespace[name] = value
+
+
 def _load_script_module():
     """Load the non-package promotion script lazily per test."""
 
@@ -171,17 +186,13 @@ def _load_script_module():
         "Expected script scripts/promote_foods_snapshot_to_postgres.py to exist. "
         "Implement the script before running this harness."
     )
-    spec = importlib.util.spec_from_file_location(
-        "promote_foods_snapshot_to_postgres",
-        SCRIPT_PATH,
+    loaded_namespace = runpy.run_path(
+        str(SCRIPT_PATH),
+        run_name="promote_foods_snapshot_to_postgres",
     )
-    if spec is None or spec.loader is None:
-        raise ImportError("Could not load promote_foods_snapshot_to_postgres module")
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[spec.name] = module
-    spec.loader.exec_module(module)
-    sys.modules["scripts.promote_foods_snapshot_to_postgres"] = module
-    return module
+    main_function = loaded_namespace["main"]
+    module_globals = getattr(main_function, "__globals__", loaded_namespace)
+    return ScriptModuleProxy(module_globals)
 
 
 def _sample_source_rows() -> list[dict[str, object]]:
