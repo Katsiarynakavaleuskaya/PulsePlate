@@ -3,17 +3,15 @@
 
 ## Discussion Thread Pass
 
-- [ ] Discussion-thread pass completed
-- [ ] Fixed in commit mapping completed
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 
 Bot and human review comments must be dispositioned here before resolving them on
 GitHub.
 
 ## Fixed in Commit Mapping
 
-Disposition: FIXED
-Commit: pending implementation commits
-Evidence: pending B2 importer bridge implementation and review-thread mapping
+- No actionable review comments
 
 ## Merge Readiness
 
