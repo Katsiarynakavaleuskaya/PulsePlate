@@ -12,7 +12,8 @@ Implement it as a **separate advisory compiled-memory workforce rail**, while th
 | Rail | Umbrella / anchor | Scope | In scope | Out of scope |
 | --- | --- | --- | --- | --- |
 | Rail A | `P1: Wave 6 AI runtime umbrella` | Canonical product AI runtime | fallback chain, quota/provider safety, RAG hardening, bounded-context extraction, reliability/security gates | advisory wiki memory, operator-only compiled notes, non-canonical workforce tooling |
-| Rail B | `P2: Karpathy-style advisory wiki umbrella` | Advisory workforce compiled memory | local operator memory, advisory wiki/compiler/query-lint/reference-corpus controls | product RAG replacement, DB/runtime/API source of truth, public response-contract logic |
+| Rail B1 | `P2: Karpathy-style advisory wiki umbrella` | Advisory workforce compiled memory | local operator memory, advisory wiki/compiler/query-lint/reference-corpus controls | product RAG replacement, DB/runtime/API source of truth, public response-contract logic |
+| Rail B2 | `P2: Plugin/control-plane families umbrella` | Advisory plugin/control-plane families | GitHub governance/CI review truth, Cloudflare preview/deploy control-plane, Figma design execution/review evidence, Hugging Face research/model-eval tooling | product runtime truth, public response-contract logic, semantic cache, bounded-context ownership |
 
 ### Rail A — Product AI runtime (canonical)
 Purpose:
@@ -27,7 +28,7 @@ Truth model:
 - repo artifacts / contracts / DB / runtime = canonical source of truth
 - public response contracts stay controlled by backend schemas and tests
 
-### Rail B — Karpathy-style workforce compiled memory (advisory only)
+### Rail B1 — Karpathy-style workforce compiled memory (advisory only)
 Purpose:
 - local operator memory
 - advisory wiki pages
@@ -37,6 +38,18 @@ Purpose:
 Truth model:
 - wiki/support-plane = non-canonical advisory memory only
 - never replace raw repo truth, DB truth, legal truth, or public API truth
+
+### Rail B2 — plugin/control-plane families (advisory only)
+Purpose:
+- GitHub governance / CI / review truth
+- Cloudflare edge preview / Access control-plane
+- Figma design execution / review evidence
+- Hugging Face research / model-eval / external model tooling
+
+Truth model:
+- plugin/control-plane artifacts remain advisory or operational only
+- never become product AI runtime truth implicitly
+- must not overtake runtime sequencing on Rail A
 
 ---
 
@@ -59,6 +72,7 @@ It should **not overtake** still-open release-truth blockers.
 Use it as:
 - architecture/packet preparation now
 - implementation rail after the emergency fixes are stabilized
+- strict one-PR-at-a-time runtime sequence through `A5`
 
 ### Governance rule for the prep PR
 
@@ -67,6 +81,8 @@ The governance/docs prep PR for this epic must:
 - treat the coordinator-declared role-agent order as mandatory for the lane;
 - use `docs/orchestration/GOVERNANCE_COORDINATOR_FIRST_RAG_KARPATHY_TASK_PACKET_2026-04-08.md`
   as the canonical packet for the prep lane;
+- use `docs/orchestration/WAVE6_AI_RUNTIME_AND_ADVISORY_SERIES_PACKET_2026-04-13.md`
+  as the canonical packet for the continuous `PR-S0 -> PR-A5` bootstrap lane;
 - keep the active advisory-wiki review artifact in `docs/review/PR_1372_FIXED_MAPPING.md`
   separate from the governance PR;
 - avoid opening the next PR in the train until local `main` is synced and current-head
@@ -91,7 +107,20 @@ Rules:
 
 ## RAIL A — Product AI runtime epic
 
-## PR-A0 — docs/backlog umbrella
+### Runtime series boundary
+
+The continuous series implemented from this packet stops at:
+
+- `PR-S0`
+- `PR-A1b`
+- `PR-A2`
+- `PR-A3`
+- `PR-A4`
+- `PR-A5`
+
+`A6-A9` remain valid future lanes, but they are not part of the current closure cycle.
+
+## PR-S0 — docs/backlog umbrella
 #### Title
 `docs(roadmap): add Wave 6 AI runtime umbrella for RAG/LLM execution`
 
@@ -361,7 +390,7 @@ Turn the AI moat into evidence-backed positioning without overclaiming.
 
 ---
 
-## RAIL B — Karpathy-style workforce compiled-memory epic
+## RAIL B1 — Karpathy-style workforce compiled-memory epic
 
 ### Rule
 This rail is **not product RAG**.
@@ -446,17 +475,40 @@ Allow DeepWiki or other reference corpora only as read-only secondary understand
 
 ---
 
-## What is missing in the backlog right now
+## RAIL B2 — plugin/control-plane families umbrella
 
-Add these missing items explicitly:
+### Rule
+This rail is **not product runtime truth**.
+It is an advisory/control-plane family map that keeps operator tooling and external
+platform integrations from leaking into runtime ownership.
+
+### Family placement
+
+- GitHub -> governance / CI / review truth
+- Cloudflare -> edge / preview / Access control-plane
+- Figma -> design execution / review evidence
+- Hugging Face -> research / model-eval / external model tooling
+
+### Rule set
+
+- no plugin family may become runtime truth implicitly
+- no plugin family may be used as a shortcut for semantic cache rollout
+- no plugin family may overtake the `A1b -> A5` runtime sequence
+
+---
+
+## Current backlog normalization gaps
+
+Normalize these items explicitly:
 
 1. `P1: Wave 6 AI runtime umbrella for RAG/LLM execution`
 2. `P1: RAG hardening follow-through`
 3. `P1: AI bounded-context packet`
 4. `P2: Karpathy-style advisory wiki umbrella`
-5. `P2: Advisory wiki query/lint enrichment`
+5. `P2: Plugin/control-plane families umbrella`
 
-Without these five entries, the line is still scattered and Codex will keep reconstructing sequencing from fragments.
+The first four items already exist and must stay authoritative. The fifth item is the
+new normalization anchor that keeps plugin/control-plane families out of runtime truth.
 
 ---
 
@@ -480,10 +532,10 @@ Without these five entries, the line is still scattered and Codex will keep reco
 
 ## Paste-ready short instruction for Codex
 
-Build the PulsePlate RAG/LLM/Karpathy line as two separate but coordinated rails:
+Build the PulsePlate RAG/LLM/Karpathy line as three separate but coordinated rails:
 
 1. **Product AI runtime rail (canonical)**
-   - PR-A0 docs/backlog umbrella
+   - PR-S0 docs/backlog umbrella
    - PR-A1 insight fallback chain
    - PR-A1b docs reconciliation for already-landed PRO quota truth
    - PR-A2 RAG hardening follow-through
@@ -504,6 +556,12 @@ Semantic cache is a later optimization gate on the product AI runtime rail only.
 See `docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md`.
    - PR-B3 optional query/lint enrichment
    - PR-B4 optional reference-corpus policy
+
+3. **Plugin/control-plane rail (advisory only)**
+   - GitHub governance / CI / review truth
+   - Cloudflare edge / preview / Access control-plane
+   - Figma design execution / review evidence
+   - Hugging Face research / model-eval / external model tooling
 
 Never treat advisory wiki as product truth. Do not replace repo/contracts/DB truth. This rail must not overtake still-open emergency release blockers.
 
