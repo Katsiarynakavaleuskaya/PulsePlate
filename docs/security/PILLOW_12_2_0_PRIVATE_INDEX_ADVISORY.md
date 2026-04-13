@@ -8,11 +8,11 @@ approved private Python proxy still lags that release on `13 April 2026`.
 
 To avoid a vulnerable repin while keeping the canonical private-proxy contract
 as the default path, the repo now uses a **time-boxed, exact-wheel fallback**
-for `pillow 12.2.0` on Linux `amd64` / CPython `3.13`:
+for `pillow 12.2.0` on Linux `amd64` / CPython `3.11`, `3.12`, and `3.13`:
 
 - exact package: `pillow`
 - exact version: `12.2.0`
-- exact wheel filenames for `linux/amd64`
+- exact wheel filenames for supported `linux/amd64` CI runtimes
 - exact `sha256` digests
 - explicit expiry in `scripts/ci/emergency_python_wheels.json:4`
 
@@ -32,7 +32,8 @@ policy change.
   `requirements-lock.txt` require `pillow 12.2.0`.
 - **Failure mode observed:** current-head CI and Docker installs showed the
   approved private index exposing only `12.1.1`, which failed locked install
-  for `lint`, `security`, `OpenAPI sync`, `test-pr`, and Docker image lanes.
+  for `lint`, `security`, `OpenAPI sync`, `test-pr`, and Docker image lanes
+  across the active `3.11` / `3.12` / `3.13` CI matrix.
 - **Fallback source of truth:** `scripts/ci/emergency_python_wheels.json:1`
 - **Atomic wheel verification:** `scripts/ci/install_locked_python_requirements.py:401`
 - **Fallback staging path:** `scripts/ci/install_locked_python_requirements.py:434`
