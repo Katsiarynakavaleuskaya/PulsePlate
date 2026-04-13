@@ -20,6 +20,11 @@ Disposition: FIXED
 Commit: 0992e44fa
 Evidence: the only actionable CodeRabbit review item is covered by `docs/figma/orchestration/sessions/2026-04-13_phase1_delta_audit.md:35-44`, and the same fix commit also clarifies the guardrail wording in `docs/figma/FIGMA_MAKE_SYNC_AUDIT_HPP.md:233-238`.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1420#issuecomment-4239886888 -> 78a3ea96f
+Disposition: FIXED
+Commit: 78a3ea96f
+Evidence: `docs/review/PR_1420_FIXED_MAPPING.md:1-31` now provides the canonical Phase 2 mapping artifact, and the PR body mirror includes `## Discussion Thread Pass`, `### Fixed in Commit Mapping`, and `## Merge Readiness`, satisfying the description/template contract that CodeRabbit flagged as incomplete.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1420#pullrequestreview-4102188730
 Disposition: NOT-A-BUG
 Evidence: the Sourcery review body is an approval-only summary with no defect claim or requested change.
