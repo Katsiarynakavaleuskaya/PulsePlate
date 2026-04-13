@@ -25,14 +25,12 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
 
-      - name: Set up Python
-        uses: actions/setup-python@e797f83bcb11b83ae66e0230d6156d7c80228e7c
+      - name: Setup Python environment
+        uses: ./.github/actions/python-setup
         with:
-          python-version-file: .python-version
-          cache: pip
-          cache-dependency-path: |
-            requirements.txt
-            requirements-dev.txt
+          python-version: '3.13.6'
+          requirements-profile: ci-lite
+          install-mode: direct-proxy
 
       - name: Install security tooling
         run: |
@@ -42,8 +40,7 @@ jobs:
           if [[ -n "${PULSEPLATE_PYTHON_TRUSTED_HOST:-}" ]]; then
             pip_index_args+=(--trusted-host "$PULSEPLATE_PYTHON_TRUSTED_HOST")
           fi
-          python -m pip install "${pip_index_args[@]}" --upgrade pip
-          python -m pip install "${pip_index_args[@]}" bandit==1.8.6 "safety>=3.7.0" -c constraints.txt
+          python -m pip install "${pip_index_args[@]}" "bandit==1.8.6" "safety>=3.7.0" -c constraints.txt
           if ! command -v jq >/dev/null 2>&1; then
             sudo apt-get update
             sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends jq
@@ -97,13 +94,6 @@ jobs:
       - name: Run Safety (dependency audit with policy)
         run: |
           set -eo pipefail
-          : "${PULSEPLATE_PYTHON_INDEX_URL:?Set PULSEPLATE_PYTHON_INDEX_URL to the approved private package proxy URL.}"
-          pip_index_args=(--index-url "$PULSEPLATE_PYTHON_INDEX_URL")
-          if [[ -n "${PULSEPLATE_PYTHON_TRUSTED_HOST:-}" ]]; then
-            pip_index_args+=(--trusted-host "$PULSEPLATE_PYTHON_TRUSTED_HOST")
-          fi
-
-          python -m pip install "${pip_index_args[@]}" --upgrade pip setuptools wheel
 
           if [ ! -f requirements.txt ]; then
             echo "❌ ERROR: requirements.txt not found. Safety scan requires requirements.txt to be present."
