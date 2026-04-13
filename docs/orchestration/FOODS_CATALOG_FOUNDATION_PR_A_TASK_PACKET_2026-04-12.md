@@ -24,7 +24,7 @@ catalog tables without changing the current runtime, importer, or deploy behavio
 
 - Add exactly one Alembic revision after `202604060001`
 - Create additive `foods` table aligned to the current runtime/local catalog vocabulary
-- Create additive `restaurants` and `restaurant_menu_items` tables as future relational targets
+- Create additive `restaurant_chains` and `restaurant_menu_items` tables as future relational targets
 - Close the existing PostgreSQL trigram seam by replaying `pg_trgm` + `foods` GIN(trgm) index creation after `foods` exists
 - Add narrow migration-focused tests for SQLite upgrade/downgrade safety and static DDL contract checks
 - Record deferred follow-up work for ETL/importer/runtime cutover in `docs/roadmap/BACKLOG_LEDGER.md`
@@ -67,7 +67,8 @@ Mandatory post-open review lane remains: `qa-engineer-agent -> bug-hunter`.
   - `pre-commit run --all-files`
   - `make verify`
 - Manual PostgreSQL proof before undraft:
-  - run `alembic upgrade head` against an available PostgreSQL path
+  - run `alembic stamp 202604060001`
+  - then run `alembic upgrade head` against an available PostgreSQL path
   - confirm `foods` exists
   - confirm `ix_foods_canonical_name_gin_trgm`, `ix_foods_group_name_gin_trgm`, and `ix_foods_brand_gin_trgm` exist on `foods`
 
@@ -76,6 +77,6 @@ Mandatory post-open review lane remains: `qa-engineer-agent -> bug-hunter`.
 - Exactly one new additive Alembic revision is introduced
 - `foods` mirrors the current repo catalog vocabulary instead of inventing a new runtime contract
 - `food_items` remains untouched
-- `restaurants` and `restaurant_menu_items` land as foundation-only schema targets
+- `restaurant_chains` and `restaurant_menu_items` land as foundation-only schema targets
 - PostgreSQL trigram seam is closed in the clean-upgrade path
 - Deferred ETL/importer/runtime cutover work is tracked explicitly in the backlog ledger
