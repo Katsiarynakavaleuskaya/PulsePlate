@@ -14,7 +14,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from core.rag.contracts import RAGChunk, RAGContext
+from core.rag.contracts import RAGChunk, RAGContext, RAGDegradedReason
 
 # ---------------------------------------------------------------------------
 # Fake RAG context for Jaccard fallback verification
@@ -261,6 +261,42 @@ class TestVectorRetrievalFallback:
         ctx = vector_rag.retrieve_context_structured("test query")
         assert isinstance(ctx, _FakeContext)
         assert ctx.chunks[0].chunk_id == "j:1"
+
+    def test_vector_fallback_preserves_public_args_without_subject_id(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Fallback must preserve additive args while keeping tenant fallback non-personal."""
+        import core.rag.vector_rag as vector_rag
+
+        captured: dict[str, Any] = {}
+
+        def _spy_jaccard(*args: Any, **kwargs: Any) -> _FakeContext:
+            captured["args"] = args
+            captured["kwargs"] = kwargs
+            return _fake_jaccard(*args, **kwargs)
+
+        monkeypatch.setattr("core.rag.vector_rag.is_rag_vector_enabled", lambda: True)
+        monkeypatch.setattr(
+            "core.rag.vector_rag._retrieve_vector_from_db",
+            lambda *a, **k: (_ for _ in ()).throw(RuntimeError("DB down")),
+        )
+        monkeypatch.setattr("core.rag.simple_rag.retrieve_context_structured", _spy_jaccard)
+
+        ctx = vector_rag.retrieve_context_structured(
+            "test query",
+            max_chunks=4,
+            agent_id="cbt-agent",
+            user_tier="PRO",
+            subject_id=42,
+        )
+
+        assert isinstance(ctx, _FakeContext)
+        assert captured["kwargs"]["max_chunks"] == 4
+        assert captured["kwargs"]["agent_id"] == "cbt-agent"
+        assert captured["kwargs"]["user_tier"] == "PRO"
+        assert "subject_id" not in captured["kwargs"]
+        assert ctx.degraded_reason == RAGDegradedReason.VECTOR_FALLBACK_EXCEPTION
 
 
 class TestVectorRetrievalSQLite:

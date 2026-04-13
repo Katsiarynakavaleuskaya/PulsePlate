@@ -18,7 +18,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from core.rag.contracts import RAGChunk, RAGContext
+from core.rag.contracts import RAGChunk, RAGContext, RAGDegradedReason
 from core.insight.safety import redact_rag_context_for_insight
 from core.rag.formatting import build_rag_source_dicts, format_rag_chunks_for_prompt
 from core.rag.orchestration import (
@@ -261,6 +261,32 @@ class TestRetrieveAndValidateRag:
         assert to_thread_mock.call_args.kwargs["optimization_enabled"] is False
         assert result.rag_actually_used is True
         assert result.hops == 2
+
+    @pytest.mark.asyncio
+    async def test_recursive_empty_retrieval_preserves_recursive_metadata(self) -> None:
+        """Recursive empty retrieval must collapse safely without losing hop metadata."""
+        rag_ctx = _make_rag_context(chunks=[], hops=2, latency_ms=55)
+
+        with (
+            patch(
+                "asyncio.to_thread",
+                new_callable=AsyncMock,
+                return_value=rag_ctx,
+            ),
+            patch("core.rag.recursive_retrieval.retrieve_recursive_context_structured"),
+        ):
+            result = await retrieve_and_validate_rag(
+                "test prompt",
+                philo_validation_enabled=False,
+                recursive_rag_enabled=True,
+            )
+
+        assert result.rag_actually_used is False
+        assert result.formatted_prompt == "test prompt"
+        assert result.recursive_executed is True
+        assert result.hops == 2
+        assert result.latency_ms == 55
+        assert result.degraded_reason == RAGDegradedReason.RETRIEVAL_EMPTY
 
     @pytest.mark.asyncio
     async def test_recursive_enabled_passes_explicit_optimization_flag(self) -> None:
@@ -907,6 +933,51 @@ class TestRetrieveAndValidateRag:
         assert result.confidence is None
         assert result.hops == 3
         assert result.latency_ms == 60
+
+    @pytest.mark.asyncio
+    async def test_philo_enabled_late_formatted_context_collapse_preserves_metadata(self) -> None:
+        """Late context collapse after validation must keep retrieval metadata and warnings."""
+        chunks = [
+            _make_chunk("c1", content="Knowledge about wellness.", score=0.9),
+            _make_chunk("c2", content="Extra chunk.", score=0.6),
+        ]
+        rag_ctx = _make_rag_context(chunks=chunks, hops=4, latency_ms=88)
+        pipeline_result = PipelineResult(
+            filtered_chunks=[chunks[0]],
+            stage_results=[],
+            warnings=["medical_boundary: chunk c2 rejected"],
+            total_latency_ms=1.0,
+        )
+
+        with (
+            patch(
+                "asyncio.to_thread",
+                new_callable=AsyncMock,
+                return_value=rag_ctx,
+            ),
+            patch("core.rag.vector_rag.retrieve_context_structured"),
+            patch(
+                "core.rag.philosophy_pipeline.run_pipeline",
+                return_value=pipeline_result,
+            ),
+            patch(
+                "core.rag.formatting.format_rag_chunks_for_prompt",
+                return_value="   ",
+            ),
+        ):
+            result = await retrieve_and_validate_rag(
+                "What is wellness?",
+                philo_validation_enabled=True,
+            )
+
+        assert result.rag_actually_used is False
+        assert result.formatted_prompt == "What is wellness?"
+        assert result.warnings == ["medical_boundary: chunk c2 rejected"]
+        assert result.chunks_retrieved == 2
+        assert result.chunks_filtered == 1
+        assert result.hops == 4
+        assert result.latency_ms == 88
+        assert result.degraded_reason == RAGDegradedReason.FORMATTED_CONTEXT_EMPTY
 
 
 def test_format_rag_chunks_for_prompt_sanitizes_injection_lines() -> None:

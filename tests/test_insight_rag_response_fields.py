@@ -330,6 +330,42 @@ class TestInsightV1RAGFields:
         assert data["hops"] == 1
         assert data["latency_ms"] == 5
 
+    def test_rag_late_context_collapse_returns_non_rag_contract(
+        self,
+        rag_client: TestClient,
+        monkeypatch: pytest.MonkeyPatch,
+        vip_headers: dict[str, str],
+    ) -> None:
+        """Late formatting collapse must keep the additive non-RAG response contract."""
+        import llm
+
+        monkeypatch.setenv("FEATURE_INSIGHT", "true")
+        monkeypatch.setenv("FEATURE_RAG", "true")
+        monkeypatch.setattr(llm, "get_insight_provider", lambda: _EchoProvider(), raising=True)
+        monkeypatch.setattr(
+            "core.rag.vector_rag.retrieve_context_structured",
+            _make_fake_structured,
+            raising=True,
+        )
+        monkeypatch.setattr(
+            "core.rag.formatting.format_rag_chunks_for_prompt",
+            lambda chunks: "   ",
+            raising=True,
+        )
+
+        resp = rag_client.post(
+            "/api/v1/insight",
+            json={"text": "What is BMI?"},
+            headers=vip_headers,
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["rag_used"] is False
+        assert data["sources"] == []
+        assert data["confidence"] is None
+        assert data["hops"] == 1
+        assert data["latency_ms"] == 42
+
     def test_rag_response_confidence_uses_active_output_chunks(
         self,
         rag_client: TestClient,
