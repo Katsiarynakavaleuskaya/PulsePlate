@@ -7,7 +7,7 @@
 ## Fixed in Commit Mapping
 Disposition: FIXED
 Commit: see mapping entries below
-Evidence: [tests/test_payments_activation_paywall_events.py](/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/worktrees/feat-paywall-exposure-ledger/tests/test_payments_activation_paywall_events.py:63), [frontend/src/lib/analytics.ts](/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/worktrees/feat-paywall-exposure-ledger/frontend/src/lib/analytics.ts:24)
+Evidence: [tests/test_payments_activation_paywall_events.py](../../tests/test_payments_activation_paywall_events.py#L68), [frontend/src/lib/analytics.ts](../../frontend/src/lib/analytics.ts#L31)
 Reason: Sourcery follow-ups for deterministic activation lineage assertions and memoized hidden-ingestion import were fixed in earlier review passes.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1416#discussion_r3074758628 -> bba685ea0
@@ -15,7 +15,7 @@ Reason: Sourcery follow-ups for deterministic activation lineage assertions and 
 
 Disposition: FIXED
 Commit: see mapping entries below
-Evidence: [app/schemas/paywall_analytics.py](/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/worktrees/feat-paywall-exposure-ledger/app/schemas/paywall_analytics.py:39), [app/routers/paywall_analytics.py](/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/worktrees/feat-paywall-exposure-ledger/app/routers/paywall_analytics.py:35), [app/main.py](/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/worktrees/feat-paywall-exposure-ledger/app/main.py:205), [app/services/paywall_exposure_ledger.py](/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/worktrees/feat-paywall-exposure-ledger/app/services/paywall_exposure_ledger.py:143), [tests/test_paywall_exposure_ledger_api.py](/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/worktrees/feat-paywall-exposure-ledger/tests/test_paywall_exposure_ledger_api.py:74), [tests/test_paywall_exposure_ledger_service.py](/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/worktrees/feat-paywall-exposure-ledger/tests/test_paywall_exposure_ledger_service.py:93), [tests/test_main_paywall_bootstrap.py](/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/worktrees/feat-paywall-exposure-ledger/tests/test_main_paywall_bootstrap.py:43)
+Evidence: [app/schemas/paywall_analytics.py](../../app/schemas/paywall_analytics.py#L36), [app/routers/paywall_analytics.py](../../app/routers/paywall_analytics.py#L36), [app/main.py](../../app/main.py#L205), [app/services/paywall_exposure_ledger.py](../../app/services/paywall_exposure_ledger.py#L143), [tests/test_paywall_exposure_ledger_api.py](../../tests/test_paywall_exposure_ledger_api.py#L124), [tests/test_paywall_exposure_ledger_service.py](../../tests/test_paywall_exposure_ledger_service.py#L106), [tests/test_main_paywall_bootstrap.py](../../tests/test_main_paywall_bootstrap.py#L44)
 Reason: Hardened the hidden paywall ledger path by splitting client/server event enums, requiring trusted first-party provenance or authenticated context, enforcing correct route ownership during bootstrap, removing raw payment identifiers from analytics metadata, making the Alembic revision deterministic, and adding targeted coverage for the new branches.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1416#discussion_r3074768785 -> db3446f6e
@@ -29,7 +29,7 @@ Reason: Hardened the hidden paywall ledger path by splitting client/server event
 
 Disposition: FIXED
 Commit: 6d1e7d2e1
-Evidence: [docs/review/PR_1416_FIXED_MAPPING.md](/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/worktrees/feat-paywall-exposure-ledger/docs/review/PR_1416_FIXED_MAPPING.md:1)
+Evidence: [docs/review/PR_1416_FIXED_MAPPING.md](./PR_1416_FIXED_MAPPING.md#L1)
 Reason: Merge-readiness checkboxes were reset to unchecked and the artifact now uses thread-specific mapping evidence instead of the earlier ambiguous review-level references.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1416#discussion_r3074806376
 
