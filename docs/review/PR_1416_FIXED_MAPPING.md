@@ -52,6 +52,13 @@ Evidence: [tests/test_main_paywall_bootstrap.py](../../tests/test_main_paywall_b
 Reason: The bootstrap helper test now restores `app_main.app` after exercising temporary `FastAPI` instances, preventing module-singleton contamination across later tests.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1416#discussion_r3075310789 -> 0769efdf6
 
+Disposition: FIXED
+Commit: 9cdc3fda0
+Evidence: [app/routers/paywall_analytics.py](../../app/routers/paywall_analytics.py#L49), [tests/test_paywall_exposure_ledger_api.py](../../tests/test_paywall_exposure_ledger_api.py#L136), [tests/test_main_paywall_bootstrap.py](../../tests/test_main_paywall_bootstrap.py#L9)
+Reason: Late CodeRabbit follow-ups were closed with a post-comment hardening pass: the optional auth resolver now swallows only expected `HTTPException` auth rejections, unexpected resolver failures propagate to keep bugs visible, and the bootstrap tests restore the module singleton automatically between cases.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1416#discussion_r3075318765 -> 9cdc3fda0
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1416#discussion_r3075318772 -> 9cdc3fda0
+
 ## Merge Readiness
 - [ ] All required checks pass
 - [ ] No unresolved review threads (re-check on current head before merge)
