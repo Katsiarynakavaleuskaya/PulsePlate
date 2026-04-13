@@ -366,6 +366,42 @@ class TestInsightV1RAGFields:
         assert data["hops"] == 1
         assert data["latency_ms"] == 42
 
+    def test_rag_late_redaction_collapse_returns_non_rag_contract(
+        self,
+        rag_client: TestClient,
+        monkeypatch: pytest.MonkeyPatch,
+        vip_headers: dict[str, str],
+    ) -> None:
+        """Late redaction collapse must keep the additive non-RAG response contract."""
+        import llm
+
+        monkeypatch.setenv("FEATURE_INSIGHT", "true")
+        monkeypatch.setenv("FEATURE_RAG", "true")
+        monkeypatch.setattr(llm, "get_insight_provider", lambda: _EchoProvider(), raising=True)
+        monkeypatch.setattr(
+            "core.rag.vector_rag.retrieve_context_structured",
+            _make_fake_structured,
+            raising=True,
+        )
+        monkeypatch.setattr(
+            "core.insight.safety.redact_rag_context_for_insight",
+            lambda context: "",
+            raising=True,
+        )
+
+        resp = rag_client.post(
+            "/api/v1/insight",
+            json={"text": "What is BMI?"},
+            headers=vip_headers,
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["rag_used"] is False
+        assert data["sources"] == []
+        assert data["confidence"] is None
+        assert data["hops"] == 1
+        assert data["latency_ms"] == 42
+
     def test_rag_response_confidence_uses_active_output_chunks(
         self,
         rag_client: TestClient,
@@ -695,6 +731,40 @@ class TestInsightLegacyRAGFields:
         assert data["rag_used"] is True
         assert len(data["sources"]) == 2
         assert data["confidence"] == 0.75
+        assert data["hops"] == 1
+        assert data["latency_ms"] == 42
+
+    def test_legacy_rag_late_redaction_collapse_returns_non_rag_contract(
+        self,
+        rag_client: TestClient,
+        monkeypatch: pytest.MonkeyPatch,
+        vip_headers: dict[str, str],
+    ) -> None:
+        """Legacy /insight must match non-RAG-safe contract on late redaction collapse."""
+        import llm
+
+        monkeypatch.setenv("FEATURE_INSIGHT", "true")
+        monkeypatch.setenv("FEATURE_RAG", "true")
+        monkeypatch.setattr(llm, "get_insight_provider", lambda: _EchoProvider(), raising=True)
+        monkeypatch.setattr(
+            "core.rag.vector_rag.retrieve_context_structured",
+            _make_fake_structured,
+            raising=True,
+        )
+        monkeypatch.setattr(
+            "core.insight.safety.redact_rag_context_for_insight",
+            lambda context: "",
+            raising=True,
+        )
+
+        with _isolated_test_client(rag_client.app) as isolated_client:
+            resp = isolated_client.post("/insight", json={"text": "test"}, headers=vip_headers)
+            assert resp.status_code == 200, resp.text
+            data = resp.json()
+
+        assert data["rag_used"] is False
+        assert data["sources"] == []
+        assert data["confidence"] is None
         assert data["hops"] == 1
         assert data["latency_ms"] == 42
 

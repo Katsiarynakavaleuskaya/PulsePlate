@@ -261,6 +261,22 @@ class TestVectorRetrievalFallback:
         ctx = vector_rag.retrieve_context_structured("test query")
         assert isinstance(ctx, _FakeContext)
         assert ctx.chunks[0].chunk_id == "j:1"
+        assert ctx.degraded_reason == RAGDegradedReason.VECTOR_FALLBACK_NO_RESULTS
+
+    def test_missing_subject_id_fallback_sets_degraded_reason(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Missing tenant scope must degrade to non-personal fallback with explicit reason."""
+        import core.rag.vector_rag as vector_rag
+
+        monkeypatch.setattr("core.rag.vector_rag.is_rag_vector_enabled", lambda: True)
+        monkeypatch.setattr("core.rag.simple_rag.retrieve_context_structured", _fake_jaccard)
+
+        ctx = vector_rag.retrieve_context_structured("test query", subject_id=None)
+
+        assert isinstance(ctx, _FakeContext)
+        assert ctx.degraded_reason == RAGDegradedReason.VECTOR_FALLBACK_SUBJECT_MISSING
 
     def test_vector_fallback_preserves_public_args_without_subject_id(
         self,

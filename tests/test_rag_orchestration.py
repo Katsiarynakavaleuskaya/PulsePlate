@@ -979,6 +979,55 @@ class TestRetrieveAndValidateRag:
         assert result.latency_ms == 88
         assert result.degraded_reason == RAGDegradedReason.FORMATTED_CONTEXT_EMPTY
 
+    @pytest.mark.asyncio
+    async def test_philo_enabled_late_redacted_context_collapse_preserves_metadata(self) -> None:
+        """Late redaction collapse after validation must keep retrieval metadata and warnings."""
+        chunks = [
+            _make_chunk("c1", content="Knowledge about wellness.", score=0.9),
+            _make_chunk("c2", content="Extra chunk.", score=0.6),
+        ]
+        rag_ctx = _make_rag_context(chunks=chunks, hops=5, latency_ms=91)
+        pipeline_result = PipelineResult(
+            filtered_chunks=[chunks[0]],
+            stage_results=[],
+            warnings=["medical_boundary: chunk c2 rejected"],
+            total_latency_ms=1.0,
+        )
+
+        with (
+            patch(
+                "asyncio.to_thread",
+                new_callable=AsyncMock,
+                return_value=rag_ctx,
+            ),
+            patch("core.rag.vector_rag.retrieve_context_structured"),
+            patch(
+                "core.rag.philosophy_pipeline.run_pipeline",
+                return_value=pipeline_result,
+            ),
+            patch(
+                "core.rag.formatting.format_rag_chunks_for_prompt",
+                return_value="Knowledge about wellness.",
+            ),
+            patch(
+                "core.insight.safety.redact_rag_context_for_insight",
+                return_value="",
+            ),
+        ):
+            result = await retrieve_and_validate_rag(
+                "What is wellness?",
+                philo_validation_enabled=True,
+            )
+
+        assert result.rag_actually_used is False
+        assert result.formatted_prompt == "What is wellness?"
+        assert result.warnings == ["medical_boundary: chunk c2 rejected"]
+        assert result.chunks_retrieved == 2
+        assert result.chunks_filtered == 1
+        assert result.hops == 5
+        assert result.latency_ms == 91
+        assert result.degraded_reason == RAGDegradedReason.REDACTED_CONTEXT_EMPTY
+
 
 def test_format_rag_chunks_for_prompt_sanitizes_injection_lines() -> None:
     """Prompt formatting must strip embedded prompt-injection content."""
