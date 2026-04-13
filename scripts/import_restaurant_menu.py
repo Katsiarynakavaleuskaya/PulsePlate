@@ -14,6 +14,7 @@ import os
 import re
 import sqlite3
 import sys
+from collections.abc import Sequence
 from datetime import date
 from pathlib import Path
 from typing import Any
@@ -41,7 +42,7 @@ TARGET_BACKEND_POSTGRES = "postgres"
 TARGET_BACKEND_CHOICES = (TARGET_BACKEND_SQLITE, TARGET_BACKEND_POSTGRES)
 
 
-def _has_required_header_aliases(fieldnames: list[str] | None) -> bool:
+def _has_required_header_aliases(fieldnames: Sequence[str] | None) -> bool:
     """Check that CSV headers contain required alias groups."""
     if fieldnames is None:
         return False
