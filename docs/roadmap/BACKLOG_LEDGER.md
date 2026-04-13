@@ -4560,6 +4560,91 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Deterministic tests cover allowlisted research connectors and blocked low-fit scraping requests
     - `make verify` and `pre-commit run --all-files` pass in PR scope
 
+
+- [ ] P1: Add custom Codex skill `pulseplate-app-store-release` (Wave 1)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-CODEX-SKILL-WAVE1A
+  - Status: Planned
+  - Area: iOS / release / orchestration
+  - Finding Type: capability expansion
+  - Reason: PulsePlate needs a project-specific App Store release skill that understands Fastlane, release truth, metadata parity, screenshot packs, and the repo's non-interference contract with coordinator-first orchestration.
+  - Links:
+    - `docs/orchestration/CODEX_SKILLS_ALIGNMENT_MATRIX.md`
+    - `docs/orchestration/AGENT_SKILL_ROUTING_POLICY.md`
+  - DoD:
+    - Skill exists under `tools/codex_skills/pulseplate-app-store-release/`
+    - Skill covers App Store metadata, Fastlane, release evidence, and rollback notes
+    - Skill docs explicitly preserve coordinator-first and transport-only bridge invariants
+
+
+- [ ] P1: Add custom Codex skill `pulseplate-monetization-gtm` (Wave 1)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-CODEX-SKILL-WAVE1B
+  - Status: Planned
+  - Area: monetization / growth / orchestration
+  - Finding Type: capability expansion
+  - Reason: PulsePlate needs a project-specific monetization/GTM skill for subscriptions, paywalls, pricing experiments, launch channels, and wellness-safe growth recommendations without relying on generic advice alone.
+  - Links:
+    - `docs/orchestration/CODEX_SKILLS_ALIGNMENT_MATRIX.md`
+    - `docs/orchestration/AGENT_SKILL_ROUTING_POLICY.md`
+  - DoD:
+    - Skill exists under `tools/codex_skills/pulseplate-monetization-gtm/`
+    - Skill covers paywall, subscription, pricing, ASO/SEO/Product Hunt, and wellness-safe disclaimers
+    - Skill docs explicitly preserve coordinator-first and additive `recommended_skills` semantics
+
+
+- [ ] P2: Add custom Codex skill `pulseplate-design-launch-system` (Wave 2)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR-TBD-CODEX-SKILL-WAVE2A
+  - Status: Planned
+  - Area: design / launch assets / orchestration
+  - Finding Type: capability expansion
+  - Reason: PulsePlate needs a project-specific design launch system skill that links Figma/design tokens/brand assets with launch-readiness constraints while keeping design tooling passive with respect to coordinator-first routing.
+  - Links:
+    - `docs/orchestration/CODEX_SKILLS_ALIGNMENT_MATRIX.md`
+    - `docs/runbooks/DESIGN_TOOLING_OPERATING_MODEL.md`
+  - DoD:
+    - Skill exists under `tools/codex_skills/pulseplate-design-launch-system/`
+    - Skill covers design system readiness, launch asset bundles, and token/brand consistency
+    - Skill docs explicitly preserve passive discovery-only boundaries
+
+
+- [ ] P2: Add custom Codex skill `pulseplate-web-launch-site` (Wave 2)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR-TBD-CODEX-SKILL-WAVE2B
+  - Status: Planned
+  - Area: web / launch / frontend
+  - Finding Type: capability expansion
+  - Reason: PulsePlate needs a project-specific launch-site skill for high-conviction landing pages, launch copy, capture funnels, and deploy-adjacent web launch workflows beyond generic frontend helpers.
+  - Links:
+    - `docs/orchestration/CODEX_SKILLS_ALIGNMENT_MATRIX.md`
+    - `docs/orchestration/AGENT_SKILL_ROUTING_POLICY.md`
+  - DoD:
+    - Skill exists under `tools/codex_skills/pulseplate-web-launch-site/`
+    - Skill covers launch-site structure, CTA/funnel considerations, and frontend implementation handoff
+    - Skill docs explicitly preserve coordinator-first and non-interference contract
+
+
+- [ ] P2: Add custom Codex skill `pulseplate-agent-product` (Wave 3)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR-TBD-CODEX-SKILL-WAVE3
+  - Status: Planned
+  - Area: agents / product strategy / orchestration
+  - Finding Type: capability expansion
+  - Reason: PulsePlate needs a project-specific agent-product skill for productizing agent workflows without collapsing repo orchestration, transport-only bridge semantics, or coordinator authority into a parallel runtime layer.
+  - Links:
+    - `docs/orchestration/CODEX_SKILLS_ALIGNMENT_MATRIX.md`
+    - `docs/orchestration/NATIVE_SUBAGENT_BRIDGE_PROTOCOL.md`
+  - DoD:
+    - Skill exists under `tools/codex_skills/pulseplate-agent-product/`
+    - Skill covers agent-facing product surfaces, guardrails, and orchestration boundaries
+    - Skill docs explicitly preserve non-interference with Cursor/custom orchestration
+
 <a id="ledger-p2-fitchef-sandbox-phase-2-deferred-scope"></a>
 - [ ] P2: FitChef sandbox Phase 2 deferred scope
   - Owner: @katsiaryna_kavaleuskaya

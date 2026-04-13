@@ -628,6 +628,106 @@ def test_skill_router_selects_report_stack_for_research() -> None:
     assert "notion-research-documentation" in skills
 
 
+def test_skill_router_selects_web_ui_skill_stack() -> None:
+    """Strong web UI/UX tasks should route the curated web skill stack."""
+
+    skills = select_recommended_skills(
+        goal="Build a launch site landing page hero section with strong UI UX and design audit coverage",
+        task_class="Frontend",
+        candidate_paths=["frontend/src/pages/LandingPage.tsx"],
+        domain="frontend",
+    )
+
+    assert "pulseplate-frontend-ui" in skills
+    assert "build-web-apps:frontend-skill" in skills
+    assert "build-web-apps:web-design-guidelines" in skills
+
+
+def test_skill_router_selects_ios_app_store_skill_stack() -> None:
+    """iOS and App Store work should route the dedicated SwiftUI/iOS helpers."""
+
+    skills = select_recommended_skills(
+        goal="Refactor a SwiftUI subscription screen, debug it in Simulator, and prepare App Store screenshots",
+        task_class="iOS",
+        candidate_paths=[
+            "ios/PulsePlate/Features/Paywall/PaywallView.swift",
+            "ios/fastlane/Fastfile",
+        ],
+        domain="release",
+    )
+
+    assert "build-ios-apps:swiftui-ui-patterns" in skills
+    assert "build-ios-apps:swiftui-view-refactor" in skills
+    assert "build-ios-apps:ios-debugger-agent" in skills
+    assert "build-web-apps:stripe-best-practices" not in skills
+
+
+def test_skill_router_selects_ios_app_store_screenshot_lane() -> None:
+    """App Store screenshot and Fastlane tasks should still route the iOS release helpers."""
+
+    skills = select_recommended_skills(
+        goal="Prepare App Store screenshots for onboarding via Fastlane screenshots",
+        task_class="iOS",
+        candidate_paths=["ios/fastlane/Fastfile"],
+        domain="release",
+    )
+
+    assert "build-ios-apps:ios-debugger-agent" in skills
+
+
+def test_skill_router_selects_design_figma_brand_stack() -> None:
+    """Design fidelity and brand implementation tasks should route Figma + web design helpers."""
+
+    skills = select_recommended_skills(
+        goal="Implement Figma design fidelity for the branded hero with token and brand alignment",
+        task_class="Frontend",
+        candidate_paths=["frontend/src/components/Hero.tsx"],
+        domain="frontend",
+        design_source="figma_design",
+        source_url="https://figma.com/design/FILEKEY/Hero?node-id=1-2",
+        file_key_or_workspace="FILEKEY",
+        node_id_or_frame_id="1:2",
+        target_surface="frontend-hero",
+        task_mode="implement",
+        figma_lane_tool="figma_native",
+        code_native_design_brief_path="docs/figma/briefs/frontend-hero.md",
+    )
+
+    assert "figma" in skills
+    assert "figma-implement-design" in skills
+    assert "build-web-apps:web-design-guidelines" in skills
+
+
+def test_skill_router_selects_monetization_and_gtm_stack() -> None:
+    """Monetization, subscriptions, and GTM tasks should route billing + report helpers."""
+
+    skills = select_recommended_skills(
+        goal="Define subscription pricing, paywall copy, billing flow, and GTM plan for monetization",
+        task_class="Business",
+        candidate_paths=["core/billing_policy.py", "app/services/payments_activation.py"],
+        domain="business",
+    )
+
+    assert "build-web-apps:stripe-best-practices" in skills
+    assert "pulseplate-ai-reports" in skills
+    assert "docs-sync" in skills
+
+
+def test_skill_router_selects_github_review_ci_pr_stack() -> None:
+    """GitHub review, CI, and PR intent should route the dedicated GitHub helpers."""
+
+    skills = select_recommended_skills(
+        goal="Address GitHub review comments, fix failing PR checks, and prepare the pull request",
+        task_class="QA",
+        candidate_paths=["docs/review/PR_999_FIXED_MAPPING.md", ".github/workflows/ci.yml"],
+        domain="qa",
+    )
+
+    assert "gh-address-comments" in skills
+    assert "gh-fix-ci" in skills
+    assert "create-pr" in skills
+
+
 def test_task_classifier_keeps_generic_market_wellness_language_out_of_creative_research() -> None:
     """Generic wellness/market wording without a research deliverable must not trigger the lane."""
 

@@ -5,10 +5,13 @@
 Repo-tracked source for project-specific Codex skills and cybersecurity skills.
 
 - Source of truth: `tools/codex_skills/*`, `tools/cybersecurity_skills/skills/*`
-- Install target: `$CODEX_HOME/skills/*` (or `~/.codex/skills/*`)
+- Repo discovery mirror: `.agents/skills/*`
+- Primary user install target: `$HOME/.agents/skills/*`
+- Compatibility-only legacy target: `$CODEX_HOME/skills/*` (typically `~/.codex/skills/*`)
 - Installer: `scripts/install_codex_skills.sh`
 
 Default install mode uses symlinks so updates in this repo immediately apply to installed skills.
+Skills remain passive/discovery-only helpers and do not replace coordinator bootstrap.
 
 ## PulsePlate skills
 

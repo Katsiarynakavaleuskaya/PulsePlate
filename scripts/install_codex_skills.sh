@@ -6,19 +6,23 @@ usage() {
 Install PulsePlate and cybersecurity Codex skills from this repo into a Codex skills directory.
 
 Usage:
-  scripts/install_codex_skills.sh [--copy] [--unlink] [--list] [--dest <skills_dir>] [--no-cybersec|--only-cybersec]
+  scripts/install_codex_skills.sh [--copy] [--unlink] [--list] [--target <official|compat>] [--dest <skills_dir>] [--no-cybersec|--only-cybersec]
 
 Options:
   --copy            Install by copying directories (default is symlink mode).
   --unlink          Remove installed skills from destination.
   --list            Print source skills and destination install status.
-  --dest <path>     Destination skills directory (default: $CODEX_HOME/skills or ~/.codex/skills).
+  --target <name>   Install target: official -> ~/.agents/skills (default),
+                    compat -> $CODEX_HOME/skills (~/.codex/skills).
+  --dest <path>     Destination skills directory override. Use for temp validation
+                    or explicit custom install roots.
   --no-cybersec     Install only PulsePlate skills (skip cybersecurity skills).
   --only-cybersec   Install only cybersecurity skills (skip PulsePlate skills).
   -h, --help        Show this help.
 
 Examples:
   scripts/install_codex_skills.sh
+  scripts/install_codex_skills.sh --target compat
   scripts/install_codex_skills.sh --copy
   scripts/install_codex_skills.sh --no-cybersec --list
   scripts/install_codex_skills.sh --only-cybersec
@@ -32,8 +36,12 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 COPY_MARKER_FILE=".pulseplate_codex_skill_source"
 
+AGENTS_HOME_DEFAULT="${HOME}/.agents"
 CODEX_HOME_DEFAULT="${CODEX_HOME:-${HOME}/.codex}"
-DEST_ROOT="${CODEX_HOME_DEFAULT}/skills"
+DEFAULT_DEST_ROOT="${AGENTS_HOME_DEFAULT}/skills"
+COMPAT_DEST_ROOT="${CODEX_HOME_DEFAULT}/skills"
+TARGET="official"
+DEST_ROOT="${DEFAULT_DEST_ROOT}"
 MODE="link"
 ACTION="install"
 CYBERSEC_MODE="both"
@@ -52,12 +60,34 @@ while [[ $# -gt 0 ]]; do
       ACTION="list"
       shift
       ;;
+    --target)
+      if [[ $# -lt 2 ]]; then
+        echo "Error: --target requires official or compat." >&2
+        exit 1
+      fi
+      case "$2" in
+        official)
+          TARGET="official"
+          DEST_ROOT="${DEFAULT_DEST_ROOT}"
+          ;;
+        compat)
+          TARGET="compat"
+          DEST_ROOT="${COMPAT_DEST_ROOT}"
+          ;;
+        *)
+          echo "Error: unsupported target: $2 (expected official or compat)." >&2
+          exit 1
+          ;;
+      esac
+      shift 2
+      ;;
     --dest)
       if [[ $# -lt 2 ]]; then
         echo "Error: --dest requires a path argument." >&2
         exit 1
       fi
       DEST_ROOT="$2"
+      TARGET="custom"
       shift 2
       ;;
     --no-cybersec)
@@ -124,6 +154,7 @@ list_skills() {
     sources_str="${sources_str}${r#${REPO_ROOT}/}"
   done
   echo "Sources: ${sources_str}"
+  echo "Target: ${TARGET}"
   echo "Destination: ${DEST_ROOT}"
   echo
   printf "%-36s %s\n" "SKILL" "STATUS"
@@ -198,7 +229,6 @@ install_skills() {
 }
 
 unlink_skills() {
-  mkdir -p "${DEST_ROOT}"
   for src_dir in "${SKILL_DIRS[@]}"; do
     local skill_name
     local dest_dir
