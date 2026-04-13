@@ -59,6 +59,24 @@ Reason: Late CodeRabbit follow-ups were closed with a post-comment hardening pas
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1416#discussion_r3075318765 -> 9cdc3fda0
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1416#discussion_r3075318772 -> 9cdc3fda0
 
+Disposition: FIXED
+Commit: d17162bcc
+Evidence: [tests/test_main_paywall_bootstrap.py](../../tests/test_main_paywall_bootstrap.py#L1), [tests/test_paywall_exposure_ledger_api.py](../../tests/test_paywall_exposure_ledger_api.py#L336)
+Reason: The remaining open CodeRabbit follow-ups are now closed: the autouse yield fixture is typed as `Generator[None, None, None]`, the primary cookie-auth exchange path uses `pro_headers`, and a separate VIP compatibility test preserves the earlier coverage without overloading the main PRO happy path.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1416#discussion_r3075520368 -> d17162bcc
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1416#discussion_r3075520378 -> d17162bcc
+
+Disposition: NOT-A-BUG
+Evidence: `docs/review/PR_1416_FIXED_MAPPING.md:8`, `docs/review/PR_1416_FIXED_MAPPING.md:16`, `docs/review/PR_1416_FIXED_MAPPING.md:29`, `docs/review/PR_1416_FIXED_MAPPING.md:70`
+Reason: These review-level bot comments are aggregate summaries of inline findings that are already dispositioned individually in this artifact. They do not add separate unfixed obligations beyond the mapped `discussion_r...` entries above.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1416#pullrequestreview-4100747870
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1416#pullrequestreview-4100802453
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1416#pullrequestreview-4100803334
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1416#pullrequestreview-4100826139
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1416#pullrequestreview-4101369074
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1416#pullrequestreview-4101378274
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1416#pullrequestreview-4101602245
+
 ## Merge Readiness
 - [ ] All required checks pass
 - [ ] No unresolved review threads (re-check on current head before merge)
