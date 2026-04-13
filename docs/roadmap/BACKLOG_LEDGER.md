@@ -396,6 +396,29 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - [ ] Locked install, Docker build, and `make verify` succeed with the private proxy alone
     - [ ] Advisory is updated to mark the emergency fallback retired
 
+<a id="ledger-p1-pillow-private-index-sync"></a>
+- [ ] P1: Remove temporary `Pillow 12.2.0` emergency wheel fallback after approved mirror sync
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (security / supply-chain / CI blocker)
+  - Target PR: `PR #1416`
+  - Status: Active as of `13 April 2026`
+  - Area: security / CI / dependencies
+  - Reason (EN): `feat/paywall-exposure-ledger` must stay on the patched exact release `Pillow 12.2.0` for `GHSA-whj4-6x5x-4v2j`, but current-head CI and Docker installs showed the approved private index lagged that upstream release. `PR #1416` therefore adds a time-boxed exact-wheel fallback with pinned `sha256` digests instead of a vulnerable repin or a broad public-index bypass. Remove this fallback as soon as the approved mirror serves `12.2.0` natively. (RU: `feat/paywall-exposure-ledger` должен остаться на исправленном точном релизе `Pillow 12.2.0`, но CI/Docker показали отставание приватного зеркала. Поэтому `PR #1416` добавляет временный exact-wheel fallback с pinned `sha256`, а не уязвимый репин и не широкий bypass на публичный индекс. Удалить fallback сразу после того, как одобренное зеркало начнёт отдавать `12.2.0` нативно.)
+  - Links:
+    - `docs/security/PILLOW_12_2_0_PRIVATE_INDEX_ADVISORY.md:1`
+    - `scripts/ci/emergency_python_wheels.json`
+    - `scripts/ci/install_locked_python_requirements.py`
+    - `.github/actions/python-setup/action.yml`
+    - `Dockerfile`
+    - `requirements.txt`
+    - `requirements-ci-lite.txt`
+    - `requirements-lock.txt`
+  - DoD:
+    - [ ] Approved private proxy serves `Pillow 12.2.0` without the emergency fallback manifest
+    - [ ] `scripts/ci/emergency_python_wheels.json` no longer includes `Pillow 12.2.0` exact-wheel artifacts
+    - [ ] Locked install, Docker build, and `make verify` succeed with the private proxy alone
+    - [ ] Advisory is updated to mark the emergency fallback retired
+
 <a id="ledger-p1-metatron-offensive-lab-out-of-band"></a>
 - [ ] P1: METATRON-class offensive lab — out-of-band governance and operator runbook
   - Owner: @katsiaryna_kavaleuskaya
