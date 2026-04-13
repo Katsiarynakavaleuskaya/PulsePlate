@@ -41,7 +41,7 @@ Status: operator execution map
 ## Execution order
 
 ### Wave 1 — Deploy / runtime closure
-1. `infra/postgres-droplet-foundation`
+1. `docs/reconcile-postgres-foundation-governance` — reconcile the already-shipped Postgres lanes and close stale ledger drift
 2. `fix/deploy-web-spa-routing`
 3. `docs/release-env-security-contract` only if it blocks deploy truth on staging/production
 
@@ -79,10 +79,12 @@ Status: operator execution map
 
 ## PR map
 
-### 1. infra(postgres): promote self-hosted Postgres to canonical Droplet foundation
-- status: merged; keep out of PR4 scope
+### 1. infra(postgres): reconcile shipped Postgres production lanes and close stale ledger drift
+- status: landed in repo/runtime; keep out of later monetization and foods implementation scope
 - closes: `ledger-p0-self-hosted-postgres-droplet-foundation`
-- goal: remove optional/profile-gated posture, require `DATABASE_URL`, add health-gated dependency, backup/restore scripts, runbook
+- evidence: `docs/deploy/POSTGRES_SELF_HOSTED_DROPLET.md`, `deploy/docker-compose.production.yaml`, `deploy/docker-compose.production.selfhosted.yaml`, `deploy/systemd/pulseplate-postgres-backup.service.example`, `deploy/systemd/pulseplate-postgres-backup.timer.example`, `scripts/ops/postgres_backup.sh`, `scripts/ops/postgres_restore.sh`, `.env.example`
+- note: do not cite unrelated PRs as closure proof for this lane; closure is based on the shipped repo/runtime evidence. Canonical deploy stance is managed Postgres by default, with self-hosted Postgres on the Droplet preserved as supported lane B.
+- goal: keep the deploy/database canon explicit, with no new infra implementation wave reopened ahead of Foods B2
 - do not include: billing, pgvector, MinIO, search, analytics
 
 ### 2. fix(deploy): restore SPA routing and production web shell
