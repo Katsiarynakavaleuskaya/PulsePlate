@@ -27,6 +27,12 @@ Reason: Hardened the hidden paywall ledger path by splitting client/server event
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1416#discussion_r3074806372 -> db3446f6e
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1416#discussion_r3074806387 -> db3446f6e
 
+Disposition: FIXED
+Commit: 6d1e7d2e1
+Evidence: [docs/review/PR_1416_FIXED_MAPPING.md](/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/worktrees/feat-paywall-exposure-ledger/docs/review/PR_1416_FIXED_MAPPING.md:1)
+Reason: Merge-readiness checkboxes were reset to unchecked and the artifact now uses thread-specific mapping evidence instead of the earlier ambiguous review-level references.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1416#discussion_r3074806376
+
 ## Merge Readiness
 - [ ] All required checks pass
 - [ ] No unresolved review threads (re-check on current head before merge)
