@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from fastapi import HTTPException
 from fastapi.testclient import TestClient
 import pytest
 from sqlalchemy import delete, select
@@ -132,7 +133,7 @@ def test_local_environment_helper_uses_app_or_runtime_env(
     assert paywall_analytics._is_local_or_test_environment() is True
 
 
-def test_resolve_optional_auth_context_returns_none_on_resolver_error(
+def test_resolve_optional_auth_context_propagates_unexpected_resolver_error(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     request = _request(headers={"cookie": "pp_web_session=fake"})
@@ -141,6 +142,23 @@ def test_resolve_optional_auth_context_returns_none_on_resolver_error(
         raise RuntimeError("broken auth resolver")
 
     monkeypatch.setattr(paywall_analytics, "resolve_pro_auth_context", _boom)
+
+    with pytest.raises(RuntimeError, match="broken auth resolver"):
+        paywall_analytics._resolve_optional_auth_context(
+            request=request,
+            x_api_key="broken-auth-header",  # pragma: allowlist secret
+        )
+
+
+def test_resolve_optional_auth_context_returns_none_on_expected_auth_rejection(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    request = _request(headers={"cookie": "pp_web_session=fake"})
+
+    def _reject(**_: object) -> None:
+        raise HTTPException(status_code=401, detail="invalid")
+
+    monkeypatch.setattr(paywall_analytics, "resolve_pro_auth_context", _reject)
 
     assert (
         paywall_analytics._resolve_optional_auth_context(

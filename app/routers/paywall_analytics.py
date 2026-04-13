@@ -47,7 +47,7 @@ def _resolve_optional_auth_context(
 
     try:
         return resolve_pro_auth_context(x_api_key=x_api_key, request=request)
-    except Exception:
+    except HTTPException:
         return None
 
 

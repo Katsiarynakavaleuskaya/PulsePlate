@@ -6,6 +6,15 @@ import pytest
 import app.main as app_main
 
 
+@pytest.fixture(autouse=True)
+def _restore_app_singleton() -> None:
+    original_app = app_main.app
+    try:
+        yield
+    finally:
+        app_main.app = original_app
+
+
 def _stub_router(path: str, *, method: str = "post") -> APIRouter:
     router = APIRouter()
 
