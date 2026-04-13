@@ -11,7 +11,7 @@ Evidence: `docs/orchestration/MONETIZATION_PLANNING_WAVE_PR_SERIES_RUNBOOK.md:18
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1414#pullrequestreview-4099415509
 
 Disposition: FIXED
-Commit: see mapping entries below
+Commit: 7531601be
 Evidence: `docs/review/PR_1414_FIXED_MAPPING.md:10`, `docs/roadmap/BACKLOG_LEDGER.md:206`, `docs/roadmap/BACKLOG_LEDGER.md:332`
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1414#discussion_r3073669810 -> 7531601be
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1414#discussion_r3073669816 -> 7531601be
