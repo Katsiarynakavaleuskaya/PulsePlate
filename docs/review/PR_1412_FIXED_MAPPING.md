@@ -27,6 +27,7 @@ Evidence: `tests/test_python_supply_chain_controls.py:221` checks the scheduled 
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1412#pullrequestreview-4098315589 -> 94a1cc3c7
 Disposition: FIXED
+Commit: 94a1cc3c7
 Evidence: `94a1cc3c7` restores explicit `Bandit 1.8.6` installation in `.github/workflows/security.yml`, gates nightly `pip list` to `matrix.shard_id == 1` in `.github/workflows/nightly.yml`, and removes the duplicate `_python_setup_step` helper from `tests/test_python_supply_chain_controls.py`.
 
 ## Merge Readiness
