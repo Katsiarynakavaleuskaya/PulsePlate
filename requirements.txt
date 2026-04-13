@@ -158,7 +158,7 @@ packaging==25.0
     #   transformers
 pgvector==0.4.2
     # via -r requirements.in
-pillow==12.1.1
+pillow==12.2.0
     # via
     #   matplotlib
     #   reportlab
