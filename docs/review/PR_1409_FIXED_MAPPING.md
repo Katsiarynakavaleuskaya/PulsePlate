@@ -46,6 +46,20 @@ Reason: CodeRabbit's walkthrough "Docstring Coverage" warning is advisory and no
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1409#issuecomment-4232685869
 
+Disposition: FIXED
+Commit: f9c01e61ae3fd8c66bd0e1e006ec16b79b080ff8
+Evidence: `tests/test_foods_catalog_foundation_migration.py:61`
+Reason: The Alembic helper no longer uses an unused walrus assignment in `cwd=...`, which removes the unnecessary local binding raised by the latest CodeRabbit nitpick review.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1409#pullrequestreview-4097398310 -> f9c01e61ae3fd8c66bd0e1e006ec16b79b080ff8
+
+Disposition: DEFERRED
+Backlog: `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-foods-foundation-downgrade-ownership`
+Reason: cubic identified a real downgrade-symmetry gap after the upgrade-time existence guards were added. Fixing it correctly requires an ownership-aware migration design plus additional downgrade tests for pre-existing catalog shapes, which is broader than the current PR-A foundation scope and is now tracked as an explicit follow-up.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1409#pullrequestreview-4097403512
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1409#discussion_r3071783807
+
 ## Merge Readiness
 
 - [ ] Current-head CI green for PR branch head
