@@ -209,6 +209,8 @@ def test_build_menu_item_upsert_preserves_existing_food_id_on_conflict() -> None
     record = {
         "id": "chain-a:item-001",
         "chain_id": "chain-a",
+        "chain_name": "Chain A",
+        "country": "US",
         "food_id": None,
         "item_name": "Item 1",
         "category": "Wraps",
@@ -236,6 +238,8 @@ def test_build_menu_item_upsert_preserves_existing_food_id_on_conflict() -> None
     assert "ON CONFLICT (id) DO UPDATE SET" in compiled
     assert "chain_id = excluded.chain_id" in compiled
     assert "food_id = excluded.food_id" not in compiled
+    assert "chain_name" not in compiled
+    assert "country" not in compiled
 
 
 def test_build_pg_engine_rejects_non_postgres_dialect(

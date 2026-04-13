@@ -17,6 +17,7 @@ import re
 from typing import Any
 
 from sqlalchemy import MetaData, Table, create_engine
+from sqlalchemy.dialects.postgresql.dml import Insert as PostgresInsert
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.engine import Connection, Engine
 from sqlalchemy.exc import NoSuchTableError
@@ -376,10 +377,27 @@ def _build_chain_upsert(table: Table, records: Sequence[dict[str, Any]]):
     )
 
 
-def _build_menu_item_upsert(table: Table, records: Sequence[dict[str, Any]]):
+def _project_records_to_table_columns(
+    table: Table,
+    records: Sequence[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """RU: Отфильтровать payload до колонок target table. EN: Keep only real table columns."""
+
+    allowed_columns = {column.name for column in table.columns}
+    return [
+        {
+            key: value
+            for key, value in record.items()
+            if key in allowed_columns
+        }
+        for record in records
+    ]
+
+
+def _build_menu_item_upsert(table: Table, records: Sequence[dict[str, Any]]) -> PostgresInsert:
     """Build an idempotent upsert statement that preserves existing food links."""
 
-    statement = pg_insert(table).values(list(records))
+    statement = pg_insert(table).values(_project_records_to_table_columns(table, records))
     return statement.on_conflict_do_update(
         index_elements=[table.c.id],
         set_={
@@ -403,9 +421,9 @@ def _build_menu_item_upsert(table: Table, records: Sequence[dict[str, Any]]):
 def import_menustat_rows_to_postgres(
     rows: Iterable[dict[str, Any]],
     *,
+    pg_url: str,
     snapshot_date: str | None = None,
     source_name: str = "menustat",
-    pg_url: str,
 ) -> dict[str, int]:
     """Write importer-normalized restaurant rows into PostgreSQL foundation tables.
 

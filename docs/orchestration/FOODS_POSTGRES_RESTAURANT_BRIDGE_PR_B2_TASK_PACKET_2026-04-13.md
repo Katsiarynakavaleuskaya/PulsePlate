@@ -76,14 +76,22 @@ moderation/source parity, or public API cutover.
 - No `foods.id` linking requirement for imported restaurant rows in this lane
 - No Meilisearch/vector/deploy widening
 
-## Touched Files
+## Primary Implementation Files
+
+This list names the lane-owned implementation surfaces. Full PR inventory may
+also include the canonical review artifact plus merge-sync dependency files
+pulled from `origin/main`.
 
 - `docs/roadmap/BACKLOG_LEDGER.md`
 - `docs/orchestration/FOODS_POSTGRES_RESTAURANT_BRIDGE_PR_B2_TASK_PACKET_2026-04-13.md`
+- `docs/review/PR_1419_FIXED_MAPPING.md`
 - `scripts/import_restaurant_menu.py`
 - `app/services/restaurant_postgres_bridge.py`
 - `tests/test_import_restaurant_menu_script.py`
 - `tests/test_restaurant_postgres_bridge.py`
+- `requirements-lock.txt`
+- `scripts/ci/emergency_python_wheels.json`
+- `.secrets.baseline`
 
 ## Role Order
 
