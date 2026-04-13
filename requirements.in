@@ -21,6 +21,7 @@ matplotlib>=3.10.7,<4.0.0
 # 2.4.0 is yanked on public PyPI; an explicit == pin keeps pip-compile and locked CI installs aligned.
 numpy==2.4.0
 reportlab>=4.4.4,<5.0.0
+pillow>=12.2.0,<13.0.0
 sqlalchemy>=2.0.44,<3.0.0
 # Required for async SQLAlchemy (create_async_engine, AsyncSession)
 # greenlet is needed for SQLAlchemy async operations on all platforms

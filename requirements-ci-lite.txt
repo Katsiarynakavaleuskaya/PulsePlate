@@ -225,9 +225,10 @@ pgvector==0.4.2
     # via
     #   -c requirements.txt
     #   -r requirements-ci-lite.in
-pillow==12.1.1
+pillow==12.2.0
     # via
     #   -c requirements.txt
+    #   -r requirements-ci-lite.in
     #   matplotlib
     #   reportlab
 platformdirs==4.9.4
