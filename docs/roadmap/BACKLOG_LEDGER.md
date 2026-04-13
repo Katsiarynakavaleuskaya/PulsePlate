@@ -4684,6 +4684,24 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Runtime contract decision is explicit: keep SQLite as baseline or switch reads to PostgreSQL behind a governed rollout
     - Search / catalog follow-up lanes reference the same canonical table source without parallel schema drift
 
+<a id="ledger-p1-foods-foundation-downgrade-ownership"></a>
+- [ ] P1: Make foods foundation downgrade ownership-aware for pre-existing catalog objects
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-FOODS-FOUNDATION-DOWNGRADE-OWNERSHIP
+  - Status: 📋 Planned
+  - Area: backend / migrations / PostgreSQL
+  - Finding Type: downgrade symmetry / object ownership
+  - Reason: Revision `202604120001` now guards upgrade-time creation of `foods` and companion indexes when a supported colocated catalog shape already exists, but the downgrade path still assumes ownership of those objects. A follow-up lane must make the downgrade ownership-aware so rolling back the revision does not drop pre-existing `foods`/index artifacts that were not created by this revision.
+  - Links:
+    - `alembic/versions/202604120001_add_foods_catalog_foundation.py`
+    - `docs/orchestration/FOODS_CATALOG_FOUNDATION_PR_A_TASK_PACKET_2026-04-12.md`
+    - `docs/review/PR_1409_FIXED_MAPPING.md`
+  - DoD:
+    - Downgrade behavior is explicit for both clean-room and pre-existing `foods` catalog shapes
+    - The revision no longer drops pre-existing `foods`/index artifacts that it did not create
+    - Migration tests cover both the clean-room downgrade cycle and the pre-existing-table ownership scenario
+
 ## Completed Items
 
 Entries are sorted by priority, then theme, then title. Theme uses `Area:` when present and a deterministic title/domain fallback otherwise.

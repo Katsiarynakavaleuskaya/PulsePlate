@@ -65,7 +65,7 @@ def _run_alembic_command(
         check=False,
         capture_output=True,
         text=True,
-        cwd=str(tmp_path := config_path.parent),
+        cwd=str(config_path.parent),
         env=env,
     )
     assert completed.returncode == 0, completed.stderr
