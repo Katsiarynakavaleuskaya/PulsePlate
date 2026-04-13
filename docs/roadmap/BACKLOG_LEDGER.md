@@ -4665,25 +4665,34 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - The change introduces no runtime, schema, or OpenAPI behavior
 
 <a id="ledger-p1-foods-postgres-foundation-followthrough"></a>
-- [ ] P1: Foods PostgreSQL foundation follow-through (ETL, importer rewiring, runtime cutover)
+- [ ] P1: Foods PostgreSQL follow-through train (B1 -> infra -> B2, B3 deferred)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-TBD-FOODS-POSTGRES-FOLLOWTHROUGH
+  - Target PR: PR-B1 (`feat/pr-b1-foods-offline-etl-postgres`) -> `ledger-p0-self-hosted-postgres-droplet-foundation` -> PR-B2 (`feat/pr-b2-restaurant-relational-bridge`); B3 runtime cutover stays deferred outside B2
   - Status: 📋 Planned
   - Area: backend / data platform / restaurant ingestion
   - Finding Type: post-foundation execution gap
-  - Reason: The additive Alembic foundation lane intentionally creates `foods`, `restaurant_chains`, and `restaurant_menu_items` without changing the current SQLite/local-first runtime, ETL path, or MenuStat importer. Those operational changes must land later as a separate follow-through wave instead of widening the foundation PR.
+  - Reason: The additive Alembic foundation lane intentionally creates `foods`, `restaurant_chains`, and `restaurant_menu_items` without changing the current SQLite/local-first runtime, ETL path, or MenuStat importer. The canonical follow-through now executes as a governed train: B1 promotes the existing SQLite snapshot into PostgreSQL `foods`; the self-hosted Droplet foundation lands as a narrow infra blocker before any importer bridge; B2 rewires restaurant ingestion into the relational catalog; B3 keeps runtime read-switch / cutover out of B2 as its own deferred rollout lane.
+  - Sequence:
+    - B1: offline snapshot promotion from `data/food.sqlite::foods` into PostgreSQL `foods` with deterministic upsert/report coverage and no runtime/importer drift
+    - Infra wave: close `ledger-p0-self-hosted-postgres-droplet-foundation` before any restaurant bridge or runtime claims
+    - B2: bridge `scripts/import_restaurant_menu.py` and restaurant persistence toward `restaurant_chains` / `restaurant_menu_items` additively, without runtime cutover
+    - B3 (deferred): decide and govern any runtime read-switch / PostgreSQL cutover as a later dedicated lane
   - Links:
     - `docs/orchestration/FOODS_CATALOG_FOUNDATION_PR_A_TASK_PACKET_2026-04-12.md`
+    - `docs/orchestration/FOODS_POSTGRES_PROMOTION_PR_B1_TASK_PACKET_2026-04-13.md`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p0-self-hosted-postgres-droplet-foundation`
+    - `docs/deploy/POSTGRES_SELF_HOSTED_DROPLET.md`
     - `app/services/food_store.py`
     - `scripts/build_food_db.py`
     - `app/services/restaurant_store.py`
     - `scripts/import_restaurant_menu.py`
   - DoD:
-    - PostgreSQL foods/catalog backfill or snapshot promotion path is defined and tested
-    - Restaurant importer rewiring targets the new relational tables with deterministic compatibility coverage
-    - Runtime contract decision is explicit: keep SQLite as baseline or switch reads to PostgreSQL behind a governed rollout
-    - Search / catalog follow-up lanes reference the same canonical table source without parallel schema drift
+    - B1 packet and backlog sequencing explicitly lock the first executable lane to deterministic SQLite snapshot promotion into PostgreSQL `foods`
+    - The self-hosted Droplet foundation remains the blocking infra step between B1 and B2, with no direct B1 -> B2 execution path
+    - B2 scope is explicit: restaurant importer rewiring targets `restaurant_chains` / `restaurant_menu_items` with deterministic compatibility coverage and no runtime cutover claim
+    - B3 runtime cutover / read-switch remains explicitly deferred outside B2
+    - Search / catalog follow-up lanes continue to reference the same canonical PostgreSQL table source without parallel schema drift
 
 <a id="ledger-p1-foods-foundation-downgrade-ownership"></a>
 - [ ] P1: Make foods foundation downgrade ownership-aware for pre-existing catalog objects
