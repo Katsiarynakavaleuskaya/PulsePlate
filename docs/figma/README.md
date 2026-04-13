@@ -73,7 +73,8 @@ Historical reference only for the current delivery model:
   - Governance guidance for Figma-assisted design work across Home + Plate + Progress.
   - Use as a reference index, not as product/runtime authority.
 - `docs/figma/FIGMA_MAKE_SYNC_AUDIT_HPP.md`
-  - Make-vs-Git reconciliation audit with drift blocks and action queue.
+  - Make-vs-Git reconciliation audit with drift blocks, action queue, and
+    supporting delta appendices used as evidence only.
   - `reference_only` for the current delivery model.
 - `docs/figma/FIGMA_CODE_CONNECT_BRIDGE_HPP.md`
   - `historical_reference_only` runbook for an out-of-scope Code Connect path.
