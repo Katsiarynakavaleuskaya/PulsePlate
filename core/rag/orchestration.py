@@ -253,6 +253,16 @@ async def _run_orchestration(
                 subject_id=subject_id,
             )
 
+        if rag_ctx is None:
+            logger.warning(
+                "RAG orchestration produced no retrieval context; returning empty result",
+            )
+            return _empty_result(
+                prompt_input,
+                recursive_executed=recursive_executed,
+                degraded_reason=RAGDegradedReason.ORCHESTRATION_EXCEPTION,
+            )
+
         if not rag_ctx.chunks:
             return _non_rag_result(
                 prompt_input,
