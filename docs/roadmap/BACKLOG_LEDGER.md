@@ -381,13 +381,13 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Advisory updated (remove-by closed or docs-only follow-up per backlog policy)
 
 <a id="ledger-p1-cryptography-private-index-sync"></a>
-- [ ] P1: Remove temporary `cryptography 46.0.7` / `pillow 12.2.0` emergency wheel fallback after approved mirror sync
+- [ ] P1: Retire active emergency wheel manifest entries after approved mirror sync
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (security / supply-chain / CI blocker)
   - Target PR: `PR-TBD` (follow-up after `PR #1418`)
   - Status: Active as of `13 April 2026`
   - Area: security / CI / dependencies
-  - Reason (EN): The repo must stay on the patched exact releases `cryptography 46.0.7` and `pillow 12.2.0`, but current-head CI and Docker installs showed the approved private index lagged those upstream wheels. `PR #1378` and `PR #1418` therefore rely on a time-boxed exact-wheel fallback with pinned `sha256` digests instead of a vulnerable repin or a broad public-index bypass. Remove this fallback as soon as the approved mirror serves both patched versions natively. (RU: Репозиторий должен оставаться на исправленных точных релизах `cryptography 46.0.7` и `pillow 12.2.0`, но CI/Docker показали отставание приватного зеркала по этим wheel. Поэтому `PR #1378` и `PR #1418` используют временный exact-wheel fallback с pinned `sha256`, а не уязвимый репин и не широкий bypass на публичный индекс. Удалить fallback сразу после того, как одобренное зеркало начнёт отдавать обе исправленные версии нативно.)
+  - Reason (EN): The repo must stay on patched exact releases while the approved private index catches up, and the current emergency wheel manifest still covers multiple active CI/bootstrap dependencies (including `cryptography 46.0.7`, `pillow 12.2.0`, `pytest 9.0.3`, `faker 40.13.0`, `hypothesis 6.151.12`, `ruff 0.15.10`, `types-pyyaml 6.0.12.20260408`, `sentence-transformers 5.4.0`, and `transformers 5.5.3`). `PR #1378` and `PR #1418` extend that time-boxed exact-wheel fallback with pinned `sha256` digests instead of a vulnerable repin or a broad public-index bypass. Retire the manifest only after the approved mirror serves every still-active fallback entry natively. (RU: Репозиторий должен оставаться на исправленных точных релизах, пока одобренное приватное зеркало догоняет апстрим, и текущий emergency wheel manifest всё ещё покрывает несколько активных CI/bootstrap зависимостей (включая `cryptography 46.0.7`, `pillow 12.2.0`, `pytest 9.0.3`, `faker 40.13.0`, `hypothesis 6.151.12`, `ruff 0.15.10`, `types-pyyaml 6.0.12.20260408`, `sentence-transformers 5.4.0` и `transformers 5.5.3`). `PR #1378` и `PR #1418` расширяют этот временный exact-wheel fallback с pinned `sha256`, а не уязвимым репином и не широким bypass на публичный индекс. Удалять manifest можно только после того, как одобренное зеркало начнёт отдавать все ещё активные fallback-entry нативно.)
   - Links:
     - `docs/security/CRYPTOGRAPHY_46_0_7_PRIVATE_INDEX_ADVISORY.md:1`
     - `docs/security/GHSA-whj4-6x5x-4v2j-pillow.md:1`
@@ -396,7 +396,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `.github/actions/python-setup/action.yml`
     - `Dockerfile`
   - DoD:
-    - [ ] Approved private proxy serves `cryptography 46.0.7` and `pillow 12.2.0` without the emergency fallback manifest
+    - [ ] Approved private proxy serves every still-active `scripts/ci/emergency_python_wheels.json` entry without manifest fallbacks
     - [ ] `scripts/ci/emergency_python_wheels.json` is removed from canonical CI/Docker paths
     - [ ] Locked install, Docker build, and `make verify` succeed with the private proxy alone
     - [ ] Security advisories are updated to mark the emergency fallback retired

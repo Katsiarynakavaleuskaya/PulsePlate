@@ -15,15 +15,24 @@ APPROVED_PROXY_URL = "https://packages.example.internal/simple"
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
-def test_repo_emergency_manifest_covers_active_ci_lite_security_fallbacks() -> None:
+def test_repo_emergency_manifest_tracks_current_active_fallback_set() -> None:
     manifest = json.loads(
         (REPO_ROOT / "scripts/ci/emergency_python_wheels.json").read_text(encoding="utf-8")
     )
     artifacts = {(item["package"], item["version"]) for item in manifest["artifacts"]}
     requirements_ci_lite = (REPO_ROOT / "requirements-ci-lite.txt").read_text(encoding="utf-8")
 
-    assert ("cryptography", "46.0.7") in artifacts
-    assert ("pillow", "12.2.0") in artifacts
+    assert artifacts == {
+        ("cryptography", "46.0.7"),
+        ("faker", "40.13.0"),
+        ("hypothesis", "6.151.12"),
+        ("pillow", "12.2.0"),
+        ("pytest", "9.0.3"),
+        ("ruff", "0.15.10"),
+        ("sentence-transformers", "5.4.0"),
+        ("transformers", "5.5.3"),
+        ("types-pyyaml", "6.0.12.20260408"),
+    }
     assert "pillow==12.2.0" in requirements_ci_lite
 
 
