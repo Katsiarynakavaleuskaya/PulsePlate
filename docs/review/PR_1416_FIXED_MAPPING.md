@@ -77,6 +77,17 @@ Reason: These review-level bot comments are aggregate summaries of inline findin
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1416#pullrequestreview-4101378274
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1416#pullrequestreview-4101602245
 
+Disposition: FIXED
+Commit: 3fca652fe
+Evidence: [docs/roadmap/BACKLOG_LEDGER.md](../../docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-pillow-private-index-sync)
+Reason: The Pillow mirror-lag cleanup item now targets a follow-up PR instead of this same PR, so the ledger no longer points the temporary fallback removal back at the change set that introduced it.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1416#discussion_r3076006585 -> 3fca652fe
+
+Disposition: NOT-A-BUG
+Evidence: `docs/review/PR_1416_FIXED_MAPPING.md:82`, `docs/review/PR_1416_FIXED_MAPPING.md:92`
+Reason: The latest Cubic review body is an aggregate wrapper for the single inline backlog-target finding that is already mapped immediately above and does not create a second independent obligation.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1416#pullrequestreview-4102141160
+
 ## Merge Readiness
 - [ ] All required checks pass
 - [ ] No unresolved review threads (re-check on current head before merge)
