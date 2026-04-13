@@ -15,6 +15,7 @@ for `pillow 12.2.0` on Linux `amd64` / CPython `3.11`, `3.12`, and `3.13`:
 - exact wheel filenames for supported `linux/amd64` CI runtimes
 - exact `sha256` digests
 - explicit expiry in `scripts/ci/emergency_python_wheels.json:4`
+- fallback scope limited to Linux `amd64` CI and Docker install lanes only
 
 This is a narrow security-hotfix intake path, not a broad `--extra-index-url`
 policy change.
