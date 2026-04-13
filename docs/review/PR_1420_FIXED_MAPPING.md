@@ -30,6 +30,11 @@ Disposition: NOT-A-BUG
 Evidence: the Sourcery review body is an approval-only summary with no defect claim or requested change.
 Reason: No actionable bug, regression, or governance issue was raised in this review.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1420#pullrequestreview-4102257112
+Disposition: NOT-A-BUG
+Evidence: `docs/figma/orchestration/sessions/2026-04-13_phase1_delta_audit.md:9-10` already states the delta-only purpose clearly, and the new CodeRabbit note is explicitly framed as optional wording polish rather than a correctness or governance defect.
+Reason: The review requests readability polish only; the current wording is accurate, concise enough, and not a merge-blocking defect.
+
 ## Merge Readiness
 
 - [ ] Current-head CI green for PR branch head
