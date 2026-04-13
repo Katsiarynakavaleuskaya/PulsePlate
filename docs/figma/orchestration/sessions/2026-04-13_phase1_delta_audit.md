@@ -9,6 +9,16 @@
 This session records the extra live inputs gathered after the authority lock in
 `PR #1407` so the docs-only audit can stay delta-only.
 
+## Verification method
+
+- Live node status was re-checked via Figma MCP metadata/design-context
+  resolution against the user-supplied design links for file keys
+  `2JDwOByQIbcPgp93FDzHii` and `qJBtE5J6efmavcHCm6SF0O`.
+- Node-level verification in this note covers canonical `174:116` and legacy
+  reference `16:4`.
+- `docs/figma/FIGMA_MAKE_SYNC_AUDIT_HPP.md` section `9.2-9.5` cites this note as
+  the replayable delta-evidence artifact for those live Figma observations.
+
 ## Live Figma evidence
 
 1. `2JDwOByQIbcPgp93FDzHii` node `174:116` resolves as `Shell Parity Boundary
@@ -29,12 +39,17 @@ This session records the extra live inputs gathered after the authority lock in
 
 ## Ledger status
 
-No new backlog item was added in this session.
-Existing Phase 1 execution and Welcome Gate follow-up ledger entries already
-cover the actionable work:
+One new backlog item was added in this session for the repo-first drift
+cluster identified by the delta audit. Ledger linkage now is:
 
-- `docs/roadmap/BACKLOG_LEDGER.md:1855-1891`
-- `docs/roadmap/BACKLOG_LEDGER.md:1893-1919`
+- `docs/roadmap/BACKLOG_LEDGER.md:1859-1895`
+- `docs/roadmap/BACKLOG_LEDGER.md:1898-1913`
+- `docs/roadmap/BACKLOG_LEDGER.md:1915-1941`
+
+`PremiumGate` and `VipBadge` remain covered by the cited Phase 1 execution
+ledger item as known blockers. `DesignSystemOverview`, `CanonBoards`, missing
+shared primitives, and `StepRail` are now tracked by the new repo-first drift
+cleanup item opened from this docs-only audit session.
 
 ## Disposition
 

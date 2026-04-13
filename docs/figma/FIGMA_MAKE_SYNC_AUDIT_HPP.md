@@ -153,6 +153,7 @@ Evidence:
 - `docs/figma/FIGMA_WEB_IOS_AUTHORITY_RECONCILIATION_PACKET.md:57-73`
 - `docs/figma/PULSEPLATE_V3_DESIGN_SYSTEM_RECONCILIATION.md:36-54`
 - `docs/review/PR_1407_FIXED_MAPPING.md:38-41`
+- `docs/figma/orchestration/sessions/2026-04-13_phase1_delta_audit.md:12-18`
 
 ### 9.2 Live canonical / aligned surfaces
 
@@ -195,9 +196,9 @@ Evidence:
 
 | Classification | Surface | Evidence | Next action |
 | --- | --- | --- | --- |
-| aligned / keep | `2JD...` node `174:116` (`Shell Parity Boundary Board`) | session evidence for this delta; authority packets above | keep as canonical boundary board |
+| aligned / keep | `2JD...` node `174:116` (`Shell Parity Boundary Board`) | `docs/figma/orchestration/sessions/2026-04-13_phase1_delta_audit.md:12-18`; authority packets above | keep as canonical boundary board |
 | aligned / mirror-safe | repo-backed canonical shared/component lanes from `PP/Shared/Button/*` through `PP/Branding/FitChef/*` | `docs/figma/PULSEPLATE_V3_DESIGN_SYSTEM_RECONCILIATION.md:191-205` | update Figma only as a mirror of repo SoT |
-| reference-only | `qJBtE5J6efmavcHCm6SF0O` / `node-id=16:4` | `docs/figma/PULSEPLATE_V3_DESIGN_SYSTEM_RECONCILIATION.md:38-54` | keep for provenance only |
+| reference-only | `qJBtE5J6efmavcHCm6SF0O` / `node-id=16:4` | `docs/figma/orchestration/sessions/2026-04-13_phase1_delta_audit.md:12-18`; `docs/figma/PULSEPLATE_V3_DESIGN_SYSTEM_RECONCILIATION.md:38-54` | keep for provenance only |
 | update code first | `DesignSystemOverview` stale `Figma node 96:33` badge | `frontend/src/components/design-system/DesignSystemOverview.tsx:33-39` | replace stale reference with current authority wording in a repo drift PR |
 | update code first | `CanonBoards` stale `35:148` / `61:77` subtitles | `frontend/src/components/design-system/CanonBoards.tsx:232-235`, `frontend/src/components/design-system/CanonBoards.tsx:347-350` | retarget or de-stale Storybook evidence in a repo drift PR |
 | update code first | `PremiumGate` legacy CTA styling debt | `frontend/src/components/PremiumGate.tsx:48-57` | normalize to governed primitives/tokens before Figma mirror work |
@@ -207,19 +208,22 @@ Evidence:
 
 ### 9.5 Ledger / follow-up status
 
-No new backlog item is opened by this delta.
+One new backlog item is opened by this delta for the repo-first remediation
+cluster that should not stay narrative-only:
 
-Existing ledger entries already cover the relevant Phase 1 execution and
-follow-up work:
+- `docs/roadmap/BACKLOG_LEDGER.md:1859-1895`
+- `docs/roadmap/BACKLOG_LEDGER.md:1898-1913`
+- `docs/roadmap/BACKLOG_LEDGER.md:1915-1941`
 
-- `docs/roadmap/BACKLOG_LEDGER.md:1855-1891`
-- `docs/roadmap/BACKLOG_LEDGER.md:1893-1919`
+Ledger mapping after this update is:
 
-This delta therefore records classification only:
-
-- `update code first` for repo-side drift
-- `update Figma` only for mirror-safe canonical rows
-- `reference_only` for the legacy `qJB...` file and link provenance
+- `PremiumGate` and `VipBadge` remain covered by the cited Phase 1 execution
+  ledger item as known blockers.
+- `DesignSystemOverview`, `CanonBoards`, missing shared primitives, and the
+  `StepRail` vocabulary decision are now tracked by the new repo-first drift
+  cleanup item.
+- `update Figma`, `reference_only`, and `aligned / keep` rows remain
+  classification/evidence outcomes rather than direct implementation claims.
 
 ### 9.6 Audit guardrails for the next PRs
 
