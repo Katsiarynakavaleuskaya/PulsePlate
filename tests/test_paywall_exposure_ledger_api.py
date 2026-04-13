@@ -335,6 +335,28 @@ def test_paywall_event_rejects_invalid_slug_fields(
 
 def test_paywall_event_records_cookie_auth_context(
     client: TestClient,
+    pro_headers: dict[str, str],
+) -> None:
+    exchange_response = client.post("/api/v1/pro/session/exchange", headers=pro_headers)
+    assert exchange_response.status_code == 200, exchange_response.text
+
+    response = client.post(
+        ROUTE_PATH,
+        json=_payload(client_event_id="event-3001", event_name="shown"),
+    )
+
+    assert response.status_code == 200, response.text
+
+    rows = _load_events()
+    assert len(rows) == 1
+    expected_subject_id = derive_subject_id_from_api_key(pro_headers["X-API-Key"])
+    assert rows[0].subject_id == expected_subject_id
+    assert rows[0].auth_source == "cookie"
+    assert rows[0].tier_snapshot == "PRO"
+
+
+def test_paywall_event_records_cookie_auth_context_vip_compat(
+    client: TestClient,
     vip_headers: dict[str, str],
 ) -> None:
     exchange_response = client.post("/api/v1/pro/session/exchange", headers=vip_headers)
@@ -342,7 +364,7 @@ def test_paywall_event_records_cookie_auth_context(
 
     response = client.post(
         ROUTE_PATH,
-        json=_payload(client_event_id="event-3001", event_name="shown"),
+        json=_payload(client_event_id="event-3001-vip", event_name="shown"),
     )
 
     assert response.status_code == 200, response.text

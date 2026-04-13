@@ -2,12 +2,13 @@ from __future__ import annotations
 
 from fastapi import APIRouter, FastAPI
 import pytest
+from typing import Generator
 
 import app.main as app_main
 
 
 @pytest.fixture(autouse=True)
-def _restore_app_singleton() -> None:
+def _restore_app_singleton() -> Generator[None, None, None]:
     original_app = app_main.app
     try:
         yield
