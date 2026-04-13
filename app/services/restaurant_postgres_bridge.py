@@ -385,11 +385,7 @@ def _project_records_to_table_columns(
 
     allowed_columns = {column.name for column in table.columns}
     return [
-        {
-            key: value
-            for key, value in record.items()
-            if key in allowed_columns
-        }
+        {key: value for key, value in record.items() if key in allowed_columns}
         for record in records
     ]
 
