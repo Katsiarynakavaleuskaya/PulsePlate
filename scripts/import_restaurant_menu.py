@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import os
 import re
 import sqlite3
 import sys
@@ -17,7 +18,9 @@ from datetime import date
 from pathlib import Path
 from typing import Any
 
+from app.services import restaurant_postgres_bridge
 from app.services import restaurant_store
+from sqlalchemy.exc import SQLAlchemyError
 
 _FIELD_ALIASES: dict[str, tuple[str, ...]] = {
     "chain_name": ("chain_name", "restaurant", "restaurant_name", "chain"),
@@ -33,6 +36,9 @@ _FIELD_ALIASES: dict[str, tuple[str, ...]] = {
     "source_id": ("source_id", "menu_item_id"),
 }
 _DATE_YYYY_MM_DD = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+TARGET_BACKEND_SQLITE = "sqlite"
+TARGET_BACKEND_POSTGRES = "postgres"
+TARGET_BACKEND_CHOICES = (TARGET_BACKEND_SQLITE, TARGET_BACKEND_POSTGRES)
 
 
 def _has_required_header_aliases(fieldnames: list[str] | None) -> bool:
@@ -108,25 +114,60 @@ def load_menu_rows(csv_path: Path) -> list[dict[str, Any]]:
     return rows
 
 
+def _resolve_postgres_url(pg_url: str | None) -> str:
+    """Resolve PostgreSQL URL from explicit flag or environment."""
+    resolved = (pg_url or os.getenv("DATABASE_URL") or "").strip()
+    if not resolved:
+        raise ValueError("postgres target requires --pg-url or DATABASE_URL pointing to PostgreSQL")
+    return resolved
+
+
 def run_import(
     *,
     input_path: Path,
     snapshot_date: str | None,
     source_name: str,
+    target_backend: str,
     db_path: Path | None,
+    pg_url: str | None,
 ) -> dict[str, Any]:
     """Execute import and return summary stats."""
     original_db_path = restaurant_store.DB_PATH
     effective_db_path = original_db_path
     try:
-        if db_path is not None:
-            restaurant_store.DB_PATH = db_path
-            restaurant_store.DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-            effective_db_path = restaurant_store.DB_PATH
+        if target_backend not in TARGET_BACKEND_CHOICES:
+            supported_backends = ", ".join(TARGET_BACKEND_CHOICES)
+            raise ValueError(
+                f"unsupported target-backend {target_backend!r}; expected one of: {supported_backends}"
+            )
 
         rows = load_menu_rows(input_path)
         if not rows:
             raise ValueError("no valid menu rows found in input")
+
+        if target_backend == TARGET_BACKEND_POSTGRES:
+            if db_path is not None:
+                raise ValueError("--db-path is only supported for sqlite target-backend")
+            resolved_pg_url = _resolve_postgres_url(pg_url)
+            stats = restaurant_postgres_bridge.import_menustat_rows_to_postgres(
+                rows,
+                snapshot_date=snapshot_date,
+                source_name=source_name,
+                pg_url=resolved_pg_url,
+            )
+            return {
+                "input": str(input_path),
+                "rows_loaded": len(rows),
+                "snapshot_date": snapshot_date,
+                "source_name": source_name,
+                "target_backend": TARGET_BACKEND_POSTGRES,
+                **stats,
+            }
+
+        if db_path is not None:
+            restaurant_store.DB_PATH = db_path
+            restaurant_store.DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+            effective_db_path = restaurant_store.DB_PATH
 
         stats = restaurant_store.import_menustat_rows(
             rows,
@@ -137,6 +178,9 @@ def run_import(
             "input": str(input_path),
             "db_path": str(effective_db_path),
             "rows_loaded": len(rows),
+            "snapshot_date": snapshot_date,
+            "source_name": source_name,
+            "target_backend": TARGET_BACKEND_SQLITE,
             **stats,
         }
     finally:
@@ -166,10 +210,21 @@ def build_parser() -> argparse.ArgumentParser:
         help="Provenance source name for imported rows (default: menustat).",
     )
     parser.add_argument(
+        "--target-backend",
+        choices=TARGET_BACKEND_CHOICES,
+        default=TARGET_BACKEND_SQLITE,
+        help="Import target backend (default: sqlite).",
+    )
+    parser.add_argument(
         "--db-path",
         default=None,
         type=Path,
         help="Optional override for SQLite DB path (default: FOOD_DB_PATH or data/food.sqlite).",
+    )
+    parser.add_argument(
+        "--pg-url",
+        default=None,
+        help="Optional PostgreSQL DATABASE_URL override for postgres target-backend.",
     )
     return parser
 
@@ -183,9 +238,18 @@ def main(argv: list[str] | None = None) -> int:
             input_path=args.input,
             snapshot_date=args.snapshot_date,
             source_name=args.source_name,
+            target_backend=args.target_backend,
             db_path=args.db_path,
+            pg_url=args.pg_url,
         )
-    except (FileNotFoundError, ValueError, OSError, sqlite3.Error) as exc:
+    except (
+        FileNotFoundError,
+        ValueError,
+        OSError,
+        sqlite3.Error,
+        SQLAlchemyError,
+        restaurant_postgres_bridge.RestaurantPostgresBridgeError,
+    ) as exc:
         print(f"Import failed: {exc}", file=sys.stderr)
         return 2
 
