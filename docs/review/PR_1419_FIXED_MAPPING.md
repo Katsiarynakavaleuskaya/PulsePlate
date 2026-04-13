@@ -58,6 +58,16 @@ Disposition: NOT-A-BUG
 Evidence: the aggregate CodeRabbit review is fully decomposed into the inline thread dispositions above, including FIXED entries for the real bridge/doc issues and NOT-A-BUG entries where the review proposed changing established importer semantics.
 Reason: The review-summary URL does not add a separate defect beyond the individual inline comments that are already dispositioned explicitly in this artifact.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1419#issuecomment-4239547049
+Disposition: NOT-A-BUG
+Evidence: the CodeRabbit walkthrough comment summarizes the already-landed bridge scope and references no new actionable defect beyond the explicit FIXED / NOT-A-BUG entries recorded above.
+Reason: This issue-comment summary is informational only and does not introduce a separate code or governance change requirement.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1419#pullrequestreview-4102287925
+Disposition: NOT-A-BUG
+Evidence: the latest CodeRabbit review body contains only one nitpick about replacing `sign` with `_` when unpacking `value.as_tuple()`, which does not affect correctness or the lane acceptance criteria for PR-B2.
+Reason: The latest CodeRabbit review does not raise a new actionable defect beyond a style-level suggestion, so no additional code change is required for merge readiness.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1419#discussion_r3076054197 -> a17be2149
 Disposition: FIXED
 Commit: a17be2149
