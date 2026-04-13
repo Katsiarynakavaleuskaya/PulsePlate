@@ -9,7 +9,11 @@ Bot and human review threads must be dispositioned here before they are resolved
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+Disposition: FIXED
+Commit: d5ec0b1fd
+Evidence: `scripts/orchestration/skill_router.py:563`, `scripts/install_codex_skills.sh:16`, `docs/orchestration/CODEX_SKILLS_ALIGNMENT_MATRIX.md:103`, `tests/test_skill_router.py:822`, `tests/test_install_codex_skills.py:84`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1421#pullrequestreview-4102192873 -> d5ec0b1fd
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1421#pullrequestreview-4102217284 -> d5ec0b1fd
 
 ## Merge Readiness
 
