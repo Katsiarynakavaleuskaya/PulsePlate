@@ -33,8 +33,7 @@ export default function PremiumGate({ isPremium, children, source = "unknown" }:
     <>
       <div
         ref={previewRef}
-        {...({ inert: true } as any)}
-        className="opacity-60 pointer-events-none"
+        className="pointer-events-none opacity-70 saturate-75"
         aria-label="Premium gated content"
       >
         {children}
@@ -47,13 +46,12 @@ export default function PremiumGate({ isPremium, children, source = "unknown" }:
 
       <button
         type="button"
-        className="mt-3 px-4 py-2 rounded-xl bg-[var(--pp-primary)] text-white"
+        className="mt-3 inline-flex min-h-11 items-center justify-center rounded-xl bg-[var(--color-primary)] px-4 py-2 font-semibold text-white shadow-sm transition-colors hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)] focus-visible:ring-offset-2"
         onClick={() => {
           setOpen(true);
         }}
         aria-haspopup="dialog"
         aria-describedby={describedById}
-        style={{ minHeight: 44 }}
       >
         {t("paywall.cta")}
       </button>

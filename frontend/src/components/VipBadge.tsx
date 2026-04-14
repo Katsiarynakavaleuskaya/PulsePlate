@@ -18,9 +18,12 @@ const sizeClasses = {
 };
 
 const variantClasses = {
-  default: 'bg-gradient-to-r from-purple-500 to-pink-500 text-white',
-  outline: 'border border-purple-500 text-purple-600 dark:text-purple-400',
-  subtle: 'bg-purple-100 dark:bg-purple-900 text-purple-800 dark:text-purple-200'
+  default:
+    'bg-gradient-to-r from-[var(--color-primary)] to-[var(--color-success)] text-white',
+  outline:
+    'border border-[var(--color-primary)] text-[var(--color-primary)] dark:text-[var(--color-primary-dark)]',
+  subtle:
+    'bg-[var(--color-navy-50)] text-[var(--color-primary)] dark:bg-[var(--color-navy-800)] dark:text-[var(--color-blue-200)]',
 };
 
 /**

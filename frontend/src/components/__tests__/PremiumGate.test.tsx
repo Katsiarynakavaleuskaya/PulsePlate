@@ -39,6 +39,9 @@ describe("PremiumGate", () => {
     expect(screen.getAllByTestId("content")[0]).toBeInTheDocument();
 
     const unlock = screen.getByRole("button", { name: /continue/i });
+    expect(unlock).toHaveAttribute("aria-haspopup", "dialog");
+    expect(unlock.className).toContain("min-h-11");
+    expect(unlock.className).toContain("bg-[var(--color-primary)]");
     fireEvent.click(unlock);
 
     expect(screen.getByRole("dialog")).toBeInTheDocument();

@@ -121,6 +121,25 @@ describe('VipFeature', () => {
 
       expect(container.firstChild).toBeNull();
     });
+
+    it('should use tokenized vip badge palette for variants', () => {
+      mockUseVipModule.mockReturnValue(true);
+
+      const { container, rerender } = render(<VipBadge variant="default" />);
+      let badge = container.querySelector('span');
+      expect(badge?.className).toMatch(/color-primary/);
+      expect(badge?.className).not.toMatch(/purple-500|pink-500/);
+
+      rerender(<VipBadge variant="outline" />);
+      badge = container.querySelector('span');
+      expect(badge?.className).toMatch(/color-primary/);
+      expect(badge?.className).not.toMatch(/purple-/);
+
+      rerender(<VipBadge variant="subtle" />);
+      badge = container.querySelector('span');
+      expect(badge?.className).toMatch(/color-navy-50/);
+      expect(badge?.className).not.toMatch(/purple-/);
+    });
   });
 
   describe('VipGate', () => {
