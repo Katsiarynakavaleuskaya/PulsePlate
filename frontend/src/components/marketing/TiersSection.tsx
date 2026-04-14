@@ -58,7 +58,7 @@ const tiers = [
       'Early access to new features',
     ],
     label: 'Preview',
-    ctaLabel: 'Learn about VIP',
+    ctaLabel: 'Continue to next steps',
     ctaTo: '#final-cta',
     ctaClass: marketingButtonClasses.secondary,
     premium: true,

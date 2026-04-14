@@ -102,7 +102,7 @@ export function HeroSection() {
               <p className="ppm-subsection-title">Quick actions</p>
               <p className="ppm-subsection-meta">Available now</p>
             </div>
-            <div className="ppm-action-grid">
+            <div className="ppm-action-grid" aria-hidden="true">
               {quickActions.map(({ label, icon: Icon }) => (
                 <div key={label} className="ppm-action-card">
                   <div className="ppm-action-icon">

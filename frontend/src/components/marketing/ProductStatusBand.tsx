@@ -40,9 +40,9 @@ export function ProductStatusBand() {
               </div>
               <div>
                 <p className="ppm-supporting">{label}</p>
-                <h2 className="ppm-band-card-title" style={{ marginTop: '0.5rem' }}>
+                <h3 className="ppm-band-card-title" style={{ marginTop: '0.5rem' }}>
                   {title}
-                </h2>
+                </h3>
               </div>
             </div>
             <p className="ppm-band-card-copy">{description}</p>

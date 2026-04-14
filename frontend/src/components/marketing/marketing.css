@@ -132,8 +132,15 @@
     background 180ms ease;
 }
 
-.ppm-btn:hover {
-  transform: translateY(-1px);
+@media (prefers-reduced-motion: no-preference) {
+  .ppm-btn:hover {
+    transform: translateY(-1px);
+  }
+}
+
+.ppm-btn:focus-visible {
+  outline: 2px solid var(--pp-blue);
+  outline-offset: 3px;
 }
 
 .ppm-btn--primary {
@@ -164,6 +171,22 @@
 .ppm-hero-link {
   color: var(--ppm-slate-300);
   font-size: 0.95rem;
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  text-underline-offset: 0.2em;
+  transition: color 160ms ease, text-decoration-color 160ms ease;
+}
+
+.ppm-hero-link:hover,
+.ppm-hero-link:focus-visible {
+  color: var(--color-primary-foreground);
+  text-decoration-color: currentColor;
+}
+
+.ppm-hero-link:focus-visible {
+  outline: 2px solid var(--pp-blue);
+  outline-offset: 3px;
+  border-radius: 2px;
 }
 
 .ppm-brand {
@@ -573,11 +596,22 @@
 .ppm-footer-link {
   color: var(--ppm-slate-300);
   font-size: 0.92rem;
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  text-underline-offset: 0.2em;
+  transition: color 160ms ease, text-decoration-color 160ms ease;
 }
 
 .ppm-footer-link:hover,
-.ppm-hero-link:hover {
+.ppm-footer-link:focus-visible {
   color: var(--color-primary-foreground);
+  text-decoration-color: currentColor;
+}
+
+.ppm-footer-link:focus-visible {
+  outline: 2px solid var(--pp-blue);
+  outline-offset: 3px;
+  border-radius: 2px;
 }
 
 .ppm-logo-compact {
