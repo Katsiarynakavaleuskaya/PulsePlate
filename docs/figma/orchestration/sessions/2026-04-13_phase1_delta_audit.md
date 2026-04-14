@@ -34,11 +34,14 @@ This session records the extra live inputs gathered after the authority lock in
 
 ## Repo evidence captured for the delta matrix
 
-- `frontend/src/components/design-system/DesignSystemOverview.tsx:33-39` still
-  shows stale `Figma node 96:33` wording.
-- `frontend/src/components/design-system/CanonBoards.tsx:232-235` and
-  `frontend/src/components/design-system/CanonBoards.tsx:347-350` still cite
-  stale `35:148` and `61:77` subtitles.
+- `frontend/src/components/design-system/DesignSystemOverview.tsx:29-33` now
+  describes the PulsePlate design system as a canonical repo-backed Storybook
+  review surface after PR `#1422`.
+- `frontend/src/components/design-system/CanonBoards.tsx:234`,
+  `frontend/src/components/design-system/CanonBoards.tsx:349`, and
+  `frontend/src/components/design-system/CanonBoards.tsx:427-429` now use
+  repo-backed Storybook / brand-governance wording and the canonical board
+  title introduced by PR `#1422`.
 - `frontend/src/components/PremiumGate.tsx:48-57` still carries legacy CTA
   styling debt.
 - `frontend/src/components/VipBadge.tsx:20-24` still uses purple-gradient drift.
@@ -51,9 +54,11 @@ cluster identified by the delta audit. Ledger linkage now is:
 - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-pulseplate-v3-phase1-repo-drift-cleanup`
 
 `PremiumGate` and `VipBadge` remain covered by the cited Phase 1 execution
-ledger item as known blockers. `DesignSystemOverview`, `CanonBoards`, missing
-shared primitives, and `StepRail` are now tracked by the new repo-first drift
-cleanup item opened from this docs-only audit session.
+ledger item as known blockers. `DesignSystemOverview` and `CanonBoards` are now
+resolved in repo truth after PR `#1422`. Missing shared primitives remain open
+under the same repo-first drift cleanup item, while the `StepRail` naming
+decision is now resolved in repo docs and only the reusable primitive stays
+deferred.
 
 ## Disposition
 
@@ -63,3 +68,6 @@ cleanup item opened from this docs-only audit session.
   invalid-target note.
 - Rows marked `update code first` stay repo-side follow-up work, not Figma-only
   cleanup.
+- `PP/Shared/StepRail/*` now normalizes to canonical
+  `stepper/progress-indicator`; ownership remains repo-first via the code-first
+  UI vocabulary contract, and reusable primitive work stays deferred.
