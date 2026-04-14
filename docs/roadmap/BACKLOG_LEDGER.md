@@ -1918,6 +1918,28 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
       conflicts with governance (`PremiumGate`, `VipBadge`)
 
 
+<a id="ledger-p1-pulseplate-v3-phase1-repo-drift-cleanup"></a>
+- [ ] P1: Phase 1 repo-first drift cleanup before canonical Figma mirror expansion
+  - Owner: @katsiaryna_kavaleuskaya (Design + FE)
+  - Target PR: #1424
+  - Priority: P1
+  - Status: In progress via PR `#1424` after PR `#1422`
+  - Area: design-system / frontend / Figma reconciliation
+  - Finding Type: repo-first remediation follow-up
+  - Reason: The Phase 1 delta audit identified repo-first follow-up work that should not be silently carried as narrative-only debt: stale `DesignSystemOverview` / `CanonBoards` Figma references, missing governed shared primitives, and the need to record the `PP/Shared/StepRail/*` naming normalization in repo truth. These items must be resolved in repo truth before any broader canonical Figma mirror expansion claims parity.
+  - Links:
+    - `docs/figma/FIGMA_MAKE_SYNC_AUDIT_HPP.md`
+    - `docs/figma/orchestration/sessions/2026-04-13_phase1_delta_audit.md`
+    - `frontend/src/components/design-system/DesignSystemOverview.tsx`
+    - `frontend/src/components/design-system/CanonBoards.tsx`
+    - `docs/design/UI_COMPONENT_VOCABULARY.md`
+  - DoD:
+    - `DesignSystemOverview` and `CanonBoards` no longer point at stale legacy Figma node references
+    - Repo naming decision is recorded for `PP/Shared/StepRail/*` ownership/vocabulary before any canonical Figma promotion depends on it
+    - Missing Phase 1 shared primitives are either implemented in repo truth or explicitly deferred with updated design-system docs
+    - Follow-up PR updates the Phase 1 Figma audit docs to reflect the resolved repo-first state
+
+
 <a id="ledger-p1-welcome-gate-full-flow-after-node-capture"></a>
 - [ ] P1: Welcome Gate full 4-screen runtime flow after exact Figma node capture
   - Owner: @katsiaryna_kavaleuskaya (Design + FE + iOS)
@@ -4760,6 +4782,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Links:
     - `docs/orchestration/FOODS_CATALOG_FOUNDATION_PR_A_TASK_PACKET_2026-04-12.md`
     - `docs/orchestration/FOODS_POSTGRES_PROMOTION_PR_B1_TASK_PACKET_2026-04-13.md`
+    - `docs/orchestration/FOODS_POSTGRES_RESTAURANT_BRIDGE_PR_B2_TASK_PACKET_2026-04-13.md`
     - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p0-self-hosted-postgres-droplet-foundation`
     - `docs/deploy/POSTGRES_SELF_HOSTED_DROPLET.md`
     - `app/services/food_store.py`

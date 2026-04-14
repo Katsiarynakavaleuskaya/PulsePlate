@@ -231,6 +231,175 @@ def test_build_pip_install_command_is_hermetic(tmp_path: Path) -> None:
     assert "--find-links" in command
 
 
+def test_effective_constraints_file_for_requirement_filters_duplicate_exact_pin(
+    tmp_path: Path,
+) -> None:
+    requirements = tmp_path / "requirements.txt"
+    requirements.write_text("pillow==12.2.0\nopenai==2.8.1\n", encoding="utf-8")
+    constraints = tmp_path / "constraints.txt"
+    constraints.write_text(
+        "pillow==12.2.0  # Security floor\nhttpx>=0.28.1\n",
+        encoding="utf-8",
+    )
+
+    with installer.effective_constraints_file_for_requirement(
+        requirements,
+        constraints,
+    ) as effective_constraints:
+        assert effective_constraints is not None
+        assert effective_constraints != constraints
+        assert effective_constraints.read_text(encoding="utf-8") == "httpx>=0.28.1\n"
+
+
+def test_effective_constraints_file_for_requirement_keeps_relative_includes_resolvable(
+    tmp_path: Path,
+) -> None:
+    requirements = tmp_path / "requirements.txt"
+    requirements.write_text("pillow==12.2.0\n", encoding="utf-8")
+    constraints = tmp_path / "constraints.txt"
+    nested_constraints = tmp_path / "nested.txt"
+    nested_constraints.write_text("httpx>=0.28.1\n", encoding="utf-8")
+    constraints.write_text("-c nested.txt\npillow==12.2.0\n", encoding="utf-8")
+
+    with installer.effective_constraints_file_for_requirement(
+        requirements,
+        constraints,
+    ) as effective_constraints:
+        assert effective_constraints is not None
+        assert effective_constraints != constraints
+        assert effective_constraints.parent == constraints.parent
+        assert (effective_constraints.parent / "nested.txt").exists()
+        assert effective_constraints.read_text(encoding="utf-8") == "-c nested.txt\n"
+
+
+def test_effective_constraints_file_for_requirement_drops_constraint_when_only_duplicate_pin(
+    tmp_path: Path,
+) -> None:
+    requirements = tmp_path / "requirements.txt"
+    requirements.write_text("pillow==12.2.0\n", encoding="utf-8")
+    constraints = tmp_path / "constraints.txt"
+    constraints.write_text("pillow==12.2.0\n", encoding="utf-8")
+
+    with installer.effective_constraints_file_for_requirement(
+        requirements,
+        constraints,
+    ) as effective_constraints:
+        assert effective_constraints is None
+
+
+def test_install_from_proxy_omits_duplicate_exact_constraint_for_same_requirement_surface(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    requirements = tmp_path / "requirements.txt"
+    requirements.write_text("pillow==12.2.0\n", encoding="utf-8")
+    constraints = tmp_path / "constraints.txt"
+    constraints.write_text("pillow==12.2.0\n", encoding="utf-8")
+    observed_commands: list[list[str]] = []
+
+    def fake_run_command(command: list[str]) -> None:
+        observed_commands.append(command)
+
+    monkeypatch.setattr(installer, "run_command", fake_run_command)
+
+    installer.install_from_proxy(
+        python_executable="python",
+        requirement_files=[requirements],
+        constraints_file=constraints,
+        index_url=APPROVED_PROXY_URL,
+        trusted_host="packages.example.internal",
+    )
+
+    assert len(observed_commands) == 1
+    assert "--constraint" not in observed_commands[0]
+
+
+def test_build_wheelhouse_preserves_non_duplicate_constraints(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    requirements = tmp_path / "requirements.txt"
+    requirements.write_text("pillow==12.2.0\n", encoding="utf-8")
+    constraints = tmp_path / "constraints.txt"
+    constraints.write_text("httpx>=0.28.1\n", encoding="utf-8")
+    observed_commands: list[list[str]] = []
+
+    def fake_run_command(command: list[str]) -> None:
+        observed_commands.append(command)
+
+    monkeypatch.setattr(installer, "run_command", fake_run_command)
+
+    installer.build_wheelhouse(
+        python_executable="python",
+        requirement_files=[requirements],
+        constraints_file=constraints,
+        wheelhouse_dir=tmp_path / "wheelhouse",
+        index_url=APPROVED_PROXY_URL,
+        trusted_host="packages.example.internal",
+    )
+
+    assert len(observed_commands) == 1
+    assert "--constraint" in observed_commands[0]
+    constraint_path = Path(observed_commands[0][observed_commands[0].index("--constraint") + 1])
+    assert constraint_path == constraints
+    assert constraint_path.read_text(encoding="utf-8") == "httpx>=0.28.1\n"
+
+
+def test_install_from_wheelhouse_omits_duplicate_exact_constraint_for_same_requirement_surface(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    requirements = tmp_path / "requirements.txt"
+    requirements.write_text("pillow==12.2.0\n", encoding="utf-8")
+    constraints = tmp_path / "constraints.txt"
+    constraints.write_text("pillow==12.2.0\n", encoding="utf-8")
+    observed_commands: list[list[str]] = []
+
+    def fake_run_command(command: list[str]) -> None:
+        observed_commands.append(command)
+
+    monkeypatch.setattr(installer, "run_command", fake_run_command)
+
+    installer.install_from_wheelhouse(
+        python_executable="python",
+        requirement_files=[requirements],
+        constraints_file=constraints,
+        wheelhouse_dir=tmp_path / "wheelhouse",
+    )
+
+    assert len(observed_commands) == 1
+    assert "--constraint" not in observed_commands[0]
+
+
+def test_install_from_wheelhouse_preserves_non_duplicate_constraints(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    requirements = tmp_path / "requirements.txt"
+    requirements.write_text("pillow==12.2.0\n", encoding="utf-8")
+    constraints = tmp_path / "constraints.txt"
+    constraints.write_text("httpx>=0.28.1\n", encoding="utf-8")
+    observed_commands: list[list[str]] = []
+
+    def fake_run_command(command: list[str]) -> None:
+        observed_commands.append(command)
+
+    monkeypatch.setattr(installer, "run_command", fake_run_command)
+
+    installer.install_from_wheelhouse(
+        python_executable="python",
+        requirement_files=[requirements],
+        constraints_file=constraints,
+        wheelhouse_dir=tmp_path / "wheelhouse",
+    )
+
+    assert len(observed_commands) == 1
+    assert "--constraint" in observed_commands[0]
+    constraint_path = Path(observed_commands[0][observed_commands[0].index("--constraint") + 1])
+    assert constraint_path == constraints
+    assert constraint_path.read_text(encoding="utf-8") == "httpx>=0.28.1\n"
+
+
 def test_build_pip_proxy_install_command_uses_approved_proxy_without_cache(
     tmp_path: Path,
 ) -> None:

@@ -44,6 +44,9 @@ Reasons:
   target and returned a blank screenshot during validation on March 26, 2026
 - valid child frames in the same file do resolve, for example `35:148`
   (`PP_iOS_Foundation_Tokens_v1`)
+- later supplemental session evidence also resolved `node-id=16:4` as
+  `03_iOS_Onboarding`, but that remains provenance only and does not replace the
+  historical `16:11` invalid-target note
 - the file contains useful design intent, but not a stable enough node-level
   structure to serve as the canonical clean build surface
 
@@ -180,7 +183,7 @@ All Figma components, frames, and variants in the clean file must follow:
 No new local style may be introduced unless all of the following are true:
 
 1. the value is absent from the current token/component system
-2. the need is documented in this packet under `Needs vocabulary decision`
+2. the need is documented in this packet under `Vocabulary decision state`
 3. the local style is marked temporary and reviewable
 4. a follow-up repo promotion path is stated
 
@@ -209,7 +212,7 @@ Use repo primitives first. Do not start with page-level frames.
 | `PP/Shared/RadioGroup/*` | no governed primitive yet | missing in repo |
 | `PP/Shared/Alert/*` | no governed primitive yet | missing in repo |
 | `PP/Shared/Tooltip/*` | no governed primitive yet | missing in repo |
-| `PP/Shared/StepRail/*` | vocabulary decision required | needs decision |
+| `PP/Shared/StepRail/*` | normalize to canonical `stepper/progress-indicator` via `docs/design/UI_COMPONENT_VOCABULARY.md` | decision recorded; reusable primitive still deferred |
 
 ## 7. Welcome Gate / Pulse Membrane Rules
 
@@ -272,11 +275,13 @@ Fail conditions:
 - governed primitives for select, textarea, checkbox, radio-group, alert,
   tooltip, dropdown-menu, tabs, and a reusable step/progress rail primitive
 
-### 9.6 Needs vocabulary decision
+### 9.6 Vocabulary decision state
 
-- Welcome Gate step rail / progress indicator naming and ownership
-- membrane annotation blocks and annotation markers
-- archive treatment for `PulsePlate_v3` reference frames
+- resolved: Welcome Gate `StepRail` wording normalizes to canonical
+  `stepper/progress-indicator`; ownership remains repo-first via the code-first
+  UI vocabulary contract, and reusable primitive work stays deferred under 9.5
+- open: membrane annotation blocks and annotation markers
+- open: archive treatment for `PulsePlate_v3` reference frames
 
 ## 10. Blocker Classes
 

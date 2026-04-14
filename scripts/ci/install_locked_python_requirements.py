@@ -585,6 +585,58 @@ def validate_constraints_file(constraints_file: Path | None) -> Path | None:
     return constraints_file
 
 
+@contextmanager
+def effective_constraints_file_for_requirement(
+    requirement_file: Path,
+    constraints_file: Path | None,
+) -> Iterator[Path | None]:
+    """Yield constraints with duplicate exact pins removed for one requirement surface."""
+    validated_constraints_file = validate_constraints_file(constraints_file)
+    if validated_constraints_file is None:
+        yield None
+        return
+
+    requirement_exact_pins = _load_exact_requirement_pins(requirement_file)
+    if not requirement_exact_pins:
+        yield validated_constraints_file
+        return
+
+    constraint_lines = validated_constraints_file.read_text(encoding="utf-8").splitlines(
+        keepends=True
+    )
+    filtered_constraint_lines = []
+    removed_duplicate_pin = False
+    for line in constraint_lines:
+        normalized_line = line.split("#", 1)[0].strip().lower()
+        if normalized_line and normalized_line in requirement_exact_pins:
+            removed_duplicate_pin = True
+            continue
+        filtered_constraint_lines.append(line)
+
+    if not removed_duplicate_pin:
+        yield validated_constraints_file
+        return
+    if not filtered_constraint_lines:
+        yield None
+        return
+
+    temp_fd, temp_name = tempfile.mkstemp(
+        prefix=f".{validated_constraints_file.stem}.effective-",
+        suffix=validated_constraints_file.suffix,
+        dir=validated_constraints_file.parent,
+    )
+    effective_constraints_path = Path(temp_name)
+    try:
+        os.close(temp_fd)
+        effective_constraints_path.write_text(
+            "".join(filtered_constraint_lines),
+            encoding="utf-8",
+        )
+        yield effective_constraints_path
+    finally:
+        effective_constraints_path.unlink(missing_ok=True)
+
+
 def normalize_trusted_host(trusted_host: str | None) -> str | None:
     """Return a normalized trusted-host value or None when unset."""
     if trusted_host is None:
@@ -763,14 +815,18 @@ def install_from_wheelhouse(
     wheelhouse_dir: Path,
 ) -> None:
     for requirement_file in requirement_files:
-        run_command(
-            build_pip_install_command(
-                python_executable=python_executable,
-                requirement_file=requirement_file,
-                wheelhouse_dir=wheelhouse_dir,
-                constraints_file=constraints_file,
+        with effective_constraints_file_for_requirement(
+            requirement_file,
+            constraints_file,
+        ) as effective_constraints_file:
+            run_command(
+                build_pip_install_command(
+                    python_executable=python_executable,
+                    requirement_file=requirement_file,
+                    wheelhouse_dir=wheelhouse_dir,
+                    constraints_file=effective_constraints_file,
+                )
             )
-        )
 
 
 def install_from_proxy(
@@ -784,17 +840,21 @@ def install_from_proxy(
     allow_pip_download_cache: bool | None = None,
 ) -> None:
     for requirement_file in requirement_files:
-        run_command(
-            build_pip_proxy_install_command(
-                python_executable=python_executable,
-                requirement_file=requirement_file,
-                constraints_file=constraints_file,
-                index_url=index_url,
-                trusted_host=trusted_host,
-                find_links_dir=find_links_dir,
-                allow_pip_download_cache=allow_pip_download_cache,
+        with effective_constraints_file_for_requirement(
+            requirement_file,
+            constraints_file,
+        ) as effective_constraints_file:
+            run_command(
+                build_pip_proxy_install_command(
+                    python_executable=python_executable,
+                    requirement_file=requirement_file,
+                    constraints_file=effective_constraints_file,
+                    index_url=index_url,
+                    trusted_host=trusted_host,
+                    find_links_dir=find_links_dir,
+                    allow_pip_download_cache=allow_pip_download_cache,
+                )
             )
-        )
 
 
 def build_wheelhouse(
@@ -808,16 +868,20 @@ def build_wheelhouse(
 ) -> None:
     wheelhouse_dir.mkdir(parents=True, exist_ok=True)
     for requirement_file in requirement_files:
-        run_command(
-            build_pip_download_command(
-                python_executable=python_executable,
-                requirement_file=requirement_file,
-                wheelhouse_dir=wheelhouse_dir,
-                constraints_file=constraints_file,
-                index_url=index_url,
-                trusted_host=trusted_host,
+        with effective_constraints_file_for_requirement(
+            requirement_file,
+            constraints_file,
+        ) as effective_constraints_file:
+            run_command(
+                build_pip_download_command(
+                    python_executable=python_executable,
+                    requirement_file=requirement_file,
+                    wheelhouse_dir=wheelhouse_dir,
+                    constraints_file=effective_constraints_file,
+                    index_url=index_url,
+                    trusted_host=trusted_host,
+                )
             )
-        )
 
 
 def build_wheelhouse_with_emergency_fallback(

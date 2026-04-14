@@ -231,7 +231,7 @@ export function IOSFoundationTokensBoard(): JSX.Element {
   return (
     <PanelShell
       className="border-white/10 bg-[rgba(255,255,255,0.04)] shadow-[0_30px_80px_rgba(0,0,0,0.28)]"
-      subtitle="Figma node 35:148 translated into the repo-native Storybook review surface."
+      subtitle="Storybook review surface backed by the repo token system."
       title="PP iOS Foundation Tokens v1"
     >
       <div className="space-y-6">
@@ -346,7 +346,7 @@ export function BrandCanonBoard(): JSX.Element {
   return (
     <PanelShell
       className="border-white/10 bg-[rgba(255,255,255,0.04)] shadow-[0_30px_80px_rgba(0,0,0,0.28)]"
-      subtitle="Figma node 61:77 translated into canonical brand-governance surfaces for Storybook."
+      subtitle="Brand-governance Storybook surface using repo-backed assets."
       title="PP Brand + FitChef Logo Canon v1"
     >
       <div
@@ -424,9 +424,9 @@ export function CanonBoardsSection(): JSX.Element {
   return (
     <section className="mt-10">
       <OverviewHeader
-        description="High-fidelity Figma documentation boards converted into repo-native React review surfaces for tokens, mascot canon, and brand governance."
+        description="High-fidelity design review boards converted into repo-native React review surfaces for tokens, mascot canon, and brand governance."
         eyebrow="5. Canon Boards"
-        title="Figma documentation boards with runtime-safe assets"
+        title="Canonical Storybook boards with runtime-safe assets"
       />
       <div className="grid gap-6">
         <IOSFoundationTokensBoard />

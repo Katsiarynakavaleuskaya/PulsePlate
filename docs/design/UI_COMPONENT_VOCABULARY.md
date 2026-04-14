@@ -142,12 +142,14 @@ Normalize examples like:
 - `tabs` used for global nav -> `navigation/tab-bar`
 - `switch` in settings context -> `toggle`
 - `number tile` or `value box` -> `stats-card`
+- `StepRail` or `step rail` in guided-flow context -> `stepper/progress-indicator`
 
 If a term is ambiguous, resolve by user intent first:
 
 - navigation -> `navigation/tab-bar` or `mobile-menu`
 - content switching -> `tabs` or `segmented-control`
 - form selection -> `select` or `radio-group`
+- guided flow progress -> `stepper/progress-indicator`
 
 ## 7. Prompting rule
 
