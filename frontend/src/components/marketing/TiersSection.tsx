@@ -75,7 +75,7 @@ export function TiersSection() {
         title="Choose your level of support"
       />
 
-      <div className="ppm-tiers-grid" style={{ marginTop: '2.5rem' }}>
+      <div className="ppm-tiers-grid">
         {tiers.map((tier) => {
           const pillClasses = tier.premium ? 'ppm-pill--premium' : 'ppm-pill--success';
 
@@ -96,7 +96,7 @@ export function TiersSection() {
                 {tier.items.map((item) => (
                   <li key={item} className="ppm-tier-list-item">
                     <span className="ppm-check">
-                      <Check size={12} />
+                      <Check aria-hidden size={12} />
                     </span>
                     <span>{item}</span>
                   </li>

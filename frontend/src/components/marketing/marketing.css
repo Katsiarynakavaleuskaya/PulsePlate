@@ -177,16 +177,17 @@
   transition: color 160ms ease, text-decoration-color 160ms ease;
 }
 
-.ppm-hero-link:hover,
-.ppm-hero-link:focus-visible {
+.ppm-hero-link:hover {
   color: var(--color-primary-foreground);
   text-decoration-color: currentColor;
 }
 
 .ppm-hero-link:focus-visible {
+  border-radius: 2px;
+  color: var(--color-primary-foreground);
   outline: 2px solid var(--pp-blue);
   outline-offset: 3px;
-  border-radius: 2px;
+  text-decoration-color: currentColor;
 }
 
 .ppm-brand {
@@ -293,6 +294,10 @@
 .ppm-surfaces-grid,
 .ppm-tiers-grid {
   grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.ppm-tiers-grid {
+  margin-top: 2.5rem;
 }
 
 .ppm-trust-layout {
