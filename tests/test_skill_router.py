@@ -675,6 +675,19 @@ def test_skill_router_selects_ios_app_store_screenshot_lane() -> None:
     assert "build-ios-apps:ios-debugger-agent" in skills
 
 
+def test_skill_router_selects_swiftui_performance_audit_skill() -> None:
+    """SwiftUI performance audit requests should route the dedicated audit helper."""
+
+    skills = select_recommended_skills(
+        goal="Audit SwiftUI scroll performance, rendering jank, and memory spike on the paywall screen",
+        task_class="iOS",
+        candidate_paths=["ios/PulsePlate/Features/Paywall/PaywallView.swift"],
+        domain="qa",
+    )
+
+    assert "build-ios-apps:swiftui-performance-audit" in skills
+
+
 def test_skill_router_selects_design_figma_brand_stack() -> None:
     """Design fidelity and brand implementation tasks should route Figma + web design helpers."""
 

@@ -13,8 +13,10 @@ git submodule update --init --recursive
 scripts/install_codex_skills.sh
 ```
 
-Skills are symlinked to the primary user install target `$HOME/.agents/skills/`.
-Use `scripts/install_codex_skills.sh --target compat` only when a legacy local Codex setup still expects `~/.codex/skills/`.
+Skills are symlinked to the primary user install target `$AGENTS_HOME/skills/`
+with `$HOME/.agents/skills/` as the fallback.
+Use `scripts/install_codex_skills.sh --target compat` only when a legacy local Codex setup still expects `$CODEX_HOME/skills/`
+with `~/.codex/skills/` as the fallback.
 
 ## Update
 
@@ -39,7 +41,7 @@ scripts/install_codex_skills.sh
 
 - **security-auditor** gets access to all ~734 skills (approximate; see index.json) when routed (see `docs/orchestration/AGENT_SKILL_ROUTING_POLICY.md`)
 - **Cursor:** `.cursor/rules/cybersecurity-skills-index.md` provides index and triggers
-- **Codex:** Skills install primarily to `$HOME/.agents/skills/`; `~/.codex/skills/` remains compatibility-only
+- **Codex:** Use the canonical path contract from [`docs/dev/CODEX_SKILLS.md`](./CODEX_SKILLS.md); `compat` remains compatibility-only
 
 ## Index
 

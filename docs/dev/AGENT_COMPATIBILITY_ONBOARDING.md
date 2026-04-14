@@ -49,8 +49,10 @@ See [`docs/orchestration/AUTOMATION_READINESS_MATRIX.md`](../orchestration/AUTOM
 scripts/install_codex_skills.sh
 ```
 
-- Primary install target is `$HOME/.agents/skills`
-- Legacy `~/.codex/skills` is compatibility-only (`scripts/install_codex_skills.sh --target compat`)
+- Primary install target follows the canonical contract in [`docs/dev/CODEX_SKILLS.md`](./CODEX_SKILLS.md):
+  `$AGENTS_HOME/skills` with `$HOME/.agents/skills` as the fallback
+- Legacy compat target follows the same contract:
+  `$CODEX_HOME/skills` with `~/.codex/skills` as the fallback (`scripts/install_codex_skills.sh --target compat`)
 - After install or updates, restart Codex so the new skills load
 - Full skill map and policy notes live in [`docs/dev/CODEX_SKILLS.md`](./CODEX_SKILLS.md)
 - Optional repo-root helper (preflight analyze + printed `task_bootstrap.py` recipe):

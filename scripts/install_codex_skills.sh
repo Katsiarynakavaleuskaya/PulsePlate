@@ -12,7 +12,8 @@ Options:
   --copy            Install by copying directories (default is symlink mode).
   --unlink          Remove installed skills from destination.
   --list            Print source skills and destination install status.
-  --target <name>   Install target: official -> ~/.agents/skills (default),
+  --target <name>   Install target: official -> $AGENTS_HOME/skills (or $HOME/.agents/skills
+                    when AGENTS_HOME is unset, default),
                     compat -> $CODEX_HOME/skills (or $HOME/.codex/skills when CODEX_HOME is unset).
   --dest <path>     Destination skills directory override. Use for temp validation
                     or explicit custom install roots.
@@ -36,12 +37,13 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 COPY_MARKER_FILE=".pulseplate_codex_skill_source"
 
-AGENTS_HOME_DEFAULT="${HOME}/.agents"
+AGENTS_HOME_DEFAULT="${AGENTS_HOME:-${HOME}/.agents}"
 CODEX_HOME_DEFAULT="${CODEX_HOME:-${HOME}/.codex}"
 DEFAULT_DEST_ROOT="${AGENTS_HOME_DEFAULT}/skills"
 COMPAT_DEST_ROOT="${CODEX_HOME_DEFAULT}/skills"
 TARGET="official"
 DEST_ROOT="${DEFAULT_DEST_ROOT}"
+DEST_EXPLICIT=0
 MODE="link"
 ACTION="install"
 CYBERSEC_MODE="both"
@@ -67,12 +69,16 @@ while [[ $# -gt 0 ]]; do
       fi
       case "$2" in
         official)
-          TARGET="official"
-          DEST_ROOT="${DEFAULT_DEST_ROOT}"
+          if [[ "${DEST_EXPLICIT}" -eq 0 ]]; then
+            TARGET="official"
+            DEST_ROOT="${DEFAULT_DEST_ROOT}"
+          fi
           ;;
         compat)
-          TARGET="compat"
-          DEST_ROOT="${COMPAT_DEST_ROOT}"
+          if [[ "${DEST_EXPLICIT}" -eq 0 ]]; then
+            TARGET="compat"
+            DEST_ROOT="${COMPAT_DEST_ROOT}"
+          fi
           ;;
         *)
           echo "Error: unsupported target: $2 (expected official or compat)." >&2
@@ -88,6 +94,7 @@ while [[ $# -gt 0 ]]; do
       fi
       DEST_ROOT="$2"
       TARGET="custom"
+      DEST_EXPLICIT=1
       shift 2
       ;;
     --no-cybersec)

@@ -3,6 +3,10 @@
 Purpose: record the current PulsePlate Codex skill posture without changing
 coordinator-first orchestration authority.
 
+Canonical host-path semantics live in [`docs/dev/CODEX_SKILLS.md`](../dev/CODEX_SKILLS.md).
+This matrix records alignment posture and references that contract instead of
+duplicating host-path rules independently.
+
 ## Non-Interference Contract
 
 This alignment wave is passive/discovery-only. It must preserve these invariants:
@@ -19,13 +23,13 @@ This alignment wave is passive/discovery-only. It must preserve these invariants
 
 1. Repo source of truth: `tools/codex_skills/*`
 2. Repo discovery mirror: `.agents/skills/*`
-3. Primary user install target: `$HOME/.agents/skills/*`
-4. Compatibility-only legacy target: `~/.codex/skills/*`
+3. Primary user install target: `$AGENTS_HOME/skills/*` (fallback: `$HOME/.agents/skills/*`)
+4. Compatibility-only legacy target: `$CODEX_HOME/skills/*` (fallback: `~/.codex/skills/*`)
 
 Interpretation:
 
 - `.agents/skills/` is a discovery layer, not a second canonical repository of skill content.
-- Compatibility installs into `~/.codex/skills` remain explicit and operator-invoked only.
+- Compatibility installs into `$CODEX_HOME/skills` remain explicit and operator-invoked only.
 
 ## Skill Matrix
 

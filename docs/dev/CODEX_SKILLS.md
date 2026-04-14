@@ -30,8 +30,10 @@ Discovery and install precedence:
 
 1. Repo source of truth: `tools/codex_skills/`
 2. Repo discovery mirror for Codex: `.agents/skills/`
-3. Primary user install target: `$HOME/.agents/skills`
-4. Compatibility-only legacy target: `~/.codex/skills` (via `--target compat` or explicit `--dest`)
+3. Primary user install target: `$AGENTS_HOME/skills` (fallback: `$HOME/.agents/skills`)
+4. Compatibility-only legacy target: `$CODEX_HOME/skills` (fallback: `~/.codex/skills`, via `--target compat`)
+
+Use this section as the canonical discovery/install contract. Neighbor docs should reference it instead of restating host-path details independently.
 
 Invariant:
 
@@ -46,9 +48,9 @@ This restart requirement is tooling-local only; it does not change repo orchestr
 
 ## Host `~/.codex` (compatibility-only, not repo SoT)
 
-Machine-local Codex settings (`~/.codex/config.toml`, skills under `~/.codex/skills`) are **not**
+Machine-local Codex settings (`~/.codex/config.toml`, skills under `$CODEX_HOME/skills` with `~/.codex/skills` as the fallback) are **not**
 repository source of truth. Keys drift with Codex CLI versions; verify against current vendor docs.
-Use `~/.codex/skills` only as an explicit compatibility target when a local Codex setup still expects it.
+Use `$CODEX_HOME/skills` only as an explicit compatibility target when a local Codex setup still expects it.
 
 For a **minimal copy-paste starter only**, see
 [`docs/templates/codex.config.example.toml`](../templates/codex.config.example.toml).

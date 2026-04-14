@@ -12,15 +12,23 @@ INSTALLER_PATH = REPO_ROOT / "scripts" / "install_codex_skills.sh"
 BASH_PATH = shutil.which("bash")
 
 
-def _run_installer(home_root: Path, *args: str) -> subprocess.CompletedProcess[str]:
+def _run_installer(
+    home_root: Path,
+    *args: str,
+    set_codex_home: bool = True,
+    extra_env: dict[str, str] | None = None,
+) -> subprocess.CompletedProcess[str]:
     """Run the installer with an isolated HOME/CODEX_HOME."""
 
     assert BASH_PATH is not None, "bash is required for installer tests"
     env = {
         **os.environ,
         "HOME": str(home_root),
-        "CODEX_HOME": str(home_root / ".codex"),
     }
+    if set_codex_home:
+        env["CODEX_HOME"] = str(home_root / ".codex")
+    if extra_env:
+        env.update(extra_env)
     return subprocess.run(
         [BASH_PATH, str(INSTALLER_PATH), *args],
         cwd=REPO_ROOT,
@@ -60,6 +68,31 @@ def test_install_codex_skills_installs_and_unlinks_official_target(tmp_path: Pat
     assert not installed_skill.exists()
 
 
+def test_install_codex_skills_honors_agents_home_override(tmp_path: Path) -> None:
+    """Official installs should honor AGENTS_HOME when operators override the base path."""
+
+    agents_home = tmp_path / "alt-agents-home"
+    install_result = _run_installer(
+        tmp_path,
+        "--no-cybersec",
+        extra_env={"AGENTS_HOME": str(agents_home)},
+    )
+    installed_skill = agents_home / "skills" / "pulseplate-workflow"
+
+    assert "Linked: pulseplate-workflow" in install_result.stdout
+    assert installed_skill.is_symlink()
+    assert not (tmp_path / ".agents" / "skills").exists()
+
+    list_result = _run_installer(
+        tmp_path,
+        "--list",
+        "--no-cybersec",
+        extra_env={"AGENTS_HOME": str(agents_home)},
+    )
+    assert "Target: official" in list_result.stdout
+    assert f"Destination: {agents_home / 'skills'}" in list_result.stdout
+
+
 def test_install_codex_skills_supports_explicit_compat_target(tmp_path: Path) -> None:
     """Compatibility installs should remain explicit and isolated to ~/.codex/skills."""
 
@@ -81,6 +114,25 @@ def test_install_codex_skills_supports_explicit_compat_target(tmp_path: Path) ->
     assert not installed_skill.exists()
 
 
+def test_install_codex_skills_compat_target_falls_back_to_home_codex_when_unset(
+    tmp_path: Path,
+) -> None:
+    """Compat target should fall back to HOME/.codex when CODEX_HOME is unset."""
+
+    install_result = _run_installer(
+        tmp_path,
+        "--target",
+        "compat",
+        "--no-cybersec",
+        set_codex_home=False,
+    )
+    compat_skills_root = tmp_path / ".codex" / "skills"
+    installed_skill = compat_skills_root / "pulseplate-workflow"
+
+    assert "Linked: pulseplate-workflow" in install_result.stdout
+    assert installed_skill.is_symlink()
+
+
 def test_install_codex_skills_help_clarifies_compat_fallback_when_codex_home_is_overridden(
     tmp_path: Path,
 ) -> None:
@@ -92,6 +144,39 @@ def test_install_codex_skills_help_clarifies_compat_fallback_when_codex_home_is_
         "compat -> $CODEX_HOME/skills (or $HOME/.codex/skills when CODEX_HOME is unset)."
         in result.stdout
     )
+
+
+def test_install_codex_skills_explicit_dest_wins_over_target_regardless_of_order(
+    tmp_path: Path,
+) -> None:
+    """Explicit --dest should remain authoritative even if --target is passed afterwards."""
+
+    custom_skills_root = tmp_path / "custom-skills"
+    install_result = _run_installer(
+        tmp_path,
+        "--dest",
+        str(custom_skills_root),
+        "--target",
+        "compat",
+        "--no-cybersec",
+    )
+    installed_skill = custom_skills_root / "pulseplate-workflow"
+
+    assert "Linked: pulseplate-workflow" in install_result.stdout
+    assert installed_skill.is_symlink()
+    assert not (tmp_path / ".codex" / "skills").exists()
+
+    list_result = _run_installer(
+        tmp_path,
+        "--dest",
+        str(custom_skills_root),
+        "--target",
+        "compat",
+        "--list",
+        "--no-cybersec",
+    )
+    assert "Target: custom" in list_result.stdout
+    assert f"Destination: {custom_skills_root}" in list_result.stdout
 
 
 def test_install_codex_skills_supports_explicit_custom_destination(tmp_path: Path) -> None:
@@ -142,6 +227,7 @@ def test_install_codex_skills_unlink_is_side_effect_free_when_nothing_is_install
 
     assert "Not installed: pulseplate-workflow" in unlink_result.stdout
     assert not (tmp_path / ".agents" / "skills").exists()
+    assert not (tmp_path / ".codex" / "skills").exists()
 
 
 def test_repo_agents_skills_mirror_points_to_codex_skill_sources() -> None:
@@ -164,5 +250,7 @@ def test_repo_agents_skills_mirror_points_to_codex_skill_sources() -> None:
         mirrored_skill = REPO_ROOT / ".agents" / "skills" / skill_name
         source_skill = REPO_ROOT / "tools" / "codex_skills" / skill_name
 
+        assert source_skill.is_dir(), f"{skill_name} source directory must exist"
+        assert (source_skill / "SKILL.md").exists(), f"{skill_name} source must include SKILL.md"
         assert mirrored_skill.is_symlink(), f"{skill_name} must be exposed via .agents/skills"
         assert mirrored_skill.resolve() == source_skill

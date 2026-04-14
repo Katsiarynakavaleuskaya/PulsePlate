@@ -4540,27 +4540,6 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Decision: adopt or decline; if adopt, document in orchestration and one pilot use case
 
 
-- [ ] P2: Skill routing wave 2 — compositional task semantics + approved research connectors
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P2
-  - Target PR: PR-TBD-SKILL-ROUTING-WAVE2
-  - Area: orchestration / research / product governance
-  - Finding Type: capability expansion
-  - Reason: PR #1022 establishes deterministic weighted skill routing and explicit scraping blocks. The next wave should deepen routing quality without breaking explainability: compositional task semantics, bounded telemetry feedback, and research-only connectors approved for PulsePlate.
-  - Links:
-    - `docs/orchestration/AGENT_SKILL_ROUTING_POLICY.md`
-    - `scripts/orchestration/skill_router.py`
-    - `scripts/orchestration/task_bootstrap.py`
-    - `docs/dev/CODEX_SKILLS.md`
-  - DoD:
-    - Task packets expose a stable skill-routing explanation schema with compact per-skill evidence
-    - Routing model adds compositional lexeme groups or ontology tags without introducing nondeterministic scoring
-    - Approved research-only connector policy is implemented for narrow sources only: YouTube transcripts, X/Twitter official API or compliant exports, Google Trends
-    - No runtime scraping surface is added to product endpoints
-    - Deterministic tests cover allowlisted research connectors and blocked low-fit scraping requests
-    - `make verify` and `pre-commit run --all-files` pass in PR scope
-
-
 - [ ] P1: Add custom Codex skill `pulseplate-app-store-release` (Wave 1)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
@@ -4593,6 +4572,27 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Skill exists under `tools/codex_skills/pulseplate-monetization-gtm/`
     - Skill covers paywall, subscription, pricing, ASO/SEO/Product Hunt, and wellness-safe disclaimers
     - Skill docs explicitly preserve coordinator-first and additive `recommended_skills` semantics
+
+
+- [ ] P2: Skill routing wave 2 — compositional task semantics + approved research connectors
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR-TBD-SKILL-ROUTING-WAVE2
+  - Area: orchestration / research / product governance
+  - Finding Type: capability expansion
+  - Reason: PR #1022 establishes deterministic weighted skill routing and explicit scraping blocks. The next wave should deepen routing quality without breaking explainability: compositional task semantics, bounded telemetry feedback, and research-only connectors approved for PulsePlate.
+  - Links:
+    - `docs/orchestration/AGENT_SKILL_ROUTING_POLICY.md`
+    - `scripts/orchestration/skill_router.py`
+    - `scripts/orchestration/task_bootstrap.py`
+    - `docs/dev/CODEX_SKILLS.md`
+  - DoD:
+    - Task packets expose a stable skill-routing explanation schema with compact per-skill evidence
+    - Routing model adds compositional lexeme groups or ontology tags without introducing nondeterministic scoring
+    - Approved research-only connector policy is implemented for narrow sources only: YouTube transcripts, X/Twitter official API or compliant exports, Google Trends
+    - No runtime scraping surface is added to product endpoints
+    - Deterministic tests cover allowlisted research connectors and blocked low-fit scraping requests
+    - `make verify` and `pre-commit run --all-files` pass in PR scope
 
 
 - [ ] P2: Add custom Codex skill `pulseplate-design-launch-system` (Wave 2)
