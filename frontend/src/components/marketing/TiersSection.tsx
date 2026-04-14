@@ -89,9 +89,7 @@ export function TiersSection() {
                 <StatusPill className={pillClasses}>{tier.label}</StatusPill>
               </div>
 
-              <p style={{ marginTop: '1rem', color: '#e2e8f0', fontSize: '1.05rem', fontWeight: 500 }}>
-                {tier.positioning}
-              </p>
+              <p className="ppm-tier-positioning">{tier.positioning}</p>
               <p className="ppm-tier-copy">{tier.description}</p>
 
               <ul>

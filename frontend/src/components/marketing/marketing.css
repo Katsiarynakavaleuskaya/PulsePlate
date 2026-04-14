@@ -2,8 +2,13 @@
   min-height: 100dvh;
   background:
     radial-gradient(circle at top right, rgba(51, 159, 255, 0.16), transparent 24%),
-    linear-gradient(180deg, #0f172a 0%, #121c33 54%, #0b1224 100%);
-  color: #f8fafc;
+    linear-gradient(
+      180deg,
+      var(--pp-navy) 0%,
+      var(--ppm-gradient-mid) 54%,
+      var(--ppm-gradient-end) 100%
+    );
+  color: var(--ppm-slate-50);
 }
 
 .ppm-section {
@@ -41,7 +46,7 @@
 
 .ppm-title {
   margin: 0;
-  color: #fff;
+  color: var(--color-primary-foreground);
   font-size: clamp(2rem, 1.3rem + 2vw, 3rem);
   font-weight: 600;
   line-height: 1.05;
@@ -50,7 +55,7 @@
 
 .ppm-description {
   margin: 1rem 0 0;
-  color: #cbd5e1;
+  color: var(--ppm-slate-300);
   font-size: 1rem;
   line-height: 1.7;
 }
@@ -71,7 +76,7 @@
   border-radius: 999px;
   border: 1px solid rgba(255, 255, 255, 0.12);
   background: rgba(255, 255, 255, 0.05);
-  color: #f8fafc;
+  color: var(--ppm-slate-50);
   font-size: 0.75rem;
   font-weight: 600;
 }
@@ -133,14 +138,14 @@
 
 .ppm-btn--primary {
   background: var(--pp-blue);
-  color: #fff;
+  color: var(--color-primary-foreground);
   box-shadow: 0 20px 40px rgba(51, 159, 255, 0.2);
 }
 
 .ppm-btn--secondary {
   border: 1px solid rgba(255, 255, 255, 0.12);
   background: rgba(255, 255, 255, 0.05);
-  color: #fff;
+  color: var(--color-primary-foreground);
 }
 
 .ppm-hero {
@@ -157,7 +162,7 @@
 }
 
 .ppm-hero-link {
-  color: #cbd5e1;
+  color: var(--ppm-slate-300);
   font-size: 0.95rem;
 }
 
@@ -181,7 +186,7 @@
 }
 
 .ppm-brand-name {
-  color: #fff;
+  color: var(--color-primary-foreground);
   font-size: 1.3rem;
   font-weight: 600;
   letter-spacing: -0.04em;
@@ -205,7 +210,7 @@
 
 .ppm-hero-title {
   margin: 0;
-  color: #fff;
+  color: var(--color-primary-foreground);
   font-size: clamp(2.8rem, 1.8rem + 3vw, 4.8rem);
   font-weight: 600;
   line-height: 0.96;
@@ -218,7 +223,7 @@
 
 .ppm-hero-body {
   margin: 1.5rem 0 0;
-  color: #cbd5e1;
+  color: var(--ppm-slate-300);
   font-size: 1.1rem;
   line-height: 1.8;
 }
@@ -276,7 +281,7 @@
 .ppm-tool-item,
 .ppm-faq-item {
   border-radius: 1.5rem;
-  background: #0f172a;
+  background: var(--pp-navy);
   border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
@@ -288,13 +293,13 @@
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  color: #94a3b8;
+  color: var(--ppm-slate-400);
   font-size: 0.78rem;
 }
 
 .ppm-stat-value {
   margin: 0.8rem 0 0;
-  color: #fff;
+  color: var(--color-primary-foreground);
   font-size: 1.35rem;
   font-weight: 600;
 }
@@ -305,13 +310,13 @@
 
 .ppm-subsection-title {
   margin: 0 0 0.8rem;
-  color: #e2e8f0;
+  color: var(--ppm-slate-200);
   font-size: 0.95rem;
   font-weight: 600;
 }
 
 .ppm-subsection-meta {
-  color: #64748b;
+  color: var(--ppm-slate-500);
   font-size: 0.72rem;
   letter-spacing: 0.24em;
   text-transform: uppercase;
@@ -346,7 +351,7 @@
 }
 
 .ppm-action-text {
-  color: #fff;
+  color: var(--color-primary-foreground);
   font-size: 0.92rem;
   font-weight: 600;
 }
@@ -373,7 +378,7 @@
 
 .ppm-tool-item {
   padding: 0.9rem 1rem;
-  color: #e2e8f0;
+  color: var(--ppm-slate-200);
   font-size: 0.92rem;
   font-weight: 500;
 }
@@ -387,7 +392,7 @@
 
 .ppm-insight-body {
   margin: 1rem 0 0;
-  color: #e2e8f0;
+  color: var(--ppm-slate-200);
   font-size: 0.92rem;
   line-height: 1.7;
 }
@@ -397,7 +402,7 @@
   align-items: center;
   gap: 0.5rem;
   margin-top: 1rem;
-  color: #cbd5e1;
+  color: var(--ppm-slate-300);
   font-size: 0.78rem;
 }
 
@@ -416,7 +421,7 @@
 .ppm-faq-title,
 .ppm-trust-title {
   margin: 0;
-  color: #fff;
+  color: var(--color-primary-foreground);
   font-size: 1.2rem;
   font-weight: 600;
   line-height: 1.25;
@@ -425,11 +430,18 @@
 .ppm-band-card-copy,
 .ppm-step-copy,
 .ppm-surface-copy,
+.ppm-tier-positioning {
+  margin-top: 1rem;
+  color: var(--ppm-slate-200);
+  font-size: 1.05rem;
+  font-weight: 500;
+}
+
 .ppm-tier-copy,
 .ppm-faq-copy,
 .ppm-trust-copy {
   margin: 1rem 0 0;
-  color: #cbd5e1;
+  color: var(--ppm-slate-300);
   font-size: 0.92rem;
   line-height: 1.7;
 }
@@ -453,7 +465,7 @@
 }
 
 .ppm-step-number {
-  color: #94a3b8;
+  color: var(--ppm-slate-400);
   font-size: 0.9rem;
   font-weight: 700;
 }
@@ -461,7 +473,7 @@
 .ppm-surface-support,
 .ppm-footer-note,
 .ppm-supporting {
-  color: #64748b;
+  color: var(--ppm-slate-500);
   font-size: 0.72rem;
   letter-spacing: 0.22em;
   text-transform: uppercase;
@@ -483,7 +495,7 @@
   align-items: flex-start;
   gap: 0.75rem;
   margin-top: 0.8rem;
-  color: #e2e8f0;
+  color: var(--ppm-slate-200);
   font-size: 0.92rem;
   line-height: 1.7;
 }
@@ -507,7 +519,7 @@
 
 .ppm-tier-footer {
   margin-top: 1.75rem;
-  color: #94a3b8;
+  color: var(--ppm-slate-400);
   font-size: 0.92rem;
   text-align: center;
 }
@@ -544,7 +556,7 @@
 
 .ppm-footer-group-title {
   margin: 0;
-  color: #64748b;
+  color: var(--ppm-slate-500);
   font-size: 0.75rem;
   font-weight: 700;
   letter-spacing: 0.24em;
@@ -559,13 +571,13 @@
 }
 
 .ppm-footer-link {
-  color: #cbd5e1;
+  color: var(--ppm-slate-300);
   font-size: 0.92rem;
 }
 
 .ppm-footer-link:hover,
 .ppm-hero-link:hover {
-  color: #fff;
+  color: var(--color-primary-foreground);
 }
 
 .ppm-logo-compact {
