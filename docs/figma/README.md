@@ -106,9 +106,9 @@ Historical reference only for the current delivery model:
 
 ## Recommended workflow
 
-1. Refresh Git context using `docs/figma/FIGMA_IMPLEMENTATION_RUNBOOK.md`.
-2. Lock cross-file authority first with
+1. Lock cross-file authority first with
    `docs/figma/FIGMA_WEB_IOS_AUTHORITY_RECONCILIATION_PACKET.md`.
+2. Refresh Git context using `docs/figma/FIGMA_IMPLEMENTATION_RUNBOOK.md`.
 3. If the task is specifically about the clean web `v3`
    `Foundations + Components + Welcome Gate` execution lane, use
    `docs/figma/PULSEPLATE_V3_DESIGN_SYSTEM_RECONCILIATION.md`.
