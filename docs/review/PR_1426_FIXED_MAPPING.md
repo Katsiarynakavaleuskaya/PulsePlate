@@ -3,8 +3,8 @@
 
 ## Discussion Thread Pass
 
-- [ ] Discussion-thread pass completed
-- [ ] Fixed in commit mapping completed
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 
 Bot and human review threads must be dispositioned here before they are resolved on GitHub.
 
