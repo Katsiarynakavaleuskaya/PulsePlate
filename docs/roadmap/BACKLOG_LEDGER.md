@@ -1898,12 +1898,12 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 <a id="ledger-p1-pulseplate-v3-phase1-repo-drift-cleanup"></a>
 - [ ] P1: Phase 1 repo-first drift cleanup before canonical Figma mirror expansion
   - Owner: @katsiaryna_kavaleuskaya (Design + FE)
-  - Target PR: PR-TBD-FIGMA-PHASE1-REPO-DRIFT
+  - Target PR: #1424
   - Priority: P1
-  - Status: Opened by docs delta audit on `13 April 2026`
+  - Status: In progress via PR `#1424` after PR `#1422`
   - Area: design-system / frontend / Figma reconciliation
   - Finding Type: repo-first remediation follow-up
-  - Reason: The Phase 1 delta audit identified repo-first follow-up work that should not be silently carried as narrative-only debt: stale `DesignSystemOverview` / `CanonBoards` Figma references, missing governed shared primitives, and the unresolved `PP/Shared/StepRail/*` vocabulary/ownership decision. These items must be resolved in repo truth before any broader canonical Figma mirror expansion claims parity.
+  - Reason: The Phase 1 delta audit identified repo-first follow-up work that should not be silently carried as narrative-only debt: stale `DesignSystemOverview` / `CanonBoards` Figma references, missing governed shared primitives, and the need to record the `PP/Shared/StepRail/*` naming normalization in repo truth. These items must be resolved in repo truth before any broader canonical Figma mirror expansion claims parity.
   - Links:
     - `docs/figma/FIGMA_MAKE_SYNC_AUDIT_HPP.md`
     - `docs/figma/orchestration/sessions/2026-04-13_phase1_delta_audit.md`
@@ -1912,7 +1912,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `docs/design/UI_COMPONENT_VOCABULARY.md`
   - DoD:
     - `DesignSystemOverview` and `CanonBoards` no longer point at stale legacy Figma node references
-    - Repo decision is recorded for `PP/Shared/StepRail/*` ownership/vocabulary before any canonical Figma promotion depends on it
+    - Repo naming decision is recorded for `PP/Shared/StepRail/*` ownership/vocabulary before any canonical Figma promotion depends on it
     - Missing Phase 1 shared primitives are either implemented in repo truth or explicitly deferred with updated design-system docs
     - Follow-up PR updates the Phase 1 Figma audit docs to reflect the resolved repo-first state
 
