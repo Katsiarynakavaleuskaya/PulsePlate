@@ -88,6 +88,18 @@ Evidence: `docs/review/PR_1416_FIXED_MAPPING.md:82`, `docs/review/PR_1416_FIXED_
 Reason: The latest Cubic review body is an aggregate wrapper for the single inline backlog-target finding that is already mapped immediately above and does not create a second independent obligation.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1416#pullrequestreview-4102141160
 
+Disposition: FIXED
+Commit: 826ce2b3a
+Evidence: [frontend/src/lib/analytics.ts](../../frontend/src/lib/analytics.ts#L8), [frontend/src/api/client.ts](../../frontend/src/api/client.ts#L181), [frontend/src/pages/Pro/__tests__/ProPaywallPage.test.tsx](../../frontend/src/pages/Pro/__tests__/ProPaywallPage.test.tsx#L95)
+Reason: The remaining Sourcery inline follow-ups are now closed: the client ingestion contract is typed to client-authored paywall events only, legacy paywall analytics calls use a stricter event union, and the Pro paywall tests now cover the successful purchase path with stable exposure-id sequencing.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1416#discussion_r3076280427 -> 826ce2b3a
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1416#discussion_r3076280434 -> 826ce2b3a
+
+Disposition: NOT-A-BUG
+Evidence: `docs/review/PR_1416_FIXED_MAPPING.md:91`, `frontend/src/lib/analytics.ts:8`, `frontend/src/api/client.ts:181`, `frontend/src/pages/Pro/__tests__/ProPaywallPage.test.tsx:95`
+Reason: The latest Sourcery review body is an aggregate wrapper for the two inline comments mapped immediately above. Its extra note about centralizing `auth_source` / `tier_snapshot` typing is high-level follow-up advice rather than a separate correctness defect required to merge this PR.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1416#pullrequestreview-4102440298
+
 ## Merge Readiness
 - [ ] All required checks pass
 - [ ] No unresolved review threads (re-check on current head before merge)
