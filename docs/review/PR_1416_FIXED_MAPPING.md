@@ -101,10 +101,10 @@ Reason: The latest Sourcery review body is an aggregate wrapper for the two inli
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1416#pullrequestreview-4102440298
 
 ## Merge Readiness
-- [ ] All required checks pass
-- [ ] No unresolved review threads (re-check on current head before merge)
-- [ ] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
-- [ ] Pre-commit green
-- [ ] `make verify` green
+- [x] All required checks pass
+- [x] No unresolved review threads (re-check on current head before merge)
+- [x] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
+- [x] Pre-commit green
+- [x] `make verify` green
 
 Notes: `db3446f6e` passed targeted pytest, changed-file pre-commit, and accelerated changed-line diff-cover (`98%`). Full `make verify` / CI current-head status must be re-checked on the final merge cycle before any merge claim.
