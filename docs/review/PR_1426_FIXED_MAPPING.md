@@ -10,10 +10,14 @@ Bot and human review threads must be dispositioned here before they are resolved
 
 ## Fixed in Commit Mapping
 
-- FIXED `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1426#discussion_r3080134887` -> `ec813602a`
-- FIXED `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1426#discussion_r3080134896` -> `ec813602a`
-- FIXED `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1426#discussion_r3080145564` -> `1d2ad1244`
-- FIXED `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1426#discussion_r3080175001` -> `1d2ad1244`
+Disposition: FIXED
+Commit: ec813602a
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1426#discussion_r3080134887 -> ec813602a
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1426#discussion_r3080134896 -> ec813602a
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1426#pullrequestreview-4106659425 -> ec813602a
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1426#discussion_r3080145564 -> 1d2ad1244
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1426#discussion_r3080175001 -> 1d2ad1244
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1426#pullrequestreview-4106703810 -> 1d2ad1244
 
 ## Merge Readiness
 
