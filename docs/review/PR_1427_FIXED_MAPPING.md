@@ -75,6 +75,16 @@ Disposition: FIXED
 Commit: 38e85ed09
 Evidence: CodeRabbit follow-up review: CSS selector cleanup and tiers layout/a11y updates in `frontend/src/components/marketing/marketing.css` and `frontend/src/components/marketing/TiersSection.tsx` (same commit as threads above).
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1427#discussion_r3082210924
+Disposition: FIXED
+Commit: ce0f84f22
+Evidence: `frontend/src/components/marketing/HowItWorksSection.tsx` adds stable `id` on each step and uses `key={step.id}` instead of display `title` (CodeRabbit).
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1427#pullrequestreview-4108915025
+Disposition: FIXED
+Commit: ce0f84f22
+Evidence: CodeRabbit review summary for stable React keys in How it works; addressed in `ce0f84f22` (same as `discussion_r3082210924`).
+
 ## Merge Readiness
 
 - [ ] Current-head CI is green for PR branch head
