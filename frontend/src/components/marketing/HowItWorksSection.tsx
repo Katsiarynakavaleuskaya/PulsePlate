@@ -1,33 +1,46 @@
 import type { JSX } from "react";
+import type { LucideIcon } from "lucide-react";
 import { Activity, ChartLine, Settings2, Sparkles, Utensils } from "lucide-react";
 import { MarketingCard, MarketingSection, SectionHeader } from "./MarketingPrimitives";
 
-const steps = [
+type HowItWorksStep = {
+    id: string;
+    title: string;
+    description: string;
+    icon: LucideIcon;
+};
+
+const steps: HowItWorksStep[] = [
     {
+        id: "understand-metrics",
         title: "Understand your metrics",
         description:
             "See your current baseline clearly. PulsePlate helps you understand where you are with BMI and wellness-oriented signals.",
         icon: Activity,
     },
     {
+        id: "complete-setup",
         title: "Complete setup",
         description:
             "Define your core nutrition inputs and preferences. Structured preparation helps PulsePlate guide you more clearly.",
         icon: Settings2,
     },
     {
+        id: "open-plate",
         title: "Open Plate",
         description:
             "Access your main daily nutrition surface. Plate is where you plan and structure your meals with calm clarity.",
         icon: Utensils,
     },
     {
+        id: "review-progress",
         title: "Review Progress",
         description:
             "Track trends and signals over time. Progress helps you see patterns and stay oriented without over-analysis.",
         icon: ChartLine,
     },
     {
+        id: "pro-guidance",
         title: "Unlock deeper Pro guidance",
         description:
             "Add more depth and structure with Pro. Access AI guidance, weekly insights, and more personalized support where available.",
@@ -49,7 +62,7 @@ export function HowItWorksSection(): JSX.Element {
                     const Icon = step.icon;
 
                     return (
-                        <div key={step.title}>
+                        <div key={step.id}>
                             <MarketingCard className="ppm-step-card">
                                 <div className="ppm-step-top">
                                     <div className="ppm-icon-box">
