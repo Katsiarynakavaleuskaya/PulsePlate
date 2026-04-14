@@ -42,6 +42,19 @@ Evidence: `docs/roadmap/BACKLOG_LEDGER.md:4528`, `docs/dev/CODEX_SKILLS.md:33`, 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1421#pullrequestreview-4102455229 -> 0e9de55bf
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1421#discussion_r3076295432 -> 0e9de55bf
 
+Disposition: FIXED
+Commit: 6eaa74b5e
+Evidence: `.cursor/rules/cybersecurity-skills-index.md:31`, `docs/orchestration/AGENT_SKILL_ROUTING_POLICY.md:194`, `docs/orchestration/CODEX_SKILLS_ALIGNMENT_MATRIX.md:71`, `docs/roadmap/BACKLOG_LEDGER.md:4527`, `docs/roadmap/BACKLOG_LEDGER.md:8987`, `scripts/orchestration/skill_router.py:644`, `tests/test_skill_router.py:691`, `tests/test_install_codex_skills.py:182`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1421#discussion_r3080428419 -> 6eaa74b5e
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1421#discussion_r3080428435 -> 6eaa74b5e
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1421#discussion_r3080428444 -> 6eaa74b5e
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1421#pullrequestreview-4106992423 -> 6eaa74b5e
+
+Disposition: NOT-A-BUG
+Reason: `pillow==12.2.0` is published on PyPI and resolvable; lockfiles were regenerated with `python -m piptools compile` and pre-push `pip-audit` passes on the branch.
+Evidence: `requirements-lock.txt:329`, `requirements.txt:161`, `requirements-ci-lite.txt:228`; local `python -m pip index versions pillow` lists `12.2.0` among available versions; dependency bump landed in `713528388` (`build(deps): raise pillow security floor`).
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1421#discussion_r3080428440
+
 ## Merge Readiness
 
 - [ ] Current-head CI green for PR branch head
