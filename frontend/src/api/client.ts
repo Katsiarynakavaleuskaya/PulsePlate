@@ -2,6 +2,7 @@
 // EN: API client with server-session cookie support. Handles 401 errors by redirecting to key entry page.
 
 import { logError } from "../lib/analytics";
+import type { ClientPaywallExposureEventName } from "../lib/analytics";
 import { clearStoredApiKey } from "../auth/storage";
 import type { components } from "./schema";
 
@@ -181,7 +182,7 @@ export type ProSessionStatus = components["schemas"]["SessionStatusResponse"];
 export type PaywallExposureEventRequest = {
   client_event_id: string;
   exposure_id: string;
-  event_name: "shown" | "dismissed" | "cta_clicked" | "upgrade_started" | "upgrade_completed";
+  event_name: ClientPaywallExposureEventName;
   source_surface: string;
   trigger_reason: string;
   via?: string;

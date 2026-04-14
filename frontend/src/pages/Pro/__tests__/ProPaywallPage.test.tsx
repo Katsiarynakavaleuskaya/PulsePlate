@@ -92,6 +92,45 @@ describe("ProPaywallPage", () => {
     expect(navigateMock).not.toHaveBeenCalled();
   });
 
+  it("reuses the same exposure id across paywall view and purchase attempt on success", async () => {
+    purchasePremiumMock.mockResolvedValueOnce(undefined);
+
+    render(<ProPaywallPage />);
+
+    fireEvent.click(screen.getByTestId("paywall-cta"));
+
+    await waitFor(() => {
+      expect(purchasePremiumMock).toHaveBeenCalledWith({
+        source: "bmi_soft_paywall",
+        via: "pro_page",
+      });
+      expect(logPaywallExposureMock).toHaveBeenCalledTimes(2);
+      expect(logPaywallExposureMock).toHaveBeenNthCalledWith(1, "paywall_view", {
+        client_event_id: "event-pro-view",
+        exposure_id: "exposure-pro",
+        source_surface: "bmi_soft_paywall",
+        trigger_reason: "post_bmi_result",
+        via: "pro_page",
+        metadata: undefined,
+      });
+      expect(logPaywallExposureMock).toHaveBeenNthCalledWith(2, "purchase_attempt", {
+        client_event_id: "event-pro-cta",
+        exposure_id: "exposure-pro",
+        source_surface: "bmi_soft_paywall",
+        trigger_reason: "post_bmi_result",
+        via: "pro_page",
+        metadata: undefined,
+      });
+      expect(navigateMock).toHaveBeenCalledWith(-1);
+    });
+
+    expect(logPaywallExposureMock).not.toHaveBeenCalledWith(
+      "upgrade_started",
+      expect.anything()
+    );
+    expect(screen.queryByTestId("paywall-purchase-error")).not.toBeInTheDocument();
+  });
+
   it("navigates back when the user closes the paywall", async (): Promise<void> => {
     render(<ProPaywallPage />);
 

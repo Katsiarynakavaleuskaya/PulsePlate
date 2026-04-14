@@ -5,6 +5,11 @@ type Payload = Record<string, unknown>;
 
 type AnalyticsError = unknown;
 
+export type ClientPaywallExposureEventName =
+  | "shown"
+  | "dismissed"
+  | "cta_clicked";
+
 export type PaywallExposureEventName =
   | "shown"
   | "dismissed"
@@ -12,17 +17,25 @@ export type PaywallExposureEventName =
   | "upgrade_started"
   | "upgrade_completed";
 
+export type LegacyPaywallEventName =
+  | "paywall_view"
+  | "purchase_attempt"
+  | "purchase_cancel"
+  | "purchase_success"
+  | "purchase_failure"
+  | "restore_success";
+
 export type PaywallExposurePayload = {
   client_event_id: string;
   exposure_id: string;
-  event_name: PaywallExposureEventName;
+  event_name: ClientPaywallExposureEventName;
   source_surface: string;
   trigger_reason: string;
   via?: string;
   metadata?: Record<string, unknown>;
 };
 
-const legacyPaywallEventMap: Partial<Record<string, PaywallExposureEventName>> = {
+const legacyPaywallEventMap: Partial<Record<LegacyPaywallEventName, ClientPaywallExposureEventName>> = {
   paywall_view: "shown",
   purchase_cancel: "dismissed",
   purchase_attempt: "cta_clicked",
@@ -58,8 +71,8 @@ export function createAnalyticsEventId(): string {
 }
 
 export function mapLegacyPaywallEvent(
-  event: string
-): PaywallExposureEventName | null {
+  event: LegacyPaywallEventName
+): ClientPaywallExposureEventName | null {
   return legacyPaywallEventMap[event] ?? null;
 }
 
@@ -107,7 +120,7 @@ export function logPaywallExposure(payload: PaywallExposurePayload): void {
 }
 
 export function logLegacyPaywallExposure(
-  event: string,
+  event: LegacyPaywallEventName,
   payload: Omit<PaywallExposurePayload, "event_name">
 ): void {
   const eventName = mapLegacyPaywallEvent(event);
