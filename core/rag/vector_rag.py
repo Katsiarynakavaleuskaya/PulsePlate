@@ -24,7 +24,7 @@ from typing import TYPE_CHECKING, Any, SupportsFloat, cast
 from app.utils.feature_flags import is_rag_vector_enabled
 from core.data_sanitizer import sanitize_rag_markdown
 from core.db_rls import apply_user_rls_context
-from core.rag.contracts import AGENT_CORPUS_MAP, RAGChunk, RAGContext
+from core.rag.contracts import AGENT_CORPUS_MAP, RAGChunk, RAGContext, RAGDegradedReason
 from core.rag.rag_constants import (
     EMBEDDING_DIMENSIONS,
     MAX_CHUNK_SIZE_CHARS,
@@ -316,7 +316,13 @@ def _retrieve_vector_from_db(
 
     if subject_id is None:
         logger.debug("Vector retrieval skipped because subject_id is missing")
-        return _empty_context(query, agent_id, user_tier, start)
+        return _empty_context(
+            query,
+            agent_id,
+            user_tier,
+            start,
+            degraded_reason=RAGDegradedReason.VECTOR_FALLBACK_SUBJECT_MISSING,
+        )
 
     # Get corpus prefixes for agent-specific filtering
     corpus_prefixes = AGENT_CORPUS_MAP.get(agent_id) if agent_id else None
@@ -324,10 +330,22 @@ def _retrieve_vector_from_db(
     provider = _get_embedding_provider()
     query_vectors = provider.encode([query])
     if not query_vectors:
-        return _empty_context(query, agent_id, user_tier, start)
+        return _empty_context(
+            query,
+            agent_id,
+            user_tier,
+            start,
+            degraded_reason=RAGDegradedReason.VECTOR_FALLBACK_NO_RESULTS,
+        )
     normalized_query_embedding = _normalize_embedding_vector(query_vectors[0])
     if normalized_query_embedding is None:
-        return _empty_context(query, agent_id, user_tier, start)
+        return _empty_context(
+            query,
+            agent_id,
+            user_tier,
+            start,
+            degraded_reason=RAGDegradedReason.VECTOR_FALLBACK_NO_RESULTS,
+        )
     query_embedding = normalized_query_embedding
 
     from core.db import session_scope
@@ -406,6 +424,8 @@ def _empty_context(
     agent_id: str | None,
     user_tier: str | None,
     start: float,
+    *,
+    degraded_reason: RAGDegradedReason | None = None,
 ) -> RAGContext:
     """Return an empty RAGContext (no results)."""
     return RAGContext(
@@ -417,6 +437,7 @@ def _empty_context(
         latency_ms=int((time.perf_counter() - start) * 1000),
         agent_id=agent_id,
         user_tier=user_tier,
+        degraded_reason=degraded_reason,
     )
 
 
@@ -441,6 +462,7 @@ def retrieve_context_structured(
 
     Returns: RAGContext per RAG_CONTRACT.md §3.
     """
+    fallback_reason: RAGDegradedReason | None = None
     if is_rag_vector_enabled():
         try:
             ctx = _retrieve_vector_from_db(
@@ -454,8 +476,10 @@ def retrieve_context_structured(
             if ctx.chunks:
                 return ctx
             # No vector results — fall through to Jaccard
+            fallback_reason = ctx.degraded_reason or RAGDegradedReason.VECTOR_FALLBACK_NO_RESULTS
             logger.debug("Vector retrieval returned no chunks; falling back to Jaccard")
         except Exception:
+            fallback_reason = RAGDegradedReason.VECTOR_FALLBACK_EXCEPTION
             logger.warning(
                 "Vector retrieval failed; falling back to Jaccard",
                 exc_info=True,
@@ -470,4 +494,6 @@ def retrieve_context_structured(
         agent_id=agent_id,
         user_tier=user_tier,
     )
+    if fallback_reason is not None:
+        fallback_ctx.degraded_reason = fallback_reason
     return fallback_ctx
