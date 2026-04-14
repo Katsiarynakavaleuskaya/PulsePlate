@@ -47,7 +47,7 @@ export default function PremiumGate({ isPremium, children, source = "unknown" }:
 
       <button
         type="button"
-        className="mt-3 px-4 py-2 rounded-xl bg-[var(--pp-primary)] text-white"
+        className="mt-3 px-4 py-2 rounded-xl bg-[var(--pp-primary)] text-[var(--color-primary-foreground)]"
         onClick={() => {
           setOpen(true);
         }}
