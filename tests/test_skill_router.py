@@ -662,6 +662,19 @@ def test_skill_router_selects_ios_app_store_skill_stack() -> None:
     assert "build-web-apps:stripe-best-practices" not in skills
 
 
+def test_skill_router_selects_swiftui_refactor_for_ios_domain() -> None:
+    """Pure iOS SwiftUI refactor tasks should still activate the refactor skill."""
+
+    skills = select_recommended_skills(
+        goal="Refactor a SwiftUI subscription screen",
+        task_class="iOS",
+        candidate_paths=["ios/PulsePlate/Features/Paywall/PaywallView.swift"],
+        domain="ios",
+    )
+
+    assert "build-ios-apps:swiftui-view-refactor" in skills
+
+
 def test_skill_router_selects_ios_app_store_screenshot_lane() -> None:
     """App Store screenshot and Fastlane tasks should still route the iOS release helpers."""
 

@@ -624,7 +624,7 @@ SKILL_RULES: tuple[SkillRule, ...] = (
         category="global",
         rationale="SwiftUI restructuring work should use the focused iOS refactor guidance.",
         min_score=5,
-        domain_weights={"release": 1},
+        domain_weights={"ios": 1, "release": 1},
         path_prefixes=("ios/",),
         keywords=(
             "refactor",
