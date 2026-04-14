@@ -90,6 +90,16 @@ Disposition: FIXED
 Commit: 81f090d4c
 Evidence: `frontend/src/components/marketing/marketing.css`: `text-decoration-color` uses lowercase `currentcolor`; `.ppm-page` adds `100vh` before `100dvh`; `.ppm-card` adds `-webkit-backdrop-filter` with `backdrop-filter` (CodeRabbit CHILL review nits).
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1427#pullrequestreview-4109192912
+Disposition: FIXED
+Commit: 65cf39f05
+Evidence: Cubic review (VIP badge contrast): `frontend/src/components/VipBadge.tsx:23-27` — gold→navy gradient with `text-[var(--color-primary-foreground)]` and token `ring-*` for readable contrast; `VipGate.tsx` / `PremiumGate.tsx` / `useInert.ts` aligned to token canon in the same commit.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1427#discussion_r3082492247
+Disposition: FIXED
+Commit: 65cf39f05
+Evidence: Same Cubic thread as `pullrequestreview-4109192912`; VipBadge default variant contrast addressed at `frontend/src/components/VipBadge.tsx:23-27` (commit `65cf39f05` after thread timestamp).
+
 ## Merge Readiness
 
 - [ ] Current-head CI is green for PR branch head
