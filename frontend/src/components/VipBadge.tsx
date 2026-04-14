@@ -20,10 +20,11 @@ const sizeClasses = {
 // Brand VIP styling uses PulsePlate token SoT only (frontend/src/styles/tokens.css).
 const variantClasses = {
   default:
-    'bg-gradient-to-r from-[var(--pp-gold)] to-[var(--pp-navy)] text-[var(--color-primary-foreground)]',
-  outline: 'border border-[var(--pp-gold)] text-[var(--color-text)] bg-transparent',
+    'bg-gradient-to-r from-[var(--pp-gold)] to-[var(--pp-navy)] text-[var(--color-primary-foreground)] ring-1 ring-[var(--pp-navy)]/25',
+  outline:
+    'border border-[var(--pp-gold)] text-[var(--color-text)] bg-transparent ring-1 ring-[var(--pp-gold)]/35',
   subtle:
-    'bg-[var(--color-surface-muted)] text-[var(--color-text)] border border-[var(--color-border)]'
+    'bg-[var(--color-surface-muted)] text-[var(--color-text)] border border-[var(--color-border)] ring-1 ring-[var(--pp-gold)]/20'
 };
 
 /**
