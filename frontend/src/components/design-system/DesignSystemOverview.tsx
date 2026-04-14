@@ -26,11 +26,11 @@ export function DesignSystemOverview() {
               PulsePlate Design System
             </h1>
             <p className="mt-4 max-w-3xl text-base leading-7 text-white/68">
-              A production-oriented translation of the Figma design system into reusable React panels, canonical brand
-              assets, and Storybook documentation aligned to the current token source of truth.
+              A production-oriented translation of the PulsePlate design system into reusable React panels, canonical
+              brand assets, and Storybook documentation aligned to the current token source of truth.
             </p>
             <div className="mt-6 flex flex-wrap gap-3">
-              <span className="rounded-full bg-white/[0.06] px-3 py-2 text-sm text-white/70">Figma node 96:33</span>
+              <span className="rounded-full bg-white/[0.06] px-3 py-2 text-sm text-white/70">Canonical repo-backed review surface</span>
               <span className="rounded-full bg-[rgba(212,175,55,0.12)] px-3 py-2 text-sm text-[var(--pp-gold)]">
                 Real brand assets imported
               </span>
@@ -59,7 +59,7 @@ export function DesignSystemOverview() {
 
       <section className="mt-10">
         <OverviewHeader
-          description="The Figma spec uses a disciplined navy system with bright utility accents. These panels bind the visual language to the token layer already present in the repository."
+          description="The visual system uses a disciplined navy foundation with bright utility accents. These panels bind that language to the token layer already present in the repository."
           eyebrow="2. Core Tokens"
           title="Palette, typography, spacing, and shape"
         />
