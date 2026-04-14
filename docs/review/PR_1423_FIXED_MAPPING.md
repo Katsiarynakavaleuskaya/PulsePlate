@@ -7,6 +7,7 @@
 - [x] Fixed in commit mapping completed
 
 Bot and human review threads must be dispositioned here before they are resolved on GitHub.
+This artifact is the canonical source of truth; the PR body checklists are a required mirror only.
 
 ## Fixed in Commit Mapping
 
