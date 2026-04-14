@@ -628,6 +628,7 @@ jobs:
                   tests/test_ios_receipt_verification_api.py \
                   tests/test_paid_route_guards.py \
                   tests/test_payment_reconciliation_api.py \
+                  tests/test_payments_activation_paywall_events.py \
                   tests/test_payment_source_contract_api.py \
                   tests/test_payment_webhook_signature_api.py \
                   tests/test_pro_payments_openapi_contract.py \
@@ -646,9 +647,11 @@ jobs:
                 ;;
               openapi_contract)
                 add_suite \
+                  tests/test_main_paywall_bootstrap.py \
                   tests/test_openapi_determinism.py \
                   tests/test_openapi_import_safe_orm_guard.py \
-                  tests/test_openapi_namespace_guards.py
+                  tests/test_openapi_namespace_guards.py \
+                  tests/test_paywall_exposure_ledger_api.py
                 ;;
               food_catalog)
                 add_suite \
@@ -678,7 +681,9 @@ jobs:
                   tests/test_judgment_core.py \
                   tests/test_judgment_eval_contract.py \
                   tests/test_legacy_app_diff_coverage.py \
-                  tests/test_metrics.py
+                  tests/test_metrics.py \
+                  tests/test_paywall_exposure_ledger_api.py \
+                  tests/test_paywall_exposure_ledger_service.py
                 ;;
               merge_governance)
                 add_suite \
@@ -853,6 +858,7 @@ jobs:
                   tests/test_ios_receipt_verification_api.py \
                   tests/test_paid_route_guards.py \
                   tests/test_payment_reconciliation_api.py \
+                  tests/test_payments_activation_paywall_events.py \
                   tests/test_payment_source_contract_api.py \
                   tests/test_payment_webhook_signature_api.py \
                   tests/test_pro_payments_openapi_contract.py \
@@ -871,9 +877,11 @@ jobs:
                 ;;
               openapi_contract)
                 add_suite \
+                  tests/test_main_paywall_bootstrap.py \
                   tests/test_openapi_determinism.py \
                   tests/test_openapi_import_safe_orm_guard.py \
-                  tests/test_openapi_namespace_guards.py
+                  tests/test_openapi_namespace_guards.py \
+                  tests/test_paywall_exposure_ledger_api.py
                 ;;
               food_catalog)
                 add_suite \
@@ -903,7 +911,9 @@ jobs:
                   tests/test_judgment_core.py \
                   tests/test_judgment_eval_contract.py \
                   tests/test_legacy_app_diff_coverage.py \
-                  tests/test_metrics.py
+                  tests/test_metrics.py \
+                  tests/test_paywall_exposure_ledger_api.py \
+                  tests/test_paywall_exposure_ledger_service.py
                 ;;
               merge_governance)
                 add_suite \
