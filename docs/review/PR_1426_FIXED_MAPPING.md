@@ -10,7 +10,8 @@ Bot and human review threads must be dispositioned here before they are resolved
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- FIXED `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1426#discussion_r3080134887` -> `ec813602a`
+- FIXED `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1426#discussion_r3080134896` -> `ec813602a`
 
 ## Merge Readiness
 
