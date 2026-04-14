@@ -15,6 +15,9 @@ Current delivery model:
 
 Glossary:
 
+- `repo-first lane` = the current web/iOS reconciliation lane governed by repo code/docs/tests, the authority packet, lane-specific reconciliation packets, inbox/checklist, and QA
+- `historical Code Connect lane` = the earlier activation/mapping path kept only as historical/reference context for the current delivery model
+- `reopened historical Code Connect lane` = a scoped exception where a future coordinator-owned packet explicitly says the historical Code Connect lane is active again for that task
 - `canonical_execution` = the only execution lane for that surface
 - `implementation_safe` = repo-subordinate visual/node reference only
 - `reference_only` = comparison and provenance only
@@ -123,11 +126,10 @@ Historical reference only for the current delivery model:
     `docs/figma/orchestration/sessions/`.
 
 Code Connect is not part of the current recommended workflow for the
-web/iOS authority reconciliation lane covered by this folder.
-If a future task explicitly reopens Code Connect activation, mapping
-maintenance, or capture refresh under a coordinator-owned packet, use the
-dedicated runbook and bridge docs for that scoped task instead of treating this
-lane-scoped bypass as a repo-wide ban.
+repo-first lane covered by this folder.
+If a future task uses a reopened historical Code Connect lane under a
+coordinator-owned packet, use the dedicated runbook and bridge docs for that
+scoped task instead of treating this lane-scoped bypass as a repo-wide ban.
 
 ## Canonical project links
 

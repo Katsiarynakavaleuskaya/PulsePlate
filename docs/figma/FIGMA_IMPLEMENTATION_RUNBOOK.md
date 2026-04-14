@@ -167,10 +167,17 @@ If information conflicts:
 
 ### 5.1 Current Repo-First Execution Path
 
-Current execution path for this lane is:
+Current execution path for this repo-first lane is:
 repo SoT -> `docs/figma/FIGMA_WEB_IOS_AUTHORITY_RECONCILIATION_PACKET.md` / lane-specific reconciliation packet -> `docs/figma/FIGMA_MAKE_SYNC_AUDIT_HPP.md` and other reference evidence -> `docs/figma/FIGMA_AI_INBOX_TEMPLATE.md` / `docs/figma/FIGMA_AI_HANDOFF_CHECKLIST.md` / QA.
 
-Code Connect activation is not part of this path unless a future coordinator-owned packet explicitly reopens the historical lane.
+Evidence anchors:
+- repo-first authority + Code Connect bypass: `docs/figma/FIGMA_WEB_IOS_AUTHORITY_RECONCILIATION_PACKET.md:74-139`
+- Make audit as reference evidence, not authority: `docs/figma/FIGMA_MAKE_SYNC_AUDIT_HPP.md:9-30`
+- request intake path: `docs/figma/FIGMA_AI_INBOX_TEMPLATE.md:1-52`
+- handoff validation path: `docs/figma/FIGMA_AI_HANDOFF_CHECKLIST.md:1-69`
+- QA/visual gate references for this lane: `docs/design/LUXURY_UI_REVIEW_CHECKLIST.md:1-84`
+
+Code Connect activation is not part of this path unless a reopened historical Code Connect lane is explicitly declared by a future coordinator-owned packet. Evidence: `docs/figma/README.md:16-28`, `docs/figma/FIGMA_WEB_IOS_AUTHORITY_RECONCILIATION_PACKET.md:116-139`.
 
 ## 6) Context Refresh Protocol
 
@@ -304,7 +311,12 @@ Historical reference only for this lane:
 
 ## 12) Historical Code Connect Bridge Flow (Reference Only)
 
-This appendix is not part of the current repo-first web/iOS reconciliation lane. Use it only if a future coordinator-owned packet explicitly reopens the historical Code Connect activation path and Design file URL/node IDs are available.
+This appendix is not part of the current repo-first lane. Use it only if a reopened historical Code Connect lane is explicitly declared by a future coordinator-owned packet and Design file URL/node IDs are available.
+
+Evidence anchors:
+- historical-only classification in the current lane: `docs/figma/README.md:44-49`
+- current bypass policy and historical-only status: `docs/figma/FIGMA_WEB_IOS_AUTHORITY_RECONCILIATION_PACKET.md:116-139`
+- historical bridge docs list in the runbook: `docs/figma/FIGMA_IMPLEMENTATION_RUNBOOK.md:299-303`
 
 1. Validate candidate rows in `docs/figma/FIGMA_CODE_CONNECT_MAPPING_CANDIDATES_HPP.md`.
 2. Run `get_code_connect_suggestions(fileKey, nodeId)`.
@@ -319,7 +331,12 @@ This appendix is not part of the current repo-first web/iOS reconciliation lane.
 
 ## 13) Historical Blocker Protocol (No Design URL)
 
-This appendix is not part of the current repo-first web/iOS reconciliation lane. If a future coordinator-owned packet explicitly reopens the historical Code Connect path and Design URL/node IDs are still missing:
+This appendix is not part of the current repo-first lane. If a reopened historical Code Connect lane is explicitly declared by a future coordinator-owned packet and Design URL/node IDs are still missing:
+
+Evidence anchors:
+- historical-only classification in the current lane: `docs/figma/README.md:44-49`
+- current bypass policy and historical-only status: `docs/figma/FIGMA_WEB_IOS_AUTHORITY_RECONCILIATION_PACKET.md:116-139`
+- historical Design URL/node capture dependency: `docs/figma/FIGMA_DESIGN_URL_NODEID_CAPTURE_HPP.md:1-118`
 
 1. Keep status `blocked_by_design_url` in candidate mapping table.
 2. Do not fabricate file keys or node IDs.

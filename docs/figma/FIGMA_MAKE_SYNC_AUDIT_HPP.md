@@ -3,7 +3,7 @@
 
 **Date:** March 12, 2026
 **Scope:** Home + Plate + Progress (Web + iOS) and linked CTA flows
-**Source mode:** Make-only reference evidence for the current repo-first lane (`<FIGMA_MAKE_FILE_ID>`)
+**Source mode:** Make-only reference evidence for the current repo-first lane (`MrztJU3CQtxhADBbtAsWJ6`)
 **Context version:** 2026-02-18 / commit `162ad6ef`
 
 ## 1) Purpose
@@ -26,7 +26,7 @@ Primary SoT references:
 - Figma MCP auth check remains historical activation evidence only; it is not a gate for the current repo-first lane.
   Evidence: `docs/figma/FIGMA_CODE_CONNECT_BRIDGE_HPP.md:14`
 - Active Make file pointer exists in backlog as reference evidence for the current lane: `docs/roadmap/BACKLOG_LEDGER.md:1643`.
-- Make-only sync loop explicitly requires `get_design_context(fileKey=<FIGMA_MAKE_FILE_ID>, nodeId=0:1)` before reconciliation.
+- Make-only sync loop explicitly requires `get_design_context(fileKey=MrztJU3CQtxhADBbtAsWJ6, nodeId=0:1)` before reconciliation.
   Evidence: `docs/figma/FIGMA_IMPLEMENTATION_RUNBOOK.md:139`
 - Project CTA behavior SoT remains matrix-driven: `docs/design/PULSEPLATE_BUTTON_ACTION_PROMPT_MATRIX.md:59`.
 - Production-domain baseline re-check on March 12, 2026 shows repo-backed
