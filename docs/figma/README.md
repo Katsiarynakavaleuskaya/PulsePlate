@@ -24,22 +24,22 @@ Glossary:
 ## Start Here (Reading Order)
 
 1. `docs/figma/README.md`
-2. `docs/figma/FIGMA_IMPLEMENTATION_RUNBOOK.md`
-3. `docs/figma/FIGMA_WEB_IOS_AUTHORITY_RECONCILIATION_PACKET.md`
+2. `docs/figma/FIGMA_WEB_IOS_AUTHORITY_RECONCILIATION_PACKET.md`
+3. `docs/figma/FIGMA_IMPLEMENTATION_RUNBOOK.md`
 4. `docs/figma/PULSEPLATE_V3_DESIGN_SYSTEM_RECONCILIATION.md`
 5. `docs/figma/FIGMA_IOS_PROTOTYPE_V2_RECONCILIATION.md`
 6. `docs/figma/FIGMA_GIT_PACKS_INDEX.md`
 7. `docs/figma/PULSEPLATE_FIGMA_AI_GOVERNANCE_INDEX.md`
 8. `docs/figma/FIGMA_MAKE_SYNC_AUDIT_HPP.md`
-9. `docs/figma/FIGMA_CLAWBOT_OPERATING_MODEL.md`
-10. `docs/design/PULSEPLATE_BUTTON_VISUAL_SYSTEM_TRENDS_AND_FORECAST.md`
-11. `docs/figma/FIGMA_AI_HANDOFF_CHECKLIST.md`
-12. `docs/figma/FIGMA_AI_INBOX_TEMPLATE.md`
-13. `docs/figma/SANDBOX_DESIGN_AGENT_SPEC.md`
-14. `docs/sora/prompts/hpp/MASTER_NANO_PROMPT_PACK.md`
-15. `docs/sora/SORA_STYLE_QA_CHECKLIST.md`
-16. `docs/sora/BRAND_THROUGHPUT_METRICS_GTM_MATRIX.md`
-17. `docs/figma/orchestration/README.md`
+9. `docs/figma/FIGMA_AI_HANDOFF_CHECKLIST.md`
+10. `docs/figma/FIGMA_AI_INBOX_TEMPLATE.md`
+11. `docs/design/PULSEPLATE_BUTTON_VISUAL_SYSTEM_TRENDS_AND_FORECAST.md`
+12. `docs/sora/SORA_STYLE_QA_CHECKLIST.md`
+13. `docs/sora/BRAND_THROUGHPUT_METRICS_GTM_MATRIX.md`
+14. `docs/figma/FIGMA_CLAWBOT_OPERATING_MODEL.md`
+15. `docs/figma/SANDBOX_DESIGN_AGENT_SPEC.md`
+16. `docs/figma/orchestration/README.md`
+17. `docs/sora/prompts/hpp/MASTER_NANO_PROMPT_PACK.md`
 
 Historical reference only for the current delivery model:
 

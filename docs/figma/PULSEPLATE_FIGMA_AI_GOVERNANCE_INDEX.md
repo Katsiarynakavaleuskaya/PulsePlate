@@ -19,10 +19,16 @@ Operational runbook for the current lane:
 - `docs/figma/FIGMA_WEB_IOS_AUTHORITY_RECONCILIATION_PACKET.md`
 - `docs/figma/FIGMA_IMPLEMENTATION_RUNBOOK.md`
 - `docs/figma/PULSEPLATE_V3_DESIGN_SYSTEM_RECONCILIATION.md`
+- `docs/figma/FIGMA_IOS_PROTOTYPE_V2_RECONCILIATION.md`
 - `docs/figma/FIGMA_GIT_PACKS_INDEX.md`
 - `docs/figma/FIGMA_MAKE_SYNC_AUDIT_HPP.md`
 - `docs/figma/FIGMA_AI_HANDOFF_CHECKLIST.md`
 - `docs/figma/FIGMA_AI_INBOX_TEMPLATE.md`
+
+Auxiliary evidence/tooling references for the current lane:
+
+- `docs/figma/FIGMA_CLAWBOT_OPERATING_MODEL.md`
+- `docs/figma/SANDBOX_DESIGN_AGENT_SPEC.md`
 
 Historical reference only for the current lane:
 
@@ -264,12 +270,12 @@ Fields:
 Use this order as the active operational layer for the current lane:
 
 1. repo code/docs/tests plus `docs/figma/README.md` for the delivery model
-2. `docs/figma/FIGMA_WEB_IOS_AUTHORITY_RECONCILIATION_PACKET.md` plus the lane-specific reconciliation packet
+2. `docs/figma/FIGMA_WEB_IOS_AUTHORITY_RECONCILIATION_PACKET.md` plus the relevant lane-specific reconciliation packet (`docs/figma/PULSEPLATE_V3_DESIGN_SYSTEM_RECONCILIATION.md` for web `v3`, `docs/figma/FIGMA_IOS_PROTOTYPE_V2_RECONCILIATION.md` for iOS `v2`)
 3. `docs/figma/FIGMA_IMPLEMENTATION_RUNBOOK.md` and `docs/figma/FIGMA_GIT_PACKS_INDEX.md` for context refresh and source precedence
 4. `docs/figma/FIGMA_MAKE_SYNC_AUDIT_HPP.md` and other reference evidence for drift review only
 5. `docs/figma/FIGMA_AI_INBOX_TEMPLATE.md`, `docs/figma/FIGMA_AI_HANDOFF_CHECKLIST.md`, and `docs/design/LUXURY_UI_REVIEW_CHECKLIST.md` for request intake, handoff, and QA
 
-Current execution path for this lane is repo SoT -> authority packet / reconciliation packet -> audit/reference evidence -> inbox/checklist / QA, without Code Connect activation.
+Current execution path for this lane is repo SoT -> authority packet / relevant reconciliation packet -> audit/reference evidence -> inbox/checklist / QA, without Code Connect activation.
 
 Historical reference only for this lane:
 
@@ -279,5 +285,5 @@ Historical reference only for this lane:
 
 If a future coordinator-owned packet explicitly reopens the historical Code Connect path, those docs can be used for that scoped task only.
 
-RU (critical): без Design URL/node IDs все строки остаются `blocked_by_design_url`; не подставлять фиктивные node-id для текущего repo-first lane.
+RU (critical): не подставлять фиктивные node-id или legacy blocker-статусы для текущего repo-first lane.
 <!-- markdownlint-enable MD013 -->

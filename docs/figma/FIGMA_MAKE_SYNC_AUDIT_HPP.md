@@ -3,12 +3,12 @@
 
 **Date:** March 12, 2026
 **Scope:** Home + Plate + Progress (Web + iOS) and linked CTA flows
-**Source mode:** Make-only (`<FIGMA_MAKE_FILE_ID>`) until Design URL is provided
+**Source mode:** Make-only reference evidence for the current repo-first lane (`<FIGMA_MAKE_FILE_ID>`)
 **Context version:** 2026-02-18 / commit `162ad6ef`
 
 ## 1) Purpose
 
-This audit reconciles current Figma Make updates with Git source-of-truth artifacts and records implementation blockers for Code Connect activation.
+This audit reconciles current Figma Make updates with Git source-of-truth artifacts and records reference evidence for the current repo-first lane. Historical Code Connect blocker notes remain here for provenance only; they do not define the active execution path.
 
 Primary SoT references:
 
@@ -23,9 +23,9 @@ Primary SoT references:
 
 ## 2) Baseline Snapshot (Evidence)
 
-- Figma MCP auth check is mandatory in the activation workflow (`whoami` gate).
+- Figma MCP auth check remains historical activation evidence only; it is not a gate for the current repo-first lane.
   Evidence: `docs/figma/FIGMA_CODE_CONNECT_BRIDGE_HPP.md:14`
-- Active Make file pointer exists in backlog: `docs/roadmap/BACKLOG_LEDGER.md:1643`.
+- Active Make file pointer exists in backlog as reference evidence for the current lane: `docs/roadmap/BACKLOG_LEDGER.md:1643`.
 - Make-only sync loop explicitly requires `get_design_context(fileKey=<FIGMA_MAKE_FILE_ID>, nodeId=0:1)` before reconciliation.
   Evidence: `docs/figma/FIGMA_IMPLEMENTATION_RUNBOOK.md:139`
 - Project CTA behavior SoT remains matrix-driven: `docs/design/PULSEPLATE_BUTTON_ACTION_PROMPT_MATRIX.md:59`.
@@ -88,7 +88,7 @@ Evidence:
 Risk: production traffic can drift between incompatible ownership models and
 break TLS or redirect behavior before any design sync work even starts.
 
-## 5) Missing for Implementation
+## 5) Missing for Historical Code Connect Activation (Reference Only)
 
 1. No Design file URL or node IDs for node-level Code Connect.
 2. `Figma Node ID` still `TBD` across matrix rows.
@@ -97,7 +97,7 @@ Evidence: `docs/design/PULSEPLATE_BUTTON_ACTION_PROMPT_MATRIX.md:59`
    `docs/figma/FIGMA_CODE_CONNECT_MAPPING_CANDIDATES_HPP.md`.
 4. No status lifecycle tracking (`candidate -> validated -> active`) in current handoff contract.
 
-## 6) Action Required
+## 6) Historical Follow-ups (Reference Only Unless a Future Packet Reopens the Lane)
 
 | Priority | Item | Owner | DoD | Target PR |
 | --- | --- | --- | --- | --- |
@@ -108,21 +108,20 @@ Evidence: `docs/design/PULSEPLATE_BUTTON_ACTION_PROMPT_MATRIX.md:59`
 | P0 | Canonicalize production-domain ownership to the repo-backed runtime and move any Figma-hosted preview to a dedicated subdomain | Coordinator + FE + Deploy | `pulseplate.app` + `www` remain app-owned, TLS is healthy for both names, and Figma preview no longer competes for root ownership | Domain + Infra PR |
 | P2 | Activate node-level mappings after Design URL available | Design + FE + iOS | P0 CTA nodes mapped and verified with `get_code_connect_map` | Follow-up mapping PR |
 
-## 7) Blockers
+## 7) Historical Blockers (Reference Only)
 
 ### Blocker B1 — Missing Design URL + node IDs
 
-- Description: Code Connect activation cannot proceed past candidate stage without Design file key/node IDs.
+- Description: if a future packet reopens the historical Code Connect lane, activation cannot proceed past candidate stage without Design file key/node IDs.
 - Tracking: add backlog dependency item in `docs/roadmap/BACKLOG_LEDGER.md`.
-- Temporary mode: Make-only reconciliation + candidate mapping only.
+- Temporary mode: current lane stays repo-first + Make reference evidence only.
 
 ### Blocker B2 — Production-domain ownership drift
 
 - Description: `pulseplate.app` is the repo-canonical production host, but the
   current Figma custom-domain attempt still competes for root-domain setup and
   `www` TLS is currently unhealthy.
-- Tracking: keep production-domain ownership remediation separate from Code
-  Connect activation and complete it first.
+- Tracking: keep production-domain ownership remediation separate from any historical Code Connect activation work and complete it first.
 - Temporary mode: use Figma as source/reconciliation only; if a public Figma
   preview is needed, move it to a dedicated non-production subdomain.
 

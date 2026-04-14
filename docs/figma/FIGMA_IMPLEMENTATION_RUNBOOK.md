@@ -20,21 +20,25 @@ Read in this order for every new Figma task in the current repo-first lane:
 2. `docs/figma/FIGMA_WEB_IOS_AUTHORITY_RECONCILIATION_PACKET.md`
 3. `docs/figma/FIGMA_IMPLEMENTATION_RUNBOOK.md`
 4. `docs/figma/PULSEPLATE_V3_DESIGN_SYSTEM_RECONCILIATION.md`
-5. `docs/figma/FIGMA_GIT_PACKS_INDEX.md`
-6. `docs/figma/PULSEPLATE_FIGMA_AI_GOVERNANCE_INDEX.md`
-7. `docs/figma/FIGMA_MAKE_SYNC_AUDIT_HPP.md`
-8. `docs/figma/FIGMA_AI_HANDOFF_CHECKLIST.md`
-9. `docs/figma/FIGMA_AI_INBOX_TEMPLATE.md`
-10. `docs/design/PULSEPLATE_BUTTON_ACTION_PROMPT_MATRIX.md`
-11. `docs/design/TOKENS_SOT.md`
-12. `docs/design/TOKEN_PIPELINE_GOVERNANCE.md`
-13. `docs/design/PULSEPLATE_LUXURY_WEB_IOS_VISUAL_GUIDELINES.md`
-14. `docs/design/LUXURY_UI_REVIEW_CHECKLIST.md`
-15. `docs/sora/PULSEPLATE_SORA_PROMPT_ENGINEERING_PLAYBOOK.md`
-16. `docs/figma/FIGMA_CLAWBOT_OPERATING_MODEL.md`
-17. `docs/figma/SANDBOX_DESIGN_AGENT_SPEC.md`
-18. `docs/sora/prompts/hpp/MASTER_NANO_PROMPT_PACK.md`
-19. `docs/sora/BRAND_THROUGHPUT_METRICS_GTM_MATRIX.md`
+5. `docs/figma/FIGMA_IOS_PROTOTYPE_V2_RECONCILIATION.md`
+6. `docs/figma/FIGMA_GIT_PACKS_INDEX.md`
+7. `docs/figma/PULSEPLATE_FIGMA_AI_GOVERNANCE_INDEX.md`
+8. `docs/figma/FIGMA_MAKE_SYNC_AUDIT_HPP.md`
+9. `docs/figma/FIGMA_AI_HANDOFF_CHECKLIST.md`
+10. `docs/figma/FIGMA_AI_INBOX_TEMPLATE.md`
+11. `docs/design/PULSEPLATE_BUTTON_ACTION_PROMPT_MATRIX.md`
+12. `docs/design/TOKENS_SOT.md`
+13. `docs/design/TOKEN_PIPELINE_GOVERNANCE.md`
+14. `docs/design/PULSEPLATE_LUXURY_WEB_IOS_VISUAL_GUIDELINES.md`
+15. `docs/design/LUXURY_UI_REVIEW_CHECKLIST.md`
+16. `docs/sora/PULSEPLATE_SORA_PROMPT_ENGINEERING_PLAYBOOK.md`
+17. `docs/sora/prompts/hpp/MASTER_NANO_PROMPT_PACK.md`
+18. `docs/sora/BRAND_THROUGHPUT_METRICS_GTM_MATRIX.md`
+
+Auxiliary evidence/tooling references for the current lane (optional after the core repo-first docs are fixed for the task; not authority):
+
+- `docs/figma/FIGMA_CLAWBOT_OPERATING_MODEL.md`
+- `docs/figma/SANDBOX_DESIGN_AGENT_SPEC.md`
 
 Historical reference only for this lane (read only if a future coordinator-owned packet explicitly reopens the old Code Connect path):
 
@@ -116,11 +120,14 @@ Use only when a future coordinator-owned packet explicitly reopens the historica
 
 ### 3.8 Clawbot/OpenClaw operating model and sandbox agent spec
 
-- `docs/figma/FIGMA_CLAWBOT_OPERATING_MODEL.md`
-- `docs/figma/SANDBOX_DESIGN_AGENT_SPEC.md`
 - `docs/runbooks/DESIGN_TOOLING_OPERATING_MODEL.md`
 
-Use when running terminal automation, evidence capture, and human-gated design-agent tasks.
+Auxiliary evidence/tooling references for this lane:
+
+- `docs/figma/FIGMA_CLAWBOT_OPERATING_MODEL.md`
+- `docs/figma/SANDBOX_DESIGN_AGENT_SPEC.md`
+
+Use only as auxiliary evidence/tooling references after the core repo-first docs are fixed for the task. These docs do not define current lane authority.
 
 ## 4) Implementation Lookup Matrix
 
@@ -246,7 +253,7 @@ This is the canonical handoff schema for all Figma deliverables:
 - `Platform`
 - `Screen`
 - `State set` (default, interactive, disabled/locked, loading, error)
-- `Figma Node ID` (or `TBD`)
+- `Figma Node ID` (optional; only when Code Connect is explicitly in scope, otherwise `TBD` / not required)
 - `Prompt Stub ID`
 - `Status` (`Implemented` / `Partial` / `Missing` / `Blocked by flag`)
 - `Implement Needed`
@@ -266,6 +273,7 @@ Before any brainstorm session in `docs/figma/orchestration/`:
 - `docs/figma/README.md`
 - `docs/figma/FIGMA_WEB_IOS_AUTHORITY_RECONCILIATION_PACKET.md`
 - `docs/figma/PULSEPLATE_V3_DESIGN_SYSTEM_RECONCILIATION.md`
+- `docs/figma/FIGMA_IOS_PROTOTYPE_V2_RECONCILIATION.md`
 - `docs/figma/FIGMA_GIT_PACKS_INDEX.md`
 - `docs/figma/PULSEPLATE_FIGMA_AI_GOVERNANCE_INDEX.md`
 - `docs/figma/FIGMA_MAKE_SYNC_AUDIT_HPP.md`
@@ -273,9 +281,12 @@ Before any brainstorm session in `docs/figma/orchestration/`:
 - `docs/figma/FIGMA_AI_INBOX_TEMPLATE.md`
 - `docs/design/TOKENS_SOT.md`
 - `docs/design/TOKEN_PIPELINE_GOVERNANCE.md`
+- `docs/runbooks/DESIGN_TOOLING_OPERATING_MODEL.md`
+
+Auxiliary evidence/tooling references for this lane:
+
 - `docs/figma/FIGMA_CLAWBOT_OPERATING_MODEL.md`
 - `docs/figma/SANDBOX_DESIGN_AGENT_SPEC.md`
-- `docs/runbooks/DESIGN_TOOLING_OPERATING_MODEL.md`
 - `docs/sora/prompts/hpp/MASTER_NANO_PROMPT_PACK.md`
 - `docs/sora/SORA_STYLE_QA_CHECKLIST.md`
 - `docs/sora/BRAND_THROUGHPUT_METRICS_GTM_MATRIX.md`
