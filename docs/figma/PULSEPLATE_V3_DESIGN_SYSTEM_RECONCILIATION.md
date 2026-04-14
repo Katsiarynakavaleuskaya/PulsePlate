@@ -212,7 +212,7 @@ Use repo primitives first. Do not start with page-level frames.
 | `PP/Shared/RadioGroup/*` | no governed primitive yet | missing in repo |
 | `PP/Shared/Alert/*` | no governed primitive yet | missing in repo |
 | `PP/Shared/Tooltip/*` | no governed primitive yet | missing in repo |
-| `PP/Shared/StepRail/*` | vocabulary decision required | needs decision |
+| `PP/Shared/StepRail/*` | normalize to canonical `stepper/progress-indicator` via `docs/design/UI_COMPONENT_VOCABULARY.md` | decision recorded; reusable primitive still deferred |
 
 ## 7. Welcome Gate / Pulse Membrane Rules
 
@@ -275,11 +275,13 @@ Fail conditions:
 - governed primitives for select, textarea, checkbox, radio-group, alert,
   tooltip, dropdown-menu, tabs, and a reusable step/progress rail primitive
 
-### 9.6 Needs vocabulary decision
+### 9.6 Vocabulary decision state
 
-- Welcome Gate step rail / progress indicator naming and ownership
-- membrane annotation blocks and annotation markers
-- archive treatment for `PulsePlate_v3` reference frames
+- resolved: Welcome Gate `StepRail` wording normalizes to canonical
+  `stepper/progress-indicator`; ownership remains repo-first via the code-first
+  UI vocabulary contract, and reusable primitive work stays deferred under 9.5
+- open: membrane annotation blocks and annotation markers
+- open: archive treatment for `PulsePlate_v3` reference frames
 
 ## 10. Blocker Classes
 

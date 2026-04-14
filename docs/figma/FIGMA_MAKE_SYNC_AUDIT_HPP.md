@@ -195,9 +195,9 @@ Evidence:
 Evidence:
 
 - `docs/figma/PULSEPLATE_V3_DESIGN_SYSTEM_RECONCILIATION.md:43-48`
-- `frontend/src/components/design-system/DesignSystemOverview.tsx:28-39`
-- `frontend/src/components/design-system/CanonBoards.tsx:232-235`
-- `frontend/src/components/design-system/CanonBoards.tsx:347-350`
+- `frontend/src/components/design-system/DesignSystemOverview.tsx:29-33`
+- `frontend/src/components/design-system/CanonBoards.tsx:234`
+- `frontend/src/components/design-system/CanonBoards.tsx:349`, `frontend/src/components/design-system/CanonBoards.tsx:427-429`
 
 ### 9.4 Working matrix for Phase 1 follow-up split
 
@@ -206,12 +206,12 @@ Evidence:
 | aligned / keep | `2JD...` node `174:116` (`Shell Parity Boundary Board`) | `docs/figma/orchestration/sessions/2026-04-13_phase1_delta_audit.md:12-18`; authority packets above | keep as canonical boundary board |
 | aligned / mirror-safe | repo-backed canonical shared/component lanes from `PP/Shared/Button/*` through `PP/Branding/FitChef/*` | `docs/figma/PULSEPLATE_V3_DESIGN_SYSTEM_RECONCILIATION.md:191-205` | update Figma only as a mirror of repo SoT |
 | reference-only | `qJBtE5J6efmavcHCm6SF0O` / supplemental `node-id=16:4` provenance | `docs/figma/orchestration/sessions/2026-04-13_phase1_delta_audit.md:12-20`; `docs/figma/PULSEPLATE_V3_DESIGN_SYSTEM_RECONCILIATION.md:38-56` | keep for provenance only; do not replace the historical `16:11` invalid-target note |
-| update code first | `DesignSystemOverview` stale `Figma node 96:33` badge | `frontend/src/components/design-system/DesignSystemOverview.tsx:33-39` | replace stale reference with current authority wording in a repo drift PR |
-| update code first | `CanonBoards` stale `35:148` / `61:77` subtitles | `frontend/src/components/design-system/CanonBoards.tsx:232-235`, `frontend/src/components/design-system/CanonBoards.tsx:347-350` | retarget or de-stale Storybook evidence in a repo drift PR |
+| resolved in repo | `DesignSystemOverview` Storybook wording retargeted after PR `#1422` | `frontend/src/components/design-system/DesignSystemOverview.tsx:29-33` | keep audit evidence aligned to repo truth; no broader Figma parity claim |
+| resolved in repo | `CanonBoards` Storybook wording retargeted after PR `#1422` | `frontend/src/components/design-system/CanonBoards.tsx:234`, `frontend/src/components/design-system/CanonBoards.tsx:349`, `frontend/src/components/design-system/CanonBoards.tsx:427-429` | keep audit evidence aligned to repo truth; no broader Figma parity claim |
 | update code first | `PremiumGate` legacy CTA styling debt | `frontend/src/components/PremiumGate.tsx:48-57` | normalize to governed primitives/tokens before Figma mirror work |
 | update code first | `VipBadge` purple gradient drift | `frontend/src/components/VipBadge.tsx:20-24` | remove forbidden drift in repo before any canonical Figma sync |
 | repo-first missing primitive | `PP/Shared/Select/*`, `Textarea/*`, `Checkbox/*`, `RadioGroup/*`, `Alert/*`, `Tooltip/*` | `docs/figma/PULSEPLATE_V3_DESIGN_SYSTEM_RECONCILIATION.md:206-211` | add governed repo primitives first; Figma must not invent canon |
-| repo-first vocabulary decision | `PP/Shared/StepRail/*` | `docs/figma/PULSEPLATE_V3_DESIGN_SYSTEM_RECONCILIATION.md:212-213` | decide vocabulary/ownership in repo packet first |
+| repo-first vocabulary decision | `PP/Shared/StepRail/*` | `docs/figma/PULSEPLATE_V3_DESIGN_SYSTEM_RECONCILIATION.md:215`, `docs/design/UI_COMPONENT_VOCABULARY.md:131` | normalize external `StepRail` wording to canonical `stepper/progress-indicator`; defer primitive implementation |
 
 ### 9.5 Ledger / follow-up status
 
@@ -224,9 +224,10 @@ Ledger mapping after this update is:
 
 - `PremiumGate` and `VipBadge` remain covered by the cited Phase 1 execution
   ledger item as known blockers.
-- `DesignSystemOverview`, `CanonBoards`, missing shared primitives, and the
-  `StepRail` vocabulary decision are now tracked by the new repo-first drift
-  cleanup item.
+- `DesignSystemOverview` and `CanonBoards` are now resolved in repo truth after
+  PR `#1422`; this audit row is retained only as evidence refresh.
+- Missing shared primitives and the `StepRail` vocabulary decision remain
+  tracked by the same repo-first drift cleanup item.
 - `update Figma`, `reference_only`, and `aligned / keep` rows remain
   classification/evidence outcomes rather than direct implementation claims.
 
