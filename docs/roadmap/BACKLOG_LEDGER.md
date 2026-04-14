@@ -4525,21 +4525,6 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Tests cover allow (SHA touches file) and deny (SHA does not touch file)
 
 
-- [ ] P2: RAG for agent context (explore)
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P2
-  - Target PR: PR-TBD-RAG
-  - Status: Research
-  - Area: orchestration / RAG
-  - Finding Type: exploration
-  - Reason: Explore retrieval-augmented context for coordinator/specialist agents (e.g. retrieve AGENTS.md sections by path); keep full SoT as baseline.
-  - Links:
-    - `docs/audit/EVMBENCH_INSPIRED_AGENT_EVALUATION_BRAINSTORM_2026-02-21.md`
-    - `docs/orchestration/workflow.md`
-  - DoD:
-    - Decision: adopt or decline; if adopt, document in orchestration and one pilot use case
-
-
 - [ ] P1: Add custom Codex skill `pulseplate-app-store-release` (Wave 1)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
@@ -4572,6 +4557,21 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Skill exists under `tools/codex_skills/pulseplate-monetization-gtm/`
     - Skill covers paywall, subscription, pricing, ASO/SEO/Product Hunt, and wellness-safe disclaimers
     - Skill docs explicitly preserve coordinator-first and additive `recommended_skills` semantics
+
+
+- [ ] P2: RAG for agent context (explore)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR-TBD-RAG
+  - Status: Research
+  - Area: orchestration / RAG
+  - Finding Type: exploration
+  - Reason: Explore retrieval-augmented context for coordinator/specialist agents (e.g. retrieve AGENTS.md sections by path); keep full SoT as baseline.
+  - Links:
+    - `docs/audit/EVMBENCH_INSPIRED_AGENT_EVALUATION_BRAINSTORM_2026-02-21.md`
+    - `docs/orchestration/workflow.md`
+  - DoD:
+    - Decision: adopt or decline; if adopt, document in orchestration and one pilot use case
 
 
 - [ ] P2: Skill routing wave 2 — compositional task semantics + approved research connectors
