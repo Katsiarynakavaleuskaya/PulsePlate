@@ -320,6 +320,62 @@ def test_build_wheelhouse_preserves_non_duplicate_constraints(
     assert len(observed_commands) == 1
     assert "--constraint" in observed_commands[0]
     constraint_path = Path(observed_commands[0][observed_commands[0].index("--constraint") + 1])
+    assert constraint_path == constraints
+    assert constraint_path.read_text(encoding="utf-8") == "httpx>=0.28.1\n"
+
+
+def test_install_from_wheelhouse_omits_duplicate_exact_constraint_for_same_requirement_surface(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    requirements = tmp_path / "requirements.txt"
+    requirements.write_text("pillow==12.2.0\n", encoding="utf-8")
+    constraints = tmp_path / "constraints.txt"
+    constraints.write_text("pillow==12.2.0\n", encoding="utf-8")
+    observed_commands: list[list[str]] = []
+
+    def fake_run_command(command: list[str]) -> None:
+        observed_commands.append(command)
+
+    monkeypatch.setattr(installer, "run_command", fake_run_command)
+
+    installer.install_from_wheelhouse(
+        python_executable="python",
+        requirement_files=[requirements],
+        constraints_file=constraints,
+        wheelhouse_dir=tmp_path / "wheelhouse",
+    )
+
+    assert len(observed_commands) == 1
+    assert "--constraint" not in observed_commands[0]
+
+
+def test_install_from_wheelhouse_preserves_non_duplicate_constraints(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    requirements = tmp_path / "requirements.txt"
+    requirements.write_text("pillow==12.2.0\n", encoding="utf-8")
+    constraints = tmp_path / "constraints.txt"
+    constraints.write_text("httpx>=0.28.1\n", encoding="utf-8")
+    observed_commands: list[list[str]] = []
+
+    def fake_run_command(command: list[str]) -> None:
+        observed_commands.append(command)
+
+    monkeypatch.setattr(installer, "run_command", fake_run_command)
+
+    installer.install_from_wheelhouse(
+        python_executable="python",
+        requirement_files=[requirements],
+        constraints_file=constraints,
+        wheelhouse_dir=tmp_path / "wheelhouse",
+    )
+
+    assert len(observed_commands) == 1
+    assert "--constraint" in observed_commands[0]
+    constraint_path = Path(observed_commands[0][observed_commands[0].index("--constraint") + 1])
+    assert constraint_path == constraints
     assert constraint_path.read_text(encoding="utf-8") == "httpx>=0.28.1\n"
 
 
