@@ -501,6 +501,25 @@ def test_script_exports_expected_entrypoints() -> None:
     assert callable(getattr(module, "main", None))
 
 
+def test_sqlite_column_introspection_and_row_iteration_use_static_foods_queries(
+    tmp_path: Path,
+) -> None:
+    module = _load_script_module()
+    sqlite_path = _create_source_sqlite(
+        tmp_path / "foods-source.sqlite",
+        _sample_source_rows(),
+        include_foods_table=True,
+    )
+
+    with module._connect_sqlite(sqlite_path) as connection:
+        source_columns = module._fetch_sqlite_columns(connection)
+        source_rows = list(module._iter_source_rows(connection))
+
+    assert "id" in source_columns
+    assert "nutrition_inputs_json" in source_columns
+    assert [row["id"] for row in source_rows] == sorted(row["id"] for row in _sample_source_rows())
+
+
 def test_main_forwards_cli_arguments_to_promotion_function(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
