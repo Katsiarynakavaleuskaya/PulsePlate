@@ -688,6 +688,19 @@ def test_skill_router_selects_ios_app_store_screenshot_lane() -> None:
     assert "build-ios-apps:ios-debugger-agent" in skills
 
 
+def test_skill_router_does_not_double_count_fastlane_prefixes() -> None:
+    """Generic Fastlane release work should not route the debugger skill without debugger cues."""
+
+    skills = select_recommended_skills(
+        goal="Refresh Fastlane metadata and release notes for App Store submission",
+        task_class="iOS",
+        candidate_paths=["ios/fastlane/Fastfile"],
+        domain="release",
+    )
+
+    assert "build-ios-apps:ios-debugger-agent" not in skills
+
+
 def test_skill_router_selects_swiftui_performance_audit_skill() -> None:
     """SwiftUI performance audit requests should route the dedicated audit helper."""
 

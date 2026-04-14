@@ -4524,7 +4524,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - If thread comment is tied to a file path, mapping SHA must change that file
     - Tests cover allow (SHA touches file) and deny (SHA does not touch file)
 
-
+<a id="ledger-p1-codex-skill-pulseplate-app-store-release"></a>
 - [ ] P1: Add custom Codex skill `pulseplate-app-store-release` (Wave 1)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
@@ -4541,7 +4541,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Skill covers App Store metadata, Fastlane, release evidence, and rollback notes
     - Skill docs explicitly preserve coordinator-first and transport-only bridge invariants
 
-
+<a id="ledger-p1-codex-skill-pulseplate-monetization-gtm"></a>
 - [ ] P1: Add custom Codex skill `pulseplate-monetization-gtm` (Wave 1)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
@@ -4594,7 +4594,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Deterministic tests cover allowlisted research connectors and blocked low-fit scraping requests
     - `make verify` and `pre-commit run --all-files` pass in PR scope
 
-
+<a id="ledger-p2-codex-skill-pulseplate-design-launch-system"></a>
 - [ ] P2: Add custom Codex skill `pulseplate-design-launch-system` (Wave 2)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2
@@ -4611,7 +4611,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Skill covers design system readiness, launch asset bundles, and token/brand consistency
     - Skill docs explicitly preserve passive discovery-only boundaries
 
-
+<a id="ledger-p2-codex-skill-pulseplate-web-launch-site"></a>
 - [ ] P2: Add custom Codex skill `pulseplate-web-launch-site` (Wave 2)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2
@@ -4628,7 +4628,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Skill covers launch-site structure, CTA/funnel considerations, and frontend implementation handoff
     - Skill docs explicitly preserve coordinator-first and non-interference contract
 
-
+<a id="ledger-p2-codex-skill-pulseplate-agent-product"></a>
 - [ ] P2: Add custom Codex skill `pulseplate-agent-product` (Wave 3)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2
@@ -8984,8 +8984,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Bump Pillow to clear pre-push pip-audit baseline
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (dependency security / pre-push unblock follow-up)
-  - Target PR: follow-up after `feat/codex-skills-alignment-passive`
-  - Status: Opened on 14 April 2026
+  - Target PR: PR #1421
+  - Status: In progress on PR #1421 as of 14 April 2026
   - Reason: opening the Codex skills alignment draft PR is currently blocked by
     a repo-wide pre-push `pip-audit` failure on `pillow==12.1.1`
     (`GHSA-whj4-6x5x-4v2j`, fixed in `12.2.0`). The blocker is unrelated to the

@@ -641,7 +641,7 @@ SKILL_RULES: tuple[SkillRule, ...] = (
         rationale="Simulator, Xcode, and runtime iOS debugging should use the dedicated debugger workflow.",
         min_score=5,
         domain_weights={"release": 1, "qa": 1},
-        path_prefixes=("ios/", "ios/fastlane/"),
+        path_prefixes=("ios/",),
         keywords=(
             "ios debug",
             "xcode",

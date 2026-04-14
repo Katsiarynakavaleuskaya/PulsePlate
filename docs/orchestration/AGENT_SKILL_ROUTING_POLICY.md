@@ -191,7 +191,7 @@ The coordinator may use installed skills when they improve delivery and align wi
 ### Conditional by task fit
 
 - `security-best-practices`, `security-threat-model`, `security-ownership-map`
-- `cybersecurity-skills` as companion/manual follow-up for `security-auditor` only (maps to `tools/cybersecurity_skills/skills/` or `$CODEX_HOME/skills` when installed; ~734 skills, approximate; see `tools/cybersecurity_skills/index.json`; installed by default via `scripts/install_codex_skills.sh`)
+- `cybersecurity-skills` as companion/manual follow-up for `security-auditor` only (maps to `tools/cybersecurity_skills/skills/` or the compat-only `$CODEX_HOME/skills` target when installed with `scripts/install_codex_skills.sh --target compat`; the primary default install target remains `$AGENTS_HOME/skills`; ~734 skills, approximate; see `tools/cybersecurity_skills/index.json`)
 - `create-pr`, `commit-work`, `release-notes`, `gh-address-comments`, `gh-fix-ci`, `ci-fix`
 - `sora`, `imagegen`, `speech`
 - `vercel-react-best-practices`, `vercel-react-native-skills`

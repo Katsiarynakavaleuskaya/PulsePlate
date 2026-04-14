@@ -179,6 +179,37 @@ def test_install_codex_skills_explicit_dest_wins_over_target_regardless_of_order
     assert f"Destination: {custom_skills_root}" in list_result.stdout
 
 
+def test_install_codex_skills_explicit_dest_wins_when_target_comes_first(tmp_path: Path) -> None:
+    """Explicit --dest should also win when it appears after --target compat."""
+
+    custom_skills_root = tmp_path / "custom-skills"
+    install_result = _run_installer(
+        tmp_path,
+        "--target",
+        "compat",
+        "--dest",
+        str(custom_skills_root),
+        "--no-cybersec",
+    )
+    installed_skill = custom_skills_root / "pulseplate-workflow"
+
+    assert "Linked: pulseplate-workflow" in install_result.stdout
+    assert installed_skill.is_symlink()
+    assert not (tmp_path / ".codex" / "skills").exists()
+
+    list_result = _run_installer(
+        tmp_path,
+        "--target",
+        "compat",
+        "--dest",
+        str(custom_skills_root),
+        "--list",
+        "--no-cybersec",
+    )
+    assert "Target: custom" in list_result.stdout
+    assert f"Destination: {custom_skills_root}" in list_result.stdout
+
+
 def test_install_codex_skills_supports_explicit_custom_destination(tmp_path: Path) -> None:
     """Explicit --dest should use a custom target without touching default install roots."""
 

@@ -42,7 +42,6 @@ Interpretation:
 - `pulseplate-playwright-e2e`
 - `pulseplate-gates`
 - `pulseplate-guards`
-- `vercel-composition-patterns`
 - `vercel-react-best-practices`
 - `figma`
 - `figma-implement-design`
@@ -61,18 +60,22 @@ Interpretation:
 
 ### Tier 2: Useful and should route conditionally
 
-- `vercel-react-native-skills`
 - `build-web-apps:react-best-practices`
 - `build-ios-apps:swiftui-performance-audit`
 - `linear`
 - `notion-research-documentation`
 - `notion-knowledge-capture`
 - `notion-spec-to-implementation`
+- `build-web-apps:stripe-best-practices`
+
+### Manual-only for now: available, but not wired into SkillRule auto-routing yet
+
+- `vercel-composition-patterns`
+- `vercel-react-native-skills`
 - `vercel-deploy`
 - `netlify-deploy`
 - `render-deploy`
 - `cloudflare-deploy`
-- `build-web-apps:stripe-best-practices`
 
 ### Tier 3: Missing custom PulsePlate skills
 
