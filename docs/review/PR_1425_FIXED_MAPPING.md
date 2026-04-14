@@ -5,7 +5,8 @@
 - [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1425#issuecomment-4244395862 -> de6826c74d4fce5a2757170be75f8bbeeead6fd2 | Disposition: FIXED | Proof: standardized repo-first vs historical Code Connect lane terminology in `docs/figma/README.md` and `docs/figma/FIGMA_IMPLEMENTATION_RUNBOOK.md`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1425#issuecomment-4244395260 -> de6826c74d4fce5a2757170be75f8bbeeead6fd2 | Disposition: FIXED | Proof: replaced `<FIGMA_MAKE_FILE_ID>` with `MrztJU3CQtxhADBbtAsWJ6` in `docs/figma/FIGMA_MAKE_SYNC_AUDIT_HPP.md` and added direct `file:line` evidence anchors in `docs/figma/FIGMA_IMPLEMENTATION_RUNBOOK.md`
 
 ## Merge Readiness
 - [ ] All required checks pass
