@@ -339,8 +339,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Planning-flow monetization wave over the canonical FREE -> PRO -> VIP ladder
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-TBD-DOCS-MONETIZATION-PLANNING-WAVE-BOOTSTRAP -> PR-TBD-MONETIZATION-TRIGGER-ENGINE-V1 -> PR-TBD-PLANNING-PAYWALL-EXPOSURE-LEDGER (`feat(analytics): add paywall exposure ledger`) -> PR-TBD-PLANNING-NEXT-BEST-ACTION-CONSUMERS
-  - Status: 🟡 Active epic. Bootstrap governance opens the wave on `2026-04-13` (`America/New_York`); runtime execution begins with PR-1 `feat(growth): add intervention trigger engine v1`. Active follow-up lane: PR-2 `feat(analytics): add paywall exposure ledger` on branch `feat/paywall-exposure-ledger`, scoped strictly to instrumentation-only measurement.
+  - Target PR: PR-TBD-DOCS-MONETIZATION-PLANNING-WAVE-BOOTSTRAP -> PR-TBD-MONETIZATION-TRIGGER-ENGINE-V1 -> PR-TBD-PLANNING-PAYWALL-EXPOSURE-LEDGER -> PR-TBD-PLANNING-NEXT-BEST-ACTION-CONSUMERS
+  - Status: 🟡 Active epic. Bootstrap governance opens the wave on `2026-04-13` (`America/New_York`); runtime execution begins with PR-1 `feat(growth): add intervention trigger engine v1`.
   - Area: product / growth / monetization / planning flow
   - Finding Type: monetization value-capture orchestration
   - Reason (EN): `origin/main` already closed the backend monetization spine through merged PRs `#1296` (`2026-04-02`), `#1312` (`2026-04-03`), and `#1381` (`2026-04-09`). The next profitable lane is not another receipt/entitlement rewrite; it is deterministic monetization over the planning-first journey `BMI -> targets -> daily plate -> weekly plan -> export/recipe follow-through`. The epic must stay thin-client-safe, additive, and worktree-isolated so billing/provider modernization does not get reopened by accident. (RU: Биллинг-спайн уже закрыт на `main`; следующий шаг — monetization поверх planning flow, а не новый receipt/entitlement PR.)
@@ -402,25 +402,22 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - [ ] Security advisories are updated to mark the emergency fallback retired
 
 <a id="ledger-p1-pillow-private-index-sync"></a>
-- [ ] P1: Remove temporary `Pillow 12.2.0` emergency wheel fallback after approved mirror sync
+- [ ] P1: Remove temporary `pillow 12.2.0` emergency wheel fallback after approved mirror sync
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (security / supply-chain / CI blocker)
-  - Target PR: `PR-TBD` (follow-up after `PR #1416`)
+  - Target PR: `PR-TBD` (follow-up after `PR #1415`)
   - Status: Active as of `13 April 2026`
   - Area: security / CI / dependencies
-  - Reason (EN): `feat/paywall-exposure-ledger` must stay on the patched exact release `Pillow 12.2.0` for `GHSA-whj4-6x5x-4v2j`, but current-head CI and Docker installs showed the approved private index lagged that upstream release. `PR #1416` therefore adds a time-boxed exact-wheel fallback with pinned `sha256` digests instead of a vulnerable repin or a broad public-index bypass. Remove this fallback as soon as the approved mirror serves `12.2.0` natively. (RU: `feat/paywall-exposure-ledger` должен остаться на исправленном точном релизе `Pillow 12.2.0`, но CI/Docker показали отставание приватного зеркала. Поэтому `PR #1416` добавляет временный exact-wheel fallback с pinned `sha256`, а не уязвимый репин и не широкий bypass на публичный индекс. Удалить fallback сразу после того, как одобренное зеркало начнёт отдавать `12.2.0` нативно.)
+  - Reason (EN): `feat/rag-hardening-followthrough` must stay on the patched exact release `pillow 12.2.0`, but current-head CI and Docker installs showed the approved private index lagged that upstream release and exposed only `12.1.1`. `PR #1415` therefore adds a time-boxed exact-wheel fallback with pinned `sha256` digests instead of a vulnerable repin or a broad public-index bypass. Remove this fallback as soon as the approved mirror serves `12.2.0` natively. (RU: ветка должна остаться на исправленном точном релизе `pillow 12.2.0`, но CI/Docker показали отставание приватного зеркала и наличие только `12.1.1`. Поэтому `PR #1415` добавляет временный exact-wheel fallback с pinned `sha256`, а не уязвимый репин и не широкий bypass на публичный индекс. Удалить fallback сразу после того, как одобренное зеркало начнёт отдавать `12.2.0` нативно.)
   - Links:
     - `docs/security/PILLOW_12_2_0_PRIVATE_INDEX_ADVISORY.md:1`
     - `scripts/ci/emergency_python_wheels.json`
     - `scripts/ci/install_locked_python_requirements.py`
     - `.github/actions/python-setup/action.yml`
     - `Dockerfile`
-    - `requirements.txt`
-    - `requirements-ci-lite.txt`
-    - `requirements-lock.txt`
   - DoD:
-    - [ ] Approved private proxy serves `Pillow 12.2.0` without the emergency fallback manifest
-    - [ ] `scripts/ci/emergency_python_wheels.json` no longer includes `Pillow 12.2.0` exact-wheel artifacts
+    - [ ] Approved private proxy serves `pillow 12.2.0` without the emergency fallback manifest
+    - [ ] `scripts/ci/emergency_python_wheels.json` no longer needs the `pillow 12.2.0` emergency entries
     - [ ] Locked install, Docker build, and `make verify` succeed with the private proxy alone
     - [ ] Advisory is updated to mark the emergency fallback retired
 

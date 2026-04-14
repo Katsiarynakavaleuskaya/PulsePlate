@@ -162,6 +162,21 @@ def test_insight_runtime_change_hits_insight_group_only() -> None:
     )
 
 
+def test_rag_runtime_change_hits_insight_and_route_groups() -> None:
+    profile = risk_profile.build_risk_profile(
+        ["core/rag/orchestration.py", "tests/test_rag_orchestration.py"],
+    )
+
+    assert profile.backend_shared is True
+    assert profile.insight_ai is True
+    assert profile.route_contract_safety is True
+    assert profile.run_backend_blocking is True
+    assert profile.contract_risk_groups == (
+        "insight_ai",
+        "route_contract_safety",
+    )
+
+
 def test_generic_backend_change_hits_route_contract_safety_group() -> None:
     profile = risk_profile.build_risk_profile(
         ["app/dependencies.py"],
