@@ -183,7 +183,7 @@ All Figma components, frames, and variants in the clean file must follow:
 No new local style may be introduced unless all of the following are true:
 
 1. the value is absent from the current token/component system
-2. the need is documented in this packet under `Needs vocabulary decision`
+2. the need is documented in this packet under `Vocabulary decision state`
 3. the local style is marked temporary and reviewable
 4. a follow-up repo promotion path is stated
 
