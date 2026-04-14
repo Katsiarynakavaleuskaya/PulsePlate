@@ -101,12 +101,10 @@ Evidence: `docs/design/PULSEPLATE_BUTTON_ACTION_PROMPT_MATRIX.md:59`
 
 | Priority | Item | Owner | DoD | Target PR |
 | --- | --- | --- | --- | --- |
-| P0 | Resolve web target-size conflict (44 vs 48) by declaring one canonical value in figma docs and Make sync contracts | Coordinator + Accessibility | One value in all figma docs; conflict note closed in this audit | Docs PR (this stream) |
-| P0 | Introduce Code Connect bridge runbook with blocker protocol for missing Design URL | Coordinator + FE | `FIGMA_CODE_CONNECT_BRIDGE_HPP.md` merged and linked from runbook/governance | Docs PR (this stream) |
-| P1 | Create 23-CTA mapping candidate registry for existing site surfaces | FE + iOS + Design | Every CTA row has surface path, status, and gap note | Docs PR (this stream) |
-| P1 | Add Code Connect map status requirement into handoff checklist | Coordinator | Checklist includes mapping status verification gates | Docs PR (this stream) |
+| P0 | Resolve web target-size conflict (44 vs 48) by declaring one canonical value in figma docs and Make sync contracts | Coordinator + Accessibility | One value in all figma docs; conflict note closed in this audit | Follow-up docs PR |
+| P1 | Keep historical Code Connect docs archived as reference-only for the current lane | Coordinator | Active docs no longer treat bridge/node-capture/mapping docs as current prerequisites | PR #1425 |
 | P0 | Canonicalize production-domain ownership to the repo-backed runtime and move any Figma-hosted preview to a dedicated subdomain | Coordinator + FE + Deploy | `pulseplate.app` + `www` remain app-owned, TLS is healthy for both names, and Figma preview no longer competes for root ownership | Domain + Infra PR |
-| P2 | Activate node-level mappings after Design URL available | Design + FE + iOS | P0 CTA nodes mapped and verified with `get_code_connect_map` | Follow-up mapping PR |
+| P2 | Revisit node-level mappings only if a future packet explicitly reopens that historical lane | Design + FE + iOS | Reopened packet defines fresh scope, status model, and validation path before any mapping work resumes | Separate future packet / PR |
 
 ## 7) Historical Blockers (Reference Only)
 

@@ -25,12 +25,11 @@ Hard rule:
 This packet follows the coordinator-owned role order for the lane:
 
 1. `agent-coordinator`
-2. `figma-designer`
-3. `prompt-engineer`
-4. `ios-specialist`
-5. `frontend-engineer`
-6. `qa-engineer-agent`
-7. `bug-hunter`
+2. `creative-designer`
+3. `sora-prompt-engineer`
+4. `frontend-engineer`
+5. `qa-engineer-agent`
+6. `bug-hunter`
 
 Reference model:
 
@@ -42,10 +41,9 @@ Reference model:
 Lane expectations:
 
 - `agent-coordinator` owns scope, routing, and final packet authority
-- `figma-designer` validates design-surface intent and file/key usage
-- `prompt-engineer` constrains AI-assisted evidence and prompt-side drift
-- `ios-specialist` validates iOS `v2` implementation-safe interpretation
-- `frontend-engineer` validates web `v3` execution-lane implications
+- `creative-designer` validates design-surface intent and file/key usage
+- `sora-prompt-engineer` constrains AI-assisted evidence and prompt-side drift
+- `frontend-engineer` validates web `v3` execution-lane implications and shared implementation handoff quality
 - `qa-engineer-agent` verifies reviewability and acceptance evidence
 - `bug-hunter` performs the mandatory post-open adversarial pass
 
@@ -88,7 +86,6 @@ tooling disagree.
    - web/design-system authority lock: `docs/figma/PULSEPLATE_V3_DESIGN_SYSTEM_RECONCILIATION.md:6-12`
    - web/design-system execution lane: `docs/figma/PULSEPLATE_V3_DESIGN_SYSTEM_RECONCILIATION.md:50-53`
    - iOS implementation-safe lane: `docs/figma/FIGMA_IOS_PROTOTYPE_V2_RECONCILIATION.md:10-15`
-   - spec/index stale-evidence registry: `docs/figma/FIGMA_DESIGN_URL_NODEID_CAPTURE_HPP.md:87-102`
 4. `2JDwOByQIbcPgp93FDzHii` as `canonical_execution`
    (`docs/figma/PULSEPLATE_V3_DESIGN_SYSTEM_RECONCILIATION.md:7-10`,
    `docs/figma/FITCHEF_BRAND_REFERENCE_HANDOFF.md:29-42`)
@@ -103,7 +100,7 @@ tooling disagree.
      `docs/runbooks/FIGMA_MCP_RUNTIME_MATRIX.md:65-69`,
      `docs/audit/PR_781_HOME_PLATE_PROGRESS_AUDIT_RUNBOOK_2026-02-17.md:166-167`
 7. `umcCk7TtO760DJ3N6M7mvh` as `spec_index_only`
-   (`docs/figma/FIGMA_DESIGN_URL_NODEID_CAPTURE_HPP.md:87-102`,
+   (`docs/figma/PULSEPLATE_FIGMA_DESIGN_SPECIFICATION.md:1-20`,
    `docs/figma/orchestration/sessions/2026-03-07_code_connect_blocker_evidence/01_MCP_STATUS.md:5-11`)
 8. Figma AI, Figma Make, MCP captures, internal bridge systems, web terminal,
    and Cursor terminal as auxiliary evidence only
