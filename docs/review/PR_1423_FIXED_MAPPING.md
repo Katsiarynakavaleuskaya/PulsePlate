@@ -11,7 +11,10 @@ This artifact is the canonical source of truth; the PR body checklists are a req
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1423#pullrequestreview-4103699758 -> aa8024a0e
+Disposition: FIXED
+Commit: aa8024a0e
+Evidence: `constraints.txt:42` now states that the Pillow security pin must keep exact parity with the pinned `requirements*.txt` lock surfaces to prevent resolver drift, and `docs/review/PR_1423_FIXED_MAPPING.md:10` now marks this artifact as the canonical source of truth while the PR body remains a required mirror.
 
 ## Merge Readiness
 
