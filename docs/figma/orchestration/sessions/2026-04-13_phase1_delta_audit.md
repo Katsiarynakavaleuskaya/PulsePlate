@@ -55,9 +55,10 @@ cluster identified by the delta audit. Ledger linkage now is:
 
 `PremiumGate` and `VipBadge` remain covered by the cited Phase 1 execution
 ledger item as known blockers. `DesignSystemOverview` and `CanonBoards` are now
-resolved in repo truth after PR `#1422`, while missing shared primitives and the
-`StepRail` vocabulary decision remain open under the same repo-first drift
-cleanup item.
+resolved in repo truth after PR `#1422`. Missing shared primitives remain open
+under the same repo-first drift cleanup item, while the `StepRail` naming
+decision is now resolved in repo docs and only the reusable primitive stays
+deferred.
 
 ## Disposition
 

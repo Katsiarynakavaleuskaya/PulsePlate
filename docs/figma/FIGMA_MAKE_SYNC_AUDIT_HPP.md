@@ -211,7 +211,7 @@ Evidence:
 | update code first | `PremiumGate` legacy CTA styling debt | `frontend/src/components/PremiumGate.tsx:48-57` | normalize to governed primitives/tokens before Figma mirror work |
 | update code first | `VipBadge` purple gradient drift | `frontend/src/components/VipBadge.tsx:20-24` | remove forbidden drift in repo before any canonical Figma sync |
 | repo-first missing primitive | `PP/Shared/Select/*`, `Textarea/*`, `Checkbox/*`, `RadioGroup/*`, `Alert/*`, `Tooltip/*` | `docs/figma/PULSEPLATE_V3_DESIGN_SYSTEM_RECONCILIATION.md:206-211` | add governed repo primitives first; Figma must not invent canon |
-| repo-first vocabulary decision | `PP/Shared/StepRail/*` | `docs/figma/PULSEPLATE_V3_DESIGN_SYSTEM_RECONCILIATION.md:215`, `docs/design/UI_COMPONENT_VOCABULARY.md:131` | normalize external `StepRail` wording to canonical `stepper/progress-indicator`; defer primitive implementation |
+| resolved in repo docs | `PP/Shared/StepRail/*` normalization | `docs/figma/PULSEPLATE_V3_DESIGN_SYSTEM_RECONCILIATION.md:215`, `docs/design/UI_COMPONENT_VOCABULARY.md:131`, `docs/design/UI_COMPONENT_VOCABULARY.md:145` | keep canonical `stepper/progress-indicator` wording; defer primitive implementation |
 
 ### 9.5 Ledger / follow-up status
 
@@ -226,8 +226,9 @@ Ledger mapping after this update is:
   ledger item as known blockers.
 - `DesignSystemOverview` and `CanonBoards` are now resolved in repo truth after
   PR `#1422`; this audit row is retained only as evidence refresh.
-- Missing shared primitives and the `StepRail` vocabulary decision remain
-  tracked by the same repo-first drift cleanup item.
+- Missing shared primitives remain tracked by the same repo-first drift
+  cleanup item. The `StepRail` naming decision is now resolved in repo docs,
+  while reusable primitive implementation remains deferred under that item.
 - `update Figma`, `reference_only`, and `aligned / keep` rows remain
   classification/evidence outcomes rather than direct implementation claims.
 

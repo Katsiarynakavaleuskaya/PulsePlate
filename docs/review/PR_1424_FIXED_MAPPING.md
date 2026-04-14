@@ -3,14 +3,14 @@
 
 ## Discussion Thread Pass
 
-- [ ] Discussion-thread pass completed
-- [ ] Fixed in commit mapping completed
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 
 Bot and human review comments must be dispositioned here before they are resolved on GitHub.
 
 ## Fixed in Commit Mapping
 
-No actionable review comments are mapped yet at PR open.
+- No actionable review comments
 
 ## Merge Readiness
 
