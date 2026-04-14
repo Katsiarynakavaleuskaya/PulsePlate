@@ -85,6 +85,11 @@ Disposition: FIXED
 Commit: ce0f84f22
 Evidence: CodeRabbit review summary for stable React keys in How it works; addressed in `ce0f84f22` (same as `discussion_r3082210924`).
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1427#pullrequestreview-4108948088
+Disposition: FIXED
+Commit: 81f090d4c
+Evidence: `frontend/src/components/marketing/marketing.css`: `text-decoration-color` uses lowercase `currentcolor`; `.ppm-page` adds `100vh` before `100dvh`; `.ppm-card` adds `-webkit-backdrop-filter` with `backdrop-filter` (CodeRabbit CHILL review nits).
+
 ## Merge Readiness
 
 - [ ] Current-head CI is green for PR branch head
