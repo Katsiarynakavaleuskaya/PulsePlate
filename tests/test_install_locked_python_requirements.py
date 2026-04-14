@@ -251,6 +251,27 @@ def test_effective_constraints_file_for_requirement_filters_duplicate_exact_pin(
         assert effective_constraints.read_text(encoding="utf-8") == "httpx>=0.28.1\n"
 
 
+def test_effective_constraints_file_for_requirement_keeps_relative_includes_resolvable(
+    tmp_path: Path,
+) -> None:
+    requirements = tmp_path / "requirements.txt"
+    requirements.write_text("pillow==12.2.0\n", encoding="utf-8")
+    constraints = tmp_path / "constraints.txt"
+    nested_constraints = tmp_path / "nested.txt"
+    nested_constraints.write_text("httpx>=0.28.1\n", encoding="utf-8")
+    constraints.write_text("-c nested.txt\npillow==12.2.0\n", encoding="utf-8")
+
+    with installer.effective_constraints_file_for_requirement(
+        requirements,
+        constraints,
+    ) as effective_constraints:
+        assert effective_constraints is not None
+        assert effective_constraints != constraints
+        assert effective_constraints.parent == constraints.parent
+        assert (effective_constraints.parent / "nested.txt").exists()
+        assert effective_constraints.read_text(encoding="utf-8") == "-c nested.txt\n"
+
+
 def test_effective_constraints_file_for_requirement_drops_constraint_when_only_duplicate_pin(
     tmp_path: Path,
 ) -> None:

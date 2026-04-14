@@ -620,13 +620,21 @@ def effective_constraints_file_for_requirement(
         yield None
         return
 
-    with tempfile.TemporaryDirectory(prefix="pulseplate-effective-constraints-") as temp_dir:
-        effective_constraints_path = Path(temp_dir) / validated_constraints_file.name
+    temp_fd, temp_name = tempfile.mkstemp(
+        prefix=f".{validated_constraints_file.stem}.effective-",
+        suffix=validated_constraints_file.suffix,
+        dir=validated_constraints_file.parent,
+    )
+    effective_constraints_path = Path(temp_name)
+    try:
+        os.close(temp_fd)
         effective_constraints_path.write_text(
             "".join(filtered_constraint_lines),
             encoding="utf-8",
         )
         yield effective_constraints_path
+    finally:
+        effective_constraints_path.unlink(missing_ok=True)
 
 
 def normalize_trusted_host(trusted_host: str | None) -> str | None:
