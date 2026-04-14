@@ -133,7 +133,6 @@ Evidence: `docs/design/PULSEPLATE_BUTTON_ACTION_PROMPT_MATRIX.md:59`
 - 2026-02-18: Locked requirement that all 23 CTA IDs must be represented in mapping candidates.
 - 2026-03-12: Locked `pulseplate.app` and `www.pulseplate.app` to repo-canonical production ownership; Figma remains a design/source lane, not the production host.
 
-
 ## 9) Delta — April 13, 2026 (post-PR #1407, docs-only)
 
 This section is intentionally delta-only and remains `reference_only` evidence
