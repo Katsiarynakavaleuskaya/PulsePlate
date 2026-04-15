@@ -1,7 +1,8 @@
-import React, { useId, useState } from "react";
+import React, { useId, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useInert } from "../lib/useInert";
 import { purchasePremium } from "../lib/paywallPurchase";
+import { useTelemetry } from "../lib/useTelemetry";
 import Paywall from "./Paywall/BeforeAfter";
 // import { log, Events } from "../lib/analytics"; // TODO: Add analytics when needed
 
@@ -24,18 +25,25 @@ type Props = {
 export default function PremiumGate({ isPremium, children, source = "unknown" }: Props) {
   const [open, setOpen] = useState(false);
   const { t } = useTranslation();
+  const { track } = useTelemetry();
   const previewRef = useInert(!isPremium);
   const describedById = useId();
+  const ctaRef = useRef<HTMLButtonElement | null>(null);
+
+  const restoreCtaFocus = (): void => {
+    const el = ctaRef.current;
+    queueMicrotask(() => {
+      if (el && document.contains(el)) {
+        el.focus();
+      }
+    });
+  };
 
   if (isPremium) return <>{children}</>;
 
   return (
     <>
-      <div
-        ref={previewRef}
-        className="pointer-events-none opacity-70 saturate-75"
-        aria-label="Premium gated content"
-      >
+      <div ref={previewRef} className="pointer-events-none opacity-70 saturate-75">
         {children}
       </div>
 
@@ -45,9 +53,12 @@ export default function PremiumGate({ isPremium, children, source = "unknown" }:
       </p>
 
       <button
+        ref={ctaRef}
         type="button"
         className="mt-3 inline-flex min-h-11 items-center justify-center rounded-xl bg-[var(--color-primary)] px-4 py-2 font-semibold text-[var(--color-primary-foreground)] shadow-sm transition-colors hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)] focus-visible:ring-offset-2"
         onClick={() => {
+          track.gateInteracted("premium_preview", "click");
+          track.upgradeClicked(source, "premium_preview_gate");
           setOpen(true);
         }}
         aria-haspopup="dialog"
@@ -61,11 +72,15 @@ export default function PremiumGate({ isPremium, children, source = "unknown" }:
           source={source}
           via="paywall_cta"
           onClose={() => {
+            track.paywallDismissed(source, "close_button");
             setOpen(false);
+            restoreCtaFocus();
           }}
           onPurchase={async () => {
             await purchasePremium({ source, via: "paywall_cta" });
+            track.upgradeClicked(source, "paywall");
             setOpen(false);
+            restoreCtaFocus();
           }}
         />
       )}
