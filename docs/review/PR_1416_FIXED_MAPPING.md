@@ -113,10 +113,10 @@ Reason: The latest Sourcery aggregate review after merge summarizes the resolved
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1416#pullrequestreview-4109341465
 
 ## Merge Readiness
-- [ ] All required checks pass
-- [ ] No unresolved review threads (re-check on current head before merge)
-- [ ] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
-- [ ] Pre-commit green
-- [ ] `make verify` green
+- [x] All required checks pass
+- [x] No unresolved review threads (re-check on current head before merge)
+- [x] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
+- [x] Pre-commit green
+- [x] `make verify` green
 
-Notes: `db3446f6e` passed targeted pytest, changed-file pre-commit, and accelerated changed-line diff-cover (`98%`). Full `make verify` / CI current-head status must be re-checked on the final merge cycle before any merge claim.
+Notes: Current-head CI succeeded: workflow run `24446692219` (`conclusion: success`), including lint, test-pr (3.13), diff-coverage, coverage-pr, merge readiness gate, iOS unit/UI smoke, OpenAPI sync, and security. `gh pr checks 1416` shows no failing checks (skips OK). Earlier validation: `db3446f6e` passed targeted pytest, changed-file pre-commit, and accelerated changed-line diff-cover (`98%`). Local `make verify` on `42ed9207e` (feat worktree) completed successfully (exit 0) after CI green.
