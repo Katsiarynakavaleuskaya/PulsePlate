@@ -10,7 +10,7 @@ Bot and human review threads are dispositioned here before they are resolved on 
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments at initial PR open.
+- No actionable review comments
 
 ## Merge Readiness
 
