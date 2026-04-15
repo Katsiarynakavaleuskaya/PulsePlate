@@ -32,7 +32,7 @@ Evidence: `.github/actions/python-setup/action.yml:60`, `:78`, `:166`, and `:176
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1429#discussion_r3085646506
 Disposition: FIXED
-Commit: b34e2f5c9
+Commit: bddb80887
 Evidence: `docs/review/PR_1429_FIXED_MAPPING.md` evidence lines for `discussion_r3085436155` and `discussion_r3085477602` now use strict `file:line` anchors (`tests/test_install_locked_python_requirements.py:18-24`, `:1720`, `:1806`, `:1046-1062`; `.github/actions/python-setup/action.yml:60`, `:78`, `:166`, `:176`).
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1429#discussion_r3085622859
