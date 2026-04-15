@@ -102,8 +102,11 @@ Evidence: Same Cubic thread as `pullrequestreview-4109192912`; VipBadge default 
 
 ## Merge Readiness
 
-- [ ] Current-head CI is green for PR branch head
-- [ ] Required checks complete (no pending jobs)
-- [ ] All review threads resolved on GitHub after disposition updates
-- [ ] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
+- [x] Current-head CI is green for PR branch head
+- [x] Required checks complete (no pending jobs)
+- [x] All review threads resolved on GitHub after disposition updates
+- [x] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
+
+Post-merge note: PR #1427 merged 2026-04-15 as `9dbc3e020176635f7a71771bffdd7360986952d6` (pre-merge head `9988a1f53d9f094cb9b91c2ed43fee2243c1c97e`). Pre-merge verification: GraphQL review threads all resolved; `gh pr checks` showed no failing required checks.
+
 <!-- markdownlint-enable MD034 -->
