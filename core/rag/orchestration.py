@@ -19,6 +19,8 @@ from typing import TYPE_CHECKING, Optional, SupportsFloat, cast
 if TYPE_CHECKING:
     from core.rag.contracts import RAGChunk
 
+from core.rag.contracts import RAGContext, RAGDegradedReason
+
 logger = logging.getLogger(__name__)
 
 
@@ -56,11 +58,15 @@ class RAGOrchestrationResult:
     recursive_executed: bool = False
     """True when the recursive retrieval path actually executed."""
 
+    degraded_reason: RAGDegradedReason | None = None
+    """Deterministic internal degraded-path reason (not part of public API)."""
+
 
 def _empty_result(
     prompt_input: str,
     *,
     recursive_executed: bool = False,
+    degraded_reason: RAGDegradedReason | None = None,
 ) -> RAGOrchestrationResult:
     """Return empty orchestration result (fail-safe fallback)."""
     return RAGOrchestrationResult(
@@ -74,6 +80,7 @@ def _empty_result(
         chunks_retrieved=0,
         chunks_filtered=0,
         recursive_executed=recursive_executed,
+        degraded_reason=degraded_reason,
     )
 
 
@@ -133,6 +140,7 @@ def _non_rag_result(
     chunks_retrieved: int,
     chunks_filtered: int,
     recursive_executed: bool,
+    degraded_reason: RAGDegradedReason,
 ) -> RAGOrchestrationResult:
     """Return a non-RAG result when no usable context survives to output."""
 
@@ -147,6 +155,7 @@ def _non_rag_result(
         chunks_retrieved=chunks_retrieved,
         chunks_filtered=chunks_filtered,
         recursive_executed=recursive_executed,
+        degraded_reason=degraded_reason,
     )
 
 
@@ -215,6 +224,9 @@ async def _run_orchestration(
 ) -> RAGOrchestrationResult:
     """Execute RAG retrieval + validation pipeline."""
     recursive_executed = False
+    rag_ctx: RAGContext | None = None
+    warnings: list[str] = []
+    chunks_filtered = 0
     try:
         # Lazy imports to preserve fail-safe behavior (missing modules don't crash)
         from core.rag.formatting import format_rag_chunks_for_prompt
@@ -241,23 +253,31 @@ async def _run_orchestration(
                 subject_id=subject_id,
             )
 
+        if rag_ctx is None:
+            logger.warning(
+                "RAG orchestration produced no retrieval context; returning empty result",
+            )
+            return _empty_result(
+                prompt_input,
+                recursive_executed=recursive_executed,
+                degraded_reason=RAGDegradedReason.ORCHESTRATION_EXCEPTION,
+            )
+
         if not rag_ctx.chunks:
-            return RAGOrchestrationResult(
-                chunks=[],
-                formatted_prompt=prompt_input,
-                rag_actually_used=False,
-                confidence=None,
-                hops=rag_ctx.hops,
-                latency_ms=rag_ctx.latency_ms,
-                warnings=[],
+            return _non_rag_result(
+                prompt_input,
+                rag_ctx_hops=rag_ctx.hops,
+                rag_ctx_latency_ms=rag_ctx.latency_ms,
+                warnings=warnings,
                 chunks_retrieved=0,
                 chunks_filtered=0,
                 recursive_executed=recursive_executed,
+                degraded_reason=(
+                    getattr(rag_ctx, "degraded_reason", None) or RAGDegradedReason.RETRIEVAL_EMPTY
+                ),
             )
 
-        warnings: list[str] = []
         chunks_to_use = rag_ctx.chunks
-        chunks_filtered = 0
 
         if philo_enabled:
             from core.rag.philosophy_pipeline import run_pipeline
@@ -280,6 +300,7 @@ async def _run_orchestration(
                 chunks_retrieved=len(rag_ctx.chunks),
                 chunks_filtered=chunks_filtered,
                 recursive_executed=recursive_executed,
+                degraded_reason=RAGDegradedReason.ALL_CHUNKS_FILTERED,
             )
 
         confidence = _resolve_confidence(
@@ -290,7 +311,7 @@ async def _run_orchestration(
         from core.insight.safety import redact_rag_context_for_insight
 
         raw_context = format_rag_chunks_for_prompt(chunks_to_use)
-        if not _has_context_text(raw_context):
+        if not isinstance(raw_context, str):
             return _non_rag_result(
                 prompt_input,
                 rag_ctx_hops=rag_ctx.hops,
@@ -299,9 +320,21 @@ async def _run_orchestration(
                 chunks_retrieved=len(rag_ctx.chunks),
                 chunks_filtered=chunks_filtered,
                 recursive_executed=recursive_executed,
+                degraded_reason=RAGDegradedReason.FORMATTED_CONTEXT_MALFORMED,
+            )
+        if not raw_context.strip():
+            return _non_rag_result(
+                prompt_input,
+                rag_ctx_hops=rag_ctx.hops,
+                rag_ctx_latency_ms=rag_ctx.latency_ms,
+                warnings=warnings,
+                chunks_retrieved=len(rag_ctx.chunks),
+                chunks_filtered=chunks_filtered,
+                recursive_executed=recursive_executed,
+                degraded_reason=RAGDegradedReason.FORMATTED_CONTEXT_EMPTY,
             )
         redacted_context = redact_rag_context_for_insight(raw_context)
-        if not _has_context_text(redacted_context):
+        if not isinstance(redacted_context, str):
             return _non_rag_result(
                 prompt_input,
                 rag_ctx_hops=rag_ctx.hops,
@@ -310,6 +343,18 @@ async def _run_orchestration(
                 chunks_retrieved=len(rag_ctx.chunks),
                 chunks_filtered=chunks_filtered,
                 recursive_executed=recursive_executed,
+                degraded_reason=RAGDegradedReason.REDACTED_CONTEXT_MALFORMED,
+            )
+        if not redacted_context.strip():
+            return _non_rag_result(
+                prompt_input,
+                rag_ctx_hops=rag_ctx.hops,
+                rag_ctx_latency_ms=rag_ctx.latency_ms,
+                warnings=warnings,
+                chunks_retrieved=len(rag_ctx.chunks),
+                chunks_filtered=chunks_filtered,
+                recursive_executed=recursive_executed,
+                degraded_reason=RAGDegradedReason.REDACTED_CONTEXT_EMPTY,
             )
         formatted_prompt = _build_prompt_with_context(prompt_input, redacted_context)
 
@@ -324,15 +369,28 @@ async def _run_orchestration(
             chunks_retrieved=len(rag_ctx.chunks),
             chunks_filtered=chunks_filtered,
             recursive_executed=recursive_executed,
+            degraded_reason=getattr(rag_ctx, "degraded_reason", None),
         )
     except Exception:
         logger.warning(
             "RAG orchestration failed; returning empty result",
             exc_info=True,
         )
+        if rag_ctx is not None:
+            return _non_rag_result(
+                prompt_input,
+                rag_ctx_hops=rag_ctx.hops,
+                rag_ctx_latency_ms=rag_ctx.latency_ms,
+                warnings=warnings,
+                chunks_retrieved=len(rag_ctx.chunks),
+                chunks_filtered=chunks_filtered,
+                recursive_executed=recursive_executed,
+                degraded_reason=RAGDegradedReason.POST_RETRIEVAL_ORCHESTRATION_EXCEPTION,
+            )
         return _empty_result(
             prompt_input,
             recursive_executed=recursive_executed,
+            degraded_reason=RAGDegradedReason.ORCHESTRATION_EXCEPTION,
         )
 
 

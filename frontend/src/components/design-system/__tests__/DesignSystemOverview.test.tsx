@@ -13,7 +13,7 @@ describe('DesignSystemOverview', () => {
     expect(screen.getByText('Shared Components')).toBeInTheDocument();
     expect(screen.getByText('Platform Inventory')).toBeInTheDocument();
     expect(screen.getByText('Governance')).toBeInTheDocument();
-    expect(screen.getByText('Figma documentation boards with runtime-safe assets')).toBeInTheDocument();
+    expect(screen.getByText('Canonical Storybook boards with runtime-safe assets')).toBeInTheDocument();
     expect(screen.getByText('PP iOS Foundation Tokens v1')).toBeInTheDocument();
     expect(screen.getByText('PP Brand + FitChef Logo Canon v1')).toBeInTheDocument();
     expect(screen.getByText('Onboarding Welcome')).toBeInTheDocument();

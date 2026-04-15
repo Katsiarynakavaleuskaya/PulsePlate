@@ -1,0 +1,112 @@
+<!-- markdownlint-disable MD034 -->
+# PR 1427 — Fixed in Commit Mapping
+
+## Discussion Thread Pass
+
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
+
+Bot and human review threads must be dispositioned here before they are resolved on GitHub.
+
+## Fixed in Commit Mapping
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1427#pullrequestreview-4108772273
+Disposition: FIXED
+Commit: f167a4d67
+Evidence: `frontend/src/components/marketing/SiteFooter.tsx` wraps `MarketingSection` in a semantic `<footer>` so the page exposes a `contentinfo` landmark (Sourcery review summary + inline thread).
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1427#pullrequestreview-4108796619
+Disposition: FIXED
+Commit: f167a4d67
+Evidence: Same `<footer>` landmark addresses the Cubic review “contentinfo” / footer semantics.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1427#discussion_r3082090467
+Disposition: FIXED
+Commit: f167a4d67
+Evidence: `frontend/src/components/marketing/SiteFooter.tsx` outer `<footer>` matches Cubic thread request.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1427#pullrequestreview-4108807413
+Disposition: FIXED
+Commit: f167a4d67
+Evidence: CodeRabbit “Actionable comments posted: 5” items are covered by `f167a4d67` (types + footer + mapping) and `ba4a367e8` (marketing focus/hover a11y).
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1427#discussion_r3082100072
+Disposition: FIXED
+Commit: f167a4d67
+Evidence: This file now includes `## Merge Readiness` with the canonical unchecked checklist (CodeRabbit artifact structure).
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1427#discussion_r3082100100
+Disposition: FIXED
+Commit: f167a4d67
+Evidence: `frontend/src/components/marketing/HowItWorksSection.tsx` exports `HowItWorksSection(): JSX.Element`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1427#discussion_r3082100106
+Disposition: FIXED
+Commit: ba4a367e8
+Evidence: `frontend/src/components/marketing/marketing.css` adds `:focus-visible` / link focus treatment (CodeRabbit “Addressed in commit ba4a367”).
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1427#discussion_r3082100112
+Disposition: FIXED
+Commit: f167a4d67
+Evidence: `frontend/src/components/marketing/MarketingPrimitives.tsx` adds explicit `JSX.Element` return types for exported primitives.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1427#discussion_r3082100122
+Disposition: FIXED
+Commit: f167a4d67
+Evidence: `frontend/src/pages/Marketing/PulsePlateMarketingPage.tsx` adds `PulsePlateMarketingPage(): JSX.Element`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1427#discussion_r3082131657
+Disposition: FIXED
+Commit: 38e85ed09
+Evidence: `frontend/src/components/marketing/marketing.css:173-190` consolidates `.ppm-hero-link:hover` / `:focus-visible` (removes duplicate `:focus-visible` blocks flagged by CodeRabbit).
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1427#discussion_r3082131675
+Disposition: NOT-A-BUG
+Evidence: `frontend/src/components/marketing/TiersSection.tsx:11`
+Reason: Tier rows are static marketing copy; OpenAPI-generated DTOs in `frontend/src/api/schema.ts` model API payloads—importing them into this page would couple marketing strings to backend release cadence without changing UX (thin-client separation).
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1427#discussion_r3082131680
+Disposition: FIXED
+Commit: 38e85ed09
+Evidence: `frontend/src/components/marketing/TiersSection.tsx:97-100` sets `aria-hidden` on decorative `Check` icons next to visible list item text.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1427#pullrequestreview-4108840670
+Disposition: FIXED
+Commit: 38e85ed09
+Evidence: CodeRabbit follow-up review: CSS selector cleanup and tiers layout/a11y updates in `frontend/src/components/marketing/marketing.css` and `frontend/src/components/marketing/TiersSection.tsx` (same commit as threads above).
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1427#discussion_r3082210924
+Disposition: FIXED
+Commit: ce0f84f22
+Evidence: `frontend/src/components/marketing/HowItWorksSection.tsx` adds stable `id` on each step and uses `key={step.id}` instead of display `title` (CodeRabbit).
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1427#pullrequestreview-4108915025
+Disposition: FIXED
+Commit: ce0f84f22
+Evidence: CodeRabbit review summary for stable React keys in How it works; addressed in `ce0f84f22` (same as `discussion_r3082210924`).
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1427#pullrequestreview-4108948088
+Disposition: FIXED
+Commit: 81f090d4c
+Evidence: `frontend/src/components/marketing/marketing.css`: `text-decoration-color` uses lowercase `currentcolor`; `.ppm-page` adds `100vh` before `100dvh`; `.ppm-card` adds `-webkit-backdrop-filter` with `backdrop-filter` (CodeRabbit CHILL review nits).
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1427#pullrequestreview-4109192912
+Disposition: FIXED
+Commit: 65cf39f05
+Evidence: Cubic review (VIP badge contrast): `frontend/src/components/VipBadge.tsx:23-27` — gold→navy gradient with `text-[var(--color-primary-foreground)]` and token `ring-*` for readable contrast; `VipGate.tsx` / `PremiumGate.tsx` / `useInert.ts` aligned to token canon in the same commit.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1427#discussion_r3082492247
+Disposition: FIXED
+Commit: 65cf39f05
+Evidence: Same Cubic thread as `pullrequestreview-4109192912`; VipBadge default variant contrast addressed at `frontend/src/components/VipBadge.tsx:23-27` (commit `65cf39f05` after thread timestamp).
+
+## Merge Readiness
+
+- [x] Current-head CI is green for PR branch head
+- [x] Required checks complete (no pending jobs)
+- [x] All review threads resolved on GitHub after disposition updates
+- [x] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
+
+Post-merge note: PR #1427 merged 2026-04-15 as `9dbc3e020176635f7a71771bffdd7360986952d6` (pre-merge head `9988a1f53d9f094cb9b91c2ed43fee2243c1c97e`). Pre-merge verification: GraphQL review threads all resolved; `gh pr checks` showed no failing required checks.
+
+<!-- markdownlint-enable MD034 -->

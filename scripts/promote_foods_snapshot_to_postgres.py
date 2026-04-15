@@ -205,17 +205,17 @@ def _build_pg_engine(pg_url: str) -> Engine:
 def _fetch_sqlite_columns(connection: sqlite3.Connection) -> set[str]:
     """Return source SQLite table column names."""
     try:
-        rows = connection.execute(f"PRAGMA table_info({SOURCE_TABLE_NAME})").fetchall()
+        cursor = connection.execute('SELECT * FROM "foods" LIMIT 0')
     except sqlite3.Error as exc:
         raise PromotionError(
             f"Unable to inspect source SQLite table {SOURCE_TABLE_NAME!r}: {exc}"
         ) from exc
 
-    if not rows:
+    if not cursor.description:
         raise PromotionError(
             f"Source SQLite table {SOURCE_TABLE_NAME!r} is missing in the snapshot database."
         )
-    return {str(row["name"]) for row in rows}
+    return {str(column[0]) for column in cursor.description}
 
 
 def _reflect_target_table(connection: Connection) -> Table:
@@ -284,24 +284,10 @@ def _normalize_source_row(row: sqlite3.Row) -> dict[str, Any]:
     return normalized
 
 
-def _iter_source_rows(
-    connection: sqlite3.Connection,
-    source_columns: set[str] | None = None,
-) -> Iterator[dict[str, Any]]:
+def _iter_source_rows(connection: sqlite3.Connection) -> Iterator[dict[str, Any]]:
     """Yield normalized source rows in deterministic primary-key order."""
-    active_source_columns = source_columns or _fetch_sqlite_columns(connection)
-    select_columns = [
-        column_name
-        for column_name in FOODS_COLUMN_ALLOWLIST
-        if column_name in active_source_columns
-    ]
-    query = (
-        "SELECT "
-        + ", ".join(select_columns)
-        + f" FROM {SOURCE_TABLE_NAME} ORDER BY {CHECKSUM_SORT_KEY}"
-    )
     try:
-        cursor = connection.execute(query)
+        cursor = connection.execute('SELECT * FROM "foods" ORDER BY "id"')
     except sqlite3.Error as exc:
         raise PromotionError(f"Unable to read source rows from SQLite: {exc}") from exc
     for row in cursor:
@@ -398,7 +384,7 @@ def run_promotion(config: PromotionConfig) -> PromotionSummary:
             raise PromotionError(
                 f"Source SQLite table {SOURCE_TABLE_NAME!r} is missing required columns: {missing_str}"
             )
-        source_rows = list(_iter_source_rows(sqlite_connection, source_columns))
+        source_rows = list(_iter_source_rows(sqlite_connection))
 
     engine = _build_pg_engine(config.pg_url)
     try:
