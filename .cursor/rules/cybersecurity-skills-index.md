@@ -28,7 +28,10 @@ alwaysApply: false
 
 ## Codex install
 
-Skills are installed to `$CODEX_HOME/skills/` via `scripts/install_codex_skills.sh`. Run after clone:
+Primary installs go to `$AGENTS_HOME/skills/` (fallback: `$HOME/.agents/skills/`) via
+`scripts/install_codex_skills.sh`. Use `$CODEX_HOME/skills/` only as the
+compatibility target when invoking `scripts/install_codex_skills.sh --target compat`.
+Run after clone:
 
 ```bash
 git submodule update --init --recursive

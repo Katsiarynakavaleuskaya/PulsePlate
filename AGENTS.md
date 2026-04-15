@@ -70,6 +70,19 @@ dead interpreter. Missing scripts are OK; see
 Review threads **must not be resolved without an explicit disposition**.
 Every actionable comment must be classified as one of the following:
 
+### Review guidelines
+
+For GitHub/Codex-assisted review work, prioritize these surfaces before stylistic or low-risk feedback:
+
+- P0/P1 correctness and regressions
+- security, auth, quota, and secret-handling paths
+- billing, subscriptions, paywall, and release-truth surfaces
+- App Store / Fastlane / iOS release integrity
+- orchestration invariants (`agent-coordinator`, `task_bootstrap.py`, `native_subagent_bridge`, merge-readiness governance)
+- schema drift between backend contracts, OpenAPI, and generated client types
+
+These review priorities are additive only. They do not replace the existing review-thread disposition policy, canonical review artifacts, or merge-readiness rules in this file.
+
 ### FIXED
 
 The issue was corrected in code or documentation.

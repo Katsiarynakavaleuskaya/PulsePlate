@@ -13,6 +13,8 @@ type Props = {
 };
 
 /**
+ * PRO / Premium upsell: CTA uses `--pp-primary` (canonical) with primary-foreground. VIP upsell stays on `VipGate` / `VipBadge` (gold→navy) so tiers stay visually distinct.
+ *
  * Renders content behind a premium gate that either shows children directly for premium users or presents a de-emphasized, non-interactive preview with a CTA to open a paywall.
  *
  * When gating is active, the component prevents interaction and focus on the preview content for assistive and keyboard users (using native `inert` when available, with an aria-hidden/tabindex fallback) and exposes an accessible CTA that opens the Paywall dialog.
@@ -55,7 +57,7 @@ export default function PremiumGate({ isPremium, children, source = "unknown" }:
       <button
         ref={ctaRef}
         type="button"
-        className="mt-3 inline-flex min-h-11 items-center justify-center rounded-xl bg-[var(--color-primary)] px-4 py-2 font-semibold text-[var(--color-primary-foreground)] shadow-sm transition-colors hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)] focus-visible:ring-offset-2"
+        className="mt-3 inline-flex min-h-11 items-center justify-center rounded-xl bg-[var(--pp-primary)] px-4 py-2 font-semibold text-[var(--color-primary-foreground)] shadow-sm transition-colors hover:brightness-110 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-focus)]"
         onClick={() => {
           track.gateInteracted("premium_preview", "click");
           track.upgradeClicked(source, "premium_preview_gate");

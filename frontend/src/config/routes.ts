@@ -9,6 +9,7 @@ import NutritionSetup from '../pages/NutritionSetup';
 import BMICalculatePage from '../pages/BMI/BMICalculatePage';
 import ProPaywallPage from '../pages/Pro/ProPaywallPage';
 import DesignSystemPage from '../pages/DesignSystemPage';
+import PulsePlateMarketingPage from '../pages/Marketing/PulsePlateMarketingPage';
 
 export interface RouteConfig {
   path: string;
@@ -22,6 +23,7 @@ export interface RouteConfig {
 // Union type for all route paths to ensure exhaustiveness
 export type RoutePath =
   | '/'
+  | '/marketing'
   | '/enter-key'
   | '/setup'
   | '/profile'
@@ -34,6 +36,13 @@ export type RoutePath =
 
 export const routes: RouteConfig[] = [
   { path: '/', label: 'Home', requiresAuth: false, component: Home },
+  {
+    path: '/marketing',
+    label: 'Marketing',
+    requiresAuth: false,
+    component: PulsePlateMarketingPage,
+    hideTabBar: true,
+  },
   { path: '/enter-key', label: 'EnterKey', requiresAuth: false, component: EnterKey, hideTabBar: true },
   { path: '/setup', label: 'Setup', requiresAuth: false, component: NutritionSetup, hideTabBar: true },
   { path: '/profile', label: 'Profile', requiresAuth: false, component: Profile },

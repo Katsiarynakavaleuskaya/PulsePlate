@@ -36,6 +36,22 @@ class OptimizationStopReason(str, Enum):
     REFINEMENT_BUDGET = "refinement_budget"
 
 
+class RAGDegradedReason(str, Enum):
+    """Deterministic internal degraded-path reasons for retrieval/orchestration."""
+
+    VECTOR_FALLBACK_NO_RESULTS = "vector_fallback_no_results"
+    VECTOR_FALLBACK_EXCEPTION = "vector_fallback_exception"
+    VECTOR_FALLBACK_SUBJECT_MISSING = "vector_fallback_subject_missing"
+    RETRIEVAL_EMPTY = "retrieval_empty"
+    ALL_CHUNKS_FILTERED = "all_chunks_filtered"
+    FORMATTED_CONTEXT_EMPTY = "formatted_context_empty"
+    FORMATTED_CONTEXT_MALFORMED = "formatted_context_malformed"
+    REDACTED_CONTEXT_EMPTY = "redacted_context_empty"
+    REDACTED_CONTEXT_MALFORMED = "redacted_context_malformed"
+    ORCHESTRATION_EXCEPTION = "orchestration_exception"
+    POST_RETRIEVAL_ORCHESTRATION_EXCEPTION = "post_retrieval_orchestration_exception"
+
+
 class OptimizationStats(TypedDict):
     """Internal optimization diagnostics for a single recursive request."""
 
@@ -76,3 +92,4 @@ class RAGContext:
     agent_id: Optional[str] = None
     user_tier: Optional[str] = None
     optimization_stats: OptimizationStats | None = None
+    degraded_reason: RAGDegradedReason | None = None

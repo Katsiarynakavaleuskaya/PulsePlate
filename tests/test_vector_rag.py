@@ -14,7 +14,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from core.rag.contracts import RAGChunk, RAGContext
+from core.rag.contracts import RAGChunk, RAGContext, RAGDegradedReason
 
 # ---------------------------------------------------------------------------
 # Fake RAG context for Jaccard fallback verification
@@ -261,6 +261,58 @@ class TestVectorRetrievalFallback:
         ctx = vector_rag.retrieve_context_structured("test query")
         assert isinstance(ctx, _FakeContext)
         assert ctx.chunks[0].chunk_id == "j:1"
+        assert ctx.degraded_reason == RAGDegradedReason.VECTOR_FALLBACK_NO_RESULTS
+
+    def test_missing_subject_id_fallback_sets_degraded_reason(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Missing tenant scope must degrade to non-personal fallback with explicit reason."""
+        import core.rag.vector_rag as vector_rag
+
+        monkeypatch.setattr("core.rag.vector_rag.is_rag_vector_enabled", lambda: True)
+        monkeypatch.setattr("core.rag.simple_rag.retrieve_context_structured", _fake_jaccard)
+
+        ctx = vector_rag.retrieve_context_structured("test query", subject_id=None)
+
+        assert isinstance(ctx, _FakeContext)
+        assert ctx.degraded_reason == RAGDegradedReason.VECTOR_FALLBACK_SUBJECT_MISSING
+
+    def test_vector_fallback_preserves_public_args_without_subject_id(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Fallback must preserve additive args while keeping tenant fallback non-personal."""
+        import core.rag.vector_rag as vector_rag
+
+        captured: dict[str, Any] = {}
+
+        def _spy_jaccard(*args: Any, **kwargs: Any) -> _FakeContext:
+            captured["args"] = args
+            captured["kwargs"] = kwargs
+            return _fake_jaccard(*args, **kwargs)
+
+        monkeypatch.setattr("core.rag.vector_rag.is_rag_vector_enabled", lambda: True)
+        monkeypatch.setattr(
+            "core.rag.vector_rag._retrieve_vector_from_db",
+            lambda *a, **k: (_ for _ in ()).throw(RuntimeError("DB down")),
+        )
+        monkeypatch.setattr("core.rag.simple_rag.retrieve_context_structured", _spy_jaccard)
+
+        ctx = vector_rag.retrieve_context_structured(
+            "test query",
+            max_chunks=4,
+            agent_id="cbt-agent",
+            user_tier="PRO",
+            subject_id=42,
+        )
+
+        assert isinstance(ctx, _FakeContext)
+        assert captured["kwargs"]["max_chunks"] == 4
+        assert captured["kwargs"]["agent_id"] == "cbt-agent"
+        assert captured["kwargs"]["user_tier"] == "PRO"
+        assert "subject_id" not in captured["kwargs"]
+        assert ctx.degraded_reason == RAGDegradedReason.VECTOR_FALLBACK_EXCEPTION
 
 
 class TestVectorRetrievalSQLite:
@@ -564,6 +616,7 @@ class TestRetrieveVectorFromDb:
         ctx = vector_rag._retrieve_vector_from_db("test", 3, None, None, 21)
         assert isinstance(ctx, RAGContext)
         assert ctx.chunks == []
+        assert ctx.degraded_reason == RAGDegradedReason.VECTOR_FALLBACK_NO_RESULTS
 
     def test_missing_subject_id_returns_empty_without_encoding(
         self, monkeypatch: pytest.MonkeyPatch
@@ -577,6 +630,7 @@ class TestRetrieveVectorFromDb:
         ctx = vector_rag._retrieve_vector_from_db("test", 3, None, None, None)
 
         assert ctx.chunks == []
+        assert ctx.degraded_reason == RAGDegradedReason.VECTOR_FALLBACK_SUBJECT_MISSING
         fake_provider.encode.assert_not_called()
 
     def test_wrong_query_dimensions_return_empty_without_db_work(
@@ -608,11 +662,83 @@ class TestRetrieveVectorFromDb:
             ctx = vector_rag._retrieve_vector_from_db("test", 3, None, None, 21)
 
         assert ctx.chunks == []
+        assert ctx.degraded_reason == RAGDegradedReason.VECTOR_FALLBACK_NO_RESULTS
         assert not session_scope_called
         assert any(
             "Query embedding length" in record.message and "expected 3" in record.message
             for record in caplog.records
         )
+
+    def test_empty_vector_results_propagate_reason_to_real_fallback_context(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Пустой vector result / Empty vector result must tag the returned fallback context."""
+        import core.rag.vector_rag as vector_rag
+
+        empty_ctx = RAGContext(
+            query="q",
+            refined_queries=["q"],
+            chunks=[],
+            confidence=0.0,
+            hops=1,
+            latency_ms=1,
+            degraded_reason=RAGDegradedReason.VECTOR_FALLBACK_NO_RESULTS,
+        )
+        fallback_ctx = RAGContext(
+            query="q",
+            refined_queries=["q"],
+            chunks=[RAGChunk(chunk_id="j:1", file="doc.md", content="fallback", score=0.5)],
+            confidence=0.5,
+            hops=1,
+            latency_ms=5,
+        )
+
+        monkeypatch.setattr("core.rag.vector_rag.is_rag_vector_enabled", lambda: True)
+        monkeypatch.setattr(
+            "core.rag.vector_rag._retrieve_vector_from_db",
+            lambda *a, **k: empty_ctx,
+        )
+        monkeypatch.setattr(
+            "core.rag.simple_rag.retrieve_context_structured",
+            lambda *a, **k: fallback_ctx,
+        )
+
+        ctx = vector_rag.retrieve_context_structured("test query", subject_id=21)
+
+        assert ctx is fallback_ctx
+        assert ctx.degraded_reason == RAGDegradedReason.VECTOR_FALLBACK_NO_RESULTS
+
+    def test_vector_exception_propagates_reason_to_real_fallback_context(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Исключение vector path / Vector exception must tag the fallback context."""
+        import core.rag.vector_rag as vector_rag
+
+        fallback_ctx = RAGContext(
+            query="q",
+            refined_queries=["q"],
+            chunks=[RAGChunk(chunk_id="j:1", file="doc.md", content="fallback", score=0.5)],
+            confidence=0.5,
+            hops=1,
+            latency_ms=5,
+        )
+
+        monkeypatch.setattr("core.rag.vector_rag.is_rag_vector_enabled", lambda: True)
+        monkeypatch.setattr(
+            "core.rag.vector_rag._retrieve_vector_from_db",
+            lambda *a, **k: (_ for _ in ()).throw(RuntimeError("vector boom")),
+        )
+        monkeypatch.setattr(
+            "core.rag.simple_rag.retrieve_context_structured",
+            lambda *a, **k: fallback_ctx,
+        )
+
+        ctx = vector_rag.retrieve_context_structured("test query", subject_id=21)
+
+        assert ctx is fallback_ctx
+        assert ctx.degraded_reason == RAGDegradedReason.VECTOR_FALLBACK_EXCEPTION
 
     def test_postgres_dialect_calls_postgres_path(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Postgres dialect should call _retrieve_vector_postgres."""

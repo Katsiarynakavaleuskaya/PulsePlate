@@ -65,7 +65,7 @@ describe("PremiumGate", () => {
     const unlock = screen.getByRole("button", { name: /continue/i });
     expect(unlock).toHaveAttribute("aria-haspopup", "dialog");
     expect(unlock.className).toContain("min-h-11");
-    expect(unlock.className).toContain("bg-[var(--color-primary)]");
+    expect(unlock.className).toContain("bg-[var(--pp-primary)]");
     expect(unlock.className).toContain("text-[var(--color-primary-foreground)]");
     fireEvent.click(unlock);
 

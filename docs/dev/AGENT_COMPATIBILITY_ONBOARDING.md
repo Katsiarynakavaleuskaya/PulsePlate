@@ -42,18 +42,24 @@ See [`docs/orchestration/AUTOMATION_READINESS_MATRIX.md`](../orchestration/AUTOM
 ## Codex
 
 - Repo-native Codex skills live in [`tools/codex_skills/`](../../tools/codex_skills/)
+- Repo discovery mirror for Codex lives in [`.agents/skills/`](../../.agents/skills/)
 - Install them with:
 
 ```bash
 scripts/install_codex_skills.sh
 ```
 
+- Primary install target follows the canonical contract in [`docs/dev/CODEX_SKILLS.md`](./CODEX_SKILLS.md):
+  `$AGENTS_HOME/skills` with `$HOME/.agents/skills` as the fallback
+- Legacy compat target follows the same contract:
+  `$CODEX_HOME/skills` with `~/.codex/skills` as the fallback (`scripts/install_codex_skills.sh --target compat`)
 - After install or updates, restart Codex so the new skills load
 - Full skill map and policy notes live in [`docs/dev/CODEX_SKILLS.md`](./CODEX_SKILLS.md)
 - Optional repo-root helper (preflight analyze + printed `task_bootstrap.py` recipe):
   `scripts/orchestration/local_session_bootstrap.sh`
 - Host-only `~/.codex/config.toml` is outside repo SoT; optional template:
   [`docs/templates/codex.config.example.toml`](../templates/codex.config.example.toml)
+- Skills stay passive/discovery-only. They do not auto-start coordinator bootstrap and must not change Cursor/custom orchestration behavior.
 
 ## Claude
 

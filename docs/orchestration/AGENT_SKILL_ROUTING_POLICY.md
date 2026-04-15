@@ -23,6 +23,8 @@
    and linguistic compositionality, but every output must remain deterministic,
    testable, and inspectable in the task packet.
 8. Experimentation and optimization tasks must follow `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md`; skills do not bypass mutable-surface or promotion rules.
+9. Skills are passive/discovery-only. They must not replace `agent-coordinator`, must not replace `scripts/orchestration/task_bootstrap.py`, and must not convert `recommended_skills` into execution authority.
+10. `native_subagent_bridge` remains transport-only. Skill routing may inform the packet, but it must not change repo-agent identity or spawn authority.
 
 ---
 
@@ -132,11 +134,13 @@ When `envelope_mode_hint` is `docs_only` (all candidate paths are contract/docs-
 | Orchestration / agent workflow | `pulseplate-workflow`, `docs-sync`, `agents-md`, `pulseplate-gates` | `pulseplate-guards`, `code-review-expert`, `create-pr` |
 | Experimentation / eval / optimization | `pulseplate-workflow`, `docs-sync`, `pulseplate-gates` | `bug-triage`, `code-review-expert`, `openai-docs` |
 | Backend / API / contracts | `pulseplate-backend-endpoints`, `pulseplate-openapi-sync`, `pulseplate-gates` | `bug-triage`, `security-best-practices`, `openai-docs` |
-| Frontend / web UX | `pulseplate-frontend-ui`, `pulseplate-gates` | `pulseplate-playwright-e2e`, `playwright`, `figma`, `figma-implement-design`, `vercel-react-best-practices` |
+| Frontend / web UX | `pulseplate-frontend-ui`, `pulseplate-gates`, `build-web-apps:frontend-skill` | `pulseplate-playwright-e2e`, `playwright`, `figma`, `figma-implement-design`, `vercel-react-best-practices`, `build-web-apps:web-design-guidelines`, `build-web-apps:react-best-practices` |
+| iOS / App Store / Fastlane | `build-ios-apps:swiftui-ui-patterns`, `build-ios-apps:swiftui-view-refactor` | `build-ios-apps:ios-debugger-agent`, `build-ios-apps:swiftui-performance-audit`, `pulseplate-app-store-release` (planned) |
 | Docs / runbooks / policy | `docs-sync` | `agents-md`, `release-notes`, `code-review-expert` |
 | QA / CI / remediation | `bug-triage`, `pulseplate-gates` | `ci-fix`, `gh-fix-ci`, `gh-address-comments`, `code-review-expert` |
-| Reports / wellness / GTM research | `pulseplate-ai-reports`, `docs-sync` | `notion-research-documentation`, `notion-knowledge-capture`, `linear`, `openai-docs` |
-| Design / media / launch assets | `figma`, `docs-sync` | `figma-implement-design`, `pulseplate-frontend-ui`, `playwright`, `notion-research-documentation`, `notion-knowledge-capture`, `sora`, `imagegen`, `speech`, `screenshot`, `app-store-release-agent` companion workflows; `Airweave` and `Penpot` stay Phase 1 runbook-only lanes and are not skill-routed yet |
+| Reports / wellness / GTM research | `pulseplate-ai-reports`, `docs-sync` | `notion-research-documentation`, `notion-knowledge-capture`, `linear`, `openai-docs`, `pulseplate-monetization-gtm` (planned) |
+| Monetization / paywall / subscriptions | `docs-sync` | `build-web-apps:stripe-best-practices`, `pulseplate-ai-reports`, `linear`, `notion-research-documentation`, `pulseplate-monetization-gtm` (planned) |
+| Design / media / launch assets | `figma`, `docs-sync` | `figma-implement-design`, `pulseplate-frontend-ui`, `build-web-apps:web-design-guidelines`, `playwright`, `notion-research-documentation`, `notion-knowledge-capture`, `sora`, `imagegen`, `speech`, `screenshot`, `pulseplate-design-launch-system` (planned); `Airweave` and `Penpot` stay Phase 1 runbook-only lanes and are not skill-routed yet |
 
 ---
 
@@ -187,10 +191,13 @@ The coordinator may use installed skills when they improve delivery and align wi
 ### Conditional by task fit
 
 - `security-best-practices`, `security-threat-model`, `security-ownership-map`
-- `cybersecurity-skills` as companion/manual follow-up for `security-auditor` only (maps to `tools/cybersecurity_skills/skills/` or `$CODEX_HOME/skills` when installed; ~734 skills, approximate; see `tools/cybersecurity_skills/index.json`; installed by default via `scripts/install_codex_skills.sh`)
+- `cybersecurity-skills` as companion/manual follow-up for `security-auditor` only (maps to `tools/cybersecurity_skills/skills/` or the compat-only `$CODEX_HOME/skills` target when installed with `scripts/install_codex_skills.sh --target compat`; the primary default install target remains `$AGENTS_HOME/skills`; ~734 skills, approximate; see `tools/cybersecurity_skills/index.json`)
 - `create-pr`, `commit-work`, `release-notes`, `gh-address-comments`, `gh-fix-ci`, `ci-fix`
 - `sora`, `imagegen`, `speech`
 - `vercel-react-best-practices`, `vercel-react-native-skills`
+- `build-web-apps:frontend-skill`, `build-web-apps:web-design-guidelines`, `build-web-apps:react-best-practices`
+- `build-ios-apps:swiftui-ui-patterns`, `build-ios-apps:swiftui-view-refactor`, `build-ios-apps:ios-debugger-agent`, `build-ios-apps:swiftui-performance-audit`
+- `build-web-apps:stripe-best-practices`
 - deployment skills (`vercel-deploy`, `netlify-deploy`, `render-deploy`, `cloudflare-deploy`) only for explicit deploy tasks
 
 ### Never auto-invoke by default
@@ -277,6 +284,7 @@ If a task includes PR preparation, release packaging, or review-thread handling:
 ## Related Documentation
 
 - `docs/dev/CODEX_SKILLS.md`
+- `docs/orchestration/CODEX_SKILLS_ALIGNMENT_MATRIX.md`
 - `docs/orchestration/workflow.md`
 - `docs/orchestration/AGENT_ROUTING_GRAPH.md`
 - `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md`

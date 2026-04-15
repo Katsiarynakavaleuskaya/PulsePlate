@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef } from 'react';
+import { useLayoutEffect, useRef } from "react";
 
 /** Matches interactive descendants we neutralize when `inert` is unsupported. */
 const FOCUSABLE_SELECTOR =
