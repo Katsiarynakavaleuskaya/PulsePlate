@@ -1,4 +1,11 @@
-import { useLayoutEffect, useRef } from 'react';
+import type { MutableRefObject } from "react";
+import { useLayoutEffect, useRef } from "react";
+
+/** Matches interactive descendants we neutralize when `inert` is unsupported. */
+const FOCUSABLE_SELECTOR =
+  'a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), details, summary, [tabindex]:not([tabindex="-1"]), [contenteditable]:not([contenteditable="false"]), audio[controls], video[controls], iframe';
+
+type HTMLElementWithInert = HTMLElement & { inert?: boolean };
 
 /**
  * Custom hook for managing inert attribute on DOM elements
@@ -9,10 +16,13 @@ import { useLayoutEffect, useRef } from 'react';
  * @param shouldBeInert - Whether the element should be inert
  * @returns A ref to attach to the DOM element
  */
-export function useInert(shouldBeInert: boolean = true) {
+export function useInert(
+  shouldBeInert: boolean = true
+): MutableRefObject<HTMLDivElement | null> {
   const elementRef = useRef<HTMLDivElement | null>(null);
 
-  // Layout: apply inert before paint so focus/AT do not flash interactive preview.
+  // useLayoutEffect: apply inert (or fallback) before paint to avoid a frame where
+  // the preview is visible but still keyboard-focusable.
   useLayoutEffect(() => {
     const element = elementRef.current;
     if (!element || !shouldBeInert) {
@@ -20,23 +30,21 @@ export function useInert(shouldBeInert: boolean = true) {
     }
 
     // Feature-detect inert support explicitly
-    const hasInertSupport = 'inert' in HTMLElement.prototype ||
-                           ('inert' in element && typeof (element as any).inert === 'boolean');
+    const el = element as HTMLElementWithInert;
+    const hasInertSupport =
+      "inert" in HTMLElement.prototype || ("inert" in el && typeof el.inert === "boolean");
 
     if (hasInertSupport) {
-      // Use native inert when supported
-      const prevInert = (element as any).inert;
-      (element as any).inert = true;
+      const prevInert = el.inert;
+      el.inert = true;
       return () => {
-        (element as any).inert = prevInert;
+        el.inert = prevInert;
       };
     } else {
       // Fallback: set aria-hidden and remove tabindex from descendants
       const previousAriaHidden = element.getAttribute("aria-hidden");
       element.setAttribute("aria-hidden", "true");
-      const focusables = element.querySelectorAll<HTMLElement>(
-        'a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), details, [tabindex]:not([tabindex="-1"]), [contenteditable]:not([contenteditable="false"]), audio[controls], video[controls], iframe'
-      );
+      const focusables = element.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR);
       focusables.forEach((el) => {
         if (el.hasAttribute("tabindex")) {
           el.setAttribute("data-pp-prev-tabindex", el.getAttribute("tabindex") || "");

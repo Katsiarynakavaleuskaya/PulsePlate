@@ -24,7 +24,7 @@ const variantClasses = {
   outline:
     'border border-[var(--pp-gold)] text-[var(--color-text)] bg-transparent ring-1 ring-[var(--pp-gold)]/35',
   subtle:
-    'bg-[var(--color-surface-muted)] text-[var(--color-text)] border border-[var(--color-border)] ring-1 ring-[var(--pp-gold)]/20'
+    'bg-[var(--color-surface-muted)] text-[var(--color-text)] border border-[var(--color-border)] ring-1 ring-[var(--pp-gold)]/20',
 };
 
 /**
@@ -53,6 +53,7 @@ export const VipBadge: React.FC<VipBadgeProps> = ({ size = 'md', variant = 'defa
 
   return (
     <span
+      data-testid="vip-badge"
       className={clsx(
         'inline-flex items-center font-medium rounded-full',
         sizeClasses[size],

@@ -121,6 +121,26 @@ describe('VipFeature', () => {
 
       expect(container.firstChild).toBeNull();
     });
+
+    it('should use tokenized vip badge palette for variants', () => {
+      mockUseVipModule.mockReturnValue(true);
+
+      const { rerender, getByTestId } = render(<VipBadge variant="default" />);
+      let badge = getByTestId('vip-badge');
+      // Token SoT: see `variantClasses` in VipBadge.tsx
+      expect(badge.className).toMatch(/color-primary-foreground|pp-gold/);
+      expect(badge.className).not.toMatch(/purple-500|pink-500/);
+
+      rerender(<VipBadge variant="outline" />);
+      badge = getByTestId('vip-badge');
+      expect(badge.className).toMatch(/color-text|pp-gold/);
+      expect(badge.className).not.toMatch(/purple-/);
+
+      rerender(<VipBadge variant="subtle" />);
+      badge = getByTestId('vip-badge');
+      expect(badge.className).toMatch(/color-surface-muted|color-border|color-text/);
+      expect(badge.className).not.toMatch(/purple-/);
+    });
   });
 
   describe('VipGate', () => {
