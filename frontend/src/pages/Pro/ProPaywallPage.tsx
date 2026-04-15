@@ -22,6 +22,7 @@ export default function ProPaywallPage(): JSX.Element {
       onClose={handleClose}
       onPurchase={handlePurchase}
       source="bmi_soft_paywall"
+      triggerReason="post_bmi_result"
       via="pro_page"
     />
   );

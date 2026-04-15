@@ -2,6 +2,7 @@
 // EN: API client with server-session cookie support. Handles 401 errors by redirecting to key entry page.
 
 import { logError } from "../lib/analytics";
+import type { ClientPaywallExposureEventName } from "../lib/analytics";
 import { clearStoredApiKey } from "../auth/storage";
 import type { components } from "./schema";
 
@@ -176,7 +177,17 @@ export const PRO_NUTRITION_PLATE_PATH = "/api/v1/pro/nutrition/plate";
 export const PRO_SESSION_PATH = "/api/v1/pro/session";
 export const PRO_SESSION_EXCHANGE_PATH = "/api/v1/pro/session/exchange";
 export const PRO_SESSION_LOGOUT_PATH = "/api/v1/pro/session/logout";
+export const INTERNAL_PAYWALL_EVENTS_PATH = "/api/v1/internal/paywall/events";
 export type ProSessionStatus = components["schemas"]["SessionStatusResponse"];
+export type PaywallExposureEventRequest = {
+  client_event_id: string;
+  exposure_id: string;
+  event_name: ClientPaywallExposureEventName;
+  source_surface: string;
+  trigger_reason: string;
+  via?: string;
+  metadata?: Record<string, unknown>;
+};
 
 function mockUrl(path: string): string | null {
   if (path.includes("/api/v1/premium/bmr") || path.includes("/premium/bmr")) {
@@ -641,3 +652,17 @@ export type WeekPlanResponse = components["schemas"]["WeeklyPlanResponse"];
  * @returns Promise<WeekPlanResponse> - Weekly meal plan data
  */
 export const getWeekPlan = (options?: ApiOptions) => api<WeekPlanResponse>("/plan/week", undefined, options);
+
+export async function postPaywallExposureEvent(
+  payload: PaywallExposureEventRequest
+): Promise<void> {
+  await api<{ status: "ok" }>(
+    INTERNAL_PAYWALL_EVENTS_PATH,
+    {
+      method: "POST",
+      body: payload,
+    },
+    undefined,
+    true
+  );
+}

@@ -28,6 +28,7 @@ from app.bootstrap.public_discovery import SITEMAP_ROUTE_PATH, serve_public_site
 from app.bootstrap.telemetry import register_request_telemetry
 from app.bootstrap.tracing import register_tracing
 from app.routers.creative_research_internal import router as creative_research_internal_router
+from app.routers.paywall_analytics import ingest_paywall_event, router as paywall_analytics_router
 import app.routers.realtime_ws as realtime_ws
 from app.routers.billing import register_billing_routes
 from app.routers.cbt_insight import router as cbt_insight_router
@@ -44,6 +45,7 @@ _TERMS_ROUTE_PATH: str = "/terms"
 _CBT_INSIGHT_ROUTE_PATH: str = "/api/v1/pro/cbt/insight"
 _FITCHEF_STRUCTURED_ROUTE_PATH: str = "/api/v1/pro/fitchef/explain"
 _CREATIVE_RESEARCH_PILOT_ROUTE_PATH: str = "/api/v1/internal/creative-research/pilot"
+_PAYWALL_EVENTS_ROUTE_PATH: str = "/api/v1/internal/paywall/events"
 
 
 def _has_route(
@@ -199,6 +201,19 @@ def ensure_canonical_app_bootstrap(target_app: FastAPI) -> FastAPI:
 
     if not _has_route(app, _CREATIVE_RESEARCH_PILOT_ROUTE_PATH, "POST"):
         app.include_router(creative_research_internal_router)
+
+    if not _route_has_endpoint(
+        app,
+        _PAYWALL_EVENTS_ROUTE_PATH,
+        "POST",
+        ingest_paywall_event,
+    ):
+        if _has_route(app, _PAYWALL_EVENTS_ROUTE_PATH, "POST"):
+            raise RuntimeError(
+                "Duplicate /api/v1/internal/paywall/events route detected with a different "
+                "handler."
+            )
+        app.include_router(paywall_analytics_router)
 
     return app
 
