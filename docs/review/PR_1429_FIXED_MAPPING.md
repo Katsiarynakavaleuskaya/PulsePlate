@@ -1,3 +1,4 @@
+<!-- markdownlint-disable MD034 -->
 # PR #1429 — Fixed in Commit Mapping (canonical)
 
 ## Discussion Thread Pass
@@ -5,6 +6,34 @@
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
 
+Bot and human review threads are dispositioned here before they are resolved on GitHub.
+
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1429#discussion_r3085416208
+Disposition: FIXED
+Commit: 81bf0b975
+Evidence: `scripts/ci/install_locked_python_requirements.py:873` (`run_command` captures subprocess stdout/stderr and folds them into `RuntimeError` text so `_resolver_miss_error` can match pip “No matching distribution …” output).
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1429#discussion_r3085416213
+Disposition: FIXED
+Commit: 81bf0b975
+Evidence: `scripts/ci/install_locked_python_requirements.py:1273` enforces `--require-virtualenv` before `scripts/ci/install_locked_python_requirements.py:1278` (`--upgrade-pip`), so pip is not upgraded outside an interpreter refusal path.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1429#discussion_r3085436155
+Disposition: FIXED
+Commit: 79c21ea02
+Evidence: `tests/test_install_locked_python_requirements.py` adds `_resolver_miss_runtimeerror_like_run_command`, wires it into emergency preflight resolver-miss tests, and extends `test_run_command_wraps_subprocess_failures` to assert stderr text is included in the `RuntimeError` message (production-shaped failure string).
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1429#discussion_r3085477602
+Disposition: FIXED
+Commit: 79c21ea02
+Evidence: `.github/actions/python-setup/action.yml:60` (and parallel composite `run` blocks) replace `set -euxo pipefail` with `set -euo pipefail` so bash xtrace cannot echo expanded `PULSEPLATE_PYTHON_INDEX_URL` values into logs.
+
+## Merge Readiness
+
+- [ ] Current-head CI is green for PR branch head
+- [ ] Required checks complete (no pending jobs)
+- [ ] All review threads resolved on GitHub after disposition updates
+- [ ] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
+<!-- markdownlint-enable MD034 -->
