@@ -18,7 +18,7 @@ Reason: this review requested maintainability ordering/documentation improvement
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1430#pullrequestreview-4113822410
 Disposition: FIXED
 Commit: 4b2575f99
-Evidence: `docs/review/PR_1430_FIXED_MAPPING.md:13` now uses the canonical sentinel `- No actionable review comments`, which satisfies `scripts/orchestration/review_mapping_artifact.py:35` (`NO_ACTIONABLE_LINE`) and avoids non-canonical wording.
+Evidence: `docs/review/PR_1430_FIXED_MAPPING.md:13` now uses the canonical no-actionable sentinel line required by `scripts/orchestration/review_mapping_artifact.py:35` (`NO_ACTIONABLE_LINE`) and avoids non-canonical wording.
 
 ## Merge Readiness
 
