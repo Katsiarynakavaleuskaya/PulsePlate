@@ -23,12 +23,17 @@ Evidence: `scripts/ci/install_locked_python_requirements.py:1273` enforces `--re
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1429#discussion_r3085436155
 Disposition: FIXED
 Commit: 79c21ea02
-Evidence: `tests/test_install_locked_python_requirements.py` adds `_resolver_miss_runtimeerror_like_run_command`, wires it into emergency preflight resolver-miss tests, and extends `test_run_command_wraps_subprocess_failures` to assert stderr text is included in the `RuntimeError` message (production-shaped failure string).
+Evidence: `tests/test_install_locked_python_requirements.py:18-24` defines `_resolver_miss_runtimeerror_like_run_command`; `tests/test_install_locked_python_requirements.py:1720` and `tests/test_install_locked_python_requirements.py:1806` raise it in emergency preflight resolver-miss tests; `tests/test_install_locked_python_requirements.py:1046-1062` extends `test_run_command_wraps_subprocess_failures` to assert stderr text is included in the `RuntimeError` message.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1429#discussion_r3085477602
 Disposition: FIXED
 Commit: 79c21ea02
-Evidence: `.github/actions/python-setup/action.yml:60` (and parallel composite `run` blocks) replace `set -euxo pipefail` with `set -euo pipefail` so bash xtrace cannot echo expanded `PULSEPLATE_PYTHON_INDEX_URL` values into logs.
+Evidence: `.github/actions/python-setup/action.yml:60`, `:78`, `:166`, and `:176` replace `set -euxo pipefail` with `set -euo pipefail` so bash xtrace cannot echo expanded `PULSEPLATE_PYTHON_INDEX_URL` values into logs.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1429#discussion_r3085646506
+Disposition: FIXED
+Commit: b34e2f5c9
+Evidence: `docs/review/PR_1429_FIXED_MAPPING.md` evidence lines for `discussion_r3085436155` and `discussion_r3085477602` now use strict `file:line` anchors (`tests/test_install_locked_python_requirements.py:18-24`, `:1720`, `:1806`, `:1046-1062`; `.github/actions/python-setup/action.yml:60`, `:78`, `:166`, `:176`).
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1429#discussion_r3085622859
 Disposition: NOT-A-BUG
