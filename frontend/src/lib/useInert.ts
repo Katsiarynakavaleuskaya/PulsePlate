@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useLayoutEffect, useRef } from 'react';
 
 /**
  * Custom hook for managing inert attribute on DOM elements
@@ -12,7 +12,8 @@ import { useEffect, useRef } from 'react';
 export function useInert(shouldBeInert: boolean = true) {
   const elementRef = useRef<HTMLDivElement | null>(null);
 
-  useEffect(() => {
+  // Layout: apply inert before paint so focus/AT do not flash interactive preview.
+  useLayoutEffect(() => {
     const element = elementRef.current;
     if (!element || !shouldBeInert) {
       return;

@@ -12,6 +12,8 @@ type Props = {
 };
 
 /**
+ * PRO / Premium upsell: CTA uses `--pp-primary` (blue). VIP upsell stays on `VipGate` / `VipBadge` (gold→navy) so tiers stay visually distinct.
+ *
  * Renders content behind a premium gate that either shows children directly for premium users or presents a de-emphasized, non-interactive preview with a CTA to open a paywall.
  *
  * When gating is active, the component prevents interaction and focus on the preview content for assistive and keyboard users (using native `inert` when available, with an aria-hidden/tabindex fallback) and exposes an accessible CTA that opens the Paywall dialog.
@@ -33,7 +35,6 @@ export default function PremiumGate({ isPremium, children, source = "unknown" }:
     <>
       <div
         ref={previewRef}
-        {...({ inert: true } as any)}
         className="opacity-60 pointer-events-none"
         aria-label="Premium gated content"
       >
@@ -47,7 +48,7 @@ export default function PremiumGate({ isPremium, children, source = "unknown" }:
 
       <button
         type="button"
-        className="mt-3 px-4 py-2 rounded-xl bg-[var(--pp-primary)] text-white"
+        className="mt-3 px-4 py-2 rounded-xl bg-[var(--pp-primary)] text-[var(--color-primary-foreground)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-focus)]"
         onClick={() => {
           setOpen(true);
         }}

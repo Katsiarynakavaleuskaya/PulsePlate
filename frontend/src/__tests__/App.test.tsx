@@ -88,6 +88,12 @@ vi.mock('../config/routes', () => ({
       component: () => <div data-testid="welcome-gate-page">Welcome Gate V1 Page</div>,
       hideTabBar: true,
       requiresAuth: false
+    },
+    {
+      path: '/marketing',
+      component: () => <div data-testid="marketing-page">Marketing Page</div>,
+      hideTabBar: true,
+      requiresAuth: false
     }
   ]
 }));
@@ -139,6 +145,16 @@ describe('App', () => {
     render(<App />);
 
     expect(screen.getByTestId('welcome-gate-page')).toBeInTheDocument();
+    expect(screen.queryByTestId('tab-bar')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('require-key')).not.toBeInTheDocument();
+  });
+
+  it('hides tab bar for the marketing landing route', () => {
+    navigateTo('/marketing');
+
+    render(<App />);
+
+    expect(screen.getByTestId('marketing-page')).toBeInTheDocument();
     expect(screen.queryByTestId('tab-bar')).not.toBeInTheDocument();
     expect(screen.queryByTestId('require-key')).not.toBeInTheDocument();
   });
