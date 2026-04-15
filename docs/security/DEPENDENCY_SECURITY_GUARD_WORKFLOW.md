@@ -17,7 +17,8 @@ The guard runs as part of `make verify` and validates all 5 requirement surfaces
 ```json
 {
   "min_versions": {
-    "cryptography": "46.0.5"
+    "cryptography": "46.0.7",
+    "pillow": "12.2.0"
   },
   "blocked_packages": [],
   "blocked_versions": {}
@@ -60,6 +61,19 @@ Choose the appropriate schema section:
 
 Dev-only dependencies (like `marshmallow`) cannot currently be tracked in `min_versions` because they don't exist in runtime surfaces. This is a known limitation.
 
+### 2a. Preflight source availability before install
+
+Before full dependency install in CI, run fail-fast availability preflight through the same
+approved proxy path used by canonical install:
+
+- `scripts/ci/install_locked_python_requirements.py --preflight-only`
+- Uses `PULSEPLATE_PYTHON_INDEX_URL` (+ optional `PULSEPLATE_PYTHON_TRUSTED_HOST`)
+- Checks floor versions from `min_versions`
+- Allows only exact emergency fallback artifacts from `scripts/ci/emergency_python_wheels.json`
+
+This separates **security floor policy** from **source availability** and fails early when
+the proxy is stale.
+
 ### 3. Update Requirement Surfaces
 
 1. Bump version in `requirements.in` or `requirements-dev.in`
@@ -92,21 +106,22 @@ make verify
 
 ### Example 1: Minimum Version Floor (cryptography CVE)
 
-**Scenario:** CVE-2026-26007 fixed in cryptography 46.0.5
+**Scenario:** CVE-2026-26007 fixed in cryptography 46.0.7 and GHSA-whj4-6x5x-4v2j fixed in pillow 12.2.0
 
 **Schema update:**
 ```json
 {
   "min_versions": {
-    "cryptography": "46.0.5"
+    "cryptography": "46.0.7",
+    "pillow": "12.2.0"
   }
 }
 ```
 
 **Requirement updates:**
-- `requirements.in`: `cryptography>=46.0.5,<47.0.0`
-- `requirements-dev.in`: `cryptography>=46.0.5`
-- `constraints.txt`: `cryptography>=46.0.5`
+- `requirements.in`: `cryptography>=46.0.7,<47.0.0` and `pillow>=12.2.0,<13.0.0`
+- `requirements-dev.in`: `cryptography>=46.0.7`
+- `constraints.txt`: `cryptography>=46.0.7` and `pillow>=12.2.0`
 - Regenerate locks
 
 ### Example 2: Blocked Package
@@ -151,7 +166,7 @@ make verify
 
 - Guard runs in `make test-fast` -> `make verify`
 - PR cannot merge if guard fails
-- Deterministic: no network calls, no external state
+- Deterministic for policy checks: no network calls and no external state in the guard itself; the optional CI preflight (`scripts/ci/install_locked_python_requirements.py --preflight-only`) performs network reads against `PULSEPLATE_PYTHON_INDEX_URL` and may use `scripts/ci/emergency_python_wheels.json` for verified emergency fallbacks
 
 ## Validated Surfaces
 

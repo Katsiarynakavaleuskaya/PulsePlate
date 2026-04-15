@@ -26,6 +26,10 @@ DEFAULT_CI_LITE_REQUIREMENTS_FILE = REPO_ROOT / "requirements-ci-lite.txt"
 DEFAULT_CONSTRAINTS_FILE = REPO_ROOT / "constraints.txt"
 DEFAULT_STARTUP_HOOK_GUARD_PATH = REPO_ROOT / "scripts" / "ci" / "check_python_startup_hooks.py"
 DEFAULT_EMERGENCY_WHEEL_MANIFEST = REPO_ROOT / "scripts" / "ci" / "emergency_python_wheels.json"
+
+DEFAULT_DEPENDENCY_SECURITY_SCHEMA = (
+    REPO_ROOT / "tests" / "fixtures" / "dependency_security_schema.json"
+)
 APPROVED_INDEX_ENV_VAR = "PULSEPLATE_PYTHON_INDEX_URL"
 TRUSTED_HOST_ENV_VAR = "PULSEPLATE_PYTHON_TRUSTED_HOST"
 EMERGENCY_WHEEL_MANIFEST_ENV_VAR = "PULSEPLATE_PYTHON_EMERGENCY_WHEEL_MANIFEST"
@@ -170,6 +174,15 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         help=(
             "Installation transport. 'wheelhouse' keeps the hermetic local wheelhouse path; "
             "'direct-proxy' installs from the approved proxy without creating a local wheelhouse."
+        ),
+    )
+
+    parser.add_argument(
+        "--preflight-only",
+        action="store_true",
+        help=(
+            "Validate min dependency floor versions against approved proxy/fallback and exit "
+            "without installing any requirements."
         ),
     )
     return parser.parse_args(argv)
@@ -696,6 +709,146 @@ def resolve_private_proxy_settings(
     )
 
 
+def load_dependency_security_floors(
+    schema_path: Path | None = None,
+) -> dict[str, str]:
+    """Load min dependency floors from canonical schema."""
+    path = schema_path or DEFAULT_DEPENDENCY_SECURITY_SCHEMA
+    if not path.exists():
+        raise FileNotFoundError(f"Dependency security schema not found: {path}")
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(f"Dependency security schema is not valid JSON: {path}: {exc}") from exc
+    if not isinstance(payload, dict):
+        raise RuntimeError(f"Dependency security schema must be a JSON object: {path}")
+    min_versions = payload.get("min_versions")
+    if not isinstance(min_versions, dict) or not min_versions:
+        raise RuntimeError(f"Dependency security schema must define non-empty min_versions: {path}")
+    floors: dict[str, str] = {}
+    for package, version in min_versions.items():
+        if not isinstance(package, str) or not package.strip():
+            raise RuntimeError(
+                f"Dependency security schema contains invalid package name in {path}: {package!r}"
+            )
+        if not isinstance(version, str) or not version.strip():
+            raise RuntimeError(
+                f"Dependency security schema has invalid version for {package!r} in {path}"
+            )
+        floors[package.strip().lower()] = version.strip()
+    return floors
+
+
+def _resolver_miss_error(runtime_error: RuntimeError, *, package: str, version: str) -> bool:
+    """Return True when pip failed because package floor is unavailable on index."""
+    message = str(runtime_error)
+    requirement_text = f"{package}=={version}"
+    resolver_markers = (
+        f"No matching distribution found for {requirement_text}",
+        f"Could not find a version that satisfies the requirement {requirement_text}",
+    )
+    return any(marker in message for marker in resolver_markers)
+
+
+def verify_emergency_artifact_for_floor(
+    *,
+    manifest_path: Path | None,
+    package: str,
+    version: str,
+) -> bool:
+    """Return True when exact emergency fallback artifact exists and verifies."""
+    artifacts = [
+        artifact
+        for artifact in load_emergency_wheel_manifest(manifest_path)
+        if artifact["package"].lower() == package.lower() and artifact["version"] == version
+    ]
+    if not artifacts:
+        return False
+    with tempfile.TemporaryDirectory(prefix="pulseplate-floor-emergency-") as temp_dir:
+        for artifact in artifacts:
+            destination = Path(temp_dir) / artifact["filename"]
+            _download_with_sha256(
+                url=artifact["url"],
+                destination=destination,
+                expected_sha256=artifact["sha256"],
+            )
+    return True
+
+
+def build_floor_preflight_command(
+    *,
+    python_executable: str,
+    package: str,
+    version: str,
+    index_url: str,
+    trusted_host: str | None,
+) -> list[str]:
+    """Build pip command for one floor availability check."""
+    command = [
+        python_executable,
+        "-m",
+        "pip",
+        "download",
+        "--retries",
+        str(PIP_NETWORK_RETRIES),
+        "--timeout",
+        str(PIP_NETWORK_TIMEOUT_SECONDS),
+        "--only-binary",
+        ":all:",
+        "--no-deps",
+        "--dest",
+        ".",
+        "--index-url",
+        index_url,
+        f"{package}=={version}",
+    ]
+    if trusted_host:
+        command.extend(["--trusted-host", trusted_host])
+    return command
+
+
+def run_dependency_floor_preflight(
+    *,
+    python_executable: str,
+    index_url: str,
+    trusted_host: str | None,
+    emergency_wheel_manifest: Path | None,
+) -> None:
+    """Fail fast when dependency floors are unavailable through approved path."""
+    floors = load_dependency_security_floors()
+    with tempfile.TemporaryDirectory(prefix="pulseplate-floor-preflight-") as temp_dir:
+        destination_dir = Path(temp_dir)
+        for package, version in sorted(floors.items()):
+            command = build_floor_preflight_command(
+                python_executable=python_executable,
+                package=package,
+                version=version,
+                index_url=index_url,
+                trusted_host=trusted_host,
+            )
+            dest_index = command.index("--dest")
+            command[dest_index + 1] = str(destination_dir)
+            try:
+                run_command(command)
+            except RuntimeError as exc:
+                if _resolver_miss_error(exc, package=package, version=version) and (
+                    verify_emergency_artifact_for_floor(
+                        manifest_path=emergency_wheel_manifest,
+                        package=package,
+                        version=version,
+                    )
+                ):
+                    print(
+                        "WARNING: floor preflight proxy miss tolerated via emergency fallback: "
+                        f"{package}=={version}"
+                    )
+                    continue
+                raise RuntimeError(
+                    "Dependency floor preflight failed for approved proxy: "
+                    f"{package}=={version}: {exc}"
+                ) from exc
+
+
 def is_virtualenv_python(python_executable: str) -> bool:
     """Return True when the target interpreter runs inside a virtualenv."""
     probe = (
@@ -718,14 +871,27 @@ def is_virtualenv_python(python_executable: str) -> bool:
 
 
 def run_command(command: Sequence[str]) -> None:
+    """Run a subprocess command; include captured stdout/stderr on failure for pip diagnostics."""
+    command_text = " ".join(str(part) for part in command)
     try:
-        subprocess.run(  # nosec B603: commands are built internally from pinned requirement/install helpers only (remove-by: 2026-07-31, ref: PR-litellm-hardening)
+        result = subprocess.run(  # nosec B603: commands are built internally from pinned requirement/install helpers only (remove-by: 2026-07-31, ref: PR-litellm-hardening)
             list(command),
-            check=True,
+            check=False,
+            capture_output=True,
+            text=True,
         )
-    except (FileNotFoundError, subprocess.CalledProcessError) as exc:
-        command_text = " ".join(str(part) for part in command)
+    except FileNotFoundError as exc:
         raise RuntimeError(f"Command failed: {command_text}: {exc}") from exc
+    if result.returncode != 0:
+        parts: list[str] = [f"exit {result.returncode}"]
+        stderr = (result.stderr or "").strip()
+        stdout = (result.stdout or "").strip()
+        if stderr:
+            parts.append(stderr)
+        if stdout:
+            parts.append(stdout)
+        detail = "\n".join(parts)
+        raise RuntimeError(f"Command failed: {command_text}: {detail}")
 
 
 def upgrade_pip(
@@ -1098,6 +1264,33 @@ def main(argv: Sequence[str] | None = None) -> int:
                 "--install-dev or --install-test."
             )
             return 1
+
+        index_url, trusted_host = resolve_private_proxy_settings(
+            index_url=args.index_url,
+            trusted_host=args.trusted_host,
+        )
+
+        if args.require_virtualenv and not is_virtualenv_python(args.python_executable):
+            print("ERROR: refusing to install packages with a non-virtualenv interpreter.")
+            print(f"Python executable: {args.python_executable}")
+            return 1
+
+        if args.upgrade_pip:
+            upgrade_pip(
+                args.python_executable,
+                index_url=index_url,
+                trusted_host=trusted_host,
+            )
+
+        if args.preflight_only:
+            run_dependency_floor_preflight(
+                python_executable=args.python_executable,
+                index_url=index_url,
+                trusted_host=trusted_host,
+                emergency_wheel_manifest=args.emergency_wheel_manifest,
+            )
+            return 0
+
         validated_constraints_file = validate_constraints_file(args.constraints_file)
         requirement_files = resolve_requirement_files(
             requirements_file=args.requirements_file,
@@ -1108,23 +1301,6 @@ def main(argv: Sequence[str] | None = None) -> int:
             install_test=args.install_test,
             requirements_profile=args.requirements_profile,
         )
-
-        if args.require_virtualenv and not is_virtualenv_python(args.python_executable):
-            print("ERROR: refusing to install packages with a non-virtualenv interpreter.")
-            print(f"Python executable: {args.python_executable}")
-            return 1
-
-        index_url, trusted_host = resolve_private_proxy_settings(
-            index_url=args.index_url,
-            trusted_host=args.trusted_host,
-        )
-
-        if args.upgrade_pip:
-            upgrade_pip(
-                args.python_executable,
-                index_url=index_url,
-                trusted_host=trusted_host,
-            )
 
         if args.install_mode == "direct-proxy":
             return install_with_guard_from_proxy(
