@@ -15,6 +15,15 @@ APPROVED_PROXY_URL = "https://packages.example.internal/simple"
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
+def _resolver_miss_runtimeerror_like_run_command(package: str, version: str) -> RuntimeError:
+    """Shape like :func:`run_command` on pip failure (``exit 1`` plus stderr text)."""
+    requirement = f"{package}=={version}"
+    return RuntimeError(
+        "Command failed: python -m pip download stub: exit 1\n"
+        f"No matching distribution found for {requirement}"
+    )
+
+
 def test_repo_emergency_manifest_tracks_current_active_fallback_set() -> None:
     manifest = json.loads(
         (REPO_ROOT / "scripts/ci/emergency_python_wheels.json").read_text(encoding="utf-8")
@@ -1047,8 +1056,9 @@ def test_run_command_wraps_subprocess_failures(
 
     monkeypatch.setattr(installer.subprocess, "run", fake_run)
 
-    with pytest.raises(RuntimeError, match="Command failed: python -m pip"):
+    with pytest.raises(RuntimeError, match="Command failed: python -m pip") as excinfo:
         installer.run_command(["python", "-m", "pip"])
+    assert "pip stderr here" in str(excinfo.value)
 
 
 def test_main_fails_when_virtualenv_is_required(
@@ -1707,10 +1717,7 @@ def test_run_dependency_floor_preflight_allows_exact_emergency_artifact(
     )
 
     def fail_run_command(_command: list[str]) -> None:
-        raise RuntimeError(
-            "Command failed: python -m pip download: "
-            "No matching distribution found for cryptography==46.0.7"
-        )
+        raise _resolver_miss_runtimeerror_like_run_command("cryptography", "46.0.7")
 
     monkeypatch.setattr(installer, "run_command", fail_run_command)
 
@@ -1796,10 +1803,7 @@ def test_run_dependency_floor_preflight_verifies_emergency_artifact_download(
     observed_downloads: list[tuple[str, str]] = []
 
     def resolver_miss(_command: list[str]) -> None:
-        raise RuntimeError(
-            "Command failed: python -m pip download: "
-            "No matching distribution found for cryptography==46.0.7"
-        )
+        raise _resolver_miss_runtimeerror_like_run_command("cryptography", "46.0.7")
 
     def fake_download(*, url: str, destination: Path, expected_sha256: str) -> None:
         observed_downloads.append((url, expected_sha256))

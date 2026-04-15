@@ -57,7 +57,7 @@ runs:
       shell: bash
       working-directory: ${{ inputs.working-directory }}
       run: |
-        set -euxo pipefail
+        set -euo pipefail
         : "${PULSEPLATE_PYTHON_INDEX_URL:?Set PULSEPLATE_PYTHON_INDEX_URL to the approved private package proxy URL.}"
         preflight_args=()
         preflight_args+=(--index-url "$PULSEPLATE_PYTHON_INDEX_URL")
@@ -75,7 +75,7 @@ runs:
       shell: bash
       working-directory: ${{ inputs.working-directory }}
       run: |
-        set -euxo pipefail
+        set -euo pipefail
         : "${PULSEPLATE_PYTHON_INDEX_URL:?Set PULSEPLATE_PYTHON_INDEX_URL to the approved private package proxy URL.}"
         install_args=()
         install_args+=(--index-url "$PULSEPLATE_PYTHON_INDEX_URL")
@@ -163,7 +163,7 @@ runs:
       shell: bash
       working-directory: ${{ inputs.working-directory }}
       run: |
-        set -euxo pipefail
+        set -euo pipefail
         echo "::notice::Pinned development tooling is provided by requirements-dev.txt via install_locked_python_requirements.py"
 
     # Backward-compatibility no-op: pinned test tooling comes from
@@ -173,5 +173,5 @@ runs:
       shell: bash
       working-directory: ${{ inputs.working-directory }}
       run: |
-        set -euxo pipefail
+        set -euo pipefail
         echo "::notice::Pinned test tooling is provided by ${{ inputs.test-requirements-file }} via install_locked_python_requirements.py"
