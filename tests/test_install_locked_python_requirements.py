@@ -1060,6 +1060,7 @@ def test_main_fails_when_virtualenv_is_required(
     monkeypatch.setattr(installer, "DEFAULT_TEST_REQUIREMENTS_FILE", tmp_path / "missing-test.txt")
     monkeypatch.setattr(installer, "DEFAULT_CONSTRAINTS_FILE", constraints)
     monkeypatch.setattr(installer, "is_virtualenv_python", lambda python_executable: False)
+    monkeypatch.setenv(installer.APPROVED_INDEX_ENV_VAR, APPROVED_PROXY_URL)
 
     result = installer.main(
         [
@@ -1632,3 +1633,209 @@ def test_main_rejects_mixing_explicit_profile_with_legacy_flags(
 
     assert result == 1
     assert "requirements-profile cannot be combined" in capsys.readouterr().out
+
+
+def test_run_dependency_floor_preflight_checks_each_floor(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    observed_commands: list[list[str]] = []
+    monkeypatch.setattr(
+        installer,
+        "load_dependency_security_floors",
+        lambda: {"cryptography": "46.0.7", "pillow": "12.2.0"},
+    )
+    monkeypatch.setattr(
+        installer,
+        "run_command",
+        lambda command: observed_commands.append(list(command)),
+    )
+
+    installer.run_dependency_floor_preflight(
+        python_executable="python",
+        index_url=APPROVED_PROXY_URL,
+        trusted_host="packages.example.internal",
+        emergency_wheel_manifest=None,
+    )
+
+    assert len(observed_commands) == 2
+    for command in observed_commands:
+        assert command[:4] == ["python", "-m", "pip", "download"]
+        assert "--no-deps" in command
+        assert "--index-url" in command
+        assert APPROVED_PROXY_URL in command
+        assert "--trusted-host" in command
+        assert "--dest" in command
+
+
+def test_run_dependency_floor_preflight_allows_exact_emergency_artifact(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    manifest = tmp_path / "emergency.json"
+    manifest.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "expires_at": "2099-12-31",
+                "artifacts": [
+                    {
+                        "package": "cryptography",
+                        "version": "46.0.7",
+                        "filename": "cryptography-46.0.7.whl",
+                        "url": "https://files.pythonhosted.org/packages/example/cryptography-46.0.7.whl",
+                        "sha256": "b" * 64,
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        installer,
+        "load_dependency_security_floors",
+        lambda: {"cryptography": "46.0.7"},
+    )
+    monkeypatch.setattr(
+        installer,
+        "_download_with_sha256",
+        lambda **kwargs: Path(kwargs["destination"]).write_bytes(b"wheel-bytes"),
+    )
+
+    def fail_run_command(_command: list[str]) -> None:
+        raise RuntimeError(
+            "Command failed: python -m pip download: "
+            "No matching distribution found for cryptography==46.0.7"
+        )
+
+    monkeypatch.setattr(installer, "run_command", fail_run_command)
+
+    installer.run_dependency_floor_preflight(
+        python_executable="python",
+        index_url=APPROVED_PROXY_URL,
+        trusted_host=None,
+        emergency_wheel_manifest=manifest,
+    )
+
+
+def test_run_dependency_floor_preflight_rejects_non_resolver_failure_even_with_emergency(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    manifest = tmp_path / "emergency.json"
+    manifest.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "expires_at": "2099-12-31",
+                "artifacts": [
+                    {
+                        "package": "cryptography",
+                        "version": "46.0.7",
+                        "filename": "cryptography-46.0.7.whl",
+                        "url": "https://files.pythonhosted.org/packages/example/cryptography-46.0.7.whl",
+                        "sha256": "b" * 64,
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        installer,
+        "load_dependency_security_floors",
+        lambda: {"cryptography": "46.0.7"},
+    )
+
+    def non_resolver_failure(_command: list[str]) -> None:
+        raise RuntimeError("Command failed: python -m pip download: SSL certificate verify failed")
+
+    monkeypatch.setattr(installer, "run_command", non_resolver_failure)
+
+    with pytest.raises(RuntimeError, match="Dependency floor preflight failed"):
+        installer.run_dependency_floor_preflight(
+            python_executable="python",
+            index_url=APPROVED_PROXY_URL,
+            trusted_host=None,
+            emergency_wheel_manifest=manifest,
+        )
+
+
+def test_run_dependency_floor_preflight_verifies_emergency_artifact_download(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    manifest = tmp_path / "emergency.json"
+    manifest.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "expires_at": "2099-12-31",
+                "artifacts": [
+                    {
+                        "package": "cryptography",
+                        "version": "46.0.7",
+                        "filename": "cryptography-46.0.7.whl",
+                        "url": "https://files.pythonhosted.org/packages/example/cryptography-46.0.7.whl",
+                        "sha256": "b" * 64,
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        installer,
+        "load_dependency_security_floors",
+        lambda: {"cryptography": "46.0.7"},
+    )
+    observed_downloads: list[tuple[str, str]] = []
+
+    def resolver_miss(_command: list[str]) -> None:
+        raise RuntimeError(
+            "Command failed: python -m pip download: "
+            "No matching distribution found for cryptography==46.0.7"
+        )
+
+    def fake_download(*, url: str, destination: Path, expected_sha256: str) -> None:
+        observed_downloads.append((url, expected_sha256))
+        destination.write_bytes(b"wheel-bytes")
+
+    monkeypatch.setattr(installer, "run_command", resolver_miss)
+    monkeypatch.setattr(installer, "_download_with_sha256", fake_download)
+
+    installer.run_dependency_floor_preflight(
+        python_executable="python",
+        index_url=APPROVED_PROXY_URL,
+        trusted_host=None,
+        emergency_wheel_manifest=manifest,
+    )
+
+    assert observed_downloads == [
+        ("https://files.pythonhosted.org/packages/example/cryptography-46.0.7.whl", "b" * 64)
+    ]
+
+
+def test_main_preflight_only_skips_requirements_file_resolution(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    missing_requirements = tmp_path / "missing-requirements.txt"
+    preflight_called = {"count": 0}
+
+    def fake_preflight(**_kwargs: object) -> None:
+        preflight_called["count"] += 1
+
+    monkeypatch.setattr(installer, "run_dependency_floor_preflight", fake_preflight)
+
+    result = installer.main(
+        [
+            "--requirements-file",
+            str(missing_requirements),
+            "--index-url",
+            APPROVED_PROXY_URL,
+            "--preflight-only",
+        ]
+    )
+
+    assert result == 0
+    assert preflight_called["count"] == 1
