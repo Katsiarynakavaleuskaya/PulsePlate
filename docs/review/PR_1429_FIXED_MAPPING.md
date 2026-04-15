@@ -30,6 +30,18 @@ Disposition: FIXED
 Commit: 79c21ea02
 Evidence: `.github/actions/python-setup/action.yml:60` (and parallel composite `run` blocks) replace `set -euxo pipefail` with `set -euo pipefail` so bash xtrace cannot echo expanded `PULSEPLATE_PYTHON_INDEX_URL` values into logs.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1429#discussion_r3085622859
+Disposition: NOT-A-BUG
+Evidence: `scripts/ci/install_locked_python_requirements.py` (`run_command`): including captured stderr in `RuntimeError` is required for resolver-miss detection and CI triage; index URLs come from CI env (not user paste). Heuristic redaction/truncation of subprocess output is product-hardening scope—track separately if we want bounded error blobs policy-wide.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1429#discussion_r3085622872
+Disposition: NOT-A-BUG
+Evidence: `tests/test_install_locked_python_requirements.py` already exercises `--preflight-only` through `main` with proxy/emergency flags; adding sentinel monkeypatches for every forwarded argument is optional coverage expansion, not a correctness gap for this PR.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1429#discussion_r3085630237
+Disposition: NOT-A-BUG
+Evidence: `run_command` captures output only where subprocess diagnostics are required (pip failure analysis / preflight). Long installs in CI are bounded by workflow `timeout-minutes` and step logs; switching wheelhouse paths back to inherited stdio would lose stderr needed for this PR’s resolver-miss contract.
+
 ## Merge Readiness
 
 - [ ] Current-head CI is green for PR branch head
