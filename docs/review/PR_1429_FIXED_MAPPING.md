@@ -47,6 +47,10 @@ Evidence: `tests/test_install_locked_python_requirements.py` already exercises `
 Disposition: NOT-A-BUG
 Evidence: `run_command` captures output only where subprocess diagnostics are required (pip failure analysis / preflight). Long installs in CI are bounded by workflow `timeout-minutes` and step logs; switching wheelhouse paths back to inherited stdio would lose stderr needed for this PR’s resolver-miss contract.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1429#discussion_r3085702790
+Disposition: NOT-A-BUG
+Evidence: `scripts/ci/install_locked_python_requirements.py` `run_command` intentionally captures subprocess text so failures include pip stderr for resolver-miss and floor preflight; streaming install logs is a separate UX trade-off from this PR’s diagnostic contract (same rationale as `discussion_r3085630237`).
+
 ## Merge Readiness
 
 - [ ] Current-head CI is green for PR branch head
