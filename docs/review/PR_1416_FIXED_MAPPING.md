@@ -100,11 +100,23 @@ Evidence: `docs/review/PR_1416_FIXED_MAPPING.md:91`, `frontend/src/lib/analytics
 Reason: The latest Sourcery review body is an aggregate wrapper for the two inline comments mapped immediately above. Its extra note about centralizing `auth_source` / `tier_snapshot` typing is high-level follow-up advice rather than a separate correctness defect required to merge this PR.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1416#pullrequestreview-4102440298
 
+
+Disposition: FIXED
+Commit: 41134d023
+Evidence: [frontend/src/components/Paywall/BeforeAfter.tsx](../../frontend/src/components/Paywall/BeforeAfter.tsx#L73)
+Reason: The `logPaywallEvent` helper now types the `event` parameter as `LegacyPaywallEventName`, aligning with `logLegacyPaywallExposure` and the Sourcery review on `BeforeAfter.tsx`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1416#discussion_r3082634328 -> 41134d023
+
+Disposition: NOT-A-BUG
+Evidence: `docs/review/PR_1416_FIXED_MAPPING.md` (inline Sourcery BeforeAfter mapping immediately above)
+Reason: The latest Sourcery aggregate review after merge summarizes the resolved `BeforeAfter.tsx` typing thread mapped immediately above; it does not add a separate merge-blocking obligation.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1416#pullrequestreview-4109341465
+
 ## Merge Readiness
-- [x] All required checks pass
-- [x] No unresolved review threads (re-check on current head before merge)
-- [x] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
-- [x] Pre-commit green
-- [x] `make verify` green
+- [ ] All required checks pass
+- [ ] No unresolved review threads (re-check on current head before merge)
+- [ ] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
+- [ ] Pre-commit green
+- [ ] `make verify` green
 
 Notes: `db3446f6e` passed targeted pytest, changed-file pre-commit, and accelerated changed-line diff-cover (`98%`). Full `make verify` / CI current-head status must be re-checked on the final merge cycle before any merge claim.
