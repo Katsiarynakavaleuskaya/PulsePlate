@@ -5,6 +5,7 @@ import {
   Events,
   createAnalyticsEventId,
   logLegacyPaywallExposure,
+  type LegacyPaywallEventName,
 } from "../../lib/analytics";
 import { useFocusTrap } from "../../lib/useFocusTrap";
 
@@ -70,7 +71,7 @@ export default function BeforeAfter({
   const trap = useFocusTrap(dialogRef);
 
   const logPaywallEvent = useCallback(
-    (event: string, metadata?: Record<string, unknown>) => {
+    (event: LegacyPaywallEventName, metadata?: Record<string, unknown>) => {
       try {
         logLegacyPaywallExposure(event, {
           client_event_id: createAnalyticsEventId(),
