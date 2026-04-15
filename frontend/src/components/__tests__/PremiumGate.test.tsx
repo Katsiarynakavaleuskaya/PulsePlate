@@ -7,21 +7,21 @@ import "../../i18n";
 import "../../test/setup";
 import { vi, describe, test, expect, beforeEach } from "vitest";
 
-const gateInteracted = vi.fn();
-const upgradeClicked = vi.fn();
-const paywallDismissed = vi.fn();
+const telemetryTrack = vi.hoisted(() => ({
+  gateInteracted: vi.fn(),
+  upgradeClicked: vi.fn(),
+  paywallDismissed: vi.fn(),
+  moduleViewed: vi.fn(),
+  featureClicked: vi.fn(),
+  paywallViewed: vi.fn(),
+  badgeViewed: vi.fn(),
+}));
+
+const { gateInteracted, upgradeClicked, paywallDismissed } = telemetryTrack;
 
 vi.mock("../../lib/useTelemetry", () => ({
   useTelemetry: () => ({
-    track: {
-      gateInteracted,
-      upgradeClicked,
-      paywallDismissed,
-      moduleViewed: vi.fn(),
-      featureClicked: vi.fn(),
-      paywallViewed: vi.fn(),
-      badgeViewed: vi.fn(),
-    },
+    track: telemetryTrack,
     isEnabled: true,
     isVip: false,
   }),

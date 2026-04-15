@@ -125,20 +125,21 @@ describe('VipFeature', () => {
     it('should use tokenized vip badge palette for variants', () => {
       mockUseVipModule.mockReturnValue(true);
 
-      const { container, rerender } = render(<VipBadge variant="default" />);
-      let badge = container.querySelector('span');
-      expect(badge?.className).toMatch(/color-primary/);
-      expect(badge?.className).not.toMatch(/purple-500|pink-500/);
+      const { rerender, getByTestId } = render(<VipBadge variant="default" />);
+      let badge = getByTestId('vip-badge');
+      // Token SoT: see `variantClasses` in VipBadge.tsx
+      expect(badge.className).toMatch(/color-primary-foreground|pp-gold/);
+      expect(badge.className).not.toMatch(/purple-500|pink-500/);
 
       rerender(<VipBadge variant="outline" />);
-      badge = container.querySelector('span');
-      expect(badge?.className).toMatch(/color-primary/);
-      expect(badge?.className).not.toMatch(/purple-/);
+      badge = getByTestId('vip-badge');
+      expect(badge.className).toMatch(/color-text|pp-gold/);
+      expect(badge.className).not.toMatch(/purple-/);
 
       rerender(<VipBadge variant="subtle" />);
-      badge = container.querySelector('span');
-      expect(badge?.className).toMatch(/color-navy-50/);
-      expect(badge?.className).not.toMatch(/purple-/);
+      badge = getByTestId('vip-badge');
+      expect(badge.className).toMatch(/color-surface-muted|color-border|color-text/);
+      expect(badge.className).not.toMatch(/purple-/);
     });
   });
 

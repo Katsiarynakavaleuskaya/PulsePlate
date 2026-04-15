@@ -1,8 +1,9 @@
+import type { MutableRefObject } from "react";
 import { useLayoutEffect, useRef } from "react";
 
 /** Matches interactive descendants we neutralize when `inert` is unsupported. */
 const FOCUSABLE_SELECTOR =
-  'a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), details, [tabindex]:not([tabindex="-1"]), [contenteditable]:not([contenteditable="false"]), audio[controls], video[controls], iframe';
+  'a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), details, summary, [tabindex]:not([tabindex="-1"]), [contenteditable]:not([contenteditable="false"]), audio[controls], video[controls], iframe';
 
 type HTMLElementWithInert = HTMLElement & { inert?: boolean };
 
@@ -15,7 +16,9 @@ type HTMLElementWithInert = HTMLElement & { inert?: boolean };
  * @param shouldBeInert - Whether the element should be inert
  * @returns A ref to attach to the DOM element
  */
-export function useInert(shouldBeInert: boolean = true) {
+export function useInert(
+  shouldBeInert: boolean = true
+): MutableRefObject<HTMLDivElement | null> {
   const elementRef = useRef<HTMLDivElement | null>(null);
 
   // useLayoutEffect: apply inert (or fallback) before paint to avoid a frame where

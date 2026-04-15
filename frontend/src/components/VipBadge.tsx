@@ -53,6 +53,7 @@ export const VipBadge: React.FC<VipBadgeProps> = ({ size = 'md', variant = 'defa
 
   return (
     <span
+      data-testid="vip-badge"
       className={clsx(
         'inline-flex items-center font-medium rounded-full',
         sizeClasses[size],

@@ -32,6 +32,18 @@ export default function PremiumGate({ isPremium, children, source = "unknown" }:
   const describedById = useId();
   const ctaRef = useRef<HTMLButtonElement | null>(null);
 
+  /** Telemetry must never block paywall open/close or purchase UX. */
+  const safeTrack = (emit: () => void): void => {
+    try {
+      emit();
+    } catch {
+      /* ignore */
+    }
+  };
+
+  const supportsNativeInert =
+    typeof document !== "undefined" && "inert" in HTMLElement.prototype;
+
   const restoreCtaFocus = (): void => {
     const el = ctaRef.current;
     queueMicrotask(() => {
@@ -45,7 +57,13 @@ export default function PremiumGate({ isPremium, children, source = "unknown" }:
 
   return (
     <>
-      <div ref={previewRef} className="pointer-events-none opacity-70 saturate-75">
+      <div
+        ref={previewRef}
+        {...(supportsNativeInert
+          ? ({ inert: true } as React.HTMLAttributes<HTMLDivElement>)
+          : {})}
+        className="pointer-events-none opacity-70 saturate-75"
+      >
         {children}
       </div>
 
@@ -59,8 +77,10 @@ export default function PremiumGate({ isPremium, children, source = "unknown" }:
         type="button"
         className="mt-3 inline-flex min-h-11 items-center justify-center rounded-xl bg-[var(--pp-primary)] px-4 py-2 font-semibold text-[var(--color-primary-foreground)] shadow-sm transition-colors hover:brightness-110 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-focus)]"
         onClick={() => {
-          track.gateInteracted("premium_preview", "click");
-          track.upgradeClicked(source, "premium_preview_gate");
+          safeTrack(() => {
+            track.gateInteracted("premium_preview", "click");
+            track.upgradeClicked(source, "premium_preview_gate");
+          });
           setOpen(true);
         }}
         aria-haspopup="dialog"
@@ -74,13 +94,13 @@ export default function PremiumGate({ isPremium, children, source = "unknown" }:
           source={source}
           via="paywall_cta"
           onClose={() => {
-            track.paywallDismissed(source, "close_button");
+            safeTrack(() => track.paywallDismissed(source, "close_button"));
             setOpen(false);
             restoreCtaFocus();
           }}
           onPurchase={async () => {
             await purchasePremium({ source, via: "paywall_cta" });
-            track.upgradeClicked(source, "paywall");
+            safeTrack(() => track.upgradeClicked(source, "paywall"));
             setOpen(false);
             restoreCtaFocus();
           }}
