@@ -166,7 +166,7 @@ make verify
 
 - Guard runs in `make test-fast` -> `make verify`
 - PR cannot merge if guard fails
-- Deterministic: no network calls, no external state
+- Deterministic for policy checks: no network calls and no external state in the guard itself; the optional CI preflight (`scripts/ci/install_locked_python_requirements.py --preflight-only`) performs network reads against `PULSEPLATE_PYTHON_INDEX_URL` and may use `scripts/ci/emergency_python_wheels.json` for verified emergency fallbacks
 
 ## Validated Surfaces
 

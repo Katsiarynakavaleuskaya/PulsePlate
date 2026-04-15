@@ -1037,10 +1037,15 @@ def test_is_virtualenv_python_wraps_probe_errors(
 def test_run_command_wraps_subprocess_failures(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    def raise_called_process_error(*args: object, **kwargs: object) -> object:
-        raise subprocess.CalledProcessError(returncode=1, cmd=["python", "-m", "pip"])
+    def fake_run(*args: object, **kwargs: object) -> subprocess.CompletedProcess[str]:
+        return subprocess.CompletedProcess(
+            args=list(args[0]) if args else [],
+            returncode=1,
+            stdout="",
+            stderr="pip stderr here",
+        )
 
-    monkeypatch.setattr(installer.subprocess, "run", raise_called_process_error)
+    monkeypatch.setattr(installer.subprocess, "run", fake_run)
 
     with pytest.raises(RuntimeError, match="Command failed: python -m pip"):
         installer.run_command(["python", "-m", "pip"])

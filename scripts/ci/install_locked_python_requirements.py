@@ -720,15 +720,21 @@ def load_dependency_security_floors(
         payload = json.loads(path.read_text(encoding="utf-8"))
     except json.JSONDecodeError as exc:
         raise RuntimeError(f"Dependency security schema is not valid JSON: {path}: {exc}") from exc
+    if not isinstance(payload, dict):
+        raise RuntimeError(f"Dependency security schema must be a JSON object: {path}")
     min_versions = payload.get("min_versions")
     if not isinstance(min_versions, dict) or not min_versions:
-        raise RuntimeError("Dependency security schema must define non-empty min_versions.")
+        raise RuntimeError(f"Dependency security schema must define non-empty min_versions: {path}")
     floors: dict[str, str] = {}
     for package, version in min_versions.items():
         if not isinstance(package, str) or not package.strip():
-            raise RuntimeError("Dependency security schema contains invalid package name.")
+            raise RuntimeError(
+                f"Dependency security schema contains invalid package name in {path}: {package!r}"
+            )
         if not isinstance(version, str) or not version.strip():
-            raise RuntimeError(f"Dependency security schema has invalid version for {package!r}.")
+            raise RuntimeError(
+                f"Dependency security schema has invalid version for {package!r} in {path}"
+            )
         floors[package.strip().lower()] = version.strip()
     return floors
 
@@ -865,14 +871,27 @@ def is_virtualenv_python(python_executable: str) -> bool:
 
 
 def run_command(command: Sequence[str]) -> None:
+    """Run a subprocess command; include captured stdout/stderr on failure for pip diagnostics."""
+    command_text = " ".join(str(part) for part in command)
     try:
-        subprocess.run(  # nosec B603: commands are built internally from pinned requirement/install helpers only (remove-by: 2026-07-31, ref: PR-litellm-hardening)
+        result = subprocess.run(  # nosec B603: commands are built internally from pinned requirement/install helpers only (remove-by: 2026-07-31, ref: PR-litellm-hardening)
             list(command),
-            check=True,
+            check=False,
+            capture_output=True,
+            text=True,
         )
-    except (FileNotFoundError, subprocess.CalledProcessError) as exc:
-        command_text = " ".join(str(part) for part in command)
+    except FileNotFoundError as exc:
         raise RuntimeError(f"Command failed: {command_text}: {exc}") from exc
+    if result.returncode != 0:
+        parts: list[str] = [f"exit {result.returncode}"]
+        stderr = (result.stderr or "").strip()
+        stdout = (result.stdout or "").strip()
+        if stderr:
+            parts.append(stderr)
+        if stdout:
+            parts.append(stdout)
+        detail = "\n".join(parts)
+        raise RuntimeError(f"Command failed: {command_text}: {detail}")
 
 
 def upgrade_pip(
@@ -1251,6 +1270,11 @@ def main(argv: Sequence[str] | None = None) -> int:
             trusted_host=args.trusted_host,
         )
 
+        if args.require_virtualenv and not is_virtualenv_python(args.python_executable):
+            print("ERROR: refusing to install packages with a non-virtualenv interpreter.")
+            print(f"Python executable: {args.python_executable}")
+            return 1
+
         if args.upgrade_pip:
             upgrade_pip(
                 args.python_executable,
@@ -1277,11 +1301,6 @@ def main(argv: Sequence[str] | None = None) -> int:
             install_test=args.install_test,
             requirements_profile=args.requirements_profile,
         )
-
-        if args.require_virtualenv and not is_virtualenv_python(args.python_executable):
-            print("ERROR: refusing to install packages with a non-virtualenv interpreter.")
-            print(f"Python executable: {args.python_executable}")
-            return 1
 
         if args.install_mode == "direct-proxy":
             return install_with_guard_from_proxy(
