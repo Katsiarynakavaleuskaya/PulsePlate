@@ -63,6 +63,30 @@ Reason: the CodeRabbit status comment is only an index of the inline actionable 
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1435#issuecomment-4262405219
 
+Disposition: DEFERRED
+Backlog: `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-foods-postgres-foundation-followthrough`
+Reason: the Sourcery review contains high-level follow-through suggestions about engine reuse, env-flag utility centralization, and richer shadow-read diagnostics. Those are valid future improvements, but they are outside the bounded PR-B3 scope where SQLite remains canonical and runtime cutover/operability refinements stay deferred.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1435#pullrequestreview-4123393209
+
+Disposition: NOT-A-BUG
+Evidence: `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1435#discussion_r3095446187`; `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1435#discussion_r3095446194`; `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1435#discussion_r3095476592`; `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1435#discussion_r3095429150`; `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1435#discussion_r3095446199`; `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1435#discussion_r3095476597`; `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1435#discussion_r3095476600`; `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1435#discussion_r3095446232`; `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1435#discussion_r3095446238`; `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1435#discussion_r3095446242`; `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-foods-postgres-foundation-followthrough`
+Reason: the first CodeRabbit review is an aggregate summary of the inline findings already dispositioned above as FIXED or DEFERRED and does not add a separate unresolved requirement at the review level.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1435#pullrequestreview-4123424402
+
+Disposition: NOT-A-BUG
+Evidence: `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1435#discussion_r3095446187`; `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1435#discussion_r3095446194`
+Reason: the Cubic review is a review-level summary of the bounded timeout and deterministic ordering issues already fixed in commit `0f601ed72`; it does not introduce a distinct unresolved review-level requirement.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1435#pullrequestreview-4123456955
+
+Disposition: NOT-A-BUG
+Evidence: `app/services/restaurant_postgres_read.py:85`; `app/services/restaurant_postgres_read.py:96`; `tests/test_restaurant_postgres_read.py:79`; `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1435#pullrequestreview-4123424402`
+Reason: the second CodeRabbit review is a duplicate aggregate summary for a schema-error hygiene suggestion that does not correspond to a separate open thread; the review-level URL is mapped here so merge governance sees the duplicate as explicitly dispositioned.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1435#pullrequestreview-4124383150
+
 Disposition: NOT-A-BUG
 Evidence: `AGENTS.md:64`; `AGENTS.md:65`
 Reason: the Codecov issue comment is advisory-only bot telemetry; merge truth for this repo is governed by the canonical local/CI gates, not by external bot commentary.
