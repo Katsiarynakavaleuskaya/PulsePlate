@@ -122,6 +122,7 @@ DOCS_ONLY_EXCLUDED_ROUTING_SKILLS: frozenset[str] = frozenset(
         "pulseplate-backend-endpoints",
         "pulseplate-openapi-sync",
         "pulseplate-frontend-ui",
+        "pulseplate-app-store-release",
         "vercel-react-best-practices",
         "build-web-apps:frontend-skill",
         "build-web-apps:web-design-guidelines",
@@ -652,6 +653,30 @@ SKILL_RULES: tuple[SkillRule, ...] = (
             "app store screenshot",
             "app store screenshots",
             "fastlane screenshots",
+        ),
+    ),
+    SkillRule(
+        skill="pulseplate-app-store-release",
+        category="repo-tracked",
+        rationale=(
+            "App Store metadata, screenshot packs, App Privacy uploads, and "
+            "release-evidence work should use the dedicated PulsePlate release skill."
+        ),
+        min_score=6,
+        domain_weights={"release": 2, "qa": 1},
+        path_prefixes=("ios/fastlane/", "docs/runbooks/IOS_APPSTORE_ASSETS_ROLLOUT.md"),
+        keywords=(
+            "app store metadata",
+            "app store screenshot",
+            "app store screenshots",
+            "app store connect",
+            "app privacy",
+            "review information",
+            "review notes",
+            "fastlane metadata",
+            "fastlane screenshots",
+            "app store submission",
+            "release evidence",
         ),
     ),
     SkillRule(

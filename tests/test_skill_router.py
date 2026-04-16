@@ -659,6 +659,7 @@ def test_skill_router_selects_ios_app_store_skill_stack() -> None:
     assert "build-ios-apps:swiftui-ui-patterns" in skills
     assert "build-ios-apps:swiftui-view-refactor" in skills
     assert "build-ios-apps:ios-debugger-agent" in skills
+    assert "pulseplate-app-store-release" in skills
     assert "build-web-apps:stripe-best-practices" not in skills
 
 
@@ -673,6 +674,7 @@ def test_skill_router_selects_swiftui_refactor_for_ios_domain() -> None:
     )
 
     assert "build-ios-apps:swiftui-view-refactor" in skills
+    assert "pulseplate-app-store-release" not in skills
 
 
 def test_skill_router_selects_ios_app_store_screenshot_lane() -> None:
@@ -686,6 +688,7 @@ def test_skill_router_selects_ios_app_store_screenshot_lane() -> None:
     )
 
     assert "build-ios-apps:ios-debugger-agent" in skills
+    assert "pulseplate-app-store-release" in skills
 
 
 def test_skill_router_does_not_double_count_fastlane_prefixes() -> None:
@@ -699,6 +702,7 @@ def test_skill_router_does_not_double_count_fastlane_prefixes() -> None:
     )
 
     assert "build-ios-apps:ios-debugger-agent" not in skills
+    assert "pulseplate-app-store-release" in skills
 
 
 def test_skill_router_selects_swiftui_performance_audit_skill() -> None:
@@ -1362,6 +1366,23 @@ def test_docs_only_envelope_strips_implementation_skills() -> None:
     for skill in DOCS_ONLY_EXCLUDED_ROUTING_SKILLS:
         assert skill not in recommended
         assert skill not in conditional
+
+
+def test_docs_only_app_store_runbook_updates_do_not_route_release_skill() -> None:
+    """docs_only App Store runbook edits must not surface release implementation helpers."""
+
+    decision = route_skills(
+        goal="Refresh App Store metadata and review notes wording in the rollout runbook",
+        task_class="Documentation",
+        candidate_paths=["docs/runbooks/IOS_APPSTORE_ASSETS_ROLLOUT.md"],
+        domain="docs",
+    )
+
+    assert decision["envelope_mode_hint"] == DOCS_ONLY_ENVELOPE_MODE
+    recommended = {item["skill"] for item in decision["recommended"]}
+    conditional = {item["skill"] for item in decision["conditional"]}
+    assert "pulseplate-app-store-release" not in recommended
+    assert "pulseplate-app-store-release" not in conditional
 
 
 def test_privileged_docs_paths_use_analysis_envelope_for_routing() -> None:
