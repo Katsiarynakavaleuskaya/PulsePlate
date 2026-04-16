@@ -1734,6 +1734,8 @@ export interface components {
              * @example null
              */
             interpretation_v1?: components["schemas"]["BMIInterpretationV1Schema"] | null;
+            /** @description Optional backend-authored next-step hint for planning progression. */
+            next_best_action?: components["schemas"]["NextBestAction"] | null;
             /**
              * Notes
              * @description Aggregated notes (currently only from waist_risk.notes). Empty list if no notes.
@@ -1931,6 +1933,8 @@ export interface components {
              * @example null
              */
             interpretation_v1?: components["schemas"]["BMIInterpretationV1Schema"] | null;
+            /** @description Optional backend-authored next-step hint for planning progression. */
+            next_best_action?: components["schemas"]["NextBestAction"] | null;
             /**
              * Notes
              * @description Aggregated notes (currently only from waist_risk.notes). Empty list if no notes.
@@ -2905,6 +2909,39 @@ export interface components {
              * @example 2.50
              */
             value: string;
+        };
+        /**
+         * NextBestAction
+         * @description Server-authored advisory hint for the next product step.
+         */
+        NextBestAction: {
+            /**
+             * Recommended Surface
+             * @description Canonical product surface that should be opened next.
+             */
+            recommended_surface: string;
+            /**
+             * Recommended Tier
+             * @description Advisory target tier for progression copy (not entitlement truth).
+             * @enum {string}
+             */
+            recommended_tier: "FREE" | "PRO" | "VIP";
+            /**
+             * Trigger Reason
+             * @description Machine-readable reason key for why this hint was selected.
+             */
+            trigger_reason: string;
+            /**
+             * Type
+             * @description Deterministic trigger action type selected by backend rules.
+             * @enum {string}
+             */
+            type: "unlock_targets" | "open_daily_plate" | "upgrade_for_export";
+            /**
+             * Why Now
+             * @description Concise backend-authored rationale text for current context.
+             */
+            why_now: string;
         };
         /**
          * NumericRangeSchema
@@ -4545,6 +4582,7 @@ export interface components {
             adherence_score: number;
             /** Daily Menus */
             daily_menus: components["schemas"]["WeeklyMealPlanDayMenu"][];
+            next_best_action?: components["schemas"]["NextBestAction"] | null;
             /** Shopping List */
             shopping_list: {
                 [key: string]: number;
@@ -4649,6 +4687,7 @@ export interface components {
             macros: {
                 [key: string]: number;
             };
+            next_best_action?: components["schemas"]["NextBestAction"] | null;
             /** Priority Micros */
             priority_micros: {
                 [key: string]: number;

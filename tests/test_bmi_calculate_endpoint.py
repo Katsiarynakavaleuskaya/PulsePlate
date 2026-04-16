@@ -110,6 +110,8 @@ def test_bmi_calculate_happy_path_maps_result_and_serializes_waist_risk(
     assert data["wht_ratio"] == 0.52
     assert data["notes"] == ["Test note"]
     assert data["age_band"] == "adult"
+    assert data["next_best_action"]["type"] == "unlock_targets"
+    assert data["next_best_action"]["recommended_tier"] == "PRO"
 
     # waist_risk is strict schema -> JSON should include fields
     assert data["waist_risk"]["risk_level"] == "moderate"

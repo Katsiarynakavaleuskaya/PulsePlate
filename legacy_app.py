@@ -87,6 +87,7 @@ from app.schemas.premium_contracts import (
 from app.schemas.nutrition_targets import TargetsIn as CanonicalTargetsIn
 from app.services import recipe_store
 from app.services.food_store import get_food
+from app.services.intervention_trigger_engine import build_targets_next_action
 
 # tegacy BMI helpers removed from request-path (PR-457=A)
 # /plan now delegates to canonical BMI engine via compat layer
@@ -4157,6 +4158,7 @@ def _fallback_targets_response(
             warnings.append({"code": "life_stage", "message": reason})
 
     ui_labels = build_who_targets_ui_labels(req.lang)
+    next_best_action = build_targets_next_action(kcal_daily=int(kcal_daily))
 
     return WHOTargetsResponse(
         kcal_daily=int(kcal_daily),
@@ -4172,6 +4174,7 @@ def _fallback_targets_response(
         calculation_date=time.strftime("%Y-%m-%d"),
         warnings=warnings,
         ui_labels=ui_labels,
+        next_best_action=next_best_action,
     )
 
 
@@ -4275,8 +4278,11 @@ def _generate_who_targets_response(
                             _safety_failure_count,
                         )
 
+        kcal_daily = _clamp_daily_kcal(targets.kcal_daily)
+        next_best_action = build_targets_next_action(kcal_daily=kcal_daily)
+
         return WHOTargetsResponse(
-            kcal_daily=_clamp_daily_kcal(targets.kcal_daily),
+            kcal_daily=kcal_daily,
             macros={
                 "protein_g": targets.macros.protein_g,
                 "fat_g": targets.macros.fat_g,
@@ -4295,6 +4301,7 @@ def _generate_who_targets_response(
             calculation_date=targets.calculation_date,
             warnings=life_stage_warnings,
             ui_labels=build_who_targets_ui_labels(req.lang),
+            next_best_action=next_best_action,
         )
     except HTTPException:
         raise

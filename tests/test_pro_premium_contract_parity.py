@@ -75,7 +75,10 @@ def test_premium_targets_matches_pro_targets(client: TestClient) -> None:
     r_pro = client.post("/api/v1/pro/nutrition/targets", json=payload, headers=_pro_headers())
     assert r_pro.status_code == 200, r_pro.text
 
-    assert r_premium.json() == r_pro.json()
+    premium_payload = r_premium.json()
+    pro_payload = r_pro.json()
+    assert premium_payload["next_best_action"]["type"] == "open_daily_plate"
+    assert premium_payload == pro_payload
 
 
 def test_premium_plate_matches_pro_plate(
