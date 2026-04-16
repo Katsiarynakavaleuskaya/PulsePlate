@@ -273,6 +273,7 @@ def test_repo_agents_skills_mirror_points_to_codex_skill_sources() -> None:
         "pulseplate-graphmap",
         "pulseplate-guards",
         "pulseplate-ledger",
+        "pulseplate-monetization-gtm",
         "pulseplate-openapi-sync",
         "pulseplate-playwright-e2e",
         "pulseplate-workflow",
