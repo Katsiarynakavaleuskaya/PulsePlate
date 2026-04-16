@@ -17,9 +17,9 @@ Reason: Sourcery suggested follow-up refactors to centralize requirement-surface
 
 ## Merge Readiness
 
-- [ ] Current-head CI is green for PR branch head
-- [ ] Required checks complete (no pending jobs)
-- [ ] All review threads resolved on GitHub after disposition updates
-- [ ] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
+- [x] Current-head CI is green for PR branch head
+- [x] Required checks complete (no pending jobs)
+- [x] All review threads resolved on GitHub after disposition updates
+- [x] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
 
 <!-- markdownlint-enable MD034 -->
