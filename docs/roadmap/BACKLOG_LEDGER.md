@@ -1241,14 +1241,17 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     `compatibility-cluster`, `override-seam`) and enforce coordinator-led PR lifecycle with
     mandatory post-open `qa-engineer-agent -> bug-hunter` on every slice.
   - Links:
-    - `docs/orchestration/DEPENDENCY_GOVERNANCE_PR_SERIES_PACKET_2026-04-16.md`
-    - `docs/security/DEPENDENCY_SECURITY_GUARD_WORKFLOW.md`
-    - `docs/DEPENDENCY_MANAGEMENT.md`
-    - `docs/orchestration/PR_MERGE_WORKFLOW_MATRIX.md`
+    - `docs/security/DEPENDENCY_SECURITY_GUARD_WORKFLOW.md:5`
+    - `docs/security/DEPENDENCY_SECURITY_GUARD_WORKFLOW.md:64`
+    - `docs/DEPENDENCY_MANAGEMENT.md:62`
+    - `docs/orchestration/PR_MERGE_WORKFLOW_MATRIX.md:34`
+    - `requirements.txt:1`
+    - `requirements-dev.txt:1`
+    - `requirements-ci-lite.txt:1`
   - DoD:
-    - Series packet defines role order, PR slices, and mandatory post-open lane
-    - Python dependency cluster policy is documented with five-surface coherence rules
-    - PR loop for each slice is explicitly artifact-first (`docs/review/PR_<N>_FIXED_MAPPING.md`)
+    - Series packet defines role order, PR slices, and mandatory post-open lane; evidence anchor remains `docs/orchestration/PR_MERGE_WORKFLOW_MATRIX.md:34`
+    - Python dependency cluster policy is documented with five-surface coherence rules; evidence anchors remain `docs/security/DEPENDENCY_SECURITY_GUARD_WORKFLOW.md:5`, `docs/security/DEPENDENCY_SECURITY_GUARD_WORKFLOW.md:64`, and `docs/DEPENDENCY_MANAGEMENT.md:62`
+    - PR loop for each slice is explicitly artifact-first (`docs/review/PR_<N>_FIXED_MAPPING.md`); evidence anchor remains `docs/orchestration/PR_MERGE_WORKFLOW_MATRIX.md:39`
     - Deferred/security-maturity lanes (SBOM/VEX) remain blocked until existing ledger criteria are met
 
 <a id="ledger-p1-test-hygiene-wave"></a>
