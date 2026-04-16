@@ -192,7 +192,7 @@ python-dateutil==2.9.0.post0
     # via matplotlib
 python-dotenv==1.2.2
     # via -r requirements.in
-python-multipart==0.0.22
+python-multipart==0.0.26
     # via -r requirements.in
 pyyaml==6.0.3
     # via
