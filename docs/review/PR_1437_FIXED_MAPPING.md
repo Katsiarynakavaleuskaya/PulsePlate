@@ -3,27 +3,17 @@
 
 ## Discussion Thread Pass
 
-- [ ] Discussion-thread pass completed
-- [ ] Fixed in commit mapping completed
-
-Bot and human review threads must be dispositioned here before they are resolved on GitHub.
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
-
-Initial PR-open state:
-
-- No actionable review threads recorded yet.
-- Seed commits in this PR:
-  - `e7edd1680` — `docs(orchestration): add docker ci discipline packet`
-  - `085a65ede` — `fix(make): use venv python for openapi`
-
-Thread mapping entries will be appended here after review activity begins.
+- No actionable review comments
 
 ## Merge Readiness
 
-- [ ] Current-head CI is green for PR branch head
-- [ ] Required checks complete (no pending jobs)
-- [ ] All review threads resolved on GitHub after disposition updates
-- [ ] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
+- [ ] Required checks PASS with no pending required jobs
+- [ ] No unresolved review threads
+- [ ] No actionable bot comments
+- [ ] Final post-bot wait cycle completed
 
 <!-- markdownlint-enable MD034 -->
