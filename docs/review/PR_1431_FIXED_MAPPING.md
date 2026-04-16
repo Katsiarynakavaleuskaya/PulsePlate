@@ -11,6 +11,10 @@ their disposition here before resolving them on GitHub.
 
 ## Fixed in Commit Mapping
 
+Disposition: FIXED
+Commit: f61f5fda8
+Evidence: `tests/test_dependency_security_guard.py:32`; `tests/test_install_locked_python_requirements.py:45`; `docs/security/GHSA-39q2-94rc-95cp-dompurify.md:21`
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1431#pullrequestreview-4121587029 -> f61f5fda8
   Disposition: FIXED
   Evidence: `tests/test_dependency_security_guard.py:32`; `tests/test_install_locked_python_requirements.py:45`; `docs/security/GHSA-39q2-94rc-95cp-dompurify.md:21`
