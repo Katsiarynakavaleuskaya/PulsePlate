@@ -46,6 +46,12 @@ Evidence: `tests/test_restaurants_router.py:385`; `tests/test_restaurants_router
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1435#discussion_r3095446242 -> 0f601ed72
 
+Disposition: FIXED
+Commit: 3abe93218
+Evidence: `tests/test_restaurants_router.py:348`; `tests/test_restaurants_router.py:387`; `tests/test_restaurants_router.py:425`; `tests/test_restaurants_router.py:467`
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1435#discussion_r3096464873 -> 3abe93218
+
 Disposition: DEFERRED
 Backlog: `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-foods-postgres-foundation-followthrough`
 Reason: evidence-pointer reconciliation for historical B1/B2/B3 packets and the deferred cutover seam is valid governance work, but it is outside the bounded B3 code/test fix set already shipped in commit `0f601ed72`.
@@ -86,6 +92,13 @@ Evidence: `app/services/restaurant_postgres_read.py:85`; `app/services/restauran
 Reason: the second CodeRabbit review is a duplicate aggregate summary for a schema-error hygiene suggestion that does not correspond to a separate open thread; the review-level URL is mapped here so merge governance sees the duplicate as explicitly dispositioned.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1435#pullrequestreview-4124383150
+
+Disposition: FIXED
+Commit: 3abe93218
+Evidence: `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1435#discussion_r3096464873`; `tests/test_restaurants_router.py:348`; `tests/test_restaurants_router.py:387`; `tests/test_restaurants_router.py:425`; `tests/test_restaurants_router.py:467`
+Reason: the latest CodeRabbit review contains one actionable inline comment about env-precedence isolation in router tests, and that comment is fixed in commit `3abe93218`; the review-level URL is mapped to the same commit so governance sees the aggregate review as dispositioned.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1435#pullrequestreview-4124533202
 
 Disposition: NOT-A-BUG
 Evidence: `AGENTS.md:64`; `AGENTS.md:65`
