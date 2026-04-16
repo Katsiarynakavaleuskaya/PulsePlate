@@ -29,7 +29,7 @@ REQUIREMENT_SURFACES = (
 
 
 def _is_constraint_style(path: Path) -> bool:
-    """Constraint-style (>=) by filename; e.g. requirements.in, constraints*.txt."""
+    """Constraint-style (>=) by filename; e.g. requirements.in, requirements-ci-lite.in, constraints*.txt."""
     return path.name in {"requirements.in", "requirements-ci-lite.in"} or path.name.startswith(
         "constraints"
     )

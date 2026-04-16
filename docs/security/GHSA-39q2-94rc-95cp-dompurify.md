@@ -19,8 +19,9 @@ lockfile so the resolved npm artifact also lands on `3.4.0`.
 - `frontend/package-lock.json:5886` - resolved version is `3.4.0`
 - `frontend/package-lock.json:5887` - resolved source is the npm registry tarball `dompurify-3.4.0.tgz`
 - `tests/test_frontend_dependency_guards.py:18` - frontend guard floor is `Version("3.4.0")`
-- `tests/test_frontend_dependency_guards.py:25` - guard asserts package override floor
-- `tests/test_frontend_dependency_guards.py:34` - guard asserts lockfile resolution floor and npm-registry provenance
+- `tests/test_frontend_dependency_guards.py:31` - guard asserts package override floor
+- `tests/test_frontend_dependency_guards.py:41` - guard asserts lockfile resolution floor
+- `tests/test_frontend_dependency_guards.py:48` - guard asserts npm-registry provenance
 
 ## Validation
 
