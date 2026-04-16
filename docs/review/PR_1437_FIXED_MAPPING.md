@@ -32,11 +32,13 @@ Evidence: `docs/orchestration/DOCKER_CI_DISCIPLINE_PR_SERIES_PACKET_2026-04-16.m
 Disposition: FIXED
 Commit: b0b1a35866f8a70a0ddd481771e837cbfff73460
 Evidence: `docs/roadmap/BACKLOG_LEDGER.md:2487-2505`; `docs/roadmap/BACKLOG_LEDGER.md:3409-3429`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1437#pullrequestreview-4124914277 -> b0b1a35866f8a70a0ddd481771e837cbfff73460
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1437#discussion_r3096838128 -> b0b1a35866f8a70a0ddd481771e837cbfff73460
 
 Disposition: FIXED
 Commit: 2040ae486ec0e9062335e4b3ceb8b63275a8fb57
 Evidence: `docs/orchestration/DOCKER_CI_DISCIPLINE_PR_SERIES_PACKET_2026-04-16.md:84-91`; `docs/orchestration/DOCKER_CI_DISCIPLINE_PR_SERIES_PACKET_2026-04-16.md:93-98`; `docs/orchestration/AGENTS.md:36-50`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1437#pullrequestreview-4124960269 -> 2040ae486ec0e9062335e4b3ceb8b63275a8fb57
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1437#discussion_r3096882410 -> 2040ae486ec0e9062335e4b3ceb8b63275a8fb57
 
 ## Merge Readiness
