@@ -7,8 +7,8 @@ Canonical review-governance artifact and PR-body mirror requirements:
 `AGENTS.md:42-52`; `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md:41-90`;
 `docs/orchestration/AGENTS.md:79-82`.
 
-- [ ] Discussion-thread pass completed
-- [ ] Fixed in commit mapping completed
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 
 Latest actionable bot review is mapped below before GitHub thread resolution.
 Disposition marker parsing is enforced by
@@ -17,10 +17,6 @@ Disposition marker parsing is enforced by
 `scripts/orchestration/check_review_threads_disposition.py:713-715`.
 
 ## Fixed in Commit Mapping
-
-Canonical mapping rules for this section:
-`AGENTS.md:70-81`;
-`docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md:73-90`.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1433#pullrequestreview-4124408982 -> 7bf13e2c9e9226f28e54d4bbb7e83ecfd85baa7a
 Disposition: FIXED
