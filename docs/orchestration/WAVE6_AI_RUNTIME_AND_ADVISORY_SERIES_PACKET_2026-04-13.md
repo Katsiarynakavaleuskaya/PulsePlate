@@ -1,16 +1,13 @@
 # Wave 6 AI Runtime and Advisory Series Packet
 
 **Date:** 13 April 2026
-**Scope:** docs-first series bootstrap lane for the next AI/runtime train
+**Scope:** docs-only series bootstrap lane for the next AI/runtime train
 **Mode:** pre-open governance packet
 
 ## Purpose
 
-Freeze one narrow docs-first starting PR that makes the next series
-decision-complete without widening into runtime implementation. If repo
-push policy is blocked by a known dependency advisory, the lane may also
-carry one explicit `security-floor` unblock limited to governed dependency
-surfaces plus the matching CVE/schema evidence.
+Freeze one narrow docs-only starting PR that makes the next series
+decision-complete without widening into runtime implementation.
 
 This packet exists to:
 
@@ -21,14 +18,45 @@ This packet exists to:
 
 ## Hard boundaries
 
-- No runtime/product code changes, except one explicit dependency
-  `security-floor` unblock required to satisfy repo push policy without
-  changing product behavior
+- No runtime/product code changes
 - No OpenAPI or public contract mutation
 - No semantic cache implementation
 - No Redis / GPTCache rollout
 - No plugin implementation work for GitHub / Cloudflare / Figma / Hugging Face
 - No widening into `A6-A9`
+- No dependency-remediation scope except the temporary `security-floor` seam
+  documented below
+
+## Temporary `security-floor` seam (canonical wording)
+
+If a known dependency advisory blocks this docs/governance lane from staying
+green, allow one narrow `security-floor` unblock only across governed
+dependency surfaces, lock regeneration, schema/guard sync, and CVE evidence.
+Do not widen the lane into runtime, API, or product implementation work.
+
+Evidence:
+
+- `docs/orchestration/DEPENDABOT_ALERTS_110_113_REMEDIATION_TASK_PACKET_2026-04-16.md:64-70`
+- `docs/security/CVE-2026-40347-python-multipart.md:17-25`
+- `docs/security/GHSA-39q2-94rc-95cp-dompurify.md:17-24`
+
+Allowed surfaces:
+
+- Python manifests / locks / constraints / dependency schema listed in
+  `docs/security/CVE-2026-40347-python-multipart.md:17-25`
+- Frontend override / lock / dependency-guard surfaces listed in
+  `docs/security/GHSA-39q2-94rc-95cp-dompurify.md:17-24`
+- Lane-level CVE/GHSA evidence docs listed in
+  `docs/security/CVE-2026-40347-python-multipart.md:15-40` and
+  `docs/security/GHSA-39q2-94rc-95cp-dompurify.md:15-38`
+
+Governance:
+
+- ADR: `docs/architecture/ADR_WAVE6_SECURITY_FLOOR_UNBLOCK_SEAM_2026-04-17.md`
+- Backlog: `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-security-floor-unblock-seam`
+
+Exit criteria and blockers are governed by the ADR and backlog item above; if
+the seam is invoked, it remains separate from Rail A / Rail B1 / Rail B2 scope.
 
 ## Canonical rail split
 
@@ -75,8 +103,7 @@ Family placement:
 
 ## Mandatory sequencing
 
-1. `PR-S0` docs-first rail normalization (with dependency `security-floor`
-   unblock only when push policy is otherwise blocked)
+1. `PR-S0` docs-only rail normalization
 2. `PR-A1b`
 3. `PR-A2`
 4. `PR-A3`
@@ -89,6 +116,8 @@ Rules:
   and current-head `main` is green/stable;
 - do not use Rail B1 or Rail B2 as a shortcut for product runtime features;
 - no plugin family may become runtime truth implicitly.
+- if a dependency advisory blocks this docs lane, use the canonical
+  `security-floor` seam above instead of widening Rail A or Rail B scope.
 
 ## Semantic cache gate
 
@@ -127,9 +156,6 @@ Rules:
 
 - `docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md`
 - `docs/roadmap/BACKLOG_LEDGER.md`
-- `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-wave6-ai-runtime-umbrella`
-- `docs/roadmap/BACKLOG_LEDGER.md#ledger-p2-karpathy-style-advisory-wiki-umbrella`
-- `docs/roadmap/BACKLOG_LEDGER.md#ledger-p2-plugin-control-plane-families-umbrella`
 - `docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md` (cross-link only if needed)
 - this packet
 
@@ -139,8 +165,6 @@ Rules:
 - one backlog umbrella for plugin/control-plane families;
 - Wave 6 umbrella links normalized to the active `A1b -> A5` spine;
 - semantic cache retained as deferred gate and not widened into implementation scope.
-- any allowed `security-floor` unblock is limited to governed dependency
-  surfaces, CVE evidence, and matching guard/schema updates only.
 
 ## Validation
 
@@ -150,3 +174,7 @@ Rules:
 - `make verify`
 - grep verification for `Rail A`, `Rail B1`, `Rail B2`
 - grep verification that semantic cache remains deferred-only
+- when the temporary `security-floor` seam is invoked, validate only the
+  governed dependency surfaces recorded in
+  `docs/architecture/ADR_WAVE6_SECURITY_FLOOR_UNBLOCK_SEAM_2026-04-17.md`
+  plus the matching CVE/GHSA evidence docs above
