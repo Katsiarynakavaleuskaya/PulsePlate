@@ -4988,22 +4988,24 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - The change introduces no runtime, schema, or OpenAPI behavior
 
 <a id="ledger-p1-foods-postgres-foundation-followthrough"></a>
-- [ ] P1: Foods PostgreSQL follow-through train (B1 closed -> B2 next, B3 deferred)
+- [ ] P1: Foods PostgreSQL follow-through train (B1/B2 closed -> B3 next)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-B1 (`feat/pr-b1-foods-offline-etl-postgres`) -> PR-B2 (`feat/pr-b2-restaurant-relational-bridge`); B3 runtime cutover stays deferred outside B2
-  - Status: 🚧 Active after merged B1; B2 is the next implementation lane, while B3 runtime cutover remains deferred outside B2
+  - Target PR: PR-B1 (`feat/pr-b1-foods-offline-etl-postgres`) -> PR-B2 (`feat/pr-b2-restaurant-relational-bridge`) -> PR-B3 (`feat/pr-b3-restaurant-postgres-shadow-reads`)
+  - Status: 🚧 Active after merged B1/B2; B3 shadow-read parity lane is the next implementation step
   - Area: backend / data platform / restaurant ingestion
   - Finding Type: post-foundation execution gap
-  - Reason: The additive Alembic foundation lane intentionally creates `foods`, `restaurant_chains`, and `restaurant_menu_items` without changing the current SQLite/local-first runtime, ETL path, or MenuStat importer. The governed follow-through now continues from merged B1 directly into B2 because the Postgres deploy foundation is already present in repo and closed separately as a docs/governance reconciliation lane. B2 rewires restaurant ingestion into the relational catalog; B3 keeps runtime read-switch / cutover out of B2 as its own deferred rollout lane.
+  - Reason: The additive Alembic foundation lane intentionally creates `foods`, `restaurant_chains`, and `restaurant_menu_items` without changing the current SQLite/local-first runtime, ETL path, or MenuStat importer. After merged B1/B2, the next governed lane is B3 shadow reads plus parity checks for restaurant search/menu while preserving SQLite as canonical runtime authority until cutover criteria are proven.
   - Sequence:
     - B1: offline snapshot promotion from `data/food.sqlite::foods` into PostgreSQL `foods` with deterministic upsert/report coverage and no runtime/importer drift
     - B2: bridge `scripts/import_restaurant_menu.py` and restaurant persistence toward `restaurant_chains` / `restaurant_menu_items` additively, without runtime cutover
-    - B3 (deferred): decide and govern any runtime read-switch / PostgreSQL cutover as a later dedicated lane
+    - B3: add PostgreSQL shadow reads + parity checks for restaurant search/menu with SQLite response authority unchanged
+    - Cutover (deferred): decide and govern any runtime read-switch / PostgreSQL authority change only after B3 parity evidence
   - Links:
     - `docs/orchestration/FOODS_CATALOG_FOUNDATION_PR_A_TASK_PACKET_2026-04-12.md`
     - `docs/orchestration/FOODS_POSTGRES_PROMOTION_PR_B1_TASK_PACKET_2026-04-13.md`
     - `docs/orchestration/FOODS_POSTGRES_RESTAURANT_BRIDGE_PR_B2_TASK_PACKET_2026-04-13.md`
+    - `docs/orchestration/FOODS_POSTGRES_SHADOW_READS_PR_B3_TASK_PACKET_2026-04-16.md`
     - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p0-self-hosted-postgres-droplet-foundation`
     - `docs/deploy/POSTGRES_SELF_HOSTED_DROPLET.md`
     - `app/services/food_store.py`
@@ -5012,9 +5014,9 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `scripts/import_restaurant_menu.py`
   - DoD:
     - B1 packet and backlog sequencing explicitly lock the first executable lane to deterministic SQLite snapshot promotion into PostgreSQL `foods`
-    - Backlog sequencing explicitly marks B2 as the next active food implementation lane after merged B1
-    - B2 scope is explicit: restaurant importer rewiring targets `restaurant_chains` / `restaurant_menu_items` with deterministic compatibility coverage and no runtime cutover claim
-    - B3 runtime cutover / read-switch remains explicitly deferred outside B2
+    - Backlog sequencing explicitly marks B3 as the next active food implementation lane after merged B1/B2
+    - B3 scope is explicit: shadow reads + parity checks for restaurant search/menu with SQLite canonical responses
+    - Runtime authority cutover / read-switch remains explicitly deferred beyond B3 until parity/cutover criteria are met
     - Search / catalog follow-up lanes continue to reference the same canonical PostgreSQL table source without parallel schema drift
 
 <a id="ledger-p1-foods-foundation-downgrade-ownership"></a>

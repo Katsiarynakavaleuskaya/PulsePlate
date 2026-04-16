@@ -14,13 +14,13 @@ runtime cutover, or restaurant importer rewiring.
 
 - This packet owns only **PR-B1**.
 - The execution train is fixed as:
-  - `PR-B1`: foods snapshot promotion into PostgreSQL `foods`
-  - `PR-B2`: restaurant relational bridge
-  - `B3` deferred: runtime read-switch / cutover
-- The former Postgres deploy-foundation blocker is now closed separately via
-  repo/runtime evidence reconciliation; it is not a remaining implementation
-  gate ahead of `PR-B2`.
-- `PR-B2` is the next active implementation lane after merged `PR-B1`.
+  - `PR-B1`: foods snapshot promotion into PostgreSQL `foods` (merged)
+  - `PR-B2`: restaurant relational bridge (merged)
+  - `PR-B3`: restaurant PostgreSQL shadow reads + parity checks
+  - cutover (deferred): runtime read-switch / PostgreSQL authority change after B3
+- The former Postgres deploy-foundation blocker is closed separately via
+  repo/runtime evidence reconciliation.
+- `PR-B3` is the next active implementation lane after merged `PR-B1` and `PR-B2`.
 
 ## Source of Truth
 
