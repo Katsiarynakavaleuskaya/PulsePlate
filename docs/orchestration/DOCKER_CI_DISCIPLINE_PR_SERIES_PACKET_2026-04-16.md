@@ -28,6 +28,9 @@ Out of scope for this lane:
   control-plane introductions
 - signed provenance / attestation re-enablement while the documented buildx/GHA
   cache seam still requires `provenance: false`
+  (`.github/workflows/build.yml:42-56`;
+  `docs/architecture/ADR_DOCKER_BUILD_PROVENANCE_WORKAROUND_2026-03-01.md:47-60`;
+  `docs/roadmap/BACKLOG_LEDGER.md:629-643`)
 - broad runtime feature work unrelated to Docker/build/install discipline
 - monolithic backend+frontend image redesign
 
@@ -58,18 +61,25 @@ Out of scope for this lane:
 ## Repo-Truth Invariants
 
 - Root `.dockerignore` already exists and is a strict allowlist for the backend
-  Docker build context. This lane may audit or narrow it further, but must not
-  replace it with a broad default-include context.
+  Docker build context (`.dockerignore:1-42`). This lane may audit or narrow it
+  further, but must not replace it with a broad default-include context.
 - Production topology is already split:
   - backend runtime image is pinned via `IMAGE_REF`
+    (`deploy/docker-compose.production.yaml:11-27`)
   - frontend/Caddy shell is built separately from
     `frontend/Dockerfile.caddy-spa`
+    (`deploy/docker-compose.production.yaml:41-46`;
+    `frontend/Dockerfile.caddy-spa:1-25`)
 - Signed provenance remains intentionally deferred while buildx/GHA cache
-  stability still requires `provenance: false`.
-- Open PRs outside this lane (`#1432`, `#1433`, `#1434` at packet creation
-  time) are not part of the train. If they later touch overlapping files,
-  rebase the active slice onto refreshed `origin/main` instead of widening
-  scope.
+  stability still requires `provenance: false`
+  (`.github/workflows/build.yml:42-56`;
+  `docs/architecture/ADR_DOCKER_BUILD_PROVENANCE_WORKAROUND_2026-03-01.md:47-60`;
+  `docs/roadmap/BACKLOG_LEDGER.md:629-643`).
+- Neighboring governance slices already have their own canonical review
+  artifacts (`docs/review/PR_1432_FIXED_MAPPING.md:1-35`;
+  `docs/review/PR_1433_FIXED_MAPPING.md:1-39`). If another overlapping PR
+  appears, rebase the active slice onto refreshed `origin/main` instead of
+  widening scope.
 
 ## Mandatory Role Order
 
@@ -155,6 +165,10 @@ Files:
 
 Outcome:
 
+- evidence anchors for the target contract already live at
+  `deploy/docker-compose.production.yaml:11-27`,
+  `deploy/docker-compose.production.yaml:41-46`, and
+  `frontend/Dockerfile.caddy-spa:1-25`
 - docs and compose agree on the split backend-image + separate frontend/Caddy
   shell topology
 - stale `frontend_dist` / copy-into-backend assumptions are removed
@@ -185,6 +199,10 @@ Files:
 
 Outcome:
 
+- evidence anchors for the telemetry baseline already live at
+  `docs/roadmap/BACKLOG_LEDGER.md:532-552`,
+  `.github/workflows/build.yml:42-56`, and
+  `docs/orchestration/AGENTS.md:43-50`
 - CI emits deterministic image size and largest-layer evidence
 - build-context evidence is visible in PR-time reporting
 - regression-only gating exists before any future Dagger discussion
@@ -198,8 +216,11 @@ A future Dagger pilot may be considered only after all of the following are true
 - PR-2 install-profile split is landed and stable
 - PR-3 deploy contract reconciliation is landed
 - PR-5 image-budget telemetry is landed and producing deterministic evidence
+  (`docs/roadmap/BACKLOG_LEDGER.md:532-552`)
 - signed provenance remains explicitly tracked as a separate deferred lane rather
   than mixed into the pilot
+  (`docs/roadmap/BACKLOG_LEDGER.md:629-643`;
+  `docs/architecture/ADR_DOCKER_BUILD_PROVENANCE_WORKAROUND_2026-03-01.md:47-60`)
 
 ## Mandatory PR Loop
 

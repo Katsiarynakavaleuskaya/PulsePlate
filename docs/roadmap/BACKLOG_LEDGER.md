@@ -1633,14 +1633,14 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Status: 🟡 In progress (`PR #1433` adds the canonical packet/ADR/backlog anchors for the seam)
   - Reason (EN): When a dependency advisory blocks a docs/governance lane, the repo may use one narrow `security-floor` unblock only for governed dependency manifests, lock regeneration, schema/guard synchronization, and CVE evidence. Without one canonical backlog item, that temporary exception drifts between packets and roadmap docs. (RU: Если dependency advisory блокирует docs/governance lane, репозиторий может использовать только один узкий `security-floor` unblock для governed dependency manifests, lock regeneration, schema/guard synchronization и CVE evidence. Без единого backlog-item это временное исключение начинает расходиться между packet и roadmap docs.)
   - Links:
-    - `docs/orchestration/DEPENDABOT_ALERTS_110_113_REMEDIATION_TASK_PACKET_2026-04-16.md`
-    - `docs/security/CVE-2026-40347-python-multipart.md`
-    - `docs/security/GHSA-39q2-94rc-95cp-dompurify.md`
-    - `docs/architecture/ADR_WAVE6_SECURITY_FLOOR_UNBLOCK_SEAM_2026-04-17.md`
+    - `docs/orchestration/DEPENDABOT_ALERTS_110_113_REMEDIATION_TASK_PACKET_2026-04-16.md:16-21,64-70`
+    - `docs/security/CVE-2026-40347-python-multipart.md:17-25`
+    - `docs/security/GHSA-39q2-94rc-95cp-dompurify.md:17-24`
+    - `docs/architecture/ADR_WAVE6_SECURITY_FLOOR_UNBLOCK_SEAM_2026-04-17.md:13-18,27-39,55-69`
   - DoD:
-    - Canonical `security-floor` wording is shared by the Wave 6 packet (`docs/orchestration/WAVE6_AI_RUNTIME_AND_ADVISORY_SERIES_PACKET_2026-04-13.md`) and the Karpathy epic (`docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md`)
-    - Allowed surfaces are explicitly limited to governed dependency manifests, lockfiles, schema/guard sync, and CVE evidence
-    - Exit criteria and blockers are documented in the ADR and referenced from the packet (`docs/orchestration/WAVE6_AI_RUNTIME_AND_ADVISORY_SERIES_PACKET_2026-04-13.md`) and epic (`docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md`)
+    - Canonical `security-floor` wording is shared by the Wave 6 packet (`docs/orchestration/WAVE6_AI_RUNTIME_AND_ADVISORY_SERIES_PACKET_2026-04-13.md:30-59`) and the Karpathy epic (`docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md:20-39`)
+    - Allowed surfaces are explicitly limited to governed dependency manifests, lockfiles, schema/guard sync, and CVE evidence (`docs/architecture/ADR_WAVE6_SECURITY_FLOOR_UNBLOCK_SEAM_2026-04-17.md:27-39`)
+    - Exit criteria and blockers are documented in the ADR and referenced from the packet (`docs/orchestration/WAVE6_AI_RUNTIME_AND_ADVISORY_SERIES_PACKET_2026-04-13.md:119-120,177-180`) and epic (`docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md:150-155,587-593`)
   - Blockers:
     - The advisory must remain dependency-only and must not widen into runtime/API/product scope
     - Every affected surface must have `file:line` evidence plus matching guard/schema proof
@@ -2507,23 +2507,24 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Any pilot compares against the existing GitHub Actions control plane rather than bypassing it
 
 <a id="ledger-p2-pr1437-docker-ci-doc-governance-followup"></a>
-- [ ] P2: PR #1437 Docker/CI docs-governance and OpenAPI fallback follow-up
+- [x] P2: PR #1437 Docker/CI docs-governance and OpenAPI fallback follow-up
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2
-  - Target PR: PR-TBD-DOCS-GOVERNANCE-PR1437-FOLLOWUP
+  - Target PR: PR `#1437`
   - Area: docs / governance / local verify determinism
-  - Reason (EN): Post-open bot review on PR `#1437` surfaced valid but non-blocking follow-up work: the Docker/CI docs still duplicate some `security-floor` wording and brittle `file:line` cross-references, and the `Makefile` `openapi` CI fallback could assert the Python version explicitly before allowing a system interpreter path. These refinements are outside the narrow packet/backlog closeout needed for the current lane and should land in a dedicated follow-up.
-  - Status: Deferred from PR `#1437` on 17 April 2026; the current lane stays limited to canonical packet/backlog governance sync plus merge-readiness evidence.
+  - Reason (EN): Post-open bot review on PR `#1437` surfaced same-lane docs-governance and CI-fallback gaps: the Docker/CI packet and merge matrix needed proximate `file:line` evidence for repo-truth assertions, the `security-floor` seam entry needed pointer-safe evidence anchors, and the `Makefile` `openapi` fallback needed deterministic interpreter selection. The fixes stayed in-scope for the current PR because they do not widen runtime or deploy behavior. (RU: После post-open review в PR `#1437` вскрылись same-lane пробелы: packet/matrix требовали proximate `file:line` evidence, backlog seam требовал pointer-safe anchors, а `Makefile` `openapi` fallback — детерминированный выбор интерпретатора. Эти исправления оставлены в рамках текущего PR, потому что не расширяют runtime/deploy scope.)
+  - Status: Closed in PR `#1437` on 16 April 2026; current head keeps the Docker/CI governance evidence local to the packet/matrix/ledger and makes the `openapi` fallback prefer `python3`, then `python`, while still failing closed if no usable Python 3 interpreter exists.
   - Links:
     - `docs/orchestration/DOCKER_CI_DISCIPLINE_PR_SERIES_PACKET_2026-04-16.md`
-    - `docs/architecture/ADR_DOCKER_BUILD_PROVENANCE_WORKAROUND_2026-03-01.md`
+    - `docs/orchestration/PR_MERGE_WORKFLOW_MATRIX.md`
+    - `docs/architecture/ADR_DOCKER_BUILD_PROVENANCE_WORKAROUND_2026-03-01.md:47-60`
     - `docs/review/PR_1437_FIXED_MAPPING.md`
-    - `Makefile`
+    - `Makefile:451-461`
   - DoD:
-    - One canonical source is chosen for the `security-floor` wording and linked from the related docs instead of duplicated prose
-    - Brittle markdown cross-references move from raw `file:line` drift points to stable section anchors where policy allows
-    - `Makefile` `openapi` CI fallback verifies interpreter version before using a non-`.venv` Python path
-    - The follow-up remains docs/tooling-only and does not widen the Docker deploy/runtime topology scope
+    - Packet/matrix repo-truth statements keep proximate `file:line` evidence for `.dockerignore`, `IMAGE_REF`, `frontend/Dockerfile.caddy-spa`, the deferred provenance seam, and the mandatory `qa-engineer-agent -> bug-hunter` lane
+    - The `security-floor` seam entry preserves `file:line` evidence while retaining stable anchors for ledger targeting
+    - `Makefile` `openapi` fallback prefers `python3`, then `python`, and fails closed if neither exists or if the selected interpreter is not Python 3
+    - The closeout remains docs/tooling-only and does not widen the Docker deploy/runtime topology scope
 
 
 - [ ] P2: FitChef App Store localization RU

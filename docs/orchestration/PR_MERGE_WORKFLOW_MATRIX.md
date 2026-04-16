@@ -6,10 +6,11 @@
 completed open-PR review, merge, local sync, sanity, and cleanup.
 
 **Docker / CI discipline series note:** The Docker discipline wave follows
-`docs/orchestration/DOCKER_CI_DISCIPLINE_PR_SERIES_PACKET_2026-04-16.md`.
+`docs/orchestration/DOCKER_CI_DISCIPLINE_PR_SERIES_PACKET_2026-04-16.md:74-89,204-218`.
 Treat `qa-engineer-agent -> bug-hunter` as mandatory post-open review for that
-series, and keep Dagger / alternate control-plane pilots out of scope until the
-image-budget telemetry baseline lands.
+series (`docs/orchestration/AGENTS.md:43-50`), and keep Dagger / alternate
+control-plane pilots out of scope until the image-budget telemetry baseline
+lands (`docs/roadmap/BACKLOG_LEDGER.md:532-552`).
 
 **Canonical references:**
 
