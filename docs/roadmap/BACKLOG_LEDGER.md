@@ -4572,7 +4572,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
   - Target PR: PR-TBD-CODEX-SKILL-WAVE1A
-  - Status: Planned
+  - Status: In progress
   - Area: iOS / release / orchestration
   - Finding Type: capability expansion
   - Reason: PulsePlate needs a project-specific App Store release skill that understands Fastlane, release truth, metadata parity, screenshot packs, and the repo's non-interference contract with coordinator-first orchestration.

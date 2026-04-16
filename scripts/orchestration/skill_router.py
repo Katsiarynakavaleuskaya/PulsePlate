@@ -655,6 +655,30 @@ SKILL_RULES: tuple[SkillRule, ...] = (
         ),
     ),
     SkillRule(
+        skill="pulseplate-app-store-release",
+        category="repo-tracked",
+        rationale=(
+            "App Store metadata, screenshot packs, App Privacy uploads, and "
+            "release-evidence work should use the dedicated PulsePlate release skill."
+        ),
+        min_score=6,
+        domain_weights={"release": 2, "qa": 1},
+        path_prefixes=("ios/fastlane/", "docs/runbooks/IOS_APPSTORE_ASSETS_ROLLOUT.md"),
+        keywords=(
+            "app store metadata",
+            "app store screenshot",
+            "app store screenshots",
+            "app store connect",
+            "app privacy",
+            "review information",
+            "review notes",
+            "fastlane metadata",
+            "fastlane screenshots",
+            "app store submission",
+            "release evidence",
+        ),
+    ),
+    SkillRule(
         skill="build-ios-apps:swiftui-performance-audit",
         category="global",
         rationale="SwiftUI performance and rendering issues should use the dedicated audit skill.",

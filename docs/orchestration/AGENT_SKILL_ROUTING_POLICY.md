@@ -135,7 +135,7 @@ When `envelope_mode_hint` is `docs_only` (all candidate paths are contract/docs-
 | Experimentation / eval / optimization | `pulseplate-workflow`, `docs-sync`, `pulseplate-gates` | `bug-triage`, `code-review-expert`, `openai-docs` |
 | Backend / API / contracts | `pulseplate-backend-endpoints`, `pulseplate-openapi-sync`, `pulseplate-gates` | `bug-triage`, `security-best-practices`, `openai-docs` |
 | Frontend / web UX | `pulseplate-frontend-ui`, `pulseplate-gates`, `build-web-apps:frontend-skill` | `pulseplate-playwright-e2e`, `playwright`, `figma`, `figma-implement-design`, `vercel-react-best-practices`, `build-web-apps:web-design-guidelines`, `build-web-apps:react-best-practices` |
-| iOS / App Store / Fastlane | `build-ios-apps:swiftui-ui-patterns`, `build-ios-apps:swiftui-view-refactor` | `build-ios-apps:ios-debugger-agent`, `build-ios-apps:swiftui-performance-audit`, `pulseplate-app-store-release` (planned) |
+| iOS / App Store / Fastlane | `build-ios-apps:swiftui-ui-patterns`, `build-ios-apps:swiftui-view-refactor` | `build-ios-apps:ios-debugger-agent`, `build-ios-apps:swiftui-performance-audit`, `pulseplate-app-store-release` |
 | Docs / runbooks / policy | `docs-sync` | `agents-md`, `release-notes`, `code-review-expert` |
 | QA / CI / remediation | `bug-triage`, `pulseplate-gates` | `ci-fix`, `gh-fix-ci`, `gh-address-comments`, `code-review-expert` |
 | Reports / wellness / GTM research | `pulseplate-ai-reports`, `docs-sync` | `notion-research-documentation`, `notion-knowledge-capture`, `linear`, `openai-docs`, `pulseplate-monetization-gtm` (planned) |
