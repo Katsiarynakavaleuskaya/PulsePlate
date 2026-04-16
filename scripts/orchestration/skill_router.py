@@ -122,6 +122,7 @@ DOCS_ONLY_EXCLUDED_ROUTING_SKILLS: frozenset[str] = frozenset(
         "pulseplate-backend-endpoints",
         "pulseplate-openapi-sync",
         "pulseplate-frontend-ui",
+        "pulseplate-app-store-release",
         "vercel-react-best-practices",
         "build-web-apps:frontend-skill",
         "build-web-apps:web-design-guidelines",

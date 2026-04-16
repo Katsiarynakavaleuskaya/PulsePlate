@@ -22,8 +22,8 @@ description: Handle PulsePlate App Store release work covering Fastlane metadata
 1. Load release-policy context:
 
    ```bash
-   sed -n '1,220p' ios/AGENTS.md
-   sed -n '1,220p' docs/runbooks/IOS_APPSTORE_ASSETS_ROLLOUT.md
+   rg -n -C 2 "App Store|Fastlane|release" ios/AGENTS.md
+   rg -n -C 2 "Validation-only|Protected upload|App Privacy|review information|rollback" docs/runbooks/IOS_APPSTORE_ASSETS_ROLLOUT.md
    ```
 
 2. Verify Fastlane and validator surfaces before editing:
