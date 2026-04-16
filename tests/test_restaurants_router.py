@@ -351,6 +351,7 @@ def test_shadow_wrapper_uses_postgres_search_when_enabled(
     wrapper = restaurants._RestaurantStoreShadowCompat()
     seen: dict[str, str] = {}
     monkeypatch.setenv(restaurants.FEATURE_RESTAURANT_POSTGRES_SHADOW_READS, "true")
+    monkeypatch.delenv(restaurants.RESTAURANT_POSTGRES_SHADOW_READS_URL, raising=False)
     monkeypatch.setenv("DATABASE_URL", "postgresql://shadow")
     monkeypatch.setattr(
         restaurants.restaurant_store,
@@ -456,6 +457,7 @@ def test_shadow_wrapper_logs_search_mismatch(
 ) -> None:
     wrapper = restaurants._RestaurantStoreShadowCompat()
     monkeypatch.setenv(restaurants.FEATURE_RESTAURANT_POSTGRES_SHADOW_READS, "true")
+    monkeypatch.delenv(restaurants.RESTAURANT_POSTGRES_SHADOW_READS_URL, raising=False)
     monkeypatch.setenv("DATABASE_URL", "postgresql://shadow")
     monkeypatch.setattr(
         restaurants.restaurant_store,
@@ -491,6 +493,7 @@ def test_shadow_wrapper_fails_open_when_postgres_menu_errors(
 ) -> None:
     wrapper = restaurants._RestaurantStoreShadowCompat()
     monkeypatch.setenv(restaurants.FEATURE_RESTAURANT_POSTGRES_SHADOW_READS, "true")
+    monkeypatch.delenv(restaurants.RESTAURANT_POSTGRES_SHADOW_READS_URL, raising=False)
     monkeypatch.setenv("DATABASE_URL", "postgresql://shadow")
     monkeypatch.setattr(
         restaurants.restaurant_store,
@@ -560,6 +563,7 @@ def test_shadow_wrapper_logs_menu_mismatch(
 ) -> None:
     wrapper = restaurants._RestaurantStoreShadowCompat()
     monkeypatch.setenv(restaurants.FEATURE_RESTAURANT_POSTGRES_SHADOW_READS, "true")
+    monkeypatch.delenv(restaurants.RESTAURANT_POSTGRES_SHADOW_READS_URL, raising=False)
     monkeypatch.setenv("DATABASE_URL", "postgresql://shadow")
     monkeypatch.setattr(
         restaurants.restaurant_store,
