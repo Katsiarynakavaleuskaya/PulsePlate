@@ -29,6 +29,11 @@ Evidence: `docs/orchestration/DOCKER_CI_DISCIPLINE_PR_SERIES_PACKET_2026-04-16.m
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1437#discussion_r3096826595 -> 1c624d5b8c7f43b4e4dc902ff3e58e380c7b5f70
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1437#pullrequestreview-4124901885 -> 1c624d5b8c7f43b4e4dc902ff3e58e380c7b5f70
 
+Disposition: FIXED
+Commit: b0b1a35866f8a70a0ddd481771e837cbfff73460
+Evidence: `docs/roadmap/BACKLOG_LEDGER.md:2487-2505`; `docs/roadmap/BACKLOG_LEDGER.md:3409-3429`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1437#discussion_r3096838128 -> b0b1a35866f8a70a0ddd481771e837cbfff73460
+
 ## Merge Readiness
 
 - [ ] Required checks PASS with no pending required jobs
