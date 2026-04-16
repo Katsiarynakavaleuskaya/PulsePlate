@@ -86,6 +86,10 @@ Out of scope for this lane:
 For every PR in this series, the lane uses coordinator-first orchestration and
 the declared packet/runbook order only.
 
+`docs/orchestration/AGENTS.md` stays a pointer-only summary for this lane; this
+packet is the canonical field-level contract and the role order below is the
+SoT that the scoped AGENTS summary must mirror.
+
 - Primary: `agent-coordinator`
 - Core execution path:
   - `architecture-specialist`
