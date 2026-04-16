@@ -42,7 +42,7 @@ Disposition: FIXED
 Commit: 7bf13e2c9e9226f28e54d4bbb7e83ecfd85baa7a
 Evidence: `docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md:213-217`; `docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md:570-572`; `docs/roadmap/BACKLOG_LEDGER.md:299-305`; `docs/review/PR_1379_FIXED_MAPPING.md:12-30`.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1433#discussion_r3096349822
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1433#discussion_r3096349822 -> 83521d29cb01bd3d320c5c851e412ed1b51fc595
 Disposition: FIXED
 Commit: 83521d29cb01bd3d320c5c851e412ed1b51fc595
 Evidence: `docs/review/PR_1433_FIXED_MAPPING.md:1-72`; `AGENTS.md:42-52`; `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md:41-90`.
