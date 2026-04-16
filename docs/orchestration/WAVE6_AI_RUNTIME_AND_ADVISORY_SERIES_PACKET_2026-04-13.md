@@ -1,13 +1,16 @@
 # Wave 6 AI Runtime and Advisory Series Packet
 
 **Date:** 13 April 2026
-**Scope:** docs-only series bootstrap lane for the next AI/runtime train
+**Scope:** docs-first series bootstrap lane for the next AI/runtime train
 **Mode:** pre-open governance packet
 
 ## Purpose
 
-Freeze one narrow docs-only starting PR that makes the next series
-decision-complete without widening into runtime implementation.
+Freeze one narrow docs-first starting PR that makes the next series
+decision-complete without widening into runtime implementation. If repo
+push policy is blocked by a known dependency advisory, the lane may also
+carry one explicit `security-floor` unblock limited to governed dependency
+surfaces plus the matching CVE/schema evidence.
 
 This packet exists to:
 
@@ -18,7 +21,9 @@ This packet exists to:
 
 ## Hard boundaries
 
-- No runtime/product code changes
+- No runtime/product code changes, except one explicit dependency
+  `security-floor` unblock required to satisfy repo push policy without
+  changing product behavior
 - No OpenAPI or public contract mutation
 - No semantic cache implementation
 - No Redis / GPTCache rollout
@@ -70,7 +75,8 @@ Family placement:
 
 ## Mandatory sequencing
 
-1. `PR-S0` docs-only rail normalization
+1. `PR-S0` docs-first rail normalization (with dependency `security-floor`
+   unblock only when push policy is otherwise blocked)
 2. `PR-A1b`
 3. `PR-A2`
 4. `PR-A3`
@@ -133,6 +139,8 @@ Rules:
 - one backlog umbrella for plugin/control-plane families;
 - Wave 6 umbrella links normalized to the active `A1b -> A5` spine;
 - semantic cache retained as deferred gate and not widened into implementation scope.
+- any allowed `security-floor` unblock is limited to governed dependency
+  surfaces, CVE evidence, and matching guard/schema updates only.
 
 ## Validation
 

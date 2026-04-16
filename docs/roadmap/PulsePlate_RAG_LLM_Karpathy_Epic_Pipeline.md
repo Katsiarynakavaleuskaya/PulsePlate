@@ -142,11 +142,16 @@ Create one explicit umbrella item so Codex does not re-derive sequencing from sc
   - philosophical logic
   - recursive methods
   - scientific reliability pipeline
+- if repo push policy is blocked by a known dependency advisory, allow one
+  narrow `security-floor` unblock limited to governed dependency surfaces,
+  lock regeneration, schema sync, and CVE evidence
 
 #### DoD
 - one umbrella entry exists
 - Wave 6 order is explicit
 - product rail and Karpathy workforce rail are explicitly separated
+- any allowed `security-floor` unblock is called out explicitly and remains
+  separate from product-runtime scope
 
 ---
 
