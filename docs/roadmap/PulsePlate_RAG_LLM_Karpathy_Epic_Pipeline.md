@@ -17,6 +17,27 @@ Implement it as a **separate advisory compiled-memory workforce rail**, while th
 
 For the continuous bootstrap lane `PR-S0 -> PR-A5`, `docs/orchestration/WAVE6_AI_RUNTIME_AND_ADVISORY_SERIES_PACKET_2026-04-13.md` is the canonical series SoT. This roadmap epic defers to that packet whenever sequencing, rail-boundary, or semantic-cache-gating wording diverges.
 
+### Temporary `security-floor` seam (canonical wording)
+
+This epic inherits the Wave 6 packet rule for one narrow dependency-only
+`security-floor` unblock when a known advisory blocks a docs/governance lane.
+The seam is limited to governed dependency manifests, lock regeneration,
+schema/guard sync, and CVE evidence; it must not widen into runtime/API/product
+scope.
+
+Evidence:
+
+- `docs/orchestration/DEPENDABOT_ALERTS_110_113_REMEDIATION_TASK_PACKET_2026-04-16.md:64-70`
+- `docs/security/CVE-2026-40347-python-multipart.md:17-25`
+- `docs/security/GHSA-39q2-94rc-95cp-dompurify.md:17-24`
+
+Governance:
+
+- Canonical packet wording:
+  `docs/orchestration/WAVE6_AI_RUNTIME_AND_ADVISORY_SERIES_PACKET_2026-04-13.md:30-59`
+- ADR: `docs/architecture/ADR_WAVE6_SECURITY_FLOOR_UNBLOCK_SEAM_2026-04-17.md`
+- Backlog: `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-security-floor-unblock-seam`
+
 ### Rail A — Product AI runtime (canonical)
 Purpose:
 - insight fallback reliability
@@ -129,6 +150,10 @@ The continuous series implemented from this packet stops at:
 #### Goal
 Create one explicit umbrella item so Codex does not re-derive sequencing from scattered ledger entries.
 
+If a dependency advisory blocks this docs/governance lane, use the canonical
+`security-floor` seam above instead of widening PR-S0 into runtime or product
+scope.
+
 #### In scope
 - add AI umbrella backlog entry
 - add missing child items:
@@ -186,7 +211,10 @@ Make provider fallback deterministic and expose fallback / echo mode in readines
 `ledger-p1-pro-monthly-quota-ledger-reconciliation`
 
 #### Goal
-Reconcile the execution spine with live `main`, where tier-aware PRO/VIP quota machinery is already materially landed.
+Reconcile the execution spine with live `main`, where tier-aware PRO/VIP quota
+machinery is already materially landed (evidence:
+`docs/roadmap/BACKLOG_LEDGER.md:299-305`;
+`docs/review/PR_1379_FIXED_MAPPING.md:12-30`).
 
 #### In scope
 - docs/backlog correction after merged `A1`
@@ -538,8 +566,10 @@ Build the PulsePlate RAG/LLM/Karpathy line as three separate but coordinated rai
 
 1. **Product AI runtime rail (canonical)**
    - PR-S0 docs/backlog umbrella
-   - PR-A1 insight fallback chain
+   - PR-A1 insight fallback chain already landed on `main`; keep it as historical context, not as an active closure step
    - PR-A1b docs reconciliation for already-landed PRO quota truth
+     (evidence: `docs/roadmap/BACKLOG_LEDGER.md:299-305`;
+     `docs/review/PR_1379_FIXED_MAPPING.md:12-30`)
    - PR-A2 RAG hardening follow-through
    - PR-A3 AI bounded-context packet
    - PR-A4 AI bounded-context extraction
@@ -556,6 +586,11 @@ Build the PulsePlate RAG/LLM/Karpathy line as three separate but coordinated rai
 
    Semantic cache is a later optimization gate on the product AI runtime rail only.
    See `docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md`.
+   Any dependency-blocked docs lane must use the canonical `security-floor`
+   seam only (ADR:
+   `docs/architecture/ADR_WAVE6_SECURITY_FLOOR_UNBLOCK_SEAM_2026-04-17.md`;
+   Backlog:
+   `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-security-floor-unblock-seam`).
    - PR-B3 optional query/lint enrichment
    - PR-B4 optional reference-corpus policy
 

@@ -483,6 +483,74 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Supply-chain guardrails remain fail-closed with the approved private proxy contract intact
     - Deterministic tests cover the promoted install-profile contract
 
+<a id="ledger-p1-docker-deploy-contract-reconciliation"></a>
+- [ ] P1: Docker deploy contract reconciliation after install-profile split
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-DOCKER-DEPLOY-CONTRACT
+  - Area: deploy / docker / operator workflow
+  - Depends on:
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-ci-install-profile-split-after-disk-unblock`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-compose-v2-migration`
+  - Reason: The canonical production shape is already split, but deploy/operator docs and some workflow assumptions still carry older shared-artifact language (`frontend_dist`, copy-into-backend assumptions, mixed compose wording). Reconcile the live split contract without widening topology scope or reintroducing monolithic image assumptions.
+  - Links:
+    - `docs/orchestration/DOCKER_CI_DISCIPLINE_PR_SERIES_PACKET_2026-04-16.md`
+    - `docs/roadmap/DEPLOY_WEB_DIAGNOSIS_AND_FIX.md`
+    - `deploy/docker-compose.production.yaml`
+    - `deploy/docker-compose.production.selfhosted.yaml`
+    - `deploy/docker-compose.staging.yaml`
+    - `deploy/WORKFLOW.md`
+    - `docs/deploy/PRODUCTION.md`
+  - DoD:
+    - Deploy docs and compose files agree on split backend image + separate frontend/Caddy topology
+    - Stale shared-volume or copy-into-backend assumptions are removed from touched docs and workflow notes
+    - Operator rebuild / diagnose-web / `IMAGE_REF` flows match the live contract
+    - `docker compose` v2 wording is canonical on touched surfaces
+
+<a id="ledger-p1-docker-runtime-slimming-after-profile-split"></a>
+- [ ] P1: Docker runtime slimming after CI install-profile split
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-DOCKER-RUNTIME-SLIMMING
+  - Area: docker / runtime / supply-chain
+  - Depends on:
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-ci-install-profile-split-after-disk-unblock`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-docker-deploy-contract-reconciliation`
+  - Reason: Runtime slimming should happen only after the install-profile contract is stable and deploy topology drift is reconciled. The follow-up must remove residual builder/runtime waste without touching provenance policy or the split backend/frontend shell.
+  - Links:
+    - `docs/orchestration/DOCKER_CI_DISCIPLINE_PR_SERIES_PACKET_2026-04-16.md`
+    - `Dockerfile`
+    - `frontend/Dockerfile.caddy-spa`
+    - `.dockerignore`
+    - `frontend/.dockerignore`
+  - DoD:
+    - No builder-only tooling leaks into runtime images
+    - Docker `COPY` scope stays narrow and does not widen build context
+    - Production backend build still serves `app.main:app`
+    - Supply-chain guardrails and proxy install contract remain intact
+
+<a id="ledger-p1-docker-image-budget-telemetry"></a>
+- [ ] P1: Docker image budget and telemetry baseline
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-DOCKER-IMAGE-BUDGET
+  - Area: CI / docker / telemetry
+  - Depends on:
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-ci-install-profile-split-after-disk-unblock`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-docker-deploy-contract-reconciliation`
+  - Reason: The project needs deterministic PR-facing evidence for image size regressions, largest layers, and build-context drift before discussing provenance recovery sequencing or any Dagger pilot. Start with warning/regression-only reporting, not an absolute hard stop.
+  - Links:
+    - `docs/orchestration/DOCKER_CI_DISCIPLINE_PR_SERIES_PACKET_2026-04-16.md`
+    - `.github/workflows/build.yml`
+    - `.github/workflows/docker-image.yml`
+    - `.github/workflows/trivy.yml`
+    - `docs/architecture/ADR_DOCKER_BUILD_PROVENANCE_WORKAROUND_2026-03-01.md`
+  - DoD:
+    - CI emits deterministic image-size evidence for touched Docker lanes
+    - Largest-layer and build-context summaries are visible to PR authors before merge
+    - The first gate is warning/regression-only, not an absolute size cap
+    - Follow-up provenance or Dagger decisions can cite this baseline explicitly
+
 <a id="ledger-p1-business-wave-runtime-follow-through"></a>
 - [ ] P1: Business wave runtime follow-through after governance/docs foundation
   - Owner: @katsiaryna_kavaleuskaya
@@ -1554,6 +1622,29 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Wave 6 order is explicit and pointer-based through `A1b -> A5` for the current closure cycle
     - Runtime AI rail is kept separate from the Karpathy workforce/wiki rail
     - Existing child items remain authoritative and are not duplicated as competing SoT
+
+<a id="ledger-p1-security-floor-unblock-seam"></a>
+- [ ] P1: Temporary `security-floor` unblock seam
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (security governance / docs-lane unblock)
+  - Target PR: PR `#1433`
+  - Area: docs / dependency security / merge governance
+  - Finding Type: temporary seam governance
+  - Status: 🟡 In progress (`PR #1433` adds the canonical packet/ADR/backlog anchors for the seam)
+  - Reason (EN): When a dependency advisory blocks a docs/governance lane, the repo may use one narrow `security-floor` unblock only for governed dependency manifests, lock regeneration, schema/guard synchronization, and CVE evidence. Without one canonical backlog item, that temporary exception drifts between packets and roadmap docs. (RU: Если dependency advisory блокирует docs/governance lane, репозиторий может использовать только один узкий `security-floor` unblock для governed dependency manifests, lock regeneration, schema/guard synchronization и CVE evidence. Без единого backlog-item это временное исключение начинает расходиться между packet и roadmap docs.)
+  - Links:
+    - `docs/orchestration/DEPENDABOT_ALERTS_110_113_REMEDIATION_TASK_PACKET_2026-04-16.md`
+    - `docs/security/CVE-2026-40347-python-multipart.md`
+    - `docs/security/GHSA-39q2-94rc-95cp-dompurify.md`
+    - `docs/architecture/ADR_WAVE6_SECURITY_FLOOR_UNBLOCK_SEAM_2026-04-17.md`
+  - DoD:
+    - Canonical `security-floor` wording is shared by the Wave 6 packet (`docs/orchestration/WAVE6_AI_RUNTIME_AND_ADVISORY_SERIES_PACKET_2026-04-13.md`) and the Karpathy epic (`docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md`)
+    - Allowed surfaces are explicitly limited to governed dependency manifests, lockfiles, schema/guard sync, and CVE evidence
+    - Exit criteria and blockers are documented in the ADR and referenced from the packet (`docs/orchestration/WAVE6_AI_RUNTIME_AND_ADVISORY_SERIES_PACKET_2026-04-13.md`) and epic (`docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md`)
+  - Blockers:
+    - The advisory must remain dependency-only and must not widen into runtime/API/product scope
+    - Every affected surface must have `file:line` evidence plus matching guard/schema proof
+    - The seam closes once the dependency remediation lane is merged on `main` and the docs revert to normal lane wording
 
 <a id="ledger-p1-rag-hardening-followthrough"></a>
 - [ ] P1: RAG hardening follow-through
@@ -3294,6 +3385,28 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 
 
 ### P2
+
+<a id="ledger-p2-dagger-pilot-after-docker-baseline"></a>
+- [ ] P2: Re-evaluate Dagger pilot only after Docker baseline stabilizes
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR-TBD-DAGGER-PILOT
+  - Area: CI orchestration / build platform / deferred evaluation
+  - Depends on:
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-ci-install-profile-split-after-disk-unblock`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-docker-deploy-contract-reconciliation`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-docker-image-budget-telemetry`
+    - `docs/roadmap/BACKLOG_LEDGER.md#backlog-restore-signed-build-provenance`
+  - Reason: Dagger is not the treatment for the current Docker/CI pain while build context, install surface, deploy contract, and telemetry baseline are still unsettled. Revisit only after the measured baseline exists and the deferred provenance lane is re-evaluated.
+  - Links:
+    - `docs/orchestration/DOCKER_CI_DISCIPLINE_PR_SERIES_PACKET_2026-04-16.md`
+    - `docs/architecture/ADR_DOCKER_BUILD_PROVENANCE_WORKAROUND_2026-03-01.md`
+    - `docs/roadmap/BACKLOG_LEDGER.md#backlog-restore-signed-build-provenance`
+  - DoD:
+    - Image-budget telemetry baseline exists and is referenced in the proposal
+    - Install-profile split and deploy-contract reconciliation are merged
+    - Provenance defer state is re-reviewed before any pilot recommendation
+    - Any pilot compares against the existing GitHub Actions control plane rather than bypassing it
 
 <a id="ledger-p2-cloudflare-narrow-reopen-automation"></a>
 - [ ] P2: Cloudflare narrow reopen automation after Access-based private recovery
