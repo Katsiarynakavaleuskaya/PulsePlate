@@ -201,6 +201,38 @@ def test_reflect_read_tables_rejects_missing_required_columns(
     assert "missing required columns" in str(exc.value)
 
 
+def test_search_restaurants_pg_builds_reflects_and_disposes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake_connection = _RecordingConnection(
+        [{"id": "c1", "name": "Alpha", "country": "US", "source": "menustat"}]
+    )
+    fake_engine = _FakeEngine(fake_connection)
+    reflected_connections: list[Any] = []
+
+    monkeypatch.setattr(
+        restaurant_postgres_read,
+        "_build_pg_engine",
+        lambda pg_url: fake_engine,
+    )
+    monkeypatch.setattr(
+        restaurant_postgres_read,
+        "_reflect_read_tables",
+        lambda connection: reflected_connections.append(connection),
+    )
+
+    rows = restaurant_postgres_read.search_restaurants_pg(
+        pg_url="postgresql://shadow",
+        query="alp",
+        limit=10,
+        offset=5,
+    )
+
+    assert rows[0]["id"] == "c1"
+    assert reflected_connections == [fake_connection]
+    assert fake_engine.disposed is True
+
+
 def test_get_restaurant_menu_pg_builds_reflects_and_disposes(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
