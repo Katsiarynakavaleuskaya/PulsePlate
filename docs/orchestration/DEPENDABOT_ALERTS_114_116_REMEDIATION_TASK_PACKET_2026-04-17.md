@@ -148,7 +148,7 @@ Rules:
 ```bash
 python3 scripts/orchestration/check_preflight.py
 python3 scripts/orchestration/check_agent_consistency.py
-pytest -q tests/test_dependency_security_guard.py
+.venv/bin/python -m pytest -q tests/test_dependency_security_guard.py
 pre-commit run --all-files
 make verify
 ```

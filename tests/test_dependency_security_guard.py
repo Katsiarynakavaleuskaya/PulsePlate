@@ -20,6 +20,7 @@ SCHEMA_PATH = REPO_ROOT / "tests" / "fixtures" / "dependency_security_schema.jso
 REQUIREMENT_SURFACES = (
     REPO_ROOT / "requirements.in",
     REPO_ROOT / "requirements-ci-lite.in",
+    REPO_ROOT / "requirements-dev.in",
     REPO_ROOT / "requirements.txt",
     REPO_ROOT / "requirements-dev.txt",
     REPO_ROOT / "requirements-lock.txt",
@@ -29,10 +30,12 @@ REQUIREMENT_SURFACES = (
 
 
 def _is_constraint_style(path: Path) -> bool:
-    """Constraint-style (>=) by filename; e.g. requirements.in, requirements-ci-lite.in, constraints*.txt."""
-    return path.name in {"requirements.in", "requirements-ci-lite.in"} or path.name.startswith(
-        "constraints"
-    )
+    """Constraint-style (>=) by filename for source/constraint requirement surfaces."""
+    return path.name in {
+        "requirements.in",
+        "requirements-ci-lite.in",
+        "requirements-dev.in",
+    } or path.name.startswith("constraints")
 
 
 def _load_schema(path: Path) -> dict:

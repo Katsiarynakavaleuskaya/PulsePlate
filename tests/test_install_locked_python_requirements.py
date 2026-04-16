@@ -55,6 +55,7 @@ def test_repo_emergency_manifest_tracks_current_active_fallback_set() -> None:
 
     assert artifacts, "Emergency wheel manifest should track at least one fallback artifact."
     assert {package for package, _version in ci_lite_emergency_pairs} >= {
+        "mako",
         "pillow",
         "python-multipart",
     }
