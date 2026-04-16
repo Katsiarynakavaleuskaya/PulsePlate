@@ -48,6 +48,17 @@ Disposition: NOT-A-BUG
 Evidence: `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1433#discussion_r3096349817`; `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1433#discussion_r3096349822`; `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1433#discussion_r3096349825`; `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1433#discussion_r3096349838`; `docs/review/PR_1433_FIXED_MAPPING.md:1-80`.
 Reason: the review summary is a roll-up of the four inline CodeRabbit findings plus the artifact-format nitpick, all of which are dispositioned separately in this canonical file.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1433#discussion_r3096508555 -> c6835c6a036abca63dff8a4d3e84b109b284f8b1
+Disposition: FIXED
+Commit: c6835c6a036abca63dff8a4d3e84b109b284f8b1
+Evidence: `docs/roadmap/BACKLOG_LEDGER.md:3361-3383`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1433#pullrequestreview-4124574681
+Disposition: DEFERRED
+Backlog: `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-docker-deploy-contract-reconciliation`
+Evidence: `docs/roadmap/BACKLOG_LEDGER.md:503-517`; `docs/roadmap/BACKLOG_LEDGER.md:1609-1617`; `docs/roadmap/BACKLOG_LEDGER.md:3361-3383`.
+Reason: the review roll-up mixes one PR-1433-specific ordering defect now fixed on the latest head with broader Docker-evidence tightening that remains owned by the existing deploy-contract reconciliation backlog lane rather than this Wave 6 docs-scope PR.
+
 ## Merge Readiness
 
 Merge-readiness contract:
