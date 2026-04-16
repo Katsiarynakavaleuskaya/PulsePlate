@@ -17,6 +17,7 @@ Evidence: `tests/test_dependency_security_guard.py:32`; `tests/test_install_lock
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1431#pullrequestreview-4121587029 -> f61f5fda8
   Disposition: FIXED
+  Commit: f61f5fda8
   Evidence: `tests/test_dependency_security_guard.py:32`; `tests/test_install_locked_python_requirements.py:45`; `docs/security/GHSA-39q2-94rc-95cp-dompurify.md:21`
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1431#discussion_r3093904268
   Disposition: NOT-A-BUG
