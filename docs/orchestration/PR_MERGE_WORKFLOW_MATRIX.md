@@ -5,6 +5,12 @@
 **Series rule:** Do not start the next PR in a series until the current PR has
 completed open-PR review, merge, local sync, sanity, and cleanup.
 
+**Docker / CI discipline series note:** The Docker discipline wave follows
+`docs/orchestration/DOCKER_CI_DISCIPLINE_PR_SERIES_PACKET_2026-04-16.md`.
+Treat `qa-engineer-agent -> bug-hunter` as mandatory post-open review for that
+series, and keep Dagger / alternate control-plane pilots out of scope until the
+image-budget telemetry baseline lands.
+
 **Canonical references:**
 
 - Series-rule wording lives in `docs/orchestration/AUTOMATION_READINESS_MATRIX.md`
@@ -118,4 +124,4 @@ completed open-PR review, merge, local sync, sanity, and cleanup.
 
 ---
 
-**Last updated:** 2026-03-26 (Automation readiness alignment)
+**Last updated:** 2026-04-16 (Dependency governance + Docker/CI discipline alignment)
