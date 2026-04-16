@@ -15,6 +15,11 @@ Backlog: `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-dependency-governance-pr-seri
 Reason: Sourcery suggested follow-up refactors to centralize requirement-surface naming and derive emergency-manifest expectations; these are governance hardening improvements outside this blocker PR's narrow security-floor scope.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1432#pullrequestreview-4121581255
 
+Disposition: FIXED
+Commit: `edccdb2e6`
+Evidence: `docs/roadmap/BACKLOG_LEDGER.md:1239`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1432#pullrequestreview-4122532894 -> edccdb2e6
+
 ## Merge Readiness
 
 - [x] Current-head CI is green for PR branch head
