@@ -76,6 +76,11 @@ Disposition: NOT-A-BUG
 Evidence: `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1434#discussion_r3096531941`; `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1434#discussion_r3096531949`
 Reason: the Cubic review summary contains no additional actionable beyond the two inline comments mapped immediately above.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1434#pullrequestreview-4124734865 -> e7fbda5e6
+Disposition: FIXED
+Commit: e7fbda5e6
+Evidence: `tests/test_install_locked_python_requirements.py:62`
+
 ## Merge Readiness
 
 - [ ] Current-head CI is green for PR branch head
