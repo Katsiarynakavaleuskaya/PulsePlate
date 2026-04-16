@@ -23,7 +23,7 @@ description: Handle PulsePlate App Store release work covering Fastlane metadata
 
    ```bash
    rg -n -C 2 "App Store|Fastlane|release" ios/AGENTS.md
-   rg -n -C 2 "Validation-only|Protected upload|App Privacy|review information|rollback" docs/runbooks/IOS_APPSTORE_ASSETS_ROLLOUT.md
+   rg -n -C 2 -i "validation-only|protected upload|app privacy|review information|reviewer notes|rollback" docs/runbooks/IOS_APPSTORE_ASSETS_ROLLOUT.md
    ```
 
 2. Verify Fastlane and validator surfaces before editing:
@@ -53,8 +53,8 @@ description: Handle PulsePlate App Store release work covering Fastlane metadata
 ## Guardrails
 
 - Do not bypass coordinator-first routing or convert this skill into release authority.
-- Do not claim App Store rollout completion without protected-run evidence.
-- Do not mix backend billing truth or entitlement logic into iOS/App Store asset work.
+- App Store rollout completion always requires protected-run evidence.
+- Keep backend billing truth and entitlement logic out of iOS/App Store asset work.
 - Keep protected secrets and upload credentials outside repo branches and worktrees.
 
 ## SoT links

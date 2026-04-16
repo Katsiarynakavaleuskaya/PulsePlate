@@ -125,6 +125,11 @@ CV routing note:
 
 When `envelope_mode_hint` is `docs_only` (all candidate paths are contract/docs-only surfaces and none require privileged security review per `bootstrap_sync_policy`), `scripts/orchestration/skill_router.py` **removes** implementation-oriented skills from `recommended` and `conditional` so selection stays aligned with root `AGENTS.md` docs-only PR scope and with `inputs.message_envelope.mode` (`docs-only`) on the bootstrap packet. The excluded slug set is `DOCS_ONLY_EXCLUDED_ROUTING_SKILLS` in `scripts/orchestration/skill_router.py:120`.
 
+For `pulseplate-app-store-release`, docs-only suppression still applies even when
+`docs/runbooks/IOS_APPSTORE_ASSETS_ROLLOUT.md` matches a routing prefix. Promote
+that skill only for mixed or implementation envelopes that also carry App Store
+metadata, screenshot-pack, App Privacy, or release-evidence intent.
+
 ---
 
 ## 3. Project-Fit Skill Lanes
