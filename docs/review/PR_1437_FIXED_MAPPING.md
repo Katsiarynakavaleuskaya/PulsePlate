@@ -1,6 +1,8 @@
 <!-- markdownlint-disable MD034 -->
 # PR 1437 — Fixed in Commit Mapping
 
+Canonical review-governance artifact for PR `#1437`.
+
 ## Discussion Thread Pass
 
 - [x] Discussion-thread pass completed
