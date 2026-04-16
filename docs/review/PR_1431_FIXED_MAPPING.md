@@ -6,12 +6,14 @@
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
 
-No actionable human or bot review threads are currently open for this PR. If new
-review comments arrive, record their disposition here before resolving them on GitHub.
+Latest actionable bot review is mapped below. If new review comments arrive, record
+their disposition here before resolving them on GitHub.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1431#pullrequestreview-4121587029 -> f61f5fda8
+  Disposition: FIXED
+  Evidence: `tests/test_dependency_security_guard.py:32`; `tests/test_install_locked_python_requirements.py:45`; `docs/security/GHSA-39q2-94rc-95cp-dompurify.md:21`
 
 ## Merge Readiness
 
