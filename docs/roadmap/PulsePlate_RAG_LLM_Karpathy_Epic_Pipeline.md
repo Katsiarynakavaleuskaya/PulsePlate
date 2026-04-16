@@ -566,7 +566,7 @@ Build the PulsePlate RAG/LLM/Karpathy line as three separate but coordinated rai
 
 1. **Product AI runtime rail (canonical)**
    - PR-S0 docs/backlog umbrella
-   - PR-A1 insight fallback chain
+   - PR-A1 insight fallback chain already landed on `main`; keep it as historical context, not as an active closure step
    - PR-A1b docs reconciliation for already-landed PRO quota truth
      (evidence: `docs/roadmap/BACKLOG_LEDGER.md:299-305`;
      `docs/review/PR_1379_FIXED_MAPPING.md:12-30`)
