@@ -1646,6 +1646,37 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Every affected surface must have `file:line` evidence plus matching guard/schema proof
     - The seam closes once the dependency remediation lane is merged on `main` and the docs revert to normal lane wording
 
+<a id="ledger-p1-mako-security-floor-alerts-114-116"></a>
+- [ ] P1: Remediate `Mako` Dependabot alerts 114-116 with an explicit security floor
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (dependency security / current-head regression)
+  - Target PR: PR-TBD-MAKO-SECURITY-FLOOR
+  - Area: security / Python dependencies / merge governance
+  - Finding Type: live dependency-security regression
+  - Status: In progress as of 17 April 2026 in clean worktree `worktrees/mako-security-floor`
+  - Reason (EN): `main` picked up three new Dependabot alerts on `Mako` after the
+    latest merge. All three alerts (`#114`, `#115`, `#116`) map to
+    `GHSA-v92g-xgxw-vvmm` with first patched version `1.3.11`. This remediation
+    must land as a dedicated narrow PR before the paused security-epic/docs lane
+    resumes, otherwise the repo continues to carry a current-head dependency
+    security regression. (RU: На `main` после последнего merge появились три
+    новых Dependabot alerts по `Mako`; их нужно закрыть отдельным узким PR до
+    возврата к paused security-epic/docs lane.)
+  - Links:
+    - `docs/orchestration/DEPENDABOT_ALERTS_114_116_REMEDIATION_TASK_PACKET_2026-04-17.md`
+    - `docs/security/GHSA-v92g-xgxw-vvmm-mako.md`
+    - `tests/fixtures/dependency_security_schema.json`
+    - `tests/test_dependency_security_guard.py`
+    - GitHub alerts: `security/dependabot/114`, `security/dependabot/115`, `security/dependabot/116`
+  - DoD:
+    - Governed source surfaces explicitly enforce `Mako >= 1.3.11`
+    - Pinned runtime/full/CI-lite lock surfaces resolve `mako==1.3.11`
+    - Dependency security schema records `Mako 1.3.11` as the minimum safe version
+    - Dedicated security note includes `file:line` evidence and validation commands
+    - Draft PR is opened with canonical `docs/review/PR_<N>_FIXED_MAPPING.md`
+    - Mandatory post-open review pass `qa-engineer-agent -> bug-hunter` is completed
+    - Only after merge and local ref sync does the team return to the paused security-epic/docs lane
+
 <a id="ledger-p1-rag-hardening-followthrough"></a>
 - [ ] P1: RAG hardening follow-through
   - Owner: @katsiaryna_kavaleuskaya

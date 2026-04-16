@@ -1,6 +1,7 @@
 {
   "min_versions": {
     "cryptography": "46.0.7",
+    "mako": "1.3.11",
     "pillow": "12.2.0",
     "python-multipart": "0.0.26",
     "requests": "2.33.0"

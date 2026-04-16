@@ -48,6 +48,7 @@ reportlab>=4.4.4
 sqlalchemy>=2.0.44
 aiosqlite>=0.22.1
 alembic>=1.17.2
+mako>=1.3.11  # GHSA-v92g-xgxw-vvmm security floor
 # Constraints files cannot include extras; requirement uses psycopg[binary]
 psycopg>=3.2.3
 email-validator>=2.3.0
