@@ -325,3 +325,123 @@ def test_review_payload_rejects_pending_status() -> None:
 def test_submission_create_rejects_invalid_off_url() -> None:
     with pytest.raises(ValidationError):
         RestaurantSubmissionCreate(canonical_name="X", off_url="not-a-url", payload={})
+
+
+def test_shadow_wrapper_skips_postgres_when_flag_off(monkeypatch: pytest.MonkeyPatch) -> None:
+    wrapper = restaurants._RestaurantStoreShadowCompat()
+    monkeypatch.delenv(restaurants.FEATURE_RESTAURANT_POSTGRES_SHADOW_READS, raising=False)
+    monkeypatch.setattr(
+        restaurants.restaurant_store,
+        "search_restaurants",
+        lambda **_: [{"id": "c1", "name": "Chain 1", "country": "US", "source": "menustat"}],
+    )
+    monkeypatch.setattr(
+        restaurants.restaurant_postgres_read,
+        "search_restaurants_pg",
+        lambda **_: (_ for _ in ()).throw(AssertionError("shadow search should stay disabled")),
+    )
+
+    rows = wrapper.search_restaurants("chain", 10, 0)
+    assert list(rows)[0]["id"] == "c1"
+
+
+def test_shadow_wrapper_uses_postgres_search_when_enabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    wrapper = restaurants._RestaurantStoreShadowCompat()
+    seen: dict[str, str] = {}
+    monkeypatch.setenv(restaurants.FEATURE_RESTAURANT_POSTGRES_SHADOW_READS, "true")
+    monkeypatch.setenv("DATABASE_URL", "postgresql://shadow")
+    monkeypatch.setattr(
+        restaurants.restaurant_store,
+        "search_restaurants",
+        lambda **_: [{"id": "c1", "name": "Chain 1", "country": "US", "source": "menustat"}],
+    )
+
+    def _shadow_search(**kwargs: Any) -> list[dict[str, Any]]:
+        seen["pg_url"] = kwargs["pg_url"]
+        return [{"id": "c1", "name": "Chain 1", "country": "US", "source": "menustat"}]
+
+    monkeypatch.setattr(
+        restaurants.restaurant_postgres_read, "search_restaurants_pg", _shadow_search
+    )
+    monkeypatch.setattr(
+        restaurants.restaurant_shadow_parity,
+        "compare_restaurant_hits",
+        lambda sqlite_rows, postgres_rows: restaurants.restaurant_shadow_parity.ParityResult(
+            match=True,
+            sqlite_count=len(sqlite_rows),
+            postgres_count=len(postgres_rows),
+            mismatched_indexes=(),
+            mismatch_reasons=(),
+        ),
+    )
+
+    rows = wrapper.search_restaurants("chain", 10, 0)
+    assert list(rows)[0]["id"] == "c1"
+    assert seen["pg_url"] == "postgresql://shadow"
+
+
+def test_shadow_wrapper_fails_open_when_postgres_menu_errors(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    wrapper = restaurants._RestaurantStoreShadowCompat()
+    monkeypatch.setenv(restaurants.FEATURE_RESTAURANT_POSTGRES_SHADOW_READS, "true")
+    monkeypatch.setenv("DATABASE_URL", "postgresql://shadow")
+    monkeypatch.setattr(
+        restaurants.restaurant_store,
+        "get_restaurant_menu",
+        lambda **_: [{"id": "m1", "chain_id": "c1", "item_name": "Protein Bowl"}],
+    )
+
+    def _boom(**kwargs: Any) -> list[dict[str, Any]]:
+        raise RuntimeError("pg down")
+
+    monkeypatch.setattr(restaurants.restaurant_postgres_read, "get_restaurant_menu_pg", _boom)
+
+    with caplog.at_level("WARNING"):
+        rows = wrapper.get_restaurant_menu("c1", 20)
+    assert list(rows)[0]["id"] == "m1"
+    assert "keeping SQLite canonical response" in caplog.text
+
+
+def test_shadow_wrapper_submission_paths_remain_sqlite_only(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    wrapper = restaurants._RestaurantStoreShadowCompat()
+    monkeypatch.setenv(restaurants.FEATURE_RESTAURANT_POSTGRES_SHADOW_READS, "true")
+    monkeypatch.setenv("DATABASE_URL", "postgresql://shadow")
+    monkeypatch.setattr(
+        restaurants.restaurant_postgres_read,
+        "search_restaurants_pg",
+        lambda **_: (_ for _ in ()).throw(AssertionError("search shadow should not run here")),
+    )
+    monkeypatch.setattr(
+        restaurants.restaurant_postgres_read,
+        "get_restaurant_menu_pg",
+        lambda **_: (_ for _ in ()).throw(AssertionError("menu shadow should not run here")),
+    )
+    monkeypatch.setattr(
+        restaurants.restaurant_store,
+        "create_submission",
+        lambda **_: {"id": "s1"},
+    )
+    monkeypatch.setattr(restaurants.restaurant_store, "get_submission", lambda _sid: {"id": "s1"})
+    monkeypatch.setattr(
+        restaurants.restaurant_store,
+        "review_submission",
+        lambda _sid, **_: {"id": "s1"},
+    )
+
+    assert (
+        wrapper.create_submission(
+            canonical_name="Protein Bowl",
+            payload={"kcal": 540},
+            barcode=None,
+            off_url=None,
+            entity_type="restaurant_menu",
+        )["id"]
+        == "s1"
+    )
+    assert wrapper.get_submission("s1")["id"] == "s1"
+    assert wrapper.review_submission("s1", status="approved", reviewer_notes=None)["id"] == "s1"
