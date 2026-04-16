@@ -382,6 +382,74 @@ def test_shadow_wrapper_uses_postgres_search_when_enabled(
     assert seen["pg_url"] == "postgresql://shadow"
 
 
+def test_shadow_wrapper_prefers_dedicated_postgres_override_url(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    wrapper = restaurants._RestaurantStoreShadowCompat()
+    seen: dict[str, str] = {}
+    monkeypatch.setenv(restaurants.FEATURE_RESTAURANT_POSTGRES_SHADOW_READS, "true")
+    monkeypatch.setenv("DATABASE_URL", "postgresql://canonical")
+    monkeypatch.setenv(
+        restaurants.RESTAURANT_POSTGRES_SHADOW_READS_URL,
+        "postgresql://shadow-override",
+    )
+    monkeypatch.setattr(
+        restaurants.restaurant_store,
+        "search_restaurants",
+        lambda **_: [{"id": "c1", "name": "Chain 1", "country": "US", "source": "menustat"}],
+    )
+
+    def _shadow_search(**kwargs: Any) -> list[dict[str, Any]]:
+        seen["pg_url"] = kwargs["pg_url"]
+        return [{"id": "c1", "name": "Chain 1", "country": "US", "source": "menustat"}]
+
+    monkeypatch.setattr(
+        restaurants.restaurant_postgres_read, "search_restaurants_pg", _shadow_search
+    )
+    monkeypatch.setattr(
+        restaurants.restaurant_shadow_parity,
+        "compare_restaurant_hits",
+        lambda sqlite_rows, postgres_rows: restaurants.restaurant_shadow_parity.ParityResult(
+            match=True,
+            sqlite_count=len(sqlite_rows),
+            postgres_count=len(postgres_rows),
+            mismatched_indexes=(),
+            mismatch_reasons=(),
+        ),
+    )
+
+    rows = wrapper.search_restaurants("chain", 10, 0)
+
+    assert list(rows)[0]["id"] == "c1"
+    assert seen["pg_url"] == "postgresql://shadow-override"
+
+
+def test_shadow_wrapper_warns_when_enabled_without_postgres_url(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    wrapper = restaurants._RestaurantStoreShadowCompat()
+    monkeypatch.setenv(restaurants.FEATURE_RESTAURANT_POSTGRES_SHADOW_READS, "true")
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+    monkeypatch.delenv(restaurants.RESTAURANT_POSTGRES_SHADOW_READS_URL, raising=False)
+    monkeypatch.setattr(
+        restaurants.restaurant_store,
+        "search_restaurants",
+        lambda **_: [{"id": "c1", "name": "Chain 1", "country": "US", "source": "menustat"}],
+    )
+    monkeypatch.setattr(
+        restaurants.restaurant_postgres_read,
+        "search_restaurants_pg",
+        lambda **_: (_ for _ in ()).throw(AssertionError("shadow search should not run")),
+    )
+
+    with caplog.at_level("WARNING"):
+        rows = wrapper.search_restaurants("chain", 10, 0)
+
+    assert list(rows)[0]["id"] == "c1"
+    assert "shadow reads enabled for search without a PostgreSQL URL" in caplog.text
+
+
 def test_shadow_wrapper_fails_open_when_postgres_menu_errors(
     monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:

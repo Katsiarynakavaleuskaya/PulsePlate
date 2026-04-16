@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from pathlib import Path
 from typing import Any
 
 import pytest
@@ -58,16 +57,44 @@ class _FakeTable:
         self.columns = [type("Column", (), {"name": name})() for name in columns]
 
 
-def test_search_restaurants_pg_rejects_non_postgres_dialect(tmp_path: Path) -> None:
-    db_path = tmp_path / "shadow.sqlite"
-    with pytest.raises(restaurant_postgres_read.RestaurantPostgresReadError) as exc:
-        restaurant_postgres_read.search_restaurants_pg(
-            pg_url=f"sqlite:///{db_path}",
-            query="pulse",
-            limit=10,
-            offset=0,
-        )
+def test_build_pg_engine_sets_bounded_connect_timeout(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: dict[str, Any] = {}
+    fake_engine = _FakeEngine(object())
+
+    def _fake_create_engine(*args: Any, **kwargs: Any) -> _FakeEngine:
+        captured["args"] = args
+        captured["kwargs"] = kwargs
+        return fake_engine
+
+    monkeypatch.setattr(restaurant_postgres_read, "create_engine", _fake_create_engine)
+
+    engine = restaurant_postgres_read._build_pg_engine("postgresql://shadow")
+
+    assert engine is fake_engine
+    assert captured["kwargs"]["connect_args"] == {
+        "connect_timeout": restaurant_postgres_read.POSTGRES_CONNECT_TIMEOUT_SECONDS
+    }
+
+
+def test_search_restaurants_pg_rejects_non_postgres_dialect(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    fake_engine = _FakeEngine(object(), dialect_name="sqlite")
+    monkeypatch.setattr(restaurant_postgres_read, "create_engine", lambda *a, **k: fake_engine)
+
+    with caplog.at_level("DEBUG"):
+        with pytest.raises(restaurant_postgres_read.RestaurantPostgresReadError) as exc:
+            restaurant_postgres_read.search_restaurants_pg(
+                pg_url="sqlite:///shadow.sqlite",
+                query="pulse",
+                limit=10,
+                offset=0,
+            )
+
     assert "target database must be PostgreSQL" in str(exc.value)
+    assert fake_engine.disposed is True
+    assert "rejected non-PostgreSQL dialect: sqlite" in caplog.text
 
 
 def test_search_restaurants_pg_rejects_missing_tables(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -91,7 +118,7 @@ def test_search_restaurants_pg_rejects_missing_tables(monkeypatch: pytest.Monkey
     assert fake_engine.disposed is True
 
 
-def test_fetch_search_rows_orders_by_name() -> None:
+def test_fetch_search_rows_orders_by_name_then_id() -> None:
     connection = _RecordingConnection(
         [{"id": "c1", "name": "Alpha", "country": "US", "source": "menustat"}]
     )
@@ -102,11 +129,11 @@ def test_fetch_search_rows_orders_by_name() -> None:
         offset=3,
     )
     assert rows[0]["id"] == "c1"
-    assert "ORDER BY name ASC" in connection.executed_sql[0]
+    assert "ORDER BY name ASC, id ASC" in connection.executed_sql[0]
     assert connection.params[0] == {"query": "alp", "pattern": "%alp%", "limit": 7, "offset": 3}
 
 
-def test_fetch_menu_rows_orders_by_item_name() -> None:
+def test_fetch_menu_rows_orders_by_item_name_then_id() -> None:
     connection = _RecordingConnection(
         [
             {
@@ -129,7 +156,7 @@ def test_fetch_menu_rows_orders_by_item_name() -> None:
     rows = restaurant_postgres_read._fetch_menu_rows(connection, chain_id="c1", limit=15)
     assert rows[0]["id"] == "m1"
     assert "AND is_active IS TRUE" in connection.executed_sql[0]
-    assert "ORDER BY item_name ASC" in connection.executed_sql[0]
+    assert "ORDER BY item_name ASC, id ASC" in connection.executed_sql[0]
     assert connection.params[0] == {"chain_id": "c1", "limit": 15}
 
 
@@ -172,3 +199,50 @@ def test_reflect_read_tables_rejects_missing_required_columns(
     with pytest.raises(restaurant_postgres_read.RestaurantPostgresReadError) as exc:
         restaurant_postgres_read._reflect_read_tables(object())
     assert "missing required columns" in str(exc.value)
+
+
+def test_get_restaurant_menu_pg_builds_reflects_and_disposes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake_connection = _RecordingConnection(
+        [
+            {
+                "id": "m1",
+                "chain_id": "c1",
+                "item_name": "Protein Bowl",
+                "category": "Bowls",
+                "serving_size_g": 240,
+                "kcal": 510,
+                "protein_g": 28,
+                "fat_g": 16,
+                "carbs_g": 55,
+                "sodium_mg": 760,
+                "source": "menustat",
+                "source_id": "menu-1",
+                "is_active": True,
+            }
+        ]
+    )
+    fake_engine = _FakeEngine(fake_connection)
+    reflected_connections: list[Any] = []
+
+    monkeypatch.setattr(
+        restaurant_postgres_read,
+        "_build_pg_engine",
+        lambda pg_url: fake_engine,
+    )
+    monkeypatch.setattr(
+        restaurant_postgres_read,
+        "_reflect_read_tables",
+        lambda connection: reflected_connections.append(connection),
+    )
+
+    rows = restaurant_postgres_read.get_restaurant_menu_pg(
+        pg_url="postgresql://shadow",
+        chain_id="c1",
+        limit=25,
+    )
+
+    assert rows[0]["id"] == "m1"
+    assert reflected_connections == [fake_connection]
+    assert fake_engine.disposed is True

@@ -135,3 +135,48 @@ def test_compare_restaurant_menu_detects_ordering_drift() -> None:
     result = restaurant_shadow_parity.compare_restaurant_menu(sqlite_rows, postgres_rows)
     assert result.match is False
     assert result.mismatched_indexes[0] == 0
+
+
+def test_compare_restaurant_menu_detects_unequal_row_lengths() -> None:
+    sqlite_rows = [
+        {
+            "id": "m1",
+            "chain_id": "c1",
+            "item_name": "Alpha Bowl",
+            "category": "Bowls",
+            "serving_size_g": 240,
+            "kcal": 510,
+            "protein_g": 28,
+            "fat_g": 16,
+            "carbs_g": 55,
+            "sodium_mg": 760,
+            "source": "menustat",
+            "source_id": "menu-1",
+            "is_active": True,
+        },
+        {
+            "id": "m2",
+            "chain_id": "c1",
+            "item_name": "Beta Bowl",
+            "category": "Bowls",
+            "serving_size_g": 230,
+            "kcal": 470,
+            "protein_g": 24,
+            "fat_g": 14,
+            "carbs_g": 52,
+            "sodium_mg": 710,
+            "source": "menustat",
+            "source_id": "menu-2",
+            "is_active": True,
+        },
+    ]
+    postgres_rows = [sqlite_rows[0]]
+
+    result = restaurant_shadow_parity.compare_restaurant_menu(sqlite_rows, postgres_rows)
+
+    assert result.match is False
+    assert result.sqlite_count == 2
+    assert result.postgres_count == 1
+    assert result.mismatched_indexes == (1,)
+    assert result.mismatch_reasons[0] == "row-count mismatch sqlite=2 postgres=1"
+    assert result.mismatch_reasons[1] == "missing postgres row at index 1"

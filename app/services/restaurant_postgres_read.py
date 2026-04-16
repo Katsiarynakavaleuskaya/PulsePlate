@@ -7,6 +7,7 @@ EN: No runtime cutover here — this module serves shadow-read path only.
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from sqlalchemy import MetaData, Table, create_engine, text
@@ -33,6 +34,8 @@ REQUIRED_MENU_COLUMNS = frozenset(
         "is_active",
     }
 )
+POSTGRES_CONNECT_TIMEOUT_SECONDS = 5
+logger = logging.getLogger(__name__)
 
 
 class RestaurantPostgresReadError(RuntimeError):
@@ -45,12 +48,19 @@ def _build_pg_engine(pg_url: str) -> Engine:
     EN: Build a PostgreSQL engine and fail-closed validate dialect.
     """
 
-    engine = create_engine(pg_url, pool_pre_ping=True, future=True)
+    engine = create_engine(
+        pg_url,
+        pool_pre_ping=True,
+        future=True,
+        connect_args={"connect_timeout": POSTGRES_CONNECT_TIMEOUT_SECONDS},
+    )
     if engine.dialect.name != "postgresql":
-        engine.dispose()
-        raise RestaurantPostgresReadError(
-            f"target database must be PostgreSQL, got dialect {engine.dialect.name!r}"
+        logger.debug(
+            "restaurant shadow-read adapter rejected non-PostgreSQL dialect: %s",
+            engine.dialect.name,
         )
+        engine.dispose()
+        raise RestaurantPostgresReadError("target database must be PostgreSQL")
     return engine
 
 
@@ -103,7 +113,7 @@ def _fetch_search_rows(
         SELECT id, name, country, source
         FROM restaurant_chains
         WHERE (:query = '' OR lower(name) LIKE lower(:pattern))
-        ORDER BY name ASC
+        ORDER BY name ASC, id ASC
         LIMIT :limit OFFSET :offset
         """)
     pattern = f"%{query.strip()}%"
@@ -143,7 +153,7 @@ def _fetch_menu_rows(connection: Connection, *, chain_id: str, limit: int) -> li
         FROM restaurant_menu_items
         WHERE chain_id = :chain_id
           AND is_active IS TRUE
-        ORDER BY item_name ASC
+        ORDER BY item_name ASC, id ASC
         LIMIT :limit
         """)
     rows = connection.execute(sql, {"chain_id": chain_id, "limit": limit}).mappings()
