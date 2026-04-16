@@ -2484,28 +2484,6 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Every report block ends with owner, metric, and decision rule
     - Wellness-safe language and disclaimer references are explicit in the lane docs
 
-<a id="ledger-p2-dagger-pilot-after-docker-baseline"></a>
-- [ ] P2: Re-evaluate Dagger pilot only after Docker baseline stabilizes
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P2
-  - Target PR: PR-TBD-DAGGER-PILOT
-  - Area: CI orchestration / build platform / deferred evaluation
-  - Depends on:
-    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-ci-install-profile-split-after-disk-unblock`
-    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-docker-deploy-contract-reconciliation`
-    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-docker-image-budget-telemetry`
-    - `docs/roadmap/BACKLOG_LEDGER.md#backlog-restore-signed-build-provenance`
-  - Reason: Dagger is not the treatment for the current Docker/CI pain while build context, install surface, deploy contract, and telemetry baseline are still unsettled. Revisit only after the measured baseline exists and the deferred provenance lane is re-evaluated.
-  - Links:
-    - `docs/orchestration/DOCKER_CI_DISCIPLINE_PR_SERIES_PACKET_2026-04-16.md`
-    - `docs/architecture/ADR_DOCKER_BUILD_PROVENANCE_WORKAROUND_2026-03-01.md`
-    - `docs/roadmap/BACKLOG_LEDGER.md#backlog-restore-signed-build-provenance`
-  - DoD:
-    - Image-budget telemetry baseline exists and is referenced in the proposal
-    - Install-profile split and deploy-contract reconciliation are merged
-    - Provenance defer state is re-reviewed before any pilot recommendation
-    - Any pilot compares against the existing GitHub Actions control plane rather than bypassing it
-
 <a id="ledger-p2-pr1437-docker-ci-doc-governance-followup"></a>
 - [x] P2: PR #1437 Docker/CI docs-governance and OpenAPI fallback follow-up
   - Owner: @katsiaryna_kavaleuskaya
