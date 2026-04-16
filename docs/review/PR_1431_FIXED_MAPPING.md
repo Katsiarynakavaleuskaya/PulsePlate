@@ -35,6 +35,16 @@ Disposition: NOT-A-BUG
 Evidence: `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1431#discussion_r3093904268`; `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1431#discussion_r3093904274`
 Reason: the review summary adds no distinct actionable beyond the two inline CodeRabbit comments, which are dispositioned separately above.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1431#discussion_r3094783178
+Disposition: NOT-A-BUG
+Evidence: `scripts/orchestration/check_review_threads_disposition.py:264`; `scripts/orchestration/check_review_threads_disposition.py:467`
+Reason: the strict review-proof parser requires `Disposition:`, `Commit:`, `Evidence:`, and `Reason:` markers at the start of the line inside each contiguous block; re-indenting them under the bullet would make the canonical artifact fail the merge-readiness disposition contract again.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1431#pullrequestreview-4122630149
+Disposition: NOT-A-BUG
+Evidence: `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1431#discussion_r3094783178`; `scripts/orchestration/check_review_threads_disposition.py:264`
+Reason: the summary review repeats the same indentation suggestion as the inline comment above, and the parser-backed formatting requirement already governs the canonical artifact.
+
 ## Merge Readiness
 
 - [ ] Current-head CI is green for PR branch head
