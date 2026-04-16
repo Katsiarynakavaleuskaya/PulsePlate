@@ -1296,6 +1296,32 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Schema checks explicitly cover Pydantic v2 nullable-required semantics where they affect API contracts
     - Dependency upgrade/runbook docs link to the same compatibility gate source
 
+<a id="ledger-p1-dependency-governance-pr-series"></a>
+- [ ] P1: Dependency governance PR series (cluster policy + coordinator-led lane)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-DEPENDENCY-GOVERNANCE-SERIES
+  - Status: 📋 Planned
+  - Area: dependencies / CI governance / orchestration
+  - Finding Type: operating model consolidation gap
+  - Reason (EN): The repo has floors, locks, and CI installers, but dependency work still risks
+    being executed as mixed bump lanes. The series must codify policy classes (`security-floor`,
+    `compatibility-cluster`, `override-seam`) and enforce coordinator-led PR lifecycle with
+    mandatory post-open `qa-engineer-agent -> bug-hunter` on every slice.
+  - Links:
+    - `docs/security/DEPENDENCY_SECURITY_GUARD_WORKFLOW.md:5`
+    - `docs/security/DEPENDENCY_SECURITY_GUARD_WORKFLOW.md:64`
+    - `docs/DEPENDENCY_MANAGEMENT.md:62`
+    - `docs/orchestration/PR_MERGE_WORKFLOW_MATRIX.md:37`
+    - `requirements.txt:1`
+    - `requirements-dev.txt:1`
+    - `requirements-ci-lite.txt:1`
+  - DoD:
+    - Series packet defines role order, PR slices, and mandatory post-open lane; evidence anchor remains `docs/orchestration/PR_MERGE_WORKFLOW_MATRIX.md:37`
+    - Python dependency cluster policy is documented with five-surface coherence rules; evidence anchors remain `docs/security/DEPENDENCY_SECURITY_GUARD_WORKFLOW.md:5`, `docs/security/DEPENDENCY_SECURITY_GUARD_WORKFLOW.md:64`, and `docs/DEPENDENCY_MANAGEMENT.md:62`
+    - PR loop for each slice is explicitly artifact-first (`docs/review/PR_<N>_FIXED_MAPPING.md`); evidence anchor remains `docs/orchestration/PR_MERGE_WORKFLOW_MATRIX.md:39`
+    - Deferred/security-maturity lanes (SBOM/VEX) remain blocked until existing ledger criteria are met
+
 <a id="ledger-p1-test-hygiene-wave"></a>
 - [ ] P1: Test hygiene remediation wave for the main test suite
   - Owner: @katsiaryna_kavaleuskaya
@@ -1612,9 +1638,9 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `docs/security/GHSA-39q2-94rc-95cp-dompurify.md`
     - `docs/architecture/ADR_WAVE6_SECURITY_FLOOR_UNBLOCK_SEAM_2026-04-17.md`
   - DoD:
-    - Canonical `security-floor` wording is shared by the Wave 6 packet and the Karpathy epic
+    - Canonical `security-floor` wording is shared by the Wave 6 packet (`docs/orchestration/WAVE6_AI_RUNTIME_AND_ADVISORY_SERIES_PACKET_2026-04-13.md`) and the Karpathy epic (`docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md`)
     - Allowed surfaces are explicitly limited to governed dependency manifests, lockfiles, schema/guard sync, and CVE evidence
-    - Exit criteria and blockers are documented in the ADR and referenced from the packet and epic
+    - Exit criteria and blockers are documented in the ADR and referenced from the packet (`docs/orchestration/WAVE6_AI_RUNTIME_AND_ADVISORY_SERIES_PACKET_2026-04-13.md`) and epic (`docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md`)
   - Blockers:
     - The advisory must remain dependency-only and must not widen into runtime/API/product scope
     - Every affected surface must have `file:line` evidence plus matching guard/schema proof
@@ -3401,6 +3427,28 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 
 ### P2
 
+<a id="ledger-p2-dagger-pilot-after-docker-baseline"></a>
+- [ ] P2: Re-evaluate Dagger pilot only after Docker baseline stabilizes
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR-TBD-DAGGER-PILOT
+  - Area: CI orchestration / build platform / deferred evaluation
+  - Depends on:
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-ci-install-profile-split-after-disk-unblock`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-docker-deploy-contract-reconciliation`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-docker-image-budget-telemetry`
+    - `docs/roadmap/BACKLOG_LEDGER.md#backlog-restore-signed-build-provenance`
+  - Reason: Dagger is not the treatment for the current Docker/CI pain while build context, install surface, deploy contract, and telemetry baseline are still unsettled. Revisit only after the measured baseline exists and the deferred provenance lane is re-evaluated.
+  - Links:
+    - `docs/orchestration/DOCKER_CI_DISCIPLINE_PR_SERIES_PACKET_2026-04-16.md`
+    - `docs/architecture/ADR_DOCKER_BUILD_PROVENANCE_WORKAROUND_2026-03-01.md`
+    - `docs/roadmap/BACKLOG_LEDGER.md#backlog-restore-signed-build-provenance`
+  - DoD:
+    - Image-budget telemetry baseline exists and is referenced in the proposal
+    - Install-profile split and deploy-contract reconciliation are merged
+    - Provenance defer state is re-reviewed before any pilot recommendation
+    - Any pilot compares against the existing GitHub Actions control plane rather than bypassing it
+
 <a id="ledger-p2-cloudflare-narrow-reopen-automation"></a>
 - [ ] P2: Cloudflare narrow reopen automation after Access-based private recovery
   - Owner: @katsiaryna_kavaleuskaya
@@ -4981,22 +5029,24 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - The change introduces no runtime, schema, or OpenAPI behavior
 
 <a id="ledger-p1-foods-postgres-foundation-followthrough"></a>
-- [ ] P1: Foods PostgreSQL follow-through train (B1 closed -> B2 next, B3 deferred)
+- [ ] P1: Foods PostgreSQL follow-through train (B1/B2 closed -> B3 next)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-B1 (`feat/pr-b1-foods-offline-etl-postgres`) -> PR-B2 (`feat/pr-b2-restaurant-relational-bridge`); B3 runtime cutover stays deferred outside B2
-  - Status: 🚧 Active after merged B1; B2 is the next implementation lane, while B3 runtime cutover remains deferred outside B2
+  - Target PR: PR-B1 (`feat/pr-b1-foods-offline-etl-postgres`) -> PR-B2 (`feat/pr-b2-restaurant-relational-bridge`) -> PR-B3 (`feat/pr-b3-restaurant-postgres-shadow-reads`)
+  - Status: 🚧 Active after merged B1/B2; B3 shadow-read parity lane is the next implementation step
   - Area: backend / data platform / restaurant ingestion
   - Finding Type: post-foundation execution gap
-  - Reason: The additive Alembic foundation lane intentionally creates `foods`, `restaurant_chains`, and `restaurant_menu_items` without changing the current SQLite/local-first runtime, ETL path, or MenuStat importer. The governed follow-through now continues from merged B1 directly into B2 because the Postgres deploy foundation is already present in repo and closed separately as a docs/governance reconciliation lane. B2 rewires restaurant ingestion into the relational catalog; B3 keeps runtime read-switch / cutover out of B2 as its own deferred rollout lane.
+  - Reason: The additive Alembic foundation lane intentionally creates `foods`, `restaurant_chains`, and `restaurant_menu_items` without changing the current SQLite/local-first runtime, ETL path, or MenuStat importer. After merged B1/B2, the next governed lane is B3 shadow reads plus parity checks for restaurant search/menu while preserving SQLite as canonical runtime authority until cutover criteria are proven.
   - Sequence:
     - B1: offline snapshot promotion from `data/food.sqlite::foods` into PostgreSQL `foods` with deterministic upsert/report coverage and no runtime/importer drift
     - B2: bridge `scripts/import_restaurant_menu.py` and restaurant persistence toward `restaurant_chains` / `restaurant_menu_items` additively, without runtime cutover
-    - B3 (deferred): decide and govern any runtime read-switch / PostgreSQL cutover as a later dedicated lane
+    - B3: add PostgreSQL shadow reads + parity checks for restaurant search/menu with SQLite response authority unchanged
+    - Cutover (deferred): decide and govern any runtime read-switch / PostgreSQL authority change only after B3 parity evidence
   - Links:
     - `docs/orchestration/FOODS_CATALOG_FOUNDATION_PR_A_TASK_PACKET_2026-04-12.md`
     - `docs/orchestration/FOODS_POSTGRES_PROMOTION_PR_B1_TASK_PACKET_2026-04-13.md`
     - `docs/orchestration/FOODS_POSTGRES_RESTAURANT_BRIDGE_PR_B2_TASK_PACKET_2026-04-13.md`
+    - `docs/orchestration/FOODS_POSTGRES_SHADOW_READS_PR_B3_TASK_PACKET_2026-04-16.md`
     - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p0-self-hosted-postgres-droplet-foundation`
     - `docs/deploy/POSTGRES_SELF_HOSTED_DROPLET.md`
     - `app/services/food_store.py`
@@ -5005,9 +5055,9 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `scripts/import_restaurant_menu.py`
   - DoD:
     - B1 packet and backlog sequencing explicitly lock the first executable lane to deterministic SQLite snapshot promotion into PostgreSQL `foods`
-    - Backlog sequencing explicitly marks B2 as the next active food implementation lane after merged B1
-    - B2 scope is explicit: restaurant importer rewiring targets `restaurant_chains` / `restaurant_menu_items` with deterministic compatibility coverage and no runtime cutover claim
-    - B3 runtime cutover / read-switch remains explicitly deferred outside B2
+    - Backlog sequencing explicitly marks B3 as the next active food implementation lane after merged B1/B2
+    - B3 scope is explicit: shadow reads + parity checks for restaurant search/menu with SQLite canonical responses
+    - Runtime authority cutover / read-switch remains explicitly deferred beyond B3 until parity/cutover criteria are met
     - Search / catalog follow-up lanes continue to reference the same canonical PostgreSQL table source without parallel schema drift
 
 <a id="ledger-p1-foods-foundation-downgrade-ownership"></a>
