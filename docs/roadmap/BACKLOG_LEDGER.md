@@ -1514,6 +1514,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Links:
     - `docs/roadmap/PulsePlate_P0_P1_Execution_Document_2026-03-30.md`
     - `docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md`
+    - `docs/orchestration/WAVE6_AI_RUNTIME_AND_ADVISORY_SERIES_PACKET_2026-04-13.md`
     - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p0-insight-fallback-chain`
     - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-pro-monthly-quota-ledger-reconciliation`
     - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-rag-hardening-followthrough`
@@ -2714,6 +2715,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - DoD:
     - One canonical umbrella entry exists for the advisory workforce rail
     - The rail is explicitly marked non-canonical and non-product-facing
+    - The rail explicitly does not authorize semantic-cache rollout or bounded-context ownership
     - Existing launcher/compiler slices are linked as children or prerequisites
 
 <a id="ledger-p2-plugin-control-plane-families-umbrella"></a>

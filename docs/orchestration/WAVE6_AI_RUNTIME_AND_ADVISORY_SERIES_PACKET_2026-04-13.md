@@ -121,6 +121,9 @@ Rules:
 
 - `docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md`
 - `docs/roadmap/BACKLOG_LEDGER.md`
+- `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-wave6-ai-runtime-umbrella`
+- `docs/roadmap/BACKLOG_LEDGER.md#ledger-p2-karpathy-style-advisory-wiki-umbrella`
+- `docs/roadmap/BACKLOG_LEDGER.md#ledger-p2-plugin-control-plane-families-umbrella`
 - `docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md` (cross-link only if needed)
 - this packet
 

@@ -154,6 +154,10 @@ Create one explicit umbrella item so Codex does not re-derive sequencing from sc
 #### Title
 `feat(ai-runtime): implement insight fallback chain and readiness visibility`
 
+#### Status
+Landed on `main` in PR #1379; this section stays as historical runtime context and is not
+part of the active `PR-S0 -> PR-A5` closure cycle.
+
 #### Backlog target
 `ledger-p0-insight-fallback-chain`
 
@@ -538,7 +542,7 @@ Build the PulsePlate RAG/LLM/Karpathy line as three separate but coordinated rai
 
 1. **Product AI runtime rail (canonical)**
    - PR-S0 docs/backlog umbrella
-   - PR-A1 insight fallback chain
+   - PR-A1 already landed on `main`; do not reopen as the next lane
    - PR-A1b docs reconciliation for already-landed PRO quota truth
    - PR-A2 RAG hardening follow-through
    - PR-A3 AI bounded-context packet
