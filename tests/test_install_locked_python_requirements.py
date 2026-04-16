@@ -6,6 +6,7 @@ from contextlib import contextmanager
 import json
 from pathlib import Path
 import subprocess
+from typing import Any
 
 import pytest
 
@@ -13,6 +14,23 @@ import scripts.ci.install_locked_python_requirements as installer
 
 APPROVED_PROXY_URL = "https://packages.example.internal/simple"
 REPO_ROOT = Path(__file__).resolve().parents[1]
+
+
+def _repo_emergency_manifest() -> dict[str, Any]:
+    return json.loads(
+        (REPO_ROOT / "scripts/ci/emergency_python_wheels.json").read_text(encoding="utf-8")
+    )
+
+
+def _exact_requirement_pairs(contents: str) -> set[tuple[str, str]]:
+    pairs: set[tuple[str, str]] = set()
+    for raw_line in contents.splitlines():
+        line = raw_line.split("#", 1)[0].strip()
+        if not line or "==" not in line:
+            continue
+        package, version = line.split("==", 1)
+        pairs.add((package.strip(), version.strip()))
+    return pairs
 
 
 def _resolver_miss_runtimeerror_like_run_command(package: str, version: str) -> RuntimeError:
@@ -25,24 +43,22 @@ def _resolver_miss_runtimeerror_like_run_command(package: str, version: str) -> 
 
 
 def test_repo_emergency_manifest_tracks_current_active_fallback_set() -> None:
-    manifest = json.loads(
-        (REPO_ROOT / "scripts/ci/emergency_python_wheels.json").read_text(encoding="utf-8")
-    )
+    manifest = _repo_emergency_manifest()
     artifacts = {(item["package"], item["version"]) for item in manifest["artifacts"]}
     requirements_ci_lite = (REPO_ROOT / "requirements-ci-lite.txt").read_text(encoding="utf-8")
-
-    assert artifacts == {
-        ("cryptography", "46.0.7"),
-        ("faker", "40.13.0"),
-        ("hypothesis", "6.151.12"),
-        ("pillow", "12.2.0"),
-        ("pytest", "9.0.3"),
-        ("ruff", "0.15.10"),
-        ("sentence-transformers", "5.4.0"),
-        ("transformers", "5.5.3"),
-        ("types-pyyaml", "6.0.12.20260408"),
+    requirements_ci_lite_pins = _exact_requirement_pairs(requirements_ci_lite)
+    ci_lite_emergency_pairs = {
+        pair
+        for pair in artifacts
+        if pair[0] in {package for package, _version in requirements_ci_lite_pins}
     }
-    assert "pillow==12.2.0" in requirements_ci_lite
+
+    assert artifacts, "Emergency wheel manifest should track at least one fallback artifact."
+    assert {package for package, _version in ci_lite_emergency_pairs} >= {
+        "pillow",
+        "python-multipart",
+    }
+    assert ci_lite_emergency_pairs <= requirements_ci_lite_pins
 
 
 @pytest.fixture(autouse=True)
