@@ -551,28 +551,6 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - The first gate is warning/regression-only, not an absolute size cap
     - Follow-up provenance or Dagger decisions can cite this baseline explicitly
 
-<a id="ledger-p2-dagger-pilot-after-docker-baseline"></a>
-- [ ] P2: Re-evaluate Dagger pilot only after Docker baseline stabilizes
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P2
-  - Target PR: PR-TBD-DAGGER-PILOT
-  - Area: CI orchestration / build platform / deferred evaluation
-  - Depends on:
-    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-ci-install-profile-split-after-disk-unblock`
-    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-docker-deploy-contract-reconciliation`
-    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-docker-image-budget-telemetry`
-    - `docs/roadmap/BACKLOG_LEDGER.md#backlog-restore-signed-build-provenance`
-  - Reason: Dagger is not the treatment for the current Docker/CI pain while build context, install surface, deploy contract, and telemetry baseline are still unsettled. Revisit only after the measured baseline exists and the deferred provenance lane is re-evaluated.
-  - Links:
-    - `docs/orchestration/DOCKER_CI_DISCIPLINE_PR_SERIES_PACKET_2026-04-16.md`
-    - `docs/architecture/ADR_DOCKER_BUILD_PROVENANCE_WORKAROUND_2026-03-01.md`
-    - `docs/roadmap/BACKLOG_LEDGER.md#backlog-restore-signed-build-provenance`
-  - DoD:
-    - Image-budget telemetry baseline exists and is referenced in the proposal
-    - Install-profile split and deploy-contract reconciliation are merged
-    - Provenance defer state is re-reviewed before any pilot recommendation
-    - Any pilot compares against the existing GitHub Actions control plane rather than bypassing it
-
 <a id="ledger-p1-business-wave-runtime-follow-through"></a>
 - [ ] P1: Business wave runtime follow-through after governance/docs foundation
   - Owner: @katsiaryna_kavaleuskaya
@@ -1634,9 +1612,9 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `docs/security/GHSA-39q2-94rc-95cp-dompurify.md`
     - `docs/architecture/ADR_WAVE6_SECURITY_FLOOR_UNBLOCK_SEAM_2026-04-17.md`
   - DoD:
-    - Canonical `security-floor` wording is shared by the Wave 6 packet and the Karpathy epic
+    - Canonical `security-floor` wording is shared by the Wave 6 packet (`docs/orchestration/WAVE6_AI_RUNTIME_AND_ADVISORY_SERIES_PACKET_2026-04-13.md`) and the Karpathy epic (`docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md`)
     - Allowed surfaces are explicitly limited to governed dependency manifests, lockfiles, schema/guard sync, and CVE evidence
-    - Exit criteria and blockers are documented in the ADR and referenced from the packet and epic
+    - Exit criteria and blockers are documented in the ADR and referenced from the packet (`docs/orchestration/WAVE6_AI_RUNTIME_AND_ADVISORY_SERIES_PACKET_2026-04-13.md`) and epic (`docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md`)
   - Blockers:
     - The advisory must remain dependency-only and must not widen into runtime/API/product scope
     - Every affected surface must have `file:line` evidence plus matching guard/schema proof
@@ -3381,6 +3359,28 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 
 
 ### P2
+
+<a id="ledger-p2-dagger-pilot-after-docker-baseline"></a>
+- [ ] P2: Re-evaluate Dagger pilot only after Docker baseline stabilizes
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR-TBD-DAGGER-PILOT
+  - Area: CI orchestration / build platform / deferred evaluation
+  - Depends on:
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-ci-install-profile-split-after-disk-unblock`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-docker-deploy-contract-reconciliation`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-docker-image-budget-telemetry`
+    - `docs/roadmap/BACKLOG_LEDGER.md#backlog-restore-signed-build-provenance`
+  - Reason: Dagger is not the treatment for the current Docker/CI pain while build context, install surface, deploy contract, and telemetry baseline are still unsettled. Revisit only after the measured baseline exists and the deferred provenance lane is re-evaluated.
+  - Links:
+    - `docs/orchestration/DOCKER_CI_DISCIPLINE_PR_SERIES_PACKET_2026-04-16.md`
+    - `docs/architecture/ADR_DOCKER_BUILD_PROVENANCE_WORKAROUND_2026-03-01.md`
+    - `docs/roadmap/BACKLOG_LEDGER.md#backlog-restore-signed-build-provenance`
+  - DoD:
+    - Image-budget telemetry baseline exists and is referenced in the proposal
+    - Install-profile split and deploy-contract reconciliation are merged
+    - Provenance defer state is re-reviewed before any pilot recommendation
+    - Any pilot compares against the existing GitHub Actions control plane rather than bypassing it
 
 <a id="ledger-p2-cloudflare-narrow-reopen-automation"></a>
 - [ ] P2: Cloudflare narrow reopen automation after Access-based private recovery
