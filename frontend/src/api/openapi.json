@@ -2828,7 +2828,12 @@
         "description": "Server-authored advisory hint for the next product step.",
         "properties": {
           "recommended_surface": {
-            "description": "Canonical product surface that should be opened next.",
+            "description": "Canonical backend-owned product surface slug that should be opened next.",
+            "enum": [
+              "pro_targets",
+              "pro_daily_plate",
+              "vip_export"
+            ],
             "title": "Recommended Surface",
             "type": "string"
           },
@@ -2843,7 +2848,12 @@
             "type": "string"
           },
           "trigger_reason": {
-            "description": "Machine-readable reason key for why this hint was selected.",
+            "description": "Stable v1 rule key for why this hint was selected.",
+            "enum": [
+              "post_bmi",
+              "targets_ready",
+              "weekly_plan_ready"
+            ],
             "title": "Trigger Reason",
             "type": "string"
           },
@@ -2858,7 +2868,12 @@
             "type": "string"
           },
           "why_now": {
-            "description": "Concise backend-authored rationale text for current context.",
+            "description": "Stable localization key selected by the deterministic v1 rule set.",
+            "enum": [
+              "post_bmi_baseline_body_metrics",
+              "targets_ready_apply_meal_by_meal",
+              "weekly_plan_ready_export_and_share"
+            ],
             "title": "Why Now",
             "type": "string"
           }

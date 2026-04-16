@@ -2917,9 +2917,10 @@ export interface components {
         NextBestAction: {
             /**
              * Recommended Surface
-             * @description Canonical product surface that should be opened next.
+             * @description Canonical backend-owned product surface slug that should be opened next.
+             * @enum {string}
              */
-            recommended_surface: string;
+            recommended_surface: "pro_targets" | "pro_daily_plate" | "vip_export";
             /**
              * Recommended Tier
              * @description Advisory target tier for progression copy (not entitlement truth).
@@ -2928,9 +2929,10 @@ export interface components {
             recommended_tier: "FREE" | "PRO" | "VIP";
             /**
              * Trigger Reason
-             * @description Machine-readable reason key for why this hint was selected.
+             * @description Stable v1 rule key for why this hint was selected.
+             * @enum {string}
              */
-            trigger_reason: string;
+            trigger_reason: "post_bmi" | "targets_ready" | "weekly_plan_ready";
             /**
              * Type
              * @description Deterministic trigger action type selected by backend rules.
@@ -2939,9 +2941,10 @@ export interface components {
             type: "unlock_targets" | "open_daily_plate" | "upgrade_for_export";
             /**
              * Why Now
-             * @description Concise backend-authored rationale text for current context.
+             * @description Stable localization key selected by the deterministic v1 rule set.
+             * @enum {string}
              */
-            why_now: string;
+            why_now: "post_bmi_baseline_body_metrics" | "targets_ready_apply_meal_by_meal" | "weekly_plan_ready_export_and_share";
         };
         /**
          * NumericRangeSchema

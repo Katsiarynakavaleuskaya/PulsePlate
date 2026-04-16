@@ -2,7 +2,7 @@
   "schema_version": 1,
   "generated_at": "2026-04-15",
   "expires_at": "2026-05-15",
-  "reason": "Temporary exact-wheel fallback for cryptography, Pillow, pytest, faker, hypothesis, sentence-transformers, ruff, types-pyyaml, and transformers while the approved private proxy lags the patched upstream releases used by active dependency PRs.",
+  "reason": "Temporary exact-wheel fallback for cryptography, Pillow, pytest, faker, hypothesis, python-multipart, sentence-transformers, ruff, types-pyyaml, and transformers while the approved private proxy lags the patched upstream releases used by active dependency PRs.",
   "artifacts": [
     {
       "package": "cryptography",
@@ -80,6 +80,13 @@
       "filename": "hypothesis-6.151.12-py3-none-any.whl",
       "url": "https://files.pythonhosted.org/packages/0e/5a/6cecf134b631050a1f8605096adbe812483b60790d951470989d39b56860/hypothesis-6.151.12-py3-none-any.whl",
       "sha256": "37d4f3a768365c30571b11dfd7a6857a12173d933010b2c4ab65619f1b5952c5"
+    },
+    {
+      "package": "python-multipart",
+      "version": "0.0.26",
+      "filename": "python_multipart-0.0.26-py3-none-any.whl",
+      "url": "https://files.pythonhosted.org/packages/9a/22/f1925cdda983ab66fc8ec6ec8014b959262747e58bdca26a4e3d1da29d56/python_multipart-0.0.26-py3-none-any.whl",
+      "sha256": "c0b169f8c4484c13b0dcf2ef0ec3a4adb255c4b7d18d8e420477d2b1dd03f185"
     },
     {
       "package": "sentence-transformers",

@@ -36,6 +36,7 @@ def test_repo_emergency_manifest_tracks_current_active_fallback_set() -> None:
         ("faker", "40.13.0"),
         ("hypothesis", "6.151.12"),
         ("pillow", "12.2.0"),
+        ("python-multipart", "0.0.26"),
         ("pytest", "9.0.3"),
         ("ruff", "0.15.10"),
         ("sentence-transformers", "5.4.0"),
@@ -43,6 +44,7 @@ def test_repo_emergency_manifest_tracks_current_active_fallback_set() -> None:
         ("types-pyyaml", "6.0.12.20260408"),
     }
     assert "pillow==12.2.0" in requirements_ci_lite
+    assert "python-multipart==0.0.26" in requirements_ci_lite
 
 
 @pytest.fixture(autouse=True)
