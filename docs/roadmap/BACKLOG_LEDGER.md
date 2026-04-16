@@ -1228,6 +1228,32 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Schema checks explicitly cover Pydantic v2 nullable-required semantics where they affect API contracts
     - Dependency upgrade/runbook docs link to the same compatibility gate source
 
+<a id="ledger-p1-dependency-governance-pr-series"></a>
+- [ ] P1: Dependency governance PR series (cluster policy + coordinator-led lane)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-DEPENDENCY-GOVERNANCE-SERIES
+  - Status: 📋 Planned
+  - Area: dependencies / CI governance / orchestration
+  - Finding Type: operating model consolidation gap
+  - Reason (EN): The repo has floors, locks, and CI installers, but dependency work still risks
+    being executed as mixed bump lanes. The series must codify policy classes (`security-floor`,
+    `compatibility-cluster`, `override-seam`) and enforce coordinator-led PR lifecycle with
+    mandatory post-open `qa-engineer-agent -> bug-hunter` on every slice.
+  - Links:
+    - `docs/security/DEPENDENCY_SECURITY_GUARD_WORKFLOW.md:5`
+    - `docs/security/DEPENDENCY_SECURITY_GUARD_WORKFLOW.md:64`
+    - `docs/DEPENDENCY_MANAGEMENT.md:62`
+    - `docs/orchestration/PR_MERGE_WORKFLOW_MATRIX.md:37`
+    - `requirements.txt:1`
+    - `requirements-dev.txt:1`
+    - `requirements-ci-lite.txt:1`
+  - DoD:
+    - Series packet defines role order, PR slices, and mandatory post-open lane; evidence anchor remains `docs/orchestration/PR_MERGE_WORKFLOW_MATRIX.md:37`
+    - Python dependency cluster policy is documented with five-surface coherence rules; evidence anchors remain `docs/security/DEPENDENCY_SECURITY_GUARD_WORKFLOW.md:5`, `docs/security/DEPENDENCY_SECURITY_GUARD_WORKFLOW.md:64`, and `docs/DEPENDENCY_MANAGEMENT.md:62`
+    - PR loop for each slice is explicitly artifact-first (`docs/review/PR_<N>_FIXED_MAPPING.md`); evidence anchor remains `docs/orchestration/PR_MERGE_WORKFLOW_MATRIX.md:39`
+    - Deferred/security-maturity lanes (SBOM/VEX) remain blocked until existing ledger criteria are met
+
 <a id="ledger-p1-test-hygiene-wave"></a>
 - [ ] P1: Test hygiene remediation wave for the main test suite
   - Owner: @katsiaryna_kavaleuskaya
