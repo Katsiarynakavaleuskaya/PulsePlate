@@ -1650,7 +1650,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Remediate `Mako` Dependabot alerts 114-116 with an explicit security floor
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (dependency security / current-head regression)
-  - Target PR: PR-TBD-MAKO-SECURITY-FLOOR
+  - Target PR: PR `#1440`
   - Area: security / Python dependencies / merge governance
   - Finding Type: live dependency-security regression
   - Status: In progress as of 17 April 2026 in clean worktree `worktrees/mako-security-floor`
