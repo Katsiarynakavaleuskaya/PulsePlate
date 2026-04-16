@@ -22,7 +22,9 @@ The CI and Docker install lanes also rely on the approved private package proxy.
 
 ## Evidence Anchors
 
-- `requirements.in:18`
+- `requirements.in:19`
+- `requirements-ci-lite.in:24`
+- `constraints.txt:43`
 - `requirements.txt:195`
 - `requirements-ci-lite.txt:301`
 - `requirements-lock.txt:441`

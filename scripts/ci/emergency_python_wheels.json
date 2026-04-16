@@ -2,7 +2,7 @@
   "schema_version": 1,
   "generated_at": "2026-04-15",
   "expires_at": "2026-05-15",
-  "reason": "Temporary exact-wheel fallback for cryptography, Pillow, pytest, faker, hypothesis, python-multipart, sentence-transformers, ruff, types-pyyaml, and transformers while the approved private proxy lags the patched upstream releases used by active dependency PRs.",
+  "reason": "Temporary exact-wheel fallback for cryptography, Pillow, python-multipart, pytest, faker, hypothesis, sentence-transformers, ruff, types-pyyaml, and transformers while the approved private proxy lags the patched upstream releases used by active dependency PRs.",
   "artifacts": [
     {
       "package": "cryptography",

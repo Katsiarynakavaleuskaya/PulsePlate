@@ -2,6 +2,7 @@
   "min_versions": {
     "cryptography": "46.0.7",
     "pillow": "12.2.0",
+    "python-multipart": "0.0.26",
     "requests": "2.33.0"
   },
   "blocked_packages": [],

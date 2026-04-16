@@ -20,6 +20,7 @@ requests>=2.33.0,<3.0.0
 pillow>=12.2.0,<13.0.0
 python-dotenv>=1.2.1,<2.0.0
 prometheus-client>=0.23.1,<1.0.0
+# Security floor: GHSA-mj87-hwqh-73pj / CVE-2026-40347
 python-multipart>=0.0.26,<1.0.0
 slowapi>=0.1.9,<1.0.0
 tenacity>=9.1.2,<10.0.0
