@@ -19,8 +19,12 @@ Disposition: FIXED
 Commit: edccdb2e6
 Evidence: `docs/roadmap/BACKLOG_LEDGER.md:1239`
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1432#pullrequestreview-4122532894 -> edccdb2e6
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1432#discussion_r3095547522 -> edccdb2e6
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1432#pullrequestreview-4123530699 -> edccdb2e6
+
+Disposition: FIXED
+Commit: 485f0b207
+Evidence: `docs/roadmap/BACKLOG_LEDGER.md:1247`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1432#discussion_r3095547522 -> 485f0b207
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1432#pullrequestreview-4123530699 -> 485f0b207
 
 ## Merge Readiness
 
