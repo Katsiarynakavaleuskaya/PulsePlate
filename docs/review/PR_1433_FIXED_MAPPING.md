@@ -44,12 +44,13 @@ Evidence: `docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md:213-217`; `
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1433#discussion_r3096349822
 Disposition: FIXED
-Commit: PENDING_NEXT_COMMIT
-Evidence: `docs/review/PR_1433_FIXED_MAPPING.md:1-999`
+Commit: 83521d29cb01bd3d320c5c851e412ed1b51fc595
+Evidence: `docs/review/PR_1433_FIXED_MAPPING.md:1-72`; `AGENTS.md:42-52`; `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md:41-90`.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1433#pullrequestreview-4124419042
-Disposition: PENDING_NEXT_COMMIT
-Evidence: `docs/review/PR_1433_FIXED_MAPPING.md:1-999`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1433#pullrequestreview-4124419042 -> 83521d29cb01bd3d320c5c851e412ed1b51fc595
+Disposition: FIXED
+Commit: 83521d29cb01bd3d320c5c851e412ed1b51fc595
+Evidence: `docs/review/PR_1433_FIXED_MAPPING.md:1-72`; `AGENTS.md:42-52`; `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md:41-90`.
 
 ## Merge Readiness
 
