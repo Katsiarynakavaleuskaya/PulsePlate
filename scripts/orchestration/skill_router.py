@@ -62,6 +62,7 @@ DESIGN_CONDITIONAL_SKILLS: frozenset[str] = frozenset(
 RESEARCH_CONDITIONAL_SKILLS: frozenset[str] = frozenset(
     {
         "pulseplate-ai-reports",
+        "pulseplate-monetization-gtm",
         "notion-research-documentation",
         "notion-knowledge-capture",
         "linear",
@@ -527,6 +528,38 @@ SKILL_RULES: tuple[SkillRule, ...] = (
             "aso",
             "seo",
             "wellness",
+        ),
+    ),
+    SkillRule(
+        skill="pulseplate-monetization-gtm",
+        category="repo-tracked",
+        rationale=(
+            "Paywall, subscription pricing, billing-flow, and wellness-safe "
+            "growth-channel work should use the dedicated PulsePlate monetization skill."
+        ),
+        min_score=6,
+        domain_weights={"business": 2, "wellness": 1, "research": 1},
+        path_prefixes=(
+            "docs/marketing/",
+            "docs/analytics/",
+            "docs/product/FREE_PRO_CONTRACT.md",
+            "docs/product/FREE_PRO_SOFT_PAYWALL.md",
+            "app/services/payments_activation.py",
+            "core/billing_policy.py",
+        ),
+        keywords=(
+            "paywall",
+            "subscription",
+            "pricing",
+            "billing flow",
+            "trial",
+            "restore",
+            "conversion",
+            "product hunt",
+            "aso",
+            "seo",
+            "gtm",
+            "monetization",
         ),
     ),
     SkillRule(

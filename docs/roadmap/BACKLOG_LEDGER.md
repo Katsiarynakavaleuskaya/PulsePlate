@@ -4747,8 +4747,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Add custom Codex skill `pulseplate-monetization-gtm` (Wave 1)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-TBD-CODEX-SKILL-WAVE1B
-  - Status: Planned
+  - Target PR: PR #1439
+  - Status: In progress
   - Area: monetization / growth / orchestration
   - Finding Type: capability expansion
   - Reason: PulsePlate needs a project-specific monetization/GTM skill for subscriptions, paywalls, pricing experiments, launch channels, and wellness-safe growth recommendations without relying on generic advice alone.

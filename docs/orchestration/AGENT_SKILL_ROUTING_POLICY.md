@@ -143,8 +143,8 @@ metadata, screenshot-pack, App Privacy, or release-evidence intent.
 | iOS / App Store / Fastlane | `build-ios-apps:swiftui-ui-patterns`, `build-ios-apps:swiftui-view-refactor` | `build-ios-apps:ios-debugger-agent`, `build-ios-apps:swiftui-performance-audit`, `pulseplate-app-store-release` |
 | Docs / runbooks / policy | `docs-sync` | `agents-md`, `release-notes`, `code-review-expert` |
 | QA / CI / remediation | `bug-triage`, `pulseplate-gates` | `ci-fix`, `gh-fix-ci`, `gh-address-comments`, `code-review-expert` |
-| Reports / wellness / GTM research | `pulseplate-ai-reports`, `docs-sync` | `notion-research-documentation`, `notion-knowledge-capture`, `linear`, `openai-docs`, `pulseplate-monetization-gtm` (planned) |
-| Monetization / paywall / subscriptions | `docs-sync` | `build-web-apps:stripe-best-practices`, `pulseplate-ai-reports`, `linear`, `notion-research-documentation`, `pulseplate-monetization-gtm` (planned) |
+| Reports / wellness / GTM research | `pulseplate-ai-reports`, `docs-sync` | `notion-research-documentation`, `notion-knowledge-capture`, `linear`, `openai-docs`, `pulseplate-monetization-gtm` (evidence: `scripts/orchestration/skill_router.py:533`, `tests/test_skill_router.py:744`) |
+| Monetization / paywall / subscriptions | `docs-sync`, `pulseplate-monetization-gtm` (evidence: `tools/codex_skills/pulseplate-monetization-gtm/SKILL.md:1`, `tests/test_install_codex_skills.py:276`) | `build-web-apps:stripe-best-practices`, `pulseplate-ai-reports`, `linear`, `notion-research-documentation` |
 | Design / media / launch assets | `figma`, `docs-sync` | `figma-implement-design`, `pulseplate-frontend-ui`, `build-web-apps:web-design-guidelines`, `playwright`, `notion-research-documentation`, `notion-knowledge-capture`, `sora`, `imagegen`, `speech`, `screenshot`, `pulseplate-design-launch-system` (planned); `Airweave` and `Penpot` stay Phase 1 runbook-only lanes and are not skill-routed yet |
 
 ---

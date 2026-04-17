@@ -751,9 +751,23 @@ def test_skill_router_selects_monetization_and_gtm_stack() -> None:
         domain="business",
     )
 
+    assert "pulseplate-monetization-gtm" in skills
     assert "build-web-apps:stripe-best-practices" in skills
     assert "pulseplate-ai-reports" in skills
     assert "docs-sync" in skills
+
+
+def test_skill_router_keeps_monetization_skill_out_of_pure_ios_refactor_lane() -> None:
+    """Pure iOS subscription-screen cleanup should not force the monetization skill."""
+
+    skills = select_recommended_skills(
+        goal="Refactor a SwiftUI subscription screen and polish the paywall animation",
+        task_class="iOS",
+        candidate_paths=["ios/PulsePlate/Features/Paywall/PaywallView.swift"],
+        domain="ios",
+    )
+
+    assert "pulseplate-monetization-gtm" not in skills
 
 
 def test_skill_router_selects_github_review_ci_pr_stack() -> None:
