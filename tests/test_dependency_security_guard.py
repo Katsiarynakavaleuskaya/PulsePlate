@@ -120,6 +120,11 @@ def _parse_requirement(line: str, path: Optional[Path] = None) -> Optional[Requi
     if s.startswith(("-r ", "--requirement", "-c ", "--constraint")):
         return None
     if "://" in s or s.startswith(("-e ", "--editable", "git+", "hg+", "svn+", "bzr+")):
+        if path is not None:
+            pytest.fail(
+                f"{path.name}: URL/VCS/editable requirement entries are not allowed in "
+                "dependency guard surfaces. Use pinned/constraint package specifiers instead."
+            )
         return None
     try:
         return Requirement(s)
@@ -233,6 +238,17 @@ def test_parse_requirement_fails_on_invalid_syntax(tmp_path: Path) -> None:
     bad_req = tmp_path / "requirements.txt"
     bad_req.write_text("cryptography==46..0.5\n", encoding="utf-8")
     with pytest.raises(BaseException, match="Invalid requirement syntax"):
+        _effective_min_versions_per_package(bad_req)
+
+
+def test_parse_requirement_fails_on_url_requirement(tmp_path: Path) -> None:
+    """Guard must fail-fast if a requirements file contains URL/VCS/editable entry."""
+    bad_req = tmp_path / "requirements.txt"
+    bad_req.write_text(
+        "cryptography @ https://example.com/cryptography-3.4.8-py3-none-any.whl\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(BaseException, match="URL/VCS/editable requirement entries are not allowed"):
         _effective_min_versions_per_package(bad_req)
 
 
