@@ -31,6 +31,7 @@ BACKEND_SHARED_EXACT: tuple[str, ...] = (
     "Makefile",
     "constraints.txt",
     "legacy_app.py",
+    "llm.py",
     "mcp_pulseplate_server.py",
     "pyproject.toml",
     "pytest.ini",
@@ -38,10 +39,14 @@ BACKEND_SHARED_EXACT: tuple[str, ...] = (
     "requirements-ci-lite.txt",
     "requirements-dev.txt",
     "requirements.txt",
+    "secure_config.py",
+    "settings.py",
+    "signed_links.py",
 )
 BACKEND_SHARED_PREFIXES: tuple[str, ...] = (
     "app/",
     "core/",
+    "providers/",
     "scripts/ci/",
     "scripts/orchestration/",
     "tests/",

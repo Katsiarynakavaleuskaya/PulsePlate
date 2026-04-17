@@ -189,6 +189,27 @@ def test_generic_backend_change_hits_route_contract_safety_group() -> None:
     assert profile.contract_risk_groups == ("route_contract_safety",)
 
 
+@pytest.mark.parametrize(
+    "changed_file",
+    [
+        "signed_links.py",
+        "settings.py",
+        "llm.py",
+        "providers/ollama.py",
+    ],
+)
+def test_root_and_provider_backend_surfaces_are_backend_shared(
+    changed_file: str,
+) -> None:
+    profile = risk_profile.build_risk_profile([changed_file])
+
+    assert profile.backend_shared is True
+    assert profile.run_backend_blocking is True
+    assert profile.run_security is True
+    assert profile.route_contract_safety is True
+    assert profile.contract_risk_groups == ("route_contract_safety",)
+
+
 def test_food_schema_change_hits_food_catalog_openapi_and_route_groups() -> None:
     profile = risk_profile.build_risk_profile(
         ["app/schemas/food.py"],
