@@ -61,6 +61,7 @@ unit-fast:
 	python3 -m pytest -q tests
 SHELL := /bin/bash
 VENV_PYTHON ?= .venv/bin/python
+OPENAPI_PYTHON ?= $(if $(wildcard $(VENV_PYTHON)),$(VENV_PYTHON),python3)
 PIP ?= $(VENV_PYTHON) -m pip
 
 # Цвета для вывода
@@ -449,9 +450,9 @@ smoke-8001: ## Smoke against http://127.0.0.1:8001
 
 ## Generate OpenAPI schema (backend) and regenerate frontend TypeScript types
 openapi: frontend-install ## Generate OpenAPI schema and regenerate FE types (deterministic)
-	# RU: Генератор OpenAPI должен идти через repo .venv, иначе verify падает на системном Python без FastAPI.
-	# EN: Run OpenAPI generation through the repo .venv to avoid system-Python drift during verify.
-	PYTHONPATH=. $(VENV_PYTHON) scripts/generate_openapi.py
+	# RU: Локально предпочитаем repo .venv, а в CI без .venv падаем обратно на runner python из setup step.
+	# EN: Prefer repo .venv locally, but fall back to the runner python in CI when .venv is absent.
+	PYTHONPATH=. $(OPENAPI_PYTHON) scripts/generate_openapi.py
 	./scripts/frontend_npm.sh --prefix frontend run generate-types
 ## Install frontend dependencies (run once or when package.json changes)
 frontend-install: ## Install frontend dependencies
