@@ -191,14 +191,7 @@ def test_generic_backend_change_hits_route_contract_safety_group() -> None:
 
 @pytest.mark.parametrize(
     "changed_file",
-    [
-        "signed_links.py",
-        "settings.py",
-        "llm.py",
-        "main.py",
-        "secure_config.py",
-        "providers/ollama.py",
-    ],
+    [*risk_profile.ROOT_BACKEND_SHARED_MODULES, "providers/ollama.py"],
 )
 def test_root_and_provider_backend_surfaces_are_backend_shared(
     changed_file: str,
