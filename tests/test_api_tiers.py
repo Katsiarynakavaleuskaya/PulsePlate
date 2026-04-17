@@ -171,12 +171,12 @@ class TestValidateAPIKeyTier:
         assert _validate_api_key_tier("miss_then_env_key", SubscriptionTier.PRO) is True
         assert _validate_api_key_tier("miss_then_env_key", SubscriptionTier.VIP) is False
 
-    def test_environment_overrides_app_env_for_runtime_detection(
+    def test_app_env_overrides_environment_for_runtime_detection(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """ENVIRONMENT must win over APP_ENV to keep production-like guards fail-closed."""
-        monkeypatch.setenv("ENVIRONMENT", "production")
-        monkeypatch.setenv("APP_ENV", "local")
+        """APP_ENV must win over ENVIRONMENT to avoid production misclassification."""
+        monkeypatch.setenv("ENVIRONMENT", "development")
+        monkeypatch.setenv("APP_ENV", "production")
         monkeypatch.setenv("DEBUG", "true")
 
         assert get_runtime_env_name() == "production"

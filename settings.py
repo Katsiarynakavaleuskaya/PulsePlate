@@ -20,13 +20,15 @@ _NON_PRODUCTION_ENVS = frozenset({""}) | _DEVELOPER_LIKE_ENVS
 def get_runtime_env_name() -> str:
     """Return canonical runtime environment label.
 
-    RU: Канонизирует имя окружения, отдавая приоритет ENVIRONMENT над APP_ENV.
-    EN: Canonicalizes runtime environment, preferring ENVIRONMENT over APP_ENV.
+    RU: Канонизирует имя окружения, отдавая приоритет APP_ENV над ENVIRONMENT.
+    EN: Canonicalizes runtime environment, preferring APP_ENV over ENVIRONMENT.
     """
 
+    if environment := (os.getenv("APP_ENV") or "").strip().lower():
+        return environment
     if environment := (os.getenv("ENVIRONMENT") or "").strip().lower():
         return environment
-    return (os.getenv("APP_ENV") or "local").strip().lower()
+    return "local"
 
 
 def is_truthy_env_var(name: str, default: str = "") -> bool:
