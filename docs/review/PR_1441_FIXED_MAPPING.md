@@ -9,7 +9,29 @@ Bot and human review threads must be dispositioned here before they are resolved
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+Disposition: FIXED
+Commit: ede22924b
+Evidence: `docs/orchestration/CODEX_SKILLS_ALIGNMENT_MATRIX.md:93`, `docs/roadmap/BACKLOG_LEDGER.md:4752`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1441#discussion_r3102563701 -> ede22924b
+
+Disposition: FIXED
+Commit: 0c2037964
+Evidence: `docs/review/PR_1441_FIXED_MAPPING.md:5`, `docs/review/PR_1441_FIXED_MAPPING.md:6`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1441#discussion_r3102563710 -> 0c2037964
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1441#discussion_r3102584675 -> 0c2037964
+
+Disposition: NOT-A-BUG
+Evidence: `scripts/ci/check_pr_body_phase2_gates.py:123`, `scripts/ci/check_pr_body_phase2_gates.py:148`, `AGENTS.md:5`, `AGENTS.md:8`
+Reason: The canonical Phase2 contract requires the discussion and mapping mirror sections in the PR body, but it does not enforce merge-readiness checkbox parity there; the repo hard gate still requires `make verify`, so keeping `make verify` as the canonical wording is contract-correct.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1441#discussion_r3102563705
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1441#discussion_r3102584692
+
+Disposition: NOT-A-BUG
+Evidence: `scripts/orchestration/review_mapping_artifact.py:24`, `scripts/orchestration/review_mapping_artifact.py:31`, `scripts/ci/check_pr_body_phase2_gates.py:123`, `scripts/ci/check_pr_body_phase2_gates.py:148`
+Reason: The review container comments aggregate the inline findings already dispositioned in this artifact; they do not represent additional unresolved defects beyond the mapped review-thread URLs.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1441#pullrequestreview-4131316125
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1441#pullrequestreview-4131321622
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1441#pullrequestreview-4131343842
 
 ## Merge Readiness
 
