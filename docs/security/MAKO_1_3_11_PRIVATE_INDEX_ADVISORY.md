@@ -8,11 +8,11 @@ approved private Python proxy still lags that release on `17 April 2026`.
 
 To avoid a vulnerable repin while keeping the canonical private-proxy contract
 as the default path, the repo now uses a **time-boxed, exact-wheel fallback**
-for `mako 1.3.11` on Linux `amd64`:
+for `mako 1.3.11`:
 
 - exact package: `mako`
 - exact version: `1.3.11`
-- exact wheel filename for the pure-Python `py3-none-any` release
+- exact wheel filename for the pure-Python universal `py3-none-any` release
 - exact `sha256` digest
 - explicit artifact-scoped expiry in `scripts/ci/emergency_python_wheels.json:87`
 - fallback scope limited to the approved-proxy install path used by CI and Docker
@@ -35,9 +35,10 @@ policy change.
   still exposing only `1.3.10`, which failed locked install preflight for
   `lint`, `security`, `OpenAPI sync`, and `test-pr (3.13)` on the active PR.
 - **Fallback source of truth:** `scripts/ci/emergency_python_wheels.json:1`
-- **Atomic wheel verification:** `scripts/ci/install_locked_python_requirements.py:401`
-- **Fallback staging path:** `scripts/ci/install_locked_python_requirements.py:434`
-- **Direct-proxy retry after proxy miss:** `scripts/ci/install_locked_python_requirements.py:870`
+- **Atomic wheel verification:** `scripts/ci/install_locked_python_requirements.py:408`
+- **Fallback staging path:** `scripts/ci/install_locked_python_requirements.py:442`
+- **Preflight emergency artifact verification:** `scripts/ci/install_locked_python_requirements.py:753`
+- **Direct-proxy retry after proxy miss:** `scripts/ci/install_locked_python_requirements.py:1092`
 - **Shared CI wiring:** `.github/actions/python-setup/action.yml:70`
 - **Docker wiring:** `Dockerfile:74`
 
@@ -60,9 +61,10 @@ policy change.
 ## References
 
 - `scripts/ci/emergency_python_wheels.json:1`
-- `scripts/ci/install_locked_python_requirements.py:401`
-- `scripts/ci/install_locked_python_requirements.py:434`
-- `scripts/ci/install_locked_python_requirements.py:870`
+- `scripts/ci/install_locked_python_requirements.py:408`
+- `scripts/ci/install_locked_python_requirements.py:442`
+- `scripts/ci/install_locked_python_requirements.py:753`
+- `scripts/ci/install_locked_python_requirements.py:1092`
 - `.github/actions/python-setup/action.yml:70`
 - `Dockerfile:74`
 - `docs/security/GHSA-v92g-xgxw-vvmm-mako.md:1`

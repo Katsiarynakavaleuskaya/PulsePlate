@@ -109,8 +109,10 @@ Rules:
 
 - governed Python dependency source and constraint surfaces
 - pinned runtime / full lock / CI-lite lock surfaces
+- `scripts/ci/emergency_python_wheels.json`
 - `tests/fixtures/dependency_security_schema.json`
 - `docs/security/GHSA-v92g-xgxw-vvmm-mako.md`
+- `docs/security/MAKO_1_3_11_PRIVATE_INDEX_ADVISORY.md`
 - `docs/review/PR_<N>_FIXED_MAPPING.md`
 
 ## Acceptance Criteria
@@ -139,9 +141,11 @@ Rules:
   - `requirements-dev.txt`
   - `requirements-lock.txt`
   - `requirements-ci-lite.txt`
+  - `scripts/ci/emergency_python_wheels.json`
   - `tests/fixtures/dependency_security_schema.json`
 - Security note:
   - `docs/security/GHSA-v92g-xgxw-vvmm-mako.md`
+  - `docs/security/MAKO_1_3_11_PRIVATE_INDEX_ADVISORY.md`
 
 ## Validation
 
