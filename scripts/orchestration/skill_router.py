@@ -62,6 +62,7 @@ DESIGN_CONDITIONAL_SKILLS: frozenset[str] = frozenset(
 RESEARCH_CONDITIONAL_SKILLS: frozenset[str] = frozenset(
     {
         "pulseplate-ai-reports",
+        "pulseplate-monetization-gtm",
         "notion-research-documentation",
         "notion-knowledge-capture",
         "linear",
@@ -122,6 +123,7 @@ DOCS_ONLY_EXCLUDED_ROUTING_SKILLS: frozenset[str] = frozenset(
         "pulseplate-backend-endpoints",
         "pulseplate-openapi-sync",
         "pulseplate-frontend-ui",
+        "pulseplate-app-store-release",
         "vercel-react-best-practices",
         "build-web-apps:frontend-skill",
         "build-web-apps:web-design-guidelines",
@@ -529,6 +531,38 @@ SKILL_RULES: tuple[SkillRule, ...] = (
         ),
     ),
     SkillRule(
+        skill="pulseplate-monetization-gtm",
+        category="repo-tracked",
+        rationale=(
+            "Paywall, subscription pricing, billing-flow, and wellness-safe "
+            "growth-channel work should use the dedicated PulsePlate monetization skill."
+        ),
+        min_score=6,
+        domain_weights={"business": 2, "wellness": 1, "research": 1},
+        path_prefixes=(
+            "docs/marketing/",
+            "docs/analytics/",
+            "docs/product/FREE_PRO_CONTRACT.md",
+            "docs/product/FREE_PRO_SOFT_PAYWALL.md",
+            "app/services/payments_activation.py",
+            "core/billing_policy.py",
+        ),
+        keywords=(
+            "paywall",
+            "subscription",
+            "pricing",
+            "billing flow",
+            "trial",
+            "restore",
+            "conversion",
+            "product hunt",
+            "aso",
+            "seo",
+            "gtm",
+            "monetization",
+        ),
+    ),
+    SkillRule(
         skill="bug-triage",
         category="global",
         rationale="Use the bug-triage workflow when the task is framed as a failure, regression, or fix.",
@@ -652,6 +686,30 @@ SKILL_RULES: tuple[SkillRule, ...] = (
             "app store screenshot",
             "app store screenshots",
             "fastlane screenshots",
+        ),
+    ),
+    SkillRule(
+        skill="pulseplate-app-store-release",
+        category="repo-tracked",
+        rationale=(
+            "App Store metadata, screenshot packs, App Privacy uploads, and "
+            "release-evidence work should use the dedicated PulsePlate release skill."
+        ),
+        min_score=6,
+        domain_weights={"release": 2, "qa": 1},
+        path_prefixes=("ios/fastlane/", "docs/runbooks/IOS_APPSTORE_ASSETS_ROLLOUT.md"),
+        keywords=(
+            "app store metadata",
+            "app store screenshot",
+            "app store screenshots",
+            "app store connect",
+            "app privacy",
+            "review information",
+            "review notes",
+            "fastlane metadata",
+            "fastlane screenshots",
+            "app store submission",
+            "release evidence",
         ),
     ),
     SkillRule(

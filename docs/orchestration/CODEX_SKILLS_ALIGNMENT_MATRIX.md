@@ -60,6 +60,8 @@ Interpretation:
 
 ### Tier 2: Useful and should route conditionally
 
+- `pulseplate-app-store-release`
+- `pulseplate-monetization-gtm`
 - `build-web-apps:react-best-practices`
 - `build-ios-apps:swiftui-performance-audit`
 - `linear`
@@ -79,8 +81,6 @@ Interpretation:
 
 ### Tier 3: Missing custom PulsePlate skills
 
-- `pulseplate-app-store-release`
-- `pulseplate-monetization-gtm`
 - `pulseplate-design-launch-system`
 - `pulseplate-agent-product`
 - `pulseplate-web-launch-site`
@@ -89,8 +89,8 @@ Interpretation:
 
 ### Wave 1
 
-- `pulseplate-app-store-release`
-- `pulseplate-monetization-gtm`
+- `pulseplate-app-store-release` (active in this wave; evidence: `docs/roadmap/BACKLOG_LEDGER.md:4571`, `tools/codex_skills/pulseplate-app-store-release/SKILL.md:1`)
+- `pulseplate-monetization-gtm` (active in this wave; evidence: `docs/roadmap/BACKLOG_LEDGER.md:4588`, `tools/codex_skills/pulseplate-monetization-gtm/SKILL.md:1`)
 
 ### Wave 2
 

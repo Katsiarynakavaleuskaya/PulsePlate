@@ -28,6 +28,7 @@ from app.schemas.weekly_plan import (
     require_weekly_plan_payload_shape,
     normalize_weekly_plan_payload,
 )
+from app.services.intervention_trigger_engine import build_weekly_plan_next_action
 from app.services.weekly_plan.pipeline import run_weekly_pipeline_guarded
 
 from core.food_db_new import FoodDB
@@ -361,6 +362,10 @@ async def generate_week_plan(req: ProWeekPlanRequest) -> Union[ProWeekPlanRespon
             "Expected ProWeekPlanResponse from weekly pipeline, "
             f"got type={type(result).__name__} value={result!r}"
         )
+
+    result.next_best_action = build_weekly_plan_next_action(
+        daily_menu_count=len(result.daily_menus)
+    )
     return result
 
 

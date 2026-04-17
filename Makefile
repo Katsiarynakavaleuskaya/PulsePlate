@@ -450,9 +450,22 @@ smoke-8001: ## Smoke against http://127.0.0.1:8001
 
 ## Generate OpenAPI schema (backend) and regenerate frontend TypeScript types
 openapi: frontend-install ## Generate OpenAPI schema and regenerate FE types (deterministic)
-	# RU: Локально предпочитаем repo .venv, а в CI без .venv падаем обратно на runner python из setup step.
-	# EN: Prefer repo .venv locally, but fall back to the runner python in CI when .venv is absent.
-	PYTHONPATH=. $(OPENAPI_PYTHON) scripts/generate_openapi.py
+	@OPENAPI_PYTHON="$(VENV_PYTHON)"; \
+	if [ -x "$$OPENAPI_PYTHON" ]; then \
+		:; \
+	elif [ "$$CI" = "true" ] && command -v python3 >/dev/null 2>&1; then \
+		OPENAPI_PYTHON="$$(command -v python3)"; \
+	elif [ "$$CI" = "true" ] && command -v python >/dev/null 2>&1; then \
+		OPENAPI_PYTHON="$$(command -v python)"; \
+	else \
+		echo "$(RED)❌ .venv missing. Run 'make venv' first.$(NC)"; \
+		exit 1; \
+	fi; \
+	"$$OPENAPI_PYTHON" -c 'import sys; raise SystemExit(0 if sys.version_info.major == 3 else 1)' || { \
+		echo "$(RED)❌ OpenAPI fallback requires Python 3.$(NC)"; \
+		exit 1; \
+	}; \
+	PYTHONPATH=. "$$OPENAPI_PYTHON" scripts/generate_openapi.py
 	./scripts/frontend_npm.sh --prefix frontend run generate-types
 ## Install frontend dependencies (run once or when package.json changes)
 frontend-install: ## Install frontend dependencies

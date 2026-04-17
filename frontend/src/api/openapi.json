@@ -530,6 +530,17 @@
               null
             ]
           },
+          "next_best_action": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NextBestAction"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Optional backend-authored next-step hint for planning progression."
+          },
           "notes": {
             "description": "Aggregated notes (currently only from waist_risk.notes). Empty list if no notes.",
             "examples": [
@@ -872,6 +883,17 @@
               },
               null
             ]
+          },
+          "next_best_action": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NextBestAction"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Optional backend-authored next-step hint for planning progression."
           },
           "notes": {
             "description": "Aggregated notes (currently only from waist_risk.notes). Empty list if no notes.",
@@ -2799,6 +2821,71 @@
           "currency"
         ],
         "title": "MoneyDTO",
+        "type": "object"
+      },
+      "NextBestAction": {
+        "additionalProperties": false,
+        "description": "Server-authored advisory hint for the next product step.",
+        "properties": {
+          "recommended_surface": {
+            "description": "Canonical backend-owned product surface slug that should be opened next.",
+            "enum": [
+              "pro_targets",
+              "pro_daily_plate",
+              "vip_export"
+            ],
+            "title": "Recommended Surface",
+            "type": "string"
+          },
+          "recommended_tier": {
+            "description": "Advisory target tier for progression copy (not entitlement truth).",
+            "enum": [
+              "FREE",
+              "PRO",
+              "VIP"
+            ],
+            "title": "Recommended Tier",
+            "type": "string"
+          },
+          "trigger_reason": {
+            "description": "Stable v1 rule key for why this hint was selected.",
+            "enum": [
+              "post_bmi",
+              "targets_ready",
+              "weekly_plan_ready"
+            ],
+            "title": "Trigger Reason",
+            "type": "string"
+          },
+          "type": {
+            "description": "Deterministic trigger action type selected by backend rules.",
+            "enum": [
+              "unlock_targets",
+              "open_daily_plate",
+              "upgrade_for_export"
+            ],
+            "title": "Type",
+            "type": "string"
+          },
+          "why_now": {
+            "description": "Stable localization key selected by the deterministic v1 rule set.",
+            "enum": [
+              "post_bmi_baseline_body_metrics",
+              "targets_ready_apply_meal_by_meal",
+              "weekly_plan_ready_export_and_share"
+            ],
+            "title": "Why Now",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "recommended_surface",
+          "recommended_tier",
+          "trigger_reason",
+          "why_now"
+        ],
+        "title": "NextBestAction",
         "type": "object"
       },
       "NumericRangeSchema": {
@@ -6129,6 +6216,16 @@
             "title": "Macros",
             "type": "object"
           },
+          "next_best_action": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NextBestAction"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "priority_micros": {
             "additionalProperties": {
               "type": "number"
@@ -6404,6 +6501,16 @@
             },
             "title": "Daily Menus",
             "type": "array"
+          },
+          "next_best_action": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NextBestAction"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "shopping_list": {
             "additionalProperties": {

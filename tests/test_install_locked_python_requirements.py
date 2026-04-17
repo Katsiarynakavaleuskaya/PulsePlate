@@ -60,6 +60,7 @@ def test_repo_emergency_manifest_tracks_current_active_fallback_set() -> None:
         "python-multipart",
     }
     assert ci_lite_emergency_pairs <= requirements_ci_lite_pins
+    assert ("python-multipart", "0.0.26") in requirements_ci_lite_pins
 
 
 @pytest.fixture(autouse=True)

@@ -1,7 +1,10 @@
+import math
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any, Dict, Optional
 
 import pytest
+from fastapi.testclient import TestClient
 
 from core import recommendations as R
 import core.exports_simple as exports_simple
@@ -18,6 +21,126 @@ from core.recipe_db import (
 )
 from core.recipe_db_new import Meal
 from core.recipe_db_new import RecipeDB as RecipeDBNew
+
+
+def test_intervention_trigger_engine_invalid_inputs_fail_closed() -> None:
+    """RU/EN: Smoke-cover trigger guard branches used by PR monetization prompts."""
+    from app.services.intervention_trigger_engine import (
+        build_post_bmi_next_action,
+        build_targets_next_action,
+        build_weekly_plan_next_action,
+    )
+
+    assert build_post_bmi_next_action(bmi=True) is None
+    assert build_post_bmi_next_action(bmi=0.0) is None
+    assert build_targets_next_action(kcal_daily=math.nan) is None
+    assert build_targets_next_action(kcal_daily=0) is None
+    assert build_weekly_plan_next_action(daily_menu_count=None) is None
+    assert build_weekly_plan_next_action(daily_menu_count=True) is None
+    assert build_weekly_plan_next_action(daily_menu_count=0) is None
+
+
+def test_who_targets_fallback_response_includes_next_best_action() -> None:
+    """RU/EN: Smoke-cover legacy WHO fallback monetization hint wiring."""
+    import legacy_app
+
+    request = legacy_app.WHOTargetsRequest(
+        sex="female",
+        age=29,
+        height_cm=168,
+        weight_kg=62,
+        activity="moderate",
+        goal="maintain",
+        life_stage="adult",
+        lang="en",
+    )
+
+    response = legacy_app._fallback_targets_response(
+        request,
+        reason="Fallback used during smoke coverage.",
+    )
+
+    assert response.next_best_action is not None
+    assert response.next_best_action.type == "open_daily_plate"
+    assert response.next_best_action.recommended_surface == "pro_daily_plate"
+
+
+def test_generate_who_targets_response_sets_next_best_action(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """RU/EN: Smoke-cover canonical WHO-targets post-processing after builder success."""
+    import app as app_module
+    import legacy_app
+
+    targets = SimpleNamespace(
+        kcal_daily=2150,
+        macros=SimpleNamespace(protein_g=120, fat_g=70, carbs_g=230, fiber_g=30),
+        water_ml_daily=2300,
+        micros=SimpleNamespace(get_priority_nutrients=lambda: {"iron_mg": 12.0}),
+        activity=SimpleNamespace(moderate_aerobic_min=150, strength_sessions=2, steps_daily=8000),
+        calculation_date="2025-01-01",
+    )
+    monkeypatch.setattr(legacy_app, "build_nutrition_targets", lambda _profile: targets)
+    monkeypatch.setattr(app_module, "build_nutrition_targets", lambda _profile: targets)
+
+    request = legacy_app.WHOTargetsRequest(
+        sex="female",
+        age=31,
+        height_cm=167,
+        weight_kg=61,
+        activity="moderate",
+        goal="maintain",
+        life_stage="adult",
+        lang="en",
+    )
+
+    response = legacy_app._generate_who_targets_response(request)
+
+    assert response.kcal_daily == 2150
+    assert response.next_best_action is not None
+    assert response.next_best_action.type == "open_daily_plate"
+
+
+def test_pro_weekly_endpoint_sets_upgrade_next_best_action(
+    pro_headers: dict[str, str],
+) -> None:
+    """RU/EN: Smoke-cover canonical PRO weekly response post-processing."""
+    from app.main import app as main_app
+
+    client = TestClient(main_app)
+    payload = {
+        "targets": {
+            "kcal": 2000,
+            "macros": {
+                "protein_g": 110.0,
+                "fat_g": 70.0,
+                "carbs_g": 220.0,
+                "fiber_g": 30.0,
+            },
+            "micro": {"vitamin_c_mg": 90.0, "iron_mg": 14.0},
+            "water_ml": 0,
+            "activity_week": {
+                "moderate_aerobic_min": 150,
+                "vigorous_aerobic_min": 75,
+                "strength_sessions": 2,
+                "steps_daily": 8000,
+            },
+        },
+        "diet_flags": [],
+        "lang": "en",
+    }
+
+    response = client.post(
+        "/api/v1/pro/meal/weekly",
+        json=payload,
+        headers=pro_headers,
+    )
+
+    assert response.status_code == 200, response.text
+    assert response.headers.get("content-type", "").startswith("application/json")
+    body = response.json()
+    assert body["next_best_action"]["type"] == "upgrade_for_export"
+    assert body["next_best_action"]["recommended_surface"] == "vip_export"
 
 
 def test_plate_macros_negative_remaining_kcal_triggers_reduction():
