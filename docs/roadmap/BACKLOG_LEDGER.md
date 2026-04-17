@@ -432,10 +432,20 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Links:
     - `docs/security/MAKO_1_3_11_PRIVATE_INDEX_ADVISORY.md:1`
     - `docs/security/GHSA-v92g-xgxw-vvmm-mako.md:1`
-    - `scripts/ci/emergency_python_wheels.json`
-    - `scripts/ci/install_locked_python_requirements.py`
-    - `.github/actions/python-setup/action.yml`
-    - `Dockerfile`
+    - `scripts/ci/emergency_python_wheels.json:85-90`
+    - `scripts/ci/install_locked_python_requirements.py:408-442`
+    - `.github/actions/python-setup/action.yml:70`
+    - `Dockerfile:74`
+  - Evidence:
+    - `docs/security/GHSA-v92g-xgxw-vvmm-mako.md:5-27` maps `GHSA-v92g-xgxw-vvmm`
+      to `Mako` and records `1.3.11` as the first patched version across the
+      repo-managed dependency surfaces.
+    - `docs/security/MAKO_1_3_11_PRIVATE_INDEX_ADVISORY.md:44-48` records the
+      current-head CI/private-proxy lag that still exposed only `1.3.10` during
+      locked installs on `17 April 2026`.
+    - `scripts/ci/emergency_python_wheels.json:85-90` is the narrow temporary
+      exact-wheel fallback entry that must be retired once the approved mirror
+      serves `1.3.11` natively.
   - DoD:
     - [ ] Approved private proxy serves `mako 1.3.11` without the emergency fallback manifest
     - [ ] `scripts/ci/emergency_python_wheels.json` no longer needs the `mako 1.3.11` emergency entry
@@ -1684,11 +1694,22 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     новых Dependabot alerts по `Mako`; их нужно закрыть отдельным узким PR до
     возврата к paused security-epic/docs lane.)
   - Links:
-    - `docs/orchestration/DEPENDABOT_ALERTS_114_116_REMEDIATION_TASK_PACKET_2026-04-17.md`
-    - `docs/security/GHSA-v92g-xgxw-vvmm-mako.md`
-    - `tests/fixtures/dependency_security_schema.json`
-    - `tests/test_dependency_security_guard.py`
+    - `docs/orchestration/DEPENDABOT_ALERTS_114_116_REMEDIATION_TASK_PACKET_2026-04-17.md:26-48`
+    - `docs/security/GHSA-v92g-xgxw-vvmm-mako.md:5-27`
+    - `tests/fixtures/dependency_security_schema.json:4`
+    - `tests/test_dependency_security_guard.py:56-110`
     - GitHub alerts: `security/dependabot/114`, `security/dependabot/115`, `security/dependabot/116`
+  - Evidence:
+    - `docs/security/GHSA-v92g-xgxw-vvmm-mako.md:5-27` anchors the advisory
+      identity, affected package, first patched version `1.3.11`, and the
+      repo-managed requirement/lock surfaces that must stay aligned.
+    - `docs/orchestration/DEPENDABOT_ALERTS_114_116_REMEDIATION_TASK_PACKET_2026-04-17.md:28-44`
+      records the pre-remediation repo truth for alerts `#114-#116`, including
+      the `mako==1.3.10` pins that triggered this dedicated narrow lane.
+    - `tests/fixtures/dependency_security_schema.json:4` plus
+      `tests/test_dependency_security_guard.py:56-110` provide the local
+      fail-closed policy evidence that `Mako 1.3.11` is the enforced minimum
+      safe version for this remediation.
   - DoD:
     - Governed source surfaces explicitly enforce `Mako >= 1.3.11`
     - Pinned runtime/full/CI-lite lock surfaces resolve `mako==1.3.11`
