@@ -484,6 +484,37 @@ def require_vip_tier(
     return context.api_key
 
 
+def require_valid_api_key(
+    x_api_key: Optional[str] = Security(api_key_header),
+) -> str:
+    """Require an API key that resolves to any authorized subscription tier."""
+
+    if x_api_key is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="API key required",
+        )
+
+    normalized_api_key = x_api_key.strip()
+    if not normalized_api_key:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="API key required",
+        )
+
+    resolved_tier = _resolve_authorized_api_key_tier(
+        normalized_api_key,
+        required_tier=SubscriptionTier.FREE,
+    )
+    if resolved_tier is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid API key",
+        )
+
+    return normalized_api_key
+
+
 def get_subscription_tier(api_key: str) -> SubscriptionTier:
     """Get subscription tier for API key.
 

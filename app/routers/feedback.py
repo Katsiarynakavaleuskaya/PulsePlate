@@ -13,16 +13,13 @@ from __future__ import annotations
 import logging
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, status
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.orm import Session
-
-from fastapi import Security
-
 from app.middleware.api_tiers import (
     CurrentUser,
     derive_subject_id_from_api_key,
-    api_key_header,
+    require_valid_api_key,
 )
 from core.db import get_session
 from core.pii_redaction import redact_pii_from_text
@@ -68,7 +65,7 @@ class RAGFeedbackResponse(BaseModel):
 
 
 async def get_feedback_user(
-    x_api_key: Optional[str] = Security(api_key_header),
+    api_key: str = Depends(require_valid_api_key),
 ) -> CurrentUser:
     """Get user context for feedback submission.
 
@@ -76,15 +73,10 @@ async def get_feedback_user(
     collection from all users.
 
     Raises:
-        HTTPException 401: If no API key provided
+        HTTPException 401: If API key is missing or invalid
     """
-    if not x_api_key:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="API key required for feedback submission",
-        )
-    user_id = derive_subject_id_from_api_key(x_api_key)
-    return CurrentUser(user_id=user_id, api_key=x_api_key)
+    user_id = derive_subject_id_from_api_key(api_key)
+    return CurrentUser(user_id=user_id, api_key=api_key)
 
 
 @router.post(

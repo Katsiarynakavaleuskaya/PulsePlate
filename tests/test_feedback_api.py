@@ -13,7 +13,7 @@ from __future__ import annotations
 import pytest
 from fastapi.testclient import TestClient
 
-from app.middleware.api_tiers import TEST_KEY_PRO, derive_subject_id_from_api_key
+from app.middleware.api_tiers import TEST_KEY_PRO
 
 
 class TestRAGFeedbackSubmission:
@@ -224,16 +224,24 @@ class TestRAGFeedbackAuthentication:
 
         assert response.status_code in (401, 403)
 
-    def test_accepts_any_valid_api_key(self) -> None:
-        """Any valid API key is accepted (not tier-specific)."""
-        # Use a different key than TEST_KEY_PRO
+    def test_accepts_valid_configured_api_key(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Configured API keys are accepted (not tier-specific)."""
+        monkeypatch.setenv("PRO_API_KEYS", "feedback-valid-key")
+        headers = {"X-API-Key": "feedback-valid-key"}
+        payload = {"query": "test with different key"}
+
+        response = self.client.post(self.url, json=payload, headers=headers)
+
+        assert response.status_code == 201
+
+    def test_rejects_unconfigured_api_key(self) -> None:
+        """Unknown API key is rejected."""
         headers = {"X-API-Key": "any-valid-key-for-feedback"}
         payload = {"query": "test with different key"}
 
         response = self.client.post(self.url, json=payload, headers=headers)
 
-        # Should succeed with any key (not require PRO/VIP tier)
-        assert response.status_code == 201
+        assert response.status_code == 401
 
 
 class TestRAGFeedbackChunksStorage:
