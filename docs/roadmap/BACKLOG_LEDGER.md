@@ -395,6 +395,27 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `scripts/ci/install_locked_python_requirements.py`
     - `.github/actions/python-setup/action.yml`
     - `Dockerfile`
+  - Evidence:
+    - Emergency manifest entries for the still-active fallback set remain pinned in
+      `scripts/ci/emergency_python_wheels.json:8-19` (`cryptography 46.0.7`),
+      `scripts/ci/emergency_python_wheels.json:22-61` (`pillow 12.2.0`),
+      `scripts/ci/emergency_python_wheels.json:64-69` (`pytest 9.0.3`),
+      `scripts/ci/emergency_python_wheels.json:71-76` (`faker 40.13.0`),
+      `scripts/ci/emergency_python_wheels.json:78-83` (`hypothesis 6.151.12`),
+      `scripts/ci/emergency_python_wheels.json:93-98`
+      (`sentence-transformers 5.4.0`),
+      `scripts/ci/emergency_python_wheels.json:100-105` (`ruff 0.15.10`),
+      `scripts/ci/emergency_python_wheels.json:107-112`
+      (`types-pyyaml 6.0.12.20260408`), and
+      `scripts/ci/emergency_python_wheels.json:114-119`
+      (`transformers 5.5.3`).
+    - Installer/bootstrap fallback logic is implemented in
+      `scripts/ci/install_locked_python_requirements.py:275-359`
+      (manifest load/validation), `scripts/ci/install_locked_python_requirements.py:401-420`
+      (exact-pin detection across requirements/constraints),
+      `scripts/ci/install_locked_python_requirements.py:457-490`
+      (artifact staging), and `.github/actions/python-setup/action.yml:70`
+      (shared CI wiring).
   - DoD:
     - [ ] Approved private proxy serves every still-active `scripts/ci/emergency_python_wheels.json` entry without manifest fallbacks
     - [ ] `scripts/ci/emergency_python_wheels.json` is removed from canonical CI/Docker paths

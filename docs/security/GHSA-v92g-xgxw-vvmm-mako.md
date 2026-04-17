@@ -55,6 +55,6 @@ python3 scripts/ci/install_locked_python_requirements.py --index-url "${PULSEPLA
 
 - ADR: `docs/architecture/ADR_WAVE6_SECURITY_FLOOR_UNBLOCK_SEAM_2026-04-17.md:1-79`
 - Seam backlog / DoD / blockers:
-  `docs/roadmap/BACKLOG_LEDGER.md:1600-1621`
+  `docs/roadmap/BACKLOG_LEDGER.md:1657-1678`
 - Emergency-manifest retirement backlog:
-  `docs/roadmap/BACKLOG_LEDGER.md:383-402`
+  `docs/roadmap/BACKLOG_LEDGER.md:424-451`

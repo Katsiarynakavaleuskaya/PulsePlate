@@ -14,7 +14,7 @@ To avoid a vulnerable repin while keeping the canonical private-proxy contract
 as the default path, the repo now uses a **time-boxed, exact-wheel fallback**
 for `mako 1.3.11` under the temporary seam governed by
 `docs/architecture/ADR_WAVE6_SECURITY_FLOOR_UNBLOCK_SEAM_2026-04-17.md:1-79`
-and `docs/roadmap/BACKLOG_LEDGER.md:1600-1621`:
+and `docs/roadmap/BACKLOG_LEDGER.md:1657-1678`:
 
 - exact package: `mako`
 - exact version: `1.3.11`
@@ -32,8 +32,8 @@ policy change.
 - **Active date:** 2026-04-17
 - **Current PR:** `PR #1440`
 - **Temporary seam ADR:** `docs/architecture/ADR_WAVE6_SECURITY_FLOOR_UNBLOCK_SEAM_2026-04-17.md:1-79`
-- **Seam backlog / DoD / blockers:** `docs/roadmap/BACKLOG_LEDGER.md:1600-1621`
-- **Removal backlog:** `docs/roadmap/BACKLOG_LEDGER.md:383-402`
+- **Seam backlog / DoD / blockers:** `docs/roadmap/BACKLOG_LEDGER.md:1657-1678`
+- **Removal backlog:** `docs/roadmap/BACKLOG_LEDGER.md:424-451`
 
 ## Current repo state (2026-04-17)
 
@@ -60,9 +60,9 @@ policy change.
 3. Allow only the exact `mako 1.3.11` wheel listed in the manifest while the
    proxy is stale, without extending the default expiry window of unrelated
    emergency-wheel entries (`docs/architecture/ADR_WAVE6_SECURITY_FLOOR_UNBLOCK_SEAM_2026-04-17.md:55-79`,
-   `docs/roadmap/BACKLOG_LEDGER.md:383-402`).
+   `docs/roadmap/BACKLOG_LEDGER.md:424-451`).
 4. Remove the manifest-driven fallback once the approved proxy serves
-   `1.3.11` natively (`docs/roadmap/BACKLOG_LEDGER.md:398-402`).
+   `1.3.11` natively (`docs/roadmap/BACKLOG_LEDGER.md:449-451`).
 
 ## Prohibited shortcuts
 

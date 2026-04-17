@@ -18,7 +18,7 @@ Dependabot alerts on `Mako` across the repo's Python requirement and lock
 surfaces. The lane is intentionally limited to dependency floors, lock
 regeneration, schema/guard synchronization, security evidence, and merge
 governance. It must complete before the Wave 6 `security-floor` docs/governance
-lane tracked in `docs/roadmap/BACKLOG_LEDGER.md:1600-1617` and reconciled by
+lane tracked in `docs/roadmap/BACKLOG_LEDGER.md:1657-1678` and reconciled by
 merged `PR #1433` (`docs(roadmap): reconcile Wave 6 PR-S0 lane and security floor`,
 <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1433>) returns to
 normal sequencing.
@@ -110,7 +110,7 @@ Rules:
 - Wave 6 security-floor docs reconciliation already landed in merged `PR #1433`
   (`docs(roadmap): reconcile Wave 6 PR-S0 lane and security floor`,
   <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1433>; seam SoT:
-  `docs/roadmap/BACKLOG_LEDGER.md:1600-1617`)
+  `docs/roadmap/BACKLOG_LEDGER.md:1657-1678`)
 
 ## Expected Touched Surfaces
 
@@ -173,11 +173,11 @@ make verify
   - the canonical review artifact and PR body mirror are synchronized.
 - Do not resume the paused security-epic/docs lane until this remediation PR is
   merged and local refs are re-synced from `main`; the governing seam remains
-  `docs/roadmap/BACKLOG_LEDGER.md:1600-1617` and merged `PR #1433`
+  `docs/roadmap/BACKLOG_LEDGER.md:1657-1678` and merged `PR #1433`
   (<https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1433>).
 - After merge:
   - `git fetch --prune origin`
   - remove the merged local branch/worktree
   - `git worktree prune`
   - only then return to the next active Wave 6 docs/governance item recorded in
-    `docs/roadmap/BACKLOG_LEDGER.md:1600-1621`.
+    `docs/roadmap/BACKLOG_LEDGER.md:1657-1678`.
