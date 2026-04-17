@@ -119,7 +119,7 @@ def _parse_requirement(line: str, path: Optional[Path] = None) -> Optional[Requi
         return None
     if s.startswith(("-r ", "--requirement", "-c ", "--constraint")):
         return None
-    if "://" in s or s.startswith(("-e ", "--editable", "git+", "hg+", "svn+", "bzr+")):
+    if s.startswith(("-e ", "--editable", "git+", "hg+", "svn+", "bzr+")):
         return None
     try:
         return Requirement(s)
@@ -170,6 +170,17 @@ def _effective_min_versions_per_package(path: Path) -> dict[str, Version]:
         if v_str is not None:
             by_pkg.setdefault(req.name.lower(), []).append(Version(v_str))
     return {pkg: min(vers) for pkg, vers in by_pkg.items()}
+
+
+def _packages_present_in_file(path: Path) -> set[str]:
+    """Parse file once; return normalized package names present in this surface."""
+    packages: set[str] = set()
+    for line in _iter_requirement_lines(path):
+        req = _parse_requirement(line, path)
+        if req is None:
+            continue
+        packages.add(req.name.lower())
+    return packages
 
 
 @pytest.mark.parametrize("surface", REQUIREMENT_SURFACES)
@@ -284,13 +295,20 @@ def test_dependency_security_guard_enforces_blocked_packages(surface: Path) -> N
     blocked_packages = schema.get("blocked_packages", [])
     if not blocked_packages:
         pytest.skip("No blocked packages defined in schema.")
-    all_reqs = _effective_min_versions_per_package(surface)
+    all_reqs = _packages_present_in_file(surface)
     for pkg in blocked_packages:
         if pkg.lower() in all_reqs:
             pytest.fail(
                 f"{surface.name}: package {pkg!r} is blocked by security policy. "
                 f"Remove it from this surface."
             )
+
+
+def test_blocked_packages_detects_unpinned_requirements(tmp_path: Path) -> None:
+    """Blocked package detection must include bare package names without specifiers."""
+    req = tmp_path / "requirements.txt"
+    req.write_text("unsafe-pkg\n", encoding="utf-8")
+    assert "unsafe-pkg" in _packages_present_in_file(req)
 
 
 @pytest.mark.parametrize("surface", REQUIREMENT_SURFACES)
