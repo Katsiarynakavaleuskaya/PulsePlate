@@ -18,7 +18,7 @@ comments can be dispositioned here before any thread resolution.
 
 Disposition: FIXED
 Commit: 3818b0eb0
-Evidence: `scripts/ci/ci_risk_profile.py:31`, `scripts/ci/ci_risk_profile.py:42`, `tests/test_ci_risk_profile.py:73`
+Evidence: `scripts/ci/ci_risk_profile.py:31`, `scripts/ci/ci_risk_profile.py:42`, `tests/test_ci_risk_profile.py:210`
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1460#pullrequestreview-4131985967 -> 3818b0eb0
 
 Disposition: NOT-A-BUG
@@ -30,6 +30,7 @@ Disposition: FIXED
 Commit: ce041eb86
 Evidence: `tests/test_ci_risk_profile.py:192`, `tests/test_ci_risk_profile.py:201`, `tests/test_ci_risk_profile.py:210`
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1460#pullrequestreview-4132048646 -> ce041eb86
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1460#discussion_r3103204062 -> ce041eb86
 
 ## Merge Readiness
 
