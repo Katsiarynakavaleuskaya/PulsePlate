@@ -21,12 +21,7 @@ Current GitHub review surface for PR `#1461` was re-checked on `18 April 2026`:
 
 ## Fixed in Commit Mapping
 
-No actionable review threads or blocking bot comments are present on the current
-PR head, so there are no dispositioned inline findings to map for this docs-only
-lane.
-
-Evidence: `docs/review/PR_1461_FIXED_MAPPING.md:1-24`; GitHub GraphQL
-`pullRequest.reviewThreads.nodes=[]`; `gh pr view 1461 --json reviews,latestReviews,comments`.
+- No actionable review comments
 
 ## Merge Readiness
 
@@ -39,9 +34,9 @@ Merge-readiness contract:
 - [ ] Required checks complete (no pending jobs)
   Evidence: `AGENTS.md:46-49`; `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md:155-163`.
 - [x] All review threads resolved on GitHub after disposition updates
-  Evidence: GitHub GraphQL `pullRequest.reviewThreads.nodes=[]`.
+  Evidence: GitHub GraphQL `pullRequest.reviewThreads.nodes=[]`; `gh pr view 1461 --json reviews,latestReviews,comments`.
 - [x] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
-  Evidence: informational-only comments listed in `docs/review/PR_1461_FIXED_MAPPING.md:13-16`.
+  Evidence: informational-only comments listed in `docs/review/PR_1461_FIXED_MAPPING.md:13-16`; `docs/review/PR_1461_FIXED_MAPPING.md:19`.
 - [ ] Pre-commit green on latest pushed head
   Evidence: `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md:175-180`.
 - [ ] `make verify` green on latest pushed head
