@@ -36,6 +36,8 @@ def test_intervention_trigger_engine_invalid_inputs_fail_closed() -> None:
     assert build_targets_next_action(kcal_daily=math.nan) is None
     assert build_targets_next_action(kcal_daily=0) is None
     assert build_weekly_plan_next_action(daily_menu_count=None) is None
+    assert build_weekly_plan_next_action(daily_menu_count=True) is None
+    assert build_weekly_plan_next_action(daily_menu_count=0) is None
 
 
 def test_who_targets_fallback_response_includes_next_best_action() -> None:
