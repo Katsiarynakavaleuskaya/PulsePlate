@@ -540,7 +540,7 @@ jobs:
         uses: ./.github/actions/python-setup
         with:
           python-version: ${{ matrix.python-version }}
-          requirements-profile: runtime-test
+          requirements-profile: ci-test
           install-mode: direct-proxy
 
       - name: Setup Node.js
@@ -771,7 +771,7 @@ jobs:
         uses: ./.github/actions/python-setup
         with:
           python-version: ${{ matrix.python-version }}
-          requirements-profile: runtime-test
+          requirements-profile: ci-test
           install-mode: direct-proxy
 
       - name: Setup Node.js
@@ -1009,7 +1009,7 @@ jobs:
         uses: ./.github/actions/python-setup
         with:
           python-version: ${{ matrix.python-version }}
-          requirements-profile: runtime-test
+          requirements-profile: ci-test
           install-mode: direct-proxy
 
       - name: Setup Node.js

@@ -140,6 +140,29 @@ def test_resolve_requirement_files_supports_explicit_ci_lite_profile(tmp_path: P
     assert files == [requirements_ci_lite]
 
 
+def test_resolve_requirement_files_supports_explicit_ci_test_profile(tmp_path: Path) -> None:
+    requirements = tmp_path / "requirements.txt"
+    requirements.write_text("openai==2.29.0\n", encoding="utf-8")
+    requirements_dev = tmp_path / "requirements-dev.txt"
+    requirements_dev.write_text("pre-commit==4.5.1\n", encoding="utf-8")
+    requirements_test = tmp_path / "requirements-test.txt"
+    requirements_test.write_text("pytest==9.0.3\n", encoding="utf-8")
+    requirements_ci_lite = tmp_path / "requirements-ci-lite.txt"
+    requirements_ci_lite.write_text("pre-commit==4.5.1\n", encoding="utf-8")
+
+    files = installer.resolve_requirement_files(
+        requirements_file=requirements,
+        dev_requirements_file=requirements_dev,
+        test_requirements_file=requirements_test,
+        ci_lite_requirements_file=requirements_ci_lite,
+        install_dev=False,
+        install_test=False,
+        requirements_profile="ci-test",
+    )
+
+    assert files == [requirements_ci_lite, requirements_test]
+
+
 def test_resolve_requirement_files_fails_when_runtime_file_is_missing(tmp_path: Path) -> None:
     with pytest.raises(FileNotFoundError, match="Requirements file not found"):
         installer.resolve_requirement_files(
@@ -210,6 +233,26 @@ def test_resolve_requirement_files_fails_when_ci_lite_profile_is_requested_but_m
             install_dev=False,
             install_test=False,
             requirements_profile="ci-lite",
+        )
+
+
+def test_resolve_requirement_files_fails_when_ci_test_profile_is_requested_but_missing(
+    tmp_path: Path,
+) -> None:
+    requirements = tmp_path / "requirements.txt"
+    requirements.write_text("openai==2.29.0\n", encoding="utf-8")
+    requirements_dev = tmp_path / "requirements-dev.txt"
+    requirements_dev.write_text("pre-commit==4.5.1\n", encoding="utf-8")
+
+    with pytest.raises(FileNotFoundError, match="CI lite requirements file not found"):
+        installer.resolve_requirement_files(
+            requirements_file=requirements,
+            dev_requirements_file=requirements_dev,
+            test_requirements_file=tmp_path / "requirements-test.txt",
+            ci_lite_requirements_file=tmp_path / "requirements-ci-lite.txt",
+            install_dev=False,
+            install_test=False,
+            requirements_profile="ci-test",
         )
 
 

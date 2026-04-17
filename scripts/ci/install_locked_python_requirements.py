@@ -50,6 +50,7 @@ REQUIREMENTS_PROFILES: tuple[str, ...] = (
     "runtime",
     "runtime-dev",
     "runtime-test",
+    "ci-test",
     "ci-lite",
 )
 PIP_NETWORK_RETRIES = 5
@@ -207,6 +208,10 @@ def resolve_requirement_files(
         ],
         "runtime-test": [
             ("Requirements file", requirements_file),
+            ("Test requirements file", test_requirements_file),
+        ],
+        "ci-test": [
+            ("CI lite requirements file", ci_lite_requirements_file),
             ("Test requirements file", test_requirements_file),
         ],
         "ci-lite": [("CI lite requirements file", ci_lite_requirements_file)],
