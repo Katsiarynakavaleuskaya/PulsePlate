@@ -111,6 +111,26 @@ Disposition: FIXED
 Commit: c11bceb5e
 Evidence: `docs/orchestration/DEPENDABOT_ALERTS_114_116_REMEDIATION_TASK_PACKET_2026-04-17.md:20-23`, `docs/security/MAKO_1_3_11_PRIVATE_INDEX_ADVISORY.md:34-36`
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1440#discussion_r3100240156 -> 684cd115f
+Disposition: FIXED
+Commit: 684cd115f
+Evidence: `docs/orchestration/DEPENDABOT_ALERTS_114_116_REMEDIATION_TASK_PACKET_2026-04-17.md:18-22`
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1440#discussion_r3100240162 -> 684cd115f
+Disposition: FIXED
+Commit: 684cd115f
+Evidence: `docs/security/GHSA-v92g-xgxw-vvmm-mako.md:57-58`
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1440#discussion_r3100240176 -> 684cd115f
+Disposition: FIXED
+Commit: 684cd115f
+Evidence: `docs/security/GHSA-v92g-xgxw-vvmm-mako.md:59-60`
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1440#pullrequestreview-4128727106 -> 684cd115f
+Disposition: FIXED
+Commit: 684cd115f
+Evidence: `docs/orchestration/DEPENDABOT_ALERTS_114_116_REMEDIATION_TASK_PACKET_2026-04-17.md:18-22`, `docs/security/GHSA-v92g-xgxw-vvmm-mako.md:57-60`
+
 ## Merge Readiness
 
 - [ ] Current-head CI is green for PR branch head
