@@ -145,6 +145,18 @@ def test_activate_subscription_blank_transport_header_returns_401(client: TestCl
     assert payload["code"] == "activation_transport_unauthorized"
 
 
+def test_activate_subscription_invalid_transport_key_returns_403(client: TestClient) -> None:
+    response = client.post(
+        "/api/v1/pro/payments/activate",
+        headers={"X-API-Key": "invalid-key"},
+        json=_ios_payload(),
+    )
+    assert response.status_code == 403, response.text
+    payload = _json(response)
+    assert payload["status"] == "error"
+    assert payload["code"] == "forbidden"
+
+
 def test_ios_verified_happy_path_persists_subscription(
     client: TestClient,
     pro_headers: dict[str, str],
@@ -379,6 +391,28 @@ def test_get_activation_happy_path(
     payload = _json(fetched)
     assert payload["activation_id"] == activation_id
     assert payload["source_reference"] == "txn-get-1"
+
+
+def test_get_activation_invalid_transport_key_returns_403(
+    client: TestClient,
+    pro_headers: dict[str, str],
+) -> None:
+    created = client.post(
+        "/api/v1/pro/payments/activate",
+        headers=pro_headers,
+        json=_ios_payload(transaction_id="txn-invalid-key-1"),
+    )
+    assert created.status_code == 200, created.text
+    activation_id = _json(created)["activation_id"]
+
+    response = client.get(
+        f"/api/v1/pro/payments/activations/{activation_id}",
+        headers={"X-API-Key": "invalid-key"},
+    )
+    assert response.status_code == 403, response.text
+    payload = _json(response)
+    assert payload["status"] == "error"
+    assert payload["code"] == "forbidden"
 
 
 def test_get_activation_wrong_user_returns_403(

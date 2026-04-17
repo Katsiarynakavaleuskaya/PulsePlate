@@ -5551,6 +5551,15 @@ export interface operations {
                     "application/json": components["schemas"]["PaymentErrorResponse"];
                 };
             };
+            /** @description Activation access forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentErrorResponse"];
+                };
+            };
             /** @description Deterministic activation conflict */
             409: {
                 headers: {

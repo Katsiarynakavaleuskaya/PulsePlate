@@ -7606,6 +7606,16 @@
             },
             "description": "Missing or invalid transport protection"
           },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentErrorResponse"
+                }
+              }
+            },
+            "description": "Activation access forbidden"
+          },
           "409": {
             "content": {
               "application/json": {

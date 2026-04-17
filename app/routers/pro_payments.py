@@ -10,7 +10,7 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException, Response, Security, status
 from fastapi.responses import JSONResponse
 
-from app.middleware.api_tiers import CurrentUser, derive_subject_id_from_api_key
+from app.middleware.api_tiers import CurrentUser, derive_subject_id_from_api_key, require_pro_tier
 from app.routers.api_key import api_key_header
 from app.schemas.payments import (
     ActivateSubscriptionRequest,
@@ -22,6 +22,10 @@ from app.services import payments_activation
 
 class ActivationTransportUnauthorizedError(PermissionError):
     """Raised when transport auth is missing or blank."""
+
+
+class ActivationTransportForbiddenError(PermissionError):
+    """Raised when transport auth key is present but lacks PRO access."""
 
 
 router = APIRouter(
@@ -51,14 +55,22 @@ def _payment_error_response(
 
 
 def _resolve_activation_user(x_api_key: str | None) -> CurrentUser:
-    """Resolve pre-entitlement transport identity from non-empty API key."""
+    """Resolve pre-entitlement transport identity from validated PRO API key."""
 
     if x_api_key is None:
         raise ActivationTransportUnauthorizedError("X-API-Key header is required")
 
-    normalized_api_key = x_api_key.strip()
-    if not normalized_api_key:
+    if not x_api_key.strip():
         raise ActivationTransportUnauthorizedError("X-API-Key header must not be blank")
+
+    try:
+        normalized_api_key = require_pro_tier(x_api_key=x_api_key)
+    except HTTPException as exc:
+        if exc.status_code == status.HTTP_401_UNAUTHORIZED:
+            raise ActivationTransportUnauthorizedError(str(exc.detail)) from exc
+        if exc.status_code == status.HTTP_403_FORBIDDEN:
+            raise ActivationTransportForbiddenError(str(exc.detail)) from exc
+        raise
 
     return CurrentUser(
         user_id=derive_subject_id_from_api_key(normalized_api_key),
@@ -72,6 +84,10 @@ def _resolve_activation_user(x_api_key: str | None) -> CurrentUser:
     responses={
         status.HTTP_401_UNAUTHORIZED: {
             "description": "Missing or invalid transport protection",
+            "model": PaymentErrorResponse,
+        },
+        status.HTTP_403_FORBIDDEN: {
+            "description": "Activation access forbidden",
             "model": PaymentErrorResponse,
         },
         status.HTTP_409_CONFLICT: {
@@ -103,6 +119,13 @@ def activate_subscription(
             status_code=status.HTTP_401_UNAUTHORIZED,
             code="activation_transport_unauthorized",
             message="Transport protection required",
+            detail=str(exc),
+        )
+    except ActivationTransportForbiddenError as exc:
+        return _payment_error_response(
+            status_code=status.HTTP_403_FORBIDDEN,
+            code="forbidden",
+            message="Activation access forbidden",
             detail=str(exc),
         )
     except payments_activation.IdempotencyConflictError as exc:
@@ -152,6 +175,13 @@ def get_subscription_activation(
             status_code=status.HTTP_401_UNAUTHORIZED,
             code="activation_transport_unauthorized",
             message="Transport protection required",
+            detail=str(exc),
+        )
+    except ActivationTransportForbiddenError as exc:
+        return _payment_error_response(
+            status_code=status.HTTP_403_FORBIDDEN,
+            code="forbidden",
+            message="Activation access forbidden",
             detail=str(exc),
         )
     except payments_activation.ActivationAccessForbiddenError as exc:
