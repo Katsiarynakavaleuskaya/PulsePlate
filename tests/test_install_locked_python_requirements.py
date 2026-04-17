@@ -583,6 +583,70 @@ def test_load_emergency_wheel_manifest_rejects_non_canonical_iso_date_format(
         installer.load_emergency_wheel_manifest(manifest)
 
 
+def test_load_emergency_wheel_manifest_keeps_active_artifact_specific_override(
+    tmp_path: Path,
+) -> None:
+    manifest = tmp_path / "emergency.json"
+    manifest.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "expires_at": "2026-04-01",
+                "artifacts": [
+                    {
+                        "package": "cryptography",
+                        "version": "46.0.7",
+                        "filename": "cryptography.whl",
+                        "url": "https://files.pythonhosted.org/packages/example/cryptography.whl",
+                        "sha256": "a" * 64,
+                    },
+                    {
+                        "package": "mako",
+                        "version": "1.3.11",
+                        "expires_at": "2099-12-31",
+                        "filename": "mako.whl",
+                        "url": "https://files.pythonhosted.org/packages/example/mako.whl",
+                        "sha256": "b" * 64,
+                    },
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    artifacts = installer.load_emergency_wheel_manifest(manifest)
+
+    assert [(item["package"], item["version"]) for item in artifacts] == [("mako", "1.3.11")]
+
+
+def test_load_emergency_wheel_manifest_rejects_invalid_artifact_specific_iso_date(
+    tmp_path: Path,
+) -> None:
+    manifest = tmp_path / "emergency.json"
+    manifest.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "expires_at": "2099-12-31",
+                "artifacts": [
+                    {
+                        "package": "mako",
+                        "version": "1.3.11",
+                        "expires_at": "20991231",
+                        "filename": "mako.whl",
+                        "url": "https://files.pythonhosted.org/packages/example/mako.whl",
+                        "sha256": "a" * 64,
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(RuntimeError, match=r"artifacts\[0\]\.expires_at"):
+        installer.load_emergency_wheel_manifest(manifest)
+
+
 def test_stage_emergency_wheels_downloads_only_requested_exact_artifacts(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

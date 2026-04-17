@@ -14,7 +14,7 @@ for `mako 1.3.11` on Linux `amd64`:
 - exact version: `1.3.11`
 - exact wheel filename for the pure-Python `py3-none-any` release
 - exact `sha256` digest
-- explicit expiry in `scripts/ci/emergency_python_wheels.json:4`
+- explicit artifact-scoped expiry in `scripts/ci/emergency_python_wheels.json:87`
 - fallback scope limited to the approved-proxy install path used by CI and Docker
 
 This is a narrow security-hotfix intake path, not a broad `--extra-index-url`
@@ -46,7 +46,8 @@ policy change.
 1. Keep PyPI as the upstream origin for emergency security intake.
 2. Keep the approved private proxy as the primary package source.
 3. Allow only the exact `mako 1.3.11` wheel listed in the manifest while the
-   proxy is stale.
+   proxy is stale, without extending the default expiry window of unrelated
+   emergency-wheel entries.
 4. Remove the manifest-driven fallback once the approved proxy serves
    `1.3.11` natively.
 

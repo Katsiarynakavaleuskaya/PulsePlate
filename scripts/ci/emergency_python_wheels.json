@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "generated_at": "2026-04-17",
-  "expires_at": "2026-05-17",
-  "reason": "Temporary exact-wheel fallback for cryptography, Mako, Pillow, python-multipart, pytest, faker, hypothesis, sentence-transformers, ruff, types-pyyaml, and transformers while the approved private proxy lags the patched upstream releases used by active dependency PRs.",
+  "expires_at": "2026-05-15",
+  "reason": "Temporary exact-wheel fallback for cryptography, Pillow, python-multipart, pytest, faker, hypothesis, sentence-transformers, ruff, types-pyyaml, and transformers while the approved private proxy lags the patched upstream releases used by active dependency PRs.",
   "artifacts": [
     {
       "package": "cryptography",
@@ -84,6 +84,7 @@
     {
       "package": "mako",
       "version": "1.3.11",
+      "expires_at": "2026-05-17",
       "filename": "mako-1.3.11-py3-none-any.whl",
       "url": "https://files.pythonhosted.org/packages/68/a5/19d7aaa7e433713ffe881df33705925a196afb9532efc8475d26593921a6/mako-1.3.11-py3-none-any.whl",
       "sha256": "e372c6e333cf004aa736a15f425087ec977e1fcbd2966aae7f17c8dc1da27a77"
