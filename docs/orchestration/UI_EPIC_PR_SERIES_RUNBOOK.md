@@ -3,7 +3,8 @@
 **Version:** 2026-04-18 (`America/New_York`)
 **Scope:** Post-bridge UI/UX series launched from synced `origin/main` after the
 merged design-bridge baseline.
-**Execution surface:** `worktrees/ui-epic-pr1-runbook`
+**Execution surface:** One dedicated worktree per PR from synced `origin/main`
+(`worktrees/ui-epic-*` or equivalent).
 
 ## Purpose
 
@@ -49,6 +50,8 @@ coherence slices on current `main`.
 - Coordinator workflow: `docs/orchestration/workflow.md`
 - Canonical orchestration governance contract:
   `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md`
+- PR-1 bootstrap packet:
+  `docs/orchestration/UI_EPIC_PR1_BOOTSTRAP_PACKET_2026-04-18.md`
 - Bridge baseline packet:
   `docs/orchestration/DESIGN_BRIDGE_OPERATIONALIZATION_PACKET_2026-04-11.md`
 - Bridge parity evidence:
@@ -91,8 +94,10 @@ contract work or the merged design-bridge lane:
 
 - Branch: `codex/ui-epic-runbook-bootstrap`
 - Title: `docs(ui-ux): add post-bridge UI epic runbook and lane packet`
+- Packet: `docs/orchestration/UI_EPIC_PR1_BOOTSTRAP_PACKET_2026-04-18.md`
 - Scope:
   - add this runbook,
+  - add the branch-scoped bootstrap packet,
   - add one explicit backlog anchor for the post-bridge UI epic line,
   - lock PR order, role order, worktree isolation, and evidence rules.
 

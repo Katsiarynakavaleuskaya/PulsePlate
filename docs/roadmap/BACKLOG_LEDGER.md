@@ -900,8 +900,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Post-bridge UI epic series bootstrap and execution lane
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (UI/UX execution governance)
-  - Target PR: PR-TBD (`docs(ui-ux): add post-bridge UI epic runbook and lane packet`)
-  - Status: 📋 Planned post-bridge follow-on on current `main`
+  - Target PR: PR #1463 (`docs(ui-ux): add post-bridge UI epic runbook and lane packet`)
+  - Status: 🛠️ In progress in PR #1463
   - Area: docs / orchestration / ios / frontend / storybook
   - Finding Type: post-bridge execution follow-on
   - Reason: The design-bridge baseline is already merged on `main` through
@@ -913,6 +913,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     `next_best_action` contract.
   - Links:
     - `docs/orchestration/UI_EPIC_PR_SERIES_RUNBOOK.md`
+    - `docs/orchestration/UI_EPIC_PR1_BOOTSTRAP_PACKET_2026-04-18.md`
     - `docs/orchestration/DESIGN_BRIDGE_OPERATIONALIZATION_PACKET_2026-04-11.md`
     - `docs/design/DESIGN_BRIDGE_FIRST_PARITY_PACK_2026-04-11.md`
     - `docs/runbooks/DESIGN_TOOLING_OPERATING_MODEL.md`
