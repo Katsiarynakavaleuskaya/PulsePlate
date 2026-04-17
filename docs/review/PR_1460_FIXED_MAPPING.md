@@ -16,7 +16,15 @@ comments can be dispositioned here before any thread resolution.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+Disposition: FIXED
+Commit: 3818b0eb0
+Evidence: `scripts/ci/ci_risk_profile.py:31`, `scripts/ci/ci_risk_profile.py:42`, `tests/test_ci_risk_profile.py:73`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1460#pullrequestreview-4131985967 -> 3818b0eb0
+
+Disposition: NOT-A-BUG
+Evidence: `AGENTS.md:1-16`, `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md:175-180`
+Reason: The CodeRabbit walkthrough comment includes a docstring-coverage warning, but this repo's merge gate is the canonical `pre-commit` plus `make verify` contract on the current head; docstring coverage is not an additional required gate for this CI-risk-profile lane.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1460#issuecomment-4270971648
 
 ## Merge Readiness
 
