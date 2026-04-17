@@ -96,6 +96,16 @@ Disposition: NOT-A-BUG
 Evidence: `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1434#discussion_r3098766133`; `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1434#discussion_r3098766141`
 Reason: the CodeRabbit review summary adds no distinct actionable beyond the two inline test comments dispositioned immediately above.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1434#discussion_r3098837545 -> 3da4b6bd4
+Disposition: FIXED
+Commit: 3da4b6bd4
+Evidence: `tests/edges/test_core_edge_branches.py:38`; `tests/edges/test_core_edge_branches.py:39`; `tests/edges/test_core_edge_branches.py:40`
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1434#pullrequestreview-4127198158
+Disposition: NOT-A-BUG
+Evidence: `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1434#discussion_r3098837545`
+Reason: the CodeRabbit review summary adds no distinct actionable beyond the inline weekly-trigger coverage comment dispositioned immediately above.
+
 ## Merge Readiness
 
 - [ ] Current-head CI is green for PR branch head
@@ -103,5 +113,5 @@ Reason: the CodeRabbit review summary adds no distinct actionable beyond the two
 - [ ] All review threads resolved on GitHub after disposition updates
 - [ ] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
 - [ ] `make verify` green
-Notes: Local validation on branch head `b8ac9122e` is intentionally scoped to this PR surface only: `python3 scripts/orchestration/check_preflight.py`, `python3 scripts/orchestration/check_agent_consistency.py`, `make typecheck`, and `.venv/bin/python -m pytest -q tests/test_intervention_trigger_engine.py tests/test_bmi_calculate_endpoint.py tests/test_pro_premium_contract_parity.py tests/test_install_locked_python_requirements.py`. Full `make verify` was not run in this loop.
+Notes: `python3 scripts/orchestration/check_preflight.py`, `python3 scripts/orchestration/check_agent_consistency.py`, targeted OpenAPI and edge-test reruns, and full `make verify` all passed locally in this loop. Current code head for the latest inline fix is `3da4b6bd4`; subsequent mapping-only updates are documentation governance only.
 <!-- markdownlint-enable MD034 -->
