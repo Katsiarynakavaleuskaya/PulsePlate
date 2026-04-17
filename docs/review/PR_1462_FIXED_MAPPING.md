@@ -3,15 +3,15 @@
 
 ## Discussion Thread Pass
 
-- [ ] Discussion-thread pass completed
-- [ ] Fixed in commit mapping completed
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 
 Record every actionable review item here before resolving it on GitHub. Use the
 required disposition format from `AGENTS.md`.
 
 ## Fixed in Commit Mapping
 
-No actionable review threads recorded yet.
+- No actionable review comments
 
 ## Merge Readiness
 
