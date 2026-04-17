@@ -295,11 +295,7 @@ def load_emergency_wheel_manifest(manifest_path: Path | None) -> list[dict[str, 
     expires_at = payload.get("expires_at")
     if not isinstance(expires_at, str) or not expires_at.strip():
         raise RuntimeError("Emergency wheel manifest must define non-empty expires_at.")
-    if _parse_iso_date(expires_at, field_name="expires_at") < date.today():
-        raise RuntimeError(
-            "Emergency wheel manifest is expired; refresh the mirror or rotate the fallback: "
-            f"{resolved_path}"
-        )
+    default_expires_at = _parse_iso_date(expires_at, field_name="expires_at")
 
     artifacts = payload.get("artifacts")
     if not isinstance(artifacts, list) or not artifacts:
@@ -326,6 +322,20 @@ def load_emergency_wheel_manifest(manifest_path: Path | None) -> list[dict[str, 
         filename_text = cast(str, filename).strip()
         url_text = cast(str, url).strip()
         sha256_text = cast(str, sha256).strip()
+        artifact_expires_at = artifact.get("expires_at")
+        if artifact_expires_at is None:
+            effective_expires_at = default_expires_at
+        elif isinstance(artifact_expires_at, str) and artifact_expires_at.strip():
+            effective_expires_at = _parse_iso_date(
+                artifact_expires_at.strip(),
+                field_name=f"artifacts[{index}].expires_at",
+            )
+        else:
+            raise RuntimeError(
+                f"Emergency wheel artifact #{index} expires_at must be a non-empty YYYY-MM-DD string."
+            )
+        if effective_expires_at < date.today():
+            continue
         parsed_url = urlparse(url_text)
         hostname = (parsed_url.hostname or "").rstrip(".").lower()
         if parsed_url.scheme != "https" or hostname not in ALLOWED_EMERGENCY_WHEEL_HOSTS:
@@ -340,6 +350,11 @@ def load_emergency_wheel_manifest(manifest_path: Path | None) -> list[dict[str, 
                 "url": url_text,
                 "sha256": _validate_sha256(sha256_text, filename=filename_text),
             }
+        )
+    if not normalized_artifacts:
+        raise RuntimeError(
+            "Emergency wheel manifest is expired; refresh the mirror or rotate the fallback: "
+            f"{resolved_path}"
         )
     return normalized_artifacts
 

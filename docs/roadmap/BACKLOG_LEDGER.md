@@ -387,7 +387,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Target PR: `PR-TBD` (follow-up after `PR #1418`)
   - Status: Active as of `13 April 2026`
   - Area: security / CI / dependencies
-  - Reason (EN): The repo must stay on patched exact releases while the approved private index catches up, and the current emergency wheel manifest still covers multiple active CI/bootstrap dependencies (including `cryptography 46.0.7`, `pillow 12.2.0`, `pytest 9.0.3`, `faker 40.13.0`, `hypothesis 6.151.12`, `ruff 0.15.10`, `types-pyyaml 6.0.12.20260408`, `sentence-transformers 5.4.0`, and `transformers 5.5.3`). `PR #1378` and `PR #1418` extend that time-boxed exact-wheel fallback with pinned `sha256` digests instead of a vulnerable repin or a broad public-index bypass. Retire the manifest only after the approved mirror serves every still-active fallback entry natively. (RU: Репозиторий должен оставаться на исправленных точных релизах, пока одобренное приватное зеркало догоняет апстрим, и текущий emergency wheel manifest всё ещё покрывает несколько активных CI/bootstrap зависимостей (включая `cryptography 46.0.7`, `pillow 12.2.0`, `pytest 9.0.3`, `faker 40.13.0`, `hypothesis 6.151.12`, `ruff 0.15.10`, `types-pyyaml 6.0.12.20260408`, `sentence-transformers 5.4.0` и `transformers 5.5.3`). `PR #1378` и `PR #1418` расширяют этот временный exact-wheel fallback с pinned `sha256`, а не уязвимым репином и не широким bypass на публичный индекс. Удалять manifest можно только после того, как одобренное зеркало начнёт отдавать все ещё активные fallback-entry нативно.)
+  - Reason (EN): The repo must stay on patched exact releases while the approved private index catches up, and the current emergency wheel manifest still covers multiple active CI/bootstrap dependencies (including `cryptography 46.0.7`, `pillow 12.2.0`, `pytest 9.0.3`, `faker 40.13.0`, `hypothesis 6.151.12`, `ruff 0.15.10`, `types-pyyaml 6.0.12.20260408`, `sentence-transformers 5.4.0`, and `transformers 5.5.3`). `PR #1378` and `PR #1418` extend that time-boxed exact-wheel fallback with pinned `sha256` digests instead of a vulnerable repin or a broad public-index bypass. Retire the manifest only after the approved mirror serves every still-active fallback entry natively. (RU: Репозиторий должен оставаться на исправленных точных релизах, пока одобренное приватное зеркало догоняет апстрим, и текущий emergency wheel manifest всё ещё покрывает несколько активных CI/bootstrap зависимостей (включая `cryptography 46.0.7`, `pillow 12.2.0`, `pytest 9.0.3`, `faker 40.13.0`, `hypothesis 6.151.12`, `ruff 0.15.10`, `types-pyyaml 6.0.12.20260408`, `sentence-transformers 5.4.0` и `transformers 5.5.3`). `PR #1378` и `PR #1418` расширяют этот временный exact-wheel fallback с pinned `sha256`, а не уязвимым репином и не широким bypass на публичный индекс. Удалять manifest можно только после того, как одобренное зеркало начнёт отдавать всё ещё активные fallback-entry нативно.)
   - Links:
     - `docs/security/CRYPTOGRAPHY_46_0_7_PRIVATE_INDEX_ADVISORY.md:1`
     - `docs/security/GHSA-whj4-6x5x-4v2j-pillow.md:1`
@@ -395,6 +395,27 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `scripts/ci/install_locked_python_requirements.py`
     - `.github/actions/python-setup/action.yml`
     - `Dockerfile`
+  - Evidence:
+    - Emergency manifest entries for the still-active fallback set remain pinned in
+      `scripts/ci/emergency_python_wheels.json:8-19` (`cryptography 46.0.7`),
+      `scripts/ci/emergency_python_wheels.json:22-61` (`pillow 12.2.0`),
+      `scripts/ci/emergency_python_wheels.json:64-69` (`pytest 9.0.3`),
+      `scripts/ci/emergency_python_wheels.json:71-76` (`faker 40.13.0`),
+      `scripts/ci/emergency_python_wheels.json:78-83` (`hypothesis 6.151.12`),
+      `scripts/ci/emergency_python_wheels.json:93-98`
+      (`sentence-transformers 5.4.0`),
+      `scripts/ci/emergency_python_wheels.json:100-105` (`ruff 0.15.10`),
+      `scripts/ci/emergency_python_wheels.json:107-112`
+      (`types-pyyaml 6.0.12.20260408`), and
+      `scripts/ci/emergency_python_wheels.json:114-119`
+      (`transformers 5.5.3`).
+    - Installer/bootstrap fallback logic is implemented in
+      `scripts/ci/install_locked_python_requirements.py:275-359`
+      (manifest load/validation), `scripts/ci/install_locked_python_requirements.py:401-420`
+      (exact-pin detection across requirements/constraints),
+      `scripts/ci/install_locked_python_requirements.py:457-490`
+      (artifact staging), and `.github/actions/python-setup/action.yml:70`
+      (shared CI wiring).
   - DoD:
     - [ ] Approved private proxy serves every still-active `scripts/ci/emergency_python_wheels.json` entry without manifest fallbacks
     - [ ] `scripts/ci/emergency_python_wheels.json` is removed from canonical CI/Docker paths
@@ -418,6 +439,37 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - DoD:
     - [ ] Approved private proxy serves `pillow 12.2.0` without the emergency fallback manifest
     - [ ] `scripts/ci/emergency_python_wheels.json` no longer needs the `pillow 12.2.0` emergency entries
+    - [ ] Locked install, Docker build, and `make verify` succeed with the private proxy alone
+    - [ ] Advisory is updated to mark the emergency fallback retired
+
+<a id="ledger-p1-mako-private-index-sync"></a>
+- [ ] P1: Remove temporary `mako 1.3.11` emergency wheel fallback after approved mirror sync
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (security / supply-chain / CI blocker)
+  - Target PR: `PR-TBD` (follow-up after `PR #1440`)
+  - Status: Active as of `17 April 2026`
+  - Area: security / CI / dependencies
+  - Reason (EN): `fix/mako-security-floor` must stay on the patched exact release `mako 1.3.11`, but current-head CI showed the approved private index still exposed only `1.3.10` during locked binary installs. `PR #1440` therefore adds a time-boxed exact-wheel fallback with pinned `sha256` digests instead of a vulnerable repin or a broad public-index bypass. Remove this fallback as soon as the approved mirror serves `1.3.11` natively. (RU: ветка `fix/mako-security-floor` должна остаться на исправленном точном релизе `mako 1.3.11`, но current-head CI показал, что приватное зеркало всё ещё отдаёт только `1.3.10` при locked binary install. Поэтому `PR #1440` добавляет временный exact-wheel fallback с pinned `sha256`, а не уязвимый репин и не широкий bypass на публичный индекс. Удалить fallback сразу после того, как одобренное зеркало начнёт отдавать `1.3.11` нативно.)
+  - Links:
+    - `docs/security/MAKO_1_3_11_PRIVATE_INDEX_ADVISORY.md:1`
+    - `docs/security/GHSA-v92g-xgxw-vvmm-mako.md:1`
+    - `scripts/ci/emergency_python_wheels.json:85-90`
+    - `scripts/ci/install_locked_python_requirements.py:408-442`
+    - `.github/actions/python-setup/action.yml:70`
+    - `Dockerfile:74`
+  - Evidence:
+    - `docs/security/GHSA-v92g-xgxw-vvmm-mako.md:5-27` maps `GHSA-v92g-xgxw-vvmm`
+      to `Mako` and records `1.3.11` as the first patched version across the
+      repo-managed dependency surfaces.
+    - `docs/security/MAKO_1_3_11_PRIVATE_INDEX_ADVISORY.md:44-48` records the
+      current-head CI/private-proxy lag that still exposed only `1.3.10` during
+      locked installs on `17 April 2026`.
+    - `scripts/ci/emergency_python_wheels.json:85-90` is the narrow temporary
+      exact-wheel fallback entry that must be retired once the approved mirror
+      serves `1.3.11` natively.
+  - DoD:
+    - [ ] Approved private proxy serves `mako 1.3.11` without the emergency fallback manifest
+    - [ ] `scripts/ci/emergency_python_wheels.json` no longer needs the `mako 1.3.11` emergency entry
     - [ ] Locked install, Docker build, and `make verify` succeed with the private proxy alone
     - [ ] Advisory is updated to mark the emergency fallback retired
 
@@ -1645,6 +1697,49 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - The advisory must remain dependency-only and must not widen into runtime/API/product scope
     - Every affected surface must have `file:line` evidence plus matching guard/schema proof
     - The seam closes once the dependency remediation lane is merged on `main` and the docs revert to normal lane wording
+
+<a id="ledger-p1-mako-security-floor-alerts-114-116"></a>
+- [ ] P1: Remediate `Mako` Dependabot alerts 114-116 with an explicit security floor
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (dependency security / current-head regression)
+  - Target PR: PR `#1440`
+  - Area: security / Python dependencies / merge governance
+  - Finding Type: live dependency-security regression
+  - Status: In progress as of 17 April 2026 in clean worktree `worktrees/mako-security-floor`
+  - Reason (EN): `main` picked up three new Dependabot alerts on `Mako` after the
+    latest merge. All three alerts (`#114`, `#115`, `#116`) map to
+    `GHSA-v92g-xgxw-vvmm` with first patched version `1.3.11`. This remediation
+    must land as a dedicated narrow PR before the paused security-epic/docs lane
+    resumes, otherwise the repo continues to carry a current-head dependency
+    security regression. (RU: На `main` после последнего merge появились три
+    новых Dependabot alerts по `Mako`; их нужно закрыть отдельным узким PR до
+    возврата к paused security-epic/docs lane.)
+  - Links:
+    - `docs/orchestration/DEPENDABOT_ALERTS_114_116_REMEDIATION_TASK_PACKET_2026-04-17.md:26-48`
+    - `docs/security/GHSA-v92g-xgxw-vvmm-mako.md:5-27`
+    - `tests/fixtures/dependency_security_schema.json:4`
+    - `tests/test_dependency_security_guard.py:56-110`
+    - GitHub alerts: `security/dependabot/114`, `security/dependabot/115`, `security/dependabot/116`
+  - Evidence:
+    - `docs/security/GHSA-v92g-xgxw-vvmm-mako.md:5-27` anchors the advisory
+      identity, affected package, first patched version `1.3.11`, and the
+      repo-managed requirement/lock surfaces that must stay aligned.
+    - `docs/orchestration/DEPENDABOT_ALERTS_114_116_REMEDIATION_TASK_PACKET_2026-04-17.md:28-44`
+      records the pre-remediation repo truth for alerts `#114-#116`, including
+      the `mako==1.3.10` pins that triggered this dedicated narrow lane.
+    - `tests/fixtures/dependency_security_schema.json:4` plus
+      `tests/test_dependency_security_guard.py:56-110` provide the local
+      fail-closed policy evidence that `Mako 1.3.11` is the enforced minimum
+      safe version for this remediation.
+  - DoD:
+    - Governed source surfaces explicitly enforce `Mako >= 1.3.11`
+    - Pinned runtime/full/CI-lite lock surfaces resolve `mako==1.3.11`
+    - Dependency security schema records `Mako 1.3.11` as the minimum safe version
+    - Dedicated security note includes `file:line` evidence and validation commands
+    - Draft PR is opened with canonical `docs/review/PR_<N>_FIXED_MAPPING.md`
+    - Root-cause remediation plus verification land before any `docs/review/PR_<N>_FIXED_MAPPING.md` updates or review-thread resolution; fix-before-mapping remains mandatory
+    - Mandatory post-open review pass `qa-engineer-agent -> bug-hunter` is completed before final mapping / resolution updates
+    - Only after merge and local ref sync does the team return to the paused security-epic/docs lane
 
 <a id="ledger-p1-rag-hardening-followthrough"></a>
 - [ ] P1: RAG hardening follow-through

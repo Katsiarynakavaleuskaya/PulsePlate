@@ -61,6 +61,7 @@ unit-fast:
 	python3 -m pytest -q tests
 SHELL := /bin/bash
 VENV_PYTHON ?= .venv/bin/python
+OPENAPI_PYTHON ?= $(if $(wildcard $(VENV_PYTHON)),$(VENV_PYTHON),python3)
 PIP ?= $(VENV_PYTHON) -m pip
 
 # Цвета для вывода
