@@ -647,6 +647,79 @@ def test_load_emergency_wheel_manifest_rejects_invalid_artifact_specific_iso_dat
         installer.load_emergency_wheel_manifest(manifest)
 
 
+def test_load_emergency_wheel_manifest_filters_past_artifact_specific_expiries(
+    tmp_path: Path,
+) -> None:
+    manifest = tmp_path / "emergency.json"
+    manifest.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "expires_at": "2099-12-31",
+                "artifacts": [
+                    {
+                        "package": "expired-pkg",
+                        "version": "1.0.0",
+                        "expires_at": "2000-01-01",
+                        "filename": "expired.whl",
+                        "url": "https://files.pythonhosted.org/packages/example/expired.whl",
+                        "sha256": "a" * 64,
+                    },
+                    {
+                        "package": "valid-pkg",
+                        "version": "2.0.0",
+                        "expires_at": "2099-12-31",
+                        "filename": "valid.whl",
+                        "url": "https://files.pythonhosted.org/packages/example/valid.whl",
+                        "sha256": "b" * 64,
+                    },
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    artifacts = installer.load_emergency_wheel_manifest(manifest)
+
+    assert [(item["package"], item["version"]) for item in artifacts] == [("valid-pkg", "2.0.0")]
+
+
+def test_load_emergency_wheel_manifest_raises_when_all_artifacts_expire_individually(
+    tmp_path: Path,
+) -> None:
+    manifest = tmp_path / "emergency.json"
+    manifest.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "expires_at": "2099-12-31",
+                "artifacts": [
+                    {
+                        "package": "expired-pkg-1",
+                        "version": "1.0.0",
+                        "expires_at": "2000-01-01",
+                        "filename": "expired-1.whl",
+                        "url": "https://files.pythonhosted.org/packages/example/expired-1.whl",
+                        "sha256": "a" * 64,
+                    },
+                    {
+                        "package": "expired-pkg-2",
+                        "version": "2.0.0",
+                        "expires_at": "2000-01-02",
+                        "filename": "expired-2.whl",
+                        "url": "https://files.pythonhosted.org/packages/example/expired-2.whl",
+                        "sha256": "b" * 64,
+                    },
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(RuntimeError, match="manifest is expired"):
+        installer.load_emergency_wheel_manifest(manifest)
+
+
 def test_stage_emergency_wheels_downloads_only_requested_exact_artifacts(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
