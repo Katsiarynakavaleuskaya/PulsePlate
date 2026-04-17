@@ -72,6 +72,34 @@ def test_ingest_rejects_wiki_root_under_canonical_docs(tmp_path: Path) -> None:
         )
 
 
+@pytest.mark.parametrize(
+    ("dirname", "match"),
+    [("pages", "pages_path_outside_corpus"), ("raw", "raw_path_outside_corpus")],
+)
+def test_ingest_rejects_symlink_escape_dirs(tmp_path: Path, dirname: str, match: str) -> None:
+    repo = tmp_path / "repo"
+    (repo / "docs").mkdir(parents=True)
+    src = repo / "docs" / "note.md"
+    src.write_text("hello", encoding="utf-8")
+    wiki_root = repo / "wiki"
+    corpus_base = wiki_root / "project_internal"
+    corpus_base.mkdir(parents=True)
+    escape = tmp_path / f"escape_{dirname}"
+    escape.mkdir(parents=True)
+    try:
+        (corpus_base / dirname).symlink_to(escape, target_is_directory=True)
+    except (NotImplementedError, OSError):
+        pytest.skip("symlink unsupported in this environment")
+    with pytest.raises(ValueError, match=match):
+        wiki_ingest.ingest_paths(
+            [src],
+            corpus="project_internal",
+            wiki_root=wiki_root,
+            repo_root=repo,
+            write_support_plane=False,
+        )
+
+
 def test_ingest_rejects_path_outside_repo(tmp_path: Path) -> None:
     repo = tmp_path / "repo"
     repo.mkdir()
