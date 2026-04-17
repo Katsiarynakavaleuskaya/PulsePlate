@@ -43,27 +43,19 @@ jobs:
           tags: pulseplate:trivy-scan-${{ github.sha }}
           target: production
 
-      - name: Install Trivy via apt
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y wget apt-transport-https gnupg lsb-release
-          wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | gpg --dearmor | sudo tee /usr/share/keyrings/trivy.gpg > /dev/null
-          echo "deb [signed-by=/usr/share/keyrings/trivy.gpg] https://aquasecurity.github.io/trivy-repo/deb $(lsb_release -sc) main" | sudo tee /etc/apt/sources.list.d/trivy.list
-          sudo apt-get update
-          sudo apt-get install -y trivy
-          trivy --version
-
       - name: Run Trivy vulnerability scanner
-        run: |
-          trivy image \
-            --db-repository ghcr.io/aquasecurity/trivy-db \
-            --format sarif \
-            --output trivy-results.sarif \
-            --severity CRITICAL,HIGH \
-            --ignore-unfixed \
-            --ignorefile .trivyignore \
-            --ignore-policy trivy/ignore-policy.rego \
-            'pulseplate:trivy-scan-${{ github.sha }}'
+        uses: aquasecurity/trivy-action@6e89b1098f9c01019393bcbba88e5a0fcd5f8f4a # v0.33.1
+        with:
+          scan-type: image
+          image-ref: pulseplate:trivy-scan-${{ github.sha }}
+          db-repository: ghcr.io/aquasecurity/trivy-db
+          format: sarif
+          output: trivy-results.sarif
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          ignorefile: .trivyignore
+          ignore-policy: trivy/ignore-policy.rego
+          version: v0.68.1
 
       - name: Verify SARIF file exists
         run: ls -la trivy-results.sarif

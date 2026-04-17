@@ -103,24 +103,21 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
 
-      - name: Install Trivy via apt
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y wget apt-transport-https gnupg lsb-release
-          wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | gpg --dearmor | sudo tee /usr/share/keyrings/trivy.gpg > /dev/null
-          echo "deb [signed-by=/usr/share/keyrings/trivy.gpg] https://aquasecurity.github.io/trivy-repo/deb $(lsb_release -sc) main" | sudo tee /etc/apt/sources.list.d/trivy.list
-          sudo apt-get update
-          sudo apt-get install -y trivy
-          trivy --version
-
       - name: Run Trivy vulnerability scanner (filesystem scan)
-        run: |
-          trivy fs . \
-            --db-repository ghcr.io/aquasecurity/trivy-db \
-            --ignore-policy "${{ github.workspace }}/trivy/ignore-policy.rego" \
-            --scanners vuln \
-            --format sarif --output trivy-results.sarif --severity CRITICAL,HIGH \
-            --ignore-unfixed --exit-code 0 --ignorefile .trivyignore
+        uses: aquasecurity/trivy-action@6e89b1098f9c01019393bcbba88e5a0fcd5f8f4a # v0.33.1
+        with:
+          scan-type: fs
+          scan-ref: .
+          db-repository: ghcr.io/aquasecurity/trivy-db
+          ignore-policy: trivy/ignore-policy.rego
+          scanners: vuln
+          format: sarif
+          output: trivy-results.sarif
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: '0'
+          ignorefile: .trivyignore
+          version: v0.68.1
 
       - name: Upload Trivy scan results to GitHub Security tab
         uses: github/codeql-action/upload-sarif@c00e4aee0547167576bc6663920491135a3dee27 # v4
@@ -194,24 +191,18 @@ jobs:
         run: |
           echo "ref=${{ env.REGISTRY }}/${{ steps.image-name.outputs.image_name }}:sha-${{ github.sha }}" >> "$GITHUB_OUTPUT"
 
-      - name: Install Trivy via apt
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y wget apt-transport-https gnupg lsb-release
-          wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | gpg --dearmor | sudo tee /usr/share/keyrings/trivy.gpg > /dev/null
-          echo "deb [signed-by=/usr/share/keyrings/trivy.gpg] https://aquasecurity.github.io/trivy-repo/deb $(lsb_release -sc) main" | sudo tee /etc/apt/sources.list.d/trivy.list
-          sudo apt-get update
-          sudo apt-get install -y trivy
-          trivy --version
-
       - name: Run Trivy vulnerability scanner (image scan, report-only)
         continue-on-error: true
-        run: |
-          trivy image \
-            --ignore-policy "${{ github.workspace }}/trivy/ignore-policy.rego" \
-            --format sarif --output trivy-image.sarif --severity CRITICAL,HIGH \
-            --ignorefile .trivyignore \
-            '${{ steps.image-ref.outputs.ref }}'
+        uses: aquasecurity/trivy-action@6e89b1098f9c01019393bcbba88e5a0fcd5f8f4a # v0.33.1
+        with:
+          scan-type: image
+          image-ref: ${{ steps.image-ref.outputs.ref }}
+          ignore-policy: trivy/ignore-policy.rego
+          format: sarif
+          output: trivy-image.sarif
+          severity: CRITICAL,HIGH
+          ignorefile: .trivyignore
+          version: v0.68.1
 
       - name: Upload Trivy image scan results
         uses: github/codeql-action/upload-sarif@c00e4aee0547167576bc6663920491135a3dee27 # v4
