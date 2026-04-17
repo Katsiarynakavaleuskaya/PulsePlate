@@ -21,6 +21,6 @@ record their disposition here before resolving them on GitHub.
 - [ ] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
 - [ ] Mandatory post-open `qa-engineer-agent` pass completed
 - [ ] Mandatory post-open `bug-hunter` pass completed
-- [ ] Pre-commit green on latest pushed head
-- [ ] `make verify` green on latest pushed head
+- [x] Pre-commit green on latest pushed head
+- [x] `make verify` green on latest pushed head
 <!-- markdownlint-enable MD034 -->
