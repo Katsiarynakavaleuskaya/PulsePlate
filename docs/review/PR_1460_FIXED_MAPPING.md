@@ -26,6 +26,11 @@ Evidence: `AGENTS.md:1-16`, `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX
 Reason: The CodeRabbit walkthrough comment includes a docstring-coverage warning, but this repo's merge gate is the canonical `pre-commit` plus `make verify` contract on the current head; docstring coverage is not an additional required gate for this CI-risk-profile lane.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1460#issuecomment-4270971648
 
+Disposition: FIXED
+Commit: ce041eb86
+Evidence: `tests/test_ci_risk_profile.py:192`, `tests/test_ci_risk_profile.py:201`, `tests/test_ci_risk_profile.py:210`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1460#pullrequestreview-4132048646 -> ce041eb86
+
 ## Merge Readiness
 
 Merge-readiness contract:
