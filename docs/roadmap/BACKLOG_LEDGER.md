@@ -896,6 +896,46 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
       merge-ready status still require the iOS blocker to be resolved or
       dispositioned
 
+<a id="ledger-p1-ui-epic-post-bridge-series"></a>
+- [ ] P1: Post-bridge UI epic series bootstrap and execution lane
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (UI/UX execution governance)
+  - Target PR: PR-TBD (`docs(ui-ux): add post-bridge UI epic runbook and lane packet`)
+  - Status: 📋 Planned post-bridge follow-on on current `main`
+  - Area: docs / orchestration / ios / frontend / storybook
+  - Finding Type: post-bridge execution follow-on
+  - Reason: The design-bridge baseline is already merged on `main` through
+    PR `#1386` and PR `#1391`, so the next UI lane must start as a fresh
+    product-facing series instead of reopening bridge operationalization. The
+    first executable gap is iOS visible coherence, followed by one semantic
+    iOS surface seam, then bounded Storybook parity expansion, and only later
+    thin-client consumption of the already existing backend
+    `next_best_action` contract.
+  - Links:
+    - `docs/orchestration/UI_EPIC_PR_SERIES_RUNBOOK.md`
+    - `docs/orchestration/DESIGN_BRIDGE_OPERATIONALIZATION_PACKET_2026-04-11.md`
+    - `docs/design/DESIGN_BRIDGE_FIRST_PARITY_PACK_2026-04-11.md`
+    - `docs/runbooks/DESIGN_TOOLING_OPERATING_MODEL.md`
+    - `frontend/src/stories/PulsePlateDesignSystemGuidelines.mdx`
+    - `ios/PulsePlate.xcworkspace`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-design-bridge-operationalization-pr21`
+  - DoD:
+    - A dedicated post-bridge UI epic runbook exists and locks PR order,
+      role order, sync points, validation, and merge-path rules
+    - The runbook explicitly states that merged bridge work is baseline state
+      and must not be reopened as a new bridge PR
+    - The lane enforces one PR per dedicated worktree from synced
+      `origin/main`
+    - Web review is locked as Storybook-first and iOS evidence as
+      simulator-first
+    - Billing, entitlement, provider modernization, deploy/runtime infra,
+      Cloudflare merge truth, and any new `/api/v1/ui/state` rail are
+      explicitly out of scope for this series
+    - The first executable slice is fixed as iOS visible coherence before
+      surface-seam or web parity expansion work begins
+    - Late-phase client hint work is explicitly limited to consuming the
+      already existing backend `next_best_action` contract
+
 <a id="ledger-p1-design-execution-adapter-seam"></a>
 - [ ] P1: Design execution adapter seam promotion beyond local artifact lane
   - Owner: @katsiaryna_kavaleuskaya
