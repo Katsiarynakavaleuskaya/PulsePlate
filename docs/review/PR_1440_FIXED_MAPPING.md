@@ -16,6 +16,16 @@ Commit: 327f28606
 Evidence: `tests/test_install_locked_python_requirements.py:650`, `tests/test_install_locked_python_requirements.py:687`, `docs/roadmap/BACKLOG_LEDGER.md:390`
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1440#pullrequestreview-4127366416 -> 327f28606
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1440#discussion_r3098991698 -> 327f28606
+Disposition: FIXED
+Commit: 327f28606
+Evidence: `docs/roadmap/BACKLOG_LEDGER.md:390`
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1440#discussion_r3099000368 -> 2ba1634a6
+Disposition: FIXED
+Commit: 2ba1634a6
+Evidence: `docs/security/MAKO_1_3_11_PRIVATE_INDEX_ADVISORY.md:5-11`, `docs/security/MAKO_1_3_11_PRIVATE_INDEX_ADVISORY.md:34-36`
+
 ## Merge Readiness
 
 - [ ] Current-head CI is green for PR branch head
