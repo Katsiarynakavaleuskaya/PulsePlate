@@ -11,7 +11,7 @@ record their disposition here before resolving them on GitHub.
 
 ## Fixed in Commit Mapping
 
-No actionable review threads on the initial draft head.
+- No actionable review comments
 
 ## Merge Readiness
 
