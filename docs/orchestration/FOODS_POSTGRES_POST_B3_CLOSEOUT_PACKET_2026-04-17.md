@@ -14,21 +14,24 @@ already merged.
 
 - This packet owns only the **post-B3 docs/governance closeout** lane.
 - The merged train now stands as:
-  - PR `#1409`: additive foods / restaurant foundation (merged on April 13, 2026)
-  - PR `#1419`: restaurant importer bridge (merged on April 13, 2026)
-  - PR `#1435`: restaurant PostgreSQL shadow reads + parity (merged on April 16, 2026)
+  - PR `#1409`: additive foods / restaurant foundation (merged on April 13, 2026; evidence: `docs/review/FOODS_POSTGRES_TRAIN_MERGED_STATE_CANON_2026-04-17.md:7-10`)
+  - PR `#1413`: foods snapshot promotion into PostgreSQL `foods` (merged on April 13, 2026; evidence: `docs/review/FOODS_POSTGRES_TRAIN_MERGED_STATE_CANON_2026-04-17.md:7-10`)
+  - PR `#1419`: restaurant importer bridge (merged on April 13, 2026; evidence: `docs/review/FOODS_POSTGRES_TRAIN_MERGED_STATE_CANON_2026-04-17.md:7-10`)
+  - PR `#1435`: restaurant PostgreSQL shadow reads + parity (merged on April 16, 2026; evidence: `docs/review/FOODS_POSTGRES_TRAIN_MERGED_STATE_CANON_2026-04-17.md:7-10`)
 - This lane is runtime-neutral. It exists to realign backlog/task-packet/review
   governance evidence with the merged-state truth above.
 - The next bounded implementation lane after this closeout is:
-  - `ledger-p1-foods-foundation-downgrade-ownership`
+  - `ledger-p1-foods-foundation-downgrade-ownership` (evidence: `docs/review/FOODS_POSTGRES_TRAIN_MERGED_STATE_CANON_2026-04-17.md:12-14`)
 - Runtime authority cutover remains deferred until a separate post-B3 cutover
-  packet exists.
+  packet exists (ADR: `docs/architecture/ADR_FOODS_POSTGRES_RUNTIME_CUTOVER_SEAM_2026-04-17.md:11-24`).
 
 ## Source of Truth
 
 - Repo documents remain the final source of truth for the food PostgreSQL train.
 - This closeout lane must stay grounded in:
   - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-foods-postgres-foundation-followthrough`
+  - `docs/review/FOODS_POSTGRES_TRAIN_MERGED_STATE_CANON_2026-04-17.md`
+  - `docs/architecture/ADR_FOODS_POSTGRES_RUNTIME_CUTOVER_SEAM_2026-04-17.md`
   - `docs/orchestration/FOODS_CATALOG_FOUNDATION_PR_A_TASK_PACKET_2026-04-12.md`
   - `docs/orchestration/FOODS_POSTGRES_PROMOTION_PR_B1_TASK_PACKET_2026-04-13.md`
   - `docs/orchestration/FOODS_POSTGRES_RESTAURANT_BRIDGE_PR_B2_TASK_PACKET_2026-04-13.md`
@@ -49,8 +52,8 @@ already merged.
 - Add one canonical closeout packet for the post-B3 docs/governance lane
 - Reconcile deferred governance wording in `docs/review/PR_1435_FIXED_MAPPING.md`
   so evidence pointers no longer lag live merged state
-- Record the merged-state truth explicitly for PR `#1409`, PR `#1419`, and
-  PR `#1435`
+- Record the merged-state truth explicitly for PR `#1409`, PR `#1413`, PR
+  `#1419`, and PR `#1435`
 
 ## Out of Scope
 
@@ -62,10 +65,13 @@ already merged.
 ## Touched Files
 
 - `docs/roadmap/BACKLOG_LEDGER.md`
+- `docs/architecture/ADR_FOODS_POSTGRES_RUNTIME_CUTOVER_SEAM_2026-04-17.md`
+- `docs/orchestration/FOODS_CATALOG_FOUNDATION_PR_A_TASK_PACKET_2026-04-12.md`
 - `docs/orchestration/FOODS_POSTGRES_POST_B3_CLOSEOUT_PACKET_2026-04-17.md`
 - `docs/orchestration/FOODS_POSTGRES_PROMOTION_PR_B1_TASK_PACKET_2026-04-13.md`
 - `docs/orchestration/FOODS_POSTGRES_RESTAURANT_BRIDGE_PR_B2_TASK_PACKET_2026-04-13.md`
 - `docs/orchestration/FOODS_POSTGRES_SHADOW_READS_PR_B3_TASK_PACKET_2026-04-16.md`
+- `docs/review/FOODS_POSTGRES_TRAIN_MERGED_STATE_CANON_2026-04-17.md`
 - `docs/review/PR_1435_FIXED_MAPPING.md`
 
 ## Role Order
@@ -86,7 +92,7 @@ Mandatory post-open review lane remains: `qa-engineer-agent -> bug-hunter`.
   - `python3 scripts/orchestration/check_preflight.py`
   - `python3 scripts/orchestration/check_agent_consistency.py`
 - Pre-open bootstrap:
-  - `python3 scripts/orchestration/task_bootstrap.py --goal "<post-B3 closeout goal>" --task-class docs --path docs/roadmap/BACKLOG_LEDGER.md --path docs/orchestration/FOODS_POSTGRES_PROMOTION_PR_B1_TASK_PACKET_2026-04-13.md --path docs/orchestration/FOODS_POSTGRES_RESTAURANT_BRIDGE_PR_B2_TASK_PACKET_2026-04-13.md --path docs/orchestration/FOODS_POSTGRES_SHADOW_READS_PR_B3_TASK_PACKET_2026-04-16.md --path docs/review/PR_1435_FIXED_MAPPING.md --pr-phase pre_open`
+  - `python3 scripts/orchestration/task_bootstrap.py --goal "<post-B3 closeout goal>" --task-class docs --path docs/roadmap/BACKLOG_LEDGER.md --path docs/orchestration/FOODS_CATALOG_FOUNDATION_PR_A_TASK_PACKET_2026-04-12.md --path docs/orchestration/FOODS_POSTGRES_PROMOTION_PR_B1_TASK_PACKET_2026-04-13.md --path docs/orchestration/FOODS_POSTGRES_RESTAURANT_BRIDGE_PR_B2_TASK_PACKET_2026-04-13.md --path docs/orchestration/FOODS_POSTGRES_SHADOW_READS_PR_B3_TASK_PACKET_2026-04-16.md --path docs/review/PR_1435_FIXED_MAPPING.md --pr-phase pre_open`
 - Open as **draft PR** after local stabilization
 - Immediately after opening the PR:
   - create canonical artifact `docs/review/PR_<N>_FIXED_MAPPING.md`
@@ -103,9 +109,9 @@ Mandatory post-open review lane remains: `qa-engineer-agent -> bug-hunter`.
 
 ## Acceptance Criteria
 
-- Repo truth explicitly records that PR `#1409`, PR `#1419`, and PR `#1435` are merged
+- Repo truth explicitly records that PR `#1409`, PR `#1413`, PR `#1419`, and PR `#1435` are merged (evidence: `docs/review/FOODS_POSTGRES_TRAIN_MERGED_STATE_CANON_2026-04-17.md:7-10`)
 - Historical B1/B2/B3 packets no longer describe B3 as the next active lane
 - `docs/review/PR_1435_FIXED_MAPPING.md` points to the closeout packet and
-  updated ledger wording for the deferred governance comments
-- The next bounded implementation lane is clearly set to downgrade ownership
-- Runtime authority cutover remains explicitly deferred until a separate packet exists
+  updated ledger wording for the deferred governance comments (evidence: `docs/review/PR_1435_FIXED_MAPPING.md:55-79`)
+- The next bounded implementation lane is clearly set to downgrade ownership (evidence: `docs/review/FOODS_POSTGRES_TRAIN_MERGED_STATE_CANON_2026-04-17.md:12-14`)
+- Runtime authority cutover remains explicitly deferred until a separate packet exists (ADR: `docs/architecture/ADR_FOODS_POSTGRES_RUNTIME_CUTOVER_SEAM_2026-04-17.md:11-24`)

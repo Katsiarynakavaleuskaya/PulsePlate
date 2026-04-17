@@ -13,16 +13,16 @@ restaurant search/menu while preserving SQLite as canonical response authority.
 
 - This packet owns only **PR-B3**.
 - The execution train is fixed as:
-  - `PR-B1`: foods snapshot promotion into PostgreSQL `foods` (merged)
-  - `PR-B2`: restaurant relational bridge for importer persistence (merged)
-  - `PR-B3`: restaurant PostgreSQL shadow reads + parity checks
-  - cutover (deferred): runtime read-switch / PostgreSQL authority change after B3
-- `PR-B3` merged in PR `#1435` on April 16, 2026 (`America/New_York`).
+  - `PR-B1`: foods snapshot promotion into PostgreSQL `foods` (merged in PR `#1413`; evidence: `docs/review/FOODS_POSTGRES_TRAIN_MERGED_STATE_CANON_2026-04-17.md:7-10`)
+  - `PR-B2`: restaurant relational bridge for importer persistence (merged in PR `#1419`; evidence: `docs/review/FOODS_POSTGRES_TRAIN_MERGED_STATE_CANON_2026-04-17.md:7-10`)
+  - `PR-B3`: restaurant PostgreSQL shadow reads + parity checks (merged in PR `#1435`; evidence: `docs/review/FOODS_POSTGRES_TRAIN_MERGED_STATE_CANON_2026-04-17.md:7-10`)
+  - cutover (deferred): runtime read-switch / PostgreSQL authority change after B3 (ADR: `docs/architecture/ADR_FOODS_POSTGRES_RUNTIME_CUTOVER_SEAM_2026-04-17.md:11-24`; backlog: `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-foods-postgres-foundation-followthrough`)
+- `PR-B3` merged in PR `#1435` on April 16, 2026 (`America/New_York`) (evidence: `docs/review/FOODS_POSTGRES_TRAIN_MERGED_STATE_CANON_2026-04-17.md:10-10`).
 - Post-B3 docs/governance reconciliation now lives in:
-  - `docs/orchestration/FOODS_POSTGRES_POST_B3_CLOSEOUT_PACKET_2026-04-17.md`
+  - `docs/orchestration/FOODS_POSTGRES_POST_B3_CLOSEOUT_PACKET_2026-04-17.md` (evidence: `docs/review/FOODS_POSTGRES_TRAIN_MERGED_STATE_CANON_2026-04-17.md:12-14`)
 - The next bounded implementation lane after post-B3 closeout is:
-  - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-foods-foundation-downgrade-ownership`
-- `PR-B3` is shadow-only and does not claim PostgreSQL-backed runtime authority.
+  - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-foods-foundation-downgrade-ownership` (evidence: `docs/review/FOODS_POSTGRES_TRAIN_MERGED_STATE_CANON_2026-04-17.md:12-14`)
+- `PR-B3` is shadow-only and does not claim PostgreSQL-backed runtime authority (ADR: `docs/architecture/ADR_FOODS_POSTGRES_RUNTIME_CUTOVER_SEAM_2026-04-17.md:11-24`).
 
 ## Source of Truth
 
