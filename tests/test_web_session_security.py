@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import json
 from datetime import datetime, timedelta, timezone
 
 import pytest
@@ -84,6 +85,18 @@ def test_issue_and_verify_success(monkeypatch: pytest.MonkeyPatch) -> None:
     assert claims.tier == "PRO"
     assert claims.issued_at_epoch == int(now.timestamp())
     assert claims.expires_at_epoch == int((now + timedelta(seconds=120)).timestamp())
+
+
+def test_token_payload_does_not_expose_raw_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Token payload must not include plaintext API key claim."""
+
+    monkeypatch.setenv("SERVER_SALT", "session-secret")
+    issued = web_session.issue_web_session(api_key=TEST_PRO_KEY, tier="PRO", ttl_seconds=120)
+    payload_b64, _sig = issued.token.split(".", 1)
+    payload_obj = json.loads(_b64url_decode(payload_b64).decode("utf-8"))
+
+    assert "api_key" not in payload_obj
+    assert payload_obj["enc_api_key"] != TEST_PRO_KEY
 
 
 def test_issue_rejects_invalid_inputs(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -195,15 +208,15 @@ def test_verify_rejects_payload_shape(monkeypatch: pytest.MonkeyPatch) -> None:
 
     bad_payloads = [
         b"[]",
-        b'{"api_key":"","tier":"PRO","iat":1,"exp":2,"v":1}',
-        b'{"api_key":"k","tier":"UNKNOWN","iat":1,"exp":2,"v":1}',
-        b'{"api_key":"k","tier":123,"iat":1,"exp":2,"v":1}',
-        b'{"api_key":"k","tier":"PRO","iat":"1","exp":2,"v":1}',
-        b'{"api_key":"k","tier":"PRO","iat":1,"exp":"2","v":1}',
-        b'{"api_key":"k","tier":"PRO","iat":-1,"exp":2,"v":1}',
-        b'{"api_key":"k","tier":"PRO","iat":2,"exp":2,"v":1}',
+        b'{"enc_api_key":"","tier":"PRO","iat":1,"exp":2,"v":1}',
+        b'{"enc_api_key":"k","tier":"UNKNOWN","iat":1,"exp":2,"v":1}',
+        b'{"enc_api_key":"k","tier":123,"iat":1,"exp":2,"v":1}',
+        b'{"enc_api_key":"k","tier":"PRO","iat":"1","exp":2,"v":1}',
+        b'{"enc_api_key":"k","tier":"PRO","iat":1,"exp":"2","v":1}',
+        b'{"enc_api_key":"k","tier":"PRO","iat":-1,"exp":2,"v":1}',
+        b'{"enc_api_key":"k","tier":"PRO","iat":2,"exp":2,"v":1}',
         (
-            f'{{"api_key":"k","tier":"PRO","iat":{now_epoch},"exp":{expires_epoch},"v":"1"}}'.encode(
+            f'{{"enc_api_key":"k","tier":"PRO","iat":{now_epoch},"exp":{expires_epoch},"v":"1"}}'.encode(
                 "utf-8"
             )
         ),

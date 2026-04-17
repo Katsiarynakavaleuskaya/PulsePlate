@@ -15,6 +15,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Literal
 
+from cryptography.fernet import Fernet, InvalidToken
 from fastapi import Response
 
 from app.security.server_salt import require_server_salt
@@ -25,6 +26,7 @@ DEFAULT_WEB_SESSION_TTL_SECONDS = 60 * 60 * 12  # 12h
 _COOKIE_PATH = "/"
 _COOKIE_SAMESITE: Literal["lax"] = "lax"
 _SESSION_SIGNATURE_ITERATIONS = 20_000
+_SESSION_ENCRYPTION_CONTEXT = b"web_session_v1::api_key"
 
 
 @dataclass(frozen=True)
@@ -109,6 +111,44 @@ def _sign_payload(*, payload_b64: str, secret: str | None = None) -> str:
     ).hex()
 
 
+def _derive_session_encryption_key(secret: str | None = None) -> bytes:
+    """Derive deterministic Fernet key for encrypted claim fields."""
+
+    hmac_key = _derive_session_hmac_key(secret)
+    derived = hashlib.pbkdf2_hmac(
+        "sha256",
+        _SESSION_ENCRYPTION_CONTEXT,
+        hmac_key,
+        _SESSION_SIGNATURE_ITERATIONS,
+        dklen=32,
+    )
+    return base64.urlsafe_b64encode(derived)
+
+
+def _encrypt_api_key(api_key: str, *, secret: str | None = None) -> str:
+    """Encrypt API key so cookie payload does not expose raw credential."""
+
+    cipher = Fernet(_derive_session_encryption_key(secret))
+    return cipher.encrypt(api_key.encode("utf-8")).decode("ascii")
+
+
+def _decrypt_api_key(encrypted_api_key: str, *, secret: str | None = None) -> str | None:
+    """Decrypt API key claim from token payload, fail-closed."""
+
+    try:
+        cipher = Fernet(_derive_session_encryption_key(secret))
+        decrypted = cipher.decrypt(encrypted_api_key.encode("ascii"))
+    except (ValueError, InvalidToken):
+        return None
+    try:
+        normalized = decrypted.decode("utf-8").strip()
+    except UnicodeDecodeError:
+        return None
+    if not normalized:
+        return None
+    return normalized
+
+
 def issue_web_session(
     *,
     api_key: str,
@@ -139,7 +179,7 @@ def issue_web_session(
     )
 
     payload = {
-        "api_key": claims.api_key,
+        "enc_api_key": _encrypt_api_key(claims.api_key, secret=secret),
         "tier": claims.tier,
         "iat": claims.issued_at_epoch,
         "exp": claims.expires_at_epoch,
@@ -185,19 +225,23 @@ def verify_web_session(
     if not isinstance(payload_obj, dict):
         return None
 
-    api_key = payload_obj.get("api_key")
+    encrypted_api_key = payload_obj.get("enc_api_key")
     tier = payload_obj.get("tier")
     issued_at = payload_obj.get("iat")
     expires_at = payload_obj.get("exp")
     version = payload_obj.get("v")
 
-    if not isinstance(api_key, str) or not api_key.strip():
+    if not isinstance(encrypted_api_key, str) or not encrypted_api_key.strip():
         return None
     if not isinstance(tier, str):
         return None
     if not isinstance(issued_at, int) or not isinstance(expires_at, int):
         return None
     if version != 1:
+        return None
+
+    decrypted_api_key = _decrypt_api_key(encrypted_api_key, secret=secret)
+    if decrypted_api_key is None:
         return None
 
     try:
@@ -213,7 +257,7 @@ def verify_web_session(
         return None
 
     return WebSessionClaims(
-        api_key=api_key.strip(),
+        api_key=decrypted_api_key,
         tier=normalized_tier,
         issued_at_epoch=issued_at,
         expires_at_epoch=expires_at,
