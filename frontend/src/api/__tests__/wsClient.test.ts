@@ -44,6 +44,18 @@ describe("wsClient", (): void => {
     expect(buildRealtimeWsUrl("/api/v1/pro/ws", "abc123")).toBe("ws://localhost:8000/api/v1/pro/ws?token=abc123");
   });
 
+  it("buildRealtimeWsUrl resolves origin-relative API base against current origin", (): void => {
+    const deps: ApiClientDependencies = {
+      getStoredApiKey: (): string | null => null,
+      clearStoredApiKey: (): void => undefined,
+      apiBase: "/api/v1",
+    };
+    setApiClientDependencies(deps);
+    vi.stubGlobal("window", { location: { origin: "https://staging.example" } });
+
+    expect(buildRealtimeWsUrl("/api/v1/pro/ws")).toBe("wss://staging.example/api/v1/pro/ws");
+  });
+
   it("connectRealtimeWs emits state transitions and parses messages", (): void => {
     const deps: ApiClientDependencies = {
       getStoredApiKey: (): string | null => null,
