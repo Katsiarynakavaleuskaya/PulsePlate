@@ -81,6 +81,36 @@ Disposition: FIXED
 Commit: a28d624df
 Evidence: `tests/test_install_locked_python_requirements.py:650-687`
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1440#discussion_r3100043732 -> c11bceb5e
+Disposition: FIXED
+Commit: c11bceb5e
+Evidence: `docs/roadmap/BACKLOG_LEDGER.md:398-418`
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1440#discussion_r3100043743
+Disposition: NOT-A-BUG
+Evidence: `docs/roadmap/BACKLOG_LEDGER.md:453-458`, `scripts/ci/emergency_python_wheels.json:85-90`
+Reason: The reported Mako manifest anchor was already correct on current head; `docs/roadmap/BACKLOG_LEDGER.md:456` still points to the actual `mako 1.3.11` manifest entry at `scripts/ci/emergency_python_wheels.json:85-90`, so the suggestion to move it to `:7-14` was stale and would have broken the citation.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1440#pullrequestreview-4128511840
+Disposition: NOT-A-BUG
+Evidence: `docs/roadmap/BACKLOG_LEDGER.md:398-418`, `docs/roadmap/BACKLOG_LEDGER.md:453-458`, `scripts/ci/emergency_python_wheels.json:85-90`
+Reason: This aggregate CodeRabbit review only mirrors the two inline items above: the evidence-block request was fixed in `c11bceb5e`, while the stale-anchor request was not actionable because the shipped Mako pointer already targets the real manifest lines.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1440#discussion_r3100058460 -> c11bceb5e
+Disposition: FIXED
+Commit: c11bceb5e
+Evidence: `docs/orchestration/DEPENDABOT_ALERTS_114_116_REMEDIATION_TASK_PACKET_2026-04-17.md:20-23`, `docs/orchestration/DEPENDABOT_ALERTS_114_116_REMEDIATION_TASK_PACKET_2026-04-17.md:174-183`
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1440#discussion_r3100058462 -> c11bceb5e
+Disposition: FIXED
+Commit: c11bceb5e
+Evidence: `docs/security/MAKO_1_3_11_PRIVATE_INDEX_ADVISORY.md:15-17`, `docs/security/MAKO_1_3_11_PRIVATE_INDEX_ADVISORY.md:34-36`, `docs/security/MAKO_1_3_11_PRIVATE_INDEX_ADVISORY.md:60-65`
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1440#pullrequestreview-4128528497 -> c11bceb5e
+Disposition: FIXED
+Commit: c11bceb5e
+Evidence: `docs/orchestration/DEPENDABOT_ALERTS_114_116_REMEDIATION_TASK_PACKET_2026-04-17.md:20-23`, `docs/security/MAKO_1_3_11_PRIVATE_INDEX_ADVISORY.md:34-36`
+
 ## Merge Readiness
 
 - [ ] Current-head CI is green for PR branch head
