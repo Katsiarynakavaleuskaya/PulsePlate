@@ -7,6 +7,8 @@ from typing import Any, Mapping
 
 from pydantic import BaseModel, ConfigDict
 
+from app.schemas.intervention import NextBestAction
+
 
 def _coerce_float(value: Any) -> float | None:
     """Convert supported numeric-like values to float; reject invalid values."""
@@ -201,3 +203,4 @@ class WeeklyMealPlanResponse(BaseModel):
     shopping_list: dict[str, float]
     total_cost: float
     adherence_score: float
+    next_best_action: NextBestAction | None = None

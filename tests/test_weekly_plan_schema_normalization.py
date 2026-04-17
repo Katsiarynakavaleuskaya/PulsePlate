@@ -52,7 +52,8 @@ def test_normalize_weekly_plan_payload_normalizes_valid_numeric_like_values() ->
     assert meal["price_est"] == 4.5
     assert payload["daily_menus"][0]["total_cost"] == 4.5
     assert payload["total_cost"] == 4.5
-    WeeklyMealPlanResponse.model_validate(payload)
+    response = WeeklyMealPlanResponse.model_validate(payload)
+    assert response.next_best_action is None
 
 
 def test_normalize_weekly_plan_payload_rejects_invalid_numeric_entries() -> None:
