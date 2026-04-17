@@ -10,14 +10,15 @@ Bot and human review threads must be dispositioned here before they are resolved
 ## Fixed in Commit Mapping
 
 Disposition: FIXED
-Evidence: Replacement PR `#1439` supersedes stacked draft `#1438`; the current branch updates the monetization routing rule, doc evidence anchors, and canonical review artifact path before any thread resolution.
+Commit: 8d42a9b37
+Evidence: `scripts/orchestration/skill_router.py:533`, `docs/orchestration/AGENT_SKILL_ROUTING_POLICY.md:141`, `docs/orchestration/CODEX_SKILLS_ALIGNMENT_MATRIX.md:92`, `docs/review/PR_1439_FIXED_MAPPING.md:1`
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1439#discussion_r3096584219
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1439#discussion_r3096590456
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1439#discussion_r3096590460
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1439#discussion_r3096590464
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1439#discussion_r3096590468
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1439#discussion_r3096602430
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1439#discussion_r3096584219 -> 8d42a9b37
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1439#discussion_r3096590456 -> 8d42a9b37
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1439#discussion_r3096590460 -> 8d42a9b37
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1439#discussion_r3096590464 -> 8d42a9b37
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1439#discussion_r3096590468 -> 8d42a9b37
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1439#discussion_r3096602430 -> 8d42a9b37
 
 ## Merge Readiness
 
