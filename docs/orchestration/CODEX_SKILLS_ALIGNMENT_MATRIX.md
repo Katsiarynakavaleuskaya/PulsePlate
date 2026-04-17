@@ -85,19 +85,19 @@ Interpretation:
 - `pulseplate-agent-product`
 - `pulseplate-web-launch-site`
 
-## Planned Creation Waves
+## Skill Delivery Waves
 
-### Wave 1
+### Wave 1 — Delivered
 
-- `pulseplate-app-store-release` (active in this wave; evidence: `docs/roadmap/BACKLOG_LEDGER.md:4571`, `tools/codex_skills/pulseplate-app-store-release/SKILL.md:1`)
-- `pulseplate-monetization-gtm` (active in this wave; evidence: `docs/roadmap/BACKLOG_LEDGER.md:4588`, `tools/codex_skills/pulseplate-monetization-gtm/SKILL.md:1`)
+- `pulseplate-app-store-release` (merged via PR `#1436` / `0b3f2de82892a230789d70648fccfd0f7806641f`; evidence: `docs/review/PR_1436_FIXED_MAPPING.md:1`, `tools/codex_skills/pulseplate-app-store-release/SKILL.md:1`)
+- `pulseplate-monetization-gtm` (merged via PR `#1439` / `28c2bd2dd18e57a058386670161b0e350e078c5a`; PR `#1438` closed as superseded; evidence: `docs/review/PR_1439_FIXED_MAPPING.md:1`, `tools/codex_skills/pulseplate-monetization-gtm/SKILL.md:1`)
 
-### Wave 2
+### Wave 2 — Planned
 
 - `pulseplate-design-launch-system`
 - `pulseplate-web-launch-site`
 
-### Wave 3
+### Wave 3 — Planned
 
 - `pulseplate-agent-product`
 
