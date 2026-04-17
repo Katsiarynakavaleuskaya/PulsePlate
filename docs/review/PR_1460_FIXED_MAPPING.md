@@ -7,8 +7,8 @@ Canonical review-governance artifact and PR-body mirror requirements:
 `AGENTS.md:42-52`; `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md:41-90`;
 `docs/orchestration/AGENTS.md:79-82`.
 
-- [ ] Discussion-thread pass completed
-- [ ] Fixed in commit mapping completed
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 
 This replacement PR supersedes `#1456` from a fresh `origin/main` worktree.
 The canonical mapping file is created immediately so all future human/bot
@@ -16,9 +16,7 @@ comments can be dispositioned here before any thread resolution.
 
 ## Fixed in Commit Mapping
 
-No actionable review threads exist on PR `#1460` yet.
-Update this section with one entry per actionable comment as soon as review
-starts, using `FIXED`, `NOT-A-BUG`, or `DEFERRED` with required proof.
+- No actionable review comments
 
 ## Merge Readiness
 
