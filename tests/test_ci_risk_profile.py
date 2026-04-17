@@ -189,9 +189,24 @@ def test_generic_backend_change_hits_route_contract_safety_group() -> None:
     assert profile.contract_risk_groups == ("route_contract_safety",)
 
 
+EXPECTED_ROOT_BACKEND_SHARED_MODULES = (
+    "llm.py",
+    "main.py",
+    "secure_config.py",
+    "settings.py",
+    "signed_links.py",
+)
+
+
+def test_root_backend_shared_module_contract_matches_classifier_constant() -> None:
+    # Keep an explicit oracle here so membership regressions fail
+    # even if the production constant changes.
+    assert risk_profile.ROOT_BACKEND_SHARED_MODULES == EXPECTED_ROOT_BACKEND_SHARED_MODULES
+
+
 @pytest.mark.parametrize(
     "changed_file",
-    [*risk_profile.ROOT_BACKEND_SHARED_MODULES, "providers/ollama.py"],
+    [*EXPECTED_ROOT_BACKEND_SHARED_MODULES, "providers/ollama.py"],
 )
 def test_root_and_provider_backend_surfaces_are_backend_shared(
     changed_file: str,
