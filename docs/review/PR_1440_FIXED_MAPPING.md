@@ -3,15 +3,15 @@
 
 ## Discussion Thread Pass
 
-- [ ] Discussion-thread pass completed
-- [ ] Fixed in commit mapping completed
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 
 This artifact is created immediately after PR open per repo governance. Record
 every actionable review disposition here before resolving threads on GitHub.
 
 ## Fixed in Commit Mapping
 
-No actionable review threads have been dispositioned yet.
+- No actionable review comments
 
 ## Merge Readiness
 
