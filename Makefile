@@ -449,7 +449,9 @@ smoke-8001: ## Smoke against http://127.0.0.1:8001
 
 ## Generate OpenAPI schema (backend) and regenerate frontend TypeScript types
 openapi: frontend-install ## Generate OpenAPI schema and regenerate FE types (deterministic)
-	PYTHONPATH=. python3 scripts/generate_openapi.py
+	# RU: Генератор OpenAPI должен идти через repo .venv, иначе verify падает на системном Python без FastAPI.
+	# EN: Run OpenAPI generation through the repo .venv to avoid system-Python drift during verify.
+	PYTHONPATH=. $(VENV_PYTHON) scripts/generate_openapi.py
 	./scripts/frontend_npm.sh --prefix frontend run generate-types
 ## Install frontend dependencies (run once or when package.json changes)
 frontend-install: ## Install frontend dependencies
