@@ -10,6 +10,8 @@ type Props = {
   isPremium: boolean;
   children: React.ReactNode;
   source?: string;
+  paywallSource?: string;
+  triggerReason?: string;
 };
 
 /**
@@ -21,10 +23,18 @@ type Props = {
  *
  * @param isPremium - If `true`, renders `children` without gating.
  * @param children - Content to render inside the gate or preview.
- * @param source - Optional source identifier forwarded to the Paywall; defaults to `"unknown"`.
+ * @param source - Optional legacy telemetry source identifier; defaults to `"unknown"`.
+ * @param paywallSource - Optional paywall/ledger source identifier. Falls back to `source` when omitted.
+ * @param triggerReason - Optional trigger reason forwarded to the Paywall analytics seam.
  * @returns The PremiumGate React element containing either the unmodified children (for premium users) or a gated preview with a CTA and paywall dialog.
  */
-export default function PremiumGate({ isPremium, children, source = "unknown" }: Props) {
+export default function PremiumGate({
+  isPremium,
+  children,
+  source = "unknown",
+  paywallSource,
+  triggerReason,
+}: Props) {
   const [open, setOpen] = useState(false);
   const { t } = useTranslation();
   const { track } = useTelemetry();
@@ -43,6 +53,7 @@ export default function PremiumGate({ isPremium, children, source = "unknown" }:
 
   const supportsNativeInert =
     typeof document !== "undefined" && "inert" in HTMLElement.prototype;
+  const effectivePaywallSource = paywallSource ?? source;
 
   const restoreCtaFocus = (): void => {
     const el = ctaRef.current;
@@ -91,7 +102,8 @@ export default function PremiumGate({ isPremium, children, source = "unknown" }:
 
       {open && (
         <Paywall
-          source={source}
+          source={effectivePaywallSource}
+          triggerReason={triggerReason}
           via="paywall_cta"
           onClose={() => {
             safeTrack(() => track.paywallDismissed(source, "close_button"));
@@ -99,7 +111,7 @@ export default function PremiumGate({ isPremium, children, source = "unknown" }:
             restoreCtaFocus();
           }}
           onPurchase={async () => {
-            await purchasePremium({ source, via: "paywall_cta" });
+            await purchasePremium({ source: effectivePaywallSource, via: "paywall_cta" });
             safeTrack(() => track.upgradeClicked(source, "paywall"));
             setOpen(false);
             restoreCtaFocus();

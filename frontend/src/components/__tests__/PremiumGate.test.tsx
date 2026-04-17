@@ -17,6 +17,8 @@ const telemetryTrack = vi.hoisted(() => ({
   badgeViewed: vi.fn(),
 }));
 
+const beforeAfterPropsSpy = vi.hoisted(() => vi.fn());
+
 const { gateInteracted, upgradeClicked, paywallDismissed } = telemetryTrack;
 
 vi.mock("../../lib/useTelemetry", () => ({
@@ -29,12 +31,15 @@ vi.mock("../../lib/useTelemetry", () => ({
 
 vi.mock("../Paywall/BeforeAfter", () => {
   return {
-    default: ({ onClose }: { onClose: () => void }) => (
-      <div role="dialog">
+    default: (props: { onClose: () => void; source?: string; triggerReason?: string }) => {
+      beforeAfterPropsSpy(props);
+      return (
+        <div role="dialog">
         Mocked Paywall
-        <button onClick={onClose}>Close</button>
-      </div>
-    ),
+        <button onClick={props.onClose}>Close</button>
+        </div>
+      );
+    },
   };
 });
 
@@ -94,5 +99,27 @@ describe("PremiumGate", () => {
     await waitFor(() => {
       expect(document.activeElement).toBe(unlock);
     });
+  });
+
+  test("forwards planning trigger reason to the paywall seam when provided", () => {
+    render(
+      <PremiumGate
+        isPremium={false}
+        source="plate_page"
+        paywallSource="pro_daily_plate"
+        triggerReason="targets_ready"
+      >
+        <div data-testid="content">Gated content</div>
+      </PremiumGate>
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /continue/i }));
+
+    expect(beforeAfterPropsSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        source: "pro_daily_plate",
+        triggerReason: "targets_ready",
+      })
+    );
   });
 });

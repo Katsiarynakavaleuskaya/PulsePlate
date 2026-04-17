@@ -1,8 +1,13 @@
 // RU: Компонент Soft Paywall Hook - отображает предложение PRO функций после BMI расчета
 // EN: Soft Paywall Hook component - displays PRO feature offer after BMI calculation
 
+import { useCallback, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { components } from '../../api/schema';
+import { createAnalyticsEventId, logPaywallExposure } from '../../lib/analytics';
+
+const BMI_SOFT_PAYWALL_SOURCE = 'bmi_soft_paywall';
+const BMI_SOFT_PAYWALL_TRIGGER_REASON = 'post_bmi_result';
 
 interface SoftPaywallHookProps {
   hook?: components['schemas']['SoftPaywallHook'] | null;
@@ -22,6 +27,62 @@ interface SoftPaywallHookProps {
  */
 export default function SoftPaywallHook({ hook, onCtaClick }: SoftPaywallHookProps): JSX.Element | null {
   const navigate = useNavigate();
+  const exposureIdRef = useRef<string | null>(null);
+  const hookIdRef = useRef<string | null>(null);
+  const hasLoggedShownRef = useRef(false);
+  const hookId = hook?.id ?? null;
+  const isRenderable = Boolean(hook?.availability?.pro_available);
+
+  useEffect(() => {
+    if (!isRenderable || !hookId) {
+      hookIdRef.current = null;
+      exposureIdRef.current = null;
+      hasLoggedShownRef.current = false;
+      return;
+    }
+
+    if (hookIdRef.current !== hookId) {
+      hookIdRef.current = hookId;
+      exposureIdRef.current = createAnalyticsEventId();
+      hasLoggedShownRef.current = false;
+    }
+  }, [hookId, isRenderable]);
+
+  const safeLogPaywallEvent = useCallback(
+    (eventName: 'shown' | 'cta_clicked'): void => {
+      if (!hook || !isRenderable) {
+        return;
+      }
+
+      try {
+        logPaywallExposure({
+          client_event_id: createAnalyticsEventId(),
+          exposure_id: exposureIdRef.current ?? createAnalyticsEventId(),
+          event_name: eventName,
+          source_surface: BMI_SOFT_PAYWALL_SOURCE,
+          trigger_reason: BMI_SOFT_PAYWALL_TRIGGER_REASON,
+          via: 'soft_paywall_hook',
+          metadata: {
+            hook_id: hook.id,
+            position: hook.position,
+            target: hook.target,
+          },
+        });
+      } catch {
+        // RU: Ошибки analytics не должны ломать teaser/paywall UX.
+        // EN: Analytics failures must never break teaser/paywall UX.
+      }
+    },
+    [hook, isRenderable]
+  );
+
+  useEffect(() => {
+    if (!isRenderable || !hookId || hasLoggedShownRef.current) {
+      return;
+    }
+    safeLogPaywallEvent('shown');
+    hasLoggedShownRef.current = true;
+  }, [hookId, isRenderable, safeLogPaywallEvent]);
 
   // Guard: do not render if hook is null/undefined
   if (!hook) {
@@ -34,6 +95,7 @@ export default function SoftPaywallHook({ hook, onCtaClick }: SoftPaywallHookPro
   }
 
   const handleClick = (): void => {
+    safeLogPaywallEvent('cta_clicked');
     if (onCtaClick) {
       onCtaClick();
     } else {

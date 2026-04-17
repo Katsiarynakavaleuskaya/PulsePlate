@@ -42,7 +42,12 @@ export default function Plate() {
       {/* Premium Gate Section */}
       <section className="flex-1 px-4 py-6 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-4xl">
-          <PremiumGate isPremium={isPremium} source={PREMIUM_GATE_SOURCES.PLATE_PAGE}>
+          <PremiumGate
+            isPremium={isPremium}
+            source={PREMIUM_GATE_SOURCES.PLATE_PAGE}
+            paywallSource={PREMIUM_GATE_SOURCES.PRO_DAILY_PLATE}
+            triggerReason="targets_ready"
+          >
             {/* Pro Controls */}
             <Card className="mb-6 overflow-hidden">
               <CardContent className="p-6">

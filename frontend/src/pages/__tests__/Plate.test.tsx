@@ -1,10 +1,13 @@
+/* @vitest-environment jsdom */
 import type { JSX, ReactNode } from 'react';
+import '@testing-library/jest-dom/vitest';
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, cleanup } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import Plate from '../Plate';
 import { PREMIUM_GATE_SOURCES } from '../../config/constants';
+import '../../test/setup';
 
 // Mock usePremium hook
 vi.mock('../../lib/usePremium', () => ({

@@ -834,6 +834,12 @@ treated as emitted runtime telemetry yet.
 | vip_gate_interacted | featureName, interactionType, isVip | Gate interaction |
 | vip_badge_viewed | component, variant, isVip | Badge/upsell component view |
 
+Planning paywall ledger note:
+- Hidden first-party paywall ledger payloads may decorate these funnel families with planning-specific `source_surface` / `trigger_reason` pairs without renaming the canonical growth-event families above.
+- Planning vocabulary currently reserved for runtime wiring:
+  - `bmi_soft_paywall` / `post_bmi_result`
+  - `pro_daily_plate` / `targets_ready`
+
 ### Base payload (optional on all events)
 
 - timestamp (number)
