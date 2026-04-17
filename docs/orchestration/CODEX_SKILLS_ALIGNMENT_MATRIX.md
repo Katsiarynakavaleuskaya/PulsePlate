@@ -89,8 +89,8 @@ Interpretation:
 
 ### Wave 1
 
-- `pulseplate-app-store-release` (active in this wave)
-- `pulseplate-monetization-gtm` (active in this wave)
+- `pulseplate-app-store-release` (active in this wave; evidence: `docs/roadmap/BACKLOG_LEDGER.md:4571`, `tools/codex_skills/pulseplate-app-store-release/SKILL.md:1`)
+- `pulseplate-monetization-gtm` (active in this wave; evidence: `docs/roadmap/BACKLOG_LEDGER.md:4588`, `tools/codex_skills/pulseplate-monetization-gtm/SKILL.md:1`)
 
 ### Wave 2
 

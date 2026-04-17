@@ -542,8 +542,9 @@ SKILL_RULES: tuple[SkillRule, ...] = (
         path_prefixes=(
             "docs/marketing/",
             "docs/analytics/",
-            "docs/product/FREE_PRO_",
-            "app/services/payments_",
+            "docs/product/FREE_PRO_CONTRACT.md",
+            "docs/product/FREE_PRO_SOFT_PAYWALL.md",
+            "app/services/payments_activation.py",
             "core/billing_policy.py",
         ),
         keywords=(
