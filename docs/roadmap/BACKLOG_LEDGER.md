@@ -5008,24 +5008,27 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - The change introduces no runtime, schema, or OpenAPI behavior
 
 <a id="ledger-p1-foods-postgres-foundation-followthrough"></a>
-- [ ] P1: Foods PostgreSQL follow-through train (B1/B2 closed -> B3 next)
+- [ ] P1: Foods PostgreSQL follow-through train (B1/B2/B3 merged; cutover deferred)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-B1 (`feat/pr-b1-foods-offline-etl-postgres`) -> PR-B2 (`feat/pr-b2-restaurant-relational-bridge`) -> PR-B3 (`feat/pr-b3-restaurant-postgres-shadow-reads`)
-  - Status: 🚧 Active after merged B1/B2; B3 shadow-read parity lane is the next implementation step
+  - Target PR: PR `#1409` (`feat/pr-a-foods-catalog-foundation`) -> PR `#1419` (`feat/pr-b2-restaurant-relational-bridge`) -> PR `#1435` (`feat/pr-b3-restaurant-postgres-shadow-reads`) -> PR-TBD-FOODS-POST-B3-DOCS-CLOSEOUT -> PR-TBD-FOODS-FOUNDATION-DOWNGRADE-OWNERSHIP
+  - Status: 🚧 Active after merged B1/B2/B3; current lane is docs/governance closeout, and runtime authority cutover remains deferred until a separate governed post-B3 packet exists
   - Area: backend / data platform / restaurant ingestion
   - Finding Type: post-foundation execution gap
-  - Reason: The additive Alembic foundation lane intentionally creates `foods`, `restaurant_chains`, and `restaurant_menu_items` without changing the current SQLite/local-first runtime, ETL path, or MenuStat importer. After merged B1/B2, the next governed lane is B3 shadow reads plus parity checks for restaurant search/menu while preserving SQLite as canonical runtime authority until cutover criteria are proven.
+  - Reason: The additive Alembic foundation lane intentionally created `foods`, `restaurant_chains`, and `restaurant_menu_items` without changing the current SQLite/local-first runtime, ETL path, or MenuStat importer. That follow-through train has now landed as merged PR `#1409` on April 13, 2026, PR `#1419` on April 13, 2026, and PR `#1435` on April 16, 2026 (all dates `America/New_York`). The governed next step is to reconcile docs/source-of-truth after merged B3, then open the bounded downgrade-ownership implementation lane while keeping SQLite as canonical runtime authority until a separate cutover packet is approved.
   - Sequence:
-    - B1: offline snapshot promotion from `data/food.sqlite::foods` into PostgreSQL `foods` with deterministic upsert/report coverage and no runtime/importer drift
-    - B2: bridge `scripts/import_restaurant_menu.py` and restaurant persistence toward `restaurant_chains` / `restaurant_menu_items` additively, without runtime cutover
-    - B3: add PostgreSQL shadow reads + parity checks for restaurant search/menu with SQLite response authority unchanged
-    - Cutover (deferred): decide and govern any runtime read-switch / PostgreSQL authority change only after B3 parity evidence
+    - PR-A / foundation: additive `foods` / `restaurant_*` schema landed in merged PR `#1409`
+    - B2 / importer bridge: PostgreSQL importer persistence landed in merged PR `#1419`
+    - B3 / shadow reads: PostgreSQL shadow reads + parity checks landed in merged PR `#1435`
+    - Post-B3 closeout: reconcile backlog/task-packet/review-governance repo truth after merged B3
+    - Next bounded implementation lane: downgrade ownership fix for Alembic revision `202604120001`
+    - Cutover (deferred): decide and govern any runtime read-switch / PostgreSQL authority change only after a separate post-B3 cutover packet exists
   - Links:
     - `docs/orchestration/FOODS_CATALOG_FOUNDATION_PR_A_TASK_PACKET_2026-04-12.md`
     - `docs/orchestration/FOODS_POSTGRES_PROMOTION_PR_B1_TASK_PACKET_2026-04-13.md`
     - `docs/orchestration/FOODS_POSTGRES_RESTAURANT_BRIDGE_PR_B2_TASK_PACKET_2026-04-13.md`
     - `docs/orchestration/FOODS_POSTGRES_SHADOW_READS_PR_B3_TASK_PACKET_2026-04-16.md`
+    - `docs/orchestration/FOODS_POSTGRES_POST_B3_CLOSEOUT_PACKET_2026-04-17.md`
     - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p0-self-hosted-postgres-droplet-foundation`
     - `docs/deploy/POSTGRES_SELF_HOSTED_DROPLET.md`
     - `app/services/food_store.py`
@@ -5033,10 +5036,11 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `app/services/restaurant_store.py`
     - `scripts/import_restaurant_menu.py`
   - DoD:
-    - B1 packet and backlog sequencing explicitly lock the first executable lane to deterministic SQLite snapshot promotion into PostgreSQL `foods`
-    - Backlog sequencing explicitly marks B3 as the next active food implementation lane after merged B1/B2
-    - B3 scope is explicit: shadow reads + parity checks for restaurant search/menu with SQLite canonical responses
-    - Runtime authority cutover / read-switch remains explicitly deferred beyond B3 until parity/cutover criteria are met
+    - Backlog sequencing reflects merged-state truth for PR `#1409`, PR `#1419`, and PR `#1435`
+    - Historical food packets no longer claim B3 is the next active lane
+    - Post-B3 docs/governance closeout is explicitly tracked as the current source-of-truth reconciliation lane
+    - The next bounded implementation lane is explicitly set to `ledger-p1-foods-foundation-downgrade-ownership`
+    - Runtime authority cutover / read-switch remains explicitly deferred beyond B3 until a separate cutover packet exists
     - Search / catalog follow-up lanes continue to reference the same canonical PostgreSQL table source without parallel schema drift
 
 <a id="ledger-p1-foods-foundation-downgrade-ownership"></a>

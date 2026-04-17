@@ -1,8 +1,8 @@
 # Foods PostgreSQL Restaurant Bridge PR-B2 Task Packet
 
 **Effective date:** 2026-04-13 (`America/New_York`)
-**Status:** Active execution packet
-**Mode:** coordinator-owned backend/data bridge lane
+**Status:** Historical merged execution packet
+**Mode:** coordinator-owned backend/data bridge lane (closed)
 
 ## Goal
 
@@ -19,7 +19,11 @@ moderation/source parity, or public API cutover.
   - `PR-B2`: restaurant relational bridge for importer persistence (merged)
   - `PR-B3`: restaurant PostgreSQL shadow reads + parity checks
   - cutover (deferred): runtime read-switch / PostgreSQL authority change after B3
-- `PR-B1` and `PR-B2` are already merged; `PR-B3` is the next active implementation lane.
+- `PR-B1`, `PR-B2`, and `PR-B3` are already merged.
+- Post-B3 docs/governance reconciliation now lives in:
+  - `docs/orchestration/FOODS_POSTGRES_POST_B3_CLOSEOUT_PACKET_2026-04-17.md`
+- The next bounded implementation lane after post-B3 closeout is:
+  - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-foods-foundation-downgrade-ownership`
 - `PR-B2` stays importer-only. It does not claim that current restaurant runtime
   is already PostgreSQL-backed.
 

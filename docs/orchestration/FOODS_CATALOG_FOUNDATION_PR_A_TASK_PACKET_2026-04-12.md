@@ -1,13 +1,27 @@
 # Foods Catalog Foundation PR-A Task Packet
 
 **Effective date:** 2026-04-12 (`America/New_York`)
-**Status:** Active execution packet
-**Mode:** coordinator-owned backend/data migration lane
+**Status:** Historical merged execution packet
+**Mode:** coordinator-owned backend/data migration lane (closed)
 
 ## Goal
 
 Land one additive Alembic foundation revision that creates repo-aligned PostgreSQL-ready
 catalog tables without changing the current runtime, importer, or deploy behavior.
+
+## Relationship to the Follow-Through Train
+
+- This packet owns only **PR-A**.
+- The execution train is fixed as:
+  - `PR-A`: additive `foods` / `restaurant_*` foundation schema (merged in `#1409`)
+  - `PR-B1`: foods snapshot promotion into PostgreSQL `foods` (merged)
+  - `PR-B2`: restaurant relational bridge for importer persistence (merged)
+  - `PR-B3`: restaurant PostgreSQL shadow reads + parity checks (merged)
+  - cutover (deferred): runtime read-switch / PostgreSQL authority change after B3
+- Post-B3 docs/governance reconciliation now lives in:
+  - `docs/orchestration/FOODS_POSTGRES_POST_B3_CLOSEOUT_PACKET_2026-04-17.md`
+- The next bounded implementation lane after post-B3 closeout is:
+  - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-foods-foundation-downgrade-ownership`
 
 ## Source of Truth
 

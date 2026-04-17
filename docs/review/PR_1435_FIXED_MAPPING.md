@@ -54,7 +54,7 @@ Evidence: `tests/test_restaurants_router.py:348`; `tests/test_restaurants_router
 
 Disposition: DEFERRED
 Backlog: `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-foods-postgres-foundation-followthrough`
-Reason: evidence-pointer reconciliation for historical B1/B2/B3 packets and the deferred cutover seam is valid governance work, but it is outside the bounded B3 code/test fix set already shipped in commit `0f601ed72`.
+Reason: evidence-pointer reconciliation for historical B1/B2/B3 packets now lives in `docs/orchestration/FOODS_POSTGRES_POST_B3_CLOSEOUT_PACKET_2026-04-17.md`; runtime authority cutover remains deferred under `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-foods-postgres-foundation-followthrough` until a separate governed cutover packet exists.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1435#discussion_r3095446204
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1435#discussion_r3095446208
@@ -71,7 +71,7 @@ Reason: the CodeRabbit status comment is only an index of the inline actionable 
 
 Disposition: DEFERRED
 Backlog: `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-foods-postgres-foundation-followthrough`
-Reason: the Sourcery review contains high-level follow-through suggestions about engine reuse, env-flag utility centralization, and richer shadow-read diagnostics. Those are valid future improvements, but they are outside the bounded PR-B3 scope where SQLite remains canonical and runtime cutover/operability refinements stay deferred.
+Reason: the Sourcery review contains high-level follow-through suggestions about engine reuse, env-flag utility centralization, and richer shadow-read diagnostics. Historical train reconciliation now lives in `docs/orchestration/FOODS_POSTGRES_POST_B3_CLOSEOUT_PACKET_2026-04-17.md`, while those runtime/operability refinements remain deferred beyond merged B3 under `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-foods-postgres-foundation-followthrough`.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1435#pullrequestreview-4123393209
 
