@@ -102,20 +102,20 @@ module SemanticPolicy
   end
 
   def review_notes_hard_failures(pathname, content, read_only:, data_not_collected:)
-    REVIEW_NOTE_PRIVACY_CONTRADICTIONS.filter_map do |rule|
+    REVIEW_NOTE_PRIVACY_CONTRADICTIONS.each_with_object([]) do |rule, failures|
       next if rule[:message].include?("read-only") && !read_only
       next if rule[:message].include?("DATA_NOT_COLLECTED") && !data_not_collected
       next unless review_note_match_without_negation?(content, rule[:pattern])
 
-      "#{rule[:message]}: #{pathname}"
+      failures << "#{rule[:message]}: #{pathname}"
     end
   end
 
   def review_notes_advisories(pathname, content)
-    PRIVACY_ADVISORY_HINTS.filter_map do |rule|
+    PRIVACY_ADVISORY_HINTS.each_with_object([]) do |rule, advisories|
       next unless content.match?(rule[:pattern])
 
-      advisory_message(pathname, rule[:message])
+      advisories << advisory_message(pathname, rule[:message])
     end
   end
 
