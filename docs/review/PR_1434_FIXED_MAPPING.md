@@ -81,6 +81,21 @@ Disposition: FIXED
 Commit: e7fbda5e6
 Evidence: `tests/test_install_locked_python_requirements.py:62`
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1434#discussion_r3098766133 -> 6ce76bf80
+Disposition: FIXED
+Commit: 6ce76bf80
+Evidence: `tests/edges/test_core_edge_branches.py:95`; `tests/edges/test_core_edge_branches.py:121`
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1434#discussion_r3098766141 -> 6ce76bf80
+Disposition: FIXED
+Commit: 6ce76bf80
+Evidence: `tests/edges/test_core_edge_branches.py:125`
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1434#pullrequestreview-4127122076
+Disposition: NOT-A-BUG
+Evidence: `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1434#discussion_r3098766133`; `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1434#discussion_r3098766141`
+Reason: the CodeRabbit review summary adds no distinct actionable beyond the two inline test comments dispositioned immediately above.
+
 ## Merge Readiness
 
 - [ ] Current-head CI is green for PR branch head
