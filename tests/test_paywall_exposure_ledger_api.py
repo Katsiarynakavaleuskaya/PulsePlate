@@ -203,8 +203,11 @@ def test_trusted_browser_origin_returns_none_when_local_base_origin_cannot_be_no
     assert paywall_analytics._trusted_browser_origin(request) is None
 
 
-def test_paywall_shown_event_persists_for_anonymous_request(client: TestClient) -> None:
-    response = client.post(ROUTE_PATH, json=_payload(), headers=_first_party_headers())
+def test_paywall_shown_event_persists_for_authenticated_request(
+    client: TestClient,
+    pro_headers: dict[str, str],
+) -> None:
+    response = client.post(ROUTE_PATH, json=_payload(), headers=pro_headers)
 
     assert response.status_code == 200, response.text
     assert response.headers.get("content-type", "").startswith("application/json")
@@ -215,18 +218,22 @@ def test_paywall_shown_event_persists_for_anonymous_request(client: TestClient) 
     assert rows[0].event_name == "shown"
     assert rows[0].source_surface == "bmi_soft_paywall"
     assert rows[0].trigger_reason == "post_bmi_result"
-    assert rows[0].subject_id is None
-    assert rows[0].auth_source is None
-    assert rows[0].tier_snapshot is None
+    expected_subject_id = derive_subject_id_from_api_key(pro_headers["X-API-Key"])
+    assert rows[0].subject_id == expected_subject_id
+    assert rows[0].auth_source == "api_key"
+    assert rows[0].tier_snapshot == "PRO"
 
 
-def test_paywall_dismissed_event_keeps_shared_exposure_id(client: TestClient) -> None:
+def test_paywall_dismissed_event_keeps_shared_exposure_id(
+    client: TestClient,
+    pro_headers: dict[str, str],
+) -> None:
     response_shown = client.post(
         ROUTE_PATH,
         json=_payload(
             client_event_id="event-1001", exposure_id="exposure-1000", event_name="shown"
         ),
-        headers=_first_party_headers(),
+        headers=pro_headers,
     )
     response_dismissed = client.post(
         ROUTE_PATH,
@@ -236,7 +243,7 @@ def test_paywall_dismissed_event_keeps_shared_exposure_id(client: TestClient) ->
             event_name="dismissed",
             metadata={"dismissal_method": "escape"},
         ),
-        headers=_first_party_headers(),
+        headers=pro_headers,
     )
 
     assert response_shown.status_code == 200, response_shown.text
@@ -249,16 +256,19 @@ def test_paywall_dismissed_event_keeps_shared_exposure_id(client: TestClient) ->
     assert rows[1].metadata_json == {"dismissal_method": "escape"}
 
 
-def test_paywall_cta_clicked_is_idempotent_by_client_event_id(client: TestClient) -> None:
+def test_paywall_cta_clicked_is_idempotent_by_client_event_id(
+    client: TestClient,
+    pro_headers: dict[str, str],
+) -> None:
     first = client.post(
         ROUTE_PATH,
         json=_payload(client_event_id="event-2001", event_name="cta_clicked"),
-        headers=_first_party_headers(),
+        headers=pro_headers,
     )
     second = client.post(
         ROUTE_PATH,
         json=_payload(client_event_id="event-2001", event_name="cta_clicked"),
-        headers=_first_party_headers(),
+        headers=pro_headers,
     )
 
     assert first.status_code == 200, first.text
@@ -269,16 +279,14 @@ def test_paywall_cta_clicked_is_idempotent_by_client_event_id(client: TestClient
     assert rows[0].client_event_id == "event-2001"
 
 
-def test_paywall_event_rejects_anonymous_request_without_first_party_provenance(
-    client: TestClient,
-) -> None:
+def test_paywall_event_rejects_anonymous_request_without_authentication(client: TestClient) -> None:
     response = client.post(ROUTE_PATH, json=_payload())
 
     assert response.status_code == 403, response.text
     assert _load_events() == []
 
 
-def test_paywall_event_rejects_untrusted_origin(client: TestClient) -> None:
+def test_paywall_event_rejects_untrusted_origin_without_auth(client: TestClient) -> None:
     response = client.post(
         ROUTE_PATH,
         json=_payload(),
@@ -289,11 +297,14 @@ def test_paywall_event_rejects_untrusted_origin(client: TestClient) -> None:
     assert _load_events() == []
 
 
-def test_paywall_event_rejects_invalid_event_name(client: TestClient) -> None:
+def test_paywall_event_rejects_invalid_event_name(
+    client: TestClient,
+    pro_headers: dict[str, str],
+) -> None:
     response = client.post(
         ROUTE_PATH,
         json=_payload(event_name="not_real"),
-        headers=_first_party_headers(),
+        headers=pro_headers,
     )
 
     assert response.status_code == 422, response.text
@@ -302,12 +313,13 @@ def test_paywall_event_rejects_invalid_event_name(client: TestClient) -> None:
 @pytest.mark.parametrize("event_name", ["upgrade_started", "upgrade_completed"])
 def test_paywall_event_rejects_server_authored_upgrade_events(
     client: TestClient,
+    pro_headers: dict[str, str],
     event_name: str,
 ) -> None:
     response = client.post(
         ROUTE_PATH,
         json=_payload(event_name=event_name),
-        headers=_first_party_headers(),
+        headers=pro_headers,
     )
 
     assert response.status_code == 422, response.text
@@ -322,13 +334,14 @@ def test_paywall_event_rejects_server_authored_upgrade_events(
 )
 def test_paywall_event_rejects_invalid_slug_fields(
     client: TestClient,
+    pro_headers: dict[str, str],
     field_name: str,
     bad_value: str,
 ) -> None:
     body = _payload()
     body[field_name] = bad_value
 
-    response = client.post(ROUTE_PATH, json=body, headers=_first_party_headers())
+    response = client.post(ROUTE_PATH, json=body, headers=pro_headers)
 
     assert response.status_code == 422, response.text
 

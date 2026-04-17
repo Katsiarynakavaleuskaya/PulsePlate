@@ -145,11 +145,10 @@ def ingest_paywall_event(
     """Persist paywall exposure events behind a hidden first-party route."""
 
     context = _resolve_optional_auth_context(request=request, x_api_key=x_api_key)
-    trusted_origin = _trusted_browser_origin(request)
-    if context is None and trusted_origin is None:
+    if context is None:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Trusted first-party origin or authenticated session required.",
+            detail="Authenticated session required.",
         )
 
     from app.services.paywall_exposure_ledger import (
