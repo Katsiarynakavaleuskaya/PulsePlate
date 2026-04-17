@@ -99,10 +99,11 @@ def test_generate_who_targets_response_sets_next_best_action(
     assert response.next_best_action.type == "open_daily_plate"
 
 
-def test_pro_weekly_endpoint_sets_upgrade_next_best_action() -> None:
+def test_pro_weekly_endpoint_sets_upgrade_next_best_action(
+    pro_headers: dict[str, str],
+) -> None:
     """RU/EN: Smoke-cover canonical PRO weekly response post-processing."""
     from app.main import app as main_app
-    from app.middleware.api_tiers import TEST_KEY_PRO
 
     client = TestClient(main_app)
     payload = {
@@ -130,10 +131,11 @@ def test_pro_weekly_endpoint_sets_upgrade_next_best_action() -> None:
     response = client.post(
         "/api/v1/pro/meal/weekly",
         json=payload,
-        headers={"X-API-Key": TEST_KEY_PRO},
+        headers=pro_headers,
     )
 
     assert response.status_code == 200, response.text
+    assert response.headers.get("content-type", "").startswith("application/json")
     body = response.json()
     assert body["next_best_action"]["type"] == "upgrade_for_export"
     assert body["next_best_action"]["recommended_surface"] == "vip_export"
