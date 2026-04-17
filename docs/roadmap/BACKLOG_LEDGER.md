@@ -4822,34 +4822,36 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Tests cover allow (SHA touches file) and deny (SHA does not touch file)
 
 <a id="ledger-p1-codex-skill-pulseplate-app-store-release"></a>
-- [ ] P1: Add custom Codex skill `pulseplate-app-store-release` (Wave 1)
+- [x] P1: Add custom Codex skill `pulseplate-app-store-release` (Wave 1)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-TBD-CODEX-SKILL-WAVE1A
-  - Status: In progress
+  - Target PR: PR #1436
+  - Status: ✅ Merged via PR #1436 (`0b3f2de82892a230789d70648fccfd0f7806641f`) on 17 April 2026
   - Area: iOS / release / orchestration
   - Finding Type: capability expansion
   - Reason: PulsePlate needs a project-specific App Store release skill that understands Fastlane, release truth, metadata parity, screenshot packs, and the repo's non-interference contract with coordinator-first orchestration.
   - Links:
     - `docs/orchestration/CODEX_SKILLS_ALIGNMENT_MATRIX.md`
     - `docs/orchestration/AGENT_SKILL_ROUTING_POLICY.md`
+    - `docs/review/PR_1436_FIXED_MAPPING.md`
   - DoD:
     - Skill exists under `tools/codex_skills/pulseplate-app-store-release/`
     - Skill covers App Store metadata, Fastlane, release evidence, and rollback notes
     - Skill docs explicitly preserve coordinator-first and transport-only bridge invariants
 
 <a id="ledger-p1-codex-skill-pulseplate-monetization-gtm"></a>
-- [ ] P1: Add custom Codex skill `pulseplate-monetization-gtm` (Wave 1)
+- [x] P1: Add custom Codex skill `pulseplate-monetization-gtm` (Wave 1)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
   - Target PR: PR #1439
-  - Status: In progress
+  - Status: ✅ Merged via PR #1439 (`28c2bd2dd18e57a058386670161b0e350e078c5a`) on 17 April 2026; PR #1438 closed as superseded
   - Area: monetization / growth / orchestration
   - Finding Type: capability expansion
   - Reason: PulsePlate needs a project-specific monetization/GTM skill for subscriptions, paywalls, pricing experiments, launch channels, and wellness-safe growth recommendations without relying on generic advice alone.
   - Links:
     - `docs/orchestration/CODEX_SKILLS_ALIGNMENT_MATRIX.md`
     - `docs/orchestration/AGENT_SKILL_ROUTING_POLICY.md`
+    - `docs/review/PR_1439_FIXED_MAPPING.md`
   - DoD:
     - Skill exists under `tools/codex_skills/pulseplate-monetization-gtm/`
     - Skill covers paywall, subscription, pricing, ASO/SEO/Product Hunt, and wellness-safe disclaimers

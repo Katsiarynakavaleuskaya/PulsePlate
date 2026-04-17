@@ -106,6 +106,8 @@ For explainability, the packet also carries `skill_routing` metadata with weight
 - Triage architecture/policy guards: `pulseplate-guards`
 - Add backend endpoints with policy checks: `pulseplate-backend-endpoints`
 - Produce AI trend reports: `pulseplate-ai-reports`
+- Prepare App Store metadata, screenshot packs, and release evidence: `pulseplate-app-store-release`
+- Guide monetization, paywall, pricing, and wellness-safe GTM work: `pulseplate-monetization-gtm`
 - Build/update architecture graph artifact: `pulseplate-graphmap`
 - Run browser E2E flows (step 3 extension): `pulseplate-playwright-e2e`
 
@@ -114,6 +116,8 @@ For explainability, the packet also carries `skill_routing` metadata with weight
 Recommended now for PulsePlate:
 
 - `pulseplate-ai-reports` for founder/wellness/AI reporting
+- `pulseplate-app-store-release` for App Store metadata, screenshot packs, and release evidence
+- `pulseplate-monetization-gtm` for monetization, paywall, pricing, and wellness-safe GTM work
 - `docs-sync` for orchestration, runbooks, and PR support docs
 - `bug-triage` and `pulseplate-gates` for remediation and gate closure
 - `figma` as the first design-system and prototype lane
