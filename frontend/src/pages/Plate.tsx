@@ -1,12 +1,19 @@
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import PremiumGate from "../components/PremiumGate";
 import { Card, CardContent, buttonClasses } from "../components/ui";
 import LiveProgressIndicator from '../features/progress/LiveProgressIndicator';
 import { usePremium } from "../lib/usePremium";
 import { PREMIUM_GATE_SOURCES } from "../config/constants";
 
+type PlateLocationState = {
+  triggerReason?: string;
+};
+
 export default function Plate() {
   const isPremium = usePremium();
+  const location = useLocation();
+  const state = (location.state as PlateLocationState | null) ?? null;
+  const planningTriggerReason = state?.triggerReason;
 
   if (isPremium === undefined) {
     return (
@@ -46,7 +53,7 @@ export default function Plate() {
             isPremium={isPremium}
             source={PREMIUM_GATE_SOURCES.PLATE_PAGE}
             paywallSource={PREMIUM_GATE_SOURCES.PRO_DAILY_PLATE}
-            triggerReason="targets_ready"
+            triggerReason={planningTriggerReason}
           >
             {/* Pro Controls */}
             <Card className="mb-6 overflow-hidden">

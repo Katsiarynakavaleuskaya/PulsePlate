@@ -98,7 +98,7 @@ This wave is intentionally not:
     - `upgrade_started`
     - `upgrade_completed`,
   - align concrete planning surfaces only:
-    - BMI -> PRO targets: `source_surface=bmi_soft_paywall`, `trigger_reason=post_bmi_result`
+    - BMI -> PRO targets: `source_surface=bmi_soft_paywall`, `trigger_reason=post_bmi`
     - targets -> daily plate: `source_surface=pro_daily_plate`, `trigger_reason=targets_ready`
 - Hard boundary:
   - no vendor SDK rollout, no checkout semantics change, no pricing-truth change.

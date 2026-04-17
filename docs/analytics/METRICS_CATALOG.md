@@ -837,7 +837,7 @@ treated as emitted runtime telemetry yet.
 Planning paywall ledger note:
 - Hidden first-party paywall ledger payloads may decorate these funnel families with planning-specific `source_surface` / `trigger_reason` pairs without renaming the canonical growth-event families above.
 - Planning vocabulary currently reserved for runtime wiring:
-  - `bmi_soft_paywall` / `post_bmi_result`
+  - `bmi_soft_paywall` / `post_bmi`
   - `pro_daily_plate` / `targets_ready`
 
 ### Base payload (optional on all events)

@@ -7,7 +7,7 @@ import type { components } from '../../api/schema';
 import { createAnalyticsEventId, logPaywallExposure } from '../../lib/analytics';
 
 const BMI_SOFT_PAYWALL_SOURCE = 'bmi_soft_paywall';
-const BMI_SOFT_PAYWALL_TRIGGER_REASON = 'post_bmi_result';
+const BMI_SOFT_PAYWALL_TRIGGER_REASON = 'post_bmi';
 
 interface SoftPaywallHookProps {
   hook?: components['schemas']['SoftPaywallHook'] | null;
@@ -99,8 +99,18 @@ export default function SoftPaywallHook({ hook, onCtaClick }: SoftPaywallHookPro
     if (onCtaClick) {
       onCtaClick();
     } else {
+      const exposureId = exposureIdRef.current ?? createAnalyticsEventId();
+      exposureIdRef.current = exposureId;
+
       // Default: navigate to /pro (paywall page)
-      navigate('/pro');
+      navigate('/pro', {
+        state: {
+          exposureId,
+          source: BMI_SOFT_PAYWALL_SOURCE,
+          triggerReason: BMI_SOFT_PAYWALL_TRIGGER_REASON,
+          via: 'pro_page',
+        },
+      });
     }
   };
 

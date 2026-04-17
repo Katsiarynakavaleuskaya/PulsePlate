@@ -15,6 +15,7 @@ type Props = {
   purchaseLabel?: string;
   processingLabel?: string;
   purchaseDisabled?: boolean;
+  initialExposureId?: string;
   source?: string;
   triggerReason?: string;
   via?: string;
@@ -57,6 +58,7 @@ export default function BeforeAfter({
   purchaseLabel,
   processingLabel,
   purchaseDisabled = false,
+  initialExposureId,
   source = "unknown",
   triggerReason = "unknown",
   via = "paywall",
@@ -64,7 +66,7 @@ export default function BeforeAfter({
   const { t } = useTranslation();
   const [isPurchasing, setIsPurchasing] = useState(false);
   const [purchaseError, setPurchaseError] = useState<string | null>(null);
-  const exposureIdRef = useRef<string>(createAnalyticsEventId());
+  const exposureIdRef = useRef<string>(initialExposureId ?? createAnalyticsEventId());
   const dialogRef = useRef<HTMLDivElement | null>(null);
   const primaryButtonRef = useRef<HTMLButtonElement | null>(null);
   const cancelButtonRef = useRef<HTMLButtonElement | null>(null);

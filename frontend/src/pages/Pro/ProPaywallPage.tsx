@@ -1,19 +1,31 @@
 // RU: Страница PRO paywall - отображает модальное окно с предложением PRO функций
 // EN: PRO paywall page - displays modal dialog with PRO feature offer
 
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import BeforeAfter from '../../components/Paywall/BeforeAfter';
 import { purchasePremium } from '../../lib/paywallPurchase';
 
+type ProPaywallLocationState = {
+  exposureId?: string;
+  source?: string;
+  triggerReason?: string;
+  via?: string;
+};
+
 export default function ProPaywallPage(): JSX.Element {
+  const location = useLocation();
   const navigate = useNavigate();
+  const state = (location.state as ProPaywallLocationState | null) ?? null;
+  const source = state?.source ?? 'bmi_soft_paywall';
+  const triggerReason = state?.triggerReason ?? 'post_bmi';
+  const via = state?.via ?? 'pro_page';
 
   const handleClose = (): void => {
     navigate(-1); // Go back to previous page
   };
 
   const handlePurchase = async (): Promise<void> => {
-    await purchasePremium({ source: "bmi_soft_paywall", via: "pro_page" });
+    await purchasePremium({ source, via });
     navigate(-1);
   };
 
@@ -21,9 +33,10 @@ export default function ProPaywallPage(): JSX.Element {
     <BeforeAfter
       onClose={handleClose}
       onPurchase={handlePurchase}
-      source="bmi_soft_paywall"
-      triggerReason="post_bmi_result"
-      via="pro_page"
+      initialExposureId={state?.exposureId}
+      source={source}
+      triggerReason={triggerReason}
+      via={via}
     />
   );
 }

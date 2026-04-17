@@ -114,7 +114,14 @@ describe("SoftPaywallHook", () => {
 
     // Assert exactly one navigation call with correct path
     expect(mockNavigate).toHaveBeenCalledTimes(1);
-    expect(mockNavigate).toHaveBeenCalledWith("/pro");
+    expect(mockNavigate).toHaveBeenCalledWith("/pro", {
+      state: {
+        exposureId: "analytics-id-1",
+        source: "bmi_soft_paywall",
+        triggerReason: "post_bmi",
+        via: "pro_page",
+      },
+    });
   });
 
   it("reuses one exposure lifecycle id for shown and CTA events", (): void => {
@@ -134,7 +141,7 @@ describe("SoftPaywallHook", () => {
     expect(shownPayload).toMatchObject({
       event_name: "shown",
       source_surface: "bmi_soft_paywall",
-      trigger_reason: "post_bmi_result",
+      trigger_reason: "post_bmi",
       via: "soft_paywall_hook",
       metadata: {
         hook_id: "bmi.pro_interpretation_v1",
@@ -145,7 +152,7 @@ describe("SoftPaywallHook", () => {
     expect(ctaPayload).toMatchObject({
       event_name: "cta_clicked",
       source_surface: "bmi_soft_paywall",
-      trigger_reason: "post_bmi_result",
+      trigger_reason: "post_bmi",
       via: "soft_paywall_hook",
       metadata: {
         hook_id: "bmi.pro_interpretation_v1",
