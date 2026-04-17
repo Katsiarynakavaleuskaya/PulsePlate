@@ -26,11 +26,22 @@ ALL_RISK_GROUPS: tuple[str, ...] = (
     "merge_governance",
 )
 
+# Root-level backend modules that influence shared runtime or security posture
+# must route through backend-blocking CI even when they do not live under app/core.
+ROOT_BACKEND_SHARED_MODULES: tuple[str, ...] = (
+    "llm.py",
+    "main.py",
+    "secure_config.py",
+    "settings.py",
+    "signed_links.py",
+)
+
 BACKEND_SHARED_EXACT: tuple[str, ...] = (
     "Dockerfile",
     "Makefile",
     "constraints.txt",
     "legacy_app.py",
+    *ROOT_BACKEND_SHARED_MODULES,
     "mcp_pulseplate_server.py",
     "pyproject.toml",
     "pytest.ini",
@@ -39,9 +50,12 @@ BACKEND_SHARED_EXACT: tuple[str, ...] = (
     "requirements-dev.txt",
     "requirements.txt",
 )
+# Provider implementations can change auth, network, or model routing behavior,
+# so provider-path changes always go through backend-blocking and security CI.
 BACKEND_SHARED_PREFIXES: tuple[str, ...] = (
     "app/",
     "core/",
+    "providers/",
     "scripts/ci/",
     "scripts/orchestration/",
     "tests/",
