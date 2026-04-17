@@ -33,6 +33,21 @@ Scope: `docs/orchestration/**`
   - canonical packet/runbook:
     - [`docs/orchestration/TIER1_CI_CD_TASK_PACKET_2026-03-26.md`](./TIER1_CI_CD_TASK_PACKET_2026-03-26.md)
     - [`docs/orchestration/TIER1_CI_CD_PR_SERIES_RUNBOOK.md`](./TIER1_CI_CD_PR_SERIES_RUNBOOK.md)
+- For the Docker / CI discipline PR series:
+  - primary: `agent-coordinator`
+  - execution order:
+    - `architecture-specialist`
+    - `security-auditor`
+    - `backend-engineer`
+    - `dev-operator`
+  - mandatory post-open lane: `qa-engineer-agent -> bug-hunter`
+  - invariants:
+    - root `.dockerignore` remains a strict allowlist unless a narrower documented correction is required
+    - production topology stays split: backend image via `IMAGE_REF`, frontend/Caddy via `frontend/Dockerfile.caddy-spa`
+    - signed provenance stays deferred while the documented buildx/GHA cache seam requires `provenance: false`
+    - no Dagger or alternate control-plane pilot before image-budget telemetry baseline is merged
+  - canonical packet:
+    - [`docs/orchestration/DOCKER_CI_DISCIPLINE_PR_SERIES_PACKET_2026-04-16.md`](./DOCKER_CI_DISCIPLINE_PR_SERIES_PACKET_2026-04-16.md)
 - For the METATRON Track A lane (offensive lab **out-of-band**; no product runtime):
   - primary: `agent-coordinator`
   - reviewers: `security-auditor`, `bug-hunter`, `architecture-specialist`

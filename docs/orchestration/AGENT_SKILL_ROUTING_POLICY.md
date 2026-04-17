@@ -125,6 +125,11 @@ CV routing note:
 
 When `envelope_mode_hint` is `docs_only` (all candidate paths are contract/docs-only surfaces and none require privileged security review per `bootstrap_sync_policy`), `scripts/orchestration/skill_router.py` **removes** implementation-oriented skills from `recommended` and `conditional` so selection stays aligned with root `AGENTS.md` docs-only PR scope and with `inputs.message_envelope.mode` (`docs-only`) on the bootstrap packet. The excluded slug set is `DOCS_ONLY_EXCLUDED_ROUTING_SKILLS` in `scripts/orchestration/skill_router.py:120`.
 
+For `pulseplate-app-store-release`, docs-only suppression still applies even when
+`docs/runbooks/IOS_APPSTORE_ASSETS_ROLLOUT.md` matches a routing prefix. Promote
+that skill only for mixed or implementation envelopes that also carry App Store
+metadata, screenshot-pack, App Privacy, or release-evidence intent.
+
 ---
 
 ## 3. Project-Fit Skill Lanes
@@ -135,11 +140,11 @@ When `envelope_mode_hint` is `docs_only` (all candidate paths are contract/docs-
 | Experimentation / eval / optimization | `pulseplate-workflow`, `docs-sync`, `pulseplate-gates` | `bug-triage`, `code-review-expert`, `openai-docs` |
 | Backend / API / contracts | `pulseplate-backend-endpoints`, `pulseplate-openapi-sync`, `pulseplate-gates` | `bug-triage`, `security-best-practices`, `openai-docs` |
 | Frontend / web UX | `pulseplate-frontend-ui`, `pulseplate-gates`, `build-web-apps:frontend-skill` | `pulseplate-playwright-e2e`, `playwright`, `figma`, `figma-implement-design`, `vercel-react-best-practices`, `build-web-apps:web-design-guidelines`, `build-web-apps:react-best-practices` |
-| iOS / App Store / Fastlane | `build-ios-apps:swiftui-ui-patterns`, `build-ios-apps:swiftui-view-refactor` | `build-ios-apps:ios-debugger-agent`, `build-ios-apps:swiftui-performance-audit`, `pulseplate-app-store-release` (planned) |
+| iOS / App Store / Fastlane | `build-ios-apps:swiftui-ui-patterns`, `build-ios-apps:swiftui-view-refactor` | `build-ios-apps:ios-debugger-agent`, `build-ios-apps:swiftui-performance-audit`, `pulseplate-app-store-release` |
 | Docs / runbooks / policy | `docs-sync` | `agents-md`, `release-notes`, `code-review-expert` |
 | QA / CI / remediation | `bug-triage`, `pulseplate-gates` | `ci-fix`, `gh-fix-ci`, `gh-address-comments`, `code-review-expert` |
-| Reports / wellness / GTM research | `pulseplate-ai-reports`, `docs-sync` | `notion-research-documentation`, `notion-knowledge-capture`, `linear`, `openai-docs`, `pulseplate-monetization-gtm` (planned) |
-| Monetization / paywall / subscriptions | `docs-sync` | `build-web-apps:stripe-best-practices`, `pulseplate-ai-reports`, `linear`, `notion-research-documentation`, `pulseplate-monetization-gtm` (planned) |
+| Reports / wellness / GTM research | `pulseplate-ai-reports`, `docs-sync` | `notion-research-documentation`, `notion-knowledge-capture`, `linear`, `openai-docs`, `pulseplate-monetization-gtm` (evidence: `scripts/orchestration/skill_router.py:533`, `tests/test_skill_router.py:744`) |
+| Monetization / paywall / subscriptions | `docs-sync`, `pulseplate-monetization-gtm` (evidence: `tools/codex_skills/pulseplate-monetization-gtm/SKILL.md:1`, `tests/test_install_codex_skills.py:276`) | `build-web-apps:stripe-best-practices`, `pulseplate-ai-reports`, `linear`, `notion-research-documentation` |
 | Design / media / launch assets | `figma`, `docs-sync` | `figma-implement-design`, `pulseplate-frontend-ui`, `build-web-apps:web-design-guidelines`, `playwright`, `notion-research-documentation`, `notion-knowledge-capture`, `sora`, `imagegen`, `speech`, `screenshot`, `pulseplate-design-launch-system` (planned); `Airweave` and `Penpot` stay Phase 1 runbook-only lanes and are not skill-routed yet |
 
 ---

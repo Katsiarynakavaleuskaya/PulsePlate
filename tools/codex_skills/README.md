@@ -23,8 +23,10 @@ Skills remain passive/discovery-only helpers and do not replace coordinator boot
 - `pulseplate-guards`
 - `pulseplate-backend-endpoints`
 - `pulseplate-ai-reports`
+- `pulseplate-app-store-release`
 - `pulseplate-graphmap`
 - `pulseplate-playwright-e2e`
+- `pulseplate-monetization-gtm`
 
 ## Cybersecurity skills (submodule)
 

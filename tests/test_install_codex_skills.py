@@ -266,12 +266,14 @@ def test_repo_agents_skills_mirror_points_to_codex_skill_sources() -> None:
 
     expected_skills = (
         "pulseplate-ai-reports",
+        "pulseplate-app-store-release",
         "pulseplate-backend-endpoints",
         "pulseplate-frontend-ui",
         "pulseplate-gates",
         "pulseplate-graphmap",
         "pulseplate-guards",
         "pulseplate-ledger",
+        "pulseplate-monetization-gtm",
         "pulseplate-openapi-sync",
         "pulseplate-playwright-e2e",
         "pulseplate-workflow",

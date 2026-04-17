@@ -483,6 +483,74 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Supply-chain guardrails remain fail-closed with the approved private proxy contract intact
     - Deterministic tests cover the promoted install-profile contract
 
+<a id="ledger-p1-docker-deploy-contract-reconciliation"></a>
+- [ ] P1: Docker deploy contract reconciliation after install-profile split
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-DOCKER-DEPLOY-CONTRACT
+  - Area: deploy / docker / operator workflow
+  - Depends on:
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-ci-install-profile-split-after-disk-unblock`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-compose-v2-migration`
+  - Reason: The canonical production shape is already split, but deploy/operator docs and some workflow assumptions still carry older shared-artifact language (`frontend_dist`, copy-into-backend assumptions, mixed compose wording). Reconcile the live split contract without widening topology scope or reintroducing monolithic image assumptions.
+  - Links:
+    - `docs/orchestration/DOCKER_CI_DISCIPLINE_PR_SERIES_PACKET_2026-04-16.md`
+    - `docs/roadmap/DEPLOY_WEB_DIAGNOSIS_AND_FIX.md`
+    - `deploy/docker-compose.production.yaml`
+    - `deploy/docker-compose.production.selfhosted.yaml`
+    - `deploy/docker-compose.staging.yaml`
+    - `deploy/WORKFLOW.md`
+    - `docs/deploy/PRODUCTION.md`
+  - DoD:
+    - Deploy docs and compose files agree on split backend image + separate frontend/Caddy topology
+    - Stale shared-volume or copy-into-backend assumptions are removed from touched docs and workflow notes
+    - Operator rebuild / diagnose-web / `IMAGE_REF` flows match the live contract
+    - `docker compose` v2 wording is canonical on touched surfaces
+
+<a id="ledger-p1-docker-runtime-slimming-after-profile-split"></a>
+- [ ] P1: Docker runtime slimming after CI install-profile split
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-DOCKER-RUNTIME-SLIMMING
+  - Area: docker / runtime / supply-chain
+  - Depends on:
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-ci-install-profile-split-after-disk-unblock`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-docker-deploy-contract-reconciliation`
+  - Reason: Runtime slimming should happen only after the install-profile contract is stable and deploy topology drift is reconciled. The follow-up must remove residual builder/runtime waste without touching provenance policy or the split backend/frontend shell.
+  - Links:
+    - `docs/orchestration/DOCKER_CI_DISCIPLINE_PR_SERIES_PACKET_2026-04-16.md`
+    - `Dockerfile`
+    - `frontend/Dockerfile.caddy-spa`
+    - `.dockerignore`
+    - `frontend/.dockerignore`
+  - DoD:
+    - No builder-only tooling leaks into runtime images
+    - Docker `COPY` scope stays narrow and does not widen build context
+    - Production backend build still serves `app.main:app`
+    - Supply-chain guardrails and proxy install contract remain intact
+
+<a id="ledger-p1-docker-image-budget-telemetry"></a>
+- [ ] P1: Docker image budget and telemetry baseline
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-DOCKER-IMAGE-BUDGET
+  - Area: CI / docker / telemetry
+  - Depends on:
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-ci-install-profile-split-after-disk-unblock`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-docker-deploy-contract-reconciliation`
+  - Reason: The project needs deterministic PR-facing evidence for image size regressions, largest layers, and build-context drift before discussing provenance recovery sequencing or any Dagger pilot. Start with warning/regression-only reporting, not an absolute hard stop.
+  - Links:
+    - `docs/orchestration/DOCKER_CI_DISCIPLINE_PR_SERIES_PACKET_2026-04-16.md`
+    - `.github/workflows/build.yml`
+    - `.github/workflows/docker-image.yml`
+    - `.github/workflows/trivy.yml`
+    - `docs/architecture/ADR_DOCKER_BUILD_PROVENANCE_WORKAROUND_2026-03-01.md`
+  - DoD:
+    - CI emits deterministic image-size evidence for touched Docker lanes
+    - Largest-layer and build-context summaries are visible to PR authors before merge
+    - The first gate is warning/regression-only, not an absolute size cap
+    - Follow-up provenance or Dagger decisions can cite this baseline explicitly
+
 <a id="ledger-p1-business-wave-runtime-follow-through"></a>
 - [ ] P1: Business wave runtime follow-through after governance/docs foundation
   - Owner: @katsiaryna_kavaleuskaya
@@ -1228,6 +1296,32 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Schema checks explicitly cover Pydantic v2 nullable-required semantics where they affect API contracts
     - Dependency upgrade/runbook docs link to the same compatibility gate source
 
+<a id="ledger-p1-dependency-governance-pr-series"></a>
+- [ ] P1: Dependency governance PR series (cluster policy + coordinator-led lane)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-DEPENDENCY-GOVERNANCE-SERIES
+  - Status: 📋 Planned
+  - Area: dependencies / CI governance / orchestration
+  - Finding Type: operating model consolidation gap
+  - Reason (EN): The repo has floors, locks, and CI installers, but dependency work still risks
+    being executed as mixed bump lanes. The series must codify policy classes (`security-floor`,
+    `compatibility-cluster`, `override-seam`) and enforce coordinator-led PR lifecycle with
+    mandatory post-open `qa-engineer-agent -> bug-hunter` on every slice.
+  - Links:
+    - `docs/security/DEPENDENCY_SECURITY_GUARD_WORKFLOW.md:5`
+    - `docs/security/DEPENDENCY_SECURITY_GUARD_WORKFLOW.md:64`
+    - `docs/DEPENDENCY_MANAGEMENT.md:62`
+    - `docs/orchestration/PR_MERGE_WORKFLOW_MATRIX.md:37`
+    - `requirements.txt:1`
+    - `requirements-dev.txt:1`
+    - `requirements-ci-lite.txt:1`
+  - DoD:
+    - Series packet defines role order, PR slices, and mandatory post-open lane; evidence anchor remains `docs/orchestration/PR_MERGE_WORKFLOW_MATRIX.md:37`
+    - Python dependency cluster policy is documented with five-surface coherence rules; evidence anchors remain `docs/security/DEPENDENCY_SECURITY_GUARD_WORKFLOW.md:5`, `docs/security/DEPENDENCY_SECURITY_GUARD_WORKFLOW.md:64`, and `docs/DEPENDENCY_MANAGEMENT.md:62`
+    - PR loop for each slice is explicitly artifact-first (`docs/review/PR_<N>_FIXED_MAPPING.md`); evidence anchor remains `docs/orchestration/PR_MERGE_WORKFLOW_MATRIX.md:39`
+    - Deferred/security-maturity lanes (SBOM/VEX) remain blocked until existing ledger criteria are met
+
 <a id="ledger-p1-test-hygiene-wave"></a>
 - [ ] P1: Test hygiene remediation wave for the main test suite
   - Owner: @katsiaryna_kavaleuskaya
@@ -1528,6 +1622,29 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Wave 6 order is explicit and pointer-based through `A1b -> A5` for the current closure cycle
     - Runtime AI rail is kept separate from the Karpathy workforce/wiki rail
     - Existing child items remain authoritative and are not duplicated as competing SoT
+
+<a id="ledger-p1-security-floor-unblock-seam"></a>
+- [ ] P1: Temporary `security-floor` unblock seam
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (security governance / docs-lane unblock)
+  - Target PR: PR `#1433`
+  - Area: docs / dependency security / merge governance
+  - Finding Type: temporary seam governance
+  - Status: 🟡 In progress (`PR #1433` adds the canonical packet/ADR/backlog anchors for the seam)
+  - Reason (EN): When a dependency advisory blocks a docs/governance lane, the repo may use one narrow `security-floor` unblock only for governed dependency manifests, lock regeneration, schema/guard synchronization, and CVE evidence. Without one canonical backlog item, that temporary exception drifts between packets and roadmap docs. (RU: Если dependency advisory блокирует docs/governance lane, репозиторий может использовать только один узкий `security-floor` unblock для governed dependency manifests, lock regeneration, schema/guard synchronization и CVE evidence. Без единого backlog-item это временное исключение начинает расходиться между packet и roadmap docs.)
+  - Links:
+    - `docs/orchestration/DEPENDABOT_ALERTS_110_113_REMEDIATION_TASK_PACKET_2026-04-16.md:16-21,64-70`
+    - `docs/security/CVE-2026-40347-python-multipart.md:17-25`
+    - `docs/security/GHSA-39q2-94rc-95cp-dompurify.md:17-24`
+    - `docs/architecture/ADR_WAVE6_SECURITY_FLOOR_UNBLOCK_SEAM_2026-04-17.md:13-18,27-39,55-69`
+  - DoD:
+    - Canonical `security-floor` wording is shared by the Wave 6 packet (`docs/orchestration/WAVE6_AI_RUNTIME_AND_ADVISORY_SERIES_PACKET_2026-04-13.md:30-59`) and the Karpathy epic (`docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md:20-39`)
+    - Allowed surfaces are explicitly limited to governed dependency manifests, lockfiles, schema/guard sync, and CVE evidence (`docs/architecture/ADR_WAVE6_SECURITY_FLOOR_UNBLOCK_SEAM_2026-04-17.md:27-39`)
+    - Exit criteria and blockers are documented in the ADR and referenced from the packet (`docs/orchestration/WAVE6_AI_RUNTIME_AND_ADVISORY_SERIES_PACKET_2026-04-13.md:119-120,177-180`) and epic (`docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md:150-155,587-593`)
+  - Blockers:
+    - The advisory must remain dependency-only and must not widen into runtime/API/product scope
+    - Every affected surface must have `file:line` evidence plus matching guard/schema proof
+    - The seam closes once the dependency remediation lane is merged on `main` and the docs revert to normal lane wording
 
 <a id="ledger-p1-rag-hardening-followthrough"></a>
 - [ ] P1: RAG hardening follow-through
@@ -2366,6 +2483,26 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Report outputs stay separate from runtime surfaces and do not create new open-ended LLM endpoints
     - Every report block ends with owner, metric, and decision rule
     - Wellness-safe language and disclaimer references are explicit in the lane docs
+
+<a id="ledger-p2-pr1437-docker-ci-doc-governance-followup"></a>
+- [x] P2: PR #1437 Docker/CI docs-governance and OpenAPI fallback follow-up
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR `#1437`
+  - Area: docs / governance / local verify determinism
+  - Reason (EN): Post-open bot review on PR `#1437` surfaced same-lane docs-governance and CI-fallback gaps: the Docker/CI packet and merge matrix needed proximate `file:line` evidence for repo-truth assertions, the `security-floor` seam entry needed pointer-safe evidence anchors, and the `Makefile` `openapi` fallback needed deterministic interpreter selection. The fixes stayed in-scope for the current PR because they do not widen runtime or deploy behavior. (RU: После post-open review в PR `#1437` вскрылись same-lane пробелы: packet/matrix требовали proximate `file:line` evidence, backlog seam требовал pointer-safe anchors, а `Makefile` `openapi` fallback — детерминированный выбор интерпретатора. Эти исправления оставлены в рамках текущего PR, потому что не расширяют runtime/deploy scope.)
+  - Status: Closed in PR `#1437` on 16 April 2026; current head keeps the Docker/CI governance evidence local to the packet/matrix/ledger and makes the `openapi` fallback prefer `python3`, then `python`, while still failing closed if no usable Python 3 interpreter exists.
+  - Links:
+    - `docs/orchestration/DOCKER_CI_DISCIPLINE_PR_SERIES_PACKET_2026-04-16.md`
+    - `docs/orchestration/PR_MERGE_WORKFLOW_MATRIX.md`
+    - `docs/architecture/ADR_DOCKER_BUILD_PROVENANCE_WORKAROUND_2026-03-01.md:47-60`
+    - `docs/review/PR_1437_FIXED_MAPPING.md`
+    - `Makefile:451-461`
+  - DoD:
+    - Packet/matrix repo-truth statements keep proximate `file:line` evidence for `.dockerignore`, `IMAGE_REF`, `frontend/Dockerfile.caddy-spa`, the deferred provenance seam, and the mandatory `qa-engineer-agent -> bug-hunter` lane
+    - The `security-floor` seam entry preserves `file:line` evidence while retaining stable anchors for ledger targeting
+    - `Makefile` `openapi` fallback prefers `python3`, then `python`, and fails closed if neither exists or if the selected interpreter is not Python 3
+    - The closeout remains docs/tooling-only and does not widen the Docker deploy/runtime topology scope
 
 
 - [ ] P2: FitChef App Store localization RU
@@ -3268,6 +3405,28 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 
 
 ### P2
+
+<a id="ledger-p2-dagger-pilot-after-docker-baseline"></a>
+- [ ] P2: Re-evaluate Dagger pilot only after Docker baseline stabilizes
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR-TBD-DAGGER-PILOT
+  - Area: CI orchestration / build platform / deferred evaluation
+  - Depends on:
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-ci-install-profile-split-after-disk-unblock`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-docker-deploy-contract-reconciliation`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-docker-image-budget-telemetry`
+    - `docs/roadmap/BACKLOG_LEDGER.md#backlog-restore-signed-build-provenance`
+  - Reason: Dagger is not the treatment for the current Docker/CI pain while build context, install surface, deploy contract, and telemetry baseline are still unsettled. Revisit only after the measured baseline exists and the deferred provenance lane is re-evaluated.
+  - Links:
+    - `docs/orchestration/DOCKER_CI_DISCIPLINE_PR_SERIES_PACKET_2026-04-16.md`
+    - `docs/architecture/ADR_DOCKER_BUILD_PROVENANCE_WORKAROUND_2026-03-01.md`
+    - `docs/roadmap/BACKLOG_LEDGER.md#backlog-restore-signed-build-provenance`
+  - DoD:
+    - Image-budget telemetry baseline exists and is referenced in the proposal
+    - Install-profile split and deploy-contract reconciliation are merged
+    - Provenance defer state is re-reviewed before any pilot recommendation
+    - Any pilot compares against the existing GitHub Actions control plane rather than bypassing it
 
 <a id="ledger-p2-cloudflare-narrow-reopen-automation"></a>
 - [ ] P2: Cloudflare narrow reopen automation after Access-based private recovery
@@ -4572,7 +4731,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
   - Target PR: PR-TBD-CODEX-SKILL-WAVE1A
-  - Status: Planned
+  - Status: In progress
   - Area: iOS / release / orchestration
   - Finding Type: capability expansion
   - Reason: PulsePlate needs a project-specific App Store release skill that understands Fastlane, release truth, metadata parity, screenshot packs, and the repo's non-interference contract with coordinator-first orchestration.
@@ -4588,8 +4747,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Add custom Codex skill `pulseplate-monetization-gtm` (Wave 1)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-TBD-CODEX-SKILL-WAVE1B
-  - Status: Planned
+  - Target PR: PR #1439
+  - Status: In progress
   - Area: monetization / growth / orchestration
   - Finding Type: capability expansion
   - Reason: PulsePlate needs a project-specific monetization/GTM skill for subscriptions, paywalls, pricing experiments, launch channels, and wellness-safe growth recommendations without relying on generic advice alone.
@@ -4849,22 +5008,24 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - The change introduces no runtime, schema, or OpenAPI behavior
 
 <a id="ledger-p1-foods-postgres-foundation-followthrough"></a>
-- [ ] P1: Foods PostgreSQL follow-through train (B1 closed -> B2 next, B3 deferred)
+- [ ] P1: Foods PostgreSQL follow-through train (B1/B2 closed -> B3 next)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-B1 (`feat/pr-b1-foods-offline-etl-postgres`) -> PR-B2 (`feat/pr-b2-restaurant-relational-bridge`); B3 runtime cutover stays deferred outside B2
-  - Status: 🚧 Active after merged B1; B2 is the next implementation lane, while B3 runtime cutover remains deferred outside B2
+  - Target PR: PR-B1 (`feat/pr-b1-foods-offline-etl-postgres`) -> PR-B2 (`feat/pr-b2-restaurant-relational-bridge`) -> PR-B3 (`feat/pr-b3-restaurant-postgres-shadow-reads`)
+  - Status: 🚧 Active after merged B1/B2; B3 shadow-read parity lane is the next implementation step
   - Area: backend / data platform / restaurant ingestion
   - Finding Type: post-foundation execution gap
-  - Reason: The additive Alembic foundation lane intentionally creates `foods`, `restaurant_chains`, and `restaurant_menu_items` without changing the current SQLite/local-first runtime, ETL path, or MenuStat importer. The governed follow-through now continues from merged B1 directly into B2 because the Postgres deploy foundation is already present in repo and closed separately as a docs/governance reconciliation lane. B2 rewires restaurant ingestion into the relational catalog; B3 keeps runtime read-switch / cutover out of B2 as its own deferred rollout lane.
+  - Reason: The additive Alembic foundation lane intentionally creates `foods`, `restaurant_chains`, and `restaurant_menu_items` without changing the current SQLite/local-first runtime, ETL path, or MenuStat importer. After merged B1/B2, the next governed lane is B3 shadow reads plus parity checks for restaurant search/menu while preserving SQLite as canonical runtime authority until cutover criteria are proven.
   - Sequence:
     - B1: offline snapshot promotion from `data/food.sqlite::foods` into PostgreSQL `foods` with deterministic upsert/report coverage and no runtime/importer drift
     - B2: bridge `scripts/import_restaurant_menu.py` and restaurant persistence toward `restaurant_chains` / `restaurant_menu_items` additively, without runtime cutover
-    - B3 (deferred): decide and govern any runtime read-switch / PostgreSQL cutover as a later dedicated lane
+    - B3: add PostgreSQL shadow reads + parity checks for restaurant search/menu with SQLite response authority unchanged
+    - Cutover (deferred): decide and govern any runtime read-switch / PostgreSQL authority change only after B3 parity evidence
   - Links:
     - `docs/orchestration/FOODS_CATALOG_FOUNDATION_PR_A_TASK_PACKET_2026-04-12.md`
     - `docs/orchestration/FOODS_POSTGRES_PROMOTION_PR_B1_TASK_PACKET_2026-04-13.md`
     - `docs/orchestration/FOODS_POSTGRES_RESTAURANT_BRIDGE_PR_B2_TASK_PACKET_2026-04-13.md`
+    - `docs/orchestration/FOODS_POSTGRES_SHADOW_READS_PR_B3_TASK_PACKET_2026-04-16.md`
     - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p0-self-hosted-postgres-droplet-foundation`
     - `docs/deploy/POSTGRES_SELF_HOSTED_DROPLET.md`
     - `app/services/food_store.py`
@@ -4873,9 +5034,9 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `scripts/import_restaurant_menu.py`
   - DoD:
     - B1 packet and backlog sequencing explicitly lock the first executable lane to deterministic SQLite snapshot promotion into PostgreSQL `foods`
-    - Backlog sequencing explicitly marks B2 as the next active food implementation lane after merged B1
-    - B2 scope is explicit: restaurant importer rewiring targets `restaurant_chains` / `restaurant_menu_items` with deterministic compatibility coverage and no runtime cutover claim
-    - B3 runtime cutover / read-switch remains explicitly deferred outside B2
+    - Backlog sequencing explicitly marks B3 as the next active food implementation lane after merged B1/B2
+    - B3 scope is explicit: shadow reads + parity checks for restaurant search/menu with SQLite canonical responses
+    - Runtime authority cutover / read-switch remains explicitly deferred beyond B3 until parity/cutover criteria are met
     - Search / catalog follow-up lanes continue to reference the same canonical PostgreSQL table source without parallel schema drift
 
 <a id="ledger-p1-foods-foundation-downgrade-ownership"></a>

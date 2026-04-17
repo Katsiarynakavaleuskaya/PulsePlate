@@ -15,10 +15,11 @@ moderation/source parity, or public API cutover.
 
 - This packet owns only **PR-B2**.
 - The execution train is fixed as:
-  - `PR-B1`: foods snapshot promotion into PostgreSQL `foods`
-  - `PR-B2`: restaurant relational bridge for importer persistence
-  - `B3` deferred: runtime read-switch / cutover
-- `PR-B1` is already merged; `PR-B2` is the next active implementation lane.
+  - `PR-B1`: foods snapshot promotion into PostgreSQL `foods` (merged)
+  - `PR-B2`: restaurant relational bridge for importer persistence (merged)
+  - `PR-B3`: restaurant PostgreSQL shadow reads + parity checks
+  - cutover (deferred): runtime read-switch / PostgreSQL authority change after B3
+- `PR-B1` and `PR-B2` are already merged; `PR-B3` is the next active implementation lane.
 - `PR-B2` stays importer-only. It does not claim that current restaurant runtime
   is already PostgreSQL-backed.
 

@@ -15,6 +15,9 @@ from starlette.types import ASGIApp
 # Import the canonical FastAPI app (registers metrics, etc.)
 from app.main import app
 from app.middleware.api_tiers import TEST_KEY_VIP
+from tests import test_restaurant_postgres_read as restaurant_pg_tests
+from tests import test_restaurant_shadow_parity as restaurant_parity_tests
+from tests import test_restaurants_router as restaurant_router_tests
 from tests.helpers.fast_update_stubs import patch_background_update_callables
 
 
@@ -660,6 +663,144 @@ class TestVisualizationEndpoint:
 
             response = self.client.post("/api/v1/bmi/visualize", json=data, headers=headers)
             assert response.status_code == 404
+
+
+class TestRestaurantShadowReadCoverageTail:
+    """RU: Подтянуть canonical restaurant B3 tests в CI-visible suite.
+
+    EN: Re-run canonical restaurant B3 tests inside the CI-visible route suite.
+    """
+
+    def test_restaurant_postgres_build_engine_tail(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        restaurant_pg_tests.test_build_pg_engine_sets_bounded_connect_timeout(monkeypatch)
+
+    def test_restaurant_postgres_rejects_non_postgres_tail(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        restaurant_pg_tests.test_search_restaurants_pg_rejects_non_postgres_dialect(
+            monkeypatch, caplog
+        )
+
+    def test_restaurant_postgres_rejects_missing_tables_tail(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        restaurant_pg_tests.test_search_restaurants_pg_rejects_missing_tables(monkeypatch)
+
+    def test_restaurant_postgres_fetch_search_rows_tail(self) -> None:
+        restaurant_pg_tests.test_fetch_search_rows_orders_by_name_then_id()
+
+    def test_restaurant_postgres_fetch_menu_rows_tail(self) -> None:
+        restaurant_pg_tests.test_fetch_menu_rows_orders_by_item_name_then_id()
+
+    def test_restaurant_postgres_provenance_tail(self) -> None:
+        restaurant_pg_tests.test_fetch_menu_rows_sets_optional_provenance_to_none()
+
+    def test_restaurant_postgres_reflect_columns_tail(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        restaurant_pg_tests.test_reflect_read_tables_rejects_missing_required_columns(monkeypatch)
+
+    def test_restaurant_postgres_search_lifecycle_tail(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        restaurant_pg_tests.test_search_restaurants_pg_builds_reflects_and_disposes(monkeypatch)
+
+    def test_restaurant_postgres_menu_lifecycle_tail(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        restaurant_pg_tests.test_get_restaurant_menu_pg_builds_reflects_and_disposes(monkeypatch)
+
+    def test_restaurant_shadow_numeric_tail(self) -> None:
+        restaurant_parity_tests.test_normalize_numeric_handles_none_invalid_and_fractional_values()
+
+    def test_restaurant_shadow_bool_tail(self) -> None:
+        restaurant_parity_tests.test_normalize_bool_like_handles_supported_inputs()
+
+    def test_restaurant_shadow_hits_match_tail(self) -> None:
+        restaurant_parity_tests.test_compare_restaurant_hits_match()
+
+    def test_restaurant_shadow_menu_provenance_tail(self) -> None:
+        restaurant_parity_tests.test_compare_restaurant_menu_ignores_provenance_fields_in_v1()
+
+    def test_restaurant_shadow_menu_value_drift_tail(self) -> None:
+        restaurant_parity_tests.test_compare_restaurant_menu_detects_value_drift()
+
+    def test_restaurant_shadow_menu_ordering_tail(self) -> None:
+        restaurant_parity_tests.test_compare_restaurant_menu_detects_ordering_drift()
+
+    def test_restaurant_shadow_menu_row_count_tail(self) -> None:
+        restaurant_parity_tests.test_compare_restaurant_menu_detects_unequal_row_lengths()
+
+    def test_restaurant_shadow_menu_missing_sqlite_tail(self) -> None:
+        restaurant_parity_tests.test_compare_restaurant_menu_detects_missing_sqlite_row()
+
+    def test_restaurant_router_shadow_search_flag_off_tail(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        restaurant_router_tests.test_shadow_wrapper_skips_postgres_when_flag_off(monkeypatch)
+
+    def test_restaurant_router_shadow_search_enabled_tail(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        restaurant_router_tests.test_shadow_wrapper_uses_postgres_search_when_enabled(monkeypatch)
+
+    def test_restaurant_router_shadow_override_url_tail(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        restaurant_router_tests.test_shadow_wrapper_prefers_dedicated_postgres_override_url(
+            monkeypatch
+        )
+
+    def test_restaurant_router_shadow_missing_url_tail(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        restaurant_router_tests.test_shadow_wrapper_warns_when_enabled_without_postgres_url(
+            monkeypatch, caplog
+        )
+
+    def test_restaurant_router_shadow_search_mismatch_tail(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        restaurant_router_tests.test_shadow_wrapper_logs_search_mismatch(monkeypatch, caplog)
+
+    def test_restaurant_router_shadow_menu_fail_open_tail(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        restaurant_router_tests.test_shadow_wrapper_fails_open_when_postgres_menu_errors(
+            monkeypatch, caplog
+        )
+
+    def test_restaurant_router_shadow_menu_flag_off_tail(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        restaurant_router_tests.test_shadow_wrapper_menu_skips_when_flag_off(monkeypatch)
+
+    def test_restaurant_router_shadow_menu_missing_url_tail(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        restaurant_router_tests.test_shadow_wrapper_menu_warns_when_enabled_without_postgres_url(
+            monkeypatch, caplog
+        )
+
+    def test_restaurant_router_shadow_menu_mismatch_tail(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        restaurant_router_tests.test_shadow_wrapper_logs_menu_mismatch(monkeypatch, caplog)
+
+    def test_restaurant_router_shadow_submission_sqlite_only_tail(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        restaurant_router_tests.test_shadow_wrapper_submission_paths_remain_sqlite_only(monkeypatch)
 
 
 if __name__ == "__main__":
