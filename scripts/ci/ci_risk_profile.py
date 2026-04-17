@@ -26,6 +26,8 @@ ALL_RISK_GROUPS: tuple[str, ...] = (
     "merge_governance",
 )
 
+# Root-level backend modules that influence shared runtime or security posture
+# must route through backend-blocking CI even when they do not live under app/core.
 BACKEND_SHARED_EXACT: tuple[str, ...] = (
     "Dockerfile",
     "Makefile",
