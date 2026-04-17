@@ -18,7 +18,7 @@ Dependabot alerts on `Mako` across the repo's Python requirement and lock
 surfaces. The lane is intentionally limited to dependency floors, lock
 regeneration, schema/guard synchronization, security evidence, and merge
 governance. It must complete before the Wave 6 `security-floor` docs/governance
-lane tracked in `docs/roadmap/BACKLOG_LEDGER.md:1657-1678` and reconciled by
+lane tracked in `docs/roadmap/BACKLOG_LEDGER.md:1678-1699` and reconciled by
 merged `PR #1433` (`docs(roadmap): reconcile Wave 6 PR-S0 lane and security floor`,
 <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1433>) returns to
 normal sequencing.
