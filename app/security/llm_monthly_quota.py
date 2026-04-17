@@ -114,6 +114,14 @@ def llm_key_fingerprint(raw_key: str, *, tier: str) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
+def _legacy_llm_key_fingerprint(raw_key: str) -> str:
+    """Return pre-tier salted key fingerprint for backward compatibility."""
+
+    salt = require_server_salt()
+    data = f"{raw_key}{salt}".encode("utf-8")
+    return hashlib.sha256(data).hexdigest()
+
+
 def vip_key_fingerprint(raw_key: str) -> str:
     """Return salted VIP key fingerprint (backward-compatible wrapper)."""
 
@@ -131,6 +139,7 @@ def attempt_consume_llm_monthly_quota(
 
     normalized_tier = _normalize_tier(tier)
     fp = llm_key_fingerprint(raw_key, tier=normalized_tier)
+    legacy_fp = _legacy_llm_key_fingerprint(raw_key) if normalized_tier == "VIP" else None
     bucket = month_start or month_start_date_utc()
     limit_val = (
         limit_requests
@@ -151,6 +160,36 @@ def attempt_consume_llm_monthly_quota(
         """)
 
     with session_scope() as session:
+        if legacy_fp is not None:
+            legacy_row = session.execute(
+                text("""
+                UPDATE vip_llm_monthly_usage
+                SET used_requests = used_requests + 1
+                WHERE key_fingerprint = :legacy_fp
+                  AND month_start_date = :month_start
+                  AND used_requests < :limit_val
+                RETURNING used_requests
+                """),
+                {
+                    "legacy_fp": legacy_fp,
+                    "month_start": bucket,
+                    "limit_val": limit_val,
+                },
+            ).first()
+            if legacy_row is not None:
+                return True
+
+            legacy_exists = session.execute(
+                text("""
+                SELECT 1
+                FROM vip_llm_monthly_usage
+                WHERE key_fingerprint = :legacy_fp AND month_start_date = :month_start
+                """),
+                {"legacy_fp": legacy_fp, "month_start": bucket},
+            ).first()
+            if legacy_exists is not None:
+                return False
+
         row = session.execute(
             sql,
             {"fp": fp, "month_start": bucket, "limit_val": limit_val},

@@ -7,6 +7,7 @@ EN: P0 tests: deterministic monthly hard quota for VIP LLM (requests/month).
 from __future__ import annotations
 
 import concurrent.futures
+import hashlib
 import threading
 from collections.abc import Callable
 from datetime import date
@@ -115,6 +116,34 @@ def test_insight_legacy_over_quota_hard_stops_before_provider_call(
     assert r.status_code == 429
     assert r.headers.get("content-type", "").startswith("application/json")
     assert r.json() == {"detail": "quota_exceeded"}
+
+
+def test_vip_quota_consumes_legacy_fingerprint_row_after_upgrade(
+    monkeypatch: pytest.MonkeyPatch,
+    configure_sqlite_database: object,
+) -> None:
+    """Legacy VIP fingerprint rows must still enforce quota after fingerprint format change."""
+
+    monkeypatch.setenv("SERVER_SALT", "test-server-salt")
+
+    month_start = month_start_date_utc()
+    legacy_raw_key = "legacy-vip-key"
+    legacy_key_fp = hashlib.sha256(f"{legacy_raw_key}test-server-salt".encode("utf-8")).hexdigest()
+    _seed_usage_row(
+        configure_sqlite_database,
+        key_fp=legacy_key_fp,
+        month_start=month_start,
+        used_requests=1,
+    )
+
+    assert (
+        attempt_consume_vip_llm_monthly_quota(
+            legacy_raw_key,
+            month_start=month_start,
+            limit_requests=1,
+        )
+        is False
+    )
 
 
 def test_vip_llm_monthly_quota_atomicity_limit_1_two_parallel_attempts(
