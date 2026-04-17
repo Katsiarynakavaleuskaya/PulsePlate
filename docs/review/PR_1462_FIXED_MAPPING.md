@@ -26,6 +26,13 @@ Evidence: docs/review/FOODS_POSTGRES_TRAIN_MERGED_STATE_CANON_2026-04-17.md:7, d
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1462#discussion_r3103449432 -> 853a9eefe
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1462#pullrequestreview-4132306813 -> 853a9eefe
 
+Disposition: FIXED
+Commit: b00fea4ca
+Evidence: docs/review/FOODS_POSTGRES_TRAIN_MERGED_STATE_CANON_2026-04-17.md:7-15
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1462#discussion_r3103620393 -> b00fea4ca
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1462#discussion_r3103620397 -> b00fea4ca
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1462#pullrequestreview-4132500105 -> b00fea4ca
+
 Disposition: NOT-A-BUG
 Evidence: docs/review/FOODS_POSTGRES_TRAIN_MERGED_STATE_CANON_2026-04-17.md:7
 Reason: CodeRabbit walkthrough comment is an aggregate summary of inline findings now mapped above.
