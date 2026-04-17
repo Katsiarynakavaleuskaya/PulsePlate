@@ -18,7 +18,11 @@ Disposition: FIXED
 Commit: 0c2037964
 Evidence: `docs/review/PR_1441_FIXED_MAPPING.md:5`, `docs/review/PR_1441_FIXED_MAPPING.md:6`
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1441#discussion_r3102563710 -> 0c2037964
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1441#discussion_r3102584675 -> 0c2037964
+
+Disposition: NOT-A-BUG
+Evidence: `docs/review/PR_1441_FIXED_MAPPING.md:5`, `docs/review/PR_1441_FIXED_MAPPING.md:6`
+Reason: The Cubic duplicate arrived after the checkbox fix commit had already landed, so the current branch head already carries the checked artifact state it requested.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1441#discussion_r3102584675
 
 Disposition: NOT-A-BUG
 Evidence: `scripts/ci/check_pr_body_phase2_gates.py:123`, `scripts/ci/check_pr_body_phase2_gates.py:148`, `AGENTS.md:5`, `AGENTS.md:8`
