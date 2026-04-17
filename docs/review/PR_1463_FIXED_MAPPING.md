@@ -6,10 +6,6 @@
 
 ## Fixed in Commit Mapping
 
-Disposition: NOT-A-BUG
-Evidence: This PR is currently draft-only and has no actionable review comments yet. The branch-scoped governance changes are already captured in `docs/orchestration/UI_EPIC_PR_SERIES_RUNBOOK.md` and `docs/roadmap/BACKLOG_LEDGER.md`, and this artifact is opened in canonical parser-valid form so future review dispositions can be appended without switching source of truth away from the repo.
-Reason: No review-thread or bot-actionable items exist yet on PR open, so the canonical mapping state is explicitly initialized as no-actionable-comments rather than leaving the artifact absent.
-
 - No actionable review comments
 
 ## Merge Readiness
