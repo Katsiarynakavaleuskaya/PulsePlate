@@ -2,13 +2,19 @@
 
 ## Summary
 
-`PR #1440` keeps the patched exact pin `mako==1.3.11`. The blocker is not
-upstream availability: the patched release is published on PyPI, but the
-approved private Python proxy still lags that release on `17 April 2026`.
+`PR #1440` keeps the patched exact pin `mako==1.3.11`
+(`requirements.txt:103`, `requirements-dev.txt:87`,
+`requirements-lock.txt:213`, `requirements-ci-lite.txt:152`). The blocker is
+repo bootstrap availability rather than the patched version itself: the exact
+fallback wheel is pinned in `scripts/ci/emergency_python_wheels.json:85-90`,
+while the dependency evidence note records the approved private-proxy lag
+observed on `17 April 2026` in `docs/security/GHSA-v92g-xgxw-vvmm-mako.md:46-48`.
 
 To avoid a vulnerable repin while keeping the canonical private-proxy contract
 as the default path, the repo now uses a **time-boxed, exact-wheel fallback**
-for `mako 1.3.11`:
+for `mako 1.3.11` under the temporary seam governed by
+`docs/architecture/ADR_WAVE6_SECURITY_FLOOR_UNBLOCK_SEAM_2026-04-17.md:1-79`
+and `docs/roadmap/BACKLOG_LEDGER.md:1600-1621`:
 
 - exact package: `mako`
 - exact version: `1.3.11`
@@ -25,16 +31,21 @@ policy change.
 - **Owner:** @katsiaryna_kavaleuskaya
 - **Active date:** 2026-04-17
 - **Current PR:** `PR #1440`
-- **Removal backlog:** `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-mako-private-index-sync`
+- **Temporary seam ADR:** `docs/architecture/ADR_WAVE6_SECURITY_FLOOR_UNBLOCK_SEAM_2026-04-17.md:1-79`
+- **Seam backlog / DoD / blockers:** `docs/roadmap/BACKLOG_LEDGER.md:1600-1621`
+- **Removal backlog:** `docs/roadmap/BACKLOG_LEDGER.md:383-402`
 
 ## Current repo state (2026-04-17)
 
 - **Current branch pins:** `requirements.txt`, `requirements-dev.txt`,
-  `requirements-ci-lite.txt`, and `requirements-lock.txt` require `mako 1.3.11`.
+  `requirements-ci-lite.txt`, and `requirements-lock.txt` require `mako 1.3.11`
+  (`requirements.txt:103`, `requirements-dev.txt:87`,
+  `requirements-ci-lite.txt:152`, `requirements-lock.txt:213`).
 - **Failure mode observed:** current-head CI showed the approved private index
   still exposing only `1.3.10`, which failed locked install preflight for
-  `lint`, `security`, `OpenAPI sync`, and `test-pr (3.13)` on the active PR.
-- **Fallback source of truth:** `scripts/ci/emergency_python_wheels.json:1`
+  `lint`, `security`, `OpenAPI sync`, and `test-pr (3.13)` on the active PR
+  (`docs/security/GHSA-v92g-xgxw-vvmm-mako.md:46-48`).
+- **Fallback source of truth:** `scripts/ci/emergency_python_wheels.json:85-90`
 - **Atomic wheel verification:** `scripts/ci/install_locked_python_requirements.py:408`
 - **Fallback staging path:** `scripts/ci/install_locked_python_requirements.py:442`
 - **Preflight emergency artifact verification:** `scripts/ci/install_locked_python_requirements.py:753`
@@ -48,15 +59,16 @@ policy change.
 2. Keep the approved private proxy as the primary package source.
 3. Allow only the exact `mako 1.3.11` wheel listed in the manifest while the
    proxy is stale, without extending the default expiry window of unrelated
-   emergency-wheel entries.
+   emergency-wheel entries (`docs/architecture/ADR_WAVE6_SECURITY_FLOOR_UNBLOCK_SEAM_2026-04-17.md:55-79`,
+   `docs/roadmap/BACKLOG_LEDGER.md:383-402`).
 4. Remove the manifest-driven fallback once the approved proxy serves
-   `1.3.11` natively.
+   `1.3.11` natively (`docs/roadmap/BACKLOG_LEDGER.md:398-402`).
 
 ## Prohibited shortcuts
 
 - Do **not** repin below `1.3.11` to make CI green.
-- Do **not** add broad `--extra-index-url` or unrestricted public PyPI installs.
-- Do **not** widen this manifest into a generic package bypass lane.
+- Avoid broad `--extra-index-url` or unrestricted public PyPI installs.
+- Avoid expanding this manifest into a generic package bypass lane.
 
 ## References
 

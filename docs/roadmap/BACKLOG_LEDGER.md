@@ -1695,7 +1695,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Dependency security schema records `Mako 1.3.11` as the minimum safe version
     - Dedicated security note includes `file:line` evidence and validation commands
     - Draft PR is opened with canonical `docs/review/PR_<N>_FIXED_MAPPING.md`
-    - Mandatory post-open review pass `qa-engineer-agent -> bug-hunter` is completed
+    - Root-cause remediation plus verification land before any `docs/review/PR_<N>_FIXED_MAPPING.md` updates or review-thread resolution; fix-before-mapping remains mandatory
+    - Mandatory post-open review pass `qa-engineer-agent -> bug-hunter` is completed before final mapping / resolution updates
     - Only after merge and local ref sync does the team return to the paused security-epic/docs lane
 
 <a id="ledger-p1-rag-hardening-followthrough"></a>

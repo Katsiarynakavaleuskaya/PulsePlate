@@ -17,7 +17,11 @@ This packet governs the narrow remediation lane for the three currently open
 Dependabot alerts on `Mako` across the repo's Python requirement and lock
 surfaces. The lane is intentionally limited to dependency floors, lock
 regeneration, schema/guard synchronization, security evidence, and merge
-governance. It must complete before the paused security-epic/docs lane resumes.
+governance. It must complete before the Wave 6 `security-floor` docs/governance
+lane tracked in `docs/roadmap/BACKLOG_LEDGER.md:1600-1617` and reconciled by
+merged `PR #1433` (`docs(roadmap): reconcile Wave 6 PR-S0 lane and security floor`,
+<https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1433>) returns to
+normal sequencing.
 
 ## Current-Head Truth
 
@@ -39,9 +43,9 @@ governance. It must complete before the paused security-epic/docs lane resumes.
   - `tests/fixtures/dependency_security_schema.json:2` — no `Mako` minimum safe
     version exists yet
 - Execution rule:
-  - the root worktree is intentionally not used for this lane because it is
-    dirty and fails coordinator preflight; all implementation happens only in
-    the clean dedicated worktree above.
+  - all implementation happens only in the clean dedicated worktree above to
+    satisfy the repo worktree-isolation rule in `AGENTS.md:227-232`; the root
+    tree stays out of scope for this remediation lane.
 
 ## Mandatory Role Order
 
@@ -103,7 +107,10 @@ Rules:
 - Frontend or npm dependency work
 - OpenAPI regeneration or generated client types
 - Backend or frontend behavior changes unrelated to the dependency remediation
-- Security-epic/docs reconciliation already being tracked in `PR #1433`
+- Wave 6 security-floor docs reconciliation already landed in merged `PR #1433`
+  (`docs(roadmap): reconcile Wave 6 PR-S0 lane and security floor`,
+  <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1433>; seam SoT:
+  `docs/roadmap/BACKLOG_LEDGER.md:1600-1617`)
 
 ## Expected Touched Surfaces
 
@@ -165,10 +172,12 @@ make verify
   - current-head required checks are green,
   - the canonical review artifact and PR body mirror are synchronized.
 - Do not resume the paused security-epic/docs lane until this remediation PR is
-  merged and local refs are re-synced from `main`.
+  merged and local refs are re-synced from `main`; the governing seam remains
+  `docs/roadmap/BACKLOG_LEDGER.md:1600-1617` and merged `PR #1433`
+  (<https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1433>).
 - After merge:
   - `git fetch --prune origin`
   - remove the merged local branch/worktree
   - `git worktree prune`
-  - only then return to the next active security-epic/docs item, currently
-    `PR #1433` unless GitHub state changes.
+  - only then return to the next active Wave 6 docs/governance item recorded in
+    `docs/roadmap/BACKLOG_LEDGER.md:1600-1621`.

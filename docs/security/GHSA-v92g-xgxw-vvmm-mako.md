@@ -21,8 +21,8 @@ requirement surfaces.
 - `requirements-dev.txt:87` - dev lock pins `mako==1.3.11`
 - `requirements-lock.txt:213` - full lock pins `mako==1.3.11`
 - `requirements-ci-lite.txt:152` - CI-lite lock pins `mako==1.3.11`
-- `scripts/ci/emergency_python_wheels.json:1` - exact wheel fallback records
-  `mako==1.3.11` while the approved private proxy catches up
+- `scripts/ci/emergency_python_wheels.json:85-90` - exact wheel fallback records
+  `mako==1.3.11` with artifact-scoped expiry and pinned `sha256`
 - `tests/fixtures/dependency_security_schema.json:4` - dependency security schema
   records minimum safe version `1.3.11`
 
@@ -43,8 +43,18 @@ python3 scripts/ci/install_locked_python_requirements.py --index-url "${PULSEPLA
 - The floor is enforced explicitly rather than relying on the current Alembic
   transitive resolution, so future lock regeneration cannot drift back to the
   vulnerable `1.3.10` release.
-- Current-head CI showed the approved private Python proxy still lagging
-  `mako 1.3.11`; the temporary fallback governance note lives in
-  `docs/security/MAKO_1_3_11_PRIVATE_INDEX_ADVISORY.md`.
-- Repo search showed no direct `Mako` runtime usage, so this lane remains
-  dependency-only and does not widen into backend or frontend behavior changes.
+- Current-head dependency-install evidence for the private-proxy lag and the
+  exact-wheel fallback governance lives in
+  `docs/security/MAKO_1_3_11_PRIVATE_INDEX_ADVISORY.md:5-18` and
+  `docs/security/MAKO_1_3_11_PRIVATE_INDEX_ADVISORY.md:31-38`.
+- This lane stays dependency-only; runtime and frontend behavior remain out of
+  scope per
+  `docs/orchestration/DEPENDABOT_ALERTS_114_116_REMEDIATION_TASK_PACKET_2026-04-17.md:101-106`.
+
+## Temporary Seam Governance
+
+- ADR: `docs/architecture/ADR_WAVE6_SECURITY_FLOOR_UNBLOCK_SEAM_2026-04-17.md:1-79`
+- Seam backlog / DoD / blockers:
+  `docs/roadmap/BACKLOG_LEDGER.md:1600-1621`
+- Emergency-manifest retirement backlog:
+  `docs/roadmap/BACKLOG_LEDGER.md:383-402`
