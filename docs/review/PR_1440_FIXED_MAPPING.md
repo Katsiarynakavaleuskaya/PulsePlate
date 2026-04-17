@@ -11,7 +11,10 @@ every actionable review disposition here before resolving threads on GitHub.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+Disposition: FIXED
+Commit: 327f28606
+Evidence: `tests/test_install_locked_python_requirements.py:650`, `tests/test_install_locked_python_requirements.py:687`, `docs/roadmap/BACKLOG_LEDGER.md:390`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1440#pullrequestreview-4127366416 -> 327f28606
 
 ## Merge Readiness
 
