@@ -33,6 +33,13 @@ Evidence: docs/review/FOODS_POSTGRES_TRAIN_MERGED_STATE_CANON_2026-04-17.md:7-15
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1462#discussion_r3103620397 -> b00fea4ca
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1462#pullrequestreview-4132500105 -> b00fea4ca
 
+Disposition: FIXED
+Commit: cc3fefb2a
+Evidence: docs/review/FOODS_POSTGRES_TRAIN_MERGED_STATE_CANON_2026-04-17.md:7-10
+Reason: The merged-state canon now separates GitHub PR metadata from repo-local artifact linkage, so the local file references no longer overclaim proof for merge timestamps and merge commits they do not contain.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1462#discussion_r3103647682 -> cc3fefb2a
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1462#pullrequestreview-4132530939 -> cc3fefb2a
+
 Disposition: NOT-A-BUG
 Evidence: docs/review/FOODS_POSTGRES_TRAIN_MERGED_STATE_CANON_2026-04-17.md:7
 Reason: CodeRabbit walkthrough comment is an aggregate summary of inline findings now mapped above.
