@@ -19,8 +19,6 @@ if TYPE_CHECKING:
 
 from app.middleware.api_tiers import (
     SubscriptionTier,
-    resolve_tier_from_env,
-    tier_allows_access,
 )
 from app.routers.api_key import api_key_header
 from app.security.rate_limit import (
@@ -39,8 +37,6 @@ from app.schemas.payments import (
     SubscriptionActivationResponse,
 )
 from app.services import payments_activation
-from settings import is_explicit_developer_env, is_truthy_env_var
-
 billing_router = APIRouter(prefix="/api/v1/billing", tags=["billing"])
 router = APIRouter(prefix="/api/v1/pro/payments", tags=["pro", "payments"])
 
@@ -239,53 +235,22 @@ def _get_effective_app_get_api_key():
     return app_get_api_key
 
 
-def _resolve_manual_transport_key_fallback(api_key: str) -> str | None:
-    """Accept issued PRO/VIP transport keys for pre-entitlement manual billing routes.
-
-    RU: Pre-entitlement manual rails принимают валидированный transport key через
-    app-level validator или через выданный PRO/VIP key из env/test surface, но не
-    используют persisted entitlement как источник истины.
-    EN: Pre-entitlement manual rails accept a validated transport key via the
-    app-level validator or an issued PRO/VIP key from the env/test surface, but
-    they do not use persisted entitlement as the source of truth.
-    """
-    allow_test_keys = is_explicit_developer_env() and is_truthy_env_var(
-        "ALLOW_DEV_API_KEY",
-        "true",
-    )
-    resolved_tier = resolve_tier_from_env(api_key, allow_test_keys=allow_test_keys)
-    if resolved_tier is not None and tier_allows_access(resolved_tier, SubscriptionTier.PRO):
-        return api_key
-    return None
-
-
 def _get_effective_manual_billing_key_validator() -> Callable[..., str]:
-    """Resolve manual-route validator without reintroducing entitlement-gated auth.
+    """Resolve manual-route validator from the strict app-level auth surface.
 
-    RU: Manual RU/BY routes должны принимать transport-auth до entitlment, поэтому
-    fallback ограничен issued PRO/VIP keys и не ходит в persisted entitlement lookup.
-    EN: Manual RU/BY routes must accept transport auth before entitlement exists, so
-    the fallback is limited to issued PRO/VIP keys and never consults persisted
-    entitlement lookup.
+    RU: Manual RU/BY routes требуют transport-auth с канонического app-level validator;
+    fallback по env ключам здесь запрещён.
+    EN: Manual RU/BY routes require transport auth via the canonical app-level
+    validator; env-key fallback is forbidden on this path.
     """
     app_get_api_key = cast(Callable[[str], str] | None, _get_effective_app_get_api_key())
+    if callable(app_get_api_key):
+        return app_get_api_key
 
-    def _validate_manual_transport_key(api_key: str) -> str:
-        last_http_error: HTTPException | None = None
-        if callable(app_get_api_key):
-            try:
-                return app_get_api_key(api_key)
-            except HTTPException as exc:
-                last_http_error = exc
-
-        fallback_key = _resolve_manual_transport_key_fallback(api_key)
-        if fallback_key is not None:
-            return fallback_key
-        if last_http_error is not None:
-            raise last_http_error
+    def _reject_manual_transport_key(_: str) -> str:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Invalid API Key")
 
-    return _validate_manual_transport_key
+    return _reject_manual_transport_key
 
 
 def _apple_operational_error_response(

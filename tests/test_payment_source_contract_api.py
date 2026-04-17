@@ -38,7 +38,7 @@ def test_manual_intent_rejects_invalid_transport_key_behaviorally(
     assert response.json()["detail"] == "API key required for billing verification"
 
 
-def test_manual_intent_accepts_env_configured_pro_key_without_entitlement_in_db_mode(
+def test_manual_intent_rejects_env_configured_pro_key_without_app_validator_override(
     app: FastAPI,
     pro_headers: dict[str, str],
     monkeypatch: pytest.MonkeyPatch,
@@ -72,7 +72,8 @@ def test_manual_intent_accepts_env_configured_pro_key_without_entitlement_in_db_
         if original_override is not None:
             app.dependency_overrides[app_module.get_api_key] = original_override
 
-    assert response.status_code == 201, response.text
+    assert response.status_code == 401, response.text
+    assert response.json()["detail"] == "API key required for billing verification"
     assert session_response.status_code == 403
 
 
