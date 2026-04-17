@@ -34,6 +34,7 @@ BACKEND_SHARED_EXACT: tuple[str, ...] = (
     "constraints.txt",
     "legacy_app.py",
     "llm.py",
+    "main.py",
     "mcp_pulseplate_server.py",
     "pyproject.toml",
     "pytest.ini",

@@ -195,6 +195,8 @@ def test_generic_backend_change_hits_route_contract_safety_group() -> None:
         "signed_links.py",
         "settings.py",
         "llm.py",
+        "main.py",
+        "secure_config.py",
         "providers/ollama.py",
     ],
 )
