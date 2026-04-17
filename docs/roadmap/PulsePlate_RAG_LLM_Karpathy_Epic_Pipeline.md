@@ -213,21 +213,35 @@ Make provider fallback deterministic and expose fallback / echo mode in readines
 #### Goal
 Reconcile the execution spine with live `main`, where tier-aware PRO/VIP quota
 machinery is already materially landed (evidence:
-`docs/roadmap/BACKLOG_LEDGER.md:299-305`;
-`docs/review/PR_1379_FIXED_MAPPING.md:12-30`).
+`app/security/llm_monthly_quota.py`;
+`app/bootstrap/startup_guards.py`;
+`app/routers/cbt_insight.py`;
+`app/services/fitchef_runtime.py`;
+`tests/test_cbt_insight_api.py`;
+merged `PR #1379` / `1ddf8c6778ca1f13c2bfce2e052db5409e8d06ba`).
 
 #### In scope
 - docs/backlog correction after merged `A1`
 - live-runtime evidence links for landed PRO quota machinery
+- explicit handoff from historical `A1` runtime implementation to the new docs-only `A1b` reconciliation lane
 - isolate any true residual quota debt into a separate narrow follow-up if discovered
 
 #### Reason for placement
-Recursive / philosophy rollout still depends on quota parity, but `main` already implements the core parity seam. The remaining work is reconciliation, not a fresh runtime-from-scratch PR.
+Recursive / philosophy rollout still depends on quota parity, but `main` already implements the core parity seam. `A1b` therefore exists as a docs/governance reconciliation slice over already-merged quota truth, not as a fresh runtime-from-scratch quota implementation PR.
+
+#### Lane governance note
+This slice owns a dedicated lane packet
+`docs/orchestration/WAVE6_A1B_PRO_QUOTA_RECONCILIATION_TASK_PACKET_2026-04-17.md`
+and must maintain its own canonical `docs/review/PR_<N>_FIXED_MAPPING.md`.
+Because active PRs `#1440` and `#1441` also touch
+`docs/roadmap/BACKLOG_LEDGER.md`, `A1b` must late-rebase onto fresh
+`origin/main` before merge-readiness and stop instead of force-resolving if the
+same ledger anchors remain in conflict.
 
 #### Deferred optimization note
 Any semantic-cache work remains governed by
 `docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md`
-and is explicitly outside `A1b` and `A2`.
+and remains blocked until the `A1b -> A5` runtime sequence is closed.
 
 ---
 
