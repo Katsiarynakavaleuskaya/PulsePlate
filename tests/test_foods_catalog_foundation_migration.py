@@ -9,8 +9,10 @@ from __future__ import annotations
 import configparser
 import os
 from pathlib import Path
+import runpy
 import subprocess
 import sys
+from types import ModuleType, SimpleNamespace
 
 import pytest
 from sqlalchemy import create_engine, inspect
@@ -154,6 +156,101 @@ def _seed_preexisting_foods_catalog(
                     raise AssertionError(f"Unsupported preexisting index seed: {index_name}")
     finally:
         engine.dispose()
+
+
+class _FakeMigrationInspector:
+    """Deterministic inspector for stateful migration unit tests."""
+
+    def __init__(self, state: dict[str, object]) -> None:
+        self._state = state
+
+    def has_table(self, table_name: str) -> bool:
+        return table_name in self._state["tables"]
+
+    def get_indexes(self, table_name: str) -> list[dict[str, str]]:
+        table_indexes = self._state["indexes"].get(table_name, set())
+        return [{"name": index_name} for index_name in sorted(table_indexes)]
+
+
+class _FakeMigrationOp:
+    """Stateful fake Alembic `op` surface for deterministic revision tests."""
+
+    def __init__(self, state: dict[str, object]) -> None:
+        self._state = state
+        self._bind = SimpleNamespace(dialect=SimpleNamespace(name="postgresql"))
+
+    def get_bind(self) -> SimpleNamespace:
+        return self._bind
+
+    def create_table(self, table_name: str, *args: object, **kwargs: object) -> None:
+        self._state["tables"].add(table_name)
+        self._state["indexes"].setdefault(table_name, set())
+
+    def create_index(
+        self,
+        index_name: str,
+        table_name: str,
+        columns: list[str],
+        *,
+        unique: bool = False,
+    ) -> None:
+        del columns, unique
+        self._state["indexes"].setdefault(table_name, set()).add(index_name)
+
+    def drop_index(self, index_name: str, *, table_name: str) -> None:
+        self._state["dropped_indexes"].append((table_name, index_name))
+        self._state["indexes"].setdefault(table_name, set()).discard(index_name)
+
+    def drop_table(self, table_name: str) -> None:
+        self._state["dropped_tables"].append(table_name)
+        self._state["tables"].discard(table_name)
+        self._state["indexes"].pop(table_name, None)
+
+    def execute(self, statement: object) -> None:
+        sql = str(statement).strip()
+        self._state["executed_sql"].append(sql)
+        if sql.startswith("CREATE INDEX "):
+            index_name = sql.split()[2]
+            self._state["indexes"].setdefault("foods", set()).add(index_name)
+
+
+def _load_foundation_migration_runtime(
+    monkeypatch: pytest.MonkeyPatch,
+    state: dict[str, object],
+) -> dict[str, object]:
+    """Load the migration module with a fake Alembic op binding."""
+
+    fake_alembic = ModuleType("alembic")
+    fake_alembic.op = _FakeMigrationOp(state)
+    monkeypatch.setitem(sys.modules, "alembic", fake_alembic)
+
+    runtime = runpy.run_path(str(MIGRATION_PATH))
+    runtime_globals = runtime["upgrade"].__globals__
+    monkeypatch.setattr(
+        runtime_globals["sa"],
+        "inspect",
+        lambda bind: _FakeMigrationInspector(state),
+    )
+    runtime_globals["_record_owned_object"] = lambda object_type, table_name, object_name: (
+        state["owned"].add((object_type, table_name, object_name))
+    )
+    runtime_globals["_owned_object_exists"] = (
+        lambda object_type, table_name, object_name: (
+            object_type,
+            table_name,
+            object_name,
+        )
+        in state["owned"]
+    )
+    runtime_globals["_remove_owned_object_record"] = (
+        lambda object_type, table_name, object_name: state["owned"].discard(
+            (object_type, table_name, object_name)
+        )
+    )
+    runtime_globals["_drop_ownership_registry_if_empty"] = lambda: (
+        state["registry_cleanup"].append("drop") if not state["owned"] else None
+    )
+    return runtime
 
 
 def test_foods_catalog_foundation_migration_sqlite_smoke(
@@ -483,6 +580,90 @@ def test_foods_catalog_foundation_preserves_preexisting_foods_indexes_on_downgra
         "ix_foods_group_name",
     }
     assert OWNERSHIP_REGISTRY_TABLE not in tables_after_downgrade
+
+
+def test_foods_catalog_foundation_postgres_trigram_mixed_preexisting_cycle(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    state = {
+        "tables": {"foods"},
+        "indexes": {
+            "foods": {
+                "ix_foods_canonical_name_gin_trgm",
+            }
+        },
+        "owned": set(),
+        "executed_sql": [],
+        "dropped_indexes": [],
+        "dropped_tables": [],
+        "registry_cleanup": [],
+    }
+    runtime = _load_foundation_migration_runtime(monkeypatch, state)
+
+    runtime["upgrade"]()
+
+    assert any("CREATE EXTENSION IF NOT EXISTS pg_trgm" in sql for sql in state["executed_sql"])
+    assert (
+        runtime["_OBJECT_TYPE_INDEX"],
+        "foods",
+        "ix_foods_canonical_name_gin_trgm",
+    ) not in state["owned"]
+    assert (
+        runtime["_OBJECT_TYPE_INDEX"],
+        "foods",
+        "ix_foods_group_name_gin_trgm",
+    ) in state["owned"]
+    assert (
+        runtime["_OBJECT_TYPE_INDEX"],
+        "foods",
+        "ix_foods_brand_gin_trgm",
+    ) in state["owned"]
+
+    runtime["downgrade"]()
+
+    assert "foods" in state["tables"]
+    assert "restaurant_chains" not in state["tables"]
+    assert "restaurant_menu_items" not in state["tables"]
+    assert state["indexes"]["foods"] == {"ix_foods_canonical_name_gin_trgm"}
+    assert ("foods", "ix_foods_group_name_gin_trgm") in state["dropped_indexes"]
+    assert ("foods", "ix_foods_brand_gin_trgm") in state["dropped_indexes"]
+    assert ("foods", "ix_foods_canonical_name_gin_trgm") not in state["dropped_indexes"]
+    assert state["registry_cleanup"] == ["drop"]
+
+
+def test_foods_catalog_foundation_postgres_clean_room_cycle(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    state = {
+        "tables": set(),
+        "indexes": {},
+        "owned": set(),
+        "executed_sql": [],
+        "dropped_indexes": [],
+        "dropped_tables": [],
+        "registry_cleanup": [],
+    }
+    runtime = _load_foundation_migration_runtime(monkeypatch, state)
+
+    runtime["upgrade"]()
+
+    assert {
+        "foods",
+        "restaurant_chains",
+        "restaurant_menu_items",
+    } <= state["tables"]
+    assert {
+        "ix_foods_canonical_name_gin_trgm",
+        "ix_foods_group_name_gin_trgm",
+        "ix_foods_brand_gin_trgm",
+    } <= state["indexes"]["foods"]
+
+    runtime["downgrade"]()
+
+    assert state["tables"] == set()
+    assert state["indexes"] == {}
+    assert state["owned"] == set()
+    assert state["registry_cleanup"] == ["drop"]
 
 
 def test_foods_catalog_foundation_migration_contract_text() -> None:
