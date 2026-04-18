@@ -141,7 +141,8 @@ jobs:
           scan-type: fs
           scan-ref: .
           cache-dir: /tmp/trivy-cache
-          ignore-policy: ${{ github.workspace }}/trivy/ignore-policy.rego
+          # Keep the policy path repo-relative; the action reads it from the checked-out workspace.
+          ignore-policy: trivy/ignore-policy.rego
           scanners: vuln
           format: sarif
           output: trivy-results.sarif

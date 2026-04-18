@@ -89,7 +89,8 @@ jobs:
           limit-severities-for-sarif: true
           ignore-unfixed: true
           trivyignores: .trivyignore
-          ignore-policy: ${{ github.workspace }}/trivy/ignore-policy.rego
+          # Keep the policy path repo-relative; the action reads it from the checked-out workspace.
+          ignore-policy: trivy/ignore-policy.rego
           version: v0.69.3
 
       - name: Fail when Trivy SARIF is missing
