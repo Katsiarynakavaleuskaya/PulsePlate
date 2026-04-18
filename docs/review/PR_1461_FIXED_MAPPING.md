@@ -13,15 +13,29 @@ Canonical review-governance artifact and PR-body mirror requirements:
 Current GitHub review surface for PR `#1461` was re-checked on `18 April 2026`:
 
 - `reviewThreads`: none
-- `reviews`: none
-- informational bot comments only:
+- actionable CodeRabbit review:
+  `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1461#pullrequestreview-4134861451`
+- actionable inline comments pending current-head fix pass:
+  `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1461#discussion_r3105596724`,
+  `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1461#discussion_r3105596728`,
+  `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1461#discussion_r3105596730`,
+  `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1461#discussion_r3105596734`,
+  `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1461#discussion_r3105596736`
+- informational bot comments:
   `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1461#issuecomment-4271179799`,
   `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1461#issuecomment-4271184185`,
   `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1461#issuecomment-4271340137`
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+Pending disposition on current head for:
+
+- `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1461#pullrequestreview-4134861451`
+- `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1461#discussion_r3105596724`
+- `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1461#discussion_r3105596728`
+- `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1461#discussion_r3105596730`
+- `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1461#discussion_r3105596734`
+- `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1461#discussion_r3105596736`
 
 ## Merge Readiness
 
@@ -33,10 +47,10 @@ Merge-readiness contract:
   Evidence: `AGENTS.md:42-49`; `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md:95-112`.
 - [ ] Required checks complete (no pending jobs)
   Evidence: `AGENTS.md:46-49`; `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md:155-163`.
-- [x] All review threads resolved on GitHub after disposition updates
-  Evidence: GitHub GraphQL `pullRequest.reviewThreads.nodes=[]`; `gh pr view 1461 --json reviews,latestReviews,comments`.
-- [x] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
-  Evidence: informational-only comments listed in `docs/review/PR_1461_FIXED_MAPPING.md:13-16`; `docs/review/PR_1461_FIXED_MAPPING.md:19`.
+- [ ] All review threads resolved on GitHub after disposition updates
+  Evidence: GitHub GraphQL `pullRequest.reviewThreads.nodes=[]`; current actionable review remains listed under `## Discussion Thread Pass`.
+- [ ] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
+  Evidence: current actionable CodeRabbit review and inline comments remain listed under `## Discussion Thread Pass` and `## Fixed in Commit Mapping` until the final merge cycle.
 - [ ] Pre-commit green on latest pushed head
   Evidence: `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md:175-180`.
 - [ ] `make verify` green on latest pushed head

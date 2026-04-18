@@ -71,7 +71,16 @@ This packet exists to:
 
 - update `ledger-p1-pro-monthly-quota-ledger-reconciliation`
 - move the item from the stale `PR #1388` target to canonical `PR-A1b`
-- anchor already-landed evidence to merged `PR #1379`
+- anchor already-landed evidence to merged `PR #1379` using a minimum evidence
+  bundle:
+  - merge truth: `PR #1379` plus merge commit
+    `1ddf8c6778ca1f13c2bfce2e052db5409e8d06ba`
+  - runtime truth: `file:line` pointers to tier-aware quota enforcement and
+    startup validation
+  - verification truth: `file:line` pointers to deterministic tests and
+    optional runtime/test artifact links when available
+  - acceptance floor: PR + merge SHA and `file:line` pointers are mandatory;
+    runtime/test artifact links are optional
 - keep the item as reconciliation-only, not runtime reimplementation
 - if real residual debt is found, create a narrow follow-up item instead of
   widening `A1b`
@@ -155,10 +164,27 @@ Because open PRs `#1440` and `#1441` both touch
 - `make verify`
 - grep verification that:
   - `PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md` preserves `A1b -> A5`
+    ```bash
+    rg -n '^- `PR-A1b`|^- `PR-A2`|^- `PR-A3`|^- `PR-A4`|^- `PR-A5`' \
+      docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md
+    ```
   - semantic cache remains deferred-only
+    ```bash
+    rg -n 'A1b|semantic cache|blocked until the `A1b -> A5` runtime sequence is closed' \
+      docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md \
+      docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md
+    ```
   - `ledger-p1-pro-monthly-quota-ledger-reconciliation` points to already-landed
     `PR #1379` evidence rather than a new runtime implementation claim
+    ```bash
+    rg -n 'ledger-p1-pro-monthly-quota-ledger-reconciliation|PR #1379|1ddf8c6778ca1f13c2bfce2e052db5409e8d06ba' \
+      docs/roadmap/BACKLOG_LEDGER.md
+    ```
   - Rail B2 families do not become runtime truth
+    ```bash
+    rg -n 'Rail B2|advisory only|product runtime truth|semantic cache' \
+      docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md
+    ```
 
 ## Merge-Ready Gate
 

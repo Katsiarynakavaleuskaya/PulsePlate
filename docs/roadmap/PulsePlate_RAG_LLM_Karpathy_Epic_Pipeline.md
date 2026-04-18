@@ -213,12 +213,15 @@ Make provider fallback deterministic and expose fallback / echo mode in readines
 #### Goal
 Reconcile the execution spine with live `main`, where tier-aware PRO/VIP quota
 machinery is already materially landed (evidence:
-`app/security/llm_monthly_quota.py`;
-`app/bootstrap/startup_guards.py`;
-`app/routers/cbt_insight.py`;
-`app/services/fitchef_runtime.py`;
-`tests/test_cbt_insight_api.py`;
-merged `PR #1379` / `1ddf8c6778ca1f13c2bfce2e052db5409e8d06ba`).
+`app/security/llm_monthly_quota.py:25-41`;
+`app/security/llm_monthly_quota.py:52-77`;
+`app/security/llm_monthly_quota.py:123-158`;
+`app/bootstrap/startup_guards.py:44-56`;
+`app/routers/cbt_insight.py:129-150`;
+`app/services/fitchef_runtime.py:711-835`;
+`tests/test_cbt_insight_api.py:921-952`;
+merged `PR #1379` / `1ddf8c6778ca1f13c2bfce2e052db5409e8d06ba`
+as recorded in `docs/roadmap/BACKLOG_LEDGER.md:296-300`).
 
 #### In scope
 - docs/backlog correction after merged `A1`
@@ -231,17 +234,20 @@ Recursive / philosophy rollout still depends on quota parity, but `main` already
 
 #### Lane governance note
 This slice owns a dedicated lane packet
-`docs/orchestration/WAVE6_A1B_PRO_QUOTA_RECONCILIATION_TASK_PACKET_2026-04-17.md`
-and must maintain its own canonical `docs/review/PR_<N>_FIXED_MAPPING.md`.
+`docs/orchestration/WAVE6_A1B_PRO_QUOTA_RECONCILIATION_TASK_PACKET_2026-04-17.md:131-179`
+and must maintain its own canonical `docs/review/PR_<N>_FIXED_MAPPING.md`
+artifact-first review loop.
 Because active PRs `#1440` and `#1441` also touch
 `docs/roadmap/BACKLOG_LEDGER.md`, `A1b` must late-rebase onto fresh
 `origin/main` before merge-readiness and stop instead of force-resolving if the
-same ledger anchors remain in conflict.
+same ledger anchors remain in conflict
+(`docs/orchestration/WAVE6_A1B_PRO_QUOTA_RECONCILIATION_TASK_PACKET_2026-04-17.md:138-148`).
 
 #### Deferred optimization note
 Any semantic-cache work remains governed by
-`docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md`
-and remains blocked until the `A1b -> A5` runtime sequence is closed.
+`docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md:27-33`
+and remains blocked until the `A1b -> A5` runtime sequence is closed
+(`docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md:135-142`).
 
 ---
 
