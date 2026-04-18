@@ -16,6 +16,9 @@ Reason: The ownership registry primary key now includes `table_name`, the fake m
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1468#discussion_r3105790288 -> a8695cf3669da38ab1b79d5766c606b329066d55
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1468#discussion_r3105790295 -> a8695cf3669da38ab1b79d5766c606b329066d55
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1468#discussion_r3105790299 -> a8695cf3669da38ab1b79d5766c606b329066d55
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1468#discussion_r3105794329 -> a8695cf3669da38ab1b79d5766c606b329066d55
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1468#discussion_r3105794330 -> a8695cf3669da38ab1b79d5766c606b329066d55
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1468#discussion_r3105794331 -> a8695cf3669da38ab1b79d5766c606b329066d55
 
 Disposition: DEFERRED
 Backlog: `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-foods-foundation-legacy-ownership-backfill`
