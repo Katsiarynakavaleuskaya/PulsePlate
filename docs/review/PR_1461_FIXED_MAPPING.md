@@ -19,6 +19,7 @@ Current GitHub review surface for PR `#1461` was re-checked on `18 April 2026`:
   `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1461#pullrequestreview-4134886061`,
   `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1461#pullrequestreview-4134898674`
 - actionable inline comments on current head:
+  `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1461#discussion_r3105594634`,
   `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1461#discussion_r3105596724`,
   `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1461#discussion_r3105596728`,
   `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1461#discussion_r3105596730`,
@@ -41,6 +42,11 @@ Current GitHub review surface for PR `#1461` was re-checked on `18 April 2026`:
   `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1461#issuecomment-4271340137`
 
 ## Fixed in Commit Mapping
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1461#discussion_r3105594634 -> 0d1b80fa70d03c1e8426d3316d1d2b4b0ad80e4f
+Disposition: FIXED
+Commit: 0d1b80fa70d03c1e8426d3316d1d2b4b0ad80e4f
+Evidence: `docs/orchestration/WAVE6_A1B_PRO_QUOTA_RECONCILIATION_TASK_PACKET_2026-04-17.md:29-33` now frames merged `PR #1440` / `PR #1441` as already-landed trunk changes that force a late rebase and fresh-ledger-anchor check, instead of describing them as still-open blockers.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1461#pullrequestreview-4134861451 -> 39d600607dab8a53c45591d94981ef48aac59864
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1461#discussion_r3105596724 -> 39d600607dab8a53c45591d94981ef48aac59864
