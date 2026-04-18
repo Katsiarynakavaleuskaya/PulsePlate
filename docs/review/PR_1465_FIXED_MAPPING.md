@@ -1,4 +1,3 @@
-<!-- markdownlint-disable MD034 -->
 # PR #1465 — Fixed in Commit Mapping (canonical)
 
 ## Discussion Thread Pass
@@ -11,12 +10,10 @@ Canonical review-governance artifact and PR-body mirror requirements:
 - [x] Fixed in commit mapping completed
 
 This artifact is created immediately after PR open per repo governance.
-No actionable human or bot review threads are recorded on the current head yet.
-Add every future disposition here before resolving threads on GitHub.
+Current-head bot review activity is now present.
+Record every new disposition here before resolving threads on GitHub.
 
 ## Fixed in Commit Mapping
-
-- No actionable review comments
 
 ## Merge Readiness
 
@@ -36,4 +33,3 @@ Merge-readiness contract:
   Evidence: `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md:175-180`.
 - [ ] `make verify` green on latest pushed head
   Evidence: `AGENTS.md:1-16`; `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md:175-180`.
-<!-- markdownlint-enable MD034 -->

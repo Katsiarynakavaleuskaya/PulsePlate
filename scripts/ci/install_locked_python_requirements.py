@@ -212,7 +212,7 @@ def resolve_requirement_files(
         ],
         "ci-test": [
             ("CI lite requirements file", ci_lite_requirements_file),
-            ("Test requirements file", test_requirements_file),
+            ("CI test requirements file", test_requirements_file),
         ],
         "ci-lite": [("CI lite requirements file", ci_lite_requirements_file)],
     }

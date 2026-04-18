@@ -256,6 +256,28 @@ def test_resolve_requirement_files_fails_when_ci_test_profile_is_requested_but_m
         )
 
 
+def test_resolve_requirement_files_fails_when_ci_test_test_file_is_missing(
+    tmp_path: Path,
+) -> None:
+    requirements = tmp_path / "requirements.txt"
+    requirements.write_text("openai==2.29.0\n", encoding="utf-8")
+    requirements_dev = tmp_path / "requirements-dev.txt"
+    requirements_dev.write_text("pre-commit==4.5.1\n", encoding="utf-8")
+    requirements_ci_lite = tmp_path / "requirements-ci-lite.txt"
+    requirements_ci_lite.write_text("pre-commit==4.5.1\n", encoding="utf-8")
+
+    with pytest.raises(FileNotFoundError, match="CI test requirements file not found"):
+        installer.resolve_requirement_files(
+            requirements_file=requirements,
+            dev_requirements_file=requirements_dev,
+            test_requirements_file=tmp_path / "requirements-test.txt",
+            ci_lite_requirements_file=requirements_ci_lite,
+            install_dev=False,
+            install_test=False,
+            requirements_profile="ci-test",
+        )
+
+
 def test_build_pip_download_command_uses_constraint_when_present(tmp_path: Path) -> None:
     constraints = tmp_path / "constraints.txt"
     constraints.write_text("openai>=2.29.0\n", encoding="utf-8")

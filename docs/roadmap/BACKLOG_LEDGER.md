@@ -566,7 +566,15 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Target PR: PR-TBD-PR-SCOPED-VALIDATION-CONTRACT
   - Area: CI / tooling / governance
   - Status note: Keep `make verify` as the hard merge-claim gate until this follow-up lands. Use this item to separate iterative PR-scope validation from final merge evidence and to fix the pre-push hook failure shape before changing agent/runbook guidance.
-  - Reason: The current repo-wide `make verify` loop is too broad for day-to-day PR iteration, while `scripts/run-backend-tests-pre-commit.sh` has surfaced an `FOUND_FOR_FILE[@]: unbound variable` failure on merge-commit paths. The follow-up must tighten the local PR-scoped validation contract around `make validate-changed` or an equivalent touched-scope path without weakening the canonical merge-readiness requirement.
+  - Reason: The current repo-wide `make verify` loop is too broad for day-to-day PR iteration, while `scripts/run-backend-tests-pre-commit.sh` has surfaced a `FOUND_FOR_FILE[@]: unbound variable` failure on merge-commit paths. The follow-up must tighten the local PR-scoped validation contract around `make validate-changed` or an equivalent touched-scope path without weakening the canonical merge-readiness requirement.
+  - Evidence:
+    - `AGENTS.md:5-8`
+    - `AGENTS.md:27-30`
+    - `RUNBOOK_AGENT.md:377-383`
+    - `RUNBOOK_AGENT.md:600-603`
+    - `Makefile:130-134`
+    - `Makefile:175-175`
+    - `scripts/run-backend-tests-pre-commit.sh:174-204`
   - Links:
     - `AGENTS.md`
     - `RUNBOOK_AGENT.md`
