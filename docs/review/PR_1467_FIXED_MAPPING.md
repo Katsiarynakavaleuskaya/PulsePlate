@@ -14,14 +14,14 @@ feedback is now dispositioned here before any GitHub thread is resolved.
 
 ## Fixed in Commit Mapping
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1467#discussion_r3105784083 -> 6d18f5fbf
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1467#discussion_r3105784083 -> 6d18f5fbff78ac70ee52bf464bab7c3bcdc578b0
 Disposition: FIXED
-Commit: 6d18f5fbf
+Commit: 6d18f5fbff78ac70ee52bf464bab7c3bcdc578b0
 Evidence: `docs/review/PR_1467_FIXED_MAPPING.md:51-54` now cites `Makefile:164-176` directly for the `make verify` hard gate, matching the CodeRabbit request for a precise evidence anchor.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1467#pullrequestreview-4135044228 -> 6b09ab380
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1467#pullrequestreview-4135044228 -> 6b09ab38067af2233b5afc8370f9e8aaa8b13453
 Disposition: FIXED
-Commit: 6b09ab380
+Commit: 6b09ab38067af2233b5afc8370f9e8aaa8b13453
 Evidence: `.github/workflows/build.yml:195-200` now prepares `.trivy-ignore-policy.rego` inside `publish`, `.github/workflows/build.yml:268-278` pins the publish image scan to `scanners: vuln` and the relative ignore-policy path, and `docs/review/PR_1467_FIXED_MAPPING.md:51-54` fixes the direct `make verify` evidence anchor requested in the review.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1467#discussion_r3105782286
