@@ -10,7 +10,7 @@
 
 Disposition: FIXED
 Commit: a8695cf3669da38ab1b79d5766c606b329066d55
-Evidence: `alembic/versions/202604120001_add_foods_catalog_foundation.py:94`; `alembic/versions/202604120001_add_foods_catalog_foundation.py:123`; `tests/test_foods_catalog_foundation_migration.py:28`; `tests/test_foods_catalog_foundation_migration.py:214`; `docs/orchestration/FOODS_FOUNDATION_DOWNGRADE_OWNERSHIP_TASK_PACKET_2026-04-18.md:31`; `docs/review/PR_1468_FIXED_MAPPING.md:15`; `docs/review/PR_1468_FIXED_MAPPING.md:26`; `docs/review/PR_1468_FIXED_MAPPING.md:57`; `docs/review/PR_1468_FIXED_MAPPING.md:58`
+Evidence: `alembic/versions/202604120001_add_foods_catalog_foundation.py:94`; `alembic/versions/202604120001_add_foods_catalog_foundation.py:123`; `tests/test_foods_catalog_foundation_migration.py:28`; `tests/test_foods_catalog_foundation_migration.py:214`; `docs/orchestration/FOODS_FOUNDATION_DOWNGRADE_OWNERSHIP_TASK_PACKET_2026-04-18.md:31`; `docs/review/PR_1468_FIXED_MAPPING.md:15`; `docs/review/PR_1468_FIXED_MAPPING.md:26`; `docs/review/PR_1468_FIXED_MAPPING.md:63`; `docs/review/PR_1468_FIXED_MAPPING.md:64`
 Reason: The ownership registry primary key now includes `table_name`, the fake migration runtime parses `CREATE INDEX` statements with a table-aware regex, the task packet points at the current PR mapping artifact, and this canonical review artifact now uses explicit disposition/evidence entries plus repo-relative validation commands.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1468#pullrequestreview-4135046538 -> a8695cf3669da38ab1b79d5766c606b329066d55
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1468#pullrequestreview-4135048529 -> a8695cf3669da38ab1b79d5766c606b329066d55
@@ -28,6 +28,12 @@ Commit: ee88a8d4482fdd049c59b6e0fe2353642d3ddeef
 Evidence: `docs/roadmap/BACKLOG_LEDGER.md:5071`; `docs/roadmap/BACKLOG_LEDGER.md:5072`; `docs/roadmap/BACKLOG_LEDGER.md:5073`; `docs/roadmap/BACKLOG_LEDGER.md:5074`
 Reason: The deferred legacy-ownership backlog item now carries direct `file:line` anchors for the claim about absent ownership registry semantics and the explicit out-of-scope boundary for retroactive repair.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1468#discussion_r3105804909 -> ee88a8d4482fdd049c59b6e0fe2353642d3ddeef
+
+Disposition: FIXED
+Commit: 5034adab5ea47bca15b5ff05a1a191b1177a8a4a
+Evidence: `docs/roadmap/BACKLOG_LEDGER.md:9374`; `docs/review/PR_1468_FIXED_MAPPING.md:15`; `docs/review/PR_1468_FIXED_MAPPING.md:16`; `docs/review/PR_1468_FIXED_MAPPING.md:17`
+Reason: The canonical mapping artifact now includes the previously missing review-level bot URLs, and the backlog footer date has been refreshed to the April 18, 2026 review follow-up state referenced by the latest CodeRabbit review summary.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1468#pullrequestreview-4135061915 -> 5034adab5ea47bca15b5ff05a1a191b1177a8a4a
 
 Disposition: DEFERRED
 Backlog: `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-foods-foundation-legacy-ownership-backfill`
