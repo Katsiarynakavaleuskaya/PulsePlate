@@ -28,7 +28,7 @@ revision and preserves pre-existing compatible `foods` catalog objects.
 - This lane must stay grounded in:
   - `alembic/versions/202604120001_add_foods_catalog_foundation.py`
   - `tests/test_foods_catalog_foundation_migration.py`
-  - `docs/review/PR_1409_FIXED_MAPPING.md`
+  - `docs/review/PR_1468_FIXED_MAPPING.md`
   - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-foods-foundation-downgrade-ownership`
   - `docs/orchestration/FOODS_CATALOG_FOUNDATION_PR_A_TASK_PACKET_2026-04-12.md`
 

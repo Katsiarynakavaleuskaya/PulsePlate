@@ -9,6 +9,7 @@ from __future__ import annotations
 import configparser
 import os
 from pathlib import Path
+import re
 import runpy
 import subprocess
 import sys
@@ -24,6 +25,10 @@ TRIGRAM_SEAM_REVISION = "202604060001"
 MIGRATION_PATH = REPO_ROOT / "alembic" / "versions" / "202604120001_add_foods_catalog_foundation.py"
 ALEMBIC_SUBPROCESS_TIMEOUT_SECONDS = 60
 OWNERSHIP_REGISTRY_TABLE = "pulseplate_migration_ownership"
+CREATE_INDEX_RE = re.compile(
+    r"^CREATE\s+INDEX(?:\s+IF\s+NOT\s+EXISTS)?\s+(?P<index_name>[A-Za-z_][A-Za-z0-9_]*)\s+ON\s+(?:(?P<schema>[A-Za-z_][A-Za-z0-9_]*)\.)?(?P<table_name>[A-Za-z_][A-Za-z0-9_]*)\b",
+    re.IGNORECASE,
+)
 
 
 def _write_temp_alembic_ini(tmp_path: Path) -> Path:
@@ -209,9 +214,11 @@ class _FakeMigrationOp:
     def execute(self, statement: object) -> None:
         sql = str(statement).strip()
         self._state["executed_sql"].append(sql)
-        if sql.startswith("CREATE INDEX "):
-            index_name = sql.split()[2]
-            self._state["indexes"].setdefault("foods", set()).add(index_name)
+        create_index_match = CREATE_INDEX_RE.match(sql)
+        if create_index_match:
+            index_name = create_index_match.group("index_name")
+            table_name = create_index_match.group("table_name")
+            self._state["indexes"].setdefault(table_name, set()).add(index_name)
 
 
 def _load_foundation_migration_runtime(

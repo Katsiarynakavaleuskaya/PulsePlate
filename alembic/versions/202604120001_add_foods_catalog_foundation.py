@@ -91,7 +91,7 @@ def _ensure_ownership_registry() -> None:
         sa.Column("object_type", sa.String(length=16), nullable=False),
         sa.Column("table_name", sa.String(length=128), nullable=False),
         sa.Column("object_name", sa.String(length=128), nullable=False),
-        sa.PrimaryKeyConstraint("revision_id", "object_type", "object_name"),
+        sa.PrimaryKeyConstraint("revision_id", "object_type", "table_name", "object_name"),
     )
 
 

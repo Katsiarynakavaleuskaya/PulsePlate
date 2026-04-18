@@ -5059,6 +5059,25 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - The revision no longer drops pre-existing `foods`/index artifacts that it did not create
     - Migration tests cover both the clean-room downgrade cycle and the pre-existing-table ownership scenario
 
+<a id="ledger-p1-foods-foundation-legacy-ownership-backfill"></a>
+- [ ] P1: Define retroactive rollback behavior for legacy-applied foods foundation revision
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD
+  - Status: Deferred from PR `#1468` review loop
+  - Area: backend / migrations / PostgreSQL
+  - Finding Type: legacy downgrade / ownership backfill
+  - Reason: Databases that already applied the pre-ownership version of revision `202604120001` do not have `pulseplate_migration_ownership`, so downgrade cannot distinguish revision-owned objects from pre-existing catalog artifacts. PR `#1468` intentionally fixes forward-looking ownership-aware behavior for new upgrade runs only; retroactive repair for already-applied environments requires a separate design lane.
+  - Links:
+    - `alembic/versions/202604120001_add_foods_catalog_foundation.py`
+    - `docs/orchestration/FOODS_FOUNDATION_DOWNGRADE_OWNERSHIP_TASK_PACKET_2026-04-18.md`
+    - `docs/review/PR_1468_FIXED_MAPPING.md`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-foods-foundation-downgrade-ownership`
+  - DoD:
+    - A separate design records the authoritative rollback contract when `pulseplate_migration_ownership` is absent on an already-applied `202604120001` database
+    - The chosen path explicitly defines whether legacy environments use ownership backfill, guarded legacy fallback, or an operator-driven/manual repair contract
+    - Deterministic tests cover the chosen legacy-applied rollback path without regressing clean-room or pre-existing-catalog scenarios
+
 ## Completed Items
 
 Entries are sorted by priority, then theme, then title. Theme uses `Area:` when present and a deterministic title/domain fallback otherwise.
