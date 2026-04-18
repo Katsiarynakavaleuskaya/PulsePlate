@@ -140,6 +140,7 @@ jobs:
         with:
           scan-type: fs
           scan-ref: .
+          cache-dir: /tmp/trivy-cache
           ignore-policy: ${{ github.workspace }}/trivy/ignore-policy.rego
           scanners: vuln
           format: sarif
@@ -251,6 +252,7 @@ jobs:
         with:
           scan-type: image
           image-ref: ${{ steps.image-ref.outputs.ref }}
+          cache-dir: /tmp/trivy-cache
           ignore-policy: ${{ github.workspace }}/trivy/ignore-policy.rego
           format: sarif
           output: trivy-image.sarif
