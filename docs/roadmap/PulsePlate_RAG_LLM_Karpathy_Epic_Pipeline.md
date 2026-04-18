@@ -237,10 +237,10 @@ This slice owns a dedicated lane packet
 `docs/orchestration/WAVE6_A1B_PRO_QUOTA_RECONCILIATION_TASK_PACKET_2026-04-17.md:131-179`
 and must maintain its own canonical `docs/review/PR_<N>_FIXED_MAPPING.md`
 artifact-first review loop.
-Because active PRs `#1440` and `#1441` also touch
-`docs/roadmap/BACKLOG_LEDGER.md`, `A1b` must late-rebase onto fresh
+Because merged `PR #1440` and `PR #1441` already changed
+`docs/roadmap/BACKLOG_LEDGER.md` on `main`, `A1b` must late-rebase onto fresh
 `origin/main` before merge-readiness and stop instead of force-resolving if the
-same ledger anchors remain in conflict
+same ledger anchors remain in conflict with trunk
 (`docs/orchestration/WAVE6_A1B_PRO_QUOTA_RECONCILIATION_TASK_PACKET_2026-04-17.md:138-148`).
 
 #### Deferred optimization note

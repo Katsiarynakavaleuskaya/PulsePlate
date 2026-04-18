@@ -16,8 +16,8 @@ This packet exists to:
 - keep `A1b` docs-only and governance-only;
 - preserve the canonical `A1b -> A5` runtime sequence;
 - prevent semantic-cache or plugin/control-plane work from widening this lane;
-- encode the mandatory late-rebase rule because open PRs `#1440` and `#1441`
-  also touch `docs/roadmap/BACKLOG_LEDGER.md`.
+- encode the mandatory late-rebase rule because merged `PR #1440` and `PR #1441`
+  already landed nearby `docs/roadmap/BACKLOG_LEDGER.md` edits on `main`.
 
 ## Current-Head Preconditions
 
@@ -26,9 +26,11 @@ This packet exists to:
 - `PR #1379` is merged and is the canonical already-landed runtime evidence for
   the `A1` fallback/readiness spine.
 - `origin/main` is green on current-head `CI`.
-- Open PRs `#1440` and `#1441` still modify
-  `docs/roadmap/BACKLOG_LEDGER.md`, so this lane may open in draft but may not
-  claim merge-readiness before a late rebase onto fresh `origin/main`.
+- Merged `PR #1440` and `PR #1441` already changed
+  `docs/roadmap/BACKLOG_LEDGER.md` on `main`, so this lane may open in draft
+  but may not claim merge-readiness before a late rebase onto fresh
+  `origin/main` and a final check that the `A1b`-owned ledger anchors still
+  match current trunk truth.
 
 ## Hard Boundaries
 
@@ -146,15 +148,16 @@ Rules:
 
 ## Mandatory Late-Rebase Rule
 
-Because open PRs `#1440` and `#1441` both touch
-`docs/roadmap/BACKLOG_LEDGER.md`, this lane follows a strict overlap policy:
+Because merged `PR #1440` and `PR #1441` already changed
+`docs/roadmap/BACKLOG_LEDGER.md` on `main`, this lane follows a strict
+overlap policy:
 
 - the PR may open in draft immediately;
 - merge-readiness is forbidden before a late rebase onto fresh `origin/main`;
 - during that rebase, resolve only the `A1b`-owned ledger lines;
-- if the rebase reveals true overlap on the same anchors with still-open
-  `#1440` / `#1441`, stop the lane and replan instead of force-resolving or
-  silently rewriting another lane's scope.
+- if the rebase reveals true overlap on the same anchors against the merged
+  `#1440` / `#1441` ledger edits already on `main`, stop the lane and replan
+  instead of force-resolving or silently rewriting another lane's scope.
 
 ## Validation
 
