@@ -1,8 +1,8 @@
 # Foods PostgreSQL Promotion PR-B1 Task Packet
 
 **Effective date:** 2026-04-13 (`America/New_York`)
-**Status:** Active execution packet
-**Mode:** coordinator-owned backend/data promotion lane
+**Status:** Historical merged execution packet
+**Mode:** coordinator-owned backend/data promotion lane (closed)
 
 ## Goal
 
@@ -14,13 +14,16 @@ runtime cutover, or restaurant importer rewiring.
 
 - This packet owns only **PR-B1**.
 - The execution train is fixed as:
-  - `PR-B1`: foods snapshot promotion into PostgreSQL `foods` (merged)
-  - `PR-B2`: restaurant relational bridge (merged)
-  - `PR-B3`: restaurant PostgreSQL shadow reads + parity checks
-  - cutover (deferred): runtime read-switch / PostgreSQL authority change after B3
+  - `PR-B1`: foods snapshot promotion into PostgreSQL `foods` (merged in PR `#1413`; evidence: `docs/review/FOODS_POSTGRES_TRAIN_MERGED_STATE_CANON_2026-04-17.md:7-10`)
+  - `PR-B2`: restaurant relational bridge (merged in PR `#1419`; evidence: `docs/review/FOODS_POSTGRES_TRAIN_MERGED_STATE_CANON_2026-04-17.md:7-10`)
+  - `PR-B3`: restaurant PostgreSQL shadow reads + parity checks (merged in PR `#1435`; evidence: `docs/review/FOODS_POSTGRES_TRAIN_MERGED_STATE_CANON_2026-04-17.md:7-10`)
+  - cutover (deferred): runtime read-switch / PostgreSQL authority change after B3 (ADR: `docs/architecture/ADR_FOODS_POSTGRES_RUNTIME_CUTOVER_SEAM_2026-04-17.md:11-24`; backlog: `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-foods-postgres-foundation-followthrough`)
 - The former Postgres deploy-foundation blocker is closed separately via
   repo/runtime evidence reconciliation.
-- `PR-B3` is the next active implementation lane after merged `PR-B1` and `PR-B2`.
+- Post-B3 docs/governance reconciliation now lives in:
+  - `docs/orchestration/FOODS_POSTGRES_POST_B3_CLOSEOUT_PACKET_2026-04-17.md` (evidence: `docs/review/FOODS_POSTGRES_TRAIN_MERGED_STATE_CANON_2026-04-17.md:12-14`)
+- The next bounded implementation lane after post-B3 closeout is:
+  - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-foods-foundation-downgrade-ownership` (evidence: `docs/review/FOODS_POSTGRES_TRAIN_MERGED_STATE_CANON_2026-04-17.md:12-14`)
 
 ## Source of Truth
 
@@ -125,4 +128,4 @@ Mandatory post-open review lane remains: `qa-engineer-agent -> bug-hunter`.
 - Promotion uses deterministic `ON CONFLICT(id)` upsert semantics
 - JSON-shaped fields are validated and preserved deterministically
 - The lane introduces no runtime/importer/schema/OpenAPI drift
-- `PR-B2` is the next active food implementation lane after merged `PR-B1`; runtime cutover remains deferred to `B3`
+- PR `#1413` is the historical merged evidence for `PR-B1`, while runtime authority cutover remains deferred beyond merged B3 until a separate cutover packet exists (evidence: `docs/review/FOODS_POSTGRES_TRAIN_MERGED_STATE_CANON_2026-04-17.md:7-10`; ADR: `docs/architecture/ADR_FOODS_POSTGRES_RUNTIME_CUTOVER_SEAM_2026-04-17.md:11-24`)
