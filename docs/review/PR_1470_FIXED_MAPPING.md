@@ -9,7 +9,7 @@ Canonical review-governance artifact and PR-body mirror requirements:
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
 
-This artifact is created immediately after PR open per repo governance.
+This artifact is created immediately after the PR is opened per repo governance.
 Record every new review or bot disposition here before resolving threads on GitHub.
 
 ## Fixed in Commit Mapping

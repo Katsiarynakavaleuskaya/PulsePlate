@@ -137,7 +137,7 @@ docker compose version
 
 - Dockerfile запускает приложение через `uvicorn app.main:app`.
 - Старый entrypoint `legacy_app.py` больше не используется — обновите CI/скрипты,
-  `docker compose` command surfaces и любые runbook команды.
+  команды `docker compose` и любые runbook команды.
 - Ключевые env vars остаются прежними: `DATABASE_URL`, `API_KEY`, `API_KEY_REQUIRED`,
   `FEATURE_PREMIUM_NUTRITION`, `ENVIRONMENT`/`APP_ENV`.
 
