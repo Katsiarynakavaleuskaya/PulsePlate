@@ -21,6 +21,7 @@ FOUNDATION_REVISION = "202604120001"
 TRIGRAM_SEAM_REVISION = "202604060001"
 MIGRATION_PATH = REPO_ROOT / "alembic" / "versions" / "202604120001_add_foods_catalog_foundation.py"
 ALEMBIC_SUBPROCESS_TIMEOUT_SECONDS = 60
+OWNERSHIP_REGISTRY_TABLE = "pulseplate_migration_ownership"
 
 
 def _write_temp_alembic_ini(tmp_path: Path) -> Path:
@@ -88,6 +89,71 @@ def _fk_signature(
         str(referred_table) if referred_table is not None else None,
         referred_columns,
     )
+
+
+def _ownership_signature(
+    row: tuple[object, object, object, object],
+) -> tuple[str, str, str, str]:
+    """Normalize ownership rows for deterministic assertions."""
+
+    return tuple(str(value) for value in row)  # type: ignore[return-value]
+
+
+def _read_ownership_rows(database_url: str) -> set[tuple[str, str, str, str]]:
+    """RU: Считать ownership registry. EN: Read ownership registry rows."""
+
+    engine = create_engine(database_url)
+    try:
+        with engine.begin() as connection:
+            inspector = inspect(connection)
+            if OWNERSHIP_REGISTRY_TABLE not in inspector.get_table_names():
+                return set()
+            rows = connection.exec_driver_sql(f"""
+                SELECT revision_id, object_type, table_name, object_name
+                FROM {OWNERSHIP_REGISTRY_TABLE}
+                """).fetchall()
+    finally:
+        engine.dispose()
+    return {_ownership_signature(row) for row in rows}
+
+
+def _seed_preexisting_foods_catalog(
+    database_url: str,
+    *,
+    preexisting_indexes: tuple[str, ...] = (),
+) -> None:
+    """Create a minimal compatible foods table before running the migration."""
+
+    engine = create_engine(database_url)
+    try:
+        with engine.begin() as connection:
+            connection.exec_driver_sql("""
+                CREATE TABLE foods (
+                    id TEXT NOT NULL PRIMARY KEY,
+                    canonical_name TEXT NOT NULL,
+                    group_name TEXT NOT NULL,
+                    source TEXT NOT NULL,
+                    gtin TEXT,
+                    brand TEXT
+                )
+                """)
+            for index_name in preexisting_indexes:
+                if index_name == "ix_foods_canonical_name":
+                    connection.exec_driver_sql(
+                        "CREATE INDEX ix_foods_canonical_name ON foods (canonical_name)"
+                    )
+                elif index_name == "ix_foods_group_name":
+                    connection.exec_driver_sql(
+                        "CREATE INDEX ix_foods_group_name ON foods (group_name)"
+                    )
+                elif index_name == "ix_foods_source":
+                    connection.exec_driver_sql("CREATE INDEX ix_foods_source ON foods (source)")
+                elif index_name == "ix_foods_gtin":
+                    connection.exec_driver_sql("CREATE INDEX ix_foods_gtin ON foods (gtin)")
+                else:
+                    raise AssertionError(f"Unsupported preexisting index seed: {index_name}")
+    finally:
+        engine.dispose()
 
 
 def test_foods_catalog_foundation_migration_sqlite_smoke(
@@ -193,6 +259,36 @@ def test_foods_catalog_foundation_migration_sqlite_downgrade_cycle(
         }
     finally:
         engine.dispose()
+    ownership_rows_after_upgrade = _read_ownership_rows(database_url)
+
+    assert {
+        (FOUNDATION_REVISION, "table", "foods", "foods"),
+        (FOUNDATION_REVISION, "table", "restaurant_chains", "restaurant_chains"),
+        (FOUNDATION_REVISION, "table", "restaurant_menu_items", "restaurant_menu_items"),
+        (FOUNDATION_REVISION, "index", "foods", "ix_foods_canonical_name"),
+        (FOUNDATION_REVISION, "index", "foods", "ix_foods_group_name"),
+        (FOUNDATION_REVISION, "index", "foods", "ix_foods_source"),
+        (FOUNDATION_REVISION, "index", "foods", "ix_foods_gtin"),
+        (FOUNDATION_REVISION, "index", "restaurant_chains", "ix_restaurant_chains_name"),
+        (
+            FOUNDATION_REVISION,
+            "index",
+            "restaurant_menu_items",
+            "ix_restaurant_menu_items_chain_id",
+        ),
+        (
+            FOUNDATION_REVISION,
+            "index",
+            "restaurant_menu_items",
+            "ix_restaurant_menu_items_item_name",
+        ),
+        (
+            FOUNDATION_REVISION,
+            "index",
+            "restaurant_menu_items",
+            "ix_restaurant_menu_items_food_id",
+        ),
+    } <= ownership_rows_after_upgrade
 
     _run_alembic_command(
         temp_alembic_ini,
@@ -212,6 +308,7 @@ def test_foods_catalog_foundation_migration_sqlite_downgrade_cycle(
     assert "foods" not in tables_after_downgrade
     assert "restaurant_chains" not in tables_after_downgrade
     assert "restaurant_menu_items" not in tables_after_downgrade
+    assert OWNERSHIP_REGISTRY_TABLE not in tables_after_downgrade
 
     _run_alembic_command(
         temp_alembic_ini,
@@ -244,6 +341,150 @@ def test_foods_catalog_foundation_migration_sqlite_downgrade_cycle(
     assert initial_menu_indexes == final_menu_indexes
 
 
+def test_foods_catalog_foundation_preserves_preexisting_foods_table_on_downgrade(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    db_path = tmp_path / "foods-foundation-preexisting-table.sqlite3"
+    database_url = f"sqlite:///{db_path}"
+    temp_alembic_ini = _write_temp_alembic_ini(tmp_path)
+
+    _seed_preexisting_foods_catalog(database_url)
+
+    monkeypatch.setenv("DATABASE_URL", database_url)
+    env = os.environ.copy()
+    env["DATABASE_URL"] = database_url
+    env.pop("PYTHONPATH", None)
+
+    _run_alembic_command(
+        temp_alembic_ini,
+        REPO_ROOT,
+        "upgrade",
+        FOUNDATION_REVISION,
+        env,
+    )
+
+    ownership_rows_after_upgrade = _read_ownership_rows(database_url)
+    assert (FOUNDATION_REVISION, "table", "foods", "foods") not in ownership_rows_after_upgrade
+    assert (
+        FOUNDATION_REVISION,
+        "index",
+        "foods",
+        "ix_foods_canonical_name",
+    ) in ownership_rows_after_upgrade
+    assert (
+        FOUNDATION_REVISION,
+        "index",
+        "foods",
+        "ix_foods_group_name",
+    ) in ownership_rows_after_upgrade
+    assert (
+        FOUNDATION_REVISION,
+        "index",
+        "foods",
+        "ix_foods_source",
+    ) in ownership_rows_after_upgrade
+    assert (FOUNDATION_REVISION, "index", "foods", "ix_foods_gtin") in ownership_rows_after_upgrade
+
+    _run_alembic_command(
+        temp_alembic_ini,
+        REPO_ROOT,
+        "downgrade",
+        TRIGRAM_SEAM_REVISION,
+        env,
+    )
+
+    engine = create_engine(database_url)
+    try:
+        inspector = inspect(engine)
+        tables_after_downgrade = set(inspector.get_table_names())
+        foods_indexes_after_downgrade = {
+            index["name"] for index in inspector.get_indexes("foods") if index.get("name")
+        }
+    finally:
+        engine.dispose()
+
+    assert "foods" in tables_after_downgrade
+    assert "restaurant_chains" not in tables_after_downgrade
+    assert "restaurant_menu_items" not in tables_after_downgrade
+    assert foods_indexes_after_downgrade == set()
+    assert OWNERSHIP_REGISTRY_TABLE not in tables_after_downgrade
+
+
+def test_foods_catalog_foundation_preserves_preexisting_foods_indexes_on_downgrade(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    db_path = tmp_path / "foods-foundation-preexisting-indexes.sqlite3"
+    database_url = f"sqlite:///{db_path}"
+    temp_alembic_ini = _write_temp_alembic_ini(tmp_path)
+
+    _seed_preexisting_foods_catalog(
+        database_url,
+        preexisting_indexes=("ix_foods_canonical_name", "ix_foods_group_name"),
+    )
+
+    monkeypatch.setenv("DATABASE_URL", database_url)
+    env = os.environ.copy()
+    env["DATABASE_URL"] = database_url
+    env.pop("PYTHONPATH", None)
+
+    _run_alembic_command(
+        temp_alembic_ini,
+        REPO_ROOT,
+        "upgrade",
+        FOUNDATION_REVISION,
+        env,
+    )
+
+    ownership_rows_after_upgrade = _read_ownership_rows(database_url)
+    assert (FOUNDATION_REVISION, "table", "foods", "foods") not in ownership_rows_after_upgrade
+    assert (
+        FOUNDATION_REVISION,
+        "index",
+        "foods",
+        "ix_foods_canonical_name",
+    ) not in ownership_rows_after_upgrade
+    assert (
+        FOUNDATION_REVISION,
+        "index",
+        "foods",
+        "ix_foods_group_name",
+    ) not in ownership_rows_after_upgrade
+    assert (
+        FOUNDATION_REVISION,
+        "index",
+        "foods",
+        "ix_foods_source",
+    ) in ownership_rows_after_upgrade
+    assert (FOUNDATION_REVISION, "index", "foods", "ix_foods_gtin") in ownership_rows_after_upgrade
+
+    _run_alembic_command(
+        temp_alembic_ini,
+        REPO_ROOT,
+        "downgrade",
+        TRIGRAM_SEAM_REVISION,
+        env,
+    )
+
+    engine = create_engine(database_url)
+    try:
+        inspector = inspect(engine)
+        tables_after_downgrade = set(inspector.get_table_names())
+        foods_indexes_after_downgrade = {
+            index["name"] for index in inspector.get_indexes("foods") if index.get("name")
+        }
+    finally:
+        engine.dispose()
+
+    assert "foods" in tables_after_downgrade
+    assert foods_indexes_after_downgrade == {
+        "ix_foods_canonical_name",
+        "ix_foods_group_name",
+    }
+    assert OWNERSHIP_REGISTRY_TABLE not in tables_after_downgrade
+
+
 def test_foods_catalog_foundation_migration_contract_text() -> None:
     migration_text = MIGRATION_PATH.read_text(encoding="utf-8")
 
@@ -257,6 +498,13 @@ def test_foods_catalog_foundation_migration_contract_text() -> None:
     assert "ix_foods_canonical_name_gin_trgm" in migration_text
     assert "ix_foods_group_name_gin_trgm" in migration_text
     assert "ix_foods_brand_gin_trgm" in migration_text
-    assert '_table_exists("foods")' in migration_text
     assert "food_items" not in migration_text
     assert "rename_table" not in migration_text
+    assert "pulseplate_migration_ownership" in migration_text
+    assert "_create_owned_table(" in migration_text
+    assert "_create_owned_index(" in migration_text
+    assert "_record_owned_object(" in migration_text
+    assert "_drop_owned_index(" in migration_text
+    assert "_drop_owned_table(" in migration_text
+    assert 'op.drop_table("foods")' not in migration_text
+    assert 'op.drop_index("ix_foods_canonical_name", table_name="foods")' not in migration_text
