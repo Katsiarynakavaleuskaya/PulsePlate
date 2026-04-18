@@ -61,16 +61,6 @@ jobs:
           provenance: false
           target: production
 
-      - name: Install Trivy via apt
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y wget apt-transport-https gnupg lsb-release
-          wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | gpg --dearmor | sudo tee /usr/share/keyrings/trivy.gpg > /dev/null
-          echo "deb [signed-by=/usr/share/keyrings/trivy.gpg] https://aquasecurity.github.io/trivy-repo/deb $(lsb_release -sc) main" | sudo tee /etc/apt/sources.list.d/trivy.list
-          sudo apt-get update
-          sudo apt-get install -y trivy
-          trivy --version
-
       # PAT may be present but expired/revoked; anonymous pull still works for public trivy-db.
       - name: Log in to GHCR (Trivy DB)
         if: ${{ env.GHCR_READ_TOKEN_AVAILABLE == 'true' }}
@@ -84,20 +74,21 @@ jobs:
           fi
 
       - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # v0.35.0
         env:
-          TRIVY_TIMEOUT: 15m
-        run: |
-          trivy image \
-            --db-repository ghcr.io/aquasecurity/trivy-db \
-            --scanners vuln \
-            --timeout "${TRIVY_TIMEOUT}" \
-            --format sarif \
-            --output trivy-results.sarif \
-            --severity CRITICAL,HIGH \
-            --ignore-unfixed \
-            --ignorefile .trivyignore \
-            --ignore-policy trivy/ignore-policy.rego \
-            'pulseplate:trivy-scan-${{ github.sha }}'
+          TRIVY_DB_REPOSITORY: ghcr.io/aquasecurity/trivy-db
+        with:
+          scan-type: image
+          image-ref: pulseplate:trivy-scan-${{ github.sha }}
+          scanners: vuln
+          timeout: 15m
+          format: sarif
+          output: trivy-results.sarif
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          trivyignores: .trivyignore
+          ignore-policy: ${{ github.workspace }}/trivy/ignore-policy.rego
+          version: v0.68.1
 
       - name: Verify SARIF file exists
         run: ls -la trivy-results.sarif
