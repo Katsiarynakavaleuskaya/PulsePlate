@@ -21,7 +21,7 @@ inputs:
     required: false
     default: 'requirements-ci-lite.txt'
   requirements-profile:
-    description: 'Explicit pinned dependency profile (runtime, runtime-dev, runtime-test, ci-lite)'
+    description: 'Explicit pinned dependency profile (runtime, runtime-dev, runtime-test, ci-test, ci-lite)'
     required: false
     default: ''
   constraints-file:
@@ -112,6 +112,16 @@ runs:
               fi
               if [[ ! -f "${{ inputs.test-requirements-file }}" ]]; then
                 echo "::error::Expected ${{ inputs.test-requirements-file }} when requirements-profile is runtime-test"
+                exit 1
+              fi
+              ;;
+            ci-test)
+              if [[ ! -f "${{ inputs.ci-lite-requirements-file }}" ]]; then
+                echo "::error::Expected ${{ inputs.ci-lite-requirements-file }} when requirements-profile is ci-test"
+                exit 1
+              fi
+              if [[ ! -f "${{ inputs.test-requirements-file }}" ]]; then
+                echo "::error::Expected ${{ inputs.test-requirements-file }} when requirements-profile is ci-test"
                 exit 1
               fi
               ;;

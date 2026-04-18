@@ -94,6 +94,14 @@ def test_python_setup_action_uses_locked_installer_not_floating_tools() -> None:
         in action_text
     )
     assert (
+        "::error::Expected ${{ inputs.ci-lite-requirements-file }} when requirements-profile is ci-test"
+        in action_text
+    )
+    assert (
+        "::error::Expected ${{ inputs.test-requirements-file }} when requirements-profile is ci-test"
+        in action_text
+    )
+    assert (
         "::error::Expected ${{ inputs.ci-lite-requirements-file }} when requirements-profile is ci-lite"
         in action_text
     )
@@ -281,7 +289,7 @@ def test_ci_workflow_uses_single_direct_proxy_python_install_path_per_job() -> N
 
     for job_name in ("test-pr", "test-feature", "test-main"):
         setup_step = _python_setup_step(".github/workflows/ci.yml", job_name)
-        assert setup_step["with"]["requirements-profile"] == "runtime-test"
+        assert setup_step["with"]["requirements-profile"] == "ci-test"
         assert "install-test-deps" not in setup_step["with"]
         assert all(step.get("name") != "Install dependencies" for step in jobs[job_name]["steps"])
 

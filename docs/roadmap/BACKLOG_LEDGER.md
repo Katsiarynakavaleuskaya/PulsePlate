@@ -559,6 +559,34 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Operator rebuild / diagnose-web / `IMAGE_REF` flows match the live contract
     - `docker compose` v2 wording is canonical on touched surfaces
 
+<a id="ledger-p1-pr-scoped-validation-contract-and-hook-fix"></a>
+- [ ] P1: PR-scoped validation contract and pre-push hook fix
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-PR-SCOPED-VALIDATION-CONTRACT
+  - Area: CI / tooling / governance
+  - Status note: Keep `make verify` as the hard merge-claim gate until this follow-up lands. Use this item to separate iterative PR-scope validation from final merge evidence and to fix the pre-push hook failure shape before changing agent/runbook guidance.
+  - Reason: The current repo-wide `make verify` loop is too broad for day-to-day PR iteration, while `scripts/run-backend-tests-pre-commit.sh` has surfaced a `FOUND_FOR_FILE[@]: unbound variable` failure on merge-commit paths. The follow-up must tighten the local PR-scoped validation contract around `make validate-changed` or an equivalent touched-scope path without weakening the canonical merge-readiness requirement.
+  - Evidence:
+    - `AGENTS.md:5-8`
+    - `AGENTS.md:27-30`
+    - `RUNBOOK_AGENT.md:377-383`
+    - `RUNBOOK_AGENT.md:600-603`
+    - `Makefile:130-134`
+    - `Makefile:175-175`
+    - `scripts/run-backend-tests-pre-commit.sh:174-204`
+  - Links:
+    - `AGENTS.md`
+    - `RUNBOOK_AGENT.md`
+    - `Makefile`
+    - `.pre-commit-config.yaml`
+    - `scripts/run-backend-tests-pre-commit.sh`
+  - DoD:
+    - The pre-push backend test hook no longer fails with `FOUND_FOR_FILE[@]: unbound variable`
+    - Repo docs distinguish iterative PR-scoped validation from the final `make verify` merge-claim gate
+    - Agent/runbook guidance points at the correct local validation path for PR iteration
+    - Deterministic tests cover the hook fix and the promoted validation contract
+
 <a id="ledger-p1-docker-runtime-slimming-after-profile-split"></a>
 - [ ] P1: Docker runtime slimming after CI install-profile split
   - Owner: @katsiaryna_kavaleuskaya
