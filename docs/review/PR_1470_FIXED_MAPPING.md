@@ -14,7 +14,20 @@ Record every new review or bot disposition here before resolving threads on GitH
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1470#pullrequestreview-4135081714
+Disposition: NOT-A-BUG
+Evidence: `deploy/WORKFLOW.md:435`; `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1470#discussion_r3105827926`; `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1470#discussion_r3105827930`
+Reason: the Sourcery review summary adds no distinct actionable beyond the two inline wording comments addressed below; the claimed trailing `docker-compose ... exec` command is not present on the current branch head because the runbook already uses `docker compose`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1470#discussion_r3105827926 -> eaab6933f
+Disposition: FIXED
+Commit: eaab6933f
+Evidence: `docs/deploy/OVERVIEW.md:140`
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1470#discussion_r3105827930 -> eaab6933f
+Disposition: FIXED
+Commit: eaab6933f
+Evidence: `docs/review/PR_1470_FIXED_MAPPING.md:12`
 
 ## Merge Readiness
 
