@@ -173,15 +173,17 @@ overlap policy:
     ```
   - semantic cache remains deferred-only
     ```bash
-    rg -n 'A1b|semantic cache|blocked until the `A1b -> A5` runtime sequence is closed' \
+    rg -n -A 2 -B 1 'semantic cache' \
       docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md \
-      docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md
+      docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md | \
+      rg -i 'deferred|blocked until|outside active implementation scope'
     ```
   - `ledger-p1-pro-monthly-quota-ledger-reconciliation` points to already-landed
     `PR #1379` evidence rather than a new runtime implementation claim
     ```bash
-    rg -n 'ledger-p1-pro-monthly-quota-ledger-reconciliation|PR #1379|1ddf8c6778ca1f13c2bfce2e052db5409e8d06ba' \
-      docs/roadmap/BACKLOG_LEDGER.md
+    rg -n -A 6 -B 1 'ledger-p1-pro-monthly-quota-ledger-reconciliation' \
+      docs/roadmap/BACKLOG_LEDGER.md | \
+      rg 'PR #1379|1ddf8c6778ca1f13c2bfce2e052db5409e8d06ba'
     ```
   - Rail B2 families do not become runtime truth
     ```bash
