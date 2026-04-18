@@ -51,16 +51,16 @@ Disposition: FIXED
 Commit: 39d600607dab8a53c45591d94981ef48aac59864
 Evidence: `docs/orchestration/WAVE6_A1B_PRO_QUOTA_RECONCILIATION_TASK_PACKET_2026-04-17.md` now specifies the minimum evidence bundle and concrete `rg` validation commands; `docs/roadmap/BACKLOG_LEDGER.md` now anchors shipped quota truth to `file:line` runtime/test evidence plus `PR #1379` merge truth; `docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md` now uses `file:line` anchors for the A1b runtime-truth and deferred semantic-cache claims; `docs/review/PR_1461_FIXED_MAPPING.md` no longer pre-checks in-progress merge gates and no longer claims "no actionable review comments" on the active head.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1461#pullrequestreview-4134879713 -> b0807d4bd63a6f0f68622d5f7e6ad5226fcd3201
-Disposition: FIXED
-Commit: b0807d4bd63a6f0f68622d5f7e6ad5226fcd3201
-Evidence: the follow-up CodeRabbit nit identified that two validation commands in `docs/orchestration/WAVE6_A1B_PRO_QUOTA_RECONCILIATION_TASK_PACKET_2026-04-17.md` were too permissive. The packet now uses context-aware `rg -A/-B ... | rg ...` checks so the semantic-cache assertion validates deferred/blocking context and the ledger assertion validates `PR #1379` / merge-SHA linkage inside the same ledger slice rather than matching unrelated terms anywhere in the file.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1461#pullrequestreview-4134879713
+Disposition: NOT-A-BUG
+Evidence: current head `docs/orchestration/WAVE6_A1B_PRO_QUOTA_RECONCILIATION_TASK_PACKET_2026-04-17.md` already uses context-aware validation commands for the semantic-cache and ledger checks instead of the earlier permissive disjunctions.
+Reason: the review targeted a superseded packet revision; the live head no longer contains the permissive validation form.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1461#pullrequestreview-4134886061 -> b755a368e6f05ff509dba264e2f6c8b41c07eb9c
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1461#discussion_r3105625912 -> b755a368e6f05ff509dba264e2f6c8b41c07eb9c
-Disposition: FIXED
-Commit: b755a368e6f05ff509dba264e2f6c8b41c07eb9c
-Evidence: the latest CodeRabbit review found that the packet still encoded the wrong execution roster for this lane. `docs/orchestration/WAVE6_A1B_PRO_QUOTA_RECONCILIATION_TASK_PACKET_2026-04-17.md` now matches the METATRON Track A contract by keeping `agent-coordinator` primary, ordering reviewers as `security-auditor -> bug-hunter -> architecture-specialist`, keeping `qa-engineer-agent` as acceptance, requiring `dev-operator` as the execution helper, and downgrading `backend-engineer` to a conditional role for explicit non-user-ingest widening only.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1461#pullrequestreview-4134886061
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1461#discussion_r3105625912
+Disposition: NOT-A-BUG
+Evidence: current head `docs/orchestration/WAVE6_A1B_PRO_QUOTA_RECONCILIATION_TASK_PACKET_2026-04-17.md` already matches the METATRON Track A lane contract by keeping `agent-coordinator` primary, ordering the review path as `security-auditor -> bug-hunter -> architecture-specialist`, keeping `qa-engineer-agent` as acceptance, requiring `dev-operator`, and making `backend-engineer` conditional.
+Reason: the review targeted a superseded packet revision; the live head already contains the corrected role-agent order.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1461#discussion_r3105602573
 Disposition: NOT-A-BUG
@@ -92,11 +92,11 @@ Disposition: NOT-A-BUG
 Evidence: the concrete actionable comments from this aggregate cubic review are dispositioned separately above as `discussion_r3105627703` and `discussion_r3105627707`.
 Reason: the summary review does not introduce an additional distinct defect beyond the already-stale inline observations.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1461#pullrequestreview-4134890362 -> fba26fc28d557bdce42d8ea0eb5429c5578d7f0b
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1461#discussion_r3105631660 -> fba26fc28d557bdce42d8ea0eb5429c5578d7f0b
-Disposition: FIXED
-Commit: fba26fc28d557bdce42d8ea0eb5429c5578d7f0b
-Evidence: cubic found that the semantic-cache validation command in `docs/orchestration/WAVE6_A1B_PRO_QUOTA_RECONCILIATION_TASK_PACKET_2026-04-17.md` was too narrow and could miss the live hard-gate wording. The packet now accepts both the deferred/blocking wording from the epic roadmap and the `Do **not** start semantic cache work before` wording from the dedicated semantic-cache gate document, so the check remains mechanically verifiable across both canonical docs.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1461#pullrequestreview-4134890362
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1461#discussion_r3105631660
+Disposition: NOT-A-BUG
+Evidence: current head `docs/orchestration/WAVE6_A1B_PRO_QUOTA_RECONCILIATION_TASK_PACKET_2026-04-17.md` already broadens the semantic-cache validation command to match both the deferred/blocking wording in the epic roadmap and the `Do **not** start semantic cache work before` wording in the dedicated gate doc.
+Reason: cubic reviewed an earlier packet revision; the live head already contains the broadened semantic-cache verification command.
 
 ## Merge Readiness
 
