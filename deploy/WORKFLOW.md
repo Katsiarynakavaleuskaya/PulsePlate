@@ -77,7 +77,7 @@ git push origin main
 **Что делаем:**
 - ✅ `docker pull` нового образа
 - ✅ one-shot migrations через release image до рестарта приложения
-- ✅ `docker-compose up -d --force-recreate` (или `docker run`)
+- ✅ `docker compose up -d --force-recreate` (или `docker run`)
 - ✅ Проверка health endpoint
 
 **Что НЕ делаем:**
@@ -93,16 +93,16 @@ ssh root@pulseplate.app
 cd /srv/pulseplate-production
 
 # 1. Подтянуть новый образ
-docker-compose -f docker-compose.production.yaml pull
+docker compose -f docker-compose.production.yaml pull
 
 # 2. Прогнать миграции через release image
 docker compose --env-file .env -f docker-compose.production.yaml run --rm --no-deps app alembic upgrade head
 
 # 3. Перезапустить сервисы
-docker-compose -f docker-compose.production.yaml up -d --force-recreate
+docker compose -f docker-compose.production.yaml up -d --force-recreate
 
 # 4. Проверить статус
-docker-compose -f docker-compose.production.yaml ps
+docker compose -f docker-compose.production.yaml ps
 
 # 5. Проверить health
 curl -fsS https://pulseplate.app/health | jq .
@@ -305,7 +305,7 @@ bash scripts/diagnose_web.sh
    # ✅ ПРАВИЛЬНО
    cd /srv/pulseplate-production
    nano .env  # добавить APP_ENV=production
-   docker-compose up -d --force-recreate app
+   docker compose up -d --force-recreate app
    ```
 
 3. **Изменить `Caddyfile.production` на сервере (это конфиг):**
@@ -313,7 +313,7 @@ bash scripts/diagnose_web.sh
    # ✅ ПРАВИЛЬНО
    cd /srv/pulseplate-production
    nano Caddyfile.production
-   docker-compose up -d --force-recreate caddy
+   docker compose up -d --force-recreate caddy
    ```
 
 ---
@@ -331,7 +331,7 @@ docker images | grep pulseplate
 
 ```bash
 # Получить container id сервиса app и посмотреть image
-APP_CID="$(docker-compose -f docker-compose.production.yaml ps -q app)"
+APP_CID="$(docker compose -f docker-compose.production.yaml ps -q app)"
 docker inspect "$APP_CID" --format '{{.Config.Image}}'
 # Должен показывать актуальный image ID
 ```
@@ -373,7 +373,7 @@ curl -fsS https://pulseplate.app/health | jq .
 ### 4. Проверить логи
 
 ```bash
-docker-compose -f docker-compose.production.yaml logs app --tail=50
+docker compose -f docker-compose.production.yaml logs app --tail=50
 # Не должно быть ошибок
 ```
 
@@ -398,10 +398,10 @@ Endpoint `/health` автоматически нормализует значе�
 **Решение:**
 ```bash
 # 1. Убедиться, что новый образ подтянут
-docker-compose -f docker-compose.production.yaml pull
+docker compose -f docker-compose.production.yaml pull
 
 # 2. Принудительно пересоздать контейнер
-docker-compose -f docker-compose.production.yaml up -d --force-recreate app
+docker compose -f docker-compose.production.yaml up -d --force-recreate app
 
 # 3. Проверить, что контейнер пересоздан
 docker ps --format 'table {{.Names}}\t{{.Image}}\t{{.CreatedAt}}'
@@ -429,10 +429,10 @@ cat .env | grep -E 'APP_ENV|ENVIRONMENT'
 nano .env
 
 # 3. Перезапустить контейнер
-docker-compose -f docker-compose.production.yaml up -d --force-recreate app
+docker compose -f docker-compose.production.yaml up -d --force-recreate app
 
 # 4. Проверить env внутри контейнера (через service name, без хардкода)
-docker-compose -f docker-compose.production.yaml exec -T app env | grep -E 'APP_ENV|ENVIRONMENT'
+docker compose -f docker-compose.production.yaml exec -T app env | grep -E 'APP_ENV|ENVIRONMENT'
 ```
 
 ---
@@ -461,4 +461,4 @@ docker-compose -f docker-compose.production.yaml exec -T app env | grep -E 'APP_
 - Никогда не коммить `.env` файлы
 - Используй GitHub Secrets для чувствительных данных
 - Регулярно обновляй Docker images (security patches)
-- Используй `docker-compose pull` перед `up` для получения последних security updates
+- Используй `docker compose pull` перед `up` для получения последних security updates
