@@ -26,12 +26,14 @@ Current GitHub review surface for PR `#1461` was re-checked on `18 April 2026`:
   `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1461#discussion_r3105625912`
 - actionable Cubic review identified by cubic:
   `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1461#pullrequestreview-4134866468`,
-  `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1461#pullrequestreview-4134887498`
+  `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1461#pullrequestreview-4134887498`,
+  `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1461#pullrequestreview-4134890362`
 - actionable Cubic inline comments identified by cubic:
   `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1461#discussion_r3105602573`,
   `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1461#discussion_r3105602575`,
   `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1461#discussion_r3105627703`,
-  `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1461#discussion_r3105627707`
+  `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1461#discussion_r3105627707`,
+  `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1461#discussion_r3105631660`
 - informational bot comments:
   `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1461#issuecomment-4271179799`,
   `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1461#issuecomment-4271184185`,
@@ -89,6 +91,12 @@ Reason: cubic reviewed an earlier artifact revision; the live head artifact alre
 Disposition: NOT-A-BUG
 Evidence: the concrete actionable comments from this aggregate cubic review are dispositioned separately above as `discussion_r3105627703` and `discussion_r3105627707`.
 Reason: the summary review does not introduce an additional distinct defect beyond the already-stale inline observations.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1461#pullrequestreview-4134890362 -> fba26fc28d557bdce42d8ea0eb5429c5578d7f0b
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1461#discussion_r3105631660 -> fba26fc28d557bdce42d8ea0eb5429c5578d7f0b
+Disposition: FIXED
+Commit: fba26fc28d557bdce42d8ea0eb5429c5578d7f0b
+Evidence: cubic found that the semantic-cache validation command in `docs/orchestration/WAVE6_A1B_PRO_QUOTA_RECONCILIATION_TASK_PACKET_2026-04-17.md` was too narrow and could miss the live hard-gate wording. The packet now accepts both the deferred/blocking wording from the epic roadmap and the `Do **not** start semantic cache work before` wording from the dedicated semantic-cache gate document, so the check remains mechanically verifiable across both canonical docs.
 
 ## Merge Readiness
 
