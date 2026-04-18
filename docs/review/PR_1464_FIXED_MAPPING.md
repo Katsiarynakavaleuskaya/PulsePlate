@@ -37,6 +37,16 @@ Disposition: FIXED
 Commit: 7759b5a49
 Evidence: `docs/roadmap/BACKLOG_LEDGER.md:342`, `docs/roadmap/BACKLOG_LEDGER.md:343`
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1464#discussion_r3105792515 -> 5edeaeb7b
+Disposition: FIXED
+Commit: 5edeaeb7b
+Evidence: `docs/orchestration/MONETIZATION_PLANNING_WAVE_PR_SERIES_RUNBOOK.md:93`, `app/main.py:48`, `app/main.py:205`
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1464#discussion_r3105792517 -> 5edeaeb7b
+Disposition: FIXED
+Commit: 5edeaeb7b
+Evidence: `docs/orchestration/MONETIZATION_PLANNING_WAVE_PR_SERIES_RUNBOOK.md:101`, `docs/orchestration/MONETIZATION_PLANNING_WAVE_PR_SERIES_RUNBOOK.md:102`, `frontend/src/components/SoftPaywallHook/SoftPaywallHook.tsx:9`, `frontend/src/components/SoftPaywallHook/SoftPaywallHook.tsx:10`, `app/services/intervention_trigger_engine.py:41`, `app/services/intervention_trigger_engine.py:43`, `app/schemas/intervention.py:11`, `app/schemas/intervention.py:12`
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1464#pullrequestreview-4134861106
 Disposition: NOT-A-BUG
 Evidence: `frontend/src/components/SoftPaywallHook/SoftPaywallHook.tsx:51`, `frontend/src/components/SoftPaywallHook/SoftPaywallHook.tsx:105`
@@ -51,6 +61,11 @@ Reason: This cubic review is an aggregate wrapper for inline threads `#discussio
 Disposition: NOT-A-BUG
 Evidence: `docs/analytics/METRICS_CATALOG.md:837`, `docs/orchestration/MONETIZATION_PLANNING_WAVE_TASK_PACKET_2026-04-13.md:93`, `docs/roadmap/BACKLOG_LEDGER.md:342`
 Reason: This CodeRabbit review is an aggregate wrapper for the inline doc comments handled above; once those individual comments are dispositioned, no separate unresolved defect remains at the review level.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1464#pullrequestreview-4135049981
+Disposition: NOT-A-BUG
+Evidence: `docs/orchestration/MONETIZATION_PLANNING_WAVE_PR_SERIES_RUNBOOK.md:93`, `docs/orchestration/MONETIZATION_PLANNING_WAVE_PR_SERIES_RUNBOOK.md:101`, `docs/orchestration/MONETIZATION_PLANNING_WAVE_PR_SERIES_RUNBOOK.md:102`
+Reason: This later CodeRabbit review is an aggregate wrapper for inline threads `#discussion_r3105792515` and `#discussion_r3105792517`, which are fixed in `5edeaeb7b`; it does not introduce an additional standalone defect beyond those thread-level findings.
 
 ## Merge Readiness
 - [ ] All required checks pass
