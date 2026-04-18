@@ -182,7 +182,7 @@ overlap policy:
     rg -n -A 2 -B 1 'semantic cache' \
       docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md \
       docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md | \
-      rg -i 'deferred|blocked until|outside active implementation scope'
+      rg -i 'deferred|blocked until|outside active implementation scope|do \*\*not\*\* start semantic cache work before'
     ```
   - `ledger-p1-pro-monthly-quota-ledger-reconciliation` points to already-landed
     `PR #1379` evidence rather than a new runtime implementation claim
