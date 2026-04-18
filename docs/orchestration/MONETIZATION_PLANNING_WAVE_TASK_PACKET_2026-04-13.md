@@ -90,9 +90,9 @@ Deferred until after PR-3:
 - PR `#1296` merged `2026-04-02` (`America/New_York`)
 - PR `#1312` merged `2026-04-03` (`America/New_York`)
 - PR `#1381` merged `2026-04-09` (`America/New_York`)
-- PR `#1416` merged `2026-04-15` (`America/New_York`) and closed the general paywall exposure ledger foundation
-- PR `#1434` merged `2026-04-17` (`America/New_York`) and closed intervention trigger engine v1
-- execution-time `main` / `origin/main` baseline for PR-2: `7bf5d8819e33b40b35cef1aac7c7fcc76c32229f`
+- PR `#1416` merged `2026-04-15` (`America/New_York`) and closed the general paywall exposure ledger foundation (`docs/orchestration/MONETIZATION_PLANNING_WAVE_PR_SERIES_RUNBOOK.md:58`)
+- PR `#1434` merged `2026-04-17` (`America/New_York`) and closed intervention trigger engine v1 (`docs/orchestration/MONETIZATION_PLANNING_WAVE_PR_SERIES_RUNBOOK.md:59`, `docs/review/PR_1434_FIXED_MAPPING.md:2`)
+- execution-time `main` / `origin/main` baseline for PR-2: `7bf5d8819e33b40b35cef1aac7c7fcc76c32229f` (`docs/orchestration/MONETIZATION_PLANNING_WAVE_PR_SERIES_RUNBOOK.md:60`)
 
 ## PR-1 Contract Snapshot
 
@@ -154,7 +154,7 @@ Do not wire through billing or checkout paths.
 2. PR-1 introduces one backend-owned additive monetization seam without breaking
    current API payloads.
 3. PR-2 adds planning paywall exposure measurement before client experiments.
-   - This is a narrow planning-specific delta on top of PR `#1416`, not a second ledger-foundation PR.
+   - This is a narrow planning-specific delta on top of PR `#1416`, not a second ledger-foundation PR (`docs/orchestration/MONETIZATION_PLANNING_WAVE_PR_SERIES_RUNBOOK.md:58`, `docs/orchestration/MONETIZATION_PLANNING_WAVE_PR_SERIES_RUNBOOK.md:92`).
 4. PR-3 consumes backend hints while preserving fail-closed web checkout.
 5. Each PR starts from a fresh worktree off synced `origin/main`.
 6. After each merge, local `main` is fast-forward synced and old worktree artifacts

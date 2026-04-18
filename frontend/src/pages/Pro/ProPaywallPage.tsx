@@ -5,6 +5,9 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import BeforeAfter from '../../components/Paywall/BeforeAfter';
 import { purchasePremium } from '../../lib/paywallPurchase';
 
+const DEFAULT_PRO_PAYWALL_SOURCE = 'pro_page';
+const DEFAULT_PRO_PAYWALL_TRIGGER_REASON = 'unknown';
+
 type ProPaywallLocationState = {
   exposureId?: string;
   source?: string;
@@ -16,8 +19,8 @@ export default function ProPaywallPage(): JSX.Element {
   const location = useLocation();
   const navigate = useNavigate();
   const state = (location.state as ProPaywallLocationState | null) ?? null;
-  const source = state?.source ?? 'bmi_soft_paywall';
-  const triggerReason = state?.triggerReason ?? 'post_bmi';
+  const source = state?.source ?? DEFAULT_PRO_PAYWALL_SOURCE;
+  const triggerReason = state?.triggerReason ?? DEFAULT_PRO_PAYWALL_TRIGGER_REASON;
   const via = state?.via ?? 'pro_page';
 
   const handleClose = (): void => {

@@ -91,7 +91,7 @@ This wave is intentionally not:
 - Scope:
   - planning-specific wiring/taxonomy on top of the already-merged ledger foundation from PR `#1416`,
   - keep the hidden route `/api/v1/internal/paywall/events`,
-  - keep the canonical event set unchanged:
+  - keep the canonical event set unchanged (see `app/schemas/paywall_analytics.py:36`, `app/schemas/paywall_analytics.py:41`):
     - `shown`
     - `dismissed`
     - `cta_clicked`

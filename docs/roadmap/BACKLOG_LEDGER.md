@@ -339,7 +339,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Planning-flow monetization wave over the canonical FREE -> PRO -> VIP ladder
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR `#1416` -> PR `#1434` -> current PR-2 `feat/planning-paywall-exposure-ledger` -> planned PR-3 `feat/planning-next-best-action-consumers`
+  - Target PR: PR `#1416` -> PR `#1434` -> PR `#1464` -> PR-TBD-planning-next-best-action-consumers
+  - Lane note: current branch `feat/planning-paywall-exposure-ledger`; planned follow-up branch `feat/planning-next-best-action-consumers`
   - Status: 🟡 Active epic. Bootstrap governance opened the wave on `2026-04-13` (`America/New_York`); PR `#1416` merged the general paywall exposure ledger foundation on `2026-04-15`, PR `#1434` merged intervention trigger engine v1 on `2026-04-17`, and PR-2 is now the narrow planning-specific ledger wiring/taxonomy delta.
   - Area: product / growth / monetization / planning flow
   - Finding Type: monetization value-capture orchestration
