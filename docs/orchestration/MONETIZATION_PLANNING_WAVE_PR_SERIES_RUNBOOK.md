@@ -90,7 +90,7 @@ This wave is intentionally not:
 - Branch: `feat/planning-paywall-exposure-ledger`
 - Scope:
   - planning-specific wiring/taxonomy on top of the already-merged ledger foundation from PR `#1416`,
-  - keep the hidden route `/api/v1/internal/paywall/events`,
+  - keep the hidden route `/api/v1/internal/paywall/events` (see `app/main.py:48`, `app/main.py:205`),
   - keep the canonical event set unchanged (see `app/schemas/paywall_analytics.py:36`, `app/schemas/paywall_analytics.py:41`):
     - `shown`
     - `dismissed`
@@ -98,8 +98,8 @@ This wave is intentionally not:
     - `upgrade_started`
     - `upgrade_completed`,
   - align concrete planning surfaces only:
-    - BMI -> PRO targets: `source_surface=bmi_soft_paywall`, `trigger_reason=post_bmi`
-    - targets -> daily plate: `source_surface=pro_daily_plate`, `trigger_reason=targets_ready`
+    - BMI -> PRO targets: `source_surface=bmi_soft_paywall`, `trigger_reason=post_bmi` (see `frontend/src/components/SoftPaywallHook/SoftPaywallHook.tsx:9`, `frontend/src/components/SoftPaywallHook/SoftPaywallHook.tsx:10`, `app/schemas/intervention.py:12`)
+    - targets -> daily plate: `source_surface=pro_daily_plate`, `trigger_reason=targets_ready` (see `app/services/intervention_trigger_engine.py:41`, `app/services/intervention_trigger_engine.py:43`, `app/schemas/intervention.py:11`, `app/schemas/intervention.py:12`)
 - Hard boundary:
   - no vendor SDK rollout, no checkout semantics change, no pricing-truth change.
   - no widening of client/server event authority split.
