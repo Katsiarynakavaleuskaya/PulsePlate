@@ -34,6 +34,11 @@ Disposition: NOT-A-BUG
 Evidence: `.github/workflows/trivy.yml:102-113` already implements the deliberate fail-closed SARIF contract discussed in `discussion_r3105782286`; the broader centralization suggestions in the review are advisory refactor ideas, not merge-blocking correctness defects for this narrow replacement PR.
 Reason: The actionable correctness concern from the review is fully addressed by the documented fail-closed design above, and the remaining deduplication suggestions do not require additional code changes in this lane.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1467#pullrequestreview-4135102360 -> 2601527e7aca1b4abc3b32a6ee241258a2108c69
+Disposition: FIXED
+Commit: 2601527e7aca1b4abc3b32a6ee241258a2108c69
+Evidence: `docs/review/PR_1467_FIXED_MAPPING.md:17-25` now uses full 40-character commit SHAs in both the mapping arrows and `Commit:` fields, matching the audit-durability request from the latest CodeRabbit review summary.
+
 ## Merge Readiness
 
 Merge-readiness contract:
