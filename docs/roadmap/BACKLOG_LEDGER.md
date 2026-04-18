@@ -1794,7 +1794,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: AI bounded-context packet
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (architecture sequencing)
-  - Target PR: PR-TBD-AI-BOUNDED-CONTEXT-PACKET
+  - Target PR: PR-A3
   - Area: AI / architecture / docs
   - Finding Type: packet-first architecture freeze
   - Status: 📋 Planned
@@ -1804,6 +1804,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md`
     - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-ai-bounded-context-extraction`
     - `docs/architecture/ADR_AI_RUNTIME_BOUNDED_CONTEXT_SEAM_2026-03-09.md`
+    - `docs/architecture/C4_AI_BOUNDED_CONTEXT_PACKET_2026-03-20.md`
+    - `docs/orchestration/WAVE6_A3_AI_BOUNDED_CONTEXT_PACKET_2026-04-18.md`
   - DoD:
     - A docs-only packet exists before extraction
     - Ownership boundaries for AI runtime seams are explicit
