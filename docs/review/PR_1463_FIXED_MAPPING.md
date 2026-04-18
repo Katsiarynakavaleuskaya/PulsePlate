@@ -10,10 +10,10 @@
 
 ## Merge Readiness
 
-- [ ] All required checks pass
+- [x] All required checks pass
 - [ ] No unresolved review threads (re-check on current head before merge)
 - [x] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
 - [x] Pre-commit green
 - [ ] `make verify` green
 - [ ] Mandatory post-open `qa-engineer-agent -> bug-hunter` pass completed
-Notes: Draft PR opened for the post-bridge UI epic bootstrap lane. Current state is artifact-initialized only; merge readiness remains blocked on required current-head checks, `make verify`, and the canonical post-open review lane.
+Notes: Draft PR opened for the post-bridge UI epic bootstrap lane. Current-head required checks are green; remaining blockers are local `make verify` completion and the canonical post-open review lane.
