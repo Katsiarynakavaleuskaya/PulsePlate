@@ -85,6 +85,7 @@ jobs:
           format: sarif
           output: trivy-results.sarif
           severity: CRITICAL,HIGH
+          limit-severities-for-sarif: true
           ignore-unfixed: true
           trivyignores: .trivyignore
           ignore-policy: ${{ github.workspace }}/trivy/ignore-policy.rego
