@@ -339,8 +339,9 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Planning-flow monetization wave over the canonical FREE -> PRO -> VIP ladder
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-TBD-DOCS-MONETIZATION-PLANNING-WAVE-BOOTSTRAP -> PR-TBD-MONETIZATION-TRIGGER-ENGINE-V1 -> PR-TBD-PLANNING-PAYWALL-EXPOSURE-LEDGER -> PR-TBD-PLANNING-NEXT-BEST-ACTION-CONSUMERS
-  - Status: 🟡 Active epic. Bootstrap governance opens the wave on `2026-04-13` (`America/New_York`); runtime execution begins with PR-1 `feat(growth): add intervention trigger engine v1`.
+  - Target PR: PR `#1416` -> PR `#1434` -> PR `#1464` -> PR-TBD-planning-next-best-action-consumers
+  - Lane note: current branch `feat/planning-paywall-exposure-ledger`; planned follow-up branch `feat/planning-next-best-action-consumers`
+  - Status: 🟡 Active epic. Bootstrap governance opened the wave on `2026-04-13` (`America/New_York`); PR `#1416` merged the general paywall exposure ledger foundation on `2026-04-15`, PR `#1434` merged intervention trigger engine v1 on `2026-04-17`, and PR-2 is now the narrow planning-specific ledger wiring/taxonomy delta.
   - Area: product / growth / monetization / planning flow
   - Finding Type: monetization value-capture orchestration
   - Reason (EN): `origin/main` already closed the backend monetization spine through merged PRs `#1296` (`2026-04-02`), `#1312` (`2026-04-03`), and `#1381` (`2026-04-09`). The next profitable lane is not another receipt/entitlement rewrite; it is deterministic monetization over the planning-first journey `BMI -> targets -> daily plate -> weekly plan -> export/recipe follow-through`. The epic must stay thin-client-safe, additive, and worktree-isolated so billing/provider modernization does not get reopened by accident. (RU: Биллинг-спайн уже закрыт на `main`; следующий шаг — monetization поверх planning flow, а не новый receipt/entitlement PR.)
@@ -357,7 +358,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - DoD:
     - Bootstrap docs PR reconciles stale ledger wording and records the monetization PR train under explicit coordinator-owned governance
     - PR-1 adds backend-owned `next_best_action` hints on canonical BMI / PRO planning surfaces without touching billing, provider verification, or client-side pricing truth
-    - PR-2 adds deterministic planning paywall exposure ledger instrumentation aligned to `docs/analytics/*` canon
+    - PR-2 adds deterministic planning-surface paywall exposure wiring/taxonomy on top of merged ledger foundation PR `#1416`, aligned to `docs/analytics/*` canon
     - PR-3 consumes backend `next_best_action` hints on web/iOS while preserving fail-closed web checkout semantics
     - Every PR in the wave runs from a fresh `worktree`, merges only after current-head merge-readiness passes, then fast-forward syncs local `main` before the next PR starts
     - Follow-up surfaces (`paywall-copy-alignment`, CBT premium packaging, business-wave follow-through) remain explicitly deferred until after PR-3

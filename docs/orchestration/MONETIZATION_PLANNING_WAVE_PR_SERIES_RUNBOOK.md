@@ -55,7 +55,9 @@ This wave is intentionally not:
 - PR `#1296` merged on `2026-04-02` (`America/New_York`) and closed the activation/subscription persistence baseline.
 - PR `#1312` merged on `2026-04-03` (`America/New_York`) and landed App Store pricing-truth governance.
 - PR `#1381` merged on `2026-04-09` (`America/New_York`) and moved web premium truth to canonical backend/store session state.
-- Local `main` is synced to `origin/main` at `6096c1a35` before this wave starts.
+- PR `#1416` merged on `2026-04-15` (`America/New_York`) and landed the general paywall exposure ledger foundation (`app/schemas/paywall_analytics.py`, `app/routers/paywall_analytics.py`, `app/services/paywall_exposure_ledger.py`).
+- PR `#1434` merged on `2026-04-17` (`America/New_York`) and landed intervention trigger engine v1 as the current execution baseline for PR-2.
+- Execution-time `main` baseline for PR-2 is synced to `origin/main` at `7bf5d8819e33b40b35cef1aac7c7fcc76c32229f`.
 
 ## PR Series
 
@@ -87,10 +89,20 @@ This wave is intentionally not:
 - Worktree: `worktrees/monetization_planning_pr2`
 - Branch: `feat/planning-paywall-exposure-ledger`
 - Scope:
-  - add deterministic exposure events (`shown`, `dismissed`, `cta_clicked`,
-    `upgrade_started`, `upgrade_completed`) aligned to analytics docs canon.
+  - planning-specific wiring/taxonomy on top of the already-merged ledger foundation from PR `#1416`,
+  - keep the hidden route `/api/v1/internal/paywall/events` (see `app/main.py:48`, `app/main.py:205`),
+  - keep the canonical event set unchanged (see `app/schemas/paywall_analytics.py:36`, `app/schemas/paywall_analytics.py:41`):
+    - `shown`
+    - `dismissed`
+    - `cta_clicked`
+    - `upgrade_started`
+    - `upgrade_completed`,
+  - align concrete planning surfaces only:
+    - BMI -> PRO targets: `source_surface=bmi_soft_paywall`, `trigger_reason=post_bmi` (see `frontend/src/components/SoftPaywallHook/SoftPaywallHook.tsx:9`, `frontend/src/components/SoftPaywallHook/SoftPaywallHook.tsx:10`, `app/schemas/intervention.py:12`)
+    - targets -> daily plate: `source_surface=pro_daily_plate`, `trigger_reason=targets_ready` (see `app/services/intervention_trigger_engine.py:41`, `app/services/intervention_trigger_engine.py:43`, `app/schemas/intervention.py:11`, `app/schemas/intervention.py:12`)
 - Hard boundary:
   - no vendor SDK rollout, no checkout semantics change, no pricing-truth change.
+  - no widening of client/server event authority split.
 
 ### PR-3: Consume `next_best_action` Hints
 
@@ -127,6 +139,16 @@ Do not start these until PR-3 is merged and `main` is stable:
 3. `backend-engineer`
 4. `security-auditor`
 
+### PR-2 pre-open role order
+
+1. `agent-coordinator`
+2. `backend-engineer`
+3. `frontend-engineer`
+4. `security-auditor`
+5. `qa-engineer-agent`
+6. `bug-hunter`
+7. `agent-coordinator`
+
 ### Mandatory post-open review lane
 
 - `qa-engineer-agent -> bug-hunter -> agent-coordinator`
@@ -150,6 +172,7 @@ Do not start these until PR-3 is merged and `main` is stable:
    - intervention trigger engine is deterministic and fail-closed,
    - BMI / targets / weekly plan responses remain additive only.
 3. **PR-2 analytics seam**
+   - planning-surface ledger wiring reuses the merged PR `#1416` foundation,
    - exposure ledger event naming matches analytics canon,
    - no fake checkout or pricing truth enters the runtime.
 4. **PR-3 client consumption**

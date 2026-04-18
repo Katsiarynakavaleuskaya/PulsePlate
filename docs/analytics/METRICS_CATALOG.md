@@ -834,6 +834,12 @@ treated as emitted runtime telemetry yet.
 | vip_gate_interacted | featureName, interactionType, isVip | Gate interaction |
 | vip_badge_viewed | component, variant, isVip | Badge/upsell component view |
 
+Planning paywall ledger note:
+- Hidden first-party paywall ledger payloads may decorate these funnel families with planning-specific `source_surface` / `trigger_reason` pairs without renaming the canonical growth-event families above (see `app/routers/paywall_analytics.py:140`, `app/models/paywall_analytics.py:18`).
+- Planning vocabulary wired for this lane:
+  - `bmi_soft_paywall` / `post_bmi` (see `frontend/src/components/SoftPaywallHook/SoftPaywallHook.tsx:9`, `frontend/src/components/SoftPaywallHook/SoftPaywallHook.tsx:10`, `app/schemas/intervention.py:12`)
+  - `pro_daily_plate` / `targets_ready` (see `app/services/intervention_trigger_engine.py:41`, `app/services/intervention_trigger_engine.py:43`, `app/schemas/intervention.py:11`, `app/schemas/intervention.py:12`)
+
 ### Base payload (optional on all events)
 
 - timestamp (number)
