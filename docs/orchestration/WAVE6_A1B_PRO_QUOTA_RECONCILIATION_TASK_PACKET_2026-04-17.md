@@ -109,17 +109,23 @@ This packet exists to:
 ## Required Role-Agent Order
 
 1. `agent-coordinator`
-2. `backend-engineer`
-3. `architecture-specialist`
-4. `security-auditor`
+2. `security-auditor`
+3. `bug-hunter`
+4. `architecture-specialist`
 5. `qa-engineer-agent`
-6. `bug-hunter`
+6. `backend-engineer` — conditional, only for explicit non-user-ingest widening
+7. `dev-operator` — required execution helper for local validation / evidence capture
 
 Rules:
 
 - this order is the lane SoT even if `task_bootstrap.py` suggests a different
   routed primary;
 - no assigned role agent may be skipped without an explicit packet update;
+- `dev-operator` cannot be omitted from the executable lane because this packet
+  relies on command-level validation evidence rather than implementation-only
+  review;
+- `backend-engineer` remains out of roster unless the lane is explicitly widened
+  beyond docs/governance into a non-user-ingest runtime ticket;
 - the canonical post-open `qa-engineer-agent -> bug-hunter` pass remains
   mandatory.
 
