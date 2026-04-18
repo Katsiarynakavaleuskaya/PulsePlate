@@ -5043,7 +5043,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Make foods foundation downgrade ownership-aware for pre-existing catalog objects
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-TBD-FOODS-FOUNDATION-DOWNGRADE-OWNERSHIP -> `codex/foods-foundation-downgrade-ownership`
+  - Target PR: PR #1468 -> `codex/foods-foundation-downgrade-ownership`
   - Status: 🚧 In progress
   - Area: backend / migrations / PostgreSQL
   - Finding Type: downgrade symmetry / object ownership
@@ -5053,6 +5053,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `docs/orchestration/FOODS_CATALOG_FOUNDATION_PR_A_TASK_PACKET_2026-04-12.md`
     - `docs/orchestration/FOODS_FOUNDATION_DOWNGRADE_OWNERSHIP_TASK_PACKET_2026-04-18.md`
     - `docs/review/PR_1409_FIXED_MAPPING.md`
+    - `docs/review/PR_1468_FIXED_MAPPING.md`
   - DoD:
     - Downgrade behavior is explicit for both clean-room and pre-existing `foods` catalog shapes
     - The revision no longer drops pre-existing `foods`/index artifacts that it did not create

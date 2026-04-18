@@ -34,6 +34,8 @@ revision and preserves pre-existing compatible `foods` catalog objects.
 
 ## PR Metadata
 
+- PR number: `1468`
+- PR URL: `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1468`
 - Branch: `codex/foods-foundation-downgrade-ownership`
 - PR title: `fix(data): make foods foundation downgrade ownership-aware`
 - Merge method: **merge commit** via `gh pr merge --merge --delete-branch`
