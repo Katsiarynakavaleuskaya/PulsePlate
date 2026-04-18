@@ -92,9 +92,14 @@ jobs:
           ignore-policy: ${{ github.workspace }}/trivy/ignore-policy.rego
           version: v0.68.1
 
-      - name: Warn when Trivy SARIF is missing
-        if: ${{ hashFiles('trivy-results.sarif') == '' }}
-        run: echo "::warning::Trivy SARIF missing; skipping upload."
+      - name: Fail when Trivy SARIF is missing
+        if: ${{ always() }}
+        run: |
+          if [ ! -f trivy-results.sarif ]; then
+            echo "::error::Trivy SARIF missing after scan; failing closed."
+            exit 1
+          fi
+          ls -la trivy-results.sarif
 
       - name: Upload Trivy scan results to GitHub Security tab
         uses: github/codeql-action/upload-sarif@c00e4aee0547167576bc6663920491135a3dee27 # v4
