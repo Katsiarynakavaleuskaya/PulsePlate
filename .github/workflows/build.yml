@@ -192,6 +192,13 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
+      - name: Prepare Trivy ignore policy
+        run: |
+          set -euo pipefail
+          test -f trivy/ignore-policy.rego
+          cp trivy/ignore-policy.rego .trivy-ignore-policy.rego
+          ls -la .trivy-ignore-policy.rego
+
       - name: Free disk space (Ubuntu hosted runner)
         continue-on-error: true
         run: |
