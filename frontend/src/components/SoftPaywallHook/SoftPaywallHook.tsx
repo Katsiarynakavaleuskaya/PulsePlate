@@ -48,6 +48,13 @@ export default function SoftPaywallHook({ hook, onCtaClick }: SoftPaywallHookPro
     }
   }, [hookId, isRenderable]);
 
+  const ensureExposureId = useCallback((): string => {
+    if (!exposureIdRef.current) {
+      exposureIdRef.current = createAnalyticsEventId();
+    }
+    return exposureIdRef.current;
+  }, []);
+
   const safeLogPaywallEvent = useCallback(
     (eventName: 'shown' | 'cta_clicked'): void => {
       if (!hook || !isRenderable) {
@@ -57,7 +64,7 @@ export default function SoftPaywallHook({ hook, onCtaClick }: SoftPaywallHookPro
       try {
         logPaywallExposure({
           client_event_id: createAnalyticsEventId(),
-          exposure_id: exposureIdRef.current ?? createAnalyticsEventId(),
+          exposure_id: ensureExposureId(),
           event_name: eventName,
           source_surface: BMI_SOFT_PAYWALL_SOURCE,
           trigger_reason: BMI_SOFT_PAYWALL_TRIGGER_REASON,
@@ -73,7 +80,7 @@ export default function SoftPaywallHook({ hook, onCtaClick }: SoftPaywallHookPro
         // EN: Analytics failures must never break teaser/paywall UX.
       }
     },
-    [hook, isRenderable]
+    [ensureExposureId, hook, isRenderable]
   );
 
   useEffect(() => {
@@ -95,13 +102,11 @@ export default function SoftPaywallHook({ hook, onCtaClick }: SoftPaywallHookPro
   }
 
   const handleClick = (): void => {
+    const exposureId = ensureExposureId();
     safeLogPaywallEvent('cta_clicked');
     if (onCtaClick) {
       onCtaClick();
     } else {
-      const exposureId = exposureIdRef.current ?? createAnalyticsEventId();
-      exposureIdRef.current = exposureId;
-
       // Default: navigate to /pro (paywall page)
       navigate('/pro', {
         state: {

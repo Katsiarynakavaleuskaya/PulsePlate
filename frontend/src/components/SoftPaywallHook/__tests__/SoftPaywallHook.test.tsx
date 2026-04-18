@@ -112,6 +112,10 @@ describe("SoftPaywallHook", () => {
     const ctaButton = screen.getByTestId("soft-paywall-cta");
     fireEvent.click(ctaButton);
 
+    const ctaPayload = logPaywallExposure.mock.calls.at(-1)?.[0] as
+      | Record<string, unknown>
+      | undefined;
+
     // Assert exactly one navigation call with correct path
     expect(mockNavigate).toHaveBeenCalledTimes(1);
     expect(mockNavigate).toHaveBeenCalledWith("/pro", {
@@ -122,6 +126,8 @@ describe("SoftPaywallHook", () => {
         via: "pro_page",
       },
     });
+    expect(ctaPayload?.event_name).toBe("cta_clicked");
+    expect(ctaPayload?.exposure_id).toBe("analytics-id-1");
   });
 
   it("reuses one exposure lifecycle id for shown and CTA events", (): void => {
