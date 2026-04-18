@@ -14,7 +14,30 @@ Record every new bot/human disposition here before resolving threads on GitHub.
 
 ## Fixed in Commit Mapping
 
-- Actionable comments posted; map them after the fix commit lands on this branch head.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1469#pullrequestreview-4135082088 -> 52bdcccd1
+Disposition: FIXED
+Commit: 52bdcccd1
+Evidence: `docs/review/PR_1469_FIXED_MAPPING.md:15-40`; `docs/review/PR_1469_FIXED_MAPPING.md:70-75`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1469#discussion_r3105828473 -> 52bdcccd1
+Disposition: FIXED
+Commit: 52bdcccd1
+Evidence: `docs/review/PR_1469_FIXED_MAPPING.md:15-40`; `docs/review/PR_1469_FIXED_MAPPING.md:70-75`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1469#discussion_r3105829797 -> 52bdcccd1
+Disposition: FIXED
+Commit: 52bdcccd1
+Evidence: `docs/review/PR_1469_FIXED_MAPPING.md:15-40`; `docs/review/PR_1469_FIXED_MAPPING.md:70-75`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1469#pullrequestreview-4135083463 -> 52bdcccd1
+Disposition: FIXED
+Commit: 52bdcccd1
+Evidence: `docs/review/PR_1469_FIXED_MAPPING.md:15-40`; `docs/review/PR_1469_FIXED_MAPPING.md:70-75`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1469#discussion_r3105830379 -> 52bdcccd1
+Disposition: FIXED
+Commit: 52bdcccd1
+Evidence: `docs/review/PR_1469_FIXED_MAPPING.md:15-40`; `docs/review/PR_1469_FIXED_MAPPING.md:70-75`.
 
 ## Merge Readiness
 
