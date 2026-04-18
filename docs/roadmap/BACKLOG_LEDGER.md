@@ -5068,6 +5068,10 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Area: backend / migrations / PostgreSQL
   - Finding Type: legacy downgrade / ownership backfill
   - Reason: Databases that already applied the pre-ownership version of revision `202604120001` do not have `pulseplate_migration_ownership`, so downgrade cannot distinguish revision-owned objects from pre-existing catalog artifacts. PR `#1468` intentionally fixes forward-looking ownership-aware behavior for new upgrade runs only; retroactive repair for already-applied environments requires a separate design lane.
+  - Evidence:
+    - `alembic/versions/202604120001_add_foods_catalog_foundation.py:83`
+    - `alembic/versions/202604120001_add_foods_catalog_foundation.py:119`
+    - `docs/orchestration/FOODS_FOUNDATION_DOWNGRADE_OWNERSHIP_TASK_PACKET_2026-04-18.md:65`
   - Links:
     - `alembic/versions/202604120001_add_foods_catalog_foundation.py`
     - `docs/orchestration/FOODS_FOUNDATION_DOWNGRADE_OWNERSHIP_TASK_PACKET_2026-04-18.md`
