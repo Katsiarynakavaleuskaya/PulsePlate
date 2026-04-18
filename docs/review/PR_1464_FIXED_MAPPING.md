@@ -7,10 +7,10 @@
 ## Fixed in Commit Mapping
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1464#discussion_r3105596267 -> f3686ad47
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1464#discussion_r3105599240 -> f3686ad47
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1464#discussion_r3105603191 -> f3686ad47
-Disposition: FIXED
-Commit: f3686ad47
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1464#discussion_r3105603191
+Disposition: NOT-A-BUG
 Evidence: `frontend/src/components/SoftPaywallHook/SoftPaywallHook.tsx:51`, `frontend/src/components/SoftPaywallHook/SoftPaywallHook.tsx:67`, `frontend/src/components/SoftPaywallHook/SoftPaywallHook.tsx:105`, `frontend/src/components/SoftPaywallHook/__tests__/SoftPaywallHook.test.tsx:129`
+Reason: The cubic inline comment was posted after `f3686ad47` had already landed on the PR branch, and the current code already persists a single `exposureIdRef` for both analytics and navigation. This thread therefore documents an already-correct branch state rather than a post-comment defect that required a new follow-up commit.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1464#discussion_r3105603192 -> 7759b5a49
 Disposition: FIXED
