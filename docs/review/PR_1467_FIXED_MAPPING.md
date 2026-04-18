@@ -33,5 +33,5 @@ Merge-readiness contract:
 - [ ] Pre-commit green on latest pushed head
   Evidence: `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md:175-180`.
 - [ ] `make verify` green on latest pushed head
-  Evidence: `AGENTS.md:1-16`; `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md:175-180`.
+  Evidence: `Makefile:164-176`; `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md:175-180`.
 <!-- markdownlint-enable MD034 -->
