@@ -19,7 +19,7 @@ Disposition: FIXED
 Commit: 44d90acbe1cae76b0f92e2dc85d3dcf543a8cd0f
 Evidence: `docs/review/PR_1465_FIXED_MAPPING.md:1`, `docs/roadmap/BACKLOG_LEDGER.md:562`, `scripts/ci/install_locked_python_requirements.py:213`, `tests/test_install_locked_python_requirements.py:259`
 Reason: Bot feedback was addressed by removing the redundant markdownlint suppression, adding evidence-driven backlog anchors plus the grammar fix, clarifying the `ci-test` missing-file failure path, and adding the complementary fail-closed test coverage.
-
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1465#discussion_r3105587884 -> 44d90acbe1cae76b0f92e2dc85d3dcf543a8cd0f
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1465#pullrequestreview-4134851830 -> 44d90acbe1cae76b0f92e2dc85d3dcf543a8cd0f
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1465#discussion_r3105590662 -> 44d90acbe1cae76b0f92e2dc85d3dcf543a8cd0f
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1465#pullrequestreview-4134855122 -> 44d90acbe1cae76b0f92e2dc85d3dcf543a8cd0f
