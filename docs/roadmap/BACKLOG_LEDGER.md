@@ -9371,6 +9371,6 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - empty selections remain an explicit no-op with stable logs
     - workflow contract tests cover the shared helper wiring end to end
 
-**Last updated:** 2026-04-12 (feature-branch CI feedback routing follow-up)
+**Last updated:** 2026-04-18 (foods foundation downgrade ownership review follow-up)
 **Maintainer:** @katsiaryna_kavaleuskaya
 <!-- markdownlint-enable MD013 -->

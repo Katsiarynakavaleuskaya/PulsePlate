@@ -10,8 +10,11 @@
 
 Disposition: FIXED
 Commit: a8695cf3669da38ab1b79d5766c606b329066d55
-Evidence: `alembic/versions/202604120001_add_foods_catalog_foundation.py:94`; `alembic/versions/202604120001_add_foods_catalog_foundation.py:123`; `tests/test_foods_catalog_foundation_migration.py:28`; `tests/test_foods_catalog_foundation_migration.py:214`; `docs/orchestration/FOODS_FOUNDATION_DOWNGRADE_OWNERSHIP_TASK_PACKET_2026-04-18.md:31`; `docs/review/PR_1468_FIXED_MAPPING.md:11`; `docs/review/PR_1468_FIXED_MAPPING.md:22`; `docs/review/PR_1468_FIXED_MAPPING.md:43`; `docs/review/PR_1468_FIXED_MAPPING.md:44`
+Evidence: `alembic/versions/202604120001_add_foods_catalog_foundation.py:94`; `alembic/versions/202604120001_add_foods_catalog_foundation.py:123`; `tests/test_foods_catalog_foundation_migration.py:28`; `tests/test_foods_catalog_foundation_migration.py:214`; `docs/orchestration/FOODS_FOUNDATION_DOWNGRADE_OWNERSHIP_TASK_PACKET_2026-04-18.md:31`; `docs/review/PR_1468_FIXED_MAPPING.md:15`; `docs/review/PR_1468_FIXED_MAPPING.md:26`; `docs/review/PR_1468_FIXED_MAPPING.md:57`; `docs/review/PR_1468_FIXED_MAPPING.md:58`
 Reason: The ownership registry primary key now includes `table_name`, the fake migration runtime parses `CREATE INDEX` statements with a table-aware regex, the task packet points at the current PR mapping artifact, and this canonical review artifact now uses explicit disposition/evidence entries plus repo-relative validation commands.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1468#pullrequestreview-4135046538 -> a8695cf3669da38ab1b79d5766c606b329066d55
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1468#pullrequestreview-4135048529 -> a8695cf3669da38ab1b79d5766c606b329066d55
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1468#pullrequestreview-4135051316 -> a8695cf3669da38ab1b79d5766c606b329066d55
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1468#discussion_r3105787460 -> a8695cf3669da38ab1b79d5766c606b329066d55
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1468#discussion_r3105790288 -> a8695cf3669da38ab1b79d5766c606b329066d55
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1468#discussion_r3105790295 -> a8695cf3669da38ab1b79d5766c606b329066d55
@@ -41,7 +44,7 @@ Reason: Retroactive rollback repair for databases that already applied the old `
 
 ## Implementation Baseline
 
-- Latest PR head: `a8695cf3669da38ab1b79d5766c606b329066d55`
+- Latest PR head: `e28c6eeae7d1fc5b242ced88ac060ad964a42ea5`
 - Earlier implementation baseline: `9e8164a7759c910b6848af23374ce8b3de588942`
 - Scope:
   - `alembic/versions/202604120001_add_foods_catalog_foundation.py`
