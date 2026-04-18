@@ -6,22 +6,15 @@ Canonical review-governance artifact and PR-body mirror requirements:
 `AGENTS.md:42-52`; `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md:41-90`;
 `docs/orchestration/AGENTS.md:79-82`.
 
-- [ ] Discussion-thread pass completed
-- [ ] Fixed in commit mapping completed
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 
 This artifact is created immediately after PR open per repo governance.
 Record every new bot/human disposition here before resolving threads on GitHub.
 
 ## Fixed in Commit Mapping
 
-No actionable review threads yet.
-
-Opening commit for the packet-only docs slice:
-
-Disposition: FIXED
-Commit: c06fb6ab9
-Evidence: `docs/orchestration/WAVE6_A3_AI_BOUNDED_CONTEXT_PACKET_2026-04-18.md:1`; `docs/roadmap/BACKLOG_LEDGER.md:1794`; `docs/architecture/C4_AI_BOUNDED_CONTEXT_PACKET_2026-03-20.md:1`
-Reason: The opening docs-only slice defines the canonical `PR-A3` packet, retargets the backlog anchor to `PR-A3`, and reconciles stale C4 wording with the already-landed `core/ai/*` seam.
+- No actionable review comments
 
 ## Merge Readiness
 
