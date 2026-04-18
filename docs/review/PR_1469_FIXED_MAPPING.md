@@ -14,7 +14,7 @@ Record every new bot/human disposition here before resolving threads on GitHub.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- Actionable comments posted; map them after the fix commit lands on this branch head.
 
 ## Merge Readiness
 
@@ -49,7 +49,7 @@ Merge-readiness contract:
 - `python3 scripts/orchestration/check_preflight.py`
 - `python3 scripts/orchestration/check_agent_consistency.py`
 - `pre-commit run --all-files`
-- `VENV_PYTHON=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python make validate-min`
+- `VENV_PYTHON=.venv/bin/python make validate-min`
 
 ## Deferred / Follow-ups
 
