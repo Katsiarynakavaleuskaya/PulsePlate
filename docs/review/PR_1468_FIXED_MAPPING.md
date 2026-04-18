@@ -20,6 +20,12 @@ Reason: The ownership registry primary key now includes `table_name`, the fake m
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1468#discussion_r3105794330 -> a8695cf3669da38ab1b79d5766c606b329066d55
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1468#discussion_r3105794331 -> a8695cf3669da38ab1b79d5766c606b329066d55
 
+Disposition: FIXED
+Commit: ee88a8d4482fdd049c59b6e0fe2353642d3ddeef
+Evidence: `docs/roadmap/BACKLOG_LEDGER.md:5071`; `docs/roadmap/BACKLOG_LEDGER.md:5072`; `docs/roadmap/BACKLOG_LEDGER.md:5073`; `docs/roadmap/BACKLOG_LEDGER.md:5074`
+Reason: The deferred legacy-ownership backlog item now carries direct `file:line` anchors for the claim about absent ownership registry semantics and the explicit out-of-scope boundary for retroactive repair.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1468#discussion_r3105804909 -> ee88a8d4482fdd049c59b6e0fe2353642d3ddeef
+
 Disposition: DEFERRED
 Backlog: `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-foods-foundation-legacy-ownership-backfill`
 Evidence: `docs/orchestration/FOODS_FOUNDATION_DOWNGRADE_OWNERSHIP_TASK_PACKET_2026-04-18.md:65`; `docs/roadmap/BACKLOG_LEDGER.md:5062`
