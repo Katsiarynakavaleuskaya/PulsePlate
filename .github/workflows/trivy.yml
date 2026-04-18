@@ -73,6 +73,13 @@ jobs:
             echo "::warning::GHCR_READ_TOKEN is set but docker login was denied; continuing without registry auth."
           fi
 
+      - name: Prepare Trivy ignore policy
+        run: |
+          set -euo pipefail
+          test -f trivy/ignore-policy.rego
+          cp trivy/ignore-policy.rego .trivy-ignore-policy.rego
+          ls -la .trivy-ignore-policy.rego
+
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # v0.35.0
         env:
@@ -89,8 +96,7 @@ jobs:
           limit-severities-for-sarif: true
           ignore-unfixed: true
           trivyignores: .trivyignore
-          # Keep the policy path repo-relative; the action reads it from the checked-out workspace.
-          ignore-policy: trivy/ignore-policy.rego
+          ignore-policy: .trivy-ignore-policy.rego
           version: v0.69.3
 
       - name: Fail when Trivy SARIF is missing
