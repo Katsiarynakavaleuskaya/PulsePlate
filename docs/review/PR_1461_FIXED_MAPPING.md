@@ -28,12 +28,12 @@ Current GitHub review surface for PR `#1461` was re-checked on `18 April 2026`:
 
 ## Fixed in Commit Mapping
 
-- `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1461#pullrequestreview-4134861451` -> `39d600607dab8a53c45591d94981ef48aac59864`
-- `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1461#discussion_r3105596724` -> `39d600607dab8a53c45591d94981ef48aac59864`
-- `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1461#discussion_r3105596728` -> `39d600607dab8a53c45591d94981ef48aac59864`
-- `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1461#discussion_r3105596730` -> `39d600607dab8a53c45591d94981ef48aac59864`
-- `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1461#discussion_r3105596734` -> `39d600607dab8a53c45591d94981ef48aac59864`
-- `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1461#discussion_r3105596736` -> `39d600607dab8a53c45591d94981ef48aac59864`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1461#pullrequestreview-4134861451 -> 39d600607dab8a53c45591d94981ef48aac59864
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1461#discussion_r3105596724 -> 39d600607dab8a53c45591d94981ef48aac59864
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1461#discussion_r3105596728 -> 39d600607dab8a53c45591d94981ef48aac59864
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1461#discussion_r3105596730 -> 39d600607dab8a53c45591d94981ef48aac59864
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1461#discussion_r3105596734 -> 39d600607dab8a53c45591d94981ef48aac59864
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1461#discussion_r3105596736 -> 39d600607dab8a53c45591d94981ef48aac59864
 Disposition: FIXED
 Commit: `39d600607dab8a53c45591d94981ef48aac59864`
 Evidence: `docs/orchestration/WAVE6_A1B_PRO_QUOTA_RECONCILIATION_TASK_PACKET_2026-04-17.md` now specifies the minimum evidence bundle and concrete `rg` validation commands; `docs/roadmap/BACKLOG_LEDGER.md` now anchors shipped quota truth to `file:line` runtime/test evidence plus `PR #1379` merge truth; `docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md` now uses `file:line` anchors for the A1b runtime-truth and deferred semantic-cache claims; `docs/review/PR_1461_FIXED_MAPPING.md` no longer pre-checks in-progress merge gates and no longer claims "no actionable review comments" on the active head.
