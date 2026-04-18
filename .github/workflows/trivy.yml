@@ -90,7 +90,7 @@ jobs:
           ignore-unfixed: true
           trivyignores: .trivyignore
           ignore-policy: ${{ github.workspace }}/trivy/ignore-policy.rego
-          version: v0.68.1
+          version: v0.69.3
 
       - name: Fail when Trivy SARIF is missing
         if: ${{ always() }}
