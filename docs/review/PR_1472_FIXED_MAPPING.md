@@ -6,8 +6,8 @@ Canonical review-governance artifact and PR-body mirror requirements:
 `AGENTS.md:42-52`; `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md:41-90`;
 `docs/orchestration/AGENTS.md:58-60`.
 
-- [ ] Discussion-thread pass completed
-- [ ] Fixed in commit mapping completed
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 
 This artifact is created immediately after lane setup per repo governance.
 Record every new review or bot disposition here before resolving threads on
@@ -54,5 +54,8 @@ Merge-readiness contract:
 - Local latest-head evidence already collected:
   - `pre-commit run --all-files` passed
   - `make verify` passed end-to-end on the remediation head
+- Current review-thread status on the latest pushed head:
+  - `gh api graphql` reports the cubic review thread
+    (`PRRT_kwDOPi-pts57_SvJ`) as `isResolved=true`
 - Canonical lane packet:
   `docs/orchestration/DEPENDABOT_PR_1472_QUALITY_GROUP_REMEDIATION_PACKET_2026-04-19.md`
