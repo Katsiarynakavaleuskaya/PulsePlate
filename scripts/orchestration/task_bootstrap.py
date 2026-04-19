@@ -538,6 +538,12 @@ def _apply_requested_agent_overrides(
     resolved_secondary_agents = [agent for agent in [secondary_agent] if agent]
     dispositions: list[dict[str, str]] = []
     advisory_agents: list[str] = []
+    coordinator_locked = (
+        canonical_route is not None
+        and canonical_route.primary == "agent-coordinator"
+        and "agent-coordinator" in requested_agents
+        and primary_agent == "agent-coordinator"
+    )
 
     def _disposition(agent: str, status: str, reason: str) -> dict[str, str]:
         """Build a deterministic disposition payload for requested-agent handling."""
@@ -576,6 +582,32 @@ def _apply_requested_agent_overrides(
         # may appear as secondary/reviewer in AGENT_ROUTING_GRAPH.md while still being
         # listed in AGENT_NON_ROUTABLE_SPECIALISTS.md for default routing semantics.
         if agent in allowed_promotions:
+            if coordinator_locked and agent != "agent-coordinator":
+                if agent == reviewer:
+                    dispositions.append(
+                        _disposition(
+                            agent,
+                            REQUESTED_AGENT_STATUS_HONORED_REVIEWER,
+                            (
+                                "Coordinator-owned lane keeps `agent-coordinator` as primary; "
+                                "requested reviewer stays honored in reviewer."
+                            ),
+                        )
+                    )
+                    continue
+                if agent not in resolved_secondary_agents:
+                    resolved_secondary_agents.append(agent)
+                dispositions.append(
+                    _disposition(
+                        agent,
+                        REQUESTED_AGENT_STATUS_HONORED_SECONDARY,
+                        (
+                            "Coordinator-owned lane keeps `agent-coordinator` as primary; "
+                            "requested agent stays honored in secondary."
+                        ),
+                    )
+                )
+                continue
             previous_primary = resolved_primary
             resolved_primary = agent
             resolved_secondary_agents = [

@@ -996,6 +996,65 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
       merge-ready status still require the iOS blocker to be resolved or
       dispositioned
 
+<a id="ledger-p1-ui-epic-post-bridge-series"></a>
+- [ ] P1: Post-bridge UI epic series bootstrap and execution lane
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (UI/UX execution governance)
+  - Target PR: PR #1463 (`docs(ui-ux): add post-bridge UI epic runbook and lane packet`)
+  - Status: 🛠️ In progress in PR #1463
+  - Area: docs / orchestration / ios / frontend / storybook
+  - Finding Type: post-bridge execution follow-on
+  - Reason: The design-bridge baseline is already merged on `main` through
+    PR `#1386` and PR `#1391`, so the next UI lane must start as a fresh
+    product-facing series instead of reopening bridge operationalization. The
+    first executable gap is iOS visible coherence, followed by one semantic
+    iOS surface seam, then bounded Storybook parity expansion, and only later
+    thin-client consumption of the already existing backend
+    `next_best_action` contract.
+  - Evidence:
+    - `docs/orchestration/DESIGN_BRIDGE_OPERATIONALIZATION_PACKET_2026-04-11.md:44-72`
+    - `docs/roadmap/BACKLOG_LEDGER.md:860-876`
+    - `app/schemas/weekly_plan.py:201-206`
+    - `app/routers/pro.py:360-368`
+    - `docs/orchestration/MONETIZATION_PLANNING_WAVE_PR_SERIES_RUNBOOK.md:74-103`
+    - `frontend/src/api/__tests__/thin-client-guards.test.ts:7-19`
+    - `frontend/AGENTS.md:27-38`
+    - `ios/AGENTS.md:86-92`
+  - Links:
+    - `docs/orchestration/UI_EPIC_PR_SERIES_RUNBOOK.md`
+    - `docs/orchestration/UI_EPIC_PR1_BOOTSTRAP_PACKET_2026-04-18.md`
+    - `docs/architecture/ADR_UI_SEMANTIC_SURFACE_SEAM_2026-04-19.md`
+    - `docs/orchestration/DESIGN_BRIDGE_OPERATIONALIZATION_PACKET_2026-04-11.md`
+    - `docs/design/DESIGN_BRIDGE_FIRST_PARITY_PACK_2026-04-11.md`
+    - `docs/runbooks/DESIGN_TOOLING_OPERATING_MODEL.md`
+    - `frontend/src/stories/PulsePlateDesignSystemGuidelines.mdx`
+    - `ios/PulsePlate.xcworkspace`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-design-bridge-operationalization-pr21`
+  - Blockers:
+    - PR-3 must keep the semantic surface seam presentation-only and ADR-backed
+      (`docs/architecture/ADR_UI_SEMANTIC_SURFACE_SEAM_2026-04-19.md:1-45`)
+    - PR-3 must ship simulator evidence and targeted tests before the seam is
+      considered stable
+    - PR-5 may consume `next_best_action`, but clients must remain thin and
+      renderer-only (`frontend/src/api/__tests__/thin-client-guards.test.ts:7-19`;
+      `frontend/AGENTS.md:27-38`; `ios/AGENTS.md:86-92`)
+  - DoD:
+    - A dedicated post-bridge UI epic runbook exists and locks PR order,
+      role order, sync points, validation, and merge-path rules
+    - The runbook explicitly states that merged bridge work is baseline state
+      and must not be reopened as a new bridge PR
+    - The lane enforces one PR per dedicated worktree from synced
+      `origin/main`
+    - Web review is locked as Storybook-first and iOS evidence as
+      simulator-first
+    - Billing, entitlement, provider modernization, deploy/runtime infra,
+      Cloudflare merge truth, and any new `/api/v1/ui/state` rail are
+      explicitly out of scope for this series
+    - The first executable slice is fixed as iOS visible coherence before
+      surface-seam or web parity expansion work begins
+    - Late-phase client hint work is explicitly limited to consuming the
+      already existing backend `next_best_action` contract
+
 <a id="ledger-p1-design-execution-adapter-seam"></a>
 - [ ] P1: Design execution adapter seam promotion beyond local artifact lane
   - Owner: @katsiaryna_kavaleuskaya
@@ -1814,7 +1873,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: AI bounded-context packet
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (architecture sequencing)
-  - Target PR: PR-TBD-AI-BOUNDED-CONTEXT-PACKET
+  - Target PR: PR-A3
   - Area: AI / architecture / docs
   - Finding Type: packet-first architecture freeze
   - Status: 📋 Planned
@@ -1824,6 +1883,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md`
     - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-ai-bounded-context-extraction`
     - `docs/architecture/ADR_AI_RUNTIME_BOUNDED_CONTEXT_SEAM_2026-03-09.md`
+    - `docs/architecture/C4_AI_BOUNDED_CONTEXT_PACKET_2026-03-20.md`
+    - `docs/orchestration/WAVE6_A3_AI_BOUNDED_CONTEXT_PACKET_2026-04-18.md`
   - DoD:
     - A docs-only packet exists before extraction
     - Ownership boundaries for AI runtime seams are explicit
@@ -1893,21 +1954,26 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Reconcile PRO monthly quota ledger with live runtime truth
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (AGENTS.md requires monthly quota before any LLM provider call)
-  - Target PR: PR #1388
-  - Status: 🟡 In progress (docs/code reconciliation after live runtime landed)
-  - Reason (EN): Live `main` already contains tier-aware LLM monthly quota machinery for both `PRO` and `VIP`, startup validation for both envs, and quota-before-provider enforcement on the PRO CBT path. The backlog wording is now stale and must be reconciled so the train does not reopen a runtime-from-scratch quota PR that the codebase already materially passed.
+  - Target PR: PR-A1b (`docs(roadmap): reconcile landed PRO quota truth for Wave 6 A1b`)
+  - Status: 🟡 In progress (A1b docs/governance reconciliation lane is the next canonical slice; any draft PR must late-rebase onto fresh `origin/main` before merge-ready because merged `PR #1440` and `PR #1441` already landed nearby `docs/roadmap/BACKLOG_LEDGER.md` edits on trunk)
+  - Reason (EN): Live `main` already contains tier-aware LLM monthly quota machinery for both `PRO` and `VIP` (`app/security/llm_monthly_quota.py:25-41`, `app/security/llm_monthly_quota.py:52-77`, `app/security/llm_monthly_quota.py:123-158`), startup validation for both envs (`app/bootstrap/startup_guards.py:44-56`), quota-before-provider enforcement on the PRO CBT path (`app/services/fitchef_runtime.py:711-835`, `tests/test_cbt_insight_api.py:921-952`), and the merged A1 runtime spine from `PR #1379` (`docs/roadmap/BACKLOG_LEDGER.md:296-300`). The backlog wording is stale because it still points at an older docs lane instead of the explicit A1b reconciliation slice. This item exists so Wave 6 does not reopen a runtime-from-scratch quota PR that the codebase already materially passed.
   - Links:
-    - `app/security/llm_monthly_quota.py`
-    - `app/bootstrap/startup_guards.py`
-    - `app/routers/cbt_insight.py`
-    - `app/services/fitchef_runtime.py`
-    - `docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md`
-    - `docs/audit/PR_647_VIP_LLM_MONTHLY_QUOTA_AUDIT.md`
-    - `docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md`
-    - `tests/test_cbt_insight_api.py`
+    - `docs/orchestration/WAVE6_A1B_PRO_QUOTA_RECONCILIATION_TASK_PACKET_2026-04-17.md:68-83`
+    - `docs/review/PR_1379_FIXED_MAPPING.md:12-18`
+    - `app/security/llm_monthly_quota.py:25-41`
+    - `app/security/llm_monthly_quota.py:52-77`
+    - `app/security/llm_monthly_quota.py:123-158`
+    - `app/bootstrap/startup_guards.py:44-56`
+    - `app/routers/cbt_insight.py:129-150`
+    - `app/services/fitchef_runtime.py:711-835`
+    - `docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md:206-244`
+    - `docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md:27-33`
+    - `tests/test_cbt_insight_api.py:921-952`
   - DoD:
-    - Ledger and epic wording no longer describe PRO quota as VIP-only missing functionality
-    - Live code/test evidence for PRO quota parity is linked from the backlog item
+    - Ledger and epic wording no longer describe PRO quota as VIP-only or missing functionality
+    - This backlog item points to the canonical `PR-A1b` docs/governance lane instead of the obsolete `PR #1388` target
+    - Live code/test evidence for already-landed PRO quota parity is linked from the backlog item and anchored to merged `PR #1379`
+    - Evidence bundle format is explicit: `PR #1379` + merge SHA, `file:line` pointers to runtime/test truth, and optional runtime/test artifact links when available
     - Any true residual quota debt is captured as a separate narrow follow-up instead of reopening a full parity lane
 
 
@@ -4386,6 +4452,20 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Decision documented: adopt / defer / won't do for PersonaPlex voice layer
     - If adopt: persona prompts aligned with FitChef/coach; voice API (e.g. WebSocket) and security/privacy documented
 
+
+- [ ] P1: Fix invalid Dependabot assignee configuration warning
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (repo governance / automation hygiene)
+  - Target PR: TBD (separate config-only PR after the `#1471 -> #1474` Dependabot train)
+  - Status: 📋 Planned
+  - Reason (EN): `.github/dependabot.yml` still declares assignee `katsiarynakavaleuskaya`, and Dependabot PRs such as `#1471` emit a live bot warning because GitHub cannot add that assignee. This is a repo-wide configuration defect, not part of the narrow testing dependency remediation slice, so the active lane records it as deferred instead of hiding it under `NOT-A-BUG`. (RU: В `.github/dependabot.yml` указан `assignee`, которого GitHub не может добавить в Dependabot PR; предупреждение повторяется, поэтому это отдельный repo-wide config defect и его нужно чинить отдельным PR.)
+  - Links:
+    - `.github/dependabot.yml`
+    - `docs/review/PR_1471_FIXED_MAPPING.md`
+    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1471#issuecomment-4275076194`
+  - DoD:
+    - `.github/dependabot.yml` updated so Dependabot stops emitting the invalid-assignee warning
+    - at least one fresh Dependabot PR lands without the warning comment
 
 - [ ] P2 Optional: Evaluate PEP 751 standard lock file (pylock.toml) and/or uv + Dependabot
   - Owner: @katsiaryna_kavaleuskaya

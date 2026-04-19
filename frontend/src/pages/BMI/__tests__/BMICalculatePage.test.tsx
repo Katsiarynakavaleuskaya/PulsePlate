@@ -3,12 +3,17 @@ import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import BMICalculatePage from '../BMICalculatePage';
 
+const softPaywallHookPropsSpy = vi.fn();
+
 vi.mock('../../../api/bmi', () => ({
   calculateBMI: vi.fn(),
 }));
 
 vi.mock('../../../components/SoftPaywallHook', () => ({
-  default: () => <div data-testid="soft-paywall-hook">soft paywall</div>,
+  default: (props: unknown) => {
+    softPaywallHookPropsSpy(props);
+    return <div data-testid="soft-paywall-hook">soft paywall</div>;
+  },
 }));
 
 vi.mock('react-i18next', () => ({
@@ -52,6 +57,7 @@ import { calculateBMI } from '../../../api/bmi';
 describe('BMICalculatePage', () => {
   beforeEach(() => {
     vi.mocked(calculateBMI).mockReset();
+    softPaywallHookPropsSpy.mockReset();
   });
 
   it('renders the redesigned BMI surface', () => {
@@ -86,6 +92,13 @@ describe('BMICalculatePage', () => {
       bmi: 22.4,
       category: 'Balanced zone',
       interpretation: 'Your body composition looks healthy.',
+      next_best_action: {
+        type: 'unlock_targets',
+        recommended_surface: 'pro_targets',
+        recommended_tier: 'PRO',
+        trigger_reason: 'post_bmi',
+        why_now: 'post_bmi_baseline_body_metrics',
+      },
       soft_paywall: null,
     } as Awaited<ReturnType<typeof calculateBMI>>);
 
@@ -101,5 +114,56 @@ describe('BMICalculatePage', () => {
     expect(await screen.findByText('22.4')).toBeInTheDocument();
     expect(screen.getByText('Your body composition looks healthy.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Calculate Again' })).toBeInTheDocument();
+  });
+
+  it('passes next_best_action through to the existing soft-paywall surface', async () => {
+    vi.mocked(calculateBMI).mockResolvedValue({
+      bmi: 22.4,
+      category: 'Balanced zone',
+      interpretation: 'Your body composition looks healthy.',
+      next_best_action: {
+        type: 'unlock_targets',
+        recommended_surface: 'pro_targets',
+        recommended_tier: 'PRO',
+        trigger_reason: 'post_bmi',
+        why_now: 'post_bmi_baseline_body_metrics',
+      },
+      soft_paywall: {
+        id: 'bmi.pro_interpretation_v1',
+        kind: 'cta',
+        position: 'post_result',
+        priority: 50,
+        target: 'pro_paywall',
+        message: {
+          lang: 'en',
+          title_key: 'soft_paywall.title',
+          body_key: 'soft_paywall.body',
+          cta_key: 'soft_paywall.cta',
+          default_title: 'More accurate interpretation',
+          default_body: 'Get PRO insights.',
+          default_cta: 'See PRO',
+        },
+        availability: { pro_available: true },
+      },
+    } as Awaited<ReturnType<typeof calculateBMI>>);
+
+    const user = userEvent.setup();
+    render(<BMICalculatePage />);
+
+    await user.type(screen.getByLabelText('Weight (kg)'), '70');
+    await user.type(screen.getByLabelText('Height (cm)'), '177');
+    await user.type(screen.getByLabelText('Age'), '31');
+    await user.click(screen.getByRole('button', { name: 'Calculate BMI' }));
+
+    expect(await screen.findByTestId('soft-paywall-hook')).toBeInTheDocument();
+    expect(softPaywallHookPropsSpy).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        nextBestAction: expect.objectContaining({
+          type: 'unlock_targets',
+          recommended_surface: 'pro_targets',
+          trigger_reason: 'post_bmi',
+        }),
+      })
+    );
   });
 });

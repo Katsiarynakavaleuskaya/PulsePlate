@@ -149,6 +149,16 @@ Do not start these until PR-3 is merged and `main` is stable:
 6. `bug-hunter`
 7. `agent-coordinator`
 
+### PR-3 pre-open role order
+
+1. `agent-coordinator`
+2. `frontend-engineer`
+3. `creative-designer`
+4. `security-auditor`
+5. `qa-engineer-agent`
+6. `bug-hunter`
+7. `agent-coordinator`
+
 ### Mandatory post-open review lane
 
 - `qa-engineer-agent -> bug-hunter -> agent-coordinator`

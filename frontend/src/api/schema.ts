@@ -5807,7 +5807,7 @@ export interface operations {
                     "application/json": components["schemas"]["PaymentErrorResponse"];
                 };
             };
-            /** @description iOS activation requires receipt_data or Apple verification failed */
+            /** @description Activation access forbidden or Apple receipt verification required */
             403: {
                 headers: {
                     [name: string]: unknown;

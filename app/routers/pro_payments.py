@@ -15,19 +15,30 @@ from app.http_error_details import (
     DETERMINISTIC_ACTIVATION_CONFLICT_DETAIL,
     TRANSPORT_AUTH_REQUIRED_DETAIL,
 )
-from app.schemas.payments import PaymentSource
-from app.middleware.api_tiers import CurrentUser, derive_subject_id_from_api_key
+from app.middleware.api_tiers import (
+    CurrentUser,
+    SubscriptionTier,
+    derive_subject_id_from_api_key,
+    resolve_tier_from_env,
+    tier_allows_access,
+)
 from app.routers.api_key import api_key_header
 from app.schemas.payments import (
     ActivateSubscriptionRequest,
     PaymentErrorResponse,
+    PaymentSource,
     SubscriptionActivationResponse,
 )
 from app.services import payments_activation
+from settings import is_explicit_developer_env, is_truthy_env_var
 
 
 class ActivationTransportUnauthorizedError(PermissionError):
     """Raised when transport auth is missing or blank."""
+
+
+class ActivationTransportForbiddenError(PermissionError):
+    """Raised when transport auth key is present but lacks PRO access."""
 
 
 router = APIRouter(
@@ -56,8 +67,19 @@ def _payment_error_response(
     )
 
 
+def _activation_forbidden_response(detail: str) -> JSONResponse:
+    """Return the canonical forbidden response for activation transport/read access."""
+
+    return _payment_error_response(
+        status_code=status.HTTP_403_FORBIDDEN,
+        code="forbidden",
+        message="Activation access forbidden",
+        detail=detail,
+    )
+
+
 def _resolve_activation_user(x_api_key: str | None) -> CurrentUser:
-    """Resolve pre-entitlement transport identity from non-empty API key."""
+    """Resolve pre-entitlement transport identity from validated PRO API key."""
 
     if x_api_key is None:
         raise ActivationTransportUnauthorizedError("X-API-Key header is required")
@@ -65,6 +87,17 @@ def _resolve_activation_user(x_api_key: str | None) -> CurrentUser:
     normalized_api_key = x_api_key.strip()
     if not normalized_api_key:
         raise ActivationTransportUnauthorizedError("X-API-Key header must not be blank")
+
+    allow_test_keys = is_explicit_developer_env() and is_truthy_env_var(
+        "ALLOW_DEV_API_KEY",
+        "true",
+    )
+    resolved_tier = resolve_tier_from_env(
+        normalized_api_key,
+        allow_test_keys=allow_test_keys,
+    )
+    if resolved_tier is None or not tier_allows_access(resolved_tier, SubscriptionTier.PRO):
+        raise ActivationTransportForbiddenError("API key does not have PRO tier access")
 
     return CurrentUser(
         user_id=derive_subject_id_from_api_key(normalized_api_key),
@@ -85,7 +118,7 @@ def _resolve_activation_user(x_api_key: str | None) -> CurrentUser:
             "model": PaymentErrorResponse,
         },
         status.HTTP_403_FORBIDDEN: {
-            "description": "iOS activation requires receipt_data or Apple verification failed",
+            "description": "Activation access forbidden or Apple receipt verification required",
             "model": PaymentErrorResponse,
         },
         status.HTTP_502_BAD_GATEWAY: {
@@ -135,6 +168,8 @@ async def activate_subscription(
             message="Transport protection required",
             detail=TRANSPORT_AUTH_REQUIRED_DETAIL,
         )
+    except ActivationTransportForbiddenError:
+        return _activation_forbidden_response(ACTIVATION_ACCESS_FORBIDDEN_DETAIL)
     except payments_activation.IdempotencyConflictError:
         return _payment_error_response(
             status_code=status.HTTP_409_CONFLICT,
@@ -198,13 +233,8 @@ def get_subscription_activation(
             message="Transport protection required",
             detail=TRANSPORT_AUTH_REQUIRED_DETAIL,
         )
-    except payments_activation.ActivationAccessForbiddenError:
-        return _payment_error_response(
-            status_code=status.HTTP_403_FORBIDDEN,
-            code="forbidden",
-            message="Activation access forbidden",
-            detail=ACTIVATION_ACCESS_FORBIDDEN_DETAIL,
-        )
+    except (ActivationTransportForbiddenError, payments_activation.ActivationAccessForbiddenError):
+        return _activation_forbidden_response(ACTIVATION_ACCESS_FORBIDDEN_DETAIL)
 
     if activation is None:
         return _payment_error_response(

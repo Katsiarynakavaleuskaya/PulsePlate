@@ -27,6 +27,16 @@ from scripts.orchestration.requested_agents import normalize_requested_agents
 
 ROUTING_POLICY_VERSION = "2026-03-27"
 SELECTION_MODE = "deterministic-weighted"
+ROUTING_EXPLANATION_SCHEMA_VERSION = "1.0"
+RESEARCH_CONNECTOR_POLICY_VERSION = "2026-04-18"
+RESEARCH_POLICY_BUCKET_APPROVED = "approved"
+RESEARCH_POLICY_BUCKET_CONDITIONAL = "conditional"
+RESEARCH_POLICY_BUCKET_DISALLOWED = "disallowed"
+RESEARCH_POLICY_BUCKETS: tuple[str, ...] = (
+    RESEARCH_POLICY_BUCKET_APPROVED,
+    RESEARCH_POLICY_BUCKET_CONDITIONAL,
+    RESEARCH_POLICY_BUCKET_DISALLOWED,
+)
 
 ALWAYS_ON_SKILLS: tuple[str, ...] = ("pulseplate-workflow",)
 PR_GOVERNANCE_REQUIRED_SKILLS: tuple[str, ...] = (
@@ -145,6 +155,188 @@ SCRAPING_BLOCK_PATTERNS: tuple[tuple[str, str], ...] = (
     ("google maps", "Google Maps scraping is not approved for the current repo."),
     ("scrape any site", "Universal scraping is out of scope for PulsePlate."),
     ("entire internet", "Broad internet scraping is outside project-fit boundaries."),
+)
+
+# Shared keyword sources keep semantic-group boosts and connector-policy matching in lockstep.
+YOUTUBE_RESEARCH_KEYWORDS: tuple[str, ...] = (
+    "youtube transcript",
+    "youtube transcripts",
+    "youtube channel",
+    "youtube channels",
+)
+X_TWITTER_RESEARCH_KEYWORDS: tuple[str, ...] = (
+    "x/twitter",
+    "x twitter",
+    "twitter official api",
+    "twitter api",
+    "compliant exports",
+)
+GOOGLE_TRENDS_RESEARCH_KEYWORDS: tuple[str, ...] = (
+    "google trends",
+    "search-intent datasets",
+    "search intent datasets",
+    "search intent data",
+)
+REDDIT_FORUM_RESEARCH_KEYWORDS: tuple[str, ...] = ("reddit", "forum mining", "forum research")
+APP_STORE_REVIEW_MINING_KEYWORDS: tuple[str, ...] = (
+    "app store reviews",
+    "play store reviews",
+    "review mining",
+)
+COMPETITOR_LANDING_PAGE_MONITORING_KEYWORDS: tuple[str, ...] = (
+    "competitor landing page",
+    "landing page monitoring",
+)
+TIKTOK_SCRAPING_KEYWORDS: tuple[str, ...] = ("tiktok",)
+GOOGLE_MAPS_SCRAPING_KEYWORDS: tuple[str, ...] = ("google maps",)
+UNIVERSAL_SCRAPING_KEYWORDS: tuple[str, ...] = ("scrape any site", "entire internet")
+
+
+@dataclass(frozen=True)
+class SemanticLexemeGroup:
+    """Deterministic ontology-style semantic group for routing explanations."""
+
+    group_id: str
+    label: str
+    rationale: str
+    keywords: tuple[str, ...]
+    skill_boosts: tuple[tuple[str, int], ...] = ()
+
+
+@dataclass(frozen=True)
+class ResearchConnectorRule:
+    """Deterministic research-only connector policy entry."""
+
+    connector: str
+    label: str
+    policy_bucket: str
+    rationale: str
+    keywords: tuple[str, ...]
+
+
+SEMANTIC_LEXEME_GROUPS: tuple[SemanticLexemeGroup, ...] = (
+    SemanticLexemeGroup(
+        group_id="orchestration.explainability",
+        label="Routing explainability",
+        rationale=(
+            "Requests about explanation schemas and evidence should strengthen "
+            "orchestration explainability surfaces without changing execution authority."
+        ),
+        keywords=(
+            "explanation schema",
+            "explainability",
+            "per-skill evidence",
+            "routing evidence",
+            "skill-routing explanation",
+        ),
+        skill_boosts=(("docs-sync", 2), ("agents-md", 1)),
+    ),
+    SemanticLexemeGroup(
+        group_id="research.connector.youtube",
+        label="YouTube transcript research",
+        rationale=(
+            "YouTube transcript and channel monitoring requests stay inside the approved "
+            "research-only founder/trend workflow."
+        ),
+        keywords=YOUTUBE_RESEARCH_KEYWORDS,
+        skill_boosts=(
+            ("pulseplate-ai-reports", 3),
+            ("notion-research-documentation", 2),
+        ),
+    ),
+    SemanticLexemeGroup(
+        group_id="research.connector.x_twitter",
+        label="X/Twitter official research",
+        rationale=(
+            "X/Twitter requests are allowed only through official APIs or compliant exports "
+            "inside research-only workflows."
+        ),
+        keywords=X_TWITTER_RESEARCH_KEYWORDS,
+        skill_boosts=(
+            ("pulseplate-ai-reports", 3),
+            ("notion-research-documentation", 2),
+        ),
+    ),
+    SemanticLexemeGroup(
+        group_id="research.connector.google_trends",
+        label="Google Trends research",
+        rationale=(
+            "Google Trends is approved for bounded research and search-intent analysis only."
+        ),
+        keywords=GOOGLE_TRENDS_RESEARCH_KEYWORDS,
+        skill_boosts=(
+            ("pulseplate-ai-reports", 3),
+            ("notion-research-documentation", 2),
+        ),
+    ),
+)
+
+RESEARCH_CONNECTOR_RULES: tuple[ResearchConnectorRule, ...] = (
+    ResearchConnectorRule(
+        connector="youtube_transcripts",
+        label="YouTube transcripts",
+        policy_bucket=RESEARCH_POLICY_BUCKET_APPROVED,
+        rationale=(
+            "Approved for founder research and trend tracking as a research-only connector."
+        ),
+        keywords=YOUTUBE_RESEARCH_KEYWORDS,
+    ),
+    ResearchConnectorRule(
+        connector="x_twitter_official_exports",
+        label="X/Twitter official API or compliant exports",
+        policy_bucket=RESEARCH_POLICY_BUCKET_APPROVED,
+        rationale=("Approved for research-only use via official APIs or compliant exports."),
+        keywords=X_TWITTER_RESEARCH_KEYWORDS,
+    ),
+    ResearchConnectorRule(
+        connector="google_trends",
+        label="Google Trends and search-intent datasets",
+        policy_bucket=RESEARCH_POLICY_BUCKET_APPROVED,
+        rationale=("Approved for narrow research-only search-intent and trend analysis."),
+        keywords=GOOGLE_TRENDS_RESEARCH_KEYWORDS,
+    ),
+    ResearchConnectorRule(
+        connector="reddit_forum_mining",
+        label="Reddit or forum mining",
+        policy_bucket=RESEARCH_POLICY_BUCKET_CONDITIONAL,
+        rationale="Conditionally allowed later after a future explicit governance promotion.",
+        keywords=REDDIT_FORUM_RESEARCH_KEYWORDS,
+    ),
+    ResearchConnectorRule(
+        connector="app_store_review_mining",
+        label="App Store / Play Store review mining",
+        policy_bucket=RESEARCH_POLICY_BUCKET_CONDITIONAL,
+        rationale="Conditionally allowed later after an explicit governance promotion.",
+        keywords=APP_STORE_REVIEW_MINING_KEYWORDS,
+    ),
+    ResearchConnectorRule(
+        connector="competitor_landing_page_monitoring",
+        label="Competitor landing page monitoring",
+        policy_bucket=RESEARCH_POLICY_BUCKET_CONDITIONAL,
+        rationale="Conditionally allowed later after an explicit governance promotion.",
+        keywords=COMPETITOR_LANDING_PAGE_MONITORING_KEYWORDS,
+    ),
+    ResearchConnectorRule(
+        connector="tiktok_scraping",
+        label="TikTok scraping",
+        policy_bucket=RESEARCH_POLICY_BUCKET_DISALLOWED,
+        rationale="Not approved for the current repo.",
+        keywords=TIKTOK_SCRAPING_KEYWORDS,
+    ),
+    ResearchConnectorRule(
+        connector="google_maps_scraping",
+        label="Google Maps scraping",
+        policy_bucket=RESEARCH_POLICY_BUCKET_DISALLOWED,
+        rationale="Not approved for the current repo.",
+        keywords=GOOGLE_MAPS_SCRAPING_KEYWORDS,
+    ),
+    ResearchConnectorRule(
+        connector="universal_free_form_scrapers",
+        label="Universal free-form scrapers for arbitrary sites",
+        policy_bucket=RESEARCH_POLICY_BUCKET_DISALLOWED,
+        rationale="Broad arbitrary-site scraping is outside the PulsePlate contract.",
+        keywords=UNIVERSAL_SCRAPING_KEYWORDS,
+    ),
 )
 
 
@@ -324,6 +516,185 @@ def _strip_skills_for_docs_only_envelope(
     filtered_recommended = [item for item in recommended if item["skill"] not in excluded]
     filtered_conditional = [item for item in conditional if item["skill"] not in excluded]
     return filtered_recommended, filtered_conditional
+
+
+def _match_lexeme_terms(*, normalized_request_text: str, keywords: tuple[str, ...]) -> list[str]:
+    """Return matched lexeme terms in stable order."""
+
+    matches: list[str] = []
+    for keyword in keywords:
+        normalized_keyword = _normalize_lexeme(keyword)
+        if (
+            normalized_keyword
+            and normalized_keyword not in matches
+            and re.search(rf"(?<!\w){re.escape(normalized_keyword)}(?!\w)", normalized_request_text)
+        ):
+            matches.append(normalized_keyword)
+    return matches
+
+
+def _match_semantic_groups(*, normalized_request_text: str) -> list[dict[str, Any]]:
+    """Return matched ontology-style semantic groups for explainability."""
+
+    matched_groups: list[dict[str, Any]] = []
+    for group in SEMANTIC_LEXEME_GROUPS:
+        matched_terms = _match_lexeme_terms(
+            normalized_request_text=normalized_request_text,
+            keywords=group.keywords,
+        )
+        if not matched_terms:
+            continue
+        matched_groups.append(
+            {
+                "group_id": group.group_id,
+                "label": group.label,
+                "matched_terms": matched_terms,
+                "rationale": group.rationale,
+            }
+        )
+    return matched_groups
+
+
+def _build_research_connector_policy(*, normalized_request_text: str) -> dict[str, Any]:
+    """Return deterministic research-only connector policy metadata."""
+
+    catalog: dict[str, list[dict[str, Any]]] = {bucket: [] for bucket in RESEARCH_POLICY_BUCKETS}
+    matches: dict[str, list[dict[str, Any]]] = {bucket: [] for bucket in RESEARCH_POLICY_BUCKETS}
+
+    for rule in RESEARCH_CONNECTOR_RULES:
+        entry = {
+            "connector": rule.connector,
+            "label": rule.label,
+            "rationale": rule.rationale,
+        }
+        catalog[rule.policy_bucket].append(entry)
+        matched_terms = _match_lexeme_terms(
+            normalized_request_text=normalized_request_text,
+            keywords=rule.keywords,
+        )
+        if matched_terms:
+            matches[rule.policy_bucket].append(
+                {
+                    "connector": rule.connector,
+                    "label": rule.label,
+                    "matched_terms": matched_terms,
+                }
+            )
+
+    return {
+        "policy_version": RESEARCH_CONNECTOR_POLICY_VERSION,
+        RESEARCH_POLICY_BUCKET_APPROVED: catalog[RESEARCH_POLICY_BUCKET_APPROVED],
+        RESEARCH_POLICY_BUCKET_CONDITIONAL: catalog[RESEARCH_POLICY_BUCKET_CONDITIONAL],
+        RESEARCH_POLICY_BUCKET_DISALLOWED: catalog[RESEARCH_POLICY_BUCKET_DISALLOWED],
+        "matches": matches,
+    }
+
+
+def _build_blocked_patterns(*, research_connector_policy: dict[str, Any]) -> list[dict[str, str]]:
+    """Derive blocked-pattern metadata from the same disallowed connector matches."""
+
+    disallowed_reasons = {
+        rule.connector: rule.rationale
+        for rule in RESEARCH_CONNECTOR_RULES
+        if rule.policy_bucket == RESEARCH_POLICY_BUCKET_DISALLOWED
+    }
+    blocked: list[dict[str, str]] = []
+    seen_labels: set[str] = set()
+
+    for match in research_connector_policy["matches"][RESEARCH_POLICY_BUCKET_DISALLOWED]:
+        reason = disallowed_reasons.get(
+            match["connector"],
+            "Disallowed research connector pattern for the current repo.",
+        )
+        for matched_term in match.get("matched_terms", []):
+            if matched_term in seen_labels:
+                continue
+            blocked.append({"label": matched_term, "reason": reason, "kind": "pattern"})
+            seen_labels.add(matched_term)
+
+    return blocked
+
+
+def _apply_semantic_group_boosts(
+    *,
+    selected_by_skill: dict[str, dict[str, Any]],
+    matched_semantic_groups: list[dict[str, Any]],
+    task_classification: dict[str, Any],
+    domain: str,
+    required_skill_names: set[str],
+) -> None:
+    """Apply deterministic semantic-group boosts where the lane allows it."""
+
+    research_lane = task_classification["label"] == "creative_research" or domain in {
+        "research",
+        "business",
+        "wellness",
+    }
+    orchestration_lane = domain == "orchestration"
+
+    for group in SEMANTIC_LEXEME_GROUPS:
+        matched = next(
+            (item for item in matched_semantic_groups if item["group_id"] == group.group_id),
+            None,
+        )
+        if matched is None:
+            continue
+        group_is_research_connector = group.group_id.startswith("research.connector.")
+        if group_is_research_connector and not research_lane:
+            continue
+        if group.group_id == "orchestration.explainability" and not orchestration_lane:
+            continue
+        for skill, boost in group.skill_boosts:
+            if skill in required_skill_names:
+                continue
+            _apply_bundle_reason(
+                selected_by_skill=selected_by_skill,
+                skill=skill,
+                boost=boost,
+                reason=f"semantic-group:{group.group_id}(+{boost})",
+                fallback_rationale=group.rationale,
+            )
+
+
+def _build_explanation_schema(
+    *,
+    required: list[dict[str, Any]],
+    recommended: list[dict[str, Any]],
+    conditional: list[dict[str, Any]],
+    matched_semantic_groups: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """Return stable explanation metadata with compact per-skill evidence."""
+
+    per_skill_evidence: list[dict[str, Any]] = []
+    for bucket_name, items in (
+        ("required", required),
+        ("recommended", recommended),
+        ("conditional", conditional),
+    ):
+        for item in items:
+            evidence = {
+                "skill": item["skill"],
+                "bucket": bucket_name,
+                "reasons": list(item.get("reasons", [])),
+            }
+            if "score" in item:
+                evidence["score"] = int(item["score"])
+            per_skill_evidence.append(evidence)
+
+    return {
+        "schema_version": ROUTING_EXPLANATION_SCHEMA_VERSION,
+        "evidence_axes": [
+            "domain_prior",
+            "path_evidence",
+            "lexical_cue",
+            "semantic_group",
+            "requested_agent",
+            "privileged_surface",
+            "policy_block",
+        ],
+        "semantic_groups": matched_semantic_groups,
+        "per_skill_evidence": per_skill_evidence,
+    }
 
 
 @dataclass(frozen=True)
@@ -1406,12 +1777,13 @@ def route_skills(
         design_source=normalized_design_source,
         explicit_design_metadata=explicit_design_metadata,
     )
-
-    blocked = [
-        {"label": pattern, "reason": reason, "kind": "pattern"}
-        for pattern, reason in SCRAPING_BLOCK_PATTERNS
-        if pattern in normalized_request_text
-    ]
+    matched_semantic_groups = _match_semantic_groups(
+        normalized_request_text=normalized_request_text
+    )
+    research_connector_policy = _build_research_connector_policy(
+        normalized_request_text=normalized_request_text
+    )
+    blocked = _build_blocked_patterns(research_connector_policy=research_connector_policy)
 
     scored = [
         _score_rule(
@@ -1479,6 +1851,13 @@ def route_skills(
                 "Review and bugfix lanes require deterministic triage-helper coverage."
             ),
         )
+    _apply_semantic_group_boosts(
+        selected_by_skill=selected_by_skill,
+        matched_semantic_groups=matched_semantic_groups,
+        task_classification=task_classification,
+        domain=domain,
+        required_skill_names=required_skill_names,
+    )
     selected = list(selected_by_skill.values())
 
     if figma_execution_ready:
@@ -1511,6 +1890,12 @@ def route_skills(
         recommended=selected,
         conditional=conditional,
     )
+    explanation = _build_explanation_schema(
+        required=required,
+        recommended=selected,
+        conditional=conditional,
+        matched_semantic_groups=matched_semantic_groups,
+    )
 
     return {
         "policy_version": ROUTING_POLICY_VERSION,
@@ -1522,6 +1907,8 @@ def route_skills(
         "recommended": selected,
         "conditional": conditional,
         "blocked": blocked,
+        "explanation": explanation,
+        "research_connector_policy": research_connector_policy,
     }
 
 

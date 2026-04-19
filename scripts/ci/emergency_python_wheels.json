@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-04-17",
-  "expires_at": "2026-05-15",
+  "generated_at": "2026-04-19",
+  "expires_at": "2026-05-17",
   "reason": "Temporary exact-wheel fallback for cryptography, Pillow, python-multipart, pytest, faker, hypothesis, sentence-transformers, ruff, types-pyyaml, and transformers while the approved private proxy lags the patched upstream releases used by active dependency PRs.",
   "artifacts": [
     {
@@ -69,17 +69,17 @@
     },
     {
       "package": "faker",
-      "version": "40.13.0",
-      "filename": "faker-40.13.0-py3-none-any.whl",
-      "url": "https://files.pythonhosted.org/packages/da/8a/708103325edff16a0b0e004de0d37db8ba216a32713948c64d71f6d4a4c2/faker-40.13.0-py3-none-any.whl",
-      "sha256": "c1298fd0d819b3688fb5fd358c4ba8f56c7c8c740b411fd3dbd8e30bf2c05019"
+      "version": "40.15.0",
+      "filename": "faker-40.15.0-py3-none-any.whl",
+      "url": "https://files.pythonhosted.org/packages/a7/a7/a600f8f30d4505e89166de51dd121bd540ab8e560e8cf0901de00a81de8c/faker-40.15.0-py3-none-any.whl",
+      "sha256": "71ab3c3370da9d2205ab74ffb0fd51273063ad562b3a3bb69d0026a20923e318"
     },
     {
       "package": "hypothesis",
-      "version": "6.151.12",
-      "filename": "hypothesis-6.151.12-py3-none-any.whl",
-      "url": "https://files.pythonhosted.org/packages/0e/5a/6cecf134b631050a1f8605096adbe812483b60790d951470989d39b56860/hypothesis-6.151.12-py3-none-any.whl",
-      "sha256": "37d4f3a768365c30571b11dfd7a6857a12173d933010b2c4ab65619f1b5952c5"
+      "version": "6.152.1",
+      "filename": "hypothesis-6.152.1-py3-none-any.whl",
+      "url": "https://files.pythonhosted.org/packages/5d/83/860fb3075e00b0fc19a22a2301bc3c96f00437558c3911bdd0a3573a4a53/hypothesis-6.152.1-py3-none-any.whl",
+      "sha256": "40a3619d9e0cb97b018857c7986f75cf5de2e5ec0fa8a0b172d00747758f749e"
     },
     {
       "package": "mako",

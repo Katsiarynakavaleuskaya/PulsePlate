@@ -28,6 +28,7 @@ from scripts.orchestration.routing_graph_loader import (
     BootstrapLaneActivation,
     REQUIRED_BOOTSTRAP_LANE,
 )
+from scripts.orchestration.skill_router import RESEARCH_POLICY_BUCKET_APPROVED
 from scripts.orchestration.task_bootstrap import (
     REQUESTED_AGENT_STATUS_ADVISORY_DOMAIN_MISMATCH,
     REQUESTED_AGENT_STATUS_ADVISORY_NON_ROUTABLE,
@@ -159,6 +160,29 @@ def test_task_bootstrap_adds_automation_metadata_defaults() -> None:
     assert packet["needs_agents_sync"] is False
 
 
+def test_task_bootstrap_exposes_skill_routing_explanation_and_connector_policy() -> None:
+    """Bootstrap packets should carry the wave 2 explanation and connector contract."""
+
+    packet = build_task_packet(
+        goal=(
+            "Prepare founder research using YouTube transcripts and Google Trends "
+            "with a stable skill-routing explanation schema"
+        ),
+        task_class="Research",
+        candidate_paths=["docs/audience_pack/ENGINEERING_OVERVIEW.md"],
+    )
+
+    explanation = packet["skill_routing"]["explanation"]
+    connector_policy = packet["skill_routing"]["research_connector_policy"]
+    assert explanation["schema_version"] == "1.0"
+    assert "semantic_group" in explanation["evidence_axes"]
+    assert connector_policy["policy_version"] == "2026-04-18"
+    matched_connectors = {
+        item["connector"] for item in connector_policy["matches"][RESEARCH_POLICY_BUCKET_APPROVED]
+    }
+    assert matched_connectors == {"youtube_transcripts", "google_trends"}
+
+
 def test_task_bootstrap_sets_read_only_design_lane_for_incomplete_figma_packet() -> None:
     """Explicit Figma packets should fail closed into read-only until metadata is complete."""
 
@@ -178,6 +202,31 @@ def test_task_bootstrap_sets_read_only_design_lane_for_incomplete_figma_packet()
     assert packet["design_lane_contract"]["design_source"] == "figma_design"
     assert packet["design_lane_contract"]["blockers"] == ["blocked_by_design_url"]
     assert packet["design_lane_contract"]["code_native_design_brief_required"] is True
+
+
+def test_task_bootstrap_keeps_coordinator_primary_for_requested_orchestration_lane() -> None:
+    """Coordinator-owned orchestration lanes must not demote agent-coordinator from primary."""
+
+    packet = build_task_packet(
+        goal="Implement wave 2 routing policy and explanation schema",
+        task_class="Orchestration",
+        candidate_paths=[
+            "scripts/orchestration/skill_router.py",
+            "scripts/orchestration/task_bootstrap.py",
+        ],
+        requested_agents=[
+            "agent-coordinator",
+            "architecture-specialist",
+            "security-auditor",
+        ],
+        pr_phase="pre_open",
+    )
+
+    assert packet["primary_agent"] == "agent-coordinator"
+    dispositions = {item["agent"]: item for item in packet["requested_agent_disposition"]}
+    assert dispositions["agent-coordinator"]["status"] == REQUESTED_AGENT_STATUS_HONORED_PRIMARY
+    assert dispositions["architecture-specialist"]["status"] == "honored_reviewer"
+    assert "security-auditor" in packet["secondary_agents"]
 
 
 def test_task_bootstrap_enables_code_native_design_lane_with_valid_packet() -> None:
@@ -951,8 +1000,8 @@ def test_task_bootstrap_forces_requested_security_auditor_into_executable_bridge
     ]
 
 
-def test_task_bootstrap_updates_honored_primary_after_later_promotion() -> None:
-    """Earlier honored-primary dispositions must stay aligned with final routing."""
+def test_task_bootstrap_preserves_coordinator_primary_for_requested_orchestration_lane() -> None:
+    """Coordinator-owned orchestration lanes should keep agent-coordinator as primary."""
 
     packet = build_task_packet(
         goal="Update privileged orchestration workflow",
@@ -961,18 +1010,21 @@ def test_task_bootstrap_updates_honored_primary_after_later_promotion() -> None:
         requested_agents=["agent-coordinator", "architecture-specialist"],
     )
 
-    assert packet["primary_agent"] == "architecture-specialist"
-    assert "agent-coordinator" in packet["secondary_agents"]
+    assert packet["primary_agent"] == "agent-coordinator"
+    assert "agent-coordinator" not in packet["secondary_agents"]
     assert packet["requested_agent_disposition"] == [
         {
             "agent": "agent-coordinator",
-            "status": "honored_secondary",
-            "reason": "Requested agent stayed honored but moved to secondary after a later promotion.",
+            "status": "honored_primary",
+            "reason": "Requested agent already matches the routed primary.",
         },
         {
             "agent": "architecture-specialist",
-            "status": "promoted_requested_agent",
-            "reason": "Requested agent is compatible with the routed domain and was promoted.",
+            "status": "honored_reviewer",
+            "reason": (
+                "Coordinator-owned lane keeps `agent-coordinator` as primary; "
+                "requested reviewer stays honored in reviewer."
+            ),
         },
     ]
 

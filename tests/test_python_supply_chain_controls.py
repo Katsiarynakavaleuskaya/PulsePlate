@@ -196,10 +196,43 @@ def test_canonical_ci_and_docker_use_supply_chain_guardrails() -> None:
     assert "!requirements-ci-lite.txt" in dockerignore_text
     assert "!constraints.txt" in dockerignore_text
     assert "!scripts/ci/check_python_startup_hooks.py" in dockerignore_text
+    assert "!scripts/ci/emergency_python_wheels.json" in dockerignore_text
     assert "!scripts/ci/install_locked_python_requirements.py" in dockerignore_text
+    assert "COPY requirements.txt requirements-ci-lite.txt constraints.txt ./" in docker_text
+    assert "COPY requirements.txt requirements-dev.txt constraints.txt ./" in docker_text
+    production_root_index = docker_text.index("FROM runtime-base AS production")
+    switch_to_root_index = docker_text.index("USER root", production_root_index)
+    uninstall_pip_index = docker_text.index("/opt/venv/bin/python -m pip uninstall -y pip")
+    return_to_non_root_index = docker_text.index("USER pulseplate", uninstall_pip_index)
+    assert (
+        production_root_index
+        < switch_to_root_index
+        < uninstall_pip_index
+        < return_to_non_root_index
+    )
     assert "install_locked_python_requirements.py" in dependency_docs_text
     assert "PULSEPLATE_PYTHON_INDEX_URL" in dependency_docs_text
     assert "Run: make venv-sync" in init_test_db_text
+    assert "Docker image telemetry collection failed; reporting remains advisory-only." in (
+        REPO_ROOT / ".github" / "workflows" / "build.yml"
+    ).read_text(encoding="utf-8")
+    assert "Docker image telemetry collection failed; reporting remains advisory-only." in (
+        REPO_ROOT / ".github" / "workflows" / "docker-image.yml"
+    ).read_text(encoding="utf-8")
+    assert "Docker image telemetry collection failed; reporting remains advisory-only." in (
+        REPO_ROOT / ".github" / "workflows" / "trivy.yml"
+    ).read_text(encoding="utf-8")
+    assert "if-no-files-found: warn" in (
+        REPO_ROOT / ".github" / "workflows" / "build.yml"
+    ).read_text(encoding="utf-8")
+    assert "if-no-files-found: warn" in (
+        REPO_ROOT / ".github" / "workflows" / "docker-image.yml"
+    ).read_text(encoding="utf-8")
+    trivy_workflow_text = (REPO_ROOT / ".github" / "workflows" / "trivy.yml").read_text(
+        encoding="utf-8"
+    )
+    assert "if-no-files-found: warn" in trivy_workflow_text
+    assert "set -euo pipefail" in trivy_workflow_text.split("- name: Install Trivy via apt", 1)[1]
 
 
 @pytest.mark.parametrize("workflow_path", LOCKED_INSTALL_WORKFLOW_PATHS)
@@ -438,3 +471,26 @@ def test_ci_risk_profile_tracks_optional_rag_vector_manifest() -> None:
 
     assert '"requirements-rag-vector.in"' in risk_profile_text
     assert '"requirements-rag-vector.txt"' in risk_profile_text
+
+
+def test_docker_workflows_emit_image_telemetry_artifacts() -> None:
+    build_workflow_text = (REPO_ROOT / ".github" / "workflows" / "build.yml").read_text(
+        encoding="utf-8"
+    )
+    docker_image_workflow_text = (
+        REPO_ROOT / ".github" / "workflows" / "docker-image.yml"
+    ).read_text(encoding="utf-8")
+    trivy_workflow_text = (REPO_ROOT / ".github" / "workflows" / "trivy.yml").read_text(
+        encoding="utf-8"
+    )
+
+    for workflow_text in (
+        build_workflow_text,
+        docker_image_workflow_text,
+        trivy_workflow_text,
+    ):
+        assert "scripts/ci/docker_image_telemetry.py" in workflow_text
+        assert "docker-image-telemetry.json" in workflow_text
+        assert "docker-image-telemetry.md" in workflow_text
+        assert "GITHUB_STEP_SUMMARY" in workflow_text
+        assert "actions/upload-artifact@" in workflow_text

@@ -40,6 +40,13 @@ final class BMIServiceThinAdapterTests: XCTestCase {
               "waist_risk": null,
               "notes": [],
               "age_band": "adult",
+              "next_best_action": {
+                "type": "unlock_targets",
+                "recommended_surface": "pro_targets",
+                "recommended_tier": "PRO",
+                "trigger_reason": "post_bmi",
+                "why_now": "post_bmi_baseline_body_metrics"
+              },
               "visualization": null,
               "interpretation_v1": null,
               "soft_paywall": null
@@ -74,6 +81,7 @@ final class BMIServiceThinAdapterTests: XCTestCase {
         XCTAssertEqual(response.bmi, 22.5)
         XCTAssertEqual(response.group, "general")
         XCTAssertEqual(response.category, "normal")
+        XCTAssertEqual(response.nextBestAction?.recommendedSurface, "pro_targets")
     }
 
     func test_calculate_returnsBMICalculateResponseDTO() async throws {
@@ -93,6 +101,13 @@ final class BMIServiceThinAdapterTests: XCTestCase {
           },
           "notes": [],
           "age_band": "adult",
+          "next_best_action": {
+            "type": "unlock_targets",
+            "recommended_surface": "pro_targets",
+            "recommended_tier": "PRO",
+            "trigger_reason": "post_bmi",
+            "why_now": "post_bmi_baseline_body_metrics"
+          },
           "visualization": {
             "ranges": [
               {"key": "bmi.underweight", "from": 0, "to": 18.5},
@@ -121,6 +136,8 @@ final class BMIServiceThinAdapterTests: XCTestCase {
         XCTAssertEqual(response.visualization?.ranges.first?.key, "bmi.underweight")
         XCTAssertEqual(response.visualization?.ranges.first?.from, 0)
         XCTAssertEqual(response.visualization?.ranges.first?.to, 18.5)
+        XCTAssertEqual(response.nextBestAction?.type, "unlock_targets")
+        XCTAssertEqual(response.nextBestAction?.triggerReason, "post_bmi")
     }
 
     func test_calculate_nullableCategory_decodesCorrectly() async throws {
@@ -136,6 +153,7 @@ final class BMIServiceThinAdapterTests: XCTestCase {
           "waist_risk": null,
           "notes": [],
           "age_band": "child",
+          "next_best_action": null,
           "visualization": null,
           "interpretation_v1": null,
           "soft_paywall": null
