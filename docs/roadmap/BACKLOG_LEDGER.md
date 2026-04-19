@@ -4434,6 +4434,20 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - If adopt: persona prompts aligned with FitChef/coach; voice API (e.g. WebSocket) and security/privacy documented
 
 
+- [ ] P1: Fix invalid Dependabot assignee configuration warning
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (repo governance / automation hygiene)
+  - Target PR: TBD (separate config-only PR after the `#1471 -> #1474` Dependabot train)
+  - Status: 📋 Planned
+  - Reason (EN): `.github/dependabot.yml` still declares assignee `katsiarynakavaleuskaya`, and Dependabot PRs such as `#1471` emit a live bot warning because GitHub cannot add that assignee. This is a repo-wide configuration defect, not part of the narrow testing dependency remediation slice, so the active lane records it as deferred instead of hiding it under `NOT-A-BUG`. (RU: В `.github/dependabot.yml` указан `assignee`, которого GitHub не может добавить в Dependabot PR; предупреждение повторяется, поэтому это отдельный repo-wide config defect и его нужно чинить отдельным PR.)
+  - Links:
+    - `.github/dependabot.yml`
+    - `docs/review/PR_1471_FIXED_MAPPING.md`
+    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1471#issuecomment-4275076194`
+  - DoD:
+    - `.github/dependabot.yml` updated so Dependabot stops emitting the invalid-assignee warning
+    - at least one fresh Dependabot PR lands without the warning comment
+
 - [ ] P2 Optional: Evaluate PEP 751 standard lock file (pylock.toml) and/or uv + Dependabot
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2 (optional tooling improvement)
