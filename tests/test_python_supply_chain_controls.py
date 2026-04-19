@@ -204,6 +204,26 @@ def test_canonical_ci_and_docker_use_supply_chain_guardrails() -> None:
     assert "install_locked_python_requirements.py" in dependency_docs_text
     assert "PULSEPLATE_PYTHON_INDEX_URL" in dependency_docs_text
     assert "Run: make venv-sync" in init_test_db_text
+    assert "Docker image telemetry collection failed; reporting remains advisory-only." in (
+        REPO_ROOT / ".github" / "workflows" / "build.yml"
+    ).read_text(encoding="utf-8")
+    assert "Docker image telemetry collection failed; reporting remains advisory-only." in (
+        REPO_ROOT / ".github" / "workflows" / "docker-image.yml"
+    ).read_text(encoding="utf-8")
+    assert "Docker image telemetry collection failed; reporting remains advisory-only." in (
+        REPO_ROOT / ".github" / "workflows" / "trivy.yml"
+    ).read_text(encoding="utf-8")
+    assert "if-no-files-found: warn" in (
+        REPO_ROOT / ".github" / "workflows" / "build.yml"
+    ).read_text(encoding="utf-8")
+    assert "if-no-files-found: warn" in (
+        REPO_ROOT / ".github" / "workflows" / "docker-image.yml"
+    ).read_text(encoding="utf-8")
+    trivy_workflow_text = (REPO_ROOT / ".github" / "workflows" / "trivy.yml").read_text(
+        encoding="utf-8"
+    )
+    assert "if-no-files-found: warn" in trivy_workflow_text
+    assert "set -euo pipefail" in trivy_workflow_text.split("- name: Install Trivy via apt", 1)[1]
 
 
 @pytest.mark.parametrize("workflow_path", LOCKED_INSTALL_WORKFLOW_PATHS)

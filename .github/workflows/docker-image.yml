@@ -53,10 +53,15 @@ jobs:
     - name: Collect Docker image telemetry
       run: |
         set -euo pipefail
-        python3 scripts/ci/docker_image_telemetry.py \
+        if ! python3 scripts/ci/docker_image_telemetry.py \
           --image-ref my-image-name:${{ github.run_id }}-${{ github.run_attempt }} \
           --json-out docker-image-telemetry.json \
           --markdown-out docker-image-telemetry.md
+        then
+          echo "::warning::Docker image telemetry collection failed; reporting remains advisory-only."
+          printf '{"advisory_only": true, "warning": "telemetry collection failed"}\n' > docker-image-telemetry.json
+          printf '# Docker Image Telemetry\n\n- Warning: telemetry collection failed; workflow remains advisory-only.\n' > docker-image-telemetry.md
+        fi
 
     - name: Publish Docker telemetry to step summary
       run: |
@@ -70,5 +75,5 @@ jobs:
         path: |
           docker-image-telemetry.json
           docker-image-telemetry.md
-        if-no-files-found: error
+        if-no-files-found: warn
         retention-days: 14

@@ -21,6 +21,7 @@ import sys
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DOCKER_BINARY = shutil.which("docker")
+DOCKER_TIMEOUT_SECONDS = 60
 SIZE_UNITS = {
     "B": 1,
     "KB": 1_000,
@@ -78,12 +79,18 @@ def _run_docker(args: list[str]) -> subprocess.CompletedProcess[str]:
 
     if DOCKER_BINARY is None:
         raise RuntimeError("docker binary is not available on PATH")
-    return subprocess.run(  # nosec B603: argv uses resolved docker path with fixed inspect/history subcommands only (remove-by: 2026-09-30, ref: PR-docker-telemetry-baseline)
-        [DOCKER_BINARY, *args],
-        check=True,
-        capture_output=True,
-        text=True,
-    )
+    try:
+        return subprocess.run(  # nosec B603: argv uses resolved docker path with fixed inspect/history subcommands only (remove-by: 2026-09-30, ref: PR-docker-telemetry-baseline)
+            [DOCKER_BINARY, *args],
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=DOCKER_TIMEOUT_SECONDS,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise RuntimeError(
+            f"docker command timed out after {DOCKER_TIMEOUT_SECONDS}s: {' '.join(args)}"
+        ) from exc
 
 
 def _human_size_to_bytes(size_text: str) -> int:
@@ -185,7 +192,23 @@ def _parse_copy_inputs(dockerfile_path: Path) -> tuple[str, ...]:
         stripped = line.strip()
         if not stripped.startswith("COPY "):
             continue
-        tokens = shlex.split(stripped[len("COPY ") :])
+        copy_args = stripped[len("COPY ") :].lstrip()
+        if copy_args.startswith("["):
+            try:
+                payload = json.loads(copy_args)
+            except json.JSONDecodeError:
+                continue
+            if not isinstance(payload, list) or len(payload) < 2:
+                continue
+            for source in payload[:-1]:
+                if isinstance(source, str):
+                    inputs.append(source)
+            continue
+        # RU: shell-form COPY поддерживается ограниченной эвристикой; флаги
+        # `--from` остаются non-local inputs и intentionally исключаются.
+        # EN: shell-form COPY uses a bounded heuristic; `--from` inputs are
+        # treated as non-local and intentionally excluded from build-context evidence.
+        tokens = shlex.split(copy_args)
         if any(token.startswith("--from=") for token in tokens):
             continue
         filtered_tokens = [token for token in tokens if not token.startswith("--")]

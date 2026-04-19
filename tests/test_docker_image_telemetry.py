@@ -40,6 +40,25 @@ def _write_context_files(tmp_path: Path) -> tuple[Path, Path]:
     return dockerfile, dockerignore
 
 
+def test_run_docker_uses_timeout(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: dict[str, object] = {}
+
+    def _fake_run(*args: object, **kwargs: object) -> subprocess.CompletedProcess[str]:
+        captured["args"] = args
+        captured["kwargs"] = kwargs
+        return subprocess.CompletedProcess(args=["docker"], returncode=0, stdout="[]", stderr="")
+
+    import subprocess
+
+    monkeypatch.setattr(docker_image_telemetry, "DOCKER_BINARY", "/usr/bin/docker")
+    monkeypatch.setattr(docker_image_telemetry.subprocess, "run", _fake_run)
+
+    docker_image_telemetry._run_docker(["image", "inspect", "pulseplate:test"])
+
+    assert captured["args"] == (["/usr/bin/docker", "image", "inspect", "pulseplate:test"],)
+    assert captured["kwargs"]["timeout"] == docker_image_telemetry.DOCKER_TIMEOUT_SECONDS
+
+
 @pytest.mark.parametrize(
     ("size_text", "expected_bytes"),
     (
@@ -53,6 +72,27 @@ def test_human_size_to_bytes_accepts_docker_style_units(
     size_text: str, expected_bytes: int
 ) -> None:
     assert docker_image_telemetry._human_size_to_bytes(size_text) == expected_bytes
+
+
+def test_parse_copy_inputs_supports_shell_and_json_forms(tmp_path: Path) -> None:
+    dockerfile = tmp_path / "Dockerfile"
+    dockerfile.write_text(
+        "\n".join(
+            [
+                "FROM python:3.13-slim AS builder",
+                'COPY ["requirements.txt", "constraints.txt", "/tmp/deps/"]',
+                "COPY --chown=pulseplate:pulseplate app/ ./app/",
+                "COPY --from=builder /opt/venv /opt/venv",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    assert docker_image_telemetry._parse_copy_inputs(dockerfile) == (
+        "requirements.txt",
+        "constraints.txt",
+        "app/",
+    )
 
 
 def test_collect_telemetry_without_baseline_is_warning_only(
