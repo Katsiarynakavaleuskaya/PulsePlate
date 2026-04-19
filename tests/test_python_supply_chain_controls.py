@@ -310,11 +310,15 @@ def test_test_dependency_profile_is_split_from_dev_tooling() -> None:
     assert "pytest-cov==7.1.0" in requirements_test
     assert "pytest-xdist==3.8.0" in requirements_test
     assert "coverage[toml]==7.13.5" in requirements_test
+    assert "pgvector==" in requirements_test
     assert "bandit==" not in requirements_test
     assert "pre-commit==" not in requirements_test
     assert "pip-audit==" not in requirements_test
     assert "mypy==" not in requirements_test
     assert "ruff==" not in requirements_test
+    assert "sentence-transformers==" not in requirements_test
+    assert "transformers==" not in requirements_test
+    assert "torch==" not in requirements_test
 
 
 def test_ci_lite_dependency_profile_excludes_ml_gpu_stack() -> None:

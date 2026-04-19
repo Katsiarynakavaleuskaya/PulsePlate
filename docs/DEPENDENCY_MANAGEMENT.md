@@ -6,11 +6,15 @@ This project uses `pip-tools` to manage dependencies with deterministic builds.
 
 - `requirements.in` - Production dependencies (high-level)
 - `requirements-dev.in` - Development dependencies (high-level)
+- `requirements-test.in` - Test-only dependencies (high-level)
 - `requirements-rag-vector.in` - Optional vector/ML runtime dependencies (high-level)
 - `requirements.txt` - Compiled production dependencies with exact versions (auto-generated)
 - `requirements-dev.txt` - Compiled development dependencies with exact versions (auto-generated)
+- `requirements-test.txt` - Compiled test-only dependencies with exact versions (auto-generated)
 - `requirements-rag-vector.txt` - Compiled optional vector/ML runtime dependencies (auto-generated)
 - `constraints.txt` - Additional version constraints for deterministic CI/CD builds
+
+`requirements-test.txt` keeps `pgvector` only for postgres-vector test coverage; the heavy vector/ML runtime packages remain isolated in `requirements-rag-vector.txt`.
 
 ### About constraints.txt
 
