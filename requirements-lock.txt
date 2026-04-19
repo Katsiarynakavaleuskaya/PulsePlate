@@ -224,7 +224,7 @@ mdurl==0.1.2
     #   markdown-it-py
 msgpack==1.1.2
     # via cachecontrol
-mypy==1.20.0
+mypy==1.20.1
     # via -r requirements-dev.in
 mypy-extensions==1.1.0
     # via
@@ -448,7 +448,7 @@ rich==14.3.3
     #   bandit
     #   pip-audit
     #   typer
-ruff==0.15.10
+ruff==0.15.11
     # via -r requirements-dev.in
 six==1.17.0
     # via
