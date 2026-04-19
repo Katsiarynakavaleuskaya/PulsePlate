@@ -6,8 +6,8 @@ Canonical review-governance artifact and PR-body mirror requirements:
 `AGENTS.md:42-52`; `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md:41-90`;
 `docs/orchestration/AGENTS.md:58-60`.
 
-- [ ] Discussion-thread pass completed
-- [ ] Fixed in commit mapping completed
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 
 This artifact is created immediately after lane setup per repo governance.
 Record every new review or bot disposition here before resolving threads on
@@ -18,15 +18,12 @@ GitHub.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1471#issuecomment-4275076194
 Disposition: NOT-A-BUG
 Evidence: `.github/dependabot.yml`
-Reason: Dependabot assignee warning is repo-configuration noise for this PR lane
-and does not change the dependency remediation scope.
+Reason: Dependabot assignee warning is repo-configuration noise and does not change the `#1471` remediation scope.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1471#pullrequestreview-4135062723
 Disposition: NOT-A-BUG
 Evidence: `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1471`
-Reason: cubic reported no actionable issues on the current PR head. If cubic or
-other bots add actionable comments on later heads, record them below before any
-thread resolution.
+Reason: cubic reported no actionable issues on the current PR head; any later bot actionables must be added below before thread resolution.
 
 ## Merge Readiness
 
