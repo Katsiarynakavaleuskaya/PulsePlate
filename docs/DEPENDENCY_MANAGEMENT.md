@@ -6,8 +6,10 @@ This project uses `pip-tools` to manage dependencies with deterministic builds.
 
 - `requirements.in` - Production dependencies (high-level)
 - `requirements-dev.in` - Development dependencies (high-level)
+- `requirements-rag-vector.in` - Optional vector/ML runtime dependencies (high-level)
 - `requirements.txt` - Compiled production dependencies with exact versions (auto-generated)
 - `requirements-dev.txt` - Compiled development dependencies with exact versions (auto-generated)
+- `requirements-rag-vector.txt` - Compiled optional vector/ML runtime dependencies (auto-generated)
 - `constraints.txt` - Additional version constraints for deterministic CI/CD builds
 
 ### About constraints.txt
@@ -69,7 +71,7 @@ Canonical contract for shared CI/Docker/bootstrap paths:
 - Time-boxed exceptions must stay exact and manifest-driven. Current example:
   `scripts/ci/emergency_python_wheels.json` currently carries a broader,
   repo-approved fallback set (including `cryptography 46.0.7`, `pillow 12.2.0`,
-  and other active CI/bootstrap wheels) with pinned `sha256` digests until the
+  and other active bootstrap/runtime wheels) with pinned `sha256` digests until the
   approved proxy catches up.
 
 **Note**: The temporary wheelhouse is no longer the final control. The repo now fails closed unless dependency resolution goes through the approved private proxy. Artifact quarantine and promotion review still live outside the repo as infrastructure controls.
@@ -115,6 +117,9 @@ pip-compile requirements.in --upgrade -o requirements.txt
 
 # Update development dependencies
 pip-compile requirements-dev.in --upgrade -o requirements-dev.txt
+
+# Update optional vector/ML runtime dependencies
+pip-compile requirements-rag-vector.in --upgrade -o requirements-rag-vector.txt
 
 # Install updated dependencies
 pip-sync requirements-dev.txt

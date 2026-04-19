@@ -40,7 +40,6 @@ cryptography>=46.0.7,<47.0.0
 nh3>=0.3.2,<1.0.0
 pyarrow>=20.0.0,<24.0.0
 setuptools>=78.1.1,<79.0.0
-pgvector>=0.3.6,<1.0.0
 
 # Control-plane CI tooling only.
 pre-commit~=4.5.1

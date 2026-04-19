@@ -1,0 +1,10 @@
+-c requirements.txt
+
+# Optional vector/ML runtime profile for RAG embeddings + pgvector search.
+# Feature-flagged via FEATURE_RAG_VECTOR; keep opt-in only.
+# Pin the currently proven runtime closure so this profile split does not widen
+# the fallback/index lane into an unrelated dependency-upgrade PR.
+sentence-transformers==5.4.0
+transformers==5.5.3
+torch==2.10.0
+pgvector==0.4.2

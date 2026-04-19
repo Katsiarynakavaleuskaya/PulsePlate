@@ -20,8 +20,12 @@ inputs:
     description: 'Pinned lightweight CI requirements file used when requirements-profile is ci-lite'
     required: false
     default: 'requirements-ci-lite.txt'
+  rag-vector-requirements-file:
+    description: 'Pinned optional vector/ML requirements file used when requirements-profile is rag-vector'
+    required: false
+    default: 'requirements-rag-vector.txt'
   requirements-profile:
-    description: 'Explicit pinned dependency profile (runtime, runtime-dev, runtime-test, ci-test, ci-lite)'
+    description: 'Explicit pinned dependency profile (runtime, runtime-dev, runtime-test, ci-test, ci-lite, rag-vector)'
     required: false
     default: ''
   constraints-file:
@@ -131,6 +135,16 @@ runs:
                 exit 1
               fi
               ;;
+            rag-vector)
+              if [[ ! -f requirements.txt ]]; then
+                echo "::error::Expected requirements.txt when requirements-profile is rag-vector"
+                exit 1
+              fi
+              if [[ ! -f "${{ inputs.rag-vector-requirements-file }}" ]]; then
+                echo "::error::Expected ${{ inputs.rag-vector-requirements-file }} when requirements-profile is rag-vector"
+                exit 1
+              fi
+              ;;
             *)
               echo "::error::Unsupported requirements-profile: $selected_profile"
               exit 1
@@ -139,6 +153,7 @@ runs:
           install_args+=(--requirements-profile "$selected_profile")
           install_args+=(--test-requirements-file "${{ inputs.test-requirements-file }}")
           install_args+=(--ci-lite-requirements-file "${{ inputs.ci-lite-requirements-file }}")
+          install_args+=(--rag-vector-requirements-file "${{ inputs.rag-vector-requirements-file }}")
         elif [[ -f requirements.txt ]]; then
           if [[ "${{ inputs.install-dev-deps }}" == 'true' ]]; then
             if [[ ! -f requirements-dev.txt ]]; then

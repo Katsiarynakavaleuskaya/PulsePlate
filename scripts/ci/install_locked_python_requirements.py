@@ -23,6 +23,7 @@ DEFAULT_REQUIREMENTS_FILE = REPO_ROOT / "requirements.txt"
 DEFAULT_DEV_REQUIREMENTS_FILE = REPO_ROOT / "requirements-dev.txt"
 DEFAULT_TEST_REQUIREMENTS_FILE = REPO_ROOT / "requirements-test.txt"
 DEFAULT_CI_LITE_REQUIREMENTS_FILE = REPO_ROOT / "requirements-ci-lite.txt"
+DEFAULT_RAG_VECTOR_REQUIREMENTS_FILE = REPO_ROOT / "requirements-rag-vector.txt"
 DEFAULT_CONSTRAINTS_FILE = REPO_ROOT / "constraints.txt"
 DEFAULT_STARTUP_HOOK_GUARD_PATH = REPO_ROOT / "scripts" / "ci" / "check_python_startup_hooks.py"
 DEFAULT_EMERGENCY_WHEEL_MANIFEST = REPO_ROOT / "scripts" / "ci" / "emergency_python_wheels.json"
@@ -52,6 +53,7 @@ REQUIREMENTS_PROFILES: tuple[str, ...] = (
     "runtime-test",
     "ci-test",
     "ci-lite",
+    "rag-vector",
 )
 PIP_NETWORK_RETRIES = 5
 PIP_NETWORK_TIMEOUT_SECONDS = 60
@@ -105,6 +107,12 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         type=Path,
         default=DEFAULT_CI_LITE_REQUIREMENTS_FILE,
         help="Pinned lightweight CI requirements file for non-test control-plane jobs.",
+    )
+    parser.add_argument(
+        "--rag-vector-requirements-file",
+        type=Path,
+        default=DEFAULT_RAG_VECTOR_REQUIREMENTS_FILE,
+        help="Pinned optional vector/ML requirements file used when requirements-profile is rag-vector.",
     )
     parser.add_argument(
         "--constraints-file",
@@ -195,6 +203,7 @@ def resolve_requirement_files(
     dev_requirements_file: Path,
     test_requirements_file: Path,
     ci_lite_requirements_file: Path,
+    rag_vector_requirements_file: Path,
     install_dev: bool,
     install_test: bool,
     requirements_profile: str | None,
@@ -215,6 +224,10 @@ def resolve_requirement_files(
             ("CI test requirements file", test_requirements_file),
         ],
         "ci-lite": [("CI lite requirements file", ci_lite_requirements_file)],
+        "rag-vector": [
+            ("Requirements file", requirements_file),
+            ("RAG vector requirements file", rag_vector_requirements_file),
+        ],
     }
     if requirements_profile is not None:
         return [
@@ -1317,6 +1330,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             dev_requirements_file=args.dev_requirements_file,
             test_requirements_file=args.test_requirements_file,
             ci_lite_requirements_file=args.ci_lite_requirements_file,
+            rag_vector_requirements_file=args.rag_vector_requirements_file,
             install_dev=args.install_dev,
             install_test=args.install_test,
             requirements_profile=args.requirements_profile,
