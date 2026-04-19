@@ -523,10 +523,13 @@ def _match_lexeme_terms(*, normalized_request_text: str, keywords: tuple[str, ..
 
     matches: list[str] = []
     for keyword in keywords:
-        if keyword not in matches and re.search(
-            rf"(?<!\w){re.escape(keyword)}(?!\w)", normalized_request_text
+        normalized_keyword = _normalize_lexeme(keyword)
+        if (
+            normalized_keyword
+            and normalized_keyword not in matches
+            and re.search(rf"(?<!\w){re.escape(normalized_keyword)}(?!\w)", normalized_request_text)
         ):
-            matches.append(keyword)
+            matches.append(normalized_keyword)
     return matches
 
 

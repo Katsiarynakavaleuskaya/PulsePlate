@@ -1337,7 +1337,7 @@ def test_skill_router_exposes_stable_explanation_schema() -> None:
     )
     per_skill = {item["skill"]: item for item in explanation["per_skill_evidence"]}
     assert per_skill["pulseplate-workflow"]["bucket"] == "required"
-    assert per_skill["docs-sync"]["bucket"] in {"recommended", "conditional"}
+    assert per_skill["docs-sync"]["bucket"] == "recommended"
 
 
 def test_match_lexeme_terms_requires_token_boundaries() -> None:
@@ -1349,6 +1349,17 @@ def test_match_lexeme_terms_requires_token_boundaries() -> None:
     )
 
     assert matches == []
+
+
+def test_match_lexeme_terms_normalizes_keywords_before_matching() -> None:
+    """Lexeme matching should use normalized keywords against normalized request text."""
+
+    matches = skill_router_module._match_lexeme_terms(
+        normalized_request_text="compare x twitter exports with search intent datasets",
+        keywords=("x/twitter", "search-intent datasets"),
+    )
+
+    assert matches == ["x twitter", "search intent datasets"]
 
 
 def test_skill_router_matches_approved_research_connectors_deterministically() -> None:
