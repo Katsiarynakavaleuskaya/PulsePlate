@@ -10,27 +10,34 @@ artifacts.
 ## Current Truth
 
 - PR: <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1480>
+  - Evidence: `docs/review/PR_1480_FIXED_MAPPING.md:58-92`
 - PR head branch: `codex/hotfix-mypy-1.20.0-main`
+  - Evidence: `docs/review/PR_1480_FIXED_MAPPING.md:58-92`
 - Current head SHA before this packet: `2ca096a1354990976f450da9d32d27ea15b11147`
+  - Evidence: `docs/review/PR_1480_FIXED_MAPPING.md:58-92`
 - Real current-head code blocker:
   - `requirements-dev.in` still used `mypy~=1.20.0`, which permits `1.20.1`
     and can reintroduce the same Frontend CI install failure on the next lock
     refresh.
+  - Evidence: `requirements-dev.in:29`; `docs/review/PR_1480_FIXED_MAPPING.md:68-92`
 - Real current-head governance blockers:
   - PR is now non-draft, but the canonical artifact
     `docs/review/PR_1480_FIXED_MAPPING.md` still reflects bootstrap state rather
     than the live bot/review surface.
+    - Evidence: `docs/review/PR_1480_FIXED_MAPPING.md:16-92`
   - `sourcery-ai`, `cubic-dev-ai`, and Codex posted review feedback after the
     PR left draft; those dispositions are not yet recorded in the canonical
     artifact.
+    - Evidence: `docs/review/PR_1480_FIXED_MAPPING.md:16-92`
   - Current-head CI is noisy with superseded cancelled runs; only the latest
     head run may be used for merge truth.
+    - Evidence: `docs/review/PR_1480_FIXED_MAPPING.md:58-92`
 
 ## Mandatory Role Order
 
 1. `agent-coordinator`
-2. `security-auditor`
-3. `backend-engineer`
+2. `backend-engineer`
+3. `security-auditor`
 4. `architecture-specialist` only on explicit coordinator escalation if the
    hotfix collides with dependency / lock policy
 5. `qa-engineer-agent`
@@ -42,6 +49,9 @@ Rules:
 - This role order is mandatory for the lane.
 - `dev-operator` may assist with command execution and evidence gathering only;
   it does not replace any reviewer in the order above.
+- The primary CI/CD lane canon remains
+  `agent-coordinator -> backend-engineer -> security-auditor`; this packet now
+  matches that ordering.
 - The canonical post-open review pass remains
   `qa-engineer-agent -> bug-hunter`.
 
@@ -67,15 +77,23 @@ Rules:
 
 - `requirements-dev.in` blocks the broken `mypy 1.20.1` patch rather than
   merely preferring `1.20.0`
+  - Evidence target: `requirements-dev.in:29`
 - Generated requirement artifacts remain aligned to `mypy==1.20.0`
+  - Evidence target: `requirements-dev.txt:110`; `requirements-lock.txt:227`
 - `pre-commit run --all-files` is green on the latest local head
+  - Evidence target: `docs/review/PR_1480_FIXED_MAPPING.md:87-92`
 - `make verify` is green on the latest local head
+  - Evidence target: `docs/review/PR_1480_FIXED_MAPPING.md:87-92`
 - All actionable review/bot comments are dispositioned in
   `docs/review/PR_1480_FIXED_MAPPING.md`
+  - Evidence target: `docs/review/PR_1480_FIXED_MAPPING.md:16-92`
 - PR body mirror matches the canonical artifact
+  - Evidence target: `docs/review/PR_1480_FIXED_MAPPING.md:85-92`
 - Latest current-head required checks are green with no pending required jobs
+  - Evidence target: `docs/review/PR_1480_FIXED_MAPPING.md:39-92`
 - CodeRabbit, Sourcery, and Cubic are explicitly pass / no-actionables before
   any merge-ready claim
+  - Evidence target: `docs/review/PR_1480_FIXED_MAPPING.md:39-92`
 
 ## Validation Baseline
 

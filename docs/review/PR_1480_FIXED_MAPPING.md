@@ -57,6 +57,15 @@ Merge-readiness contract:
 
 ## Notes
 
+- Current PR metadata snapshot captured before the exact-pin remediation:
+  - PR URL: `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1480`
+  - PR head branch: `codex/hotfix-mypy-1.20.0-main`
+  - Current head SHA before the packet / fix commit:
+    `2ca096a1354990976f450da9d32d27ea15b11147`
+  - Current pushed head after local remediation and mapping refresh:
+    `7b9151b17e3925ed825cc0300eb9866a121de161`
+- Current-head CI truth must ignore superseded cancelled runs and use only the
+  latest head run for `7b9151b17e3925ed825cc0300eb9866a121de161`.
 - Hotfix intent:
   - restore `mypy` from `1.20.1` to `1.20.0`
   - keep `ruff` at `0.15.11`
@@ -69,10 +78,15 @@ Merge-readiness contract:
   - `requirements-dev.in`
   - `requirements-dev.txt`
   - `requirements-lock.txt`
+- Exact-pin evidence:
+  - `requirements-dev.in:29` -> `mypy==1.20.0`
+  - `requirements-dev.txt:110` -> `mypy==1.20.0`
+  - `requirements-lock.txt:227` -> `mypy==1.20.0`
 - Coordinator packet:
   - `docs/orchestration/DEPENDABOT_PR_1480_FRONTEND_CI_MYPY_HOTFIX_PACKET_2026-04-19.md`
 - Live-session local evidence available in this thread:
   - `python3 scripts/orchestration/check_preflight.py` passed
   - `python3 scripts/orchestration/check_agent_consistency.py` passed
   - `pre-commit run --all-files` passed before and after the exact-pin remediation
-  - `make verify` is being rerun on the post-fix tree before the final merge-ready claim
+  - `make verify` passed on the pushed head `7b9151b17e3925ed825cc0300eb9866a121de161`
+  - PR body mirror was refreshed on the pushed head `7b9151b17e3925ed825cc0300eb9866a121de161`
