@@ -8,15 +8,15 @@ The VIP router now implements production-safe API key authentication with config
 
 ### Environment Detection
 
-- **`ENVIRONMENT`**: Primary runtime environment identifier
+- **`ENVIRONMENT`**: Runtime environment identifier
   - Values: `production`, `staging`, `development`, `local`, `test`
   - Default: `local`
   - Used to determine if the application is running in production mode
 
-- **`APP_ENV`**: Legacy fallback environment identifier
+- **`APP_ENV`**: Preferred app-scoped runtime environment identifier
   - Values: `production`, `staging`, `development`, `local`, `test`
-  - Used only when `ENVIRONMENT` is unset
-  - **Rule:** `ENVIRONMENT` overrides `APP_ENV`
+  - Used first when non-empty
+  - **Rule:** `APP_ENV` is preferred, but any `production` / `prod` / `staging` value from either `APP_ENV` or `ENVIRONMENT` wins fail-closed over a conflicting non-production value
 
 - **`DEBUG`**: Debug mode flag
   - Values: `true`, `false`, `1`, `0`, `yes`, `no`, `on`, `off`

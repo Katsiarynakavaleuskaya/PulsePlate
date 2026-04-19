@@ -171,12 +171,36 @@ class TestValidateAPIKeyTier:
         assert _validate_api_key_tier("miss_then_env_key", SubscriptionTier.PRO) is True
         assert _validate_api_key_tier("miss_then_env_key", SubscriptionTier.VIP) is False
 
-    def test_app_env_overrides_environment_for_runtime_detection(
+    def test_production_like_app_env_wins_over_non_production_environment_for_runtime_detection(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """APP_ENV must win over ENVIRONMENT to avoid production misclassification."""
+        """Production-like APP_ENV must win over non-production ENVIRONMENT."""
         monkeypatch.setenv("ENVIRONMENT", "development")
         monkeypatch.setenv("APP_ENV", "production")
+        monkeypatch.setenv("DEBUG", "true")
+
+        assert get_runtime_env_name() == "production"
+        assert is_production_like_env() is True
+        assert _validate_api_key_tier(TEST_KEY_VIP, SubscriptionTier.VIP) is False
+
+    def test_environment_used_when_app_env_missing_for_runtime_detection(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """ENVIRONMENT must be used when APP_ENV is blank."""
+        monkeypatch.setenv("APP_ENV", "   ")
+        monkeypatch.setenv("ENVIRONMENT", "staging")
+        monkeypatch.setenv("DEBUG", "true")
+
+        assert get_runtime_env_name() == "staging"
+        assert is_production_like_env() is True
+        assert _validate_api_key_tier(TEST_KEY_VIP, SubscriptionTier.VIP) is False
+
+    def test_production_like_environment_beats_local_app_env_conflict(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Production-like ENVIRONMENT must fail closed over local APP_ENV conflicts."""
+        monkeypatch.setenv("APP_ENV", "local")
+        monkeypatch.setenv("ENVIRONMENT", "production")
         monkeypatch.setenv("DEBUG", "true")
 
         assert get_runtime_env_name() == "production"

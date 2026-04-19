@@ -17,17 +17,33 @@ _DEVELOPER_LIKE_ENVS = frozenset({"local", "dev", "development", "test", "testin
 _NON_PRODUCTION_ENVS = frozenset({""}) | _DEVELOPER_LIKE_ENVS
 
 
+def _normalized_runtime_env(name: str) -> str:
+    """Return normalized runtime env value for a given env var name."""
+
+    return (os.getenv(name) or "").strip().lower()
+
+
 def get_runtime_env_name() -> str:
     """Return canonical runtime environment label.
 
-    RU: Канонизирует имя окружения, отдавая приоритет APP_ENV над ENVIRONMENT.
-    EN: Canonicalizes runtime environment, preferring APP_ENV over ENVIRONMENT.
+    RU: Канонизирует имя окружения: APP_ENV предпочтителен, но любой
+    production-like конфликт обрабатывается fail-closed в сторону
+    production-like значения.
+    EN: Canonicalizes runtime environment: APP_ENV is preferred, but any
+    production-like conflict fails closed toward the production-like value.
     """
 
-    if environment := (os.getenv("APP_ENV") or "").strip().lower():
-        return environment
-    if environment := (os.getenv("ENVIRONMENT") or "").strip().lower():
-        return environment
+    app_env = _normalized_runtime_env("APP_ENV")
+    runtime_env = _normalized_runtime_env("ENVIRONMENT")
+
+    if app_env in _PRODUCTION_LIKE_ENVS:
+        return app_env
+    if runtime_env in _PRODUCTION_LIKE_ENVS:
+        return runtime_env
+    if app_env:
+        return app_env
+    if runtime_env:
+        return runtime_env
     return "local"
 
 
