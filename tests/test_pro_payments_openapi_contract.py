@@ -37,6 +37,7 @@ def test_pro_payments_response_codes_contract() -> None:
             "200",
             "400",
             "401",
+            "403",
             "409",
             "422",
             "502",
@@ -75,6 +76,7 @@ def test_pro_payments_error_schema_refs() -> None:
 
     assert _schema("/api/v1/pro/payments/activate", "post", "400")["$ref"] == payment_error_ref
     assert _schema("/api/v1/pro/payments/activate", "post", "401")["$ref"] == payment_error_ref
+    assert _schema("/api/v1/pro/payments/activate", "post", "403")["$ref"] == payment_error_ref
     assert _schema("/api/v1/pro/payments/activate", "post", "409")["$ref"] == payment_error_ref
     assert _schema("/api/v1/pro/payments/activate", "post", "502")["$ref"] == payment_error_ref
     assert _schema("/api/v1/pro/payments/activate", "post", "504")["$ref"] == payment_error_ref

@@ -8110,7 +8110,7 @@
                 }
               }
             },
-            "description": "iOS activation requires receipt_data or Apple verification failed"
+            "description": "Activation access forbidden or Apple receipt verification required"
           },
           "409": {
             "content": {
