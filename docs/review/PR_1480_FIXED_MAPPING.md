@@ -35,6 +35,18 @@ Reason: cubic inline review requested `mypy==1.20.0`; the exact pin landed in co
 Disposition: FIXED
 Evidence: `requirements-dev.in:29`
 Reason: Codex inline review raised the same recurrence risk; the exact pin landed in commit `f8cfa3a999787e161caeadb9bd8d5378e705f970`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1480#pullrequestreview-4136437409 -> 46fe391b590b98d878c768d16cf8b05630b75c3f
+Disposition: FIXED
+Evidence: `docs/orchestration/DEPENDABOT_PR_1480_FRONTEND_CI_MYPY_HOTFIX_PACKET_2026-04-19.md:12-34`
+Reason: CodeRabbit requested evidence anchors and canonical lane alignment in the PR #1480 packet; both landed in commit `46fe391b590b98d878c768d16cf8b05630b75c3f`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1480#discussion_r3107379709 -> 46fe391b590b98d878c768d16cf8b05630b75c3f
+Disposition: FIXED
+Evidence: `docs/orchestration/DEPENDABOT_PR_1480_FRONTEND_CI_MYPY_HOTFIX_PACKET_2026-04-19.md:12-34`
+Reason: CodeRabbit required file:line evidence anchors for packet truth assertions; those anchors landed in commit `46fe391b590b98d878c768d16cf8b05630b75c3f`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1480#discussion_r3107379711 -> 46fe391b590b98d878c768d16cf8b05630b75c3f
+Disposition: FIXED
+Evidence: `docs/orchestration/DEPENDABOT_PR_1480_FRONTEND_CI_MYPY_HOTFIX_PACKET_2026-04-19.md:36-56`
+Reason: CodeRabbit requested canonical lane ordering for the packet; the role order was aligned in commit `46fe391b590b98d878c768d16cf8b05630b75c3f`.
 
 ## Merge Readiness
 
