@@ -232,6 +232,7 @@ Task packet:
           ]
         }
       ],
+      "envelope_mode_hint": "docs_only",
       "blocked": [],
       "explanation": {
         "schema_version": "1.0",

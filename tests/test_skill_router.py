@@ -1287,15 +1287,40 @@ def test_skill_router_records_blocked_scraping_patterns() -> None:
     assert "google maps" in blocked_labels
     assert "entire internet" in blocked_labels
     assert all(item["kind"] == "pattern" for item in decision["blocked"])
+    disallowed_matches = decision["research_connector_policy"]["matches"][
+        RESEARCH_POLICY_BUCKET_DISALLOWED
+    ]
+    disallowed = {item["connector"] for item in disallowed_matches}
+    assert "tiktok_scraping" in disallowed
+    assert "google_maps_scraping" in disallowed
+    assert "universal_free_form_scrapers" in disallowed
+    matched_terms = {term for item in disallowed_matches for term in item.get("matched_terms", [])}
+    assert blocked_labels == matched_terms
+
+
+def test_skill_router_normalizes_blocked_patterns_with_disallowed_matches() -> None:
+    """Blocked patterns should reuse the disallowed connector matcher contract."""
+
+    decision = route_skills(
+        goal="Research TikTok, Google-Maps, and scrape any-site competitor data",
+        task_class="Research",
+        candidate_paths=["docs/audience_pack/ENGINEERING_OVERVIEW.md"],
+        domain="research",
+    )
+
+    blocked_labels = {item["label"] for item in decision["blocked"]}
+    assert blocked_labels == {"tiktok", "google maps", "scrape any site"}
     disallowed = {
         item["connector"]
         for item in decision["research_connector_policy"]["matches"][
             RESEARCH_POLICY_BUCKET_DISALLOWED
         ]
     }
-    assert "tiktok_scraping" in disallowed
-    assert "google_maps_scraping" in disallowed
-    assert "universal_free_form_scrapers" in disallowed
+    assert disallowed == {
+        "tiktok_scraping",
+        "google_maps_scraping",
+        "universal_free_form_scrapers",
+    }
 
 
 def test_skill_router_ignores_scraping_tokens_from_candidate_paths() -> None:

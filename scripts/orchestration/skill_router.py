@@ -590,6 +590,31 @@ def _build_research_connector_policy(*, normalized_request_text: str) -> dict[st
     }
 
 
+def _build_blocked_patterns(*, research_connector_policy: dict[str, Any]) -> list[dict[str, str]]:
+    """Derive blocked-pattern metadata from the same disallowed connector matches."""
+
+    disallowed_reasons = {
+        rule.connector: rule.rationale
+        for rule in RESEARCH_CONNECTOR_RULES
+        if rule.policy_bucket == RESEARCH_POLICY_BUCKET_DISALLOWED
+    }
+    blocked: list[dict[str, str]] = []
+    seen_labels: set[str] = set()
+
+    for match in research_connector_policy["matches"][RESEARCH_POLICY_BUCKET_DISALLOWED]:
+        reason = disallowed_reasons.get(
+            match["connector"],
+            "Disallowed research connector pattern for the current repo.",
+        )
+        for matched_term in match.get("matched_terms", []):
+            if matched_term in seen_labels:
+                continue
+            blocked.append({"label": matched_term, "reason": reason, "kind": "pattern"})
+            seen_labels.add(matched_term)
+
+    return blocked
+
+
 def _apply_semantic_group_boosts(
     *,
     selected_by_skill: dict[str, dict[str, Any]],
@@ -1758,12 +1783,7 @@ def route_skills(
     research_connector_policy = _build_research_connector_policy(
         normalized_request_text=normalized_request_text
     )
-
-    blocked = [
-        {"label": pattern, "reason": reason, "kind": "pattern"}
-        for pattern, reason in SCRAPING_BLOCK_PATTERNS
-        if pattern in normalized_request_text
-    ]
+    blocked = _build_blocked_patterns(research_connector_policy=research_connector_policy)
 
     scored = [
         _score_rule(
