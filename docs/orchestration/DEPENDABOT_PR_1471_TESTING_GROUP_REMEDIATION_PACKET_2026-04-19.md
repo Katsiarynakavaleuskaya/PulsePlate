@@ -129,8 +129,8 @@ Rules:
   docs/orchestration/DEPENDABOT_PR_1471_TESTING_GROUP_REMEDIATION_PACKET_2026-04-19.md
   docs/review/PR_1471_FIXED_MAPPING.md .secrets.baseline` passed after the
   minimal `.secrets.baseline` sync.
-- `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python
-  -m pytest -q tests/test_install_locked_python_requirements.py
+- `.venv/bin/python -m pytest -q
+  tests/test_install_locked_python_requirements.py
   tests/test_python_supply_chain_controls.py` passed.
 - `make validate-min` passed in the dedicated worktree via the local `.venv`
   symlink that points to the root repo virtual environment and remains
