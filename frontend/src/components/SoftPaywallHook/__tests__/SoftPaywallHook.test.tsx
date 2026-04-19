@@ -47,7 +47,7 @@ describe("SoftPaywallHook", () => {
     type: "unlock_targets",
     recommended_surface: "pro_targets",
     recommended_tier: "PRO",
-    trigger_reason: "post_bmi",
+    trigger_reason: "targets_ready",
     why_now: "post_bmi_baseline_body_metrics",
   };
 
@@ -233,7 +233,7 @@ describe("SoftPaywallHook", () => {
       state: {
         exposureId: "analytics-id-1",
         source: "bmi_soft_paywall",
-        triggerReason: "post_bmi",
+        triggerReason: "targets_ready",
         via: "pro_page",
         actionType: "unlock_targets",
         recommendedSurface: "pro_targets",
@@ -241,5 +241,10 @@ describe("SoftPaywallHook", () => {
         whyNow: "post_bmi_baseline_body_metrics",
       },
     });
+
+    const ctaPayload = logPaywallExposure.mock.calls.at(-1)?.[0] as
+      | Record<string, unknown>
+      | undefined;
+    expect(ctaPayload?.trigger_reason).toBe("targets_ready");
   });
 });

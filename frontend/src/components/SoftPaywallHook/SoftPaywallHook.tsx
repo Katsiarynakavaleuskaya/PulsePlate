@@ -77,7 +77,7 @@ export default function SoftPaywallHook({
           exposure_id: ensureExposureId(),
           event_name: eventName,
           source_surface: BMI_SOFT_PAYWALL_SOURCE,
-          trigger_reason: BMI_SOFT_PAYWALL_TRIGGER_REASON,
+          trigger_reason: triggerReason,
           via: 'soft_paywall_hook',
           metadata: {
             hook_id: hook.id,

@@ -49,6 +49,10 @@ function renderAtProRoute(state?: {
   source?: string;
   triggerReason?: string;
   via?: string;
+  actionType?: string;
+  recommendedSurface?: string;
+  recommendedTier?: string;
+  whyNow?: string;
 }) {
   return render(
     <MemoryRouter initialEntries={[{ pathname: "/pro", state }]}>
@@ -84,6 +88,7 @@ describe("ProPaywallPage", () => {
     expect(purchasePremiumMock).toHaveBeenCalledWith({
       source: "pro_page",
       via: "pro_page",
+      triggerReason: "unknown",
     });
     expect(logPaywallExposureMock).toHaveBeenCalledWith("paywall_view", {
       client_event_id: "event-pro-view",
@@ -119,6 +124,7 @@ describe("ProPaywallPage", () => {
       expect(purchasePremiumMock).toHaveBeenCalledWith({
         source: "pro_page",
         via: "pro_page",
+        triggerReason: "unknown",
       });
       expect(logPaywallExposureMock).toHaveBeenCalledTimes(2);
       expect(logPaywallExposureMock).toHaveBeenNthCalledWith(1, "paywall_view", {
@@ -188,6 +194,7 @@ describe("ProPaywallPage", () => {
       expect(purchasePremiumMock).toHaveBeenCalledWith({
         source: "bmi_soft_paywall",
         via: "pro_page",
+        triggerReason: "post_bmi",
       });
     });
   });

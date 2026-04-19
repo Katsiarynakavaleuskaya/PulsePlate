@@ -46,9 +46,11 @@ enum PaywallTarget: String, Equatable {
         softPaywallTarget: String,
         nextBestAction: NextBestActionDTO?
     ) -> PaywallTarget {
-        fromNextBestActionSurface(nextBestAction?.recommendedSurface ?? "")
-            ?? fromSoftPaywallHookTarget(softPaywallTarget)
-            ?? .pro
+        if let surface = nextBestAction?.recommendedSurface,
+           let mapped = fromNextBestActionSurface(surface) {
+            return mapped
+        }
+        return fromSoftPaywallHookTarget(softPaywallTarget) ?? .pro
     }
 
     /// Map backend soft-paywall `hook.target` strings to typed enum.

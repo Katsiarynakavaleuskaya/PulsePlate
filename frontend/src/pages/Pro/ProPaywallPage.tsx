@@ -41,9 +41,9 @@ export default function ProPaywallPage(): JSX.Element {
     await purchasePremium({
       source,
       via,
+      triggerReason,
       ...(hasNextBestActionContext
         ? {
-            triggerReason,
             actionType: state?.actionType,
             recommendedSurface: state?.recommendedSurface,
             recommendedTier: state?.recommendedTier,
