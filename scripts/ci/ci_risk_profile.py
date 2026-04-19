@@ -259,6 +259,9 @@ def _is_route_contract_surface(path: str) -> bool:
     normalized = _normalize_path(path)
     return (
         normalized == "legacy_app.py"
+        # Shared root/provider backend modules participate in both CI-risk
+        # classifications: they are backend-shared surfaces and route-contract
+        # inputs that can change the routing/contract safety envelope.
         or normalized in ROOT_BACKEND_SHARED_MODULES
         or normalized.startswith(("app/", "core/", "providers/"))
     )
