@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import argparse
 import json
 from pathlib import Path
 
@@ -93,6 +94,20 @@ def test_parse_copy_inputs_supports_shell_and_json_forms(tmp_path: Path) -> None
         "constraints.txt",
         "app/",
     )
+
+
+def test_load_baseline_size_bytes_rejects_non_object_payload(tmp_path: Path) -> None:
+    baseline_path = tmp_path / "baseline.json"
+    baseline_path.write_text(json.dumps(["unexpected", "payload"]), encoding="utf-8")
+
+    with pytest.raises(RuntimeError, match="Unsupported baseline payload shape"):
+        docker_image_telemetry._load_baseline_size_bytes(baseline_path)
+
+
+@pytest.mark.parametrize("raw_value", ("0", "-1"))
+def test_positive_int_rejects_non_positive_values(raw_value: str) -> None:
+    with pytest.raises(argparse.ArgumentTypeError, match="greater than 0"):
+        docker_image_telemetry._positive_int(raw_value)
 
 
 def test_collect_telemetry_without_baseline_is_warning_only(

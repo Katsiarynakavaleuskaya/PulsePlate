@@ -237,12 +237,23 @@ def _load_baseline_size_bytes(baseline_path: Path | None) -> int | None:
     if baseline_path is None or not baseline_path.exists():
         return None
     payload = json.loads(baseline_path.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        raise RuntimeError(f"Unsupported baseline payload shape: {baseline_path}")
     if isinstance(payload.get("image_size_bytes"), int):
         return int(payload["image_size_bytes"])
     image_payload = payload.get("image")
     if isinstance(image_payload, dict) and isinstance(image_payload.get("size_bytes"), int):
         return int(image_payload["size_bytes"])
     raise RuntimeError(f"Unsupported baseline payload shape: {baseline_path}")
+
+
+def _positive_int(value: str) -> int:
+    """Parse a strictly positive integer for CLI arguments."""
+
+    parsed_value = int(value)
+    if parsed_value <= 0:
+        raise argparse.ArgumentTypeError("value must be greater than 0")
+    return parsed_value
 
 
 def collect_telemetry(
@@ -374,7 +385,7 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--top-layers",
-        type=int,
+        type=_positive_int,
         default=5,
         help="Number of largest layers to report",
     )

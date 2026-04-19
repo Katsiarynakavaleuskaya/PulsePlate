@@ -53,5 +53,6 @@ Reason: cubic found that Docker history sizes like `65.4kB`/`12MB` could be misp
 - [x] Targeted telemetry and supply-chain tests
 - [x] Accelerated full-suite coverage plus `diff-cover` equivalent completed
 - [ ] Canonical local `make verify`
-  Evidence: single-process `make diff-cov` still receives external `SIGTERM` in this environment during the full coverage run; do not mark merge-ready on that basis until current-head CI proves green.
+  Evidence: `AGENTS.md:8-20`; `AGENTS.md:492-500`
+  Reason: the canonical local gate remains unchecked in this artifact, so merge truth must still come from current-head CI rather than any partial local substitute.
 <!-- markdownlint-enable MD034 -->
