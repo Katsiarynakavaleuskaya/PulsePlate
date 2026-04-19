@@ -31,18 +31,19 @@ Merge-readiness contract:
 `AGENTS.md:42-52`; `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md:93-112`;
 `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md:153-216`.
 
-- [ ] Current-head CI is green for PR branch head
-  Evidence: live current-head checks for PR `#1471`
-- [ ] Required checks complete (no pending jobs)
-  Evidence: live current-head checks for PR `#1471`
-- [ ] All review threads resolved on GitHub after disposition updates
-  Evidence: GitHub review thread state for PR `#1471`
-- [ ] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
-  Evidence: this artifact plus latest bot/review state
-- [ ] Pre-commit green on latest pushed head
+- [x] Current-head CI is green for PR branch head
+  Evidence: live current-head checks for PR `#1471` on head `2ec5f45a98962bda17ee1d0214cd6722d3486fa5`
+- [x] Required checks complete (no pending jobs)
+  Evidence: `gh pr checks 1471` on head `2ec5f45a98962bda17ee1d0214cd6722d3486fa5`
+- [x] All review threads resolved on GitHub after disposition updates
+  Evidence: `check_pr_merge_readiness.py` review-governance pass for PR `#1471`
+- [x] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
+  Evidence: `check_pr_merge_readiness.py` reported zero unresolved threads and zero unmapped actionable bot comments for PR `#1471`
+- [x] Pre-commit green on latest pushed head
   Evidence: local `pre-commit run --all-files`
-- [ ] `make verify` green on latest pushed head
-  Evidence: local `make verify`
+- [x] `make verify` green on latest pushed head
+  Evidence: latest-head `make verify` contract completed via split local execution on head `2ec5f45a98962bda17ee1d0214cd6722d3486fa5`:
+  `verify-env`, `lint`, `typecheck`, `test-fast`, and file-backed `diff-cov` all passed
 
 ## Notes
 
@@ -66,6 +67,5 @@ Merge-readiness contract:
   - `make validate-min` is green
 - Canonical lane packet:
   `docs/orchestration/DEPENDABOT_PR_1471_TESTING_GROUP_REMEDIATION_PACKET_2026-04-19.md`
-- Phase 2 completion checkboxes remain unchecked until the mandatory
-  `qa-engineer-agent -> bug-hunter` review lane is closed and the final
-  merge-readiness pass is complete on the latest PR head.
+- Mandatory `qa-engineer-agent -> bug-hunter` review lane is complete, and the
+  final merge-readiness pass is now closed on the latest PR head.
