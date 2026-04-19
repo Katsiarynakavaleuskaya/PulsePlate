@@ -9,7 +9,10 @@ No actionable human or bot review threads exist yet on GitHub. Add every actiona
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1478#pullrequestreview-4135823557 -> c7ff3204e
+
+Disposition: FIXED
+Evidence: `scripts/ci/ci_risk_profile.py` now carries an explicit comment documenting why `ROOT_BACKEND_SHARED_MODULES` participates in route-contract classification, and the Phase2 mirror/governance state was synchronized in `docs/review/PR_1478_FIXED_MAPPING.md` plus the PR body before this post-review head.
 
 ## Merge Readiness
 
