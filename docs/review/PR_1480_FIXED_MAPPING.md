@@ -15,8 +15,10 @@ GitHub.
 
 ## Fixed in Commit Mapping
 
-- No actionable review threads were present on PR initialization for `#1480`.
-  Add every new human or bot review item below before resolving it on GitHub.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1480
+Disposition: NOT-A-BUG
+Evidence: `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1480`
+Reason: At artifact initialization time the live PR surface had no actionable human or bot review threads yet; any later actionables must be appended here before thread resolution.
 
 ## Merge Readiness
 
