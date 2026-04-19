@@ -23,11 +23,29 @@ Commit: 02df13070
 Evidence: `docs/deploy/VIP_API_KEYS.md:16-21` now documents the merged precedence contract with exact implementation/test pointers; `docs/deploy/VIP_API_KEYS.md:96-135` and `docs/deploy/VIP_API_KEYS.md:169-175` synchronize the copy-paste env examples on both `APP_ENV` and `ENVIRONMENT`; `settings.py:45-54` and `tests/test_api_tiers.py:180-225` match that contract after the merge from `main`.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1443#pullrequestreview-4136318979 -> 02df13070
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1443#discussion_r3107229016
+Disposition: FIXED
+Commit: 02df13070
+Evidence: `docs/deploy/VIP_API_KEYS.md:16-21` now cites the implementation and regression coverage for the merged precedence rule; `settings.py:45-54` and `tests/test_api_tiers.py:180-225` are the exact runtime/test anchors requested by CodeRabbit.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1443#discussion_r3107229016 -> 02df13070
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1443#discussion_r3107229018
+Disposition: FIXED
+Commit: 02df13070
+Evidence: `docs/deploy/VIP_API_KEYS.md:96-135` updates the production, development, staging, and restricted-development examples to export both `APP_ENV` and `ENVIRONMENT`; `docs/deploy/VIP_API_KEYS.md:169-175` keeps the testing example aligned with the same pair-export guidance.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1443#discussion_r3107229018 -> 02df13070
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1443#pullrequestreview-4136321662
 Disposition: FIXED
 Commit: 02df13070
 Evidence: `docs/deploy/VIP_API_KEYS.md:96-135` updates every production/development/staging example to export both `APP_ENV` and `ENVIRONMENT`; `docs/deploy/VIP_API_KEYS.md:169-175` does the same for the testing snippet, removing the inconsistent `ENVIRONMENT`-only guidance flagged by cubic.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1443#pullrequestreview-4136321662 -> 02df13070
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1443#discussion_r3107232369
+Disposition: FIXED
+Commit: 02df13070
+Evidence: `docs/deploy/VIP_API_KEYS.md:96-135` and `docs/deploy/VIP_API_KEYS.md:169-175` replace the inconsistent `ENVIRONMENT`-only copy-paste path with synchronized `APP_ENV` plus `ENVIRONMENT` examples, matching the documented precedence contract.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1443#discussion_r3107232369 -> 02df13070
 
 ## Merge Readiness
 - [x] Scope tied to PR objective
