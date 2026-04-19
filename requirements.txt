@@ -143,6 +143,8 @@ pydantic==2.12.5
     #   openai
 pydantic-core==2.41.5
     # via pydantic
+pygments==2.20.0
+    # via -r requirements.in
 pyparsing==3.2.5
     # via matplotlib
 python-dateutil==2.9.0.post0
