@@ -37,6 +37,16 @@ Reason: cubic found that Docker history sizes like `65.4kB`/`12MB` could be misp
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1477#discussion_r3106664334 -> 2805c4243e67716c3d25845542d017c67f916592
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1477#discussion_r3106669572 -> 2805c4243e67716c3d25845542d017c67f916592
 
+Disposition: FIXED
+Commit: `6810462f73c5da6ffc769becca52d19eb0e6a561`
+Evidence: `scripts/ci/docker_image_telemetry.py:234-256`; `scripts/ci/docker_image_telemetry.py:368-394`; `tests/test_docker_image_telemetry.py:99-110`; `docs/review/PR_1477_FIXED_MAPPING.md:55-57`
+Reason: the remaining CodeRabbit follow-ups are now closed on-branch: baseline JSON payloads fail closed with the intended `RuntimeError` when the root object is not a mapping, `--top-layers` rejects zero/negative values at parse time, and the mapping artifact no longer makes an uncited SIGTERM truth claim.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1477#discussion_r3106735234 -> 6810462f73c5da6ffc769becca52d19eb0e6a561
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1477#discussion_r3106735238 -> 6810462f73c5da6ffc769becca52d19eb0e6a561
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1477#discussion_r3106735240 -> 6810462f73c5da6ffc769becca52d19eb0e6a561
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1477#pullrequestreview-4135871172 -> 6810462f73c5da6ffc769becca52d19eb0e6a561
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1477#pullrequestreview-4135872292 -> 6810462f73c5da6ffc769becca52d19eb0e6a561
+
 ## Merge Readiness
 
 - [ ] Current-head CI green for PR branch head
