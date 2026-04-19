@@ -1340,6 +1340,17 @@ def test_skill_router_exposes_stable_explanation_schema() -> None:
     assert per_skill["docs-sync"]["bucket"] in {"recommended", "conditional"}
 
 
+def test_match_lexeme_terms_requires_token_boundaries() -> None:
+    """Lexeme matching should not trigger on connector names embedded in larger tokens."""
+
+    matches = skill_router_module._match_lexeme_terms(
+        normalized_request_text="audit myyoutubeapp packaging notes",
+        keywords=("youtube", "google trends"),
+    )
+
+    assert matches == []
+
+
 def test_skill_router_matches_approved_research_connectors_deterministically() -> None:
     """Approved research-only connectors should be explicit in the routing metadata."""
 

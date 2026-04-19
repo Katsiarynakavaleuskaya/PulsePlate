@@ -193,6 +193,7 @@ Task packet:
           "lexeme:merge readiness(+2)"
         ]
       },
+      "envelope_mode_hint": "docs_only",
       "required": [
         {
           "skill": "pulseplate-workflow",
