@@ -19,6 +19,22 @@ GitHub.
 Disposition: NOT-A-BUG
 Evidence: `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1480`
 Reason: At artifact initialization time the live PR surface had no actionable human or bot review threads yet; any later actionables must be appended here before thread resolution.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1480#pullrequestreview-4136381333 -> f8cfa3a999787e161caeadb9bd8d5378e705f970
+Disposition: FIXED
+Evidence: `requirements-dev.in:29`
+Reason: Sourcery requested a stricter mypy constraint so future lock refreshes cannot drift back to the broken `1.20.1` patch; the exact pin landed in commit `f8cfa3a999787e161caeadb9bd8d5378e705f970`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1480#pullrequestreview-4136383224 -> f8cfa3a999787e161caeadb9bd8d5378e705f970
+Disposition: FIXED
+Evidence: `requirements-dev.in:29`
+Reason: cubic identified that `~=1.20.0` still permits `1.20.1`; the exact pin landed in commit `f8cfa3a999787e161caeadb9bd8d5378e705f970`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1480#discussion_r3107311707 -> f8cfa3a999787e161caeadb9bd8d5378e705f970
+Disposition: FIXED
+Evidence: `requirements-dev.in:29`
+Reason: cubic inline review requested `mypy==1.20.0`; the exact pin landed in commit `f8cfa3a999787e161caeadb9bd8d5378e705f970`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1480#discussion_r3107312193 -> f8cfa3a999787e161caeadb9bd8d5378e705f970
+Disposition: FIXED
+Evidence: `requirements-dev.in:29`
+Reason: Codex inline review raised the same recurrence risk; the exact pin landed in commit `f8cfa3a999787e161caeadb9bd8d5378e705f970`.
 
 ## Merge Readiness
 
@@ -53,5 +69,10 @@ Merge-readiness contract:
   - `requirements-dev.in`
   - `requirements-dev.txt`
   - `requirements-lock.txt`
-- Live-session constraint:
-  - local shell preflight / `make verify` could not be executed in this Codex thread because exec process creation is unavailable
+- Coordinator packet:
+  - `docs/orchestration/DEPENDABOT_PR_1480_FRONTEND_CI_MYPY_HOTFIX_PACKET_2026-04-19.md`
+- Live-session local evidence available in this thread:
+  - `python3 scripts/orchestration/check_preflight.py` passed
+  - `python3 scripts/orchestration/check_agent_consistency.py` passed
+  - `pre-commit run --all-files` passed before and after the exact-pin remediation
+  - `make verify` is being rerun on the post-fix tree before the final merge-ready claim
