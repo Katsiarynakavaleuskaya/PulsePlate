@@ -22,6 +22,9 @@ Evidence: `docs/orchestration/UI_EPIC_PR_SERIES_RUNBOOK.md:22-25`, `docs/orchest
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1463#discussion_r3106663003 -> f6fdbf3fc
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1463#discussion_r3106663006 -> f6fdbf3fc
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1463#discussion_r3106663008 -> f6fdbf3fc
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1463#pullrequestreview-4135803498 -> f6fdbf3fc
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1463#pullrequestreview-4135804973 -> f6fdbf3fc
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1463#pullrequestreview-4135808007 -> f6fdbf3fc
 
 ## Merge Readiness
 
