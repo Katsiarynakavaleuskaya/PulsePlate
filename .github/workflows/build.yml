@@ -29,6 +29,13 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
+      - name: Prepare Trivy ignore policy
+        run: |
+          set -euo pipefail
+          test -f trivy/ignore-policy.rego
+          cp trivy/ignore-policy.rego .trivy-ignore-policy.rego
+          ls -la .trivy-ignore-policy.rego
+
       - name: Free disk space (Ubuntu hosted runner)
         continue-on-error: true
         run: |
@@ -132,25 +139,32 @@ jobs:
             echo "::warning::GHCR_READ_TOKEN is set but docker login was denied; continuing without registry auth."
           fi
 
-      - name: Install Trivy via apt
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y wget apt-transport-https gnupg lsb-release
-          wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | gpg --dearmor | sudo tee /usr/share/keyrings/trivy.gpg > /dev/null
-          echo "deb [signed-by=/usr/share/keyrings/trivy.gpg] https://aquasecurity.github.io/trivy-repo/deb $(lsb_release -sc) main" | sudo tee /etc/apt/sources.list.d/trivy.list
-          sudo apt-get update
-          sudo apt-get install -y trivy
-          trivy --version
-
       # SARIF path must stay relative to GITHUB_WORKSPACE (hashFiles/upload-sarif assume repo root).
-      - name: Run Trivy vulnerability scanner (filesystem scan)
+      - name: Prepare Trivy ignore policy
         run: |
-          trivy fs . \
-            --db-repository ghcr.io/aquasecurity/trivy-db \
-            --ignore-policy "${{ github.workspace }}/trivy/ignore-policy.rego" \
-            --scanners vuln \
-            --format sarif --output trivy-results.sarif --severity CRITICAL,HIGH \
-            --ignore-unfixed --exit-code 0 --ignorefile .trivyignore
+          set -euo pipefail
+          test -f trivy/ignore-policy.rego
+          cp trivy/ignore-policy.rego .trivy-ignore-policy.rego
+          ls -la .trivy-ignore-policy.rego
+
+      - name: Run Trivy vulnerability scanner (filesystem scan)
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # v0.35.0
+        env:
+          TRIVY_DB_REPOSITORY: ghcr.io/aquasecurity/trivy-db
+        with:
+          scan-type: fs
+          scan-ref: .
+          cache-dir: /tmp/trivy-cache
+          ignore-policy: .trivy-ignore-policy.rego
+          scanners: vuln
+          format: sarif
+          output: trivy-results.sarif
+          severity: CRITICAL,HIGH
+          limit-severities-for-sarif: true
+          ignore-unfixed: true
+          exit-code: '0'
+          trivyignores: .trivyignore
+          version: v0.69.3
 
       - name: Warn when Trivy filesystem SARIF is missing
         if: ${{ hashFiles('trivy-results.sarif') == '' }}
@@ -177,6 +191,13 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Prepare Trivy ignore policy
+        run: |
+          set -euo pipefail
+          test -f trivy/ignore-policy.rego
+          cp trivy/ignore-policy.rego .trivy-ignore-policy.rego
+          ls -la .trivy-ignore-policy.rego
 
       - name: Free disk space (Ubuntu hosted runner)
         continue-on-error: true
@@ -240,29 +261,28 @@ jobs:
         run: |
           echo "ref=${{ env.REGISTRY }}/${{ steps.image-name.outputs.image_name }}:sha-${{ github.sha }}" >> "$GITHUB_OUTPUT"
 
-      - name: Install Trivy via apt
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y wget apt-transport-https gnupg lsb-release
-          wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | gpg --dearmor | sudo tee /usr/share/keyrings/trivy.gpg > /dev/null
-          echo "deb [signed-by=/usr/share/keyrings/trivy.gpg] https://aquasecurity.github.io/trivy-repo/deb $(lsb_release -sc) main" | sudo tee /etc/apt/sources.list.d/trivy.list
-          sudo apt-get update
-          sudo apt-get install -y trivy
-          trivy --version
-
       # Image scan: --exit-code 0 makes findings report-only (no fail on vuln count).
       # continue-on-error: true keeps the publish job moving when Trivy fails before SARIF exists
       # (DB/network/registry); hashFiles guards upload-sarif. Do not change output path without
       # updating hashFiles('trivy-image.sarif') and upload/warn steps (paths are workspace-relative).
       - name: Run Trivy vulnerability scanner (image scan, report-only)
         continue-on-error: true
-        run: |
-          trivy image \
-            --ignore-policy "${{ github.workspace }}/trivy/ignore-policy.rego" \
-            --format sarif --output trivy-image.sarif --severity CRITICAL,HIGH \
-            --ignorefile .trivyignore \
-            --exit-code 0 \
-            '${{ steps.image-ref.outputs.ref }}'
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # v0.35.0
+        env:
+          TRIVY_DB_REPOSITORY: ghcr.io/aquasecurity/trivy-db
+        with:
+          scan-type: image
+          image-ref: ${{ steps.image-ref.outputs.ref }}
+          cache-dir: /tmp/trivy-cache
+          ignore-policy: .trivy-ignore-policy.rego
+          scanners: vuln
+          format: sarif
+          output: trivy-image.sarif
+          severity: CRITICAL,HIGH
+          limit-severities-for-sarif: true
+          trivyignores: .trivyignore
+          exit-code: '0'
+          version: v0.69.3
 
       - name: Warn when Trivy image SARIF is missing
         if: ${{ hashFiles('trivy-image.sarif') == '' }}
