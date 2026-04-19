@@ -20,10 +20,10 @@ Disposition: NOT-A-BUG
 Evidence: `.github/dependabot.yml`
 Reason: Dependabot assignee warning is repo-configuration noise and does not change the `#1471` remediation scope.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1471#pullrequestreview-4135062723
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1471#pullrequestreview-4135418719
 Disposition: NOT-A-BUG
 Evidence: `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1471`
-Reason: cubic reported no actionable issues on the current PR head; any later bot actionables must be added below before thread resolution.
+Reason: cubic reported no actionable issues on the live PR review surface; any later bot actionables must be added below before thread resolution.
 
 ## Merge Readiness
 
