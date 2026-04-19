@@ -550,6 +550,10 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `.github/workflows/security.yml`
     - `scripts/ci/`
     - `docs/review/PR_1479_FIXED_MAPPING.md`
+  - Evidence:
+    - `.github/workflows/ci.yml:440-485`
+    - `.github/workflows/security.yml:120-167`
+    - `.github/scripts/parse-safety-report.py:1-83`
   - DoD:
     - Canonical Safety multi-manifest invocation and report generation live in one shared script under `scripts/ci/`
     - `ci.yml` and `security.yml` both delegate to the shared helper instead of duplicating the loop logic
