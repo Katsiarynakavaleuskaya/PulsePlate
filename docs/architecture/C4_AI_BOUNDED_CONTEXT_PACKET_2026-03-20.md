@@ -1,8 +1,9 @@
-# C4 AI Bounded Context Extraction Packet
+# C4 AI Bounded Context Packet
 
 ## Status
 
-This document freezes the packet for the C4 AI bounded-context extraction lane.
+This document freezes the packet for the C4 AI bounded-context architecture
+lane (`PR-A3`) that prepares the later extraction lane (`PR-A4`).
 
 It is a **packet-only** architecture artifact. It does **not** implement the
 runtime extraction itself and does **not** satisfy
@@ -12,14 +13,14 @@ The implementation-truth item remains:
 
 - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-ai-bounded-context-extraction`
 
-The implementation PR identity also remains unchanged:
+The implementation PR identity remains:
 
-- `PR-TBD-AI-BOUNDED-CONTEXT`
+- `PR-A4`
 
 ## Purpose
 
 Freeze the ownership boundary, implementation decomposition, touched-scope
-discipline, and non-goals for the future AI runtime extraction without changing
+discipline, and non-goals for the later AI runtime extraction without changing
 runtime behavior, route behavior, or public contracts now.
 
 ## Packet Scope
@@ -33,7 +34,7 @@ This packet freezes:
 
 This packet does **not**:
 
-- create `core/ai/*`
+- widen the already-landed `core/ai/*` seam into extraction work
 - move provider code
 - migrate routes
 - change OpenAPI or public schemas
@@ -42,7 +43,9 @@ This packet does **not**:
 
 ## Ownership Boundary
 
-The current runtime remains distributed, but the target ownership boundary is:
+The current runtime already enters through `core/ai/*`, but broader
+provider/safety/eval ownership still remains distributed enough that extraction
+work is a later lane. The target ownership boundary is:
 
 - `app/routers/*`
   - thin HTTP adapters only
@@ -52,45 +55,54 @@ The current runtime remains distributed, but the target ownership boundary is:
   - retrieval and orchestration primitives only
 - `core/insight/*`
   - insight-domain helpers, prompt shaping, and validation helpers only
-- future `core/ai/*`
-  - canonical bounded context for shared AI runtime ownership
+- `core/ai/*`
+  - canonical bounded context entry seam for shared AI runtime ownership
   - provider seams
-  - runtime policy assembly
-  - safety / evaluation ownership mapping
+  - runtime preparation and transparency ownership
+  - target consolidation home for broader safety / evaluation ownership
 
 ### Evidence
 
-- `app/routers/*` remains the HTTP edge: `app/routers/fitchef_insight.py:45`
-  defines the router surface, and `app/routers/fitchef_insight.py:101` maps
-  request input into a service task before delegating to `app.services.*`.
+- `app/routers/*` remains the HTTP edge:
+  `app/routers/fitchef_insight.py:45` defines the router surface, and
+  `app/routers/fitchef_insight.py:101` maps request input into a task envelope
+  before delegating to app-layer runtime code.
 - `app/services/*` remains thin app-layer orchestration/tracing glue:
-  `app/services/insight_runtime.py:1` documents that tracing stays out of
-  `core/`, `app/services/insight_runtime.py:78` wraps retrieval with app-layer
-  spans, and `app/services/insight_runtime.py:109` delegates runtime generation
-  without owning retrieval primitives.
+  `app/services/insight_application_service.py:24`-`app/services/insight_application_service.py:27`
+  imports the canonical `core.ai` entry seam,
+  `app/services/insight_application_service.py:80`-`app/services/insight_application_service.py:88`
+  prepares runtime state through that seam, and
+  `app/services/insight_runtime.py:1`-`app/services/insight_runtime.py:4`
+  documents that tracing remains outside `core/`.
 - `core/rag/*` owns retrieval and orchestration primitives:
   `core/rag/orchestration.py:121` exposes the retrieval + validation pipeline,
   `core/rag/orchestration.py:176` executes retrieval/prompt assembly, and
   `core/rag/validation.py:110` validates retrieved chunks against wellness
   boundaries.
 - `core/insight/*` owns insight-domain helpers, prompt shaping, and validation:
-  `core/insight/safety.py:10` redacts prompt context, `core/insight/llm_provider_loader.py:34`
-  keeps provider loading lazy for insight callers, and
-  `core/insight/philosophy_validator.py:84` validates wellness-safe output.
-- future `core/ai/*` remains a documented target, not a created package:
-  `docs/architecture/ADR_AI_RUNTIME_BOUNDED_CONTEXT_SEAM_2026-03-09.md:36`
-  keeps packet-only preparation separate from implementation, and
-  `docs/architecture/ADR_AI_RUNTIME_BOUNDED_CONTEXT_SEAM_2026-03-09.md:46`
-  reserves the canonical package boundary for provider, safety, and evaluation
-  ownership.
+  `core/insight/safety.py:10` redacts prompt context,
+  `core/insight/llm_provider_loader.py:34` keeps provider loading lazy for
+  insight callers, and `core/insight/philosophy_validator.py:84` validates
+  wellness-safe output.
+- `core/ai/*` already exists as the canonical bounded-context entry seam:
+  `core/ai/__init__.py:1`-`core/ai/__init__.py:27` defines the facade surface,
+  `core/ai/insight_runtime.py:1`-`core/ai/insight_runtime.py:8` documents the
+  stable bounded-context package, and
+  `core/ai/insight_runtime.py:142`-`core/ai/insight_runtime.py:185`
+  prepares runtime/provider/transparency state without HTTP ownership.
+- repo-canonical architecture docs already describe `core/ai/*` as the AI seam:
+  `docs/architecture/system_overview.md:19` and
+  `docs/architecture/system_overview.md:98`-`docs/architecture/system_overview.md:103`.
+- the seam ADR keeps packet-only preparation separate from implementation:
+  `docs/architecture/ADR_AI_RUNTIME_BOUNDED_CONTEXT_SEAM_2026-03-09.md:34`-`docs/architecture/ADR_AI_RUNTIME_BOUNDED_CONTEXT_SEAM_2026-03-09.md:42`.
 
 ## Future Implementation Stack
 
-The later implementation under `PR-TBD-AI-BOUNDED-CONTEXT` is expected to land
+The later implementation under `PR-A4` is expected to land
 as a bounded sequence:
 
-1. package seam creation
-2. provider and runtime ownership extraction
+1. remaining provider and runtime ownership extraction into the existing seam
+2. app/service adapter narrowing around the extracted ownership
 3. safety / evaluation ownership consolidation
 4. compatibility cleanup and removal of transitional wording
 
@@ -101,14 +113,16 @@ This packet only freezes that decomposition. It does not perform any step above.
 ### Allowed in this packet PR
 
 - packet-scoped architecture documentation
+- orchestration packet for `PR-A3`
+- backlog / roadmap pointer correction for `A3 -> A4`
 - seam wording clarification in the bounded-context ADR
 - PR governance artifact after PR creation
 
 ### Reserved for later implementation PRs
 
-- `core/ai/*`
 - `core/rag/*`
 - `core/insight/*`
+- `core/ai/*` implementation internals
 - selected app-layer adapter files
 - provider/runtime implementation code
 
@@ -126,9 +140,10 @@ following:
 
 - this is a **packet-only** change
 - no runtime or public API changes land here
+- `core/ai/*` already exists; this PR only freezes ownership wording
 - this PR does **not** satisfy
   `ledger-p1-ai-bounded-context-extraction`
-- implementation remains a later canonical step
+- implementation remains `PR-A4`
 
 Safe dependency wording:
 
@@ -140,7 +155,7 @@ documented in the current source-of-truth artifacts.
 
 ## Non-goals
 
-- no `core/ai/*` creation in this PR
+- no `core/ai/*` extraction or internal code movement in this PR
 - no route migration
 - no provider movement
 - no quota / rate-limit rewiring
@@ -155,12 +170,7 @@ Before opening or updating the draft packet PR, validate:
 
 - `python3 scripts/orchestration/check_preflight.py`
 - `python3 scripts/orchestration/check_agent_consistency.py`
-- `python3 scripts/orchestration/route_with_telemetry.py --domain ml --task-type "bounded-context packet"`
-- `python3 scripts/ci/check_docs_phase1_gates.py --files <changed-doc-files>`
-  when the changed docs fall under `docs/audit/*` or `docs/security/*`
-- validate `docs/review/PR_<N>_FIXED_MAPPING.md` with the local
-  `validate_mapping_artifact_text(...)` helper when the canonical review
-  artifact changes
+- `pre-commit run --all-files`
 - `pytest -q tests/test_repo_policy_guards.py`
 
 PR-specific merge-readiness and review-disposition tracking stay canonical in:
