@@ -195,6 +195,17 @@ class TestValidateAPIKeyTier:
         assert is_production_like_env() is True
         assert _validate_api_key_tier(TEST_KEY_VIP, SubscriptionTier.VIP) is False
 
+    def test_non_production_environment_used_when_app_env_missing_for_runtime_detection(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Non-production ENVIRONMENT must still be returned when APP_ENV is blank."""
+        monkeypatch.setenv("APP_ENV", "   ")
+        monkeypatch.setenv("ENVIRONMENT", "development")
+        monkeypatch.setenv("DEBUG", "true")
+
+        assert get_runtime_env_name() == "development"
+        assert is_production_like_env() is False
+
     def test_production_like_environment_beats_local_app_env_conflict(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
