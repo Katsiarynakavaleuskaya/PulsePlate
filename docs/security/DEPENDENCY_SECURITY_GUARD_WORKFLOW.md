@@ -8,7 +8,7 @@ The dependency security guard prevents vulnerable dependency versions from enter
 2. **Blocked packages** - Specific packages that must not appear anywhere
 3. **Blocked version ranges** - Specific vulnerable versions that must not be pinned
 
-The guard runs as part of `make verify` and validates all 5 requirement surfaces.
+The guard runs as part of `make verify` and validates the canonical 5 shared requirement surfaces.
 
 ## Schema Location
 
@@ -52,7 +52,7 @@ Choose the appropriate schema section:
 | Ban package entirely | `blocked_packages` | `["unsafe-pkg"]` |
 | Block specific versions | `blocked_versions` | `{"pkg": [">=1.0,<1.5"]}` |
 
-**Important:** Packages in `min_versions` must exist in ALL 5 requirement surfaces:
+**Important:** Packages in `min_versions` must exist in ALL 5 shared requirement surfaces:
 - `requirements.in`
 - `requirements.txt`
 - `requirements-dev.txt`
@@ -60,6 +60,9 @@ Choose the appropriate schema section:
 - `constraints.txt`
 
 Dev-only dependencies (like `marshmallow`) cannot currently be tracked in `min_versions` because they don't exist in runtime surfaces. This is a known limitation.
+Optional manifests such as `requirements-rag-vector.in` / `requirements-rag-vector.txt`
+must be covered by explicit contract/audit checks, but they are not part of the
+`min_versions` all-surfaces requirement until the guard supports per-surface targeting.
 
 ### 2a. Preflight source availability before install
 
@@ -80,6 +83,7 @@ the proxy is stale.
 2. Regenerate locks:
    ```bash
    pip-compile --allow-unsafe requirements.in -o requirements.txt
+   pip-compile --allow-unsafe requirements-rag-vector.in -o requirements-rag-vector.txt
    pip-compile --allow-unsafe requirements-dev.in -o requirements-dev.txt
    pip-compile --allow-unsafe requirements.in requirements-dev.in -o requirements-lock.txt
    ```
@@ -100,7 +104,7 @@ make verify
 - Link to CVE doc in PR description
 - Update `docs/roadmap/BACKLOG_LEDGER.md` if applicable
 - Include evidence across all tracked surfaces:
-  `rg -n "^<package>" requirements.in requirements.txt requirements-dev.txt requirements-lock.txt constraints.txt`
+  `rg -n "^<package>" requirements.in requirements.txt requirements-dev.txt requirements-lock.txt constraints.txt requirements-rag-vector.in requirements-rag-vector.txt`
 
 ## Examples
 

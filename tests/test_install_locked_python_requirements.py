@@ -81,12 +81,15 @@ def test_resolve_requirement_files_prefers_dev_only_when_requested(tmp_path: Pat
     requirements_test = tmp_path / "requirements-test.txt"
     requirements_test.write_text("pytest==8.4.2\n", encoding="utf-8")
     requirements_ci_lite = tmp_path / "requirements-ci-lite.txt"
+    requirements_rag_vector = tmp_path / "requirements-rag-vector.txt"
+    requirements_rag_vector.write_text("sentence-transformers==5.4.0\n", encoding="utf-8")
 
     files = installer.resolve_requirement_files(
         requirements_file=requirements,
         dev_requirements_file=requirements_dev,
         test_requirements_file=requirements_test,
         ci_lite_requirements_file=requirements_ci_lite,
+        rag_vector_requirements_file=requirements_rag_vector,
         install_dev=True,
         install_test=False,
         requirements_profile=None,
@@ -103,12 +106,15 @@ def test_resolve_requirement_files_includes_test_surface_when_requested(tmp_path
     requirements_test = tmp_path / "requirements-test.txt"
     requirements_test.write_text("pytest==8.4.2\n", encoding="utf-8")
     requirements_ci_lite = tmp_path / "requirements-ci-lite.txt"
+    requirements_rag_vector = tmp_path / "requirements-rag-vector.txt"
+    requirements_rag_vector.write_text("sentence-transformers==5.4.0\n", encoding="utf-8")
 
     files = installer.resolve_requirement_files(
         requirements_file=requirements,
         dev_requirements_file=requirements_dev,
         test_requirements_file=requirements_test,
         ci_lite_requirements_file=requirements_ci_lite,
+        rag_vector_requirements_file=requirements_rag_vector,
         install_dev=False,
         install_test=True,
         requirements_profile=None,
@@ -126,12 +132,15 @@ def test_resolve_requirement_files_supports_explicit_ci_lite_profile(tmp_path: P
     requirements_test.write_text("pytest==8.4.2\n", encoding="utf-8")
     requirements_ci_lite = tmp_path / "requirements-ci-lite.txt"
     requirements_ci_lite.write_text("pre-commit==4.5.1\n", encoding="utf-8")
+    requirements_rag_vector = tmp_path / "requirements-rag-vector.txt"
+    requirements_rag_vector.write_text("sentence-transformers==5.4.0\n", encoding="utf-8")
 
     files = installer.resolve_requirement_files(
         requirements_file=requirements,
         dev_requirements_file=requirements_dev,
         test_requirements_file=requirements_test,
         ci_lite_requirements_file=requirements_ci_lite,
+        rag_vector_requirements_file=requirements_rag_vector,
         install_dev=False,
         install_test=False,
         requirements_profile="ci-lite",
@@ -149,18 +158,47 @@ def test_resolve_requirement_files_supports_explicit_ci_test_profile(tmp_path: P
     requirements_test.write_text("pytest==9.0.3\n", encoding="utf-8")
     requirements_ci_lite = tmp_path / "requirements-ci-lite.txt"
     requirements_ci_lite.write_text("pre-commit==4.5.1\n", encoding="utf-8")
+    requirements_rag_vector = tmp_path / "requirements-rag-vector.txt"
+    requirements_rag_vector.write_text("sentence-transformers==5.4.0\n", encoding="utf-8")
 
     files = installer.resolve_requirement_files(
         requirements_file=requirements,
         dev_requirements_file=requirements_dev,
         test_requirements_file=requirements_test,
         ci_lite_requirements_file=requirements_ci_lite,
+        rag_vector_requirements_file=requirements_rag_vector,
         install_dev=False,
         install_test=False,
         requirements_profile="ci-test",
     )
 
     assert files == [requirements_ci_lite, requirements_test]
+
+
+def test_resolve_requirement_files_supports_explicit_rag_vector_profile(tmp_path: Path) -> None:
+    requirements = tmp_path / "requirements.txt"
+    requirements.write_text("openai==2.29.0\n", encoding="utf-8")
+    requirements_dev = tmp_path / "requirements-dev.txt"
+    requirements_dev.write_text("pre-commit==4.5.1\n", encoding="utf-8")
+    requirements_test = tmp_path / "requirements-test.txt"
+    requirements_test.write_text("pytest==9.0.3\n", encoding="utf-8")
+    requirements_ci_lite = tmp_path / "requirements-ci-lite.txt"
+    requirements_ci_lite.write_text("pre-commit==4.5.1\n", encoding="utf-8")
+    requirements_rag_vector = tmp_path / "requirements-rag-vector.txt"
+    requirements_rag_vector.write_text("sentence-transformers==5.4.0\n", encoding="utf-8")
+
+    files = installer.resolve_requirement_files(
+        requirements_file=requirements,
+        dev_requirements_file=requirements_dev,
+        test_requirements_file=requirements_test,
+        ci_lite_requirements_file=requirements_ci_lite,
+        rag_vector_requirements_file=requirements_rag_vector,
+        install_dev=False,
+        install_test=False,
+        requirements_profile="rag-vector",
+    )
+
+    assert files == [requirements, requirements_rag_vector]
 
 
 def test_resolve_requirement_files_fails_when_runtime_file_is_missing(tmp_path: Path) -> None:
@@ -170,6 +208,7 @@ def test_resolve_requirement_files_fails_when_runtime_file_is_missing(tmp_path: 
             dev_requirements_file=tmp_path / "requirements-dev.txt",
             test_requirements_file=tmp_path / "requirements-test.txt",
             ci_lite_requirements_file=tmp_path / "requirements-ci-lite.txt",
+            rag_vector_requirements_file=tmp_path / "requirements-rag-vector.txt",
             install_dev=False,
             install_test=False,
             requirements_profile=None,
@@ -188,6 +227,7 @@ def test_resolve_requirement_files_fails_when_dev_file_is_requested_but_missing(
             dev_requirements_file=tmp_path / "requirements-dev.txt",
             test_requirements_file=tmp_path / "requirements-test.txt",
             ci_lite_requirements_file=tmp_path / "requirements-ci-lite.txt",
+            rag_vector_requirements_file=tmp_path / "requirements-rag-vector.txt",
             install_dev=True,
             install_test=False,
             requirements_profile=None,
@@ -208,6 +248,7 @@ def test_resolve_requirement_files_fails_when_test_file_is_requested_but_missing
             dev_requirements_file=requirements_dev,
             test_requirements_file=tmp_path / "requirements-test.txt",
             ci_lite_requirements_file=tmp_path / "requirements-ci-lite.txt",
+            rag_vector_requirements_file=tmp_path / "requirements-rag-vector.txt",
             install_dev=False,
             install_test=True,
             requirements_profile=None,
@@ -230,6 +271,7 @@ def test_resolve_requirement_files_fails_when_ci_lite_profile_is_requested_but_m
             dev_requirements_file=requirements_dev,
             test_requirements_file=requirements_test,
             ci_lite_requirements_file=tmp_path / "requirements-ci-lite.txt",
+            rag_vector_requirements_file=tmp_path / "requirements-rag-vector.txt",
             install_dev=False,
             install_test=False,
             requirements_profile="ci-lite",
@@ -250,6 +292,7 @@ def test_resolve_requirement_files_fails_when_ci_test_profile_is_requested_but_m
             dev_requirements_file=requirements_dev,
             test_requirements_file=tmp_path / "requirements-test.txt",
             ci_lite_requirements_file=tmp_path / "requirements-ci-lite.txt",
+            rag_vector_requirements_file=tmp_path / "requirements-rag-vector.txt",
             install_dev=False,
             install_test=False,
             requirements_profile="ci-test",
@@ -272,9 +315,35 @@ def test_resolve_requirement_files_fails_when_ci_test_test_file_is_missing(
             dev_requirements_file=requirements_dev,
             test_requirements_file=tmp_path / "requirements-test.txt",
             ci_lite_requirements_file=requirements_ci_lite,
+            rag_vector_requirements_file=tmp_path / "requirements-rag-vector.txt",
             install_dev=False,
             install_test=False,
             requirements_profile="ci-test",
+        )
+
+
+def test_resolve_requirement_files_fails_when_rag_vector_profile_is_requested_but_missing(
+    tmp_path: Path,
+) -> None:
+    requirements = tmp_path / "requirements.txt"
+    requirements.write_text("openai==2.29.0\n", encoding="utf-8")
+    requirements_dev = tmp_path / "requirements-dev.txt"
+    requirements_dev.write_text("pre-commit==4.5.1\n", encoding="utf-8")
+    requirements_test = tmp_path / "requirements-test.txt"
+    requirements_test.write_text("pytest==9.0.3\n", encoding="utf-8")
+    requirements_ci_lite = tmp_path / "requirements-ci-lite.txt"
+    requirements_ci_lite.write_text("pre-commit==4.5.1\n", encoding="utf-8")
+
+    with pytest.raises(FileNotFoundError, match="RAG vector requirements file not found"):
+        installer.resolve_requirement_files(
+            requirements_file=requirements,
+            dev_requirements_file=requirements_dev,
+            test_requirements_file=requirements_test,
+            ci_lite_requirements_file=requirements_ci_lite,
+            rag_vector_requirements_file=tmp_path / "requirements-rag-vector.txt",
+            install_dev=False,
+            install_test=False,
+            requirements_profile="rag-vector",
         )
 
 

@@ -75,6 +75,7 @@ def test_python_setup_action_uses_locked_installer_not_floating_tools() -> None:
     assert '--index-url "$PULSEPLATE_PYTHON_INDEX_URL"' in action_text
     assert "${{ inputs.requirements-profile }}" in action_text
     assert "${{ inputs.ci-lite-requirements-file }}" in action_text
+    assert "${{ inputs.rag-vector-requirements-file }}" in action_text
     assert "${{ inputs.install-dev-deps }}" in action_text
     assert "${{ inputs.install-test-deps }}" in action_text
     assert "${{ inputs.test-requirements-file }}" in action_text
@@ -105,6 +106,13 @@ def test_python_setup_action_uses_locked_installer_not_floating_tools() -> None:
         "::error::Expected ${{ inputs.ci-lite-requirements-file }} when requirements-profile is ci-lite"
         in action_text
     )
+    assert (
+        "::error::Expected requirements.txt when requirements-profile is rag-vector" in action_text
+    )
+    assert (
+        "::error::Expected ${{ inputs.rag-vector-requirements-file }} when requirements-profile is rag-vector"
+        in action_text
+    )
     assert "::error::Expected requirements.txt for locked dependency install" in action_text
     assert "::error::Expected requirements-dev.txt when install-dev-deps is true" in action_text
     assert (
@@ -113,6 +121,7 @@ def test_python_setup_action_uses_locked_installer_not_floating_tools() -> None:
     )
     assert "--requirements-profile" in action_text
     assert "--ci-lite-requirements-file" in action_text
+    assert "--rag-vector-requirements-file" in action_text
     assert "skipping base dependency install" not in action_text
     assert "pre-commit>=" not in action_text
     assert "bandit>=" not in action_text
@@ -334,11 +343,15 @@ def test_test_dependency_profile_is_split_from_dev_tooling() -> None:
     assert "pytest-cov==7.1.0" in requirements_test
     assert "pytest-xdist==3.8.0" in requirements_test
     assert "coverage[toml]==7.13.5" in requirements_test
+    assert "pgvector==" in requirements_test
     assert "bandit==" not in requirements_test
     assert "pre-commit==" not in requirements_test
     assert "pip-audit==" not in requirements_test
     assert "mypy==" not in requirements_test
     assert "ruff==" not in requirements_test
+    assert "sentence-transformers==" not in requirements_test
+    assert "transformers==" not in requirements_test
+    assert "torch==" not in requirements_test
 
 
 def test_ci_lite_dependency_profile_excludes_ml_gpu_stack() -> None:
@@ -354,9 +367,32 @@ def test_ci_lite_dependency_profile_excludes_ml_gpu_stack() -> None:
     assert "sentence-transformers==" not in requirements_ci_lite
     assert "transformers==" not in requirements_ci_lite
     assert "torch==" not in requirements_ci_lite
+    assert "pgvector==" not in requirements_ci_lite
     assert "triton==" not in requirements_ci_lite
     assert "cuda-bindings==" not in requirements_ci_lite
     assert "nvidia-cublas-cu12==" not in requirements_ci_lite
+
+
+def test_base_runtime_dependency_profile_excludes_vector_ml_stack() -> None:
+    requirements_runtime = (REPO_ROOT / "requirements.txt").read_text(encoding="utf-8")
+
+    assert "fastapi==" in requirements_runtime
+    assert "sqlalchemy==" in requirements_runtime
+    assert "sentence-transformers==" not in requirements_runtime
+    assert "transformers==" not in requirements_runtime
+    assert "torch==" not in requirements_runtime
+    assert "pgvector==" not in requirements_runtime
+
+
+def test_rag_vector_dependency_profile_contains_extracted_vector_ml_stack() -> None:
+    requirements_rag_vector = (REPO_ROOT / "requirements-rag-vector.txt").read_text(
+        encoding="utf-8"
+    )
+
+    assert "sentence-transformers==" in requirements_rag_vector
+    assert "transformers==" in requirements_rag_vector
+    assert "torch==" in requirements_rag_vector
+    assert "pgvector==" in requirements_rag_vector
 
 
 def test_docker_ci_build_jobs_use_ci_lite_requirements_profile() -> None:
@@ -396,6 +432,45 @@ def test_docker_ci_build_jobs_use_ci_lite_requirements_profile() -> None:
     assert "PULSEPLATE_REQUIREMENTS_FILE=requirements-ci-lite.txt" in docker_smoke_build_args
     assert "PULSEPLATE_REQUIREMENTS_FILE" not in local_build_args
     assert "PULSEPLATE_REQUIREMENTS_FILE" not in publish_build_args
+
+
+def test_dependency_submission_workflow_tracks_optional_rag_vector_manifest() -> None:
+    workflow_text = (
+        REPO_ROOT / ".github" / "workflows" / "python-dependency-submission.yml"
+    ).read_text(encoding="utf-8")
+
+    assert '"requirements-rag-vector.in"' in workflow_text
+    assert '"requirements-rag-vector.txt"' in workflow_text
+
+
+def test_security_scan_workflow_audits_optional_rag_vector_manifest() -> None:
+    ci_text = (REPO_ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+    security_text = (REPO_ROOT / ".github" / "workflows" / "security.yml").read_text(
+        encoding="utf-8"
+    )
+    ci_pip_audit_text = (REPO_ROOT / "scripts" / "ci_pip_audit.sh").read_text(encoding="utf-8")
+
+    assert "requirements-rag-vector.txt" in ci_text
+    assert "requirements-rag-vector.txt" in security_text
+    assert "requirements-rag-vector.txt" in ci_pip_audit_text
+
+
+def test_requirements_lock_excludes_optional_rag_vector_stack() -> None:
+    requirements_lock = (REPO_ROOT / "requirements-lock.txt").read_text(encoding="utf-8")
+
+    assert "pgvector==" not in requirements_lock
+    assert "sentence-transformers==" not in requirements_lock
+    assert "transformers==" not in requirements_lock
+    assert "torch==" not in requirements_lock
+
+
+def test_ci_risk_profile_tracks_optional_rag_vector_manifest() -> None:
+    risk_profile_text = (REPO_ROOT / "scripts" / "ci" / "ci_risk_profile.py").read_text(
+        encoding="utf-8"
+    )
+
+    assert '"requirements-rag-vector.in"' in risk_profile_text
+    assert '"requirements-rag-vector.txt"' in risk_profile_text
 
 
 def test_docker_workflows_emit_image_telemetry_artifacts() -> None:

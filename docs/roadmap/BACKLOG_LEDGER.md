@@ -388,7 +388,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Target PR: `PR-TBD` (follow-up after `PR #1418`)
   - Status: Active as of `13 April 2026`
   - Area: security / CI / dependencies
-  - Reason (EN): The repo must stay on patched exact releases while the approved private index catches up, and the current emergency wheel manifest still covers multiple active CI/bootstrap dependencies (including `cryptography 46.0.7`, `pillow 12.2.0`, `pytest 9.0.3`, `faker 40.13.0`, `hypothesis 6.151.12`, `ruff 0.15.10`, `types-pyyaml 6.0.12.20260408`, `sentence-transformers 5.4.0`, and `transformers 5.5.3`). `PR #1378` and `PR #1418` extend that time-boxed exact-wheel fallback with pinned `sha256` digests instead of a vulnerable repin or a broad public-index bypass. Retire the manifest only after the approved mirror serves every still-active fallback entry natively. (RU: Репозиторий должен оставаться на исправленных точных релизах, пока одобренное приватное зеркало догоняет апстрим, и текущий emergency wheel manifest всё ещё покрывает несколько активных CI/bootstrap зависимостей (включая `cryptography 46.0.7`, `pillow 12.2.0`, `pytest 9.0.3`, `faker 40.13.0`, `hypothesis 6.151.12`, `ruff 0.15.10`, `types-pyyaml 6.0.12.20260408`, `sentence-transformers 5.4.0` и `transformers 5.5.3`). `PR #1378` и `PR #1418` расширяют этот временный exact-wheel fallback с pinned `sha256`, а не уязвимым репином и не широким bypass на публичный индекс. Удалять manifest можно только после того, как одобренное зеркало начнёт отдавать всё ещё активные fallback-entry нативно.)
+  - Reason (EN): The repo must stay on patched exact releases while the approved private index catches up, and the current emergency wheel manifest still covers multiple active bootstrap/runtime dependency surfaces (including `cryptography 46.0.7`, `pillow 12.2.0`, `pytest 9.0.3`, `faker 40.13.0`, `hypothesis 6.151.12`, `ruff 0.15.10`, `types-pyyaml 6.0.12.20260408`, `sentence-transformers 5.4.0`, and `transformers 5.5.3`). `PR #1378` and `PR #1418` extend that time-boxed exact-wheel fallback with pinned `sha256` digests instead of a vulnerable repin or a broad public-index bypass. Retire the manifest only after the approved mirror serves every still-active fallback entry natively. (RU: Репозиторий должен оставаться на исправленных точных релизах, пока одобренное приватное зеркало догоняет апстрим, и текущий emergency wheel manifest всё ещё покрывает несколько активных bootstrap/runtime dependency surfaces (включая `cryptography 46.0.7`, `pillow 12.2.0`, `pytest 9.0.3`, `faker 40.13.0`, `hypothesis 6.151.12`, `ruff 0.15.10`, `types-pyyaml 6.0.12.20260408`, `sentence-transformers 5.4.0` и `transformers 5.5.3`). `PR #1378` и `PR #1418` расширяют этот временный exact-wheel fallback с pinned `sha256`, а не уязвимым репином и не широким bypass на публичный индекс. Удалять manifest можно только после того, как одобренное зеркало начнёт отдавать всё ещё активные fallback-entry нативно.)
   - Links:
     - `docs/security/CRYPTOGRAPHY_46_0_7_PRIVATE_INDEX_ADVISORY.md:1`
     - `docs/security/GHSA-whj4-6x5x-4v2j-pillow.md:1`
@@ -535,6 +535,29 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Heavy ML/GPU dependencies are optionalized away from generic CI lanes unless a job explicitly needs them
     - Supply-chain guardrails remain fail-closed with the approved private proxy contract intact
     - Deterministic tests cover the promoted install-profile contract
+
+<a id="ledger-p1-safety-audit-shared-script-after-pr1479"></a>
+- [ ] P1: Shared Safety audit script after install-profile split
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-SAFETY-AUDIT-SHARED-SCRIPT
+  - Area: CI / security workflow / supply-chain
+  - Depends on:
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-ci-install-profile-split-after-disk-unblock`
+  - Reason: PR #1479 intentionally keeps the install-profile split narrow. The multi-manifest Safety audit loop now exists in both `.github/workflows/ci.yml` and `.github/workflows/security.yml`; extract the shared invocation/reporting path into a single script only after the split lands so future Safety changes happen in one place without reopening the current stabilization slice.
+  - Links:
+    - `.github/workflows/ci.yml`
+    - `.github/workflows/security.yml`
+    - `scripts/ci/`
+    - `docs/review/PR_1479_FIXED_MAPPING.md`
+  - Evidence:
+    - `.github/workflows/ci.yml:440-485`
+    - `.github/workflows/security.yml:120-167`
+    - `.github/scripts/parse-safety-report.py:1-83`
+  - DoD:
+    - Canonical Safety multi-manifest invocation and report generation live in one shared script under `scripts/ci/`
+    - `ci.yml` and `security.yml` both delegate to the shared helper instead of duplicating the loop logic
+    - Deterministic tests cover per-manifest artifact naming and fail-closed severity aggregation
 
 <a id="ledger-p1-docker-deploy-contract-reconciliation"></a>
 - [ ] P1: Docker deploy contract reconciliation after install-profile split

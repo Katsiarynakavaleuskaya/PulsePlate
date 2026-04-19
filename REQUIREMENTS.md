@@ -9,6 +9,14 @@
 - Used in production deployments
 - Updated by Dependabot
 
+**`requirements-rag-vector.txt`** - Optional vector/ML runtime profile
+- Exact versions for the opt-in RAG vector stack
+- Installed only when a job or runtime explicitly selects the `rag-vector` profile
+
+**`requirements-test.txt`** - Test-only dependency profile
+- Keeps pytest/coverage tooling plus `pgvector` for postgres-vector contract tests
+- Does not pull the heavy vector/ML runtime stack (`sentence-transformers`, `transformers`, `torch`)
+
 ### Development Dependencies
 
 **`requirements-dev.txt`** - Development and testing tools
@@ -77,6 +85,7 @@ To avoid environment drift, run this with the pinned Python from `.python-versio
 ```bash
 # Include setuptools/pip/wheel in lockfile for security fixes (--allow-unsafe)
 pip-compile --allow-unsafe --output-file=requirements.txt requirements.in
+pip-compile --allow-unsafe --output-file=requirements-rag-vector.txt requirements-rag-vector.in
 pip-compile --allow-unsafe --constraint=requirements.txt --output-file=requirements-dev.txt requirements-dev.in
 pip-compile --allow-unsafe --output-file=requirements-lock.txt requirements-dev.in requirements.in
 ```

@@ -13,6 +13,8 @@ httpx>=0.28.1,<1.0.0
 requests>=2.33.0,<3.0.0
 # Security floor: GHSA-whj4-6x5x-4v2j (transitive via matplotlib/reportlab)
 pillow>=12.2.0,<13.0.0
+# Security floor: GHSA-5239-wwwm-4pmq
+pygments==2.20.0
 python-dotenv>=1.2.1,<2.0.0
 prometheus-client>=0.23.1,<1.0.0
 # Security floor: GHSA-mj87-hwqh-73pj / CVE-2026-40347
@@ -49,11 +51,3 @@ nh3>=0.3.2,<1.0.0
 pyarrow>=20.0.0,<24.0.0
 # Security: setuptools>=78.1.1 includes patched jaraco.context>=6.1.0 (GHSA-58pv-8j8x-9vj2)
 setuptools>=78.1.1,<79.0.0
-# Vector retrieval for RAG (P2): embedding generation + pgvector similarity search
-# Feature-flagged via FEATURE_RAG_VECTOR; not loaded when disabled.
-# sentence-transformers 4.x+ requires transformers 5.x (fixes PVE-2026-85102).
-sentence-transformers>=4.0.0,<6.0.0
-# transformers>=5.5.0: CI/Docker use --only-binary; 5.4.0 had no matching manylinux wheel
-# in resolver contexts where PyPI only exposed newer releases. PVE-2026-85102 remains fixed.
-transformers>=5.5.0,<6.0.0
-pgvector>=0.3.6,<1.0.0
