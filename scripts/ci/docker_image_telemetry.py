@@ -22,6 +22,7 @@ import sys
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DOCKER_BINARY = shutil.which("docker")
 DOCKER_TIMEOUT_SECONDS = 60
+REDACTED_CREATED_BY = "<redacted: docker history command hidden>"
 SIZE_UNITS = {
     "B": 1,
     "KB": 1_000,
@@ -155,7 +156,7 @@ def _read_history_rows(image_ref: str) -> list[LayerTelemetry]:
         payload = json.loads(line)
         rows.append(
             LayerTelemetry(
-                created_by=str(payload.get("CreatedBy", "")).strip() or "<unknown>",
+                created_by=REDACTED_CREATED_BY,
                 size_bytes=_human_size_to_bytes(str(payload.get("Size", "0B"))),
                 size_human=str(payload.get("Size", "0B")).strip() or "0B",
             )
@@ -343,7 +344,9 @@ def render_markdown(report: ImageTelemetryReport) -> str:
         lines.extend(["", "## Warnings", ""])
         lines.extend(f"- {warning}" for warning in report.warnings)
 
-    lines.extend(["", "## Largest Layers", "", "| Size | Command |", "| --- | --- |"])
+    lines.extend(
+        ["", "## Largest Layers", "", "| Size | Command (redacted) |", "| --- | --- |"]
+    )
     for layer in report.largest_layers:
         command = layer.created_by.replace("|", "\\|")
         lines.append(f"| `{layer.size_human}` | `{command}` |")
