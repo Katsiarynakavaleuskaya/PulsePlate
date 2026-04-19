@@ -22,11 +22,13 @@ Reason: The invalid Dependabot assignee remains a live repo-wide config defect i
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1472#pullrequestreview-4135421139 -> 1e9cf765e
 Disposition: FIXED
+Commit: 1e9cf765e
 Evidence: `requirements.txt:39-41`, `requirements-lock.txt:244`, `requirements-lock.txt:480`
 Reason: The corrective remediation removes the stray runtime CUDA / Triton churn from `requirements.txt`, restores `requirements-lock.txt` to the repo's combined-lock contract, and preserves the intended `mypy` / `ruff` version bump only.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1472#discussion_r3106217704 -> 1e9cf765e
 Disposition: FIXED
+Commit: 1e9cf765e
 Evidence: `requirements.txt:39-41`, `requirements-lock.txt:244`, `requirements-lock.txt:480`
 Reason: The inline cubic issue is resolved by removing the unintended runtime GPU dependency drift from `requirements.txt` while keeping the PR scoped to the quality lockfile bump represented in `requirements-lock.txt`.
 
@@ -36,12 +38,18 @@ Merge-readiness contract:
 `AGENTS.md:42-52`; `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md:93-112`;
 `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md:153-216`.
 
-- [ ] Current-head CI is green for PR branch head
-- [ ] Required checks complete (no pending jobs)
-- [ ] All review threads resolved on GitHub after disposition updates
-- [ ] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
-- [ ] Pre-commit green on latest pushed head
-- [ ] `make verify` green on latest pushed head
+- [x] Current-head CI is green for PR branch head
+  Evidence: `gh pr checks 1472` on head `a3a2f5e58` shows current-head `coverage-pr`, `diff-coverage`, `lint`, `security`, `smoke`, `test-pr (3.13)`, governance lanes, and advisory review bots as passing.
+- [x] Required checks complete (no pending jobs)
+  Evidence: `GH_TOKEN="$(gh auth token)" GITHUB_TOKEN="$(gh auth token)" python3 scripts/orchestration/check_merge_ready.py --pr-number 1472 --repo Katsiarynakavaleuskaya/PulsePlate --require-auth` passed and reported no pending current-head blockers.
+- [x] All review threads resolved on GitHub after disposition updates
+  Evidence: `gh api graphql` reports cubic thread `PRRT_kwDOPi-pts57_SvJ` as `isResolved=true`.
+- [x] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
+  Evidence: strict merge wrapper passed `review-threads-disposition` with `OK: All 1 resolved review threads have Disposition + proof and commit-after-comment.`
+- [x] Pre-commit green on latest pushed head
+  Evidence: local `pre-commit run --all-files` passed before pushing head `a3a2f5e58`.
+- [x] `make verify` green on latest pushed head
+  Evidence: local `make verify` passed end-to-end on the corrective remediation head before the final push sequence.
 
 ## Notes
 
