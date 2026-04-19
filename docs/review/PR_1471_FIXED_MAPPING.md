@@ -25,6 +25,16 @@ Disposition: NOT-A-BUG
 Evidence: `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1471`
 Reason: cubic reported no actionable issues on the live PR review surface; any later bot actionables must be added below before thread resolution.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1471#pullrequestreview-4135974730 -> 8275cad1d
+Disposition: FIXED
+Evidence: `docs/orchestration/DEPENDABOT_PR_1471_TESTING_GROUP_REMEDIATION_PACKET_2026-04-19.md`
+Reason: cubic found a portability issue in the lane packet because it leaked a workstation-specific absolute Python path; the packet now uses the worktree-local `.venv/bin/python` invocation instead.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1471#discussion_r3106853831 -> 8275cad1d
+Disposition: FIXED
+Evidence: `docs/orchestration/DEPENDABOT_PR_1471_TESTING_GROUP_REMEDIATION_PACKET_2026-04-19.md`
+Reason: cubic found the same absolute-path portability issue on the inline review thread; the packet now uses a repo-local interpreter command instead of the workstation-specific path.
+
 ## Merge Readiness
 
 Merge-readiness contract:
