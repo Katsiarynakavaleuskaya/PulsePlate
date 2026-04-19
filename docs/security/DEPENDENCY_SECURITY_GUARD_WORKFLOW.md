@@ -62,7 +62,7 @@ Choose the appropriate schema section:
 Dev-only dependencies (like `marshmallow`) cannot currently be tracked in `min_versions` because they don't exist in runtime surfaces. This is a known limitation.
 Optional manifests such as `requirements-rag-vector.in` / `requirements-rag-vector.txt`
 must be covered by explicit contract/audit checks, but they are not part of the
-`min_versions` all-surfaces requirement until the guard grows per-surface targeting.
+`min_versions` all-surfaces requirement until the guard supports per-surface targeting.
 
 ### 2a. Preflight source availability before install
 

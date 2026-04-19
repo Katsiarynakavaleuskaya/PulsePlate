@@ -536,6 +536,25 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Supply-chain guardrails remain fail-closed with the approved private proxy contract intact
     - Deterministic tests cover the promoted install-profile contract
 
+<a id="ledger-p1-safety-audit-shared-script-after-pr1479"></a>
+- [ ] P1: Shared Safety audit script after install-profile split
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-SAFETY-AUDIT-SHARED-SCRIPT
+  - Area: CI / security workflow / supply-chain
+  - Depends on:
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-ci-install-profile-split-after-disk-unblock`
+  - Reason: PR #1479 intentionally keeps the install-profile split narrow. The multi-manifest Safety audit loop now exists in both `.github/workflows/ci.yml` and `.github/workflows/security.yml`; extract the shared invocation/reporting path into a single script only after the split lands so future Safety changes happen in one place without reopening the current stabilization slice.
+  - Links:
+    - `.github/workflows/ci.yml`
+    - `.github/workflows/security.yml`
+    - `scripts/ci/`
+    - `docs/review/PR_1479_FIXED_MAPPING.md`
+  - DoD:
+    - Canonical Safety multi-manifest invocation and report generation live in one shared script under `scripts/ci/`
+    - `ci.yml` and `security.yml` both delegate to the shared helper instead of duplicating the loop logic
+    - Deterministic tests cover per-manifest artifact naming and fail-closed severity aggregation
+
 <a id="ledger-p1-docker-deploy-contract-reconciliation"></a>
 - [ ] P1: Docker deploy contract reconciliation after install-profile split
   - Owner: @katsiaryna_kavaleuskaya

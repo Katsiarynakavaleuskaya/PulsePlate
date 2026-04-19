@@ -9,12 +9,15 @@ Canonical review-governance artifact and PR-body mirror requirements:
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
 
-This artifact is created immediately after PR open per repo governance.
+This artifact is created immediately after the PR is opened per repo governance.
 Record every actionable human/bot disposition here before resolving threads on GitHub.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+Disposition: DEFERRED
+Backlog: docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-safety-audit-shared-script-after-pr1479
+Reason: Extracting the duplicated multi-manifest Safety audit flow into a shared script is a valid follow-up, but widening this stabilized install-profile split now would break the narrow-delta lane contract after current-head CI recovery.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1479#pullrequestreview-4135920604
 
 ## Merge Readiness
 
