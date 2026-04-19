@@ -14,7 +14,19 @@ Record every actionable human/bot disposition here before resolving threads on G
 
 ## Fixed in Commit Mapping
 
-No actionable review threads recorded yet.
+Post-open local review findings (bug-hunter pass; no GitHub thread URLs yet):
+
+1. Canonical `CI` workflow audited only `requirements.txt` and missed the new optional
+   `requirements-rag-vector.txt` manifest.
+   Disposition: FIXED
+   Commit: `14c66968e`
+   Evidence: `.github/workflows/ci.yml:416-468`; `tests/test_python_supply_chain_controls.py:409-418`
+
+2. `requirements-lock.txt` still pinned optional rag-vector packages after the split,
+   which widened the base lock surface beyond repo truth.
+   Disposition: FIXED
+   Commit: `14c66968e`
+   Evidence: `requirements-lock.txt` no longer contains `pgvector==`, `sentence-transformers==`, `transformers==`, or `torch==`; enforced by `tests/test_python_supply_chain_controls.py:421-427`
 
 ## Merge Readiness
 
