@@ -63,6 +63,8 @@ EXPECTED_ROUTING_BUCKET_POLICY_LINES: tuple[str, ...] = (
     "- `recommended`: deterministic ranked helpers that are safe to auto-promote into",
     "- `conditional`: task-fit helpers that need a stronger trigger before promotion.",
     "- `blocked`: deterministic low-fit or disallowed patterns. Pattern-based blocks",
+    "- `explanation`: stable schema describing evidence axes, matched semantic groups,",
+    "- `research_connector_policy`: explicit catalog of approved / conditional /",
 )
 
 
@@ -463,6 +465,8 @@ def test_message_protocol_example_mentions_expanded_skill_routing_contract() -> 
     assert '"required": [' in doc
     assert '"recommended": [' in doc
     assert '"conditional": [' in doc
+    assert '"explanation": {' in doc
+    assert '"research_connector_policy": {' in doc
 
 
 def test_requested_agent_bundle_boosts_existing_skill_without_duplication() -> None:
@@ -1281,6 +1285,12 @@ def test_skill_router_records_blocked_scraping_patterns() -> None:
     assert "google maps" in blocked_labels
     assert "entire internet" in blocked_labels
     assert all(item["kind"] == "pattern" for item in decision["blocked"])
+    disallowed = {
+        item["connector"] for item in decision["research_connector_policy"]["matches"]["disallowed"]
+    }
+    assert "tiktok_scraping" in disallowed
+    assert "google_maps_scraping" in disallowed
+    assert "universal_free_form_scrapers" in disallowed
 
 
 def test_skill_router_ignores_scraping_tokens_from_candidate_paths() -> None:
@@ -1297,6 +1307,61 @@ def test_skill_router_ignores_scraping_tokens_from_candidate_paths() -> None:
     )
 
     assert decision["blocked"] == []
+    assert decision["research_connector_policy"]["matches"]["disallowed"] == []
+
+
+def test_skill_router_exposes_stable_explanation_schema() -> None:
+    """Skill routing should expose compact explanation metadata and semantic-group evidence."""
+
+    decision = route_skills(
+        goal="Update skill-routing explanation schema and per-skill evidence",
+        task_class="Orchestration",
+        candidate_paths=[
+            "scripts/orchestration/skill_router.py",
+            "docs/orchestration/AGENT_SKILL_ROUTING_POLICY.md",
+        ],
+        domain="orchestration",
+    )
+
+    explanation = decision["explanation"]
+    assert explanation["schema_version"] == "1.0"
+    assert "semantic_group" in explanation["evidence_axes"]
+    assert any(
+        item["group_id"] == "orchestration.explainability"
+        for item in explanation["semantic_groups"]
+    )
+    per_skill = {item["skill"]: item for item in explanation["per_skill_evidence"]}
+    assert per_skill["pulseplate-workflow"]["bucket"] == "required"
+    assert per_skill["docs-sync"]["bucket"] in {"recommended", "conditional"}
+
+
+def test_skill_router_matches_approved_research_connectors_deterministically() -> None:
+    """Approved research-only connectors should be explicit in the routing metadata."""
+
+    decision = route_skills(
+        goal=(
+            "Prepare founder research using YouTube transcripts, Twitter official API "
+            "exports, and Google Trends"
+        ),
+        task_class="Research",
+        candidate_paths=["docs/audience_pack/ENGINEERING_OVERVIEW.md"],
+        domain="research",
+    )
+
+    matched = {
+        item["connector"] for item in decision["research_connector_policy"]["matches"]["approved"]
+    }
+    assert matched == {
+        "youtube_transcripts",
+        "x_twitter_official_exports",
+        "google_trends",
+    }
+    assert any(
+        item["group_id"] == "research.connector.youtube"
+        for item in decision["explanation"]["semantic_groups"]
+    )
+    recommended = {item["skill"] for item in decision["recommended"]}
+    assert "pulseplate-ai-reports" in recommended
 
 
 def test_skill_router_selects_experimentation_lane_skills() -> None:

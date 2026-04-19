@@ -96,7 +96,7 @@ Minimum required keys:
 - `constraints` (array of strings)
 - `inputs.must_read_paths` (array of strings; paths)
 - `inputs.recommended_skills` (array of strings; optional but recommended when skill routing is enabled)
-- `inputs.skill_routing` (object; optional compact evidence map for why those skills were selected; when present, it should expose `task_classification`, `envelope_mode_hint` (aligned with `bootstrap_sync_policy.resolve_analysis_envelope_mode`), `required`, `recommended`, `conditional`, and `blocked`)
+- `inputs.skill_routing` (object; optional compact evidence map for why those skills were selected; when present, it should expose `task_classification`, `envelope_mode_hint` (aligned with `bootstrap_sync_policy.resolve_analysis_envelope_mode`), `required`, `recommended`, `conditional`, `blocked`, `explanation`, and `research_connector_policy`)
 - `output_requirements.must_return` (array of strings)
 - `budgets` (object; recommended when cost/latency matters)
 
@@ -231,7 +231,43 @@ Task packet:
           ]
         }
       ],
-      "blocked": []
+      "blocked": [],
+      "explanation": {
+        "schema_version": "1.0",
+        "evidence_axes": [
+          "domain_prior",
+          "path_evidence",
+          "lexical_cue",
+          "semantic_group",
+          "requested_agent",
+          "privileged_surface",
+          "policy_block"
+        ],
+        "semantic_groups": [],
+        "per_skill_evidence": [
+          {
+            "skill": "pulseplate-workflow",
+            "bucket": "required",
+            "reasons": ["always-on"]
+          },
+          {
+            "skill": "docs-sync",
+            "bucket": "required",
+            "reasons": ["classification:pr_governance-required"]
+          }
+        ]
+      },
+      "research_connector_policy": {
+        "policy_version": "2026-04-18",
+        "approved": [],
+        "conditional": [],
+        "disallowed": [],
+        "matches": {
+          "approved": [],
+          "conditional": [],
+          "disallowed": []
+        }
+      }
     },
     "automation_flags": {
       "coordinator_first_required": true,

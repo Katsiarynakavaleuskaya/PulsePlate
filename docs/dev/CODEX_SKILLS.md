@@ -95,6 +95,9 @@ When [`scripts/orchestration/task_bootstrap.py`](../../scripts/orchestration/tas
 `recommended_skills`, so coordinator and domain agents can invoke fitting
 skills as part of the workflow.
 For explainability, the packet also carries `skill_routing` metadata with weighted evidence and blocked-pattern notes.
+Wave 2 routing packets additionally expose `skill_routing.explanation` for the
+stable explanation schema and `skill_routing.research_connector_policy` for the
+approved research-only connector contract.
 
 ## Skill map (task to skill)
 
