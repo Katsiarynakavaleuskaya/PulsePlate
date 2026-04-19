@@ -69,6 +69,8 @@ Packet contract note:
   - `recommended`
   - `conditional`
   - `blocked`
+  - `explanation` (stable explanation schema with compact per-skill evidence and semantic-group matches)
+  - `research_connector_policy` (approved / conditional / disallowed connector catalog plus request-time matches)
 
 ### 2a. Deterministic Task Classification
 
@@ -105,6 +107,20 @@ Tie-break precedence is canonical and must stay explicit:
   or PR/CI helpers on non-PR/non-failing tasks.
 - `blocked`: deterministic low-fit or disallowed patterns. Pattern-based blocks
   must carry `kind: "pattern"` for forward compatibility.
+- `explanation`: stable schema describing evidence axes, matched semantic groups,
+  and compact per-skill evidence for the skills that were surfaced. Evidence:
+  `scripts/orchestration/skill_router.py:660-697`,
+  `scripts/orchestration/skill_router.py:1887-1912`,
+  `scripts/orchestration/task_bootstrap.py:786-919`,
+  `tests/test_skill_router.py:1334-1417`,
+  `tests/test_task_bootstrap.py:163-183`.
+- `research_connector_policy`: explicit catalog of approved / conditional /
+  disallowed research-only connectors, plus deterministic request-time matches.
+  Evidence: `scripts/orchestration/skill_router.py:558-609`,
+  `scripts/orchestration/skill_router.py:1887-1912`,
+  `scripts/orchestration/task_bootstrap.py:786-919`,
+  `tests/test_skill_router.py:1275-1332`,
+  `tests/test_task_bootstrap.py:163-183`.
 
 For experimentation tasks, the bootstrap packet should also reference:
 

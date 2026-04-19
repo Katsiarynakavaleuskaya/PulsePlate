@@ -11,6 +11,8 @@ from scripts.orchestration.skill_router import (
     CLASSIFICATION_PRECEDENCE,
     DOCS_ONLY_EXCLUDED_ROUTING_SKILLS,
     PRIVILEGED_SURFACE_PREFIXES,
+    RESEARCH_POLICY_BUCKET_APPROVED,
+    RESEARCH_POLICY_BUCKET_DISALLOWED,
     REQUESTED_AGENT_COMPANION_SKILL_BUNDLES,
     REQUESTED_AGENT_SKILL_BUNDLES,
     ROUTING_POLICY_VERSION,
@@ -63,6 +65,8 @@ EXPECTED_ROUTING_BUCKET_POLICY_LINES: tuple[str, ...] = (
     "- `recommended`: deterministic ranked helpers that are safe to auto-promote into",
     "- `conditional`: task-fit helpers that need a stronger trigger before promotion.",
     "- `blocked`: deterministic low-fit or disallowed patterns. Pattern-based blocks",
+    "- `explanation`: stable schema describing evidence axes, matched semantic groups,",
+    "- `research_connector_policy`: explicit catalog of approved / conditional /",
 )
 
 
@@ -463,6 +467,8 @@ def test_message_protocol_example_mentions_expanded_skill_routing_contract() -> 
     assert '"required": [' in doc
     assert '"recommended": [' in doc
     assert '"conditional": [' in doc
+    assert '"explanation": {' in doc
+    assert '"research_connector_policy": {' in doc
 
 
 def test_requested_agent_bundle_boosts_existing_skill_without_duplication() -> None:
@@ -1281,6 +1287,40 @@ def test_skill_router_records_blocked_scraping_patterns() -> None:
     assert "google maps" in blocked_labels
     assert "entire internet" in blocked_labels
     assert all(item["kind"] == "pattern" for item in decision["blocked"])
+    disallowed_matches = decision["research_connector_policy"]["matches"][
+        RESEARCH_POLICY_BUCKET_DISALLOWED
+    ]
+    disallowed = {item["connector"] for item in disallowed_matches}
+    assert "tiktok_scraping" in disallowed
+    assert "google_maps_scraping" in disallowed
+    assert "universal_free_form_scrapers" in disallowed
+    matched_terms = {term for item in disallowed_matches for term in item.get("matched_terms", [])}
+    assert blocked_labels == matched_terms
+
+
+def test_skill_router_normalizes_blocked_patterns_with_disallowed_matches() -> None:
+    """Blocked patterns should reuse the disallowed connector matcher contract."""
+
+    decision = route_skills(
+        goal="Research TikTok, Google-Maps, and scrape any-site competitor data",
+        task_class="Research",
+        candidate_paths=["docs/audience_pack/ENGINEERING_OVERVIEW.md"],
+        domain="research",
+    )
+
+    blocked_labels = {item["label"] for item in decision["blocked"]}
+    assert blocked_labels == {"tiktok", "google maps", "scrape any site"}
+    disallowed = {
+        item["connector"]
+        for item in decision["research_connector_policy"]["matches"][
+            RESEARCH_POLICY_BUCKET_DISALLOWED
+        ]
+    }
+    assert disallowed == {
+        "tiktok_scraping",
+        "google_maps_scraping",
+        "universal_free_form_scrapers",
+    }
 
 
 def test_skill_router_ignores_scraping_tokens_from_candidate_paths() -> None:
@@ -1297,6 +1337,86 @@ def test_skill_router_ignores_scraping_tokens_from_candidate_paths() -> None:
     )
 
     assert decision["blocked"] == []
+    assert decision["research_connector_policy"]["matches"][RESEARCH_POLICY_BUCKET_DISALLOWED] == []
+
+
+def test_skill_router_exposes_stable_explanation_schema() -> None:
+    """Skill routing should expose compact explanation metadata and semantic-group evidence."""
+
+    decision = route_skills(
+        goal="Update skill-routing explanation schema and per-skill evidence",
+        task_class="Orchestration",
+        candidate_paths=[
+            "scripts/orchestration/skill_router.py",
+            "docs/orchestration/AGENT_SKILL_ROUTING_POLICY.md",
+        ],
+        domain="orchestration",
+    )
+
+    explanation = decision["explanation"]
+    assert explanation["schema_version"] == "1.0"
+    assert "semantic_group" in explanation["evidence_axes"]
+    assert any(
+        item["group_id"] == "orchestration.explainability"
+        for item in explanation["semantic_groups"]
+    )
+    per_skill = {item["skill"]: item for item in explanation["per_skill_evidence"]}
+    assert per_skill["pulseplate-workflow"]["bucket"] == "required"
+    assert per_skill["docs-sync"]["bucket"] == "recommended"
+
+
+def test_match_lexeme_terms_requires_token_boundaries() -> None:
+    """Lexeme matching should not trigger on connector names embedded in larger tokens."""
+
+    matches = skill_router_module._match_lexeme_terms(
+        normalized_request_text="audit myyoutubeapp packaging notes",
+        keywords=("youtube", "google trends"),
+    )
+
+    assert matches == []
+
+
+def test_match_lexeme_terms_normalizes_keywords_before_matching() -> None:
+    """Lexeme matching should use normalized keywords against normalized request text."""
+
+    matches = skill_router_module._match_lexeme_terms(
+        normalized_request_text="compare x twitter exports with search intent datasets",
+        keywords=("x/twitter", "search-intent datasets"),
+    )
+
+    assert matches == ["x twitter", "search intent datasets"]
+
+
+def test_skill_router_matches_approved_research_connectors_deterministically() -> None:
+    """Approved research-only connectors should be explicit in the routing metadata."""
+
+    decision = route_skills(
+        goal=(
+            "Prepare founder research using YouTube transcripts, Twitter official API "
+            "exports, and Google Trends"
+        ),
+        task_class="Research",
+        candidate_paths=["docs/audience_pack/ENGINEERING_OVERVIEW.md"],
+        domain="research",
+    )
+
+    matched = {
+        item["connector"]
+        for item in decision["research_connector_policy"]["matches"][
+            RESEARCH_POLICY_BUCKET_APPROVED
+        ]
+    }
+    assert matched == {
+        "youtube_transcripts",
+        "x_twitter_official_exports",
+        "google_trends",
+    }
+    assert any(
+        item["group_id"] == "research.connector.youtube"
+        for item in decision["explanation"]["semantic_groups"]
+    )
+    recommended = {item["skill"] for item in decision["recommended"]}
+    assert "pulseplate-ai-reports" in recommended
 
 
 def test_skill_router_selects_experimentation_lane_skills() -> None:
