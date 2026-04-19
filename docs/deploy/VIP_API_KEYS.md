@@ -8,15 +8,17 @@ The VIP router now implements production-safe API key authentication with config
 
 ### Environment Detection
 
-- **`ENVIRONMENT`**: Primary runtime environment identifier
+- **`ENVIRONMENT`**: Runtime environment identifier
   - Values: `production`, `staging`, `development`, `local`, `test`
   - Default: `local`
   - Used to determine if the application is running in production mode
 
-- **`APP_ENV`**: Legacy fallback environment identifier
+- **`APP_ENV`**: Preferred app-scoped runtime environment identifier
   - Values: `production`, `staging`, `development`, `local`, `test`
-  - Used only when `ENVIRONMENT` is unset
-  - **Rule:** `ENVIRONMENT` overrides `APP_ENV`
+  - Used as a production-like override when `APP_ENV` is `production`, `prod`, or `staging`
+  - **Rule:** any production-like `APP_ENV` wins fail-closed over a conflicting non-production `ENVIRONMENT`; otherwise non-empty `ENVIRONMENT` keeps canonical precedence, and `APP_ENV` is used only when `ENVIRONMENT` is blank
+  - **Implementation:** `settings.py:34-55` (`get_runtime_env_name()`)
+  - **Regression coverage:** `tests/test_api_tiers.py:180-225`
 
 - **`DEBUG`**: Debug mode flag
   - Values: `true`, `false`, `1`, `0`, `yes`, `no`, `on`, `off`
@@ -92,6 +94,7 @@ Log messages include:
 ### Production Configuration (Recommended)
 
 ```bash
+export APP_ENV=production
 export ENVIRONMENT=production
 export DEBUG=false
 export API_KEY=your-secret-api-key
@@ -102,6 +105,7 @@ export ALLOW_DEV_API_KEY=false
 ### Development Configuration
 
 ```bash
+export APP_ENV=development
 export ENVIRONMENT=development
 export DEBUG=true
 export ALLOW_ANONYMOUS_API_KEYS=true
@@ -111,6 +115,7 @@ export ALLOW_DEV_API_KEY=true
 ### Staging Configuration (Strict)
 
 ```bash
+export APP_ENV=staging
 export ENVIRONMENT=staging
 export DEBUG=false
 export API_KEY=your-staging-api-key
@@ -121,6 +126,7 @@ export ALLOW_DEV_API_KEY=false
 ### Development Configuration (Restricted)
 
 ```bash
+export APP_ENV=development
 export ENVIRONMENT=development
 export DEBUG=true
 export ALLOW_ANONYMOUS_API_KEYS=false
@@ -162,6 +168,7 @@ To test the new authentication behavior:
 
 ```bash
 # Test production mode rejection
+export APP_ENV=production
 export ENVIRONMENT=production
 export DEBUG=false
 # No API_KEY set
