@@ -6,8 +6,8 @@ Canonical review-governance artifact and PR-body mirror requirements:
 `AGENTS.md:42-52`; `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md:41-90`;
 `docs/orchestration/AGENTS.md:58-60`.
 
-- [ ] Discussion-thread pass completed
-- [ ] Fixed in commit mapping completed
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 
 This artifact is created immediately after lane setup per repo governance.
 Record every new review or bot disposition here before resolving threads on
@@ -20,7 +20,7 @@ Disposition: DEFERRED
 Backlog: `docs/roadmap/BACKLOG_LEDGER.md` (`P1: Fix invalid Dependabot assignee configuration warning`)
 Reason: The invalid Dependabot assignee remains a live repo-wide config defect in `.github/dependabot.yml`, but fixing that global automation surface is intentionally deferred out of the narrow `#1473` sentence-transformers remediation lane.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1473#pullrequestreview-4135421139
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1473#pullrequestreview-4135421237
 Disposition: NOT-A-BUG
 Evidence: `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1473`
 Reason: cubic reported no actionable issues on the live PR review surface; any later bot actionables must be added below before thread resolution.
