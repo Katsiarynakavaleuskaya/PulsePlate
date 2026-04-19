@@ -2,17 +2,14 @@
 
 ## Discussion Thread Pass
 
-- [ ] Discussion-thread pass completed
-- [ ] Fixed in commit mapping completed
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 
 No actionable human or bot review threads exist yet on GitHub. Add every actionable thread below before resolving it.
 
 ## Fixed in Commit Mapping
 
-- Pending first review cycle
-
-Disposition: Pending first review cycle
-Evidence: Narrow contract delta landed in `fa8c9af098100274e11b7176442cb399c59de94e` and updates `scripts/ci/ci_risk_profile.py` plus `tests/test_ci_risk_profile.py` to classify root backend-shared/provider surfaces as `route_contract_safety=True`.
+- No actionable review comments
 
 ## Merge Readiness
 
