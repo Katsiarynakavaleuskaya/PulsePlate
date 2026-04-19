@@ -422,6 +422,11 @@ jobs:
             exit 1
           fi
 
+          manifests=("requirements.txt")
+          if [ -f requirements-rag-vector.txt ]; then
+            manifests+=("requirements-rag-vector.txt")
+          fi
+
           extra_args=()
           if [ -f safety-policy.yaml ]; then
             extra_args+=(--policy-file safety-policy.yaml)
@@ -431,38 +436,53 @@ jobs:
             echo "⚠️ safety-policy.yaml not found — running safety without a policy file"
           fi
 
-          safety_exit_code=0
-          safety check \
-            "${extra_args[@]}" \
-            --json \
-            -r requirements.txt \
-            --save-json safety-report.json > safety-console.log 2>&1 || safety_exit_code=$?
+          overall_status=0
+          for manifest in "${manifests[@]}"; do
+            stem="${manifest%.txt}"
+            report_json="safety-${stem}.json"
+            report_txt="safety-${stem}.txt"
+            console_log="safety-${stem}.log"
 
-          if [ -s safety-console.log ]; then
-            echo "=== Raw Safety Output ==="
-            cat safety-console.log
-          fi
+            safety_exit_code=0
+            safety check \
+              "${extra_args[@]}" \
+              --json \
+              -r "${manifest}" \
+              --save-json "${report_json}" > "${console_log}" 2>&1 || safety_exit_code=$?
 
-          # Safety CLI 3.x may exit with codes >1 when vulnerabilities are found (e.g. 64), not only 1.
-          # Treat missing/empty JSON as a real execution failure; severities are gated in parse-safety-report.py.
-          if [ ! -s safety-report.json ]; then
-            echo "❌ Safety failed to produce safety-report.json (exit code: $safety_exit_code)"
-            exit "${safety_exit_code:-1}"
-          fi
+            if [ -s "${console_log}" ]; then
+              echo "=== Raw Safety Output (${manifest}) ==="
+              cat "${console_log}"
+            fi
 
-          analysis_status=0
-          python3 .github/scripts/parse-safety-report.py || analysis_status=$?
+            # Safety CLI 3.x may exit with codes >1 when vulnerabilities are found (e.g. 64), not only 1.
+            # Treat missing/empty JSON as a real execution failure; severities are gated in parse-safety-report.py.
+            if [ ! -s "${report_json}" ]; then
+              echo "❌ Safety failed to produce ${report_json} for ${manifest} (exit code: $safety_exit_code)"
+              exit "${safety_exit_code:-1}"
+            fi
 
-          if [ "$analysis_status" -eq 10 ]; then
-            echo "❌ Safety found high/critical vulnerabilities"
-            exit 1
-          elif [ "$analysis_status" -eq 2 ]; then
-            echo "⚠️ Safety reported vulnerabilities below HIGH severity"
-          elif [ "$analysis_status" -ne 0 ]; then
-            echo "❌ Failed to analyze Safety report (status $analysis_status)"
-            exit "$analysis_status"
-          else
-            echo "✅ Safety check passed - no high/critical vulnerabilities found"
+            cp "${report_json}" safety-report.json
+            analysis_status=0
+            python3 .github/scripts/parse-safety-report.py || analysis_status=$?
+            mv safety-report.txt "${report_txt}"
+            rm -f safety-report.json
+
+            if [ "$analysis_status" -eq 10 ]; then
+              echo "❌ Safety found high/critical vulnerabilities in ${manifest}"
+              overall_status=1
+            elif [ "$analysis_status" -eq 2 ]; then
+              echo "⚠️ Safety reported vulnerabilities below HIGH severity in ${manifest}"
+            elif [ "$analysis_status" -ne 0 ]; then
+              echo "❌ Failed to analyze Safety report for ${manifest} (status $analysis_status)"
+              exit "$analysis_status"
+            else
+              echo "✅ Safety check passed for ${manifest} - no high/critical vulnerabilities found"
+            fi
+          done
+
+          if [ "$overall_status" -ne 0 ]; then
+            exit "$overall_status"
           fi
 
       - name: Upload bandit artifact
@@ -472,8 +492,9 @@ jobs:
           name: security-reports
           path: |
             bandit-report.json
-            safety-report.json
-            safety-report.txt
+            safety-*.json
+            safety-*.txt
+            safety-*.log
           if-no-files-found: ignore
           retention-days: 7
 

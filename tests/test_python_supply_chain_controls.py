@@ -407,13 +407,24 @@ def test_dependency_submission_workflow_tracks_optional_rag_vector_manifest() ->
 
 
 def test_security_scan_workflow_audits_optional_rag_vector_manifest() -> None:
+    ci_text = (REPO_ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
     security_text = (REPO_ROOT / ".github" / "workflows" / "security.yml").read_text(
         encoding="utf-8"
     )
     ci_pip_audit_text = (REPO_ROOT / "scripts" / "ci_pip_audit.sh").read_text(encoding="utf-8")
 
+    assert "requirements-rag-vector.txt" in ci_text
     assert "requirements-rag-vector.txt" in security_text
     assert "requirements-rag-vector.txt" in ci_pip_audit_text
+
+
+def test_requirements_lock_excludes_optional_rag_vector_stack() -> None:
+    requirements_lock = (REPO_ROOT / "requirements-lock.txt").read_text(encoding="utf-8")
+
+    assert "pgvector==" not in requirements_lock
+    assert "sentence-transformers==" not in requirements_lock
+    assert "transformers==" not in requirements_lock
+    assert "torch==" not in requirements_lock
 
 
 def test_ci_risk_profile_tracks_optional_rag_vector_manifest() -> None:
