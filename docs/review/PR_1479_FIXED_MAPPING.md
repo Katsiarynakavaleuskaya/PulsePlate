@@ -35,6 +35,16 @@ Commit: 625a57471
 Evidence: `docs/review/PR_1479_FIXED_MAPPING.md:43`
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1479#discussion_r3106809175 -> 625a57471
 
+Disposition: NOT-A-BUG
+Evidence: `requirements.in:17`; `docs/security/GHSA-5239-wwwm-4pmq-pygments.md:35-37`; `docs/security/GHSA-5239-wwwm-4pmq-pygments.md:62-63`
+Reason: cubic identified a package-policy preference, not a repo defect. This lane intentionally keeps `Pygments==2.20.0` as the tracked security-floor pin for GHSA-5239-wwwm-4pmq until the guarded remediation contract changes.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1479#pullrequestreview-4136001149
+
+Disposition: NOT-A-BUG
+Evidence: `requirements.in:17`; `docs/security/GHSA-5239-wwwm-4pmq-pygments.md:35-37`; `docs/security/GHSA-5239-wwwm-4pmq-pygments.md:62-63`
+Reason: cubic identified a package-policy preference, not a repo defect. This lane intentionally keeps `Pygments==2.20.0` as the tracked security-floor pin for GHSA-5239-wwwm-4pmq until the guarded remediation contract changes.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1479#discussion_r3106885022
+
 ## Merge Readiness
 
 Merge-readiness contract:
