@@ -19,6 +19,12 @@ Backlog: docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-safety-audit-shared-script-aft
 Reason: Extracting the duplicated multi-manifest Safety audit flow into a shared script is a valid follow-up, but widening this stabilized install-profile split now would break the narrow-delta lane contract after current-head CI recovery.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1479#pullrequestreview-4135920604
 
+Disposition: FIXED
+Commit: dfe1537e5
+Evidence: `docs/security/DEPENDENCY_SECURITY_GUARD_WORKFLOW.md:65`, `docs/review/PR_1479_FIXED_MAPPING.md:12`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1479#discussion_r3106799881 -> dfe1537e5
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1479#discussion_r3106799885 -> dfe1537e5
+
 ## Merge Readiness
 
 Merge-readiness contract:
