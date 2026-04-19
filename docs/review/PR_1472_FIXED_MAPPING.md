@@ -20,15 +20,15 @@ Disposition: DEFERRED
 Backlog: `docs/roadmap/BACKLOG_LEDGER.md` (`P1: Fix invalid Dependabot assignee configuration warning`)
 Reason: The invalid Dependabot assignee remains a live repo-wide config defect in `.github/dependabot.yml`, but fixing that global automation surface is intentionally deferred out of the narrow `#1472` quality remediation lane.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1472#pullrequestreview-4135421139 -> b8ac67908
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1472#pullrequestreview-4135421139 -> 1e9cf765e
 Disposition: FIXED
-Evidence: `requirements.txt:41`, `requirements.txt:43`, `requirements.txt:139`, `requirements.txt:304`, `requirements-lock.txt:41`, `requirements-lock.txt:43`, `requirements-lock.txt:139`, `requirements-lock.txt:304`
-Reason: cubic found that Dependabot regenerated unconditional CUDA / Triton pins on the shared requirement surfaces; the remediation restores the established Linux / `x86_64` markers so macOS installs remain portable while preserving the `mypy` / `ruff` bump.
+Evidence: `requirements.txt:39-41`, `requirements-lock.txt:244`, `requirements-lock.txt:480`
+Reason: The corrective remediation removes the stray runtime CUDA / Triton churn from `requirements.txt`, restores `requirements-lock.txt` to the repo's combined-lock contract, and preserves the intended `mypy` / `ruff` version bump only.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1472#discussion_r3106217704 -> b8ac67908
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1472#discussion_r3106217704 -> 1e9cf765e
 Disposition: FIXED
-Evidence: `requirements.txt:41`, `requirements.txt:43`, `requirements.txt:139`, `requirements.txt:304`, `requirements-lock.txt:41`, `requirements-lock.txt:43`, `requirements-lock.txt:139`, `requirements-lock.txt:304`
-Reason: cubic found the same portability issue on the inline thread at `requirements.txt:41`; the remediation restores Linux / `x86_64` platform markers for the CUDA / Triton packages introduced by Dependabot regeneration.
+Evidence: `requirements.txt:39-41`, `requirements-lock.txt:244`, `requirements-lock.txt:480`
+Reason: The inline cubic issue is resolved by removing the unintended runtime GPU dependency drift from `requirements.txt` while keeping the PR scoped to the quality lockfile bump represented in `requirements-lock.txt`.
 
 ## Merge Readiness
 
