@@ -14,7 +14,7 @@ Evidence: `tests/test_api_tiers.py:186` covers the blank-`APP_ENV` fallback bran
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1443#discussion_r3102738674
 Disposition: FIXED
 Commit: a93752a34
-Evidence: `settings.py:39` and `settings.py:41` now fail closed toward any production-like value from either env var; `tests/test_api_tiers.py:198` reproduces `APP_ENV=local` plus `ENVIRONMENT=production`; `tests/test_api_tiers.py:206` and `tests/test_api_tiers.py:208` prove the runtime stays production-like and rejects the VIP fallback path.
+Evidence: `settings.py:39` and `settings.py:41` now fail closed toward any production-like value from either env var; `tests/test_api_tiers.py:209` reproduces `APP_ENV=local` plus `ENVIRONMENT=production`; `tests/test_api_tiers.py:217` and `tests/test_api_tiers.py:219` prove the runtime stays production-like and rejects the VIP fallback path.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1443#discussion_r3102738674 -> a93752a34
 
 ## Merge Readiness
