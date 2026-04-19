@@ -7,7 +7,7 @@ Canonical review-governance artifact and PR-body mirror requirements:
 `docs/orchestration/AGENTS.md:79-82`.
 
 - [ ] Discussion-thread pass completed
-- [ ] Fixed in commit mapping completed
+- [x] Fixed in commit mapping completed
 
 This artifact is created immediately after PR open per repo governance.
 Record every actionable human/bot disposition here before resolving threads on GitHub.
@@ -43,7 +43,7 @@ Merge-readiness contract:
 - [ ] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
   Evidence: `AGENTS.md:44-45`; `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md:95-112`.
 - [x] Pre-commit green on latest pushed head
-  Evidence: local `pre-commit run --all-files`; push gate output on branch head `c3b211a64`.
+  Evidence: local `pre-commit run --all-files`; push gate output on branch head `a5828403e`.
 - [ ] `make verify` green on latest pushed head
   Evidence: `AGENTS.md:1-16`; `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md:175-180`.
 
