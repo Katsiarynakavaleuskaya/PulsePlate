@@ -77,34 +77,25 @@ Merge-readiness contract:
 
 ## Notes
 
-- Current PR metadata snapshot captured before the exact-pin remediation:
-  - PR URL: `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1480`
-  - PR head branch: `codex/hotfix-mypy-1.20.0-main`
-  - Current head SHA before the packet / fix commit:
-    `2ca096a1354990976f450da9d32d27ea15b11147`
-  - Current pushed head after local remediation and mapping refresh:
-    `7b9151b17e3925ed825cc0300eb9866a121de161`
-- Current-head CI truth must ignore superseded cancelled runs and use only the
-  latest head run for `7b9151b17e3925ed825cc0300eb9866a121de161`.
-- Hotfix intent:
-  - restore `mypy` from `1.20.1` to `1.20.0`
-  - keep `ruff` at `0.15.11`
-  - repair the immediate post-merge `main` failure in `Frontend CI`
-- Main failure truth captured before this PR:
-  - `Frontend CI #5596` failed on merge commit `6a6481ce0cb73029e20eb5ac745b599f8e2b84df`
-  - failing step: `Install backend dependencies`
-  - blocker: `mypy==1.20.1` had no matching distribution available for the runner environment
-- Scope is intentionally narrow:
-  - `requirements-dev.in`
-  - `requirements-dev.txt`
-  - `requirements-lock.txt`
-- Exact-pin evidence:
-  - `requirements-dev.in:29` -> `mypy==1.20.0`
-  - `requirements-dev.txt:110` -> `mypy==1.20.0`
-  - `requirements-lock.txt:227` -> `mypy==1.20.0`
-- Coordinator packet:
-  - `docs/orchestration/DEPENDABOT_PR_1480_FRONTEND_CI_MYPY_HOTFIX_PACKET_2026-04-19.md`
-- Live-session local evidence available in this thread:
-  - `python3 scripts/orchestration/check_preflight.py` passed
-  - `python3 scripts/orchestration/check_agent_consistency.py` passed
-  - Validation outputs for `pre-commit run --all-files`, `make verify`, and the PR-body mirror refresh were captured earlier in this thread, but final merge-readiness truth remains the checklist in `## Merge Readiness` until the latest post-review head is revalidated and recorded.
+- The pre-remediation PR metadata snapshot for this lane is preserved in the
+  coordinator packet's `Current Truth` block.
+  Evidence:
+  `docs/orchestration/DEPENDABOT_PR_1480_FRONTEND_CI_MYPY_HOTFIX_PACKET_2026-04-19.md:10-17`
+- Current-head CI triage must ignore superseded cancelled runs and stale runs;
+  only the latest current-head view from the strict merge tooling is canonical.
+  Evidence: `RUNBOOK_AGENT.md:448-450`;
+  `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md:153-163`
+- This lane remains a narrow mypy hotfix; no adjacent dependency or CI redesign
+  is in scope.
+  Evidence:
+  `docs/orchestration/DEPENDABOT_PR_1480_FRONTEND_CI_MYPY_HOTFIX_PACKET_2026-04-19.md:3-8`;
+  `docs/orchestration/DEPENDABOT_PR_1480_FRONTEND_CI_MYPY_HOTFIX_PACKET_2026-04-19.md:58-74`
+- The failure path addressed by this lane is the Frontend CI backend-dependency
+  install step, and the remediation is the exact mypy rollback / pin.
+  Evidence: `.github/workflows/frontend-ci.yml:121`; `requirements-dev.in:29`;
+  `requirements-dev.txt:110`; `requirements-lock.txt:227`
+- Validation commands for the lane are fixed by the packet, while merge truth is
+  recorded only in the checklist above after the latest head is revalidated.
+  Evidence:
+  `docs/orchestration/DEPENDABOT_PR_1480_FRONTEND_CI_MYPY_HOTFIX_PACKET_2026-04-19.md:98-107`;
+  `docs/review/PR_1480_FIXED_MAPPING.md:59-76`
