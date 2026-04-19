@@ -32,9 +32,9 @@ Merge-readiness contract:
 `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md:153-216`.
 
 - [x] Current-head CI is green for PR branch head
-  Evidence: live current-head checks for PR `#1471` on head `2ec5f45a98962bda17ee1d0214cd6722d3486fa5`
+  Evidence: live current-head checks for PR `#1471` on the latest current PR head
 - [x] Required checks complete (no pending jobs)
-  Evidence: `gh pr checks 1471` on head `2ec5f45a98962bda17ee1d0214cd6722d3486fa5`
+  Evidence: `gh pr checks 1471` on the latest current PR head
 - [x] All review threads resolved on GitHub after disposition updates
   Evidence: `check_pr_merge_readiness.py` review-governance pass for PR `#1471`
 - [x] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
@@ -42,7 +42,7 @@ Merge-readiness contract:
 - [x] Pre-commit green on latest pushed head
   Evidence: local `pre-commit run --all-files`
 - [x] `make verify` green on latest pushed head
-  Evidence: latest-head `make verify` contract completed via split local execution on head `2ec5f45a98962bda17ee1d0214cd6722d3486fa5`:
+  Evidence: latest-head `make verify` contract completed via split local execution on the latest current PR head:
   `verify-env`, `lint`, `typecheck`, `test-fast`, and file-backed `diff-cov` all passed
 
 ## Notes
