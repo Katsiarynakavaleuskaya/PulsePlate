@@ -5176,19 +5176,44 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Make foods foundation downgrade ownership-aware for pre-existing catalog objects
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-TBD-FOODS-FOUNDATION-DOWNGRADE-OWNERSHIP
-  - Status: 📋 Planned
+  - Target PR: PR #1468 -> `codex/foods-foundation-downgrade-ownership`
+  - Status: 🚧 In progress
   - Area: backend / migrations / PostgreSQL
   - Finding Type: downgrade symmetry / object ownership
   - Reason: Revision `202604120001` now guards upgrade-time creation of `foods` and companion indexes when a supported colocated catalog shape already exists, but the downgrade path still assumes ownership of those objects. A follow-up lane must make the downgrade ownership-aware so rolling back the revision does not drop pre-existing `foods`/index artifacts that were not created by this revision.
   - Links:
     - `alembic/versions/202604120001_add_foods_catalog_foundation.py`
     - `docs/orchestration/FOODS_CATALOG_FOUNDATION_PR_A_TASK_PACKET_2026-04-12.md`
+    - `docs/orchestration/FOODS_FOUNDATION_DOWNGRADE_OWNERSHIP_TASK_PACKET_2026-04-18.md`
     - `docs/review/PR_1409_FIXED_MAPPING.md`
+    - `docs/review/PR_1468_FIXED_MAPPING.md`
   - DoD:
     - Downgrade behavior is explicit for both clean-room and pre-existing `foods` catalog shapes
     - The revision no longer drops pre-existing `foods`/index artifacts that it did not create
     - Migration tests cover both the clean-room downgrade cycle and the pre-existing-table ownership scenario
+
+<a id="ledger-p1-foods-foundation-legacy-ownership-backfill"></a>
+- [ ] P1: Define retroactive rollback behavior for legacy-applied foods foundation revision
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD
+  - Status: Deferred from PR `#1468` review loop
+  - Area: backend / migrations / PostgreSQL
+  - Finding Type: legacy downgrade / ownership backfill
+  - Reason: Databases that already applied the pre-ownership version of revision `202604120001` do not have `pulseplate_migration_ownership`, so downgrade cannot distinguish revision-owned objects from pre-existing catalog artifacts. PR `#1468` intentionally fixes forward-looking ownership-aware behavior for new upgrade runs only; retroactive repair for already-applied environments requires a separate design lane.
+  - Evidence:
+    - `alembic/versions/202604120001_add_foods_catalog_foundation.py:83`
+    - `alembic/versions/202604120001_add_foods_catalog_foundation.py:119`
+    - `docs/orchestration/FOODS_FOUNDATION_DOWNGRADE_OWNERSHIP_TASK_PACKET_2026-04-18.md:65`
+  - Links:
+    - `alembic/versions/202604120001_add_foods_catalog_foundation.py`
+    - `docs/orchestration/FOODS_FOUNDATION_DOWNGRADE_OWNERSHIP_TASK_PACKET_2026-04-18.md`
+    - `docs/review/PR_1468_FIXED_MAPPING.md`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-foods-foundation-downgrade-ownership`
+  - DoD:
+    - A separate design records the authoritative rollback contract when `pulseplate_migration_ownership` is absent on an already-applied `202604120001` database
+    - The chosen path explicitly defines whether legacy environments use ownership backfill, guarded legacy fallback, or an operator-driven/manual repair contract
+    - Deterministic tests cover the chosen legacy-applied rollback path without regressing clean-room or pre-existing-catalog scenarios
 
 ## Completed Items
 
@@ -9479,6 +9504,6 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - empty selections remain an explicit no-op with stable logs
     - workflow contract tests cover the shared helper wiring end to end
 
-**Last updated:** 2026-04-12 (feature-branch CI feedback routing follow-up)
+**Last updated:** 2026-04-18 (foods foundation downgrade ownership review follow-up)
 **Maintainer:** @katsiaryna_kavaleuskaya
 <!-- markdownlint-enable MD013 -->
