@@ -109,15 +109,17 @@ Rules:
   `#1472` worktree before any edits.
 - `python3 scripts/orchestration/check_agent_consistency.py` passed in the
   dedicated `#1472` worktree before any edits.
-- `gh pr view 1472 --json ...` confirms the current PR head SHA is
-  `d6405f002bd057e6c0ee88ef7807b61a785a6425`.
+- `gh pr view 1472 --json headRefOid,mergeStateStatus` confirmed the dedicated
+  remediation worktree was aligned to the live PR head before edits.
 - `gh api graphql` for `reviewThreads` confirms an unresolved cubic thread on
   `requirements.txt` identifying unconditional CUDA pins as the live actionable
   review item.
 - `git diff origin/main...HEAD -- requirements.txt requirements-lock.txt`
-  shows the PR head adds unconditional `cuda-bindings`, `cuda-pathfinder`,
-  `nvidia-*`, and `triton` entries beyond the intended `mypy` / `ruff` bump.
-- `pre-commit run --all-files` passed after the narrow marker restoration and
+  on the source Dependabot head showed that the lane had drifted beyond the
+  intended quality bump: `requirements.txt` picked up runtime CUDA / Triton
+  churn and `requirements-lock.txt` stopped matching the repo's documented
+  combined-lock contract.
+- `pre-commit run --all-files` passed after the scoped lockfile remediation and
   canonical artifact creation.
 - `make verify` passed end-to-end in the dedicated `#1472` worktree after
   attaching the local `.venv` symlink to the root repo virtual environment;
