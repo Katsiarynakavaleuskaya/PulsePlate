@@ -28,6 +28,7 @@ from scripts.orchestration.routing_graph_loader import (
     BootstrapLaneActivation,
     REQUIRED_BOOTSTRAP_LANE,
 )
+from scripts.orchestration.skill_router import RESEARCH_POLICY_BUCKET_APPROVED
 from scripts.orchestration.task_bootstrap import (
     REQUESTED_AGENT_STATUS_ADVISORY_DOMAIN_MISMATCH,
     REQUESTED_AGENT_STATUS_ADVISORY_NON_ROUTABLE,
@@ -176,7 +177,9 @@ def test_task_bootstrap_exposes_skill_routing_explanation_and_connector_policy()
     assert explanation["schema_version"] == "1.0"
     assert "semantic_group" in explanation["evidence_axes"]
     assert connector_policy["policy_version"] == "2026-04-18"
-    matched_connectors = {item["connector"] for item in connector_policy["matches"]["approved"]}
+    matched_connectors = {
+        item["connector"] for item in connector_policy["matches"][RESEARCH_POLICY_BUCKET_APPROVED]
+    }
     assert matched_connectors == {"youtube_transcripts", "google_trends"}
 
 

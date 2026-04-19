@@ -29,6 +29,14 @@ ROUTING_POLICY_VERSION = "2026-03-27"
 SELECTION_MODE = "deterministic-weighted"
 ROUTING_EXPLANATION_SCHEMA_VERSION = "1.0"
 RESEARCH_CONNECTOR_POLICY_VERSION = "2026-04-18"
+RESEARCH_POLICY_BUCKET_APPROVED = "approved"
+RESEARCH_POLICY_BUCKET_CONDITIONAL = "conditional"
+RESEARCH_POLICY_BUCKET_DISALLOWED = "disallowed"
+RESEARCH_POLICY_BUCKETS: tuple[str, ...] = (
+    RESEARCH_POLICY_BUCKET_APPROVED,
+    RESEARCH_POLICY_BUCKET_CONDITIONAL,
+    RESEARCH_POLICY_BUCKET_DISALLOWED,
+)
 
 ALWAYS_ON_SKILLS: tuple[str, ...] = ("pulseplate-workflow",)
 PR_GOVERNANCE_REQUIRED_SKILLS: tuple[str, ...] = (
@@ -149,6 +157,40 @@ SCRAPING_BLOCK_PATTERNS: tuple[tuple[str, str], ...] = (
     ("entire internet", "Broad internet scraping is outside project-fit boundaries."),
 )
 
+# Shared keyword sources keep semantic-group boosts and connector-policy matching in lockstep.
+YOUTUBE_RESEARCH_KEYWORDS: tuple[str, ...] = (
+    "youtube transcript",
+    "youtube transcripts",
+    "youtube channel",
+    "youtube channels",
+)
+X_TWITTER_RESEARCH_KEYWORDS: tuple[str, ...] = (
+    "x/twitter",
+    "x twitter",
+    "twitter official api",
+    "twitter api",
+    "compliant exports",
+)
+GOOGLE_TRENDS_RESEARCH_KEYWORDS: tuple[str, ...] = (
+    "google trends",
+    "search-intent datasets",
+    "search intent datasets",
+    "search intent data",
+)
+REDDIT_FORUM_RESEARCH_KEYWORDS: tuple[str, ...] = ("reddit", "forum mining", "forum research")
+APP_STORE_REVIEW_MINING_KEYWORDS: tuple[str, ...] = (
+    "app store reviews",
+    "play store reviews",
+    "review mining",
+)
+COMPETITOR_LANDING_PAGE_MONITORING_KEYWORDS: tuple[str, ...] = (
+    "competitor landing page",
+    "landing page monitoring",
+)
+TIKTOK_SCRAPING_KEYWORDS: tuple[str, ...] = ("tiktok",)
+GOOGLE_MAPS_SCRAPING_KEYWORDS: tuple[str, ...] = ("google maps",)
+UNIVERSAL_SCRAPING_KEYWORDS: tuple[str, ...] = ("scrape any site", "entire internet")
+
 
 @dataclass(frozen=True)
 class SemanticLexemeGroup:
@@ -196,12 +238,7 @@ SEMANTIC_LEXEME_GROUPS: tuple[SemanticLexemeGroup, ...] = (
             "YouTube transcript and channel monitoring requests stay inside the approved "
             "research-only founder/trend workflow."
         ),
-        keywords=(
-            "youtube transcript",
-            "youtube transcripts",
-            "youtube channel",
-            "youtube channels",
-        ),
+        keywords=YOUTUBE_RESEARCH_KEYWORDS,
         skill_boosts=(
             ("pulseplate-ai-reports", 3),
             ("notion-research-documentation", 2),
@@ -214,13 +251,7 @@ SEMANTIC_LEXEME_GROUPS: tuple[SemanticLexemeGroup, ...] = (
             "X/Twitter requests are allowed only through official APIs or compliant exports "
             "inside research-only workflows."
         ),
-        keywords=(
-            "x/twitter",
-            "x twitter",
-            "twitter official api",
-            "twitter api",
-            "compliant exports",
-        ),
+        keywords=X_TWITTER_RESEARCH_KEYWORDS,
         skill_boosts=(
             ("pulseplate-ai-reports", 3),
             ("notion-research-documentation", 2),
@@ -232,12 +263,7 @@ SEMANTIC_LEXEME_GROUPS: tuple[SemanticLexemeGroup, ...] = (
         rationale=(
             "Google Trends is approved for bounded research and search-intent analysis only."
         ),
-        keywords=(
-            "google trends",
-            "search-intent datasets",
-            "search intent datasets",
-            "search intent data",
-        ),
+        keywords=GOOGLE_TRENDS_RESEARCH_KEYWORDS,
         skill_boosts=(
             ("pulseplate-ai-reports", 3),
             ("notion-research-documentation", 2),
@@ -249,83 +275,67 @@ RESEARCH_CONNECTOR_RULES: tuple[ResearchConnectorRule, ...] = (
     ResearchConnectorRule(
         connector="youtube_transcripts",
         label="YouTube transcripts",
-        policy_bucket="approved",
+        policy_bucket=RESEARCH_POLICY_BUCKET_APPROVED,
         rationale=(
             "Approved for founder research and trend tracking as a research-only connector."
         ),
-        keywords=(
-            "youtube transcript",
-            "youtube transcripts",
-            "youtube channel",
-            "youtube channels",
-        ),
+        keywords=YOUTUBE_RESEARCH_KEYWORDS,
     ),
     ResearchConnectorRule(
         connector="x_twitter_official_exports",
         label="X/Twitter official API or compliant exports",
-        policy_bucket="approved",
+        policy_bucket=RESEARCH_POLICY_BUCKET_APPROVED,
         rationale=("Approved for research-only use via official APIs or compliant exports."),
-        keywords=(
-            "x/twitter",
-            "x twitter",
-            "twitter official api",
-            "twitter api",
-            "compliant exports",
-        ),
+        keywords=X_TWITTER_RESEARCH_KEYWORDS,
     ),
     ResearchConnectorRule(
         connector="google_trends",
         label="Google Trends and search-intent datasets",
-        policy_bucket="approved",
+        policy_bucket=RESEARCH_POLICY_BUCKET_APPROVED,
         rationale=("Approved for narrow research-only search-intent and trend analysis."),
-        keywords=(
-            "google trends",
-            "search-intent datasets",
-            "search intent datasets",
-            "search intent data",
-        ),
+        keywords=GOOGLE_TRENDS_RESEARCH_KEYWORDS,
     ),
     ResearchConnectorRule(
         connector="reddit_forum_mining",
         label="Reddit or forum mining",
-        policy_bucket="conditional",
+        policy_bucket=RESEARCH_POLICY_BUCKET_CONDITIONAL,
         rationale="Conditionally allowed later after a future explicit governance promotion.",
-        keywords=("reddit", "forum mining", "forum research"),
+        keywords=REDDIT_FORUM_RESEARCH_KEYWORDS,
     ),
     ResearchConnectorRule(
         connector="app_store_review_mining",
         label="App Store / Play Store review mining",
-        policy_bucket="conditional",
+        policy_bucket=RESEARCH_POLICY_BUCKET_CONDITIONAL,
         rationale="Conditionally allowed later after an explicit governance promotion.",
-        keywords=("app store reviews", "play store reviews", "review mining"),
+        keywords=APP_STORE_REVIEW_MINING_KEYWORDS,
     ),
     ResearchConnectorRule(
         connector="competitor_landing_page_monitoring",
         label="Competitor landing page monitoring",
-        policy_bucket="conditional",
+        policy_bucket=RESEARCH_POLICY_BUCKET_CONDITIONAL,
         rationale="Conditionally allowed later after an explicit governance promotion.",
-        keywords=("competitor landing page", "landing page monitoring"),
+        keywords=COMPETITOR_LANDING_PAGE_MONITORING_KEYWORDS,
     ),
     ResearchConnectorRule(
         connector="tiktok_scraping",
         label="TikTok scraping",
-        policy_bucket="disallowed",
+        policy_bucket=RESEARCH_POLICY_BUCKET_DISALLOWED,
         rationale="Not approved for the current repo.",
-        keywords=("tiktok",),
+        keywords=TIKTOK_SCRAPING_KEYWORDS,
     ),
     ResearchConnectorRule(
         connector="google_maps_scraping",
         label="Google Maps scraping",
-        policy_bucket="disallowed",
+        policy_bucket=RESEARCH_POLICY_BUCKET_DISALLOWED,
         rationale="Not approved for the current repo.",
-        keywords=("google maps",),
+        keywords=GOOGLE_MAPS_SCRAPING_KEYWORDS,
     ),
     ResearchConnectorRule(
         connector="universal_free_form_scrapers",
         label="Universal free-form scrapers for arbitrary sites",
-        policy_bucket="disallowed",
+        policy_bucket=RESEARCH_POLICY_BUCKET_DISALLOWED,
         rationale="Broad arbitrary-site scraping is outside the PulsePlate contract.",
-        keywords=("scrape any site", "entire internet"),
+        keywords=UNIVERSAL_SCRAPING_KEYWORDS,
     ),
 )
 
@@ -543,16 +553,8 @@ def _match_semantic_groups(*, normalized_request_text: str) -> list[dict[str, An
 def _build_research_connector_policy(*, normalized_request_text: str) -> dict[str, Any]:
     """Return deterministic research-only connector policy metadata."""
 
-    catalog: dict[str, list[dict[str, Any]]] = {
-        "approved": [],
-        "conditional": [],
-        "disallowed": [],
-    }
-    matches: dict[str, list[dict[str, Any]]] = {
-        "approved": [],
-        "conditional": [],
-        "disallowed": [],
-    }
+    catalog: dict[str, list[dict[str, Any]]] = {bucket: [] for bucket in RESEARCH_POLICY_BUCKETS}
+    matches: dict[str, list[dict[str, Any]]] = {bucket: [] for bucket in RESEARCH_POLICY_BUCKETS}
 
     for rule in RESEARCH_CONNECTOR_RULES:
         entry = {
@@ -576,9 +578,9 @@ def _build_research_connector_policy(*, normalized_request_text: str) -> dict[st
 
     return {
         "policy_version": RESEARCH_CONNECTOR_POLICY_VERSION,
-        "approved": catalog["approved"],
-        "conditional": catalog["conditional"],
-        "disallowed": catalog["disallowed"],
+        RESEARCH_POLICY_BUCKET_APPROVED: catalog[RESEARCH_POLICY_BUCKET_APPROVED],
+        RESEARCH_POLICY_BUCKET_CONDITIONAL: catalog[RESEARCH_POLICY_BUCKET_CONDITIONAL],
+        RESEARCH_POLICY_BUCKET_DISALLOWED: catalog[RESEARCH_POLICY_BUCKET_DISALLOWED],
         "matches": matches,
     }
 

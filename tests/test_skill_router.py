@@ -11,6 +11,8 @@ from scripts.orchestration.skill_router import (
     CLASSIFICATION_PRECEDENCE,
     DOCS_ONLY_EXCLUDED_ROUTING_SKILLS,
     PRIVILEGED_SURFACE_PREFIXES,
+    RESEARCH_POLICY_BUCKET_APPROVED,
+    RESEARCH_POLICY_BUCKET_DISALLOWED,
     REQUESTED_AGENT_COMPANION_SKILL_BUNDLES,
     REQUESTED_AGENT_SKILL_BUNDLES,
     ROUTING_POLICY_VERSION,
@@ -1286,7 +1288,10 @@ def test_skill_router_records_blocked_scraping_patterns() -> None:
     assert "entire internet" in blocked_labels
     assert all(item["kind"] == "pattern" for item in decision["blocked"])
     disallowed = {
-        item["connector"] for item in decision["research_connector_policy"]["matches"]["disallowed"]
+        item["connector"]
+        for item in decision["research_connector_policy"]["matches"][
+            RESEARCH_POLICY_BUCKET_DISALLOWED
+        ]
     }
     assert "tiktok_scraping" in disallowed
     assert "google_maps_scraping" in disallowed
@@ -1307,7 +1312,7 @@ def test_skill_router_ignores_scraping_tokens_from_candidate_paths() -> None:
     )
 
     assert decision["blocked"] == []
-    assert decision["research_connector_policy"]["matches"]["disallowed"] == []
+    assert decision["research_connector_policy"]["matches"][RESEARCH_POLICY_BUCKET_DISALLOWED] == []
 
 
 def test_skill_router_exposes_stable_explanation_schema() -> None:
@@ -1349,7 +1354,10 @@ def test_skill_router_matches_approved_research_connectors_deterministically() -
     )
 
     matched = {
-        item["connector"] for item in decision["research_connector_policy"]["matches"]["approved"]
+        item["connector"]
+        for item in decision["research_connector_policy"]["matches"][
+            RESEARCH_POLICY_BUCKET_APPROVED
+        ]
     }
     assert matched == {
         "youtube_transcripts",
