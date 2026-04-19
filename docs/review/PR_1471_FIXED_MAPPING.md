@@ -6,8 +6,8 @@ Canonical review-governance artifact and PR-body mirror requirements:
 `AGENTS.md:42-52`; `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md:41-90`;
 `docs/orchestration/AGENTS.md:58-60`.
 
-- [x] Discussion-thread pass completed
-- [x] Fixed in commit mapping completed
+- [ ] Discussion-thread pass completed
+- [ ] Fixed in commit mapping completed
 
 This artifact is created immediately after lane setup per repo governance.
 Record every new review or bot disposition here before resolving threads on
@@ -16,9 +16,9 @@ GitHub.
 ## Fixed in Commit Mapping
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1471#issuecomment-4275076194
-Disposition: NOT-A-BUG
-Evidence: `.github/dependabot.yml`
-Reason: Dependabot assignee warning is repo-configuration noise and does not change the `#1471` remediation scope.
+Disposition: DEFERRED
+Backlog: `docs/roadmap/BACKLOG_LEDGER.md` (`P1: Fix invalid Dependabot assignee configuration warning`)
+Reason: The invalid Dependabot assignee remains a live repo-wide config defect in `.github/dependabot.yml`, but fixing that global automation surface is intentionally deferred out of the narrow `#1471` testing remediation lane.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1471#pullrequestreview-4135418719
 Disposition: NOT-A-BUG
@@ -66,3 +66,6 @@ Merge-readiness contract:
   - `make validate-min` is green
 - Canonical lane packet:
   `docs/orchestration/DEPENDABOT_PR_1471_TESTING_GROUP_REMEDIATION_PACKET_2026-04-19.md`
+- Phase 2 completion checkboxes remain unchecked until the mandatory
+  `qa-engineer-agent -> bug-hunter` review lane is closed and the final
+  merge-readiness pass is complete on the latest PR head.

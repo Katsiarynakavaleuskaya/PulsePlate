@@ -95,6 +95,13 @@ Rules:
   precedent from `PR #1396`: restore widened runtime surfaces to
   `origin/main` truth, then keep only the narrow `faker` / `hypothesis` bump
   and the exact emergency wheel fallback updates required by latest-head CI.
+- The Dependabot assignee warning on `#1471` is a real repo-wide config defect
+  in `.github/dependabot.yml`, but it stays out of scope for this PR and is
+  therefore tracked as deferred work in
+  `docs/roadmap/BACKLOG_LEDGER.md` under `P1: Fix invalid Dependabot assignee configuration warning`.
+- The Phase 2 discussion/mapping completion checkboxes must remain unchecked
+  until the mandatory post-open `qa-engineer-agent -> bug-hunter` lane is
+  finished and the final current-head merge-readiness pass is complete.
 - `.secrets.baseline` is treated as generated pre-commit metadata only. For
   this lane it is restored to `origin/main` first, then minimally synchronized
   for the two updated `emergency_python_wheels.json` digests so that
