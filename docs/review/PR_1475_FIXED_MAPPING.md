@@ -37,6 +37,18 @@ Evidence: `docs/orchestration/AGENT_MESSAGE_PROTOCOL.md:235-252`, `docs/orchestr
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1475#discussion_r3106656839 -> aa5042783
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1475#discussion_r3106670372 -> aa5042783
 
+Disposition: FIXED
+Commit: 8ae5bcc45
+Evidence: `docs/orchestration/AGENT_MESSAGE_PROTOCOL.md:99`, `docs/orchestration/AGENT_MESSAGE_PROTOCOL.md:235-260`, `scripts/orchestration/task_bootstrap.py:786-919`, `scripts/orchestration/task_bootstrap.py:849-859`, `scripts/orchestration/skill_router.py:558-615`, `scripts/orchestration/skill_router.py:1783-1912`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1475#pullrequestreview-4135839024 -> 8ae5bcc45
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1475#discussion_r3106702309 -> 8ae5bcc45
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1475#discussion_r3106702311 -> 8ae5bcc45
+
+Disposition: NOT-A-BUG
+Evidence: `scripts/orchestration/skill_router.py:659-682`
+Reason: `_build_explanation_schema()` still emits compact per-skill entries with `skill`, `bucket`, `reasons`, and optional `score`; the protocol sample matches the runtime builder, so replacing `reasons` with `boost` would create contract drift.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1475#discussion_r3106702313
+
 ## Merge Readiness
 
 - [ ] Current-head CI green for PR branch head
