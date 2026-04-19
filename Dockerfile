@@ -191,6 +191,10 @@ FROM runtime-base AS production
 
 # NOTE: On Debian-based images, `apt` depends on `gpgv` and removing either can break the base system.
 # We intentionally keep them in the production image and document the Trivy finding via `.trivyignore`.
+# RU: Временный возврат к root нужен только для удаления pip-скриптов из root-owned venv/system paths.
+# EN: Temporarily switch back to root only to remove pip binaries from root-owned venv/system paths.
+USER root
+
 # RU: Убираем pip из production-stage, но не трогаем runtime-base/development.
 # EN: Remove pip from the production stage only so shared runtime/dev topology stays intact.
 RUN /opt/venv/bin/python -m pip uninstall -y pip \
@@ -211,6 +215,10 @@ if importlib.util.find_spec("pip") is not None:
     sys.stderr.write("pip leaked into production system site-packages\n")
     sys.exit(1)
 PY
+
+# RU: Финальный runtime остаётся non-root как и в runtime-base.
+# EN: Final runtime stays non-root, matching the runtime-base contract.
+USER pulseplate
 
 # Stage 4: Staging stage
 # Extends production with staging-specific configurations

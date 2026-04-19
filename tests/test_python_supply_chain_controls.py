@@ -191,6 +191,16 @@ def test_canonical_ci_and_docker_use_supply_chain_guardrails() -> None:
     assert "!scripts/ci/install_locked_python_requirements.py" in dockerignore_text
     assert "COPY requirements.txt requirements-ci-lite.txt constraints.txt ./" in docker_text
     assert "COPY requirements.txt requirements-dev.txt constraints.txt ./" in docker_text
+    production_root_index = docker_text.index("FROM runtime-base AS production")
+    switch_to_root_index = docker_text.index("USER root", production_root_index)
+    uninstall_pip_index = docker_text.index("/opt/venv/bin/python -m pip uninstall -y pip")
+    return_to_non_root_index = docker_text.index("USER pulseplate", uninstall_pip_index)
+    assert (
+        production_root_index
+        < switch_to_root_index
+        < uninstall_pip_index
+        < return_to_non_root_index
+    )
     assert "install_locked_python_requirements.py" in dependency_docs_text
     assert "PULSEPLATE_PYTHON_INDEX_URL" in dependency_docs_text
     assert "Run: make venv-sync" in init_test_db_text
