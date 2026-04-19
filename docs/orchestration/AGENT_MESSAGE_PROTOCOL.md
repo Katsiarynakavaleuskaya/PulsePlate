@@ -96,7 +96,7 @@ Minimum required keys:
 - `constraints` (array of strings)
 - `inputs.must_read_paths` (array of strings; paths)
 - `inputs.recommended_skills` (array of strings; optional but recommended when skill routing is enabled)
-- `inputs.skill_routing` (object; optional compact evidence map for why those skills were selected; when present, it should expose `task_classification`, `envelope_mode_hint` (aligned with `bootstrap_sync_policy.resolve_analysis_envelope_mode`), `required`, `recommended`, `conditional`, `blocked`, `explanation`, and `research_connector_policy`)
+- `inputs.skill_routing` (object; optional compact evidence map for why those skills were selected; when present, it should expose `task_classification`, `envelope_mode_hint` (aligned with `bootstrap_sync_policy.resolve_analysis_envelope_mode`), `required`, `recommended`, `conditional`, `blocked`, `explanation`, and `research_connector_policy`; Evidence: `scripts/orchestration/task_bootstrap.py:786-919`, `scripts/orchestration/task_bootstrap.py:849-859`, `scripts/orchestration/skill_router.py:558-615`, `scripts/orchestration/skill_router.py:659-696`, `scripts/orchestration/skill_router.py:1783-1912`, `tests/test_task_bootstrap.py:147-183`, `tests/test_skill_router.py:1339-1405`)
 - `output_requirements.must_return` (array of strings)
 - `budgets` (object; recommended when cost/latency matters)
 
@@ -232,7 +232,6 @@ Task packet:
           ]
         }
       ],
-      "envelope_mode_hint": "docs_only",
       "blocked": [],
       "explanation": {
         "schema_version": "1.0",
