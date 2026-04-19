@@ -45,6 +45,17 @@ Evidence: `requirements.in:17`; `docs/security/GHSA-5239-wwwm-4pmq-pygments.md:3
 Reason: cubic identified a package-policy preference, not a repo defect. This lane intentionally keeps `Pygments==2.20.0` as the tracked security-floor pin for GHSA-5239-wwwm-4pmq until the guarded remediation contract changes.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1479#discussion_r3106885022
 
+Disposition: FIXED
+Commit: d70218a9c
+Evidence: `docs/roadmap/BACKLOG_LEDGER.md:539-560`; `.github/workflows/ci.yml:440-485`; `.github/workflows/security.yml:120-167`; `.github/scripts/parse-safety-report.py:1-83`
+Reason: The deferred shared-Safety follow-up now cites exact workflow duplication and the existing partial shared reporting helper with `file:line` anchors, satisfying the evidence-driven backlog requirement without widening PR #1479 scope.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1479#discussion_r3107076429 -> d70218a9c
+
+Disposition: NOT-A-BUG
+Evidence: `docs/roadmap/BACKLOG_LEDGER.md:539-560`; `docs/review/PR_1479_FIXED_MAPPING.md`
+Reason: This CodeRabbit review body is an aggregate wrapper for the single inline backlog-evidence finding mapped immediately above. Once that inline comment is fixed and recorded here, the review shell adds no separate unresolved obligation.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1479#pullrequestreview-4136194929
+
 ## Merge Readiness
 
 Merge-readiness contract:
