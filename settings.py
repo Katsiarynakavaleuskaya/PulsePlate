@@ -34,11 +34,12 @@ def _normalized_runtime_env(name: str) -> str:
 def get_runtime_env_name() -> str:
     """Return canonical runtime environment label.
 
-    RU: Канонизирует имя окружения: APP_ENV предпочтителен, но любой
-    production-like конфликт обрабатывается fail-closed в сторону
-    production-like значения.
-    EN: Canonicalizes runtime environment: APP_ENV is preferred, but any
-    production-like conflict fails closed toward the production-like value.
+    RU: Канонизирует имя окружения: production-like APP_ENV может
+    переопределить ENVIRONMENT, но в остальных случаях непустой
+    ENVIRONMENT сохраняет канонический приоритет.
+    EN: Canonicalizes runtime environment: a production-like APP_ENV may
+    override ENVIRONMENT, but otherwise a non-empty ENVIRONMENT keeps the
+    canonical precedence.
     """
 
     app_env = _normalized_runtime_env("APP_ENV")
@@ -46,12 +47,10 @@ def get_runtime_env_name() -> str:
 
     if app_env in _PRODUCTION_LIKE_ENVS:
         return app_env
-    if runtime_env in _PRODUCTION_LIKE_ENVS:
+    if runtime_env:
         return runtime_env
     if app_env:
         return app_env
-    if runtime_env:
-        return runtime_env
     return "local"
 
 
