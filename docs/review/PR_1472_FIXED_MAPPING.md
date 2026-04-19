@@ -20,6 +20,16 @@ Disposition: DEFERRED
 Backlog: `docs/roadmap/BACKLOG_LEDGER.md` (`P1: Fix invalid Dependabot assignee configuration warning`)
 Reason: The invalid Dependabot assignee remains a live repo-wide config defect in `.github/dependabot.yml`, but fixing that global automation surface is intentionally deferred out of the narrow `#1472` quality remediation lane.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1472#pullrequestreview-4135421139 -> b8ac67908
+Disposition: FIXED
+Evidence: `requirements.txt:41`, `requirements.txt:43`, `requirements.txt:139`, `requirements.txt:304`, `requirements-lock.txt:41`, `requirements-lock.txt:43`, `requirements-lock.txt:139`, `requirements-lock.txt:304`
+Reason: cubic found that Dependabot regenerated unconditional CUDA / Triton pins on the shared requirement surfaces; the remediation restores the established Linux / `x86_64` markers so macOS installs remain portable while preserving the `mypy` / `ruff` bump.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1472#discussion_r3106217704 -> b8ac67908
+Disposition: FIXED
+Evidence: `requirements.txt:41`, `requirements.txt:43`, `requirements.txt:139`, `requirements.txt:304`, `requirements-lock.txt:41`, `requirements-lock.txt:43`, `requirements-lock.txt:139`, `requirements-lock.txt:304`
+Reason: cubic found the same portability issue on the inline thread at `requirements.txt:41`; the remediation restores Linux / `x86_64` platform markers for the CUDA / Triton packages introduced by Dependabot regeneration.
+
 ## Merge Readiness
 
 Merge-readiness contract:
@@ -41,5 +51,8 @@ Merge-readiness contract:
     as the active portability defect
   - governance-only failures remain expected until this artifact and the PR
     body mirror are synchronized
+- Local latest-head evidence already collected:
+  - `pre-commit run --all-files` passed
+  - `make verify` passed end-to-end on the remediation head
 - Canonical lane packet:
   `docs/orchestration/DEPENDABOT_PR_1472_QUALITY_GROUP_REMEDIATION_PACKET_2026-04-19.md`
