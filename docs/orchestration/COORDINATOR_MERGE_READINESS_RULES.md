@@ -10,11 +10,11 @@
 
 - **Merge only when:**
   1. **Zero unresolved review threads** (every review thread on the PR is resolved in GitHub UI).
-  2. **Zero unmapped actionable bot comments** (every bot comment that contains actionable items is listed under `### Fixed in Commit Mapping` in the PR body as `- <comment-url> -> <commit-sha>`).
+  2. **Zero unmapped actionable bot comments** (every bot comment that contains actionable items is listed in the canonical artifact `docs/review/PR_<N>_FIXED_MAPPING.md`).
 
 - **Do not merge when:**
   - Any review thread is unresolved.
-  - Any bot (CodeRabbit, Sourcery, Cubic, etc.) has posted a comment/review that is "actionable" (e.g. "Actionable comments posted", "Potential issue", "Prompt for AI Agents") and that comment URL is **not** present in the `### Fixed in Commit Mapping` section with a commit that addresses it.
+  - Any bot (CodeRabbit, Sourcery, Cubic, etc.) has posted a comment/review that is "actionable" (e.g. "Actionable comments posted", "Potential issue", "Prompt for AI Agents") and that comment URL is **not** present in the canonical artifact `docs/review/PR_<N>_FIXED_MAPPING.md` with disposition proof that addresses it.
 
 ---
 
@@ -54,30 +54,57 @@ Underlying enforcement scripts remain canonical for their own domains:
 
 - `scripts/ci/check_pr_body_phase2_gates.py`
 - `scripts/ci/check_pr_merge_readiness.py`
+- `scripts/ci/check_current_head_pr_checks.py`
 - `scripts/orchestration/check_review_threads_disposition.py`
 
 **CI:** The same wrapper runs with `--event-path "$GITHUB_EVENT_PATH"`. For local/agent usage, use `--pr-number` and `--repo` instead.
+Raw `gh pr checks` output remains diagnostic only because it can include
+superseded historical failures after the latest PR head is already clean. The
+wrapper is the canonical filtered current-head view.
+When branch-protection metadata is unavailable, the current-head filter blocks
+only on canonical ordinary-PR `CI` signals and the aggregate `StatusContext`
+named `CI`; specialized lanes such as Docker/image, optional CI, iOS, and
+release-ops workflows remain visible but advisory.
 
 ---
 
 ## 4. Coordinator orchestration checklist (before saying "ready to merge" or "0 comments")
 
 1. **Run the wrapper** (section 3) for the PR.
-2. **If exit code is not 0:** Do **not** report "0 comments" or "ready to merge". Report the script output (unresolved count, UNMAPPED comment URLs) and instruct to fix and re-run.
-3. **If exit code is 0:** You may state that the PR satisfies the zero-comments policy **at the time of the run**. Prefer: "Orchestration merge-check passed: Phase 2, merge-readiness, and disposition proof are all green."
+2. **If exit code is not 0:** Do **not** report "0 comments" or "ready to merge". Report the script output (unresolved count, UNMAPPED comment URLs, or blocking current-head checks) and instruct to fix and re-run.
+3. **If exit code is 0:** You may state that the PR satisfies the zero-comments policy **at the time of the run**. Prefer: "Orchestration merge-check passed: Phase 2, merge-readiness, current-head checks, and disposition proof are all green."
 4. **After new bot activity:** If the user or system reports new bot comments (e.g. CodeRabbit, Sourcery), **re-run the wrapper** before any merge decision; do not assume previous pass still holds.
 
 **Loop until zero:** Full cycle (commit → push → watch CI → new comment → fix → re-check) is in `RUNBOOK_AGENT.md` (sections "Pre-merge readiness pass" ~line 121, "Loop until zero comments (canonical cycle)" ~line 160). Repeat until script exit 0 and CI green.
+
+### Coordinator-owned PR lifecycle
+
+Before the final checklist above, coordinator should run the full PR lifecycle explicitly:
+
+1. **Initialize the PR correctly**
+   - Start with preflight and task analysis.
+   - Keep the PR in draft while scope, artifacts, or local gates are still moving.
+2. **Control each push cycle**
+   - Run the required local checks before pushing.
+   - Watch the latest-head CI run after pushing; do not reason from stale job history alone.
+3. **Control each review cycle**
+   - Treat each new human/bot review as new coordinator input.
+   - Fix code/docs first, then update `docs/review/PR_<N>_FIXED_MAPPING.md`, then refresh the optional PR-body mirror.
+4. **Control the merge cycle**
+   - Re-run the strict wrapper after the latest bot/review activity.
+   - Require zero actionable bot comments, zero blocking unresolved threads, green current-head checks, and the wait-window.
+
+This lifecycle is mandatory operating behavior, not just a recommendation. The final merge-readiness wrapper is the last step in the loop, not the whole loop.
 
 ---
 
 ## 5. PR body requirements (reminder)
 
 - `## Discussion Thread Pass` with checkboxes completed.
-- `### Fixed in Commit Mapping` with either:
-  - One line per actionable comment: `- <comment-url> -> <commit-sha>`, or
-  - Exactly: `- No actionable review comments` (when there are no actionable bot comments).
+- `### Fixed in Commit Mapping` present as a mirror section for human review.
 - `## Merge Readiness` section.
+
+Canonical review-thread mappings live in `docs/review/PR_<N>_FIXED_MAPPING.md`. The PR body no longer needs late-cycle URL→SHA duplication once the canonical artifact exists.
 
 See `RUNBOOK_AGENT.md` (Pre-merge readiness pass ~line 121, Phase2 PR body gates).
 
@@ -89,4 +116,5 @@ See `RUNBOOK_AGENT.md` (Pre-merge readiness pass ~line 121, Phase2 PR body gates
 - **Procedure:** `RUNBOOK_AGENT.md` (Pre-merge readiness pass ~line 121, Loop until zero ~line 160, Verify zero unresolved review threads).
 - **Canonical operator entrypoint:** `scripts/orchestration/check_merge_ready.py`.
 - **CI gate:** `scripts/ci/check_pr_merge_readiness.py` (merge-readiness sub-gate).
+- **Current-head filter:** `scripts/ci/check_current_head_pr_checks.py`.
 - **Phase2 body check:** `scripts/ci/check_pr_body_phase2_gates.py`.

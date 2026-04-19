@@ -4,6 +4,26 @@
  */
 
 export interface paths {
+    "/api/v1/billing/apple/verify-receipt": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Verify Apple Receipt
+         * @description Canonical Apple receipt verification route on additive billing namespace.
+         */
+        post: operations["verify_apple_receipt_api_v1_billing_apple_verify_receipt_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/bmi": {
         parameters: {
             query?: never;
@@ -89,6 +109,66 @@ export interface paths {
          *         BMI Pro response with analysis results
          */
         post: operations["bmi_pro_legacy_alias_api_v1_bmi_pro_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/insight/fitchef": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Fitchef Mascot Insight
+         * @description Generate VIP-only mascot coaching insight via the FitChef runtime.
+         */
+        post: operations["fitchef_mascot_insight_api_v1_insight_fitchef_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/insight/fitchef/slip-support": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Fitchef Slip Support
+         * @description Generate VIP-only slip-support coaching via the FitChef runtime.
+         */
+        post: operations["fitchef_slip_support_api_v1_insight_fitchef_slip_support_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/insight/fitchef/weekly-reflection": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Fitchef Weekly Reflection
+         * @description Generate VIP-only weekly reflection coaching via the FitChef runtime.
+         */
+        post: operations["fitchef_weekly_reflection_api_v1_insight_fitchef_weekly_reflection_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -192,6 +272,26 @@ export interface paths {
          *     Requires PRO tier API key.
          */
         post: operations["cbt_insight_api_v1_pro_cbt_insight_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/pro/fitchef/explain": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Fitchef Distortion Simulator
+         * @description Generate the bounded PRO distortion-simulator surface.
+         */
+        post: operations["fitchef_distortion_simulator_api_v1_pro_fitchef_explain_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -504,7 +604,7 @@ export interface paths {
         put?: never;
         /**
          * Activate Subscription
-         * @description Create activation or return idempotent replay.
+         * @description Create or replay a deterministic subscription activation event.
          */
         post: operations["activate_subscription_api_v1_pro_payments_activate_post"];
         delete?: never;
@@ -522,31 +622,11 @@ export interface paths {
         };
         /**
          * Get Subscription Activation
-         * @description Get activation status by ID.
+         * @description Get current persisted entitlement view for an activation lineage.
          */
         get: operations["get_subscription_activation_api_v1_pro_payments_activations__activation_id__get"];
         put?: never;
         post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/pro/payments/apple/verify-receipt": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Verify Apple Receipt
-         * @description Create or replay iOS receipt activation using deterministic baseline verification.
-         */
-        post: operations["verify_apple_receipt_api_v1_pro_payments_apple_verify_receipt_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -564,7 +644,7 @@ export interface paths {
         put?: never;
         /**
          * Create Manual Payment Intent
-         * @description Create manual RU/BY payment intent with pending reconciliation lifecycle.
+         * @description Create manual RU/BY payment intent on a pre-entitlement transport-auth surface.
          */
         post: operations["create_manual_payment_intent_api_v1_pro_payments_ru_by_manual_intent_post"];
         delete?: never;
@@ -584,7 +664,7 @@ export interface paths {
         put?: never;
         /**
          * Reconcile Manual Payment Intent
-         * @description Apply reconciliation decision to pending manual payment intent.
+         * @description Apply reconciliation decision on a pre-entitlement transport-auth surface.
          */
         post: operations["reconcile_manual_payment_intent_api_v1_pro_payments_ru_by_reconcile_post"];
         delete?: never;
@@ -602,7 +682,7 @@ export interface paths {
         };
         /**
          * Get Manual Payment Intent Status
-         * @description Fetch current status of manual payment reconciliation intent.
+         * @description Fetch manual payment reconciliation status on a pre-entitlement transport-auth surface.
          */
         get: operations["get_manual_payment_intent_status_api_v1_pro_payments_ru_by_reconcile__intent_id__get"];
         put?: never;
@@ -1390,41 +1470,24 @@ export interface components {
     schemas: {
         /**
          * ActivateSubscriptionRequest
-         * @description Activation request payload (contract-first, deterministic).
+         * @description Activation request envelope supporting canonical and legacy contracts.
          */
         ActivateSubscriptionRequest: {
-            /**
-             * Client Event Id
-             * @description Client-generated idempotency event ID
-             */
-            client_event_id: string;
-            /**
-             * External Txn Id
-             * @description Provider-side transaction or intent ID
-             */
+            /** Client Event Id */
+            client_event_id?: string | null;
+            /** External Txn Id */
             external_txn_id?: string | null;
-            /** @description Canonical required plan code for activation intent */
-            plan: components["schemas"]["SubscriptionPlan"];
+            /** Payload */
+            payload?: components["schemas"]["IOSAppStoreActivationPayload"] | components["schemas"]["ManualActivationPayload"] | null;
+            plan?: components["schemas"]["SubscriptionPlan"] | null;
             source: components["schemas"]["PaymentSource"];
-            /**
-             * Verification Ok
-             * @description Deterministic verification result for baseline R1 contract
-             */
+            /** Verification Ok */
             verification_ok?: boolean | null;
-            /**
-             * Verification Payload
-             * @description Opaque verification payload. Server remains source of truth.
-             */
+            /** Verification Payload */
             verification_payload?: {
                 [key: string]: unknown;
             };
         };
-        /**
-         * ActivationStatus
-         * @description Canonical activation state for subscription activation flow.
-         * @enum {string}
-         */
-        ActivationStatus: "pending_verification" | "active" | "rejected";
         /**
          * AdherenceResponse
          * @description Response schema for adherence endpoints.
@@ -1451,21 +1514,64 @@ export interface components {
             user_id: number;
         };
         /**
+         * AppleProviderError
+         * @description Canonical provider error details for Apple receipt verification.
+         */
+        AppleProviderError: {
+            /** Code */
+            code: string;
+            /** Message */
+            message: string;
+        };
+        /**
          * AppleReceiptVerificationRequest
          * @description Request contract for iOS receipt verification.
          */
         AppleReceiptVerificationRequest: {
-            /** Client Event Id */
-            client_event_id: string;
-            /** External Txn Id */
-            external_txn_id?: string | null;
-            plan: components["schemas"]["SubscriptionPlan"];
             /**
-             * Receipt
-             * @description Opaque App Store receipt blob
+             * Receipt Data
+             * @description Opaque App Store receipt blob. Canonical field: receipt_data. Compatibility alias accepted: receipt.
              */
-            receipt: string;
+            receipt_data: string;
         };
+        /**
+         * AppleReceiptVerificationResponse
+         * @description Normalized Apple receipt verification result without activation side effects.
+         *
+         *     When verified=True, activation_payload carries the full IOSVerifiedActivationResult
+         *     (activation-contract shape) for downstream POST /api/v1/pro/payments/activate.
+         *     When verified=False, activation_payload is always None (fail-closed).
+         */
+        AppleReceiptVerificationResponse: {
+            /** @description Activation-contract shaped payload when verified. Must be null whenever verified=false. Client passes this as payload.verification_result and receipt_data as payload.receipt_data inside ActivateSubscriptionRequest to POST /api/v1/pro/payments/activate. */
+            activation_payload?: components["schemas"]["IOSVerifiedActivationResult"] | null;
+            environment?: components["schemas"]["AppleVerificationEnvironment"] | null;
+            error?: components["schemas"]["AppleProviderError"] | null;
+            /** Expires At */
+            expires_at?: string | null;
+            /** Product Id */
+            product_id?: string | null;
+            /**
+             * Provider
+             * @default apple
+             */
+            provider: string;
+            verification_state: components["schemas"]["AppleVerificationState"];
+            /** Verified */
+            verified: boolean;
+        };
+        /**
+         * AppleVerificationEnvironment
+         * @description Verification environment resolved by Apple receipt validation.
+         * @enum {string}
+         */
+        AppleVerificationEnvironment: "production" | "sandbox";
+        /**
+         * AppleVerificationState
+         * @description Normalized business outcome of Apple receipt verification.
+         * @enum {string}
+         */
+        AppleVerificationState: "active" | "expired" | "restored" | "invalid";
         /**
          * BMICalculateProRequest
          * @description PRO tier BMI calculation request (extends FREE with hip_cm for WHR).
@@ -1628,6 +1734,8 @@ export interface components {
              * @example null
              */
             interpretation_v1?: components["schemas"]["BMIInterpretationV1Schema"] | null;
+            /** @description Optional backend-authored next-step hint for planning progression. */
+            next_best_action?: components["schemas"]["NextBestAction"] | null;
             /**
              * Notes
              * @description Aggregated notes (currently only from waist_risk.notes). Empty list if no notes.
@@ -1825,6 +1933,8 @@ export interface components {
              * @example null
              */
             interpretation_v1?: components["schemas"]["BMIInterpretationV1Schema"] | null;
+            /** @description Optional backend-authored next-step hint for planning progression. */
+            next_best_action?: components["schemas"]["NextBestAction"] | null;
             /**
              * Notes
              * @description Aggregated notes (currently only from waist_risk.notes). Empty list if no notes.
@@ -2378,6 +2488,196 @@ export interface components {
             status: string;
         };
         /**
+         * FitChefCoachingErrorResponse
+         * @description Standard JSON detail envelope for FitChef coaching errors.
+         */
+        FitChefCoachingErrorResponse: {
+            /** Detail */
+            detail: string;
+        };
+        /**
+         * FitChefCoachingRequest
+         * @description Mascot insight request payload.
+         */
+        FitChefCoachingRequest: {
+            /** Query */
+            query: string;
+        };
+        /**
+         * FitChefCoachingSourceItem
+         * @description Public RAG source item for mascot coaching.
+         */
+        FitChefCoachingSourceItem: {
+            /** File */
+            file: string;
+            /** Preview */
+            preview: string;
+            /** Score */
+            score: number;
+        };
+        /**
+         * FitChefDistortionSimulatorRequest
+         * @description Distortion-simulator request payload.
+         */
+        FitChefDistortionSimulatorRequest: {
+            /** Automatic Thought */
+            automatic_thought: string;
+            /** Emotion */
+            emotion: string;
+            /** Goal */
+            goal?: string | null;
+            /** Situation */
+            situation: string;
+        };
+        /**
+         * FitChefDistortionSimulatorResponse
+         * @description Public distortion-simulator response envelope.
+         */
+        FitChefDistortionSimulatorResponse: {
+            /** Balanced Reframe */
+            balanced_reframe: string;
+            /** Confidence */
+            confidence: number;
+            /** Distortion Labels */
+            distortion_labels: string[];
+            /** Evidence Against */
+            evidence_against: string[];
+            /** Evidence For */
+            evidence_for: string[];
+            /** Next Small Action */
+            next_small_action: string;
+            /**
+             * Quota State
+             * @enum {string}
+             */
+            quota_state: "not_consumed" | "consumed";
+            /**
+             * Scenario
+             * @constant
+             */
+            scenario: "distortion_simulator";
+            /** Sources */
+            sources: components["schemas"]["FitChefCoachingSourceItem"][];
+            /** Transparency Notice Id */
+            transparency_notice_id: string;
+            /** Warnings */
+            warnings: string[];
+            /** Wellness Boundary */
+            wellness_boundary: string;
+            /** Why It Matches */
+            why_it_matches: string;
+        };
+        /**
+         * FitChefMascotInsightResponse
+         * @description Public mascot insight response envelope.
+         */
+        FitChefMascotInsightResponse: {
+            /** Action Items */
+            action_items: string[];
+            /** Confidence */
+            confidence: number;
+            /** Message */
+            message: string;
+            /**
+             * Quota State
+             * @enum {string}
+             */
+            quota_state: "not_consumed" | "consumed";
+            /**
+             * Scenario
+             * @constant
+             */
+            scenario: "mascot_insight";
+            /** Sources */
+            sources: components["schemas"]["FitChefCoachingSourceItem"][];
+            /** Transparency Notice Id */
+            transparency_notice_id: string;
+            /** Warnings */
+            warnings: string[];
+            /** Wellness Boundary */
+            wellness_boundary: string;
+        };
+        /**
+         * FitChefSlipSupportRequest
+         * @description Slip-support request payload.
+         */
+        FitChefSlipSupportRequest: {
+            /** Event Text */
+            event_text: string;
+            /** Goal */
+            goal?: string | null;
+        };
+        /**
+         * FitChefSlipSupportResponse
+         * @description Public slip-support response envelope.
+         */
+        FitChefSlipSupportResponse: {
+            /** Action Items */
+            action_items: string[];
+            /** Confidence */
+            confidence: number;
+            /** Message */
+            message: string;
+            /**
+             * Quota State
+             * @enum {string}
+             */
+            quota_state: "not_consumed" | "consumed";
+            /**
+             * Scenario
+             * @constant
+             */
+            scenario: "slip_support";
+            /** Sources */
+            sources: components["schemas"]["FitChefCoachingSourceItem"][];
+            /** Transparency Notice Id */
+            transparency_notice_id: string;
+            /** Warnings */
+            warnings: string[];
+            /** Wellness Boundary */
+            wellness_boundary: string;
+        };
+        /**
+         * FitChefWeeklyReflectionRequest
+         * @description Weekly reflection request payload.
+         */
+        FitChefWeeklyReflectionRequest: {
+            /** Goal */
+            goal?: string | null;
+            /** Summary */
+            summary: string;
+        };
+        /**
+         * FitChefWeeklyReflectionResponse
+         * @description Public weekly reflection response envelope.
+         */
+        FitChefWeeklyReflectionResponse: {
+            /** Action Items */
+            action_items: string[];
+            /** Confidence */
+            confidence: number;
+            /** Message */
+            message: string;
+            /**
+             * Quota State
+             * @enum {string}
+             */
+            quota_state: "not_consumed" | "consumed";
+            /**
+             * Scenario
+             * @constant
+             */
+            scenario: "weekly_reflection";
+            /** Sources */
+            sources: components["schemas"]["FitChefCoachingSourceItem"][];
+            /** Transparency Notice Id */
+            transparency_notice_id: string;
+            /** Warnings */
+            warnings: string[];
+            /** Wellness Boundary */
+            wellness_boundary: string;
+        };
+        /**
          * FoodAttributionResponse
          * @description RU: Ответ endpoint с атрибуцией источников.
          *     EN: Attribution endpoint response for food data sources.
@@ -2414,8 +2714,55 @@ export interface components {
             detail?: components["schemas"]["ValidationError"][];
         };
         /**
+         * IOSAppStoreActivationPayload
+         * @description Canonical iOS activation payload for PR-2 activation route.
+         */
+        IOSAppStoreActivationPayload: {
+            /** Receipt Data */
+            receipt_data: string;
+            verification_result: components["schemas"]["IOSVerifiedActivationResult"];
+        };
+        /**
+         * IOSVerifiedActivationResult
+         * @description Normalized iOS verification result produced by PR-1 Apple verify.
+         */
+        IOSVerifiedActivationResult: {
+            /** Expires At */
+            expires_at?: string | null;
+            /** Original Transaction Id */
+            original_transaction_id?: string | null;
+            /**
+             * Platform
+             * @default ios
+             * @constant
+             */
+            platform: "ios";
+            /** Product Id */
+            product_id: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "active" | "expired";
+            subscription_tier: components["schemas"]["SubscriptionTierValue"];
+            /** Transaction Id */
+            transaction_id: string;
+        };
+        /**
+         * ManualActivationPayload
+         * @description Canonical manual-rail payload for PR-2 activation route.
+         */
+        ManualActivationPayload: {
+            /** Source Reference */
+            source_reference: string;
+            /** Submitted Amount */
+            submitted_amount?: string | null;
+            /** Submitted Currency */
+            submitted_currency?: string | null;
+        };
+        /**
          * ManualPaymentSource
-         * @description Manual payment sources allowed in RU/BY intent flow.
+         * @description Manual payment sources allowed on RU/BY billing surfaces.
          * @enum {string}
          */
         ManualPaymentSource: "erip_qr" | "swift_manual";
@@ -2562,6 +2909,42 @@ export interface components {
              * @example 2.50
              */
             value: string;
+        };
+        /**
+         * NextBestAction
+         * @description Server-authored advisory hint for the next product step.
+         */
+        NextBestAction: {
+            /**
+             * Recommended Surface
+             * @description Canonical backend-owned product surface slug that should be opened next.
+             * @enum {string}
+             */
+            recommended_surface: "pro_targets" | "pro_daily_plate" | "vip_export";
+            /**
+             * Recommended Tier
+             * @description Advisory target tier for progression copy (not entitlement truth).
+             * @enum {string}
+             */
+            recommended_tier: "FREE" | "PRO" | "VIP";
+            /**
+             * Trigger Reason
+             * @description Stable v1 rule key for why this hint was selected.
+             * @enum {string}
+             */
+            trigger_reason: "post_bmi" | "targets_ready" | "weekly_plan_ready";
+            /**
+             * Type
+             * @description Deterministic trigger action type selected by backend rules.
+             * @enum {string}
+             */
+            type: "unlock_targets" | "open_daily_plate" | "upgrade_for_export";
+            /**
+             * Why Now
+             * @description Stable localization key selected by the deterministic v1 rule set.
+             * @enum {string}
+             */
+            why_now: "post_bmi_baseline_body_metrics" | "targets_ready_apply_meal_by_meal" | "weekly_plan_ready_export_and_share";
         };
         /**
          * NumericRangeSchema
@@ -3071,8 +3454,14 @@ export interface components {
             status: string;
         };
         /**
+         * PaymentPlatform
+         * @description Platform surface for the payment state.
+         * @enum {string}
+         */
+        PaymentPlatform: "ios" | "web";
+        /**
          * PaymentSource
-         * @description Canonical payment sources (RU/BY + iOS baseline).
+         * @description Canonical payment sources for the current billing baseline.
          * @enum {string}
          */
         PaymentSource: "ios_app_store" | "erip_qr" | "swift_manual";
@@ -3317,7 +3706,7 @@ export interface components {
         ReconcileDecision: "verified" | "rejected";
         /**
          * ReconcileStatus
-         * @description Reconciliation status for financial audit trail.
+         * @description Reconciliation state used by legacy manual-rail routes.
          * @enum {string}
          */
         ReconcileStatus: "pending" | "verified" | "rejected" | "not_required";
@@ -3941,45 +4330,64 @@ export interface components {
         };
         /**
          * SubscriptionActivationResponse
-         * @description Canonical activation response for all payment sources.
+         * @description Canonical response with compatibility fields for legacy billing routes.
          */
         SubscriptionActivationResponse: {
+            /** Activated At */
+            activated_at?: string | null;
             /** Activation Id */
             activation_id: string;
             /** Audit Id */
-            audit_id: string;
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
+            audit_id?: string | null;
+            /** Created At */
+            created_at?: string | null;
+            /** Expires At */
+            expires_at?: string | null;
             /** External Txn Id */
             external_txn_id?: string | null;
             /** Intent Id */
-            intent_id: string;
-            payment_source: components["schemas"]["PaymentSource"];
-            plan: components["schemas"]["SubscriptionPlan"];
-            reconcile_status: components["schemas"]["ReconcileStatus"];
-            status: components["schemas"]["ActivationStatus"];
-            /** @description Requested paid tier implied by the submitted plan. This is the target subscription tier for the activation, not a fallback access tier. */
-            subscription_tier: components["schemas"]["SubscriptionTierValue"];
-            /**
-             * Updated At
-             * Format: date-time
-             */
-            updated_at: string;
+            intent_id?: string | null;
+            payment_source?: components["schemas"]["PaymentSource"] | null;
+            plan?: components["schemas"]["SubscriptionPlan"] | null;
+            platform?: components["schemas"]["PaymentPlatform"] | null;
+            /** Product Id */
+            product_id?: string | null;
+            reconcile_status?: components["schemas"]["ReconcileStatus"] | null;
+            source?: components["schemas"]["PaymentSource"] | null;
+            /** Source Reference */
+            source_reference?: string | null;
+            status: components["schemas"]["SubscriptionStatus"];
+            /** @description Requested paid tier implied by the billing intent or verified product mapping. This is the paid target tier, not a free-access fallback. */
+            subscription_tier?: components["schemas"]["SubscriptionTierValue"] | null;
+            tier?: components["schemas"]["SubscriptionTier"] | null;
+            /** Updated At */
+            updated_at?: string | null;
+            /** User Id */
+            user_id?: number | null;
             /** Verified At */
             verified_at?: string | null;
         };
         /**
          * SubscriptionPlan
-         * @description Canonical subscription plans for billing activation.
+         * @description Legacy plan contract kept for billing compatibility routes.
          * @enum {string}
          */
         SubscriptionPlan: "pro_monthly" | "vip_monthly";
         /**
+         * SubscriptionStatus
+         * @description Persisted subscription lifecycle values.
+         * @enum {string}
+         */
+        SubscriptionStatus: "pending_manual_review" | "pending_verification" | "active" | "expired" | "cancelled" | "rejected";
+        /**
+         * SubscriptionTier
+         * @description Canonical persisted subscription tiers.
+         * @enum {string}
+         */
+        SubscriptionTier: "free" | "pro" | "vip";
+        /**
          * SubscriptionTierValue
-         * @description Requested paid tier implied by the selected billing plan.
+         * @description Paid subscription tiers used by legacy billing responses.
          * @enum {string}
          */
         SubscriptionTierValue: "pro" | "vip";
@@ -4177,6 +4585,7 @@ export interface components {
             adherence_score: number;
             /** Daily Menus */
             daily_menus: components["schemas"]["WeeklyMealPlanDayMenu"][];
+            next_best_action?: components["schemas"]["NextBestAction"] | null;
             /** Shopping List */
             shopping_list: {
                 [key: string]: number;
@@ -4281,6 +4690,7 @@ export interface components {
             macros: {
                 [key: string]: number;
             };
+            next_best_action?: components["schemas"]["NextBestAction"] | null;
             /** Priority Micros */
             priority_micros: {
                 [key: string]: number;
@@ -4326,6 +4736,78 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    verify_apple_receipt_api_v1_billing_apple_verify_receipt_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AppleReceiptVerificationRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AppleReceiptVerificationResponse"];
+                };
+            };
+            /** @description Missing or invalid API key */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description FastAPI auth error detail from tier guard */
+                        detail: string;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Rate limit exceeded */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitErrorResponse"];
+                };
+            };
+            /** @description Apple upstream error */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AppleReceiptVerificationResponse"];
+                };
+            };
+            /** @description Apple verify timeout */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AppleReceiptVerificationResponse"];
+                };
+            };
+        };
+    };
     bmi_endpoint_v1_api_v1_bmi_post: {
         parameters: {
             query?: never;
@@ -4423,6 +4905,240 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    fitchef_mascot_insight_api_v1_insight_fitchef_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FitChefCoachingRequest"];
+            };
+        };
+        responses: {
+            /** @description FitChef mascot coaching insight generated */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FitChefMascotInsightResponse"];
+                };
+            };
+            /** @description Unsafe AI input blocked */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FitChefCoachingErrorResponse"];
+                };
+            };
+            /** @description VIP tier required */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FitChefCoachingErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Rate limit exceeded */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitErrorResponse"];
+                };
+            };
+            /** @description Feature disabled or provider unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FitChefCoachingErrorResponse"];
+                };
+            };
+            /** @description LLM provider call timed out */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FitChefCoachingErrorResponse"];
+                };
+            };
+        };
+    };
+    fitchef_slip_support_api_v1_insight_fitchef_slip_support_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FitChefSlipSupportRequest"];
+            };
+        };
+        responses: {
+            /** @description FitChef slip-support coaching generated */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FitChefSlipSupportResponse"];
+                };
+            };
+            /** @description Unsafe AI input blocked */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FitChefCoachingErrorResponse"];
+                };
+            };
+            /** @description VIP tier required */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FitChefCoachingErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Rate limit exceeded */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitErrorResponse"];
+                };
+            };
+            /** @description Feature disabled or provider unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FitChefCoachingErrorResponse"];
+                };
+            };
+            /** @description LLM provider call timed out */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FitChefCoachingErrorResponse"];
+                };
+            };
+        };
+    };
+    fitchef_weekly_reflection_api_v1_insight_fitchef_weekly_reflection_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FitChefWeeklyReflectionRequest"];
+            };
+        };
+        responses: {
+            /** @description FitChef weekly reflection generated */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FitChefWeeklyReflectionResponse"];
+                };
+            };
+            /** @description Unsafe AI input blocked */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FitChefCoachingErrorResponse"];
+                };
+            };
+            /** @description VIP tier required */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FitChefCoachingErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Rate limit exceeded */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitErrorResponse"];
+                };
+            };
+            /** @description Feature disabled or provider unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FitChefCoachingErrorResponse"];
+                };
+            };
+            /** @description LLM provider call timed out */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FitChefCoachingErrorResponse"];
                 };
             };
         };
@@ -4585,6 +5301,93 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    fitchef_distortion_simulator_api_v1_pro_fitchef_explain_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FitChefDistortionSimulatorRequest"];
+            };
+        };
+        responses: {
+            /** @description FitChef distortion simulator generated */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FitChefDistortionSimulatorResponse"];
+                };
+            };
+            /** @description Unsafe AI input blocked */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FitChefCoachingErrorResponse"];
+                };
+            };
+            /** @description API key required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FitChefCoachingErrorResponse"];
+                };
+            };
+            /** @description PRO tier required */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FitChefCoachingErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Rate limit exceeded */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitErrorResponse"];
+                };
+            };
+            /** @description Feature disabled or provider unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FitChefCoachingErrorResponse"];
+                };
+            };
+            /** @description LLM provider call timed out */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FitChefCoachingErrorResponse"];
+                };
             };
         };
     };
@@ -4977,7 +5780,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Idempotent replay */
+            /** @description Successful Response */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -4986,16 +5789,34 @@ export interface operations {
                     "application/json": components["schemas"]["SubscriptionActivationResponse"];
                 };
             };
-            /** @description Successful Response */
-            201: {
+            /** @description Canonical activation payload is required on this route */
+            400: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["SubscriptionActivationResponse"];
+                    "application/json": components["schemas"]["PaymentErrorResponse"];
                 };
             };
-            /** @description client_event_id conflict */
+            /** @description Missing or invalid transport protection */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentErrorResponse"];
+                };
+            };
+            /** @description Activation access forbidden or Apple receipt verification required */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentErrorResponse"];
+                };
+            };
+            /** @description Deterministic activation conflict */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -5011,6 +5832,24 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Apple receipt verification upstream error */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentErrorResponse"];
+                };
+            };
+            /** @description Apple receipt verification timed out */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentErrorResponse"];
                 };
             };
         };
@@ -5035,6 +5874,15 @@ export interface operations {
                     "application/json": components["schemas"]["SubscriptionActivationResponse"];
                 };
             };
+            /** @description Missing or invalid transport protection */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentErrorResponse"];
+                };
+            };
             /** @description Activation access forbidden */
             403: {
                 headers: {
@@ -5046,69 +5894,6 @@ export interface operations {
             };
             /** @description Activation not found */
             404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PaymentErrorResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    verify_apple_receipt_api_v1_pro_payments_apple_verify_receipt_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["AppleReceiptVerificationRequest"];
-            };
-        };
-        responses: {
-            /** @description Idempotent replay */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SubscriptionActivationResponse"];
-                };
-            };
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SubscriptionActivationResponse"];
-                };
-            };
-            /** @description Missing or invalid API key */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        /** @description FastAPI auth error detail from tier guard */
-                        detail: string;
-                    };
-                };
-            };
-            /** @description client_event_id conflict */
-            409: {
                 headers: {
                     [name: string]: unknown;
                 };

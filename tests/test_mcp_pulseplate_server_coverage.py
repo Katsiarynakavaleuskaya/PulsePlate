@@ -580,7 +580,7 @@ class TestMcpPulseplateServerCoverage:
                     assert isinstance(response, mcp_pulseplate_server.RpcError)
                     assert response.code == -32603
                     assert response.message == "Internal error"
-                    assert response.data == {"error": "Test error"}
+                    assert response.data == {"error": mcp_pulseplate_server.ERROR_INTERNAL}
 
     @pytest.mark.asyncio
     async def test_list_tools(self):
@@ -843,8 +843,8 @@ class TestMcpPulseplateServerCoverage:
                 args = {"query": "test query"}
                 response = await server._chatgpt_query(args)
 
-                assert "error" in response
-                assert "ChatGPT query failed: API Error" in response["error"]
+                assert response == {"error": mcp_pulseplate_server.ERROR_TOOL_EXECUTION_FAILED}
+                assert "API Error" not in response["error"]
 
     @pytest.mark.asyncio
     async def test_chatgpt_query_direct_call_blocks_unsafe_input(self) -> None:
@@ -1013,8 +1013,8 @@ class TestMcpPulseplateServerCoverage:
                 args = {"code": "print('hello')"}
                 response = await server._code_review(args)
 
-                assert "error" in response
-                assert "Code review failed: API Error" in response["error"]
+                assert response == {"error": mcp_pulseplate_server.ERROR_TOOL_EXECUTION_FAILED}
+                assert "API Error" not in response["error"]
 
     @pytest.mark.asyncio
     async def test_generate_code_success(self):
@@ -1050,8 +1050,8 @@ class TestMcpPulseplateServerCoverage:
                 args = {"description": "create a function"}
                 response = await server._generate_code(args)
 
-                assert "error" in response
-                assert "Code generation failed: API Error" in response["error"]
+                assert response == {"error": mcp_pulseplate_server.ERROR_TOOL_EXECUTION_FAILED}
+                assert "API Error" not in response["error"]
 
     @pytest.mark.asyncio
     async def test_generate_code_direct_call_blocks_unsafe_description(self) -> None:
@@ -1113,6 +1113,10 @@ class TestMcpPulseplateServerCoverage:
                             assert payload["jsonrpc"] == "2.0"
                             assert payload["id"] is None
                             assert payload["error"]["code"] == -32700
+                            assert payload["error"]["data"] == {
+                                "error": mcp_pulseplate_server.ERROR_PARSE
+                            }
+                            assert "invalid json" not in printed.lower()
 
     @pytest.mark.asyncio
     async def test_main_function_internal_error_preserves_id(self) -> None:
@@ -1143,7 +1147,10 @@ class TestMcpPulseplateServerCoverage:
                         assert payload["jsonrpc"] == "2.0"
                         assert payload["id"] == 123
                         assert payload["error"]["code"] == -32603
-                        assert payload["error"]["data"]["error"] == "boom"
+                        assert payload["error"]["data"] == {
+                            "error": mcp_pulseplate_server.ERROR_INTERNAL
+                        }
+                        assert "boom" not in printed
 
     @pytest.mark.asyncio
     async def test_main_function_notification_exception_logs(self) -> None:

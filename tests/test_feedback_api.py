@@ -355,3 +355,27 @@ class TestRAGFeedbackChunksStorage:
         response = self.client.post(self.url, json=payload, headers=self.headers)
 
         assert response.status_code == 201
+
+
+def test_submit_feedback_applies_db_rls_context(
+    test_client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Feedback writes must apply DB RLS context before persistence."""
+    from app.routers import feedback as feedback_router
+
+    rls_calls: list[int] = []
+    monkeypatch.setattr(
+        feedback_router,
+        "apply_user_rls_context",
+        lambda session, *, user_id: rls_calls.append(user_id),
+    )
+
+    response = test_client.post(
+        "/api/v1/feedback/rag",
+        json={"query": "RLS context smoke"},
+        headers={"X-API-Key": TEST_KEY_PRO},
+    )
+
+    assert response.status_code == 201
+    assert rls_calls == [derive_subject_id_from_api_key(TEST_KEY_PRO)]

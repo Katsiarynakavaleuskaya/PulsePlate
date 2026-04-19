@@ -1,9 +1,9 @@
-# PulsePlate — Agent Runbook (CI Failures)
+# PulsePlate — Agent Runbook (CI + Merge Cycle)
 
-**Last updated:** 2025-12-24 (PR #403 Import Hygiene)
+**Last updated:** 2026-03-26 (Automation readiness alignment)
 
-**What this is:** Quick reference for diagnosing CI failures and import hygiene regressions.
-**When to use:** CI fails, tests hang, import errors, SQLAlchemy mapper issues.
+**What this is:** Quick reference for diagnosing CI failures, import hygiene regressions, and current-head merge-cycle state.
+**When to use:** CI fails, tests hang, import errors, SQLAlchemy mapper issues, or a PR needs a strict merge-readiness pass.
 **Related:** See root `AGENTS.md` for fast triage commands, `tests/test_repo_policy_guards.py` for enforced rules.
 
 ## Canonical Policy Links
@@ -14,11 +14,16 @@
 
 ---
 
-## Agent Coordination (Automatic)
+## Agent Coordination (Coordinator-First Policy)
 
 > Note: This section describes **operational** steps only. Policy/definitions live in `AGENTS.md`.
+> Automation boundary: repo policy requires coordinator-first behavior, but raw
+> start-of-session auto-invocation depends on the local launcher/runtime
+> enforcement described in `docs/orchestration/AUTOMATION_READINESS_MATRIX.md`.
 
-**When creating any task, the agent-coordinator should be automatically invoked.**
+**When creating any task, coordinator-first routing is required.**
+If launcher/runtime auto-capture is unavailable, manual coordinator invocation is still
+required before any non-trivial execution. This is a start gate, not advisory wording.
 
 **Canonical workflow:** See `docs/orchestration/workflow.md`
 
@@ -29,32 +34,91 @@
 - DoD: `docs/orchestration/dod.template.md`
 
 The coordinator will:
-1. **Analyze the task** and identify which domain(s) it touches
-2. **Route to appropriate agent(s)** based on capabilities:
-   - `ai-innovation-specialist`: AI/ML, RAG, computer vision, research
-   - `architecture-specialist`: Code structure, patterns, invariants
-   - `bug-hunter`: Bugs, tests, quality gates, coverage
-   - `creative-designer`: UI/UX, brand assets, visuals
-   - `marketing-strategist`: ASO, growth, conversion, strategy
-   - `security-auditor`: Vulnerabilities, penetration testing
-3. **Coordinate multi-agent workflows** when tasks span domains
-4. **Synthesize outputs** from multiple agents into coherent solutions
-5. **Provide quality assurance** and final conclusions
-6. **Generate brainstorming tasks** for scientific and creative innovation
+1. **Analyze the task** and identify the affected domains and risk level.
+2. **Route to appropriate agent(s)** using the canonical routing sources:
+   - `docs/orchestration/AGENT_ROUTING_GRAPH.md`
+   - `docs/orchestration/AGENT_CAPABILITY_MATRIX.md`
+   - nearest scoped `AGENTS.md`
+3. **Coordinate multi-agent workflows** when tasks span domains or merge-governance lanes.
+4. **Synthesize outputs** from multiple agents into one coherent solution.
+5. **Verify quality gates and merge-governance state** before any readiness claim.
+6. **Record follow-ups** in `docs/roadmap/BACKLOG_LEDGER.md` when work is deferred.
+
+### Required role-order execution
+
+When a coordinator-owned task packet or runbook declares an explicit role-agent order, execute
+the assigned role agents in that order.
+
+Rules:
+- Do not skip an assigned role agent without an explicit coordinator update to the packet.
+- Do not replace the declared order with an ad-hoc internal stack.
+- The canonical post-open `qa-engineer-agent -> bug-hunter` lane remains mandatory for PR work.
+Source of truth: the active lane packet or runbook at the canonical packet path for the current
+lane, which contains the enforced role-agent sequence for that task or PR.
 
 **Usage:**
 ```text
 Use the agent-coordinator subagent to [task description]
 ```
 
-The coordinator will automatically delegate to specialized agents and synthesize their work.
+When task bootstrap and the host runtime allow it, the coordinator may
+automatically delegate to specialized agents and synthesize their work.
+If that enforcement layer is absent, manual coordinator-first invocation is the
+required fallback.
+
+### Skill-Router Sync Note
+
+When a PR changes `scripts/orchestration/skill_router.py` or
+`docs/orchestration/AGENT_SKILL_ROUTING_POLICY.md`, verify the agent-facing
+instructions still match the live contract:
+
+- `security-auditor` auto-routes `security-best-practices`,
+  `security-threat-model`, and `pulseplate-guards`
+- `cybersecurity-skills` stays companion/manual-only and must not appear in
+  deterministic `recommended_skills`
+- merge-governance paths under `scripts/ci/**`, `docs/orchestration/**`, and
+  `docs/review/**` are privileged for skill routing, but executable reviewer
+  widening still follows `scripts/orchestration/task_bootstrap.py`
 
 **Starting a new task:**
 - See canonical definition: `AGENTS.md` (Agent Coordination section)
 - Templates: `docs/orchestration/*.template.md`
 - Full workflow: `docs/orchestration/workflow.md`
+- If the previous PR in the active train has merged, sync local `main` first and verify
+  current-head `main` health before creating the next branch.
+- If `main` is red, pending because of merge fallout, or otherwise unstable, stop the next PR
+  and stabilize `main` first.
+- If the active lane packet or runbook defines an explicit role-agent order, execute the
+  assigned role agents in that exact order.
+- For PR lifecycle packets, bootstrap may now accept `--pr-phase`:
+  - `pre_open` for pre-PR scope lock without review-lane synthesis
+  - `post_open_review` after PR creation to surface the mandatory
+    `qa-engineer-agent -> bug-hunter` lane
+  - `merge_ready` for explicit current-head merge-preparation packets
+- `post_open_review` remains deterministic once invoked; it is not a raw-session
+  or host-runtime auto-trigger by itself.
 
 **Postponed items:** Always record in `docs/roadmap/BACKLOG_LEDGER.md` immediately.
+
+### Post-merge sync and cleanup before the next PR
+
+Use this sequence after a merge and before opening the next PR in a train:
+
+1. `git checkout main`
+2. `git fetch --prune origin`
+3. `git merge --ff-only origin/main`
+4. verify current-head required-check health for `main`; if `main` is red, pending on merge
+   fallout, or otherwise unstable, stop and fix `main`
+5. run `gh pr view <N> --json state` and confirm the PR state is `MERGED`; abort cleanup and
+   next-PR prep if the PR is not merged yet
+6. remove merged local branches only after sync and merge-state verification
+7. remove merged remote branches/worktrees only after sync and merge-state verification
+8. start the next worktree/branch from synced `origin/main`; do not push more work to the
+   already merged PR branch
+9. clear only gitignored local artifacts relevant to the finished lane; never commit
+   `artifacts/`, `worktrees/`, or host-local wrapper state
+
+This is an operator runbook rule; it does not authorize `git pull` shortcuts or force-pushes.
 
 ---
 
@@ -108,6 +172,44 @@ Rule: RUNBOOK does not duplicate checklists; it only links to the canonical sour
 - Security scans pass when applicable (see `AGENTS.md` for policy and tools)
 
 **This is the authoritative procedural checklist.** Thresholds/policy live in `AGENTS.md`.
+
+### Merge-Ready Bundle (Blocking vs Advisory)
+
+Use this bundle when you need a strict merge claim:
+
+1. Local blocking bundle:
+   - `pre-commit run --all-files`
+   - `make verify`
+2. PR governance blocking bundle:
+   - `python scripts/orchestration/check_merge_ready.py --pr-number <N> --repo <owner/name> --require-auth`
+3. Advisory / external signals:
+   - Non-required CI jobs
+   - Third-party review bots unless branch protection marks them required
+4. Release-ops blocking bundle:
+   - Fastlane / App Store validation and upload lanes are blocking for publish claims, not automatically for ordinary PR merge claims unless the PR itself changes release surfaces
+
+Canonical SoT for the lane matrix:
+- `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md` (`CI Check Classification`)
+- `scripts/orchestration/check_merge_ready.py`
+
+For the Tier 1 backend/shared CI consolidation wave, the PR-series operating
+contract lives in:
+- `docs/orchestration/TIER1_CI_CD_PR_SERIES_RUNBOOK.md`
+- `docs/orchestration/TIER1_CI_CD_TASK_PACKET_2026-03-26.md`
+
+Operator routing baseline before PR2 workflow consolidation:
+
+- Backend/shared PR: inspect `CI` first; treat it as the canonical lane.
+- Frontend/design-token/OpenAPI frontend sync PR: inspect `Frontend CI` first,
+  then `Accessibility Tests` when its path filter attaches.
+- iOS PR: inspect `CI` iOS jobs first, then `Greenlight iOS Preflight`; treat
+  Fastlane/App Store lanes as release-ops, not ordinary PR merge blockers,
+  unless the PR explicitly changes release surfaces.
+- Workflow-change PR: inspect `CI` first. Current path routing in `CI` also
+  attaches iOS jobs for `.github/workflows/**` and `.github/actions/**`, so a
+  workflow-only PR can inherit iOS cost until PR2 removes that coupling.
+- Release/image PR: inspect `Docker Build and Push` plus any publish lane that
+  the PR explicitly changes.
 
 ## Guard Coverage Step (EVMbench-inspired)
 
@@ -217,6 +319,39 @@ This metrics section provides **quantitative targets**; the evaluation contract 
 
 ## Pre-push hygiene checklist (mandatory)
 
+## Clean-Clone Verify Parity
+
+If `make verify` fails before the real code gates because the clean-clone `.venv`
+is incomplete, use the canonical repo recovery path:
+
+```bash
+make venv
+make verify
+```
+
+If `.venv` already exists but drift is suspected, refresh it from the locked
+requirements before retrying:
+
+```bash
+make venv-sync
+make verify
+```
+
+`make verify` starts with `verify-env`, a fail-fast preflight that does not
+repair the environment. It fails when verify-critical modules such as
+`flake8`, `diff_cover.diff_cover_tool` (`diff-cover`), `coverage`, `pytest`, or
+`mypy` are missing from `.venv`, when unexpected executable `.pth` startup
+hooks are present, or when **present** `.venv/bin` console scripts for those
+tools are broken: non-executable, dangling symlink, or an absolute shebang
+pointing at a missing or non-executable interpreter (typical after deleting a
+worktree or moving the venv). Missing console scripts are allowed—the canonical
+`make verify` recipe uses `$(VENV_PYTHON) -m ...`—but any installed wrapper must
+be consistent so PATH-based tools, shells, and hooks do not fail later with
+opaque “bad interpreter” errors. Shebangs using `#!/usr/bin/env ...` are not
+validated in v1. Run `make verify` from repo root and do not rely on an
+externally activated interpreter: `verify-env` requires the repo `.venv`
+interpreter itself. Evidence: `scripts/ci/check_local_verify_environment.py`.
+
 Run from repo root before any push/PR:
 
 1. `git status --porcelain` → must be empty (or only intentional expected files)
@@ -225,23 +360,69 @@ Run from repo root before any push/PR:
 4. `pre-commit run --all-files`
 5. `make verify`
 
+## PR operating lifecycle (mandatory for coordinator-led work)
+
+Use this as the canonical operating loop from branch creation to merge window:
+
+1. **Coordinator start**
+   - Run `python3 scripts/orchestration/check_preflight.py`
+   - Read `AGENTS.md`, `RUNBOOK_AGENT.md`, and the nearest scoped `AGENTS.md`
+   - Decide scope, risk, and which sub-agents or helpers are needed before edits
+2. **Open / maintain draft**
+   - Keep the PR in draft while scope, artifact strategy, or local gates are still unstable
+   - Create or confirm the canonical artifact path `docs/review/PR_<N>_FIXED_MAPPING.md`
+3. **Post-open review entry**
+   - Once the PR exists, run the mandatory post-open reviewer path declared by the lane packet/runbook before calling the lane stable
+   - When the lane declares `qa-engineer-agent -> bug-hunter`, that pass happens after PR open, not as a substitute for pre-PR local gates
+4. **Before each push**
+   - Run `pre-commit run --all-files`
+   - Run the required local gates for the touched scope; for merge claims this still means `make verify`
+   - Commit hook changes separately when hooks modify files
+5. **After each push**
+   - Watch the latest-head CI run, not stale `gh pr checks` history
+   - Treat `scripts/orchestration/check_merge_ready.py` as the canonical current-head verdict
+6. **After each new review / bot activity**
+   - Fix code/docs first when needed
+   - Update `docs/review/PR_<N>_FIXED_MAPPING.md` next
+   - Update the optional PR-body mirror only after the canonical artifact is correct
+   - Re-run merge-readiness checks; do not assume a previous pass still holds
+7. **Before merge**
+   - Re-run the strict merge wrapper after the latest bot/review activity
+   - Confirm no pending required jobs remain
+   - Wait one review cycle after the final green state
+8. **Post-merge sync / sanity / cleanup**
+   - Sync the local clone back to `origin/main`
+   - Run the required post-merge sanity checks for the touched lane
+   - Remove temporary artifacts, stale worktrees, and merged local branches before declaring the lane closed
+   - For a PR series, do not start `PR<N+1>` until `PR<N>` completes this post-merge closure step
+
+If any part of this loop is skipped, the PR must not be described as ready.
+
+For the Tier 1 CI/CD consolidation wave, apply the same loop with the explicit
+stacked-PR routing card, mandatory post-open lane, and packet/runbook pair
+documented in:
+- `docs/orchestration/TIER1_CI_CD_PR_SERIES_RUNBOOK.md`
+- `docs/orchestration/TIER1_CI_CD_TASK_PACKET_2026-03-26.md`
+
 ## Pre-merge readiness pass (mandatory for non-draft PRs)
 
 Run before merge after latest commit and latest bot/review activity:
 
-1. `gh pr checks <PR_NUMBER>` -> no failed/pending required checks
+1. `python scripts/orchestration/check_merge_ready.py --pr-number <PR_NUMBER> --repo Katsiarynakavaleuskaya/PulsePlate --require-auth`
 2. `gh pr view <PR_NUMBER> --json mergeStateStatus,reviewDecision,isDraft`
-3. **Zero bot comments (hard rule):** Merge only when (a) **0 unresolved review threads** and (b) **every actionable bot comment is mapped** in PR body under `### Fixed in Commit Mapping`. **Do not** report "0 comments" or "ready to merge" based only on unresolved thread count — new bot comments can appear after a check; use the canonical script (below) and re-run after bot activity.
-4. Confirm PR body sections are complete:
+3. **Zero bot comments (hard rule):** Merge only when (a) **0 unresolved review threads** and (b) **every actionable bot comment is mapped** in the canonical artifact `docs/review/PR_<N>_FIXED_MAPPING.md`. PR body is mirror-only when `pr_number` is available. **Do not** report "0 comments" or "ready to merge" based only on unresolved thread count — new bot comments can appear after a check; use the canonical script (below) and re-run after bot activity.
+4. When a human-readable PR-body mirror is kept, confirm these sections are complete:
    - `## Discussion Thread Pass`
    - `### Fixed in Commit Mapping`
    - `## Merge Readiness`
 5. CI `Merge readiness gate` must be green on latest PR commit.
 
 **Phase2 PR body gates (CI):** To pass `check_pr_body_phase2_gates.py` and merge-readiness:
-- In PR description, under **Discussion Thread Pass**: check `[x] Discussion-thread pass completed` and `[x] Fixed in commit mapping completed`.
-- Under **### Fixed in Commit Mapping**: either list each bot comment as `- <comment-url> -> <commit-sha>`, or use exactly (no extra text): `- No actionable review comments`.
-- Local check (no API): `python scripts/ci/check_pr_body_phase2_gates.py --body "$(cat .github/pr_body_*.md)"` (use the same body as on the PR).
+- In PR description, if you keep a human-readable mirror, under **Discussion Thread Pass**: check `[x] Discussion-thread pass completed` and `[x] Fixed in commit mapping completed`.
+- In the canonical artifact `docs/review/PR_<N>_FIXED_MAPPING.md`: list each bot comment as `- <comment-url> -> <commit-sha>` or `- <comment-url>` depending on disposition, or use exactly `- No actionable review comments`.
+- Under **### Fixed in Commit Mapping** in the PR body: the mirror block is optional once the canonical artifact exists; if you keep it, generate it from the artifact helper instead of hand-maintaining mapping lines.
+- Local artifact-first check: `python scripts/ci/check_pr_body_phase2_gates.py --pr-number <PR_NUMBER>`
+- Local body-only fallback check: `python scripts/ci/check_pr_body_phase2_gates.py --body "$(cat .github/pr_body_*.md)"`
 
 **Canonical verification (required before claiming "0 comments" or "ready to merge"):** Run the orchestration wrapper so Phase 2, merge-readiness, and disposition proof are checked together. Policy: see `docs/orchestration/COORDINATOR_MERGE_READINESS_RULES.md`.
 
@@ -264,6 +445,27 @@ python scripts/orchestration/check_merge_ready.py \
 ```
 Exit 0 = Phase 2 + merge-readiness + disposition proof all pass. Exit 1 = do not merge; fix and re-run.
 
+Raw `gh pr checks <PR_NUMBER>` remains diagnostic only. It can include superseded
+historical failures from older runs, so final merge triage must rely on the
+filtered current-head view emitted by `check_merge_ready.py`.
+
+Additional live-triage notes:
+
+Implementation provenance: strict current-head triage is enforced by
+`scripts/orchestration/check_merge_ready.py` and
+`scripts/ci/check_pr_merge_readiness.py`; this runbook wording was refreshed in
+PR `#1162` via commits `639aa83f` and `b94d5575`.
+
+- `gh pr checks <PR_NUMBER>` exits non-zero when required jobs are still
+  `pending`/`in_progress`. Treat that as "merge window not open yet", not as a
+  failed-check verdict.
+- When only one current-head job remains live, inspect the exact run/job instead
+  of re-reading the whole historical checks table:
+  `gh run view <RUN_ID>` or `gh run view --job=<JOB_ID>`.
+- Do not report a PR as "green" while `gh pr checks` is non-zero solely because
+  of pending jobs. Wait for the last live job to finish, then re-run the strict
+  wrapper.
+
 **Optional: unresolved thread count only** (not sufficient alone):
 
 ```bash
@@ -275,17 +477,38 @@ query { repository(owner: "Katsiarynakavaleuskaya", name: "PulsePlate") {
 } }' --jq '.data.repository.pullRequest.reviewThreads | "total: \(.totalCount), unresolved: \([.nodes[] | select(.isResolved == false)] | length)"'
 ```
 
-Before merge: `unresolved` must be `0`. Resolve all threads in GitHub UI (Conversation → resolve thread) and map any actionable bot comments under **### Fixed in Commit Mapping** in the PR body.
+Before merge: `unresolved` must be `0`. Resolve all threads in GitHub UI (Conversation → resolve thread) and map any actionable bot comments in the canonical artifact.
 
 **Loop until zero comments (canonical cycle):** Repeat until merge-readiness script exits 0 and CI is green:
 
 1. **Commit** (fixes for code/docs); **push** to PR branch.
 2. **Watch CI:** `gh run list --branch "$(git branch --show-current)" --limit 3` then `gh run watch <RUN_ID> --exit-status` (or wait for run completion).
 3. **Check comments/governance:** `python scripts/orchestration/check_merge_ready.py --pr-number <PR_NUMBER> --repo Katsiarynakavaleuskaya/PulsePlate --require-auth`. If exit 1 → inspect the failing sub-gate output and fix before re-running.
-4. **Fix:** Resolve each new review thread (GitHub UI or GraphQL `resolveReviewThread`); add every UNMAPPED comment URL to PR body under `### Fixed in Commit Mapping` as `- <url> -> <commit-sha>`; if the bot asked for a code/docs change, implement it, commit, push, and use that commit sha in the mapping.
+4. **Fix:** Resolve each new review thread (GitHub UI or GraphQL `resolveReviewThread`); add every UNMAPPED comment URL to `docs/review/PR_<N>_FIXED_MAPPING.md`; if the bot asked for a code/docs change, implement it, commit, push, and use that commit sha in the mapping. Update the PR body mirror only after the canonical artifact is correct.
 5. **Re-run** step 3. If exit 0 and CI green → zero comments; only then is the PR ready for merge per AGENTS.md.
 
 Do not report "ready to merge" or "0 comments" until the script passes and CI is green.
+
+## Stacked PR replacement flow (mandatory when parent merge closes the child PR)
+
+Implementation provenance: non-history-rewriting replacement flow is governed by
+root `AGENTS.md` (`Git workflow (single-developer safe mode)`); this runbook
+section was aligned in PR `#1162` via commit `4e2da5ad`.
+
+If a stacked child PR is auto-closed because its parent base branch was merged
+and deleted:
+
+1. Verify the parent PR is actually merged:
+   `gh pr view <PARENT_PR> --json state,mergeCommit,mergedAt`
+2. Create a new branch from `origin/main` in its own worktree.
+3. Cherry-pick the child commits onto that new branch.
+4. Re-run `pre-commit run --all-files` and `make verify` on the replacement
+   branch head before pushing.
+5. Push the replacement branch and open a **replacement PR** on `main`.
+6. Create a new canonical artifact path for the replacement PR:
+   `docs/review/PR_<NEW_NUMBER>_FIXED_MAPPING.md`
+7. Do not continue pushing to the auto-closed PR number as if it were still the
+   active review lane.
 
 ## Agent Control Plane Security Ops (Wave 1 baseline)
 
@@ -312,6 +535,19 @@ Use this checklist when operating agent automation or closing a token/secrets in
    - Record evidence and follow-ups in `docs/roadmap/BACKLOG_LEDGER.md`.
    - Keep controls aligned with `docs/security/AGENT_CONTROL_PLANE_SECURITY_BASELINE.md`.
    - Verify security release gate conditions pass (see baseline doc, section "Security Release Gate").
+
+## METATRON offensive lab (Track A, out-of-band)
+
+Coordinator-first lane only. Product runtime (`app.main`) must not carry METATRON-class
+offensive tooling.
+
+- Epic 1 task packet (roster + validation): `docs/orchestration/METATRON_TRACK_A_EPIC1_TASK_PACKET_2026-04-06.md:1`
+- ADR: `docs/architecture/ADR_METATRON_OFFENSIVE_LAB_OUT_OF_BAND_2026-04-06.md:1`
+- RoE: `docs/security/METATRON_LAB_RULES_OF_ENGAGEMENT.md:1`
+- Assessment wave runbook: `docs/orchestration/METATRON_SECURITY_ASSESSMENT_WAVE_RUNBOOK.md:1`
+- Ledger: `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-metatron-offensive-lab-out-of-band`
+- Optional compose stub: `deploy/metatron-lab/README.md:1`
+
 ## 0.1) CI: `actions/upload-artifact` fails with `FinalizeArtifact 403 Forbidden`
 
 **Reference:** Documentation: [PR #712](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/712). Fix required a
@@ -362,9 +598,9 @@ Before editing imports / `__init__` / sys.path / sys.modules:
 ## 1) Fast Local Triage (run from repo root)
 
 ```bash
+make validate-min
+make validate-changed
 make lint
-make test-fast
-pytest -q tests/test_repo_policy_guards.py
 ```
 
 ## 2) PR #403 Specific Checks (Import Hygiene)

@@ -27,6 +27,7 @@ from app.security.rate_limit import (
     limit_if_available,
 )
 from app.services import fitchef_runtime
+from app.telemetry.genai import agent_span
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +46,17 @@ CBTQuotaState = Literal["not_consumed", "consumed"]
 def _is_cbt_agent_enabled() -> bool:
     """Check if CBT agent feature is enabled via environment variable."""
     return os.getenv("FEATURE_CBT_AGENT", "false").lower() in {"1", "true", "yes", "on"}
+
+
+def _cbt_feature_flag_state() -> dict[str, bool]:
+    """Return deterministic feature-flag snapshot for CBT tracing."""
+
+    return {
+        "cbt_agent": _is_cbt_agent_enabled(),
+        "rag": os.getenv("FEATURE_RAG", "false").lower() in {"1", "true", "yes", "on"},
+        "rag_vector": os.getenv("FEATURE_RAG_VECTOR", "false").lower()
+        in {"1", "true", "yes", "on"},
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -176,7 +188,13 @@ async def cbt_insight(
             method=raw_request.method,
         ),
     )
-    result = await fitchef_runtime.run_coach_insight_task(task)
+    with agent_span(
+        "cbt insight agent",
+        user_tier="PRO",
+        route=str(raw_request.url.path),
+        feature_flags=_cbt_feature_flag_state(),
+    ):
+        result = await fitchef_runtime.run_coach_insight_task(task)
     response = CBTInsightResponse(
         insight=result.insight,
         rag_used=result.rag_used,

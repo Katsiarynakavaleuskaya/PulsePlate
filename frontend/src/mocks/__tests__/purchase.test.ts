@@ -1,48 +1,50 @@
-/* @vitest-environment jsdom */
-import "../../test/setup";
+import { HttpHandler } from "msw";
+import type { RequestHandler } from "msw";
 import { expect, test } from "vitest";
+import { handlers } from "../handlers";
 
-const BASE_URL = "http://localhost";
+const LEGACY_RELEASE_PATHS = ["/api/purchase", "/api/restore"] as const;
+const HTTP_MATCH_METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"] as const;
+const LOCAL_RUNTIME_ORIGIN = "http://localhost";
 
-test("msw /api/purchase responds ok", async () => {
-  const res = await fetch(`${BASE_URL}/api/purchase`, { method: "POST" });
-  const json = await res.json();
-  expect(json.status).toBe("ok");
-  expect(json.entitlement).toBe("premium");
-});
+const matchesLegacyReleasePath = async (
+  handler: RequestHandler,
+  legacyPath: string
+): Promise<boolean> => {
+  if (!(handler instanceof HttpHandler)) {
+    return false;
+  }
 
-test("msw /api/purchase handles server error", async () => {
-  const res = await fetch(`${BASE_URL}/api/purchase?error=server`, { method: "POST" });
-  expect(res.status).toBe(500);
-  const json = await res.json();
-  expect(json.error).toBe("Internal server error");
-});
+  // RU: Проверяем реальный runtime matching MSW, чтобы regex/catch-all handlers тоже ловились.
+  // EN: Evaluate actual MSW runtime matching so regex/catch-all handlers are also detected.
+  for (const method of HTTP_MATCH_METHODS) {
+    const request = new Request(`${LOCAL_RUNTIME_ORIGIN}${legacyPath}`, { method });
+    const parsedResult = await handler.parse({ request });
+    const isMatch: boolean = await handler.predicate({ request, parsedResult });
 
-test("msw /api/purchase handles payment error", async () => {
-  const res = await fetch(`${BASE_URL}/api/purchase?error=payment`, { method: "POST" });
-  expect(res.status).toBe(402);
-  const json = await res.json();
-  expect(json.error).toBe("Payment failed");
-  expect(json.code).toBe("INSUFFICIENT_FUNDS");
-});
+    if (isMatch) {
+      return true;
+    }
+  }
 
-test("msw /api/restore responds ok", async () => {
-  const res = await fetch(`${BASE_URL}/api/restore`, { method: "POST" });
-  const json = await res.json();
-  expect(json.status).toBe("ok");
-  expect(json.restored).toBe(true);
-});
+  return false;
+};
 
-test("msw /api/restore handles server error", async () => {
-  const res = await fetch(`${BASE_URL}/api/restore?error=server`, { method: "POST" });
-  expect(res.status).toBe(503);
-  const json = await res.json();
-  expect(json.error).toBe("Restore service unavailable");
-});
+test(
+  "shared MSW surface does not expose legacy purchase or restore release paths",
+  async (): Promise<void> => {
+    const exposedLegacyPaths: string[] = [];
 
-test("msw /api/restore handles not found error", async () => {
-  const res = await fetch(`${BASE_URL}/api/restore?error=not_found`, { method: "POST" });
-  expect(res.status).toBe(404);
-  const json = await res.json();
-  expect(json.error).toBe("No purchases found");
-});
+    for (const legacyPath of LEGACY_RELEASE_PATHS) {
+      const matchResults: boolean[] = await Promise.all(
+        handlers.map((handler): Promise<boolean> => matchesLegacyReleasePath(handler, legacyPath))
+      );
+
+      if (matchResults.some((isMatch): boolean => isMatch)) {
+        exposedLegacyPaths.push(legacyPath);
+      }
+    }
+
+    expect(exposedLegacyPaths).toEqual([]);
+  }
+);

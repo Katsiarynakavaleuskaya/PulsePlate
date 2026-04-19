@@ -50,7 +50,7 @@ def test_v1_bmi_smoke(client) -> None:
 
 def test_v1_insight_smoke(client) -> None:
     # Mock the LLM provider to avoid external dependencies
-    with patch("llm.get_provider") as mock_get_provider:
+    with patch("llm.get_insight_provider") as mock_get_provider:
         mock_provider = Mock()
 
         async def mock_generate(text):

@@ -2,7 +2,9 @@ import { useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { getTargets, getWeeklyPlan } from '../api/premium';
 import type { TargetsRequest, TargetsApiResponse } from '../api/premium';
-import type { ProWeekPlanRequest, WeeklyMealPlanResponse } from '../api/premium/weekly-plan';
+import type { ProWeekPlanRequest } from '../api/premium/weekly-plan';
+import { normalizeWeekPlan } from '../features/weekly-plan/model/adapter';
+import type { WeekPlanVM } from '../features/weekly-plan/model/types';
 
 function toWeekPlanRequest(request: TargetsRequest): ProWeekPlanRequest {
   return {
@@ -21,7 +23,7 @@ function toWeekPlanRequest(request: TargetsRequest): ProWeekPlanRequest {
 }
 
 interface UseWhoTargetsWithWeeklyPlanOptions {
-  onSuccess?: (targets: TargetsApiResponse, weeklyPlan: WeeklyMealPlanResponse) => void;
+  onSuccess?: (targets: TargetsApiResponse, weeklyPlan: WeekPlanVM) => void;
   onError?: (error: Error) => void;
 }
 
@@ -32,7 +34,7 @@ interface UseWhoTargetsWithWeeklyPlanReturn {
   targetsError: string | null;
 
   // Weekly plan state
-  weeklyPlanData: WeeklyMealPlanResponse | null;
+  weeklyPlanData: WeekPlanVM | null;
   weeklyPlanLoading: boolean;
   weeklyPlanError: string | null;
 
@@ -55,7 +57,7 @@ export function useWhoTargetsWithWeeklyPlan(
   const [targetsError, setTargetsError] = useState<string | null>(null);
 
   // Weekly plan state
-  const [weeklyPlanData, setWeeklyPlanData] = useState<WeeklyMealPlanResponse | null>(null);
+  const [weeklyPlanData, setWeeklyPlanData] = useState<WeekPlanVM | null>(null);
   const [weeklyPlanLoading, setWeeklyPlanLoading] = useState(false);
   const [weeklyPlanError, setWeeklyPlanError] = useState<string | null>(null);
 
@@ -104,10 +106,11 @@ export function useWhoTargetsWithWeeklyPlan(
 
       // Then generate weekly plan
       const weeklyPlan = await getWeeklyPlan(toWeekPlanRequest(request));
-      setWeeklyPlanData(weeklyPlan);
+      const normalizedWeeklyPlan = normalizeWeekPlan(weeklyPlan);
+      setWeeklyPlanData(normalizedWeeklyPlan);
 
       // Call success callback with both data
-      onSuccess?.(targets, weeklyPlan);
+      onSuccess?.(targets, normalizedWeeklyPlan);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : t('whoTargets.error.weeklyPlanFailed', 'Failed to generate weekly plan');
       setWeeklyPlanError(errorMessage);

@@ -17,7 +17,7 @@
 
 - Transport: `ios/PulsePlate/Networking/{APIClient,HTTPClient,APIError}.swift` (protocol: `APIClient.swift:4`)
 - Base URL: `ios/PulsePlate/Services/AppConfig.swift` (`BASE_URL` Info.plist → env → fallback)
-- PRO key: `ios/PulsePlate/Services/ProKeyProvider.swift:3` (Keychain + DEBUG env)
+- PRO key runtime: `ios/PulsePlate/Services/ProKeyProvider.swift:3` (reads from Keychain only at runtime)
 - Profile query params: `ios/PulsePlate/Services/ProfileProvider.swift:42-49` (`ProfileProviding` protocol)
 - Guards:
   - `ios/PulsePlateTests/Guards/ThinClientGuardsTests.swift` (no BMI logic/thresholds in app sources)
@@ -54,6 +54,6 @@ All P0 items are shipped. Remaining work is P1 (see below and `BACKLOG_LEDGER.md
 
 ## P1 / Future (tracked in BACKLOG_LEDGER)
 
-- Keychain-backed PRO/VIP key storage and UX flows for entering/upgrading keys.
+- Onboarding/UX for Keychain-backed PRO flows and VIP-only key storage.
 - Receipt validation / IAP orchestration (separate scope; requires backend contract).
 - Deep-link allowlist rules (only after onboarding gates exist on the target platform).

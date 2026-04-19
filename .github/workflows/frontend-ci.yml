@@ -1,5 +1,11 @@
 name: Frontend CI
 
+env:
+  FRONTEND_NODE_VERSION_FILE: ".nvmrc"
+  PYTHON_VERSION: "3.13"
+  PULSEPLATE_PYTHON_INDEX_URL: ${{ secrets.PULSEPLATE_PYTHON_INDEX_URL || vars.PULSEPLATE_PYTHON_INDEX_URL }}
+  PULSEPLATE_PYTHON_TRUSTED_HOST: ${{ secrets.PULSEPLATE_PYTHON_TRUSTED_HOST || vars.PULSEPLATE_PYTHON_TRUSTED_HOST }}
+
 permissions:
   contents: read
 
@@ -13,6 +19,8 @@ on:
     branches: [main, feat/**, fix/**]
     paths:
       - 'frontend/**'
+      - '.nvmrc'
+      - '.github/actions/npm-ci-with-retry/**'
       - 'tokens/**'
       - 'docs/design/TOKENS_SOT.md'
       - 'docs/design/TOKEN_PIPELINE_GOVERNANCE.md'
@@ -40,6 +48,8 @@ on:
     branches: [main, feat/**, fix/**]
     paths:
       - 'frontend/**'
+      - '.nvmrc'
+      - '.github/actions/npm-ci-with-retry/**'
       - 'tokens/**'
       - 'docs/design/TOKENS_SOT.md'
       - 'docs/design/TOKEN_PIPELINE_GOVERNANCE.md'
@@ -80,17 +90,19 @@ jobs:
         working-directory: frontend
     steps:
       - name: Checkout code
-        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Set up Node.js
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
         with:
-          node-version: '20.11.1'
+          node-version-file: ${{ env.FRONTEND_NODE_VERSION_FILE }}
           cache: 'npm'
           cache-dependency-path: frontend/package-lock.json
 
       - name: Install dependencies
-        run: npm ci
+        uses: ./.github/actions/npm-ci-with-retry
+        with:
+          working-directory: frontend
 
       - name: Setup environment variables
         run: |
@@ -102,17 +114,14 @@ jobs:
           fi
 
       - name: Set up Python
-        uses: actions/setup-python@f677139bbe7f9c59b41e40162b753c062f5d49a3 # v5.2.0
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
-          python-version: '3.13.6'
+          python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Install backend dependencies
         run: |
           cd ..
-          if [ -f requirements-dev.txt ]; then
-            python -m pip install -r requirements-dev.txt -c constraints.txt
-          fi
-          python -m pip install -r requirements.txt -c constraints.txt
+          python scripts/ci/install_locked_python_requirements.py --python-executable python --constraints-file constraints.txt --install-dev
 
       - name: Run design token pipeline checks
         run: |
@@ -145,7 +154,7 @@ jobs:
 
       - name: Upload frontend build artifacts
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: frontend-build
           path: frontend/${{ env.BUILD_OUTPUT_DIR }}
@@ -154,7 +163,7 @@ jobs:
 
       - name: Upload frontend test results
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: frontend-test-results
           path: frontend/coverage

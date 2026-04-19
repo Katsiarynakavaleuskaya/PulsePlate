@@ -1,7 +1,7 @@
 # US Regulated Lane RFC: Clinical / Provider Expansion Boundary
 
 **Status:** Future-state RFC
-**Last updated:** 2026-03-08
+**Last updated:** 2026-04-10
 **Current decision:** Not active in the wellness runtime
 
 ## Goal
@@ -40,3 +40,7 @@ Re-open only when PulsePlate takes an explicit step toward:
 - regulated notes, records, or redisclosure-sensitive data
 
 Until then, the canonical product posture remains: **consumer wellness, EU-first privacy control plane, regulated US lane blocked**.
+
+## Clarification
+
+- Exporting minimized trace metadata to an OTLP collector or tracing vendor does not activate the regulated lane by itself when the export remains non-identifying, excludes regulated content, and stays within the configured telemetry-control boundary.

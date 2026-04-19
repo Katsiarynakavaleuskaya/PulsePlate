@@ -10,6 +10,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 import app as app_mod
+from tests._client import disable_rate_limiting_for_test_app
 
 
 def assert_vip_response(response, expected_status_codes=None, expected_data_fields=None):
@@ -78,6 +79,7 @@ def app_test_client(monkeypatch: pytest.MonkeyPatch) -> Generator[TestClient, No
 
     # Create test client with proper typing
     app_instance = cast(FastAPI, app_mod.app)
+    disable_rate_limiting_for_test_app(app_instance)
     client = TestClient(app_instance)
 
     try:
@@ -100,6 +102,7 @@ def app_with_api_key(monkeypatch: pytest.MonkeyPatch) -> Generator[TestClient, N
 
     # Create test client with proper typing
     app_instance = cast(FastAPI, app_mod.app)
+    disable_rate_limiting_for_test_app(app_instance)
     client = TestClient(app_instance)
 
     try:
@@ -122,6 +125,7 @@ def test_client(monkeypatch: pytest.MonkeyPatch) -> Generator[TestClient, None, 
 
     # Create test client with proper typing
     app_instance = cast(FastAPI, app_mod.app)
+    disable_rate_limiting_for_test_app(app_instance)
     client = TestClient(app_instance)
 
     try:

@@ -218,7 +218,7 @@ class TestAppMissingLinesCoverage:
         """Test the root endpoint."""
         client = client
 
-        response = client.get("/")
+        response = client.get("/legacy/bmi-calculator")
         assert response.status_code == 200
         assert "BMI Calculator" in response.text
 

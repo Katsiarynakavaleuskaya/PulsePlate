@@ -2,7 +2,7 @@
 
 # Living Document Protocol
 
-Версия: 2026-02-20 (TZ: America/New_York)
+Версия: 2026-03-21 (TZ: America/New_York)
 
 ## Purpose
 
@@ -29,6 +29,9 @@
 | PROOF_PACK | Growth Ops | Founder | Bi-weekly |
 | ROADMAP_KILL_CRITERIA | Product Architect | Founder | Monthly |
 | NARRATIVE_AND_TEAM | Founder | Marketing Lead | Monthly |
+| B2B_PARTNERSHIP_PROPOSAL_SPEC | Strategy Lead | Founder | Weekly |
+| B2B_PITCH_DECK_SPEC | Strategy Lead | Founder | Weekly |
+| BUSINESS_COLLATERAL_AUTOMATION | Product Ops | Strategy Lead | Bi-weekly |
 
 ## Review Gates
 
@@ -58,6 +61,11 @@ Stale doc action:
 - in-file date,
 - short change note,
 - decision reference (`DECISION_LOG.md`).
+
+## 2026-03-21 Change Note
+
+- Added business collateral ownership for markdown-first partner proposal and pitch-deck specs.
+- Added automation layer governance so generated `.docx` / `.pptx` stay derived, not canonical.
 
 ## Cross-Team Workflow
 

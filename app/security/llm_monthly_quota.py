@@ -83,6 +83,12 @@ def require_vip_llm_monthly_limit() -> int:
     return require_llm_monthly_limit("VIP")
 
 
+def require_pro_llm_monthly_limit() -> int:
+    """Backward-compatible PRO limit validator."""
+
+    return require_llm_monthly_limit("PRO")
+
+
 def vip_llm_monthly_limit_requests() -> int:
     """Backward-compatible VIP request limit getter."""
 

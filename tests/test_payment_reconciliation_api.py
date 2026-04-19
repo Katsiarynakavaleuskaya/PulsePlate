@@ -1,22 +1,40 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from typing import cast
 
 from fastapi.testclient import TestClient
 import pytest
+from sqlalchemy import select
 
+from app.models import SubscriptionActivationAudit
+from core.billing_policy import manual_monthly_entitlement_expires_at
+from core import db as core_db
 from tests.payment_test_utils import json_response_payload as _json
 
 pytestmark = pytest.mark.usefixtures("reset_payments_state")
 
 
-def _create_manual_intent(client: TestClient, headers: dict[str, str], *, source: str) -> str:
+def _parse_utc_datetime(raw_value: str) -> datetime:
+    parsed = datetime.fromisoformat(raw_value.replace("Z", "+00:00"))
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
+def _create_manual_intent(
+    client: TestClient,
+    headers: dict[str, str],
+    *,
+    source: str,
+    plan: str = "vip_monthly",
+) -> str:
     response = client.post(
         "/api/v1/pro/payments/ru-by/manual-intent",
         headers=headers,
         json={
             "source": source,
-            "plan": "vip_monthly",
+            "plan": plan,
             "client_event_id": f"evt-{source}-intent-1",
             "external_txn_id": f"{source}-intent-1",
             "amount_minor": 2999,
@@ -27,7 +45,12 @@ def _create_manual_intent(client: TestClient, headers: dict[str, str], *, source
     return _json(response)["activation_id"]
 
 
-def _create_manual_intent_via_service(*, issuer: str, source: str) -> str:
+def _create_manual_intent_via_service(
+    *,
+    issuer: str,
+    source: str,
+    plan: str = "vip_monthly",
+) -> str:
     from app.schemas.payments import ManualRailIntentRequest
     from app.services import payments_activation
 
@@ -35,7 +58,7 @@ def _create_manual_intent_via_service(*, issuer: str, source: str) -> str:
         payload=ManualRailIntentRequest.model_validate(
             {
                 "source": source,
-                "plan": "vip_monthly",
+                "plan": plan,
                 "client_event_id": f"evt-{source}-service-intent-1",
                 "external_txn_id": f"{source}-service-intent-1",
                 "amount_minor": 2999,
@@ -48,6 +71,55 @@ def _create_manual_intent_via_service(*, issuer: str, source: str) -> str:
         payload=activation_request,
     )
     return activation.activation_id
+
+
+def _create_ios_activation_via_service(*, issuer: str, client_event_suffix: str = "1") -> str:
+    from app.schemas.payments import ActivateSubscriptionRequest
+    from app.services import payments_activation
+
+    activation, _ = payments_activation.activate_subscription(
+        issuer=issuer,
+        payload=ActivateSubscriptionRequest.model_validate(
+            {
+                "source": "ios_app_store",
+                "plan": "pro_monthly",
+                "client_event_id": f"evt-ios-service-intent-{client_event_suffix}",
+                "verification_ok": True,
+                "verification_payload": {
+                    "receipt": f"receipt-token-validated-{client_event_suffix}",
+                },
+            }
+        ),
+    )
+    return activation.activation_id
+
+
+def _set_audit_reconcile_status(
+    *,
+    activation_id: str,
+    reconcile_status: str,
+) -> None:
+    """Persist stale audit metadata to prove readback ignores non-canonical values.
+
+    RU: Меняем исторический audit snapshot, чтобы проверить persisted-only readback.
+    EN: Mutate the historical audit snapshot to prove readback stays persisted-only.
+    """
+
+    session_factory = core_db.get_session_factory()
+    session = session_factory()
+    try:
+        audit = session.execute(
+            select(SubscriptionActivationAudit).where(
+                SubscriptionActivationAudit.id == activation_id
+            )
+        ).scalar_one()
+        audit.evidence_summary = {
+            **(audit.evidence_summary or {}),
+            "reconcile_status": reconcile_status,
+        }
+        session.commit()
+    finally:
+        session.close()
 
 
 def test_manual_reconcile_verified_flow(
@@ -73,13 +145,55 @@ def test_manual_reconcile_verified_flow(
     assert payload["subscription_tier"] == "vip"
     assert payload["external_txn_id"] == "swift-settled-1"
     assert payload["intent_id"] == intent_id
+    assert payload["expires_at"] is not None
+    assert payload["activated_at"] is not None
+
+    activated_at = _parse_utc_datetime(str(payload["activated_at"]))
+    expires_at = _parse_utc_datetime(str(payload["expires_at"]))
+    assert expires_at == manual_monthly_entitlement_expires_at(activated_at=activated_at)
 
     status_response = client.get(
         f"/api/v1/pro/payments/ru-by/reconcile/{intent_id}",
         headers=pro_headers,
     )
     assert status_response.status_code == 200, status_response.text
-    assert _json(status_response)["status"] == "active"
+    status_payload = _json(status_response)
+    assert status_payload["status"] == "active"
+    assert status_payload["expires_at"] == payload["expires_at"]
+
+
+def test_manual_reconcile_verified_flow_with_pro_monthly_plan(
+    client: TestClient,
+    pro_headers: dict[str, str],
+) -> None:
+    intent_id = _create_manual_intent(
+        client,
+        pro_headers,
+        source="erip_qr",
+        plan="pro_monthly",
+    )
+
+    reconcile = client.post(
+        "/api/v1/pro/payments/ru-by/reconcile",
+        headers=pro_headers,
+        json={
+            "intent_id": intent_id,
+            "client_event_id": "evt-erip-reconcile-pro-1",
+            "decision": "verified",
+            "external_txn_id": "erip-settled-pro-1",
+        },
+    )
+    assert reconcile.status_code == 200, reconcile.text
+
+    payload = _json(reconcile)
+    assert payload["status"] == "active"
+    assert payload["subscription_tier"] == "pro"
+    assert payload["expires_at"] is not None
+    assert payload["activated_at"] is not None
+
+    activated_at = _parse_utc_datetime(str(payload["activated_at"]))
+    expires_at = _parse_utc_datetime(str(payload["expires_at"]))
+    assert expires_at == manual_monthly_entitlement_expires_at(activated_at=activated_at)
 
 
 def test_manual_reconcile_is_idempotent(
@@ -98,6 +212,24 @@ def test_manual_reconcile_is_idempotent(
     assert first.status_code == 200, first.text
     assert second.status_code == 200, second.text
     assert _json(first) == _json(second)
+
+    status_response = client.get(
+        f"/api/v1/pro/payments/ru-by/reconcile/{intent_id}",
+        headers=pro_headers,
+    )
+    assert status_response.status_code == 200, status_response.text
+    status_payload = _json(status_response)
+    assert status_payload["status"] == "rejected"
+    assert status_payload["reconcile_status"] == "rejected"
+
+    activation_response = client.get(
+        f"/api/v1/pro/payments/activations/{intent_id}",
+        headers=pro_headers,
+    )
+    assert activation_response.status_code == 200, activation_response.text
+    activation_payload = _json(activation_response)
+    assert activation_payload["status"] == "rejected"
+    assert activation_payload["reconcile_status"] == "rejected"
 
 
 def test_manual_reconcile_rejects_second_transition_after_verification(
@@ -252,33 +384,18 @@ def test_manual_reconcile_forbidden_for_other_issuer_on_post(
 
 
 def test_manual_reconcile_rejects_ios_activation_via_service() -> None:
-    from app.schemas.payments import (
-        AppleReceiptVerificationRequest,
-        ManualRailReconcileRequest,
-    )
+    from app.schemas.payments import ManualRailReconcileRequest
     from app.services import payments_activation
 
     issuer = payments_activation.issuer_from_api_key("test_pro_key")
-    activation_request = payments_activation.build_ios_activation_request(
-        payload=AppleReceiptVerificationRequest.model_validate(
-            {
-                "plan": "pro_monthly",
-                "client_event_id": "evt-ios-service-1",
-                "receipt": "receipt-token-validated-99999",
-            }
-        )
-    )
-    activation, _ = payments_activation.activate_subscription(
-        issuer=issuer,
-        payload=activation_request,
-    )
+    activation_id = _create_ios_activation_via_service(issuer=issuer, client_event_suffix="svc")
 
     with pytest.raises(payments_activation.ActivationStateError, match="cannot be reconciled"):
         payments_activation.reconcile_activation(
             issuer=issuer,
             payload=ManualRailReconcileRequest.model_validate(
                 {
-                    "intent_id": activation.activation_id,
+                    "intent_id": activation_id,
                     "client_event_id": "evt-ios-reconcile-1",
                     "decision": "verified",
                 }
@@ -290,17 +407,12 @@ def test_manual_reconcile_rejects_ios_activation_via_api(
     client: TestClient,
     pro_headers: dict[str, str],
 ) -> None:
-    created = client.post(
-        "/api/v1/pro/payments/apple/verify-receipt",
-        headers=pro_headers,
-        json={
-            "plan": "pro_monthly",
-            "client_event_id": "evt-ios-api-1",
-            "receipt": "receipt-token-validated-api-12345",
-        },
+    from app.services import payments_activation
+
+    activation_id = _create_ios_activation_via_service(
+        issuer=payments_activation.issuer_from_api_key(pro_headers["X-API-Key"]),
+        client_event_suffix="api",
     )
-    assert created.status_code == 201, created.text
-    activation_id = _json(created)["activation_id"]
 
     response = client.post(
         "/api/v1/pro/payments/ru-by/reconcile",
@@ -319,17 +431,12 @@ def test_manual_status_rejects_ios_activation_via_api(
     client: TestClient,
     pro_headers: dict[str, str],
 ) -> None:
-    created = client.post(
-        "/api/v1/pro/payments/apple/verify-receipt",
-        headers=pro_headers,
-        json={
-            "plan": "pro_monthly",
-            "client_event_id": "evt-ios-api-status-1",
-            "receipt": "receipt-token-validated-status-12345",
-        },
+    from app.services import payments_activation
+
+    activation_id = _create_ios_activation_via_service(
+        issuer=payments_activation.issuer_from_api_key(pro_headers["X-API-Key"]),
+        client_event_suffix="status",
     )
-    assert created.status_code == 201, created.text
-    activation_id = _json(created)["activation_id"]
 
     response = client.get(
         f"/api/v1/pro/payments/ru-by/reconcile/{activation_id}",
@@ -341,39 +448,41 @@ def test_manual_status_rejects_ios_activation_via_api(
     assert payload["detail"] == "manual_status_not_supported_for_ios"
 
 
-def test_manual_reconcile_rejects_unsupported_state_via_service() -> None:
+def test_manual_reconcile_ignores_stale_audit_metadata_via_service() -> None:
     from app.schemas.payments import ManualRailReconcileRequest
     from app.services import payments_activation
 
     issuer = payments_activation.issuer_from_api_key("test_pro_key")
     activation_id = _create_manual_intent_via_service(issuer=issuer, source="erip_qr")
-    payments_activation._ACTIVATIONS[activation_id]["reconcile_status"] = "unsupported_state"
+    _set_audit_reconcile_status(
+        activation_id=activation_id,
+        reconcile_status="unsupported_state",
+    )
 
-    with pytest.raises(
-        payments_activation.ActivationStateError,
-        match="manual reconcile transition requires pending state",
-    ):
-        payments_activation.reconcile_activation(
-            issuer=issuer,
-            payload=ManualRailReconcileRequest.model_validate(
-                {
-                    "intent_id": activation_id,
-                    "client_event_id": "evt-unsupported-reconcile-1",
-                    "decision": "verified",
-                }
-            ),
-        )
+    response = payments_activation.reconcile_activation(
+        issuer=issuer,
+        payload=ManualRailReconcileRequest.model_validate(
+            {
+                "intent_id": activation_id,
+                "client_event_id": "evt-unsupported-reconcile-1",
+                "decision": "verified",
+            }
+        ),
+    )
+
+    assert response.status == "active"
+    assert response.reconcile_status == "verified"
 
 
-def test_manual_reconcile_rejects_unsupported_state_via_api(
+def test_manual_reconcile_readback_uses_persisted_state_via_api(
     client: TestClient,
     pro_headers: dict[str, str],
 ) -> None:
     intent_id = _create_manual_intent(client, pro_headers, source="erip_qr")
-
-    from app.services import payments_activation
-
-    payments_activation._ACTIVATIONS[intent_id]["reconcile_status"] = "unsupported_state"
+    _set_audit_reconcile_status(
+        activation_id=intent_id,
+        reconcile_status="unsupported_state",
+    )
 
     response = client.post(
         "/api/v1/pro/payments/ru-by/reconcile",
@@ -384,9 +493,24 @@ def test_manual_reconcile_rejects_unsupported_state_via_api(
             "decision": "verified",
         },
     )
-    assert response.status_code == 422
-    assert _json(response)["code"] == "invalid_reconcile_state"
-    assert _json(response)["detail"] == "manual_reconcile_transition_requires_pending_state"
+    assert response.status_code == 200, response.text
+    reconcile_payload = _json(response)
+    assert reconcile_payload["status"] == "active"
+    assert reconcile_payload["reconcile_status"] == "verified"
+
+    status_response = client.get(
+        f"/api/v1/pro/payments/ru-by/reconcile/{intent_id}",
+        headers=pro_headers,
+    )
+    assert status_response.status_code == 200, status_response.text
+    assert _json(status_response)["reconcile_status"] == "verified"
+
+    activation_response = client.get(
+        f"/api/v1/pro/payments/activations/{intent_id}",
+        headers=pro_headers,
+    )
+    assert activation_response.status_code == 200, activation_response.text
+    assert _json(activation_response)["reconcile_status"] == "verified"
 
 
 def test_activation_state_detail_maps_manual_status_and_unknown_errors() -> None:

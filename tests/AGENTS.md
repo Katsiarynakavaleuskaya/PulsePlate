@@ -21,6 +21,9 @@
 - **Prefer `monkeypatch.setattr()` over `@patch` decorator** — `@patch` on `@contextmanager` targets
   fails silently under Python 3.12 + xdist (see `docs/ENGINEERING_LESSONS.md` lesson 11).
   Use autouse `monkeypatch.setenv()` fixtures instead of `os.environ` mutation in `setup_method()`.
+- For background update / lifespan tests, patch both `app` facade and `legacy_app` / `app_module`
+  alias surfaces when replacing `start_background_updates` or `stop_background_updates`.
+  Patching only one side is forbidden because production resolvers read multiple module aliases.
 - **When fixing `@patch` tests, scan ALL sibling files** for the same pattern
   (e.g., `_boost.py`, `_v2.py` variants). Fixing one file and missing its twin is a recurring incident.
 - Repo policy guards must not reference temporary/untracked files; AST scan path lists must filter by `.exists()`.
@@ -29,6 +32,20 @@
 ### WebSocket/realtime test invariants
 
 - See canonical WebSocket/realtime invariants in root `AGENTS.md`.
+
+### CI external network guard (`httpx` / `requests`)
+
+When `CI=true` or `BLOCK_TEST_NETWORK` is set (unless `ALLOW_TEST_NETWORK=true`), autouse fixture
+`tests/conftest.py::_block_external_network_in_ci` patches `httpx.Client.request`,
+`httpx.AsyncClient.request`, and `requests.Session.request` so URLs must use an **allowlisted host**
+before any transport (including `httpx.MockTransport`) runs.
+
+**Allowlisted hostnames:** `127.0.0.1`, `localhost`, `::1`, `testserver`, plus any comma-separated
+entries in `TEST_NETWORK_ALLOWED_HOSTS`.
+
+**Implication for tests:** Fake Meili or other httpx clients must use e.g. `http://127.0.0.1` or
+`http://localhost:7700` as `base_url`, not arbitrary hostnames like `meili.test`, or CI raises
+`AssertionError: External HTTP blocked in tests`.
 
 ### Module purge / reload invariant (xdist stability)
 
@@ -112,6 +129,8 @@ A standalone new test file may not be included in diff-cover's comparison, causi
 - ⚠️ **Alternative**: If creating a new test file, verify it appears in `git diff --name-only origin/main...HEAD` and that diff-cover includes it in the comparison.
 
 **Example (PR-490B)**: Coverage-tail tests for `core/bmi/engine.py` were moved from a standalone file into `tests/test_bmi_visualization_spec.py` (already modified in the PR) to ensure diff-cover correctly detects coverage.
+
+**Tier 1 `test-pr` routing** (`.github/workflows/ci.yml`): PRs that select the `route_contract_safety` contract group also run `tests/test_api.py`, `tests/test_app_endpoints_combined.py`, `tests/test_app_error_handling_combined.py`, `tests/test_app_extended_coverage.py`, `tests/test_food_search_foundation.py`, `tests/test_foods_router_coverage_boost.py`, `tests/test_metrics.py`, plus `tests/test_judgment_core.py`, `tests/test_judgment_eval_contract.py`, and `tests/test_creative_research_eval_contract.py` so `coverage.xml` used by the `diff-coverage` job includes route/public-discovery, food/Meili/metrics paths under `app/`, and core judgment / creative-research contract paths under `core/`.
 
 ### Reliable local diff-cover check (prevents phantom gaps)
 
@@ -395,7 +414,7 @@ pytest -q tests/test_repo_policy_guards.py
 
 - **Dependency vulnerability floor guard**: `tests/test_dependency_security_guard.py`
   - **What it enforces**:
-    - `cryptography` must stay at or above the non-vulnerable floor (`46.0.5`) in:
+    - `cryptography` must stay at or above the non-vulnerable floor (`46.0.7`) in:
       - `requirements.txt`
       - `requirements-dev.txt`
       - `requirements-lock.txt`
@@ -430,20 +449,21 @@ pytest -q tests/test_repo_policy_guards.py
   - **What it enforces**:
     - PR body contains `## Discussion Thread Pass` and `### Fixed in Commit Mapping`.
     - Checkboxes `Discussion-thread pass completed` and `Fixed in commit mapping completed` are checked.
-    - Mapping contains either comment-to-commit lines (`url -> sha`) or `No actionable review comments`.
+    - In body-only fallback mode, mapping contains either comment-to-commit lines (`url -> sha`) or `No actionable review comments`.
+    - When the canonical artifact exists, PR body is mirror-only and does not need duplicated URL→SHA lines.
   - **How to run**:
     ```bash
     pytest -q tests/test_pr_body_phase2_gates.py
-    python scripts/ci/check_pr_body_phase2_gates.py --body "## Discussion Thread Pass
+    python scripts/ci/check_pr_body_phase2_gates.py --pr-number 999 --body "## Discussion Thread Pass
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
 ### Fixed in Commit Mapping
-- No actionable review comments"
+- canonical artifact: docs/review/PR_999_FIXED_MAPPING.md"
     ```
   - **How to fix failures**:
     - Update PR body using template sections exactly (headings + checkbox labels).
     - Mark both checkboxes as completed after discussion-thread pass.
-    - Add explicit mapping entries for each addressed bot review comment.
+    - Add explicit mapping entries for each addressed bot review comment in the canonical artifact.
 
 - **Wellness language BLOCKER guard**: `tests/guards/test_wellness_language_blockers_guard.py`
   - **What it enforces**:
@@ -502,6 +522,11 @@ If tempted to:
   and `test_test_pro_access_coverage.py`.
 - `TESTING=true` must be set before importing `app`
   (handled centrally in `pytest_configure`).
+- Tests that intentionally exercise the live GoPlus/AgentGuard bridge must opt
+  in with `monkeypatch.setenv("GOPLUS_AGENTGUARD_IN_TESTS", "true")`; pytest's
+  own `PYTEST_CURRENT_TEST` marker is the only allowed broad signal for the
+  default bridge bypass, so `TESTING=true` alone must not suppress the live
+  runtime path.
 - If a test imports symbols from `app`,
   a guard-test must assert their presence.
 

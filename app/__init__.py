@@ -41,6 +41,43 @@ _LOCAL_EXPORTS: dict[str, tuple[str, str]] = {
 }
 
 
+def _ensure_canonical_bootstrap() -> None:
+    """Run canonical additive bootstrap without changing facade identity.
+
+    RU: Импорт `app.main` нужен только для запуска additive bootstrap поверх
+    `legacy_app.app`; наружу пакет всё равно должен отдавать именно
+    `legacy_app.app`, чтобы сохранялся инвариант identity в тестах и reload path.
+    EN: Import `app.main` only to execute additive bootstrap on top of
+    `legacy_app.app`; the package must still expose `legacy_app.app` itself to
+    preserve identity under tests and reload scenarios.
+    """
+    legacy_app_instance = getattr(_legacy(), "app")
+    main_module = sys.modules.get("app.main")
+
+    if main_module is None:
+        main_module = importlib.import_module("app.main")
+
+    main_app_instance = getattr(main_module, "app", None)
+    ensure_bootstrap = getattr(main_module, "ensure_canonical_app_bootstrap", None)
+    if main_app_instance is legacy_app_instance:
+        # RU: Даже при совпадающем объекте дополнительно удерживаем ссылку
+        # `app.main.app` синхронизированной для reload / monkeypatch churn.
+        # EN: Keep `app.main.app` synchronized even when identity already matches
+        # to stabilize reload / monkeypatch churn across Python versions.
+        setattr(main_module, "app", legacy_app_instance)
+        return
+
+    if callable(ensure_bootstrap):
+        ensure_bootstrap(legacy_app_instance)
+        return
+
+    # RU: Фолбэк только для safety-path; нормальный runtime идёт через
+    # `ensure_canonical_app_bootstrap` в app.main.
+    # EN: Safety fallback only; normal runtime should go through
+    # `ensure_canonical_app_bootstrap` in app.main.
+    setattr(main_module, "app", legacy_app_instance)
+
+
 @lru_cache(maxsize=1)
 def _legacy() -> Any:
     """Import legacy_app lazily and cache it.
@@ -70,6 +107,9 @@ def __getattr__(name: str) -> Any:
     PEP 562 forwarder: pure delegation, no side effects.
     Observability bootstrap (register_metrics) is applied ONLY in app/main.py.
     """
+    if name == "app":
+        _ensure_canonical_bootstrap()
+        return getattr(_legacy(), "app")
     if name in _LOCAL_EXPORTS:
         mod_name, attr = _LOCAL_EXPORTS[name]
         mod = importlib.import_module(mod_name)

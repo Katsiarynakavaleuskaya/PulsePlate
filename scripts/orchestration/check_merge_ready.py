@@ -5,10 +5,13 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
+import shutil
 import subprocess  # nosec B404: wrapper executes fixed repo scripts only (remove-by: 2026-06-30, ref: PR-1005)
 import sys
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Literal
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
@@ -16,6 +19,7 @@ if str(REPO_ROOT) not in sys.path:
 
 PHASE2_GATE = REPO_ROOT / "scripts" / "ci" / "check_pr_body_phase2_gates.py"
 MERGE_GATE = REPO_ROOT / "scripts" / "ci" / "check_pr_merge_readiness.py"
+CURRENT_HEAD_CHECKS_GATE = REPO_ROOT / "scripts" / "ci" / "check_current_head_pr_checks.py"
 DISPOSITION_GATE = REPO_ROOT / "scripts" / "orchestration" / "check_review_threads_disposition.py"
 RUN_TIMEOUT_SEC = 120
 
@@ -29,6 +33,32 @@ class GateResult:
     returncode: int
     stdout: str
     stderr: str
+
+
+@dataclass(frozen=True)
+class GatePolicy:
+    """Static gate classification used by the wrapper output."""
+
+    gate_class: Literal["hard", "soft", "external", "advisory"]
+    lane: Literal[
+        "pr-governance", "review-governance", "required-checks", "review-proof", "unclassified"
+    ]
+    blocking: bool
+
+
+GATE_POLICIES: dict[str, GatePolicy] = {
+    "phase2-pr-body-gates": GatePolicy(gate_class="hard", lane="pr-governance", blocking=True),
+    "merge-readiness-gate": GatePolicy(gate_class="hard", lane="review-governance", blocking=True),
+    "current-head-checks": GatePolicy(gate_class="hard", lane="required-checks", blocking=True),
+    "review-threads-disposition": GatePolicy(gate_class="hard", lane="review-proof", blocking=True),
+}
+
+BLOCKING_MERGE_READY_GATES: tuple[str, ...] = (
+    "phase2-pr-body-gates",
+    "merge-readiness-gate",
+    "current-head-checks",
+    "review-threads-disposition",
+)
 
 
 def _validate_args(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None:
@@ -83,6 +113,64 @@ def _run_gate(name: str, script_path: Path, extra_args: list[str]) -> GateResult
     )
 
 
+def _github_cli_path() -> str:
+    """Resolve gh binary path for read-only PR metadata access."""
+
+    gh_path = shutil.which("gh")
+    if not gh_path:
+        raise RuntimeError("GitHub CLI `gh` is required to fetch PR body in local mode.")
+    return gh_path
+
+
+def _fetch_pr_body(pr_number: int, repo: str) -> str:
+    """Fetch live PR body so Phase2 mirror checks work in local wrapper mode."""
+
+    env = os.environ.copy()
+    if not (env.get("GH_TOKEN") or env.get("GITHUB_TOKEN")):
+        auth_status = subprocess.run(  # nosec B603: absolute gh path with fixed auth-status argv (remove-by: 2026-06-30, ref: PR-1129)
+            [_github_cli_path(), "auth", "status"],
+            cwd=REPO_ROOT,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=RUN_TIMEOUT_SEC,
+            env=env,
+        )
+        if auth_status.returncode != 0:
+            stderr = (
+                auth_status.stderr.strip() or auth_status.stdout.strip() or "unknown gh auth error"
+            )
+            raise RuntimeError(
+                "GH_TOKEN/GITHUB_TOKEN is unset and gh auth status failed; "
+                f"run `gh auth login` or export GH_TOKEN. Details: {stderr}"
+            )
+    argv = [
+        _github_cli_path(),
+        "pr",
+        "view",
+        str(pr_number),
+        "--repo",
+        repo,
+        "--json",
+        "body",
+        "--jq",
+        ".body",
+    ]
+    result = subprocess.run(  # nosec B603: absolute gh path with fixed read-only argv (remove-by: 2026-06-30, ref: PR-1129)
+        argv,
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=RUN_TIMEOUT_SEC,
+        env=env,
+    )
+    if result.returncode != 0:
+        stderr = result.stderr.strip() or "unknown gh error"
+        raise RuntimeError(f"Failed to fetch PR body for #{pr_number}: {stderr}")
+    return result.stdout
+
+
 def _phase2_args(args: argparse.Namespace) -> list[str]:
     if args.event_path:
         return ["--event-path", args.event_path]
@@ -93,6 +181,12 @@ def _phase2_args(args: argparse.Namespace) -> list[str]:
 
 
 def _merge_gate_args(args: argparse.Namespace) -> list[str]:
+    if args.event_path:
+        return ["--event-path", args.event_path]
+    return ["--pr-number", str(args.pr_number), "--repo", args.repo]
+
+
+def _current_head_checks_args(args: argparse.Namespace) -> list[str]:
     if args.event_path:
         return ["--event-path", args.event_path]
     return ["--pr-number", str(args.pr_number), "--repo", args.repo]
@@ -148,12 +242,34 @@ def _disposition_gate_skipped(result: GateResult) -> bool:
 def _print_gate_output(result: GateResult) -> None:
     """Render one gate block for deterministic local/CI diagnostics."""
 
+    policy = GATE_POLICIES.get(
+        result.name,
+        GatePolicy(gate_class="advisory", lane="unclassified", blocking=False),
+    )
     status = "PASS" if result.returncode == 0 else "FAIL"
-    print(f"[{status}] {result.name}")
+    blocking_label = "blocking" if policy.blocking else "advisory"
+    print(
+        f"[{status}] {result.name} " f"({policy.gate_class}; lane={policy.lane}; {blocking_label})"
+    )
     if result.stdout:
         print(result.stdout)
     if result.stderr:
         print(result.stderr)
+
+
+def _print_merge_ready_bundle() -> None:
+    """Render the canonical blocking bundle before gate execution output."""
+
+    print("Blocking merge-ready bundle:")
+    for gate_name in BLOCKING_MERGE_READY_GATES:
+        policy = GATE_POLICIES[gate_name]
+        blocking_value = "yes" if policy.blocking else "no"
+        print(
+            f"- {gate_name}: class={policy.gate_class}, "
+            f"lane={policy.lane}, blocking={blocking_value}"
+        )
+    print("Advisory / external signals:")
+    print("- third-party review bots remain advisory unless GitHub branch protection promotes them")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -188,9 +304,17 @@ def main(argv: list[str] | None = None) -> int:
     parsed = parser.parse_args(argv)
     _validate_args(parsed, parser)
 
+    phase2_args = _phase2_args(parsed)
+    phase2_result = _run_gate("phase2-pr-body-gates", PHASE2_GATE, phase2_args)
+
     gate_results = [
-        _run_gate("phase2-pr-body-gates", PHASE2_GATE, _phase2_args(parsed)),
+        phase2_result,
         _run_gate("merge-readiness-gate", MERGE_GATE, _merge_gate_args(parsed)),
+        _run_gate(
+            "current-head-checks",
+            CURRENT_HEAD_CHECKS_GATE,
+            _current_head_checks_args(parsed),
+        ),
         _run_gate(
             "review-threads-disposition",
             DISPOSITION_GATE,
@@ -202,6 +326,7 @@ def main(argv: list[str] | None = None) -> int:
     disposition_skipped = any(_disposition_gate_skipped(result) for result in gate_results)
     if disposition_skipped:
         failed.append("review-threads-disposition")
+    _print_merge_ready_bundle()
     for result in gate_results:
         _print_gate_output(result)
 

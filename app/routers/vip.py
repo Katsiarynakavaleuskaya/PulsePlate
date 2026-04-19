@@ -23,6 +23,7 @@ from fastapi import (  # pyright: ignore[reportMissingImports]
 )
 from fastapi.security import APIKeyHeader  # pyright: ignore[reportMissingImports]
 
+import app.middleware.api_tiers as api_tiers_mod
 from app.schemas.fitchef import FitChefWeeklyPlanInput, FitChefWeeklyPlanTaskEnvelope
 from app.schemas.vip import ErrorResponse, WeeklyPlanRequest, WeeklyPlanResponse
 from app.services import fitchef_runtime
@@ -535,6 +536,38 @@ async def weekly_menu_plan(
         We intentionally accept raw dict here so auth (403) wins over Pydantic 422.
         Then we validate via WeeklyPlanRequest inside the handler.
     """
+    try:
+        _, echo_payload, menu_payload = await _execute_weekly_menu_plan_payload(payload)
+        return {
+            "status": "success",
+            "echo": echo_payload,
+            "menu": menu_payload,
+            "message": "Weekly menu plan generated (echo mode)",
+        }
+    except HTTPException:
+        raise
+    except Exception:
+        logging.exception("Exception in weekly_menu_plan")
+        # Do not include exception details in responses (CodeQL: info exposure).
+        msg = "Weekly menu generation failed"
+        return {
+            "status": "error",
+            "echo": payload,
+            "menu": {"mode": "echo"},
+            "message": msg,
+        }
+
+
+async def _execute_weekly_menu_plan_payload(
+    payload: Dict[str, Any],
+    *,
+    menu_builder: Optional[Callable[..., Any]] = None,
+) -> tuple[WeeklyPlanRequest, Dict[str, Any], Dict[str, Any]]:
+    """Run canonical weekly-plan execution without HTTP-route wrapping.
+
+    RU: Выполнить canonical weekly-plan path без HTTP-обёртки.
+    EN: Execute the canonical weekly-plan path without the HTTP route envelope.
+    """
     # IMPORTANT: Validate after auth to ensure 403 wins over 422
     # JSONDecodeError is caught earlier in request.json() → 422
     # ValueError here means schema validation failed → 422
@@ -555,32 +588,46 @@ async def weekly_menu_plan(
             continue
         original_data[key] = value
 
-    try:
-        task = FitChefWeeklyPlanTaskEnvelope(
-            mode="auto-safe",
-            input=FitChefWeeklyPlanInput(request_data=request_obj.model_dump()),
+    resolved_menu_builder = make_weekly_menu if menu_builder is None else menu_builder
+    task = FitChefWeeklyPlanTaskEnvelope(
+        mode="auto-safe",
+        input=FitChefWeeklyPlanInput(request_data=request_obj.model_dump()),
+    )
+    result = await fitchef_runtime.run_weekly_plan_task(
+        task,
+        menu_builder=resolved_menu_builder,
+    )
+    echo_payload = original_data if resolved_menu_builder is None else request_obj.model_dump()
+    return request_obj, echo_payload, result.menu
+
+
+async def execute_legacy_premium_week_alias_payload(
+    payload: Mapping[str, Any],
+    *,
+    menu_builder: Optional[Callable[..., Any]] = None,
+) -> Dict[str, Any]:
+    """Run the canonical VIP weekly-plan path for the legacy premium alias.
+
+    RU: Выполнить canonical VIP weekly-plan path для legacy premium alias.
+    EN: Execute the canonical VIP weekly-plan path for the legacy premium alias.
+    """
+    has_targets_only_payload = payload.get("targets") is not None and not any(
+        payload.get(key) is not None for key in ("sex", "age", "height_cm", "weight_kg", "activity")
+    )
+    if has_targets_only_payload:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=(
+                "Targets-based weekly plans are not supported on this endpoint. "
+                "Provide full profile data or use /api/v1/premium/plan/week-flexible."
+            ),
         )
-        result = await fitchef_runtime.run_weekly_plan_task(
-            task,
-            menu_builder=make_weekly_menu,
-        )
-        echo_payload = original_data if make_weekly_menu is None else request_obj.model_dump()
-        return {
-            "status": "success",
-            "echo": echo_payload,
-            "menu": result.menu,
-            "message": "Weekly menu plan generated (echo mode)",
-        }
-    except Exception:
-        logging.exception("Exception in weekly_menu_plan")
-        # Do not include exception details in responses (CodeQL: info exposure).
-        msg = "Weekly menu generation failed"
-        return {
-            "status": "error",
-            "echo": request_obj.model_dump(),
-            "menu": {"mode": "echo"},
-            "message": msg,
-        }
+
+    _, _, menu_payload = await _execute_weekly_menu_plan_payload(
+        dict(payload),
+        menu_builder=menu_builder,
+    )
+    return menu_payload
 
 
 def _require_api_key_dev_legacy(request: Request) -> str:
@@ -592,11 +639,32 @@ def _require_api_key_dev_legacy(request: Request) -> str:
     api_key = _extract_api_key(request)
     is_production, app_env = _is_production_environment()
 
+    def _require_vip_access(candidate_key: str) -> None:
+        try:
+            api_tiers_mod.require_vip_tier(x_api_key=candidate_key, request=request)
+        except HTTPException as exc:
+            if exc.status_code in {
+                status.HTTP_401_UNAUTHORIZED,
+                status.HTTP_403_FORBIDDEN,
+            }:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Forbidden: VIP access required",
+                ) from exc
+            raise
+
     if api_key:
         try:
-            return _require_api_key(api_key)
+            resolved_api_key = _require_api_key(api_key)
+            _require_vip_access(resolved_api_key)
+            return resolved_api_key
         except HTTPException as exc:
             if exc.status_code == status.HTTP_401_UNAUTHORIZED:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Forbidden: VIP access required",
+                ) from exc
+            if exc.status_code == status.HTTP_403_FORBIDDEN:
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail="Forbidden: VIP access required",
@@ -619,6 +687,7 @@ def _require_api_key_dev_legacy(request: Request) -> str:
         "off",
     }
     if _is_dev_mode(app_env) and not _explicit_false:
+        _require_vip_access(api_tiers_mod.TEST_KEY_VIP)
         _log_api_key_event(
             "VIP endpoint accessed without API key in legacy dev mode.",
             is_production,
@@ -717,7 +786,7 @@ async def weekly_menu_plan_alias(
             ]
         ):
             raise HTTPException(
-                status_code=422,
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail="Missing required fields: sex, age, height_cm, weight_kg, activity, goal",
             )
 

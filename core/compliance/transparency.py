@@ -75,6 +75,18 @@ _TRANSPARENCY_REGISTRY: tuple[TransparencyNotice, ...] = (
         treatment_decision_use="Do not use as a sole basis for treatment, medication, or care coordination.",
         escalation="Direct users to qualified professionals or emergency services when clinical risk is suspected.",
     ),
+    TransparencyNotice(
+        surface_id="fitchef_structured_v1",
+        title="FitChef structured coaching",
+        analysis_kind="automated AI-assisted wellness coaching structure",
+        endpoints=("/api/v1/pro/fitchef/explain",),
+        inputs_used=("user text", "retrieved context", "configured provider output"),
+        boundary="Wellness coaching only; not therapy, diagnosis, or clinical decision support.",
+        notice="Builds bounded structured coaching objects such as distortion labels, evidence checks, and reframes.",
+        emergency_use="Not for emergencies, crisis handling, or acute medical situations.",
+        treatment_decision_use="Do not use as a sole basis for treatment, medication, or care coordination.",
+        escalation="Direct users to qualified professionals or emergency services when clinical risk is suspected.",
+    ),
 )
 
 _BLOCKED_REGULATED_LANE: dict[str, object] = {
@@ -82,12 +94,15 @@ _BLOCKED_REGULATED_LANE: dict[str, object] = {
     "examples": [
         "clinical diagnosis or treatment recommendations",
         "crisis or self-harm intervention workflows",
-        "substance-use disorder records or 42 CFR Part 2 data",
+        "substance use disorder records or 42 CFR Part 2 data",
         "provider/EHR ingestion and redisclosure",
     ],
     "rule": (
         "These scenarios require a separate regulated lane with consent segregation, "
-        "storage segregation, redisclosure controls, and explicit legal approval."
+        "storage segregation, redisclosure controls, and explicit legal approval. "
+        "Telemetry-only OTLP trace export of minimized metadata does not activate the regulated lane by itself "
+        "when the export remains non-identifying, excludes regulated content, and stays within the configured "
+        "telemetry-control boundary."
     ),
 }
 

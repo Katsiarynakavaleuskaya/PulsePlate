@@ -197,21 +197,33 @@ def retrieve_context_structured(
         ((src, ch, _score(query, ch)) for src, ch in items), key=lambda x: x[2], reverse=True
     )
     limit = max(1, min(max_chunks, MAX_SOURCES_IN_RESPONSE))
-    top = [x for x in scored[:limit] if x[2] >= MIN_CHUNK_SCORE]
-    chunks = [
-        RAGChunk(
-            chunk_id=f"{Path(src).relative_to(ROOT) if Path(src).is_relative_to(ROOT) else Path(src).name}:{i}",
-            file=(
-                str(Path(src).relative_to(ROOT))
-                if Path(src).is_relative_to(ROOT)
-                else Path(src).name
-            ),
-            content=redact_chunk_content(ch[:MAX_CHUNK_SIZE_CHARS]),
-            score=sc,
-            hop=1,
+    chunks: list[RAGChunk] = []
+    # RU: Дозаполняем выдачу следующими валидными chunk'ами после редактирования.
+    # EN: Backfill with the next valid chunks after redaction removes earlier hits.
+    for src, ch, sc in scored:
+        if sc < MIN_CHUNK_SCORE:
+            continue
+        redacted_content = redact_chunk_content(ch[:MAX_CHUNK_SIZE_CHARS]).strip()
+        if not redacted_content:
+            continue
+        chunk_position = len(chunks) + 1
+        chunks.append(
+            RAGChunk(
+                chunk_id=(
+                    f"{Path(src).relative_to(ROOT) if Path(src).is_relative_to(ROOT) else Path(src).name}:{chunk_position}"
+                ),
+                file=(
+                    str(Path(src).relative_to(ROOT))
+                    if Path(src).is_relative_to(ROOT)
+                    else Path(src).name
+                ),
+                content=redacted_content,
+                score=sc,
+                hop=1,
+            )
         )
-        for i, (src, ch, sc) in enumerate(top, 1)
-    ]
+        if len(chunks) >= limit:
+            break
     confidence = sum(c.score for c in chunks) / len(chunks) if chunks else 0.0
     latency_ms = int((time.perf_counter() - start) * 1000)
     return RAGContext(

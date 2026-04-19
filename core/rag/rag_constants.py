@@ -14,6 +14,9 @@ MAX_REFINEMENT_PASSES: int = 2
 MAX_VERIFICATION_QUERIES: int = 2
 MIN_CONFIDENCE_GAIN_PER_HOP: float = 0.02
 
+# Request-scoped hop vector memo (C3 follow-through; optimization path only)
+MAX_HOP_VECTOR_CACHE_ENTRIES: int = 32
+
 # Vector retrieval constants (P2)
 EMBEDDING_MODEL_NAME: str = "all-mpnet-base-v2"
 EMBEDDING_DIMENSIONS: int = 768

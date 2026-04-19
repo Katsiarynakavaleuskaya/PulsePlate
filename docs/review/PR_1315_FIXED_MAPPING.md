@@ -1,0 +1,45 @@
+# PR 1315 — Fixed in Commit Mapping
+
+## Discussion Thread Pass
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
+
+## Fixed in Commit Mapping
+Disposition: NOT-A-BUG
+Evidence: `docs/orchestration/COORDINATOR_MERGE_READINESS_RULES.md:84`, `docs/orchestration/COORDINATOR_MERGE_READINESS_RULES.md:86`, `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md:204`, `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md:205`
+Reason: The CodeRabbit skip note was emitted during the earlier draft-phase review cycle and is a historical automation status, not a code or governance defect in this lane.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1315#issuecomment-4183256082
+
+Disposition: NOT-A-BUG
+Evidence: `docs/orchestration/COORDINATOR_MERGE_READINESS_RULES.md:15`, `docs/orchestration/COORDINATOR_MERGE_READINESS_RULES.md:17`, `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md:202`, `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md:205`
+Reason: The Sourcery issue comment is an auto-generated reviewer guide that summarizes the change surface, but it does not raise a concrete actionable defect. Governance blocks actionable bot findings, not descriptive review-guide output.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1315#issuecomment-4183258209
+
+Disposition: FIXED
+Commit: 1942e483
+Evidence: `scripts/ci/check_current_head_pr_checks.py:32`, `scripts/ci/check_current_head_pr_checks.py:326`, `tests/test_current_head_pr_checks.py:492`
+Reason: The actionable testing gap from Sourcery is fixed by adding the missing `mergeStateStatus="CLEAN"` fallback failure coverage, and the hard-coded aggregate status-context literal is now centralized behind a named fallback constant to reduce local drift in the same lane.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1315#pullrequestreview-4055620911
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1315#discussion_r3032774608
+
+Disposition: FIXED
+Commit: 1beb3d55
+Evidence: `scripts/ci/check_current_head_pr_checks.py:334`, `scripts/ci/check_current_head_pr_checks.py:446`, `tests/test_current_head_pr_checks.py:42`, `tests/test_current_head_pr_checks.py:429`
+Reason: The latest CodeRabbit review is addressed by adding a workflow drift-guard test for the canonical fallback allowlist and by splitting fallback-blocking output from purely advisory output so merge triage text is no longer contradictory.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1315#pullrequestreview-4055652830
+
+Disposition: FIXED
+Commit: c114dfbb
+Evidence: `scripts/ci/check_current_head_pr_checks.py:33`, `tests/test_current_head_pr_checks.py:65`, `tests/test_current_head_pr_checks.py:69`
+Reason: The follow-up CodeRabbit thread is fixed with a post-review commit that locks the matrix-expanded `test-pr (3.13)` display name and asserts the frontend-only `build-and-test` job never appears in the canonical fallback allowlist, so future workflow drift cannot silently reintroduce the mismatch.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1315#pullrequestreview-4055668571
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1315#discussion_r3032821618
+
+## Merge Readiness
+- [ ] All required checks pass
+- [ ] No unresolved review threads (re-check on current head before merge)
+- [ ] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
+- [ ] Pre-commit green
+- [ ] `make verify` green
+- [ ] Mandatory post-open bug-hunter pass completed
+- Scope: narrow tooling/governance lane for PR `#1315` only. This PR fixes fallback semantics in `check_current_head_pr_checks.py` and keeps wrapper/release/front-end/iOS surfaces out of scope.

@@ -1,28 +1,230 @@
-export default {
-  async fetch(request, env, ctx) {
-    const TARGET_BASE = env.TARGET_BASE || "https://REPLACE_ME.trycloudflare.com";
-    const url = new URL(request.url);
-    const upstream = new URL(url.pathname + url.search, TARGET_BASE);
+const ALLOWED_METHODS = new Set(["GET", "POST", "OPTIONS"]);
+const BODYLESS_METHODS = new Set(["GET", "HEAD"]);
+const ALLOWED_FORWARD_HEADERS = [
+  "accept",
+  "authorization",
+  "content-type",
+  "cookie",
+  "x-api-key",
+];
+const ALLOWED_PREFLIGHT_HEADERS = "Content-Type, Authorization, X-API-Key";
+const PLACEHOLDER_TARGET_HOSTS = new Set(["example.com", "localhost", "127.0.0.1"]);
+const PLACEHOLDER_TARGET_SUFFIXES = [".trycloudflare.com"];
+let cachedAllowedOriginsRaw = null;
+let cachedAllowedOrigins = new Set();
 
-    if (request.method === "OPTIONS") {
-      const r = new Response(null, { status: 204 });
-      r.headers.set("Access-Control-Allow-Origin", "*");
-      r.headers.set("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
-      r.headers.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
-      r.headers.set("Access-Control-Max-Age", "86400");
-      return r;
+/**
+ * @typedef {{
+ *   TARGET_BASE?: string,
+ *   WORKER_ALLOWED_ORIGINS?: string
+ * }} WorkerEnv
+ */
+
+/**
+ * @typedef {false | null | string} TrustedOrigin
+ */
+
+/**
+ * @param {string} message
+ * @param {number} status
+ * @param {string | null} [origin]
+ * @returns {Response}
+ */
+function jsonError(message, status, origin = null) {
+  const headers = {
+    "Content-Type": "application/json; charset=utf-8",
+  };
+  if (origin) {
+    Object.assign(headers, corsHeaders(origin));
+  }
+
+  return new Response(JSON.stringify({ error: message, status }), {
+    status,
+    headers,
+  });
+}
+
+/**
+ * @param {WorkerEnv} env
+ * @returns {URL | null}
+ */
+function normalizeTargetBase(env) {
+  const targetBase = (env.TARGET_BASE || "").trim();
+  if (!targetBase) {
+    return null;
+  }
+
+  try {
+    const parsed = new URL(targetBase);
+    const hostname = parsed.hostname.toLowerCase();
+    const isPlaceholderHost = PLACEHOLDER_TARGET_HOSTS.has(hostname);
+    const isPlaceholderSuffix = PLACEHOLDER_TARGET_SUFFIXES.some(
+      (suffix) => hostname === suffix.slice(1) || hostname.endsWith(suffix)
+    );
+
+    if (parsed.protocol !== "https:" || isPlaceholderHost || isPlaceholderSuffix) {
+      return null;
     }
 
-    const init = {
-      method: request.method,
-      headers: new Headers(request.headers),
-      body: ["GET","HEAD"].includes(request.method) ? undefined : await request.arrayBuffer(),
-      redirect: "follow",
-    };
-
-    const resp = await fetch(upstream.toString(), init);
-    const out = new Response(resp.body, resp);
-    out.headers.set("Access-Control-Allow-Origin", "*");
-    return out;
+    return parsed;
+  } catch {
+    return null;
   }
 }
+
+/**
+ * @param {string} rawOrigins
+ * @returns {Set<string>}
+ */
+function parseAllowedOrigins(rawOrigins) {
+  if (rawOrigins === cachedAllowedOriginsRaw) {
+    return cachedAllowedOrigins;
+  }
+
+  cachedAllowedOriginsRaw = rawOrigins;
+  cachedAllowedOrigins = new Set(
+    rawOrigins
+      .split(",")
+      .map((origin) => origin.trim())
+      .filter(Boolean)
+  );
+  return cachedAllowedOrigins;
+}
+
+/**
+ * @param {string} origin
+ * @returns {Record<string, string>}
+ */
+function corsHeaders(origin) {
+  return {
+    "Access-Control-Allow-Credentials": "true",
+    "Access-Control-Allow-Headers": ALLOWED_PREFLIGHT_HEADERS,
+    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+    "Access-Control-Allow-Origin": origin,
+    "Access-Control-Max-Age": "86400",
+    Vary: "Origin",
+  };
+}
+
+/**
+ * @param {Headers} headers
+ * @param {string} value
+ * @returns {void}
+ */
+function mergeVaryHeader(headers, value) {
+  const existing = headers.get("Vary");
+  const merged = new Set(
+    (existing || "")
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean)
+  );
+  merged.add(value);
+  headers.set("Vary", Array.from(merged).join(", "));
+}
+
+/**
+ * @param {Request} request
+ * @param {WorkerEnv} env
+ * @returns {TrustedOrigin}
+ */
+function trustedOriginOrNull(request, env) {
+  const allowedOrigins = parseAllowedOrigins(env.WORKER_ALLOWED_ORIGINS || "");
+  if (allowedOrigins.size === 0) {
+    return false;
+  }
+
+  const requestOrigin = request.headers.get("Origin");
+  if (!requestOrigin) {
+    return null;
+  }
+
+  return allowedOrigins.has(requestOrigin) ? requestOrigin : false;
+}
+
+/**
+ * @param {Request} request
+ * @returns {Headers}
+ */
+function buildForwardHeaders(request) {
+  const headers = new Headers();
+
+  for (const name of ALLOWED_FORWARD_HEADERS) {
+    const value = request.headers.get(name);
+    if (value) {
+      headers.set(name, value);
+    }
+  }
+
+  return headers;
+}
+
+export default {
+  /**
+   * @param {Request} request
+   * @param {WorkerEnv} env
+   * @returns {Promise<Response>}
+   */
+  async fetch(request, env) {
+    const url = new URL(request.url);
+    const trustedOrigin = trustedOriginOrNull(request, env);
+    const targetBase = normalizeTargetBase(env);
+    const corsOrigin = typeof trustedOrigin === "string" ? trustedOrigin : null;
+
+    if (!ALLOWED_METHODS.has(request.method)) {
+      return jsonError("Method not allowed", 405, corsOrigin);
+    }
+
+    if (!url.pathname.startsWith("/api/")) {
+      return jsonError("Only /api/* paths are supported", 403, corsOrigin);
+    }
+
+    if (!targetBase) {
+      return jsonError("TARGET_BASE must be explicitly configured", 500, corsOrigin);
+    }
+
+    if (trustedOrigin === false) {
+      return jsonError("Origin not allowed", 403);
+    }
+
+    if (request.method === "OPTIONS") {
+      if (!trustedOrigin) {
+        return jsonError("Trusted browser origin is required", 403);
+      }
+      return new Response(null, {
+        status: 204,
+        headers: corsHeaders(trustedOrigin),
+      });
+    }
+
+    const upstream = new URL(url.pathname + url.search, targetBase.toString());
+    const init = {
+      method: request.method,
+      headers: buildForwardHeaders(request),
+      body: BODYLESS_METHODS.has(request.method)
+        ? undefined
+        : await request.arrayBuffer(),
+      redirect: "manual",
+    };
+
+    let resp;
+    try {
+      resp = await fetch(upstream.toString(), init);
+    } catch (_error) {
+      return jsonError("Upstream request failed", 502, corsOrigin);
+    }
+    const out = new Response(resp.body, resp);
+
+    if (trustedOrigin) {
+      for (const [key, value] of Object.entries(corsHeaders(trustedOrigin))) {
+        if (key === "Vary") {
+          mergeVaryHeader(out.headers, value);
+        } else {
+          out.headers.set(key, value);
+        }
+      }
+    }
+
+    return out;
+  },
+};

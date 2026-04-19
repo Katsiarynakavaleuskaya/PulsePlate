@@ -38,6 +38,14 @@
 - [ ] PR tests green (lint, type, unit)
 - [ ] Diff coverage ≥ 97% on changed lines
 
+## Split Justification
+
+(Required only when the PR is > 800 changed LoC under Tier 1 governance.)
+
+- Why this PR cannot be split safely:
+- What invariant, contract, or rollout constraint requires one PR:
+- What follow-up PRs remain after this large change:
+
 ## Discussion Thread Pass
 
 - [ ] Discussion-thread pass completed

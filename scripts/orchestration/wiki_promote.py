@@ -1,0 +1,198 @@
+"""Promote a lint-clean wiki page into ``promoted/`` (+ optional support-plane record).
+
+RU: Копия страницы в promoted/; канонические ``docs/**`` и AGENTS никогда не трогаем.
+EN: Fail-closed if output would resolve under repo ``docs/`` (canonical tree).
+"""
+
+from __future__ import annotations
+
+import argparse
+import contextlib
+import json
+import sys
+from pathlib import Path
+from typing import Any, Final
+
+from app.security import agent_control_plane as cp
+
+from scripts.orchestration import local_support_plane as lsp
+from scripts.orchestration import _wiki_compiler_support as wcs
+from scripts.orchestration import wiki_lint
+
+EXIT_OK: Final[int] = 0
+EXIT_LINT: Final[int] = 1
+EXIT_USAGE: Final[int] = 2
+
+
+def validate_slug(slug: str) -> None:
+    """Back-compat wrapper; prefer ``wcs.validate_wiki_slug`` in new code."""
+
+    wcs.validate_wiki_slug(slug)
+
+
+def promote_slug(
+    slug: str,
+    *,
+    corpus: str,
+    wiki_root: Path,
+    repo_root: Path,
+    write_support_plane: bool,
+    allowlist: set[tuple[str, str]] | None = None,
+    sp_root_override: Path | None = None,
+    audit_secret: str | None = None,
+    audit_log_path: Path | str | None = None,
+) -> Path:
+    """Copy ``pages/<slug>.md`` to ``promoted/<slug>.md`` with promotion metadata."""
+
+    wcs.validate_wiki_slug(slug)
+    layout: dict[str, Path] = wcs.corpus_layout(wcs.corpus_base(wiki_root, corpus))
+    violations = wiki_lint.lint_corpus(corpus=corpus, wiki_root=wiki_root, repo_root=repo_root)
+    prefix = f"{slug}.md:"
+    blocking = [v for v in violations if v == "pages_directory_missing" or v.startswith(prefix)]
+    if blocking:
+        raise ValueError(f"lint_blocked:{blocking}")
+
+    src = layout["pages"] / f"{slug}.md"
+    if not src.is_file():
+        raise FileNotFoundError(f"missing_page:{slug}")
+    promoted_dir: Path = layout["promoted"]
+    dst: Path = promoted_dir / f"{slug}.md"
+    wcs.reject_if_under_canonical_docs(dst, repo_root=repo_root)
+    base_resolved = layout["base"].resolve()
+    resolved_dst = dst.resolve(strict=False)
+    try:
+        resolved_dst.relative_to(base_resolved)
+    except ValueError as exc:
+        raise ValueError("promote_path_outside_corpus") from exc
+    promoted_dir.mkdir(parents=True, exist_ok=True)
+
+    raw_text = src.read_text(encoding="utf-8")
+    meta, body = wcs.parse_frontmatter(raw_text)
+    promoted_at = wcs.utc_now_iso()
+    meta = {
+        **{str(k): str(v) for k, v in meta.items()},
+        "promoted": "true",
+        "promoted_at": promoted_at,
+    }
+    out_text = wcs.format_frontmatter(meta) + body
+    wiki_resolved = wiki_root.resolve()
+    promoted_sp = wcs.path_for_support_plane_record(
+        dst, repo_root=repo_root, wiki_root=wiki_resolved
+    )
+
+    tmp_path = promoted_dir / f".{slug}.promote.tmp"
+    backup_path = promoted_dir / f".{slug}.promote.bak"
+    for stale in (tmp_path, backup_path):
+        with contextlib.suppress(OSError):
+            stale.unlink(missing_ok=True)
+
+    tmp_path.write_text(out_text, encoding="utf-8")
+    had_prior = dst.is_file()
+    backup_created = False
+    try:
+        if had_prior:
+            dst.replace(backup_path)
+            backup_created = True
+        tmp_path.replace(dst)
+    except OSError as stage_exc:
+        try:
+            if backup_created and backup_path.is_file():
+                backup_path.replace(dst)
+            with contextlib.suppress(OSError):
+                tmp_path.unlink(missing_ok=True)
+        except OSError as rollback_exc:
+            raise rollback_exc from stage_exc
+        raise stage_exc
+
+    if not write_support_plane:
+        with contextlib.suppress(OSError):
+            backup_path.unlink(missing_ok=True)
+        return dst
+
+    active = allowlist if allowlist is not None else cp.load_allowlist_from_env()
+    payload: dict[str, Any] = {
+        "corpus": corpus,
+        "slug": slug,
+        "promoted_at": promoted_at,
+        "promoted_path": promoted_sp,
+    }
+    try:
+        lsp.put_record(
+            f"wiki.promoted.{slug}",
+            payload,
+            allowlist=active,
+            repo_root=repo_root,
+            root_override=sp_root_override,
+            audit_secret=audit_secret,
+            audit_log_path=audit_log_path,
+        )
+    except Exception as exc:
+        try:
+            if had_prior:
+                if backup_path.is_file():
+                    backup_path.replace(dst)
+                else:
+                    # EN: Backup missing (TOCTOU / concurrent writer); keep dst (new content).
+                    # RU: Нет .bak — не удаляем единственную копию на dst.
+                    pass
+            else:
+                dst.unlink(missing_ok=True)
+        except OSError as rollback_exc:
+            raise rollback_exc from exc
+        raise
+    else:
+        with contextlib.suppress(OSError):
+            backup_path.unlink(missing_ok=True)
+    return dst
+
+
+def _parse_args(argv: list[str] | None) -> argparse.Namespace:
+    p = argparse.ArgumentParser(description=__doc__)
+    p.add_argument("--slug", required=True)
+    p.add_argument("--corpus", default="project_internal")
+    p.add_argument("--wiki-root", type=Path, default=wcs.DEFAULT_WIKI_ROOT)
+    p.add_argument("--repo-root", type=Path, default=None)
+    p.add_argument(
+        "--write-support-plane",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+    )
+    return p.parse_args(argv)
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = _parse_args(argv)
+    repo_root = wcs.resolve_repo_root(args.repo_root)
+    wiki_root = args.wiki_root
+    if not wiki_root.is_absolute():
+        wiki_root = (repo_root / wiki_root).resolve()
+    try:
+        out = promote_slug(
+            args.slug,
+            corpus=args.corpus,
+            wiki_root=wiki_root,
+            repo_root=repo_root,
+            write_support_plane=args.write_support_plane,
+        )
+    except ValueError as exc:
+        err = str(exc)
+        if err.startswith("lint_blocked:"):
+            print(json.dumps({"error": err, "ok": False}, sort_keys=True), file=sys.stderr)
+            return EXIT_LINT
+        print(json.dumps({"error": err, "ok": False}, sort_keys=True), file=sys.stderr)
+        return EXIT_USAGE
+    except FileNotFoundError as exc:
+        print(json.dumps({"error": str(exc), "ok": False}, sort_keys=True), file=sys.stderr)
+        return EXIT_USAGE
+    except PermissionError as exc:
+        print(json.dumps({"error": str(exc), "ok": False}, sort_keys=True), file=sys.stderr)
+        return EXIT_USAGE
+    out_display = wcs.path_for_support_plane_record(
+        out, repo_root=repo_root, wiki_root=wiki_root.resolve()
+    )
+    print(json.dumps({"ok": True, "out": out_display}, sort_keys=True))
+    return EXIT_OK
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

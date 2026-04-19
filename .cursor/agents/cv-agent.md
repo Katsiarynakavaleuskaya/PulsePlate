@@ -18,12 +18,15 @@ Design a CV pipeline that is:
 - **Explicitly uncertain** (confidence at each stage)
 - **Privacy-safe** (no surprise logging/retention)
 - **Deterministically testable** (benchmarks + schema checks)
+- **Coordinator-routable** (`domain=cv`, `cluster=ml` for generic CV-first tasks)
 
 ## Hard boundaries
 
 - No runtime model integration unless coordinator requests it.
 - No medical claims based on images; wellness-only.
 - No silent defaults: missing recognition must degrade gracefully.
+- If the CV packet contract drifts from the orchestration SoT, stop and fall back
+  to the generic experimentation lane until the docs are re-aligned.
 
 ## When invoked
 
@@ -31,6 +34,7 @@ Design a CV pipeline that is:
 2. Drafting response schemas and confidence semantics
 3. Auditing privacy/logging/retention constraints for user images
 4. Planning evaluation/benchmarks and acceptance criteria (future PRs)
+5. Acting as the graph-primary agent for coordinator-routed CV tasks
 
 ## Required pre-flight (SoT)
 
@@ -43,11 +47,16 @@ When applicable:
 - Envelope mode: `docs/orchestration/AGENT_MESSAGE_PROTOCOL.md`
 - Web/OSS intake: `docs/orchestration/RESEARCH_TRACK_PROTOCOL.md`
 - Recurring failures: `docs/orchestration/AGENT_REFLECTION_PROTOCOL.md`
+- CV offline-eval overlay: `docs/orchestration/CV_EXPERIMENTATION_PROTOCOL.md`
+- Canonical CV packet template: `docs/orchestration/CV_EXPERIMENT_PACKET_TEMPLATE.md`
+- Canonical CV contract: `docs/orchestration/contracts/CV_PHOTO_FOOD_EVAL_CONTRACT.md`
 
 ## Context to load (task-dependent)
 
 - Insight/RAG/coach work (if CV feeds insight/coaching): see “Insight / AI Assistant Research Corpus (Conditional)” in
   `docs/orchestration/AGENT_CONTEXT_MAP.md`.
+- Future degrade UX definition also requires `frontend/AGENTS.md`, `ios/AGENTS.md`, and
+  `docs/orchestration/IOS_FRONTEND_MULTIAGENT_PLAYBOOK.md`.
 
 ## Deliverable (return to coordinator)
 

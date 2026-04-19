@@ -1,11 +1,14 @@
 # Monthly PR Analysis for PulsePlate (February–March 2026)
 
-**Snapshot date:** 9 March 2026
+**Snapshot date:** 11 March 2026 (frozen review window; amended with post-window backfill notes on 12 March 2026)
 **Window covered:** 4 February 2026 to 9 March 2026 (inclusive)
 **Method:** agent-orchestrated repo review + merged PR scan + backlog/top-20 cross-check
 **Primary sources:** `gh pr list`, `git log`, `docs/roadmap/BACKLOG_LEDGER.md`, `docs/orchestration/TOP20_PR_RECOVERY_TASK_PACKETS_2026-03-08.md`, `docs/roadmap/P0_MASTER_CHECKLIST_PHASE_FIT_TRIAGE_2026-03-05.md`
 
 **Important:** this document is a synthesis artifact for monthly review. Canonical truth for deferred work and closure status remains `docs/roadmap/BACKLOG_LEDGER.md`. GitHub search returns **387 merged PRs** in the raw calendar window (verification: run the raw merged-window query below to reproduce); this report intentionally focuses on the later-wave slice centered on merged PRs in the `#963-#1048` range and the adjacent backlog items they moved.
+**Backfill note:** PR `#1063` merged on `10 March 2026`, one day after the fixed snapshot window. It is referenced below only as a post-window closure backfill for the session-cookie lane, not as a change to the 4 February 2026 through 9 March 2026 review window.
+**Backfill note:** [#1106](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1106), [#1112](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1112), [#1118](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1118), [#1124](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1124), and [#1126](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1126) completed the governed creative-research lane after the fixed snapshot window. [#1112](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1112) merged into the PR-A branch on `11 March 2026` and entered `main` through [#1106](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1106); the remaining lane PRs merged directly on `11 March 2026`. They are summarized below as a post-window closure backfill and do not change the original 4 February 2026 to 9 March 2026 review scope.
+**Backfill note:** [#1131](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1131) and [#1137](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1137) merged on `12 March 2026` as docs-only audit canonicalization follow-ups after the creative-research lane. [#1131](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1131) stabilized the SDL rationale artifact, and [#1137](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1137) completed the matching universal orchestration audit rename/reference repair. They are recorded below as post-window review-trail backfill only and do not expand the original 4 February 2026 to 9 March 2026 snapshot scope.
 
 **Repro queries used for this snapshot:**
 - Raw merged-window scan: `gh pr list --state merged --search "merged:>=2026-02-04 merged:<=2026-03-09" --limit 500`
@@ -119,7 +122,7 @@ This section reflects the queue state from `docs/orchestration/TOP20_PR_RECOVERY
 
 | Target PR | Domain | Snapshot status |
 |-----------|--------|-----------------|
-| `PR-TBD-SESSION-COOKIE-HARDENING-W1` | security | materially advanced by `#995`, `#1003`, `#1030`, but not represented as fully complete in the recovery queue |
+| `PR-TBD-SESSION-COOKIE-HARDENING-W1` | security | closed in code by `#995`, `#1003`, `#1030`, with `#1063` recorded as a post-window closure backfill; any remaining follow-up is ledger/doc sync only |
 | `PR-TBD-INSIGHT-FALLBACK-CHAIN` | ml | still open |
 | `PR-TBD-RAG-INPUT-SANITIZER` | security | closed by `#1044`, with ledger close-out recorded in `#1045` |
 | `PR-TBD-IOS-KEYCHAIN-CONFORMANCE` | ios | still open; guard coverage landed separately in `#1011` |
@@ -145,11 +148,36 @@ This section reflects the queue state from `docs/orchestration/TOP20_PR_RECOVERY
 3. **Governance overhead was intentional:** merge-readiness, disposition discipline, and ledger sync consumed real throughput, but they also reduced long-term PR entropy.
 4. **Thin-scope discipline:** several larger ideas were kept split into baseline vs runtime vs follow-up, which lowered immediate risk at the cost of more docs/ledger work.
 
+### 2.4 Post-Window Backfill: Creative Research Lane
+
+The governed creative-research lane closed immediately after the fixed snapshot window and is now fully merged in `main`.
+
+| PR | Wave | Backfill status |
+|----|------|-----------------|
+| `#1106` | PR-A docs/protocol | merged on `11 March 2026`; established the governed sub-lane inside the existing experimentation contour |
+| `#1112` | PR-B offline eval | merged into the PR-A branch on `11 March 2026`; entered `main` through `#1106` while adding deterministic offline scoring, contracts, and negative controls |
+| `#1118` | PR-C internal pilot | merged on `11 March 2026`; added the internal-only, feature-flagged pilot surface hidden from public OpenAPI |
+| `#1124` | hardening follow-up | merged on `11 March 2026`; tightened typed core domain contracts without widening runtime scope |
+| `#1126` | ledger closeout | merged on `11 March 2026`; closed the remaining creative-research ledger follow-through and synced the canonical docs trail |
+
+**Why this matters:** this lane landed as a research/moat capability, not as a release-blocker runtime track. It followed the repo's governed experimentation pattern end-to-end: docs/protocol first, offline eval second, internal-only pilot third, then a narrow type-hardening and closeout pass.
+
+### 2.5 Post-Window Backfill: Audit Canonicalization Follow-Through
+
+The docs-only audit canonicalization follow-through landed after the creative-research lane closeout and completed the rationale-artifact cleanup for that same orchestration family.
+
+| PR | Focus | Backfill status |
+|----|-------|-----------------|
+| `#1131` | SDL audit canonicalization | merged on `12 March 2026`; converted the Scientific Discovery Layer audit from `PR_TBD` identity into a stable rationale artifact aligned to the experimentation umbrella |
+| `#1137` | universal orchestration audit canonicalization | merged on `12 March 2026`; completed the matching rename/reference repair for the universal orchestration audit and synchronized the remaining rationale-doc trail |
+
+**Why this matters:** these PRs did not add new runtime behavior, but they closed the lingering docs/governance drift that would otherwise leave the post-window creative-research lane with placeholder audit lineage in canonical references.
+
 ## 3. Planning Signals From the Window
 
 ### 3.1 Now Bucket
 
-1. Session/auth transport hardening follow-through after `#995`, `#1003`, `#1030`.
+1. Worker proxy hardening and edge fail-closed follow-through.
 2. Insight reliability: deterministic fallback chain plus VIP/echo visibility.
 3. Payments runtime W1 for `ios_app_store`, `erip_qr`, and `swift_manual`.
 4. Access-control parity: iOS Keychain conformance and diet-flags sync.
@@ -195,4 +223,4 @@ This section reflects the queue state from `docs/orchestration/TOP20_PR_RECOVERY
 
 ---
 
-*Generated on 9 March 2026 from repo-local sources and merged PR history. This review summarizes momentum and gaps; it does not replace canonical backlog or merge-governance artifacts.*
+*Generated on 12 March 2026 from repo-local sources and merged PR history (with post-window backfill notes through 12 March 2026). This review summarizes momentum and gaps; it does not replace canonical backlog or merge-governance artifacts.*

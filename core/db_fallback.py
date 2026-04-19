@@ -1,10 +1,10 @@
 """
-RU: Каноническая реализация DB fallback (TP2). Refactor-only: поведение заморожено.
-EN: Canonical DB fallback implementation (TP2). Refactor-only: behavior is frozen.
+RU: Каноническая реализация DB fallback (TP2) для startup critical path.
+EN: Canonical DB fallback implementation (TP2) for the startup critical path.
 
 CRITICAL:
 - Startup critical path.
-- Keep behavior identical to legacy_app.py pre-TP2.
+- Production/staging fail closed; SQLite fallback is local/dev/test only.
 - No OpenAPI / contract changes.
 
 Location: core/db_fallback.py (flat module) to avoid core/db.py vs core/db/ package collision.
@@ -26,6 +26,19 @@ logger = logging.getLogger(__name__)
 _db_fallback_active = False
 
 
+def _redact_database_url(database_url: str) -> str:
+    """Return a log-safe database URL label without credentials."""
+    if not database_url:
+        return "<empty-db-url>"
+
+    if database_url.startswith("sqlite:///:memory:"):
+        return "sqlite:///:memory:"
+    if database_url.startswith("sqlite:///"):
+        return "sqlite:///<redacted>"
+
+    return "<redacted-db-url>"
+
+
 def _validate_fallback_url(
     env_name: Optional[str],
     is_production: bool,
@@ -44,8 +57,8 @@ def _validate_fallback_url(
     if is_production and is_in_memory:
         logger.error(
             "CRITICAL: In-memory database fallback is not allowed in production environment (%s). "
-            "Set DB_FALLBACK_URL to a persistent storage URL (e.g., sqlite:///./fallback.db) "
-            "and set ALLOW_DB_PERSISTENT_FALLBACK=1 if you need fallback in production.",
+            "SQLite fallback is not an accepted production or staging baseline. "
+            "Configure a canonical Postgres DATABASE_URL and recover the primary database.",
             env_name or "production",
         )
         raise db_err
@@ -56,40 +69,19 @@ def _check_production_constraints(
 ) -> None:
     """Enforce production-specific fallback constraints.
 
-    Production fallback requires ALLOW_DB_PERSISTENT_FALLBACK=1.
-    Raises db_err if constraints not met.
+    Production-like environments fail closed on DB init errors.
+    Raises db_err after logging the canonical production contract.
     """
-    allow_persistent_fallback = (
-        os.getenv("ALLOW_DB_PERSISTENT_FALLBACK") or ""
-    ).strip().lower() in truthy
-
-    if not allow_persistent_fallback:
-        logger.error(
-            "CRITICAL: Database initialization failed in production (%s). "
-            "Fallback is disabled unless ALLOW_DB_PERSISTENT_FALLBACK=1 is set. "
-            "In-memory fallbacks are not allowed in production. "
-            "Original error: %s",
-            env_name or "production",
-            db_err,
-        )
-        raise db_err
-
-    # Additional verification: ensure fallback URL is persistent
-    is_in_memory = fallback_url.startswith("sqlite:///:memory:")
-    if is_in_memory:
-        logger.error(
-            "CRITICAL: Production fallback URL must be persistent, not in-memory. "
-            "Current DB_FALLBACK_URL=%s is in-memory. Set DB_FALLBACK_URL to a file-based URL "
-            "(e.g., sqlite:///./fallback.db).",
-            fallback_url,
-        )
-        raise db_err
-
-    logger.warning(
-        "Database initialization failed in production (%s), attempting persistent fallback: %s",
+    del fallback_url, truthy
+    logger.error(
+        "CRITICAL: Database initialization failed in production-like environment (%s). "
+        "SQLite fallback is not an accepted production or staging baseline. "
+        "Configure a canonical Postgres DATABASE_URL and recover the primary database. "
+        "Original error: %s",
         env_name or "production",
-        fallback_url,
+        db_err,
     )
+    raise db_err
 
 
 def _initialize_fallback_engine(fallback_url: str, db_err: Exception) -> Engine:
@@ -114,7 +106,11 @@ def _initialize_fallback_engine(fallback_url: str, db_err: Exception) -> Engine:
         Base.metadata.create_all(bind=fallback_engine)
         return fallback_engine
     except Exception as fallback_err:
-        logger.error("Fallback database init failed (url=%s): %s", fallback_url, fallback_err)
+        logger.error(
+            "Fallback database init failed (url=%s): %s",
+            _redact_database_url(fallback_url),
+            fallback_err,
+        )
         raise db_err from fallback_err
 
 
@@ -143,7 +139,7 @@ def _configure_session_bindings(
     # can surface degraded states. This uses a lazy import and silently
     # no-ops if the metrics client is not available.
     try:  # pragma: no cover - metrics instrumentation is optional
-        from core import metrics as _metrics  # type: ignore[attr-defined]
+        from core import metrics as _metrics
 
         client = getattr(_metrics, "metrics_client", None)
         if client is not None:
@@ -153,7 +149,9 @@ def _configure_session_bindings(
             tags = [f"env:{env_label}", f"backend:{backend}"]
             with suppress(Exception):
                 client.increment("db_fallback_active", tags=tags)
-    except Exception:  # pragma: no cover - metrics are optional, safe to ignore  # nosec B110
+    except (
+        Exception
+    ):  # pragma: no cover  # nosec B110: metrics are non-critical (remove-by: 2026-06-30, ref: PR-1291)
         # Metrics collection is non-critical; failures should not affect application startup
         pass
 
@@ -165,7 +163,7 @@ def _configure_session_bindings(
             "Database initialized with fallback SQLite (env=%s, fallback_url=%s). "
             "os.environ['DATABASE_URL'] updated for compatibility.",
             env_name or "local",
-            fallback_url,
+            _redact_database_url(fallback_url),
         )
     else:
         # In production, only set DB_FALLBACK_URL for internal use
@@ -174,7 +172,7 @@ def _configure_session_bindings(
             "Database initialized with fallback SQLite (env=%s, fallback_url=%s). "
             "Using module-level fallback variable only.",
             env_name or "local",
-            fallback_url,
+            _redact_database_url(fallback_url),
         )
 
 
@@ -183,26 +181,24 @@ def _attempt_db_fallback(
 ) -> None:
     """Attempt to initialize database with fallback SQLite when primary DB fails.
 
-    Production environments never accept in-memory fallbacks. For production,
-    fallback is only allowed when:
-    1. ALLOW_DB_PERSISTENT_FALLBACK env var is set
-    2. DB_FALLBACK_URL points to a persistent storage URL (not in-memory SQLite)
-
-    Non-production environments can use any fallback URL including in-memory.
+    Production-like environments fail closed on primary DB errors.
+    Non-production environments can use fallback SQLite when explicitly allowed.
 
     Raises:
         db_err: Original database error if fallback fails or is not allowed
     """
-    # Get fallback URL (prefer DB_FALLBACK_URL env var, otherwise use in-memory SQLite)
-    fallback_url = os.getenv("DB_FALLBACK_URL", "sqlite:///:memory:")
-
-    # Validate fallback URL against production constraints
-    _validate_fallback_url(env_name, is_production, fallback_url, db_err)
-
     if is_production:
-        # Production: enforce strict constraints
-        _check_production_constraints(env_name, fallback_url, truthy, db_err)
+        # Production/staging: fail closed, Postgres is the canonical baseline
+        _check_production_constraints(
+            env_name, (os.getenv("DB_FALLBACK_URL") or "").strip(), truthy, db_err
+        )
     else:
+        # Get fallback URL (prefer DB_FALLBACK_URL env var, otherwise use in-memory SQLite)
+        fallback_url = (os.getenv("DB_FALLBACK_URL") or "").strip() or "sqlite:///:memory:"
+
+        # Validate fallback URL against non-production constraints
+        _validate_fallback_url(env_name, is_production, fallback_url, db_err)
+
         # Non-production: allow any fallback including in-memory
         explicit_override = (
             os.getenv("ALLOW_DB_INMEMORY_FALLBACK") or ""
@@ -216,7 +212,7 @@ def _attempt_db_fallback(
             "Database initialization failed (%s env: %s), attempting fallback SQLite: %s (explicit override: %s, IO error: %s)",
             type(db_err).__name__,
             env_name or "local",
-            fallback_url,
+            _redact_database_url(fallback_url),
             explicit_override,
             fallback_exception,
         )

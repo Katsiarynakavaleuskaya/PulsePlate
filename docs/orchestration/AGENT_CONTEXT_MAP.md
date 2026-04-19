@@ -40,6 +40,7 @@ This map reduces “missing context” failures by making required inputs explic
 
 - `docs/orchestration/AGENT_MESSAGE_PROTOCOL.md` — when outputs must be parseable across models
 - `docs/orchestration/RESEARCH_TRACK_PROTOCOL.md` — when doing web/OSS intake or external research
+- `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md` — when running fixed-budget optimization/eval loops or drafting experiment packets
 - `docs/orchestration/AGENT_REFLECTION_PROTOCOL.md` — when capturing incidents for KPP promotion
 - `docs/orchestration/AGENT_SKILL_ROUTING_POLICY.md` — when installed skills may improve execution or when orchestration-layer docs/scripts are touched
 
@@ -151,6 +152,9 @@ This map reduces “missing context” failures by making required inputs explic
 - `frontend/AGENTS.md` — web UI constraints
 - `ios/AGENTS.md` — iOS UI constraints
 - `AGENTS.md` (root) — accessibility + thin-client guardrails (where applicable)
+- `docs/design/UI_COMPONENT_VOCABULARY.md` — canonical component naming and normalization
+- `docs/design/UI_SCREEN_BRIEF_TEMPLATES.md` — canonical screen-brief drafting template
+- `docs/design/CODE_FIRST_UI_PROMPT_COOKBOOK.md` — code-first brief assembly contract
 
 ---
 
@@ -212,11 +216,14 @@ This map reduces “missing context” failures by making required inputs explic
 - `frontend/src/styles/tokens.css`
 - `frontend/src/styles/tokens.ts`
 - `frontend/tailwind.config.ts`
+- `docs/design/UI_COMPONENT_VOCABULARY.md`
+- `docs/design/CODE_FIRST_UI_PROMPT_COOKBOOK.md`
 
 **Must know:**
 
 - Thin-client adapter policy (`frontend/src/api/client.ts` as network boundary)
 - UI style SoT is token-driven; avoid ad-hoc literals
+- UI naming/spec flow is vocabulary-driven before component or page generation
 
 ---
 
@@ -293,12 +300,17 @@ This map reduces “missing context” failures by making required inputs explic
 - `AGENTS.md:265-269` (required reading + nearest scoped AGENTS)
 - `docs/roadmap/BACKLOG_LEDGER.md:1-40` (roadmap constraints and target PR planning)
 - `docs/analytics/README.md:14-29` (canonical analytics/growth index)
-- `.cursor/agents/business-strategist-agent.md:16-41` (canonical business-context index for pricing and GTM inputs)
+- `docs/audience_pack/README.md:1-44` (canonical audience-pack map)
+- `docs/audience_pack/FACTS_CANONICAL.md:1-103` (repo fact SoT for external business framing)
+- `docs/audience_pack/INVESTOR_PUBLIC_OVERVIEW.md:1-117` (public/investor narrative baseline)
+- `docs/audience_pack/MARKETING_DESIGN_OVERVIEW.md:1-100` (growth hypothesis and KPI framing)
+- `.cursor/agents/business-strategist-agent.md:16-57` (canonical business-context index for portfolio, pricing, B2B packaging, and KPI ownership)
 
 **Must know:**
 
-- Recommendations must include sequencing and tradeoffs, not only ideas (`.cursor/agents/business-strategist-agent.md:23-41`)
-- Business advice must connect back to current roadmap constraints (`.cursor/agents/business-strategist-agent.md:23-41`)
+- Recommendations must include sequencing and tradeoffs, not only ideas (`.cursor/agents/business-strategist-agent.md:23-57`)
+- Business advice must connect back to current roadmap constraints (`.cursor/agents/business-strategist-agent.md:23-57`)
+- Director-level outputs must govern partner/investor narrative framing without creating a second fact source (`.cursor/agents/business-strategist-agent.md:23-57`)
 
 ---
 
@@ -383,11 +395,19 @@ This map reduces “missing context” failures by making required inputs explic
 
 - `AGENTS.md` (root)
 - `core/AGENTS.md` (if proposing domain-facing uncertainty contracts)
+- `docs/orchestration/CV_EXPERIMENTATION_PROTOCOL.md` when the task is offline
+  `photo -> food` evaluation
+- `docs/orchestration/contracts/CV_PHOTO_FOOD_EVAL_CONTRACT.md` when defining
+  confidence semantics or degrade behavior for CV outputs
 
 **Must know:**
 
 - Determinism and testability requirements (future PRs must have deterministic tests)
 - “High uncertainty → degrade” policy (safety-first)
+- When future CV degrade UX wording is being specified, also load:
+  - `frontend/AGENTS.md`
+  - `ios/AGENTS.md`
+  - `docs/orchestration/IOS_FRONTEND_MULTIAGENT_PLAYBOOK.md`
 
 ---
 
@@ -435,11 +455,20 @@ This map reduces “missing context” failures by making required inputs explic
 
 - `AGENTS.md` (root) — privacy and safety boundaries
 - `core/AGENTS.md` (domain logic boundaries; no client-side business logic)
+- `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md` — when planning CV eval packets or bounded experiment lanes
+- `docs/orchestration/CV_EXPERIMENTATION_PROTOCOL.md` — canonical CV packet fields, privacy packet, and degrade-state semantics
 
 **Must know:**
 
 - Uncertainty/confidence must be explicit for recognition outputs
 - Privacy/logging constraints for user images (policy-only here)
+- Generic coordinator routing resolves CV-first tasks to `domain=cv` inside the
+  `ml` cluster; governed experimentation packets stay `ml`-scoped until that
+  packet contract is migrated explicitly.
+- When specifying future degrade UX states, also load:
+  - `frontend/AGENTS.md`
+  - `ios/AGENTS.md`
+  - `docs/orchestration/IOS_FRONTEND_MULTIAGENT_PLAYBOOK.md`
 
 ---
 
@@ -463,11 +492,19 @@ This map reduces “missing context” failures by making required inputs explic
 
 - `AGENTS.md` (root)
 - `docs/roadmap/BACKLOG_LEDGER.md` (if proposing deferred experiment tracks)
+- `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md` (for experiment charters, metrics, and negative controls)
+- `docs/orchestration/CV_EXPERIMENTATION_PROTOCOL.md` when CV datasets, privacy packets, or degrade-state evaluation are in scope
+- `docs/orchestration/CV_EXPERIMENT_PACKET_TEMPLATE.md` when drafting CV packet fields
+- `docs/orchestration/contracts/CV_PHOTO_FOOD_EVAL_CONTRACT.md` when defining CV eval outputs, uncertainty buckets, or negative controls
 
 **Must know:**
 
 - Metrics definitions must be testable/auditable (avoid vague claims)
 - Privacy: anonymization/retention policy must be explicit before telemetry work
+- When future degrade UX semantics are being defined, also load:
+  - `frontend/AGENTS.md`
+  - `ios/AGENTS.md`
+  - `docs/orchestration/IOS_FRONTEND_MULTIAGENT_PLAYBOOK.md`
 
 ---
 
@@ -477,6 +514,7 @@ This map reduces “missing context” failures by making required inputs explic
 
 - `AGENTS.md` (root) — determinism + performance expectations
 - `providers/AGENTS.md` (if packaging model/provider calls)
+- `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md` — when defining bounded candidate loops and cost/latency budgets
 
 **Must know:**
 
@@ -519,7 +557,7 @@ This map reduces “missing context” failures by making required inputs explic
 
 - `AGENTS.md` (root) — SoT/evidence rules + safety boundaries
 - `docs/orchestration/workflow.md` — Pre-flight / post-flight / DoD
-- `docs/audit/PR_TBD_SCIENTIFIC_DISCOVERY_LAYER_AUDIT.md` — SDL contract (dev-only)
+- `docs/audit/SCIENTIFIC_DISCOVERY_LAYER_AUDIT.md` — SDL contract (dev-only)
 
 **Must know:**
 
@@ -533,7 +571,7 @@ This map reduces “missing context” failures by making required inputs explic
 **Primary (task-dependent):**
 
 - `AGENTS.md` (root) — safety + privacy boundaries
-- `docs/audit/PR_TBD_SCIENTIFIC_DISCOVERY_LAYER_AUDIT.md` — SDL contract (dev-only)
+- `docs/audit/SCIENTIFIC_DISCOVERY_LAYER_AUDIT.md` — SDL contract (dev-only)
 - `docs/insights/*` — only if task is multimodal (CV/voice) and needs robustness planning
 
 **Must know:**

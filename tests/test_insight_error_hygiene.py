@@ -1,5 +1,27 @@
 import pytest
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
+
+from tests._client import disable_rate_limiting_for_test_app
+
+
+@pytest.fixture(autouse=True)
+def _disable_rate_limiting_for_insight_error_tests(
+    monkeypatch: pytest.MonkeyPatch,
+    app: FastAPI,
+) -> None:
+    """Error hygiene tests validate payload safety, not rate-limit policy."""
+
+    import legacy_app
+
+    monkeypatch.delenv("RATE_LIMITING_IN_TESTS", raising=False)
+    disable_rate_limiting_for_test_app(app)
+    monkeypatch.setattr(
+        legacy_app,
+        "_enforce_vip_llm_monthly_quota",
+        lambda *_args, **_kwargs: None,
+        raising=True,
+    )
 
 
 def test_insight_legacy_does_not_leak_provider_exception(
@@ -13,10 +35,10 @@ def test_insight_legacy_does_not_leak_provider_exception(
         name = "test_provider"
 
         async def generate(self, text: str) -> str:
-            raise RuntimeError("SENSITIVE: model=grok-4-latest path=/tmp/internal secret=abc")
+            raise RuntimeError("SENSITIVE: model=sonar path=/tmp/internal secret=abc")
 
     monkeypatch.setenv("FEATURE_INSIGHT", "true")
-    monkeypatch.setattr(llm, "get_provider", lambda: FailingProvider(), raising=True)
+    monkeypatch.setattr(llm, "get_insight_provider", lambda: FailingProvider(), raising=True)
 
     resp = client.post("/insight", json={"text": "hello"}, headers=vip_headers)
     assert resp.status_code == 503
@@ -37,10 +59,10 @@ def test_insight_v1_does_not_leak_provider_exception(
         name = "test_provider"
 
         async def generate(self, text: str) -> str:
-            raise RuntimeError("SENSITIVE: model=grok-4-latest path=/tmp/internal secret=abc")
+            raise RuntimeError("SENSITIVE: model=sonar path=/tmp/internal secret=abc")
 
     monkeypatch.setenv("FEATURE_INSIGHT", "true")
-    monkeypatch.setattr(llm, "get_provider", lambda: FailingProvider(), raising=True)
+    monkeypatch.setattr(llm, "get_insight_provider", lambda: FailingProvider(), raising=True)
 
     resp = client.post(
         "/api/v1/insight",
@@ -114,7 +136,7 @@ def test_insight_redacts_rag_source_headers(
 
     monkeypatch.setenv("FEATURE_INSIGHT", "true")
     monkeypatch.setenv("FEATURE_RAG", "true")
-    monkeypatch.setattr(llm, "get_provider", lambda: EchoProvider(), raising=True)
+    monkeypatch.setattr(llm, "get_insight_provider", lambda: EchoProvider(), raising=True)
     monkeypatch.setattr(
         "core.rag.vector_rag.retrieve_context_structured",
         fake_structured,

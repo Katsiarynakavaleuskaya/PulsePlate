@@ -9,16 +9,20 @@ Use these sources in order:
 1. Backend OpenAPI generated from `app.main.app` for routes currently exposed in schema
 2. `docs/contracts/PRODUCT_TIER_MAP.md` for tier and namespace semantics
 3. `docs/contracts/OPENAPI_PATHS_AUDIT.md` for historical audit evidence
-4. `docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md` and billing runtime/OpenAPI for `/api/v1/pro/payments/*`
+4. `docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md:27`, `app/routers/billing.py:215`, and `legacy_app.py:709` for the additive Apple verify seam `/api/v1/billing/apple/verify-receipt`
 5. `docs/roadmap/BACKLOG_LEDGER.md` for planned or deferred target-state work
+
+Billing evidence note:
+- `docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md` is the contract lock for B1 baseline. Apple verify seam: `app/routers/billing.py`, `legacy_app.py:709`. RU/BY manual rails: `app/routers/pro_payments.py`. Webhook signature contract: `app/services/payments_activation.validate_webhook_signature`. B1 scope closed; B2 (Apple verify full activation) deferred.
 
 ## Rules
 
-1. Repo-wide canonical namespaces are `/api/v1/bmi/*` (FREE), `/api/v1/pro/*` (PRO), and `/api/v1/vip/*` (VIP); `/api/v1/insight` is a VIP-only canonical exception outside the tier namespace families.
+1. Repo-wide canonical namespaces are `/api/v1/bmi/*` (FREE), `/api/v1/pro/*` (PRO), and `/api/v1/vip/*` (VIP); `/api/v1/insight` and the additive Apple verify seam `/api/v1/billing/apple/verify-receipt` are canonical exceptions outside the tier namespace families (evidence: `docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md:27`, `app/routers/billing.py:215`, `legacy_app.py:709`, `docs/roadmap/BACKLOG_LEDGER.md:61`).
 2. `/api/v1/premium/*` is a compatibility surface only. It is not a separate product tier and must delegate to canonical paths when a canonical replacement exists.
 3. Planned routes must stay marked as planned or additive until runtime rollout and OpenAPI exposure are real.
 4. README may summarize capability areas, but this file is the operator-facing route map.
 5. Web and iOS remain thin adapters and must not invent alternative route semantics.
+6. FitChef umbrella foundation work must preserve the live `/api/v1/insight/fitchef*` canon until a dedicated additive contract PR promotes future structured-coach paths.
 
 ## Canonical Runtime Now
 
@@ -31,7 +35,7 @@ These routes are the current canonical operator surface.
 | Nutrition targets | `/api/v1/pro/nutrition/targets` | POST | PRO | Canonical PRO targets route |
 | Payment activation | `/api/v1/pro/payments/activate` | POST | PRO | Canonical payment activation route |
 | Payment activation status | `/api/v1/pro/payments/activations/{activation_id}` | GET | PRO | Canonical payment status route |
-| Apple receipt verification | `/api/v1/pro/payments/apple/verify-receipt` | POST | PRO | Implemented iOS verification baseline |
+| Apple receipt verification | `/api/v1/billing/apple/verify-receipt` | POST | Billing transport seam | Implemented verify-only iOS receipt baseline; server-side only, production-first with single `21007` sandbox fallback, no activation side effects (evidence: `docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md:27`, `app/routers/billing.py:215`, `app/services/payments_activation.py:424`, `legacy_app.py:709`, `docs/roadmap/BACKLOG_LEDGER.md:61`) |
 | RU/BY payment intent | `/api/v1/pro/payments/ru-by/manual-intent` | POST | PRO | Implemented manual payment intent route |
 | RU/BY reconciliation | `/api/v1/pro/payments/ru-by/reconcile` | POST | PRO | Implemented manual reconciliation route |
 | RU/BY reconciliation status | `/api/v1/pro/payments/ru-by/reconcile/{intent_id}` | GET | PRO | Implemented reconciliation status route |
@@ -40,6 +44,17 @@ These routes are the current canonical operator surface.
 | Shoplist export | `/api/v1/vip/shoplist/export` | POST | VIP | Canonical VIP export surface |
 | Recipe synthesis | `/api/v1/vip/recipes/synthesize` | POST | VIP | Canonical VIP recipe synthesis route |
 | Insight | `/api/v1/insight` | POST | VIP-only (`require_vip_tier()`) | AI insight route; API-key access is enforced through VIP middleware, and bounded-context extraction remains planned |
+| FitChef mascot insight | `/api/v1/insight/fitchef` | POST | VIP-only (`require_vip_tier()`) | Canonical FitChef mascot coaching route under the insight namespace; feature-gated by `FEATURE_FITCHEF_MASCOT` |
+| FitChef weekly reflection | `/api/v1/insight/fitchef/weekly-reflection` | POST | VIP-only (`require_vip_tier()`) | Canonical FitChef weekly reflection route under the insight namespace; feature-gated by `FEATURE_FITCHEF_MASCOT` |
+| FitChef slip support | `/api/v1/insight/fitchef/slip-support` | POST | VIP-only (`require_vip_tier()`) | Canonical FitChef slip-support route under the insight namespace; feature-gated by `FEATURE_FITCHEF_MASCOT` |
+
+FitChef initiative note:
+- The live mascot routes above remain canonical during the FitChef umbrella foundation and visual/App Store waves.
+- The live mascot routes above remain canonical after the structured-coach contract freeze as well; they are not migrated by that phase.
+- `POST /api/v1/pro/fitchef/explain` and `POST /api/v1/vip/fitchef/insight` remain contract-frozen rollout targets in this lane; they are not promoted to canonical runtime until router registration and OpenAPI exposure ship.
+- Other structured-coach surfaces under `/api/v1/pro/fitchef/*` and `/api/v1/vip/fitchef/*` remain contract-frozen additive follow-ups.
+- Canonical reference: `docs/contracts/FITCHEF_INITIATIVE_FOUNDATION.md`.
+- Contract freeze reference: `docs/contracts/FITCHEF_STRUCTURED_COACH_CONTRACT.md`.
 
 ## Deprecated Alias / Proxy-Only Surface
 
@@ -73,6 +88,10 @@ These routes remain for compatibility and migration. They must not be described 
 - OpenAPI workflow hardening for backend/frontend split targets: `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-openapi-decoupling-split`
 - `docker compose` v2 migration for repo command surfaces: `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-compose-v2-migration`
 - AI runtime extraction into a dedicated bounded context: `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-ai-bounded-context-extraction`
+- FitChef umbrella foundation and preserved live-canon policy: `docs/contracts/FITCHEF_INITIATIVE_FOUNDATION.md`
+- Structured coach rollout targets kept planned in this phase:
+  - `POST /api/v1/pro/fitchef/explain`
+  - `POST /api/v1/vip/fitchef/insight`
 
 ## Legacy Compatibility Guidance
 

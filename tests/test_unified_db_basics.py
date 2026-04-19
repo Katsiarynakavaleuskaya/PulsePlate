@@ -93,6 +93,10 @@ class TestUnifiedFoodItemConversions:
         assert unified_item.source == "USDA FoodData Central"
         assert unified_item.source_id == "12345"
         assert unified_item.category == "Poultry Products"
+        # Synthetic macro defaults must not inherit USDA provenance labels.
+        assert "carbs_g" not in unified_item.nutrition_provenance
+        assert unified_item.nutrition_provenance.get("protein_g") == "usda"
+        assert unified_item.nutrition_confidence == 0.7
 
     @patch("core.food_apis.unified_db.OFF_AVAILABLE", True)
     def test_from_off_item(self):
@@ -163,6 +167,35 @@ class TestUnifiedFoodItemConversions:
         }
 
         assert result == expected
+
+    def test_from_usda_and_off_merge_usda_wins_on_shared_macro(self) -> None:
+        """USDA protein_g should beat OFF estimate when both provide the same key."""
+        usda_item = USDAFoodItem(
+            fdc_id=9001,
+            description="Chicken merge row",
+            food_category="Poultry",
+            nutrients_per_100g={"protein_g": 31.0, "kcal": 165.0},
+            data_type="Foundation",
+            publication_date="2019-04-01",
+        )
+        with patch.object(usda_item, "_generate_tags", return_value=["meat"]):
+            usda_u = UnifiedFoodItem.from_usda_item(usda_item)
+
+        mock_off = MagicMock()
+        mock_off.product_name = "Branded chicken"
+        mock_off.nutrients_per_100g = {"protein_g": 10.0, "fiber_g": 3.0}
+        mock_off._generate_tags.return_value = ["branded"]
+        mock_off.countries = ["US"]
+        mock_off.code = "9998887776665"
+        mock_off.categories = ["Meat"]
+        off_u = UnifiedFoodItem.from_off_item(mock_off)
+
+        merged = UnifiedFoodItem.from_usda_and_off_merge(usda_u, off_u)
+        assert merged.nutrients_per_100g["protein_g"] == 31.0
+        assert merged.nutrients_per_100g.get("fiber_g") == 3.0
+        assert "merged" in merged.source.lower()
+        assert merged.nutrition_provenance.get("protein_g") == "usda"
+        assert merged.nutrition_provenance.get("fiber_g") == "estimate"
 
 
 class TestUnifiedFoodDatabaseBasics:
@@ -407,6 +440,94 @@ class TestUnifiedFoodDatabaseSearch:
         results = await db.search_food("nonexistent food")
 
         assert results == []
+
+    @pytest.mark.asyncio
+    async def test_search_food_usda_pref_merges_top_hit_with_off(self, temp_cache_dir) -> None:
+        """With prefer_source=usda, top USDA hit is enriched via OFF + resolver."""
+        mock_usda = AsyncMock()
+        usda_item = USDAFoodItem(
+            fdc_id=4242,
+            description="Resolver merge chicken",
+            food_category="Poultry",
+            nutrients_per_100g={"protein_g": 31.0, "kcal": 165.0},
+            data_type="Foundation",
+            publication_date="2019-04-01",
+        )
+        with patch.object(usda_item, "_generate_tags", return_value=["meat"]):
+            mock_usda.search_foods.return_value = [usda_item]
+
+        mock_off = AsyncMock()
+        off_item = MagicMock()
+        off_item.product_name = "Branded chicken"
+        off_item.nutrients_per_100g = {"protein_g": 10.0, "fiber_g": 3.0}
+        off_item._generate_tags.return_value = ["branded"]
+        off_item.countries = ["US"]
+        off_item.code = "1112223334445"
+        off_item.categories = ["Meat"]
+        mock_off.search_products.return_value = [off_item]
+
+        db = UnifiedFoodDatabase(cache_dir=temp_cache_dir)
+        db.usda_client = mock_usda
+        db.off_client = mock_off
+
+        results = await db.search_food("resolver merge chicken", prefer_source="usda")
+        assert len(results) >= 1
+        top = results[0]
+        assert "merged" in top.source.lower()
+        assert top.nutrients_per_100g["protein_g"] == 31.0
+        assert top.nutrients_per_100g.get("fiber_g") == 3.0
+        mock_off.search_products.assert_awaited()
+
+    @pytest.mark.asyncio
+    async def test_search_food_usda_pref_merge_skips_when_off_raises(
+        self, temp_cache_dir, caplog
+    ) -> None:
+        """Merge block must swallow OFF errors and keep plain USDA row."""
+        import logging
+
+        mock_usda = AsyncMock()
+        usda_item = USDAFoodItem(
+            fdc_id=777,
+            description="Plain USDA row",
+            food_category="Poultry",
+            nutrients_per_100g={"protein_g": 20.0},
+            data_type="Foundation",
+            publication_date="2019-04-01",
+        )
+        with patch.object(usda_item, "_generate_tags", return_value=["meat"]):
+            mock_usda.search_foods.return_value = [usda_item]
+
+        mock_off = AsyncMock()
+        mock_off.search_products.side_effect = RuntimeError("off unavailable")
+
+        db = UnifiedFoodDatabase(cache_dir=temp_cache_dir)
+        db.usda_client = mock_usda
+        db.off_client = mock_off
+
+        caplog.set_level(logging.DEBUG, logger="core.food_apis.unified_db")
+        results = await db.search_food("plain usda merge skip", prefer_source="usda")
+        assert len(results) == 1
+        assert results[0].source == "USDA FoodData Central"
+        assert "skipping USDA+OFF" in caplog.text
+        assert "search_plain usda merge skip" not in db._memory_cache  # noqa: SLF001
+
+        off_item = MagicMock()
+        off_item.product_name = "Branded retry"
+        off_item.nutrients_per_100g = {"fiber_g": 2.0}
+        off_item._generate_tags.return_value = ["branded"]
+        off_item.countries = ["US"]
+        off_item.code = "9998887776665"
+        off_item.categories = ["Meat"]
+        mock_off.search_products.side_effect = None
+        mock_off.search_products.return_value = [off_item]
+
+        caplog.clear()
+        merged_results = await db.search_food("plain usda merge skip", prefer_source="usda")
+        assert len(merged_results) == 1
+        top = merged_results[0]
+        assert "merged" in top.source.lower()
+        assert top.nutrients_per_100g.get("fiber_g") == 2.0
+        assert mock_off.search_products.await_count == 2
 
 
 class TestUnifiedFoodDatabaseGetById:

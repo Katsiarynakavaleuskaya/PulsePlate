@@ -84,3 +84,55 @@ def test_summary_json_is_serializable() -> None:
     assert isinstance(payload, str)
     assert "philosophy_validator" in summary
     assert summary["gate_status"] == "pass"
+
+
+def test_summary_includes_optional_experiment_context() -> None:
+    summary = build_summary(
+        agent="agent-coordinator",
+        domain="ml",
+        task_type="Experimentation",
+        text="Bounded experiment summary.",
+        run_id="run-experiment",
+        static_scan_docs=False,
+        experiment_context={
+            "experiment_id": "exp-123",
+            "failure_class": "guard_failure",
+            "promotion_target": "backlog_entry",
+            "oracle_name": "pytest -q tests/test_philosophical_runtime.py",
+            "benchmark_delta": "-0.02",
+        },
+    )
+
+    assert summary["experiment_context"]["experiment_id"] == "exp-123"
+    assert summary["experiment_context"]["promotion_target"] == "backlog_entry"
+
+
+def test_summary_omits_empty_experiment_context() -> None:
+    summary = build_summary(
+        agent="agent-coordinator",
+        domain="ml",
+        task_type="Experimentation",
+        text="No experiment context.",
+        run_id="run-no-experiment",
+        static_scan_docs=False,
+        experiment_context={},
+    )
+
+    assert "experiment_context" not in summary
+
+
+def test_summary_accepts_unhashable_benchmark_delta() -> None:
+    summary = build_summary(
+        agent="agent-coordinator",
+        domain="ml",
+        task_type="Experimentation",
+        text="Nested experiment context.",
+        run_id="run-nested-experiment",
+        static_scan_docs=False,
+        experiment_context={
+            "experiment_id": "exp-nested",
+            "benchmark_delta": {"before": 1.0, "after": 0.9},
+        },
+    )
+
+    assert summary["experiment_context"]["benchmark_delta"] == {"before": 1.0, "after": 0.9}

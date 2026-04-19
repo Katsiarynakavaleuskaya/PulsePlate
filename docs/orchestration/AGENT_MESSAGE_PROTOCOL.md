@@ -6,7 +6,7 @@
 - agent results (agent → coordinator)
 - repair requests (coordinator → agent)
 
-**Status:** Canonical (dev-only). This protocol defines **format**, not runtime behavior.
+**Status:** Canonical (dev-only). This protocol defines **format**, not runtime behavior, and it describes a derived transport view over the canonical bootstrap packet rather than a second source of truth.
 
 **Anti-drift rule:** do not duplicate envelope rules across other docs; link here.
 
@@ -53,6 +53,8 @@ Envelope mode is considered enabled when the coordinator:
 - sends a `<TASK_PACKET_V1>`, and
 - sets `output_requirements.must_return` to require an `<AGENT_RESULT_V1>` envelope only (no preamble).
 
+In the live repo baseline, that requirement is derived from the canonical bootstrap packet emitted by `scripts/orchestration/task_bootstrap.py`; the protocol here describes the transport view, not a parallel builder.
+
 ### Envelope count
 
 - **Exactly one** `<AGENT_RESULT_V1>` envelope is valid per agent response.
@@ -82,6 +84,8 @@ Envelope mode is considered enabled when the coordinator:
 
 ### 1) `<TASK_PACKET_V1>` (Coordinator → agent)
 
+`<TASK_PACKET_V1>` is a derived envelope view over the canonical bootstrap packet. The repo SoT remains `scripts/orchestration/task_bootstrap.py`; any transport serializer/projector must derive from that artifact instead of authoring a second packet contract.
+
 Minimum required keys:
 
 - `protocol_version` (string; `"1.0"`)
@@ -92,9 +96,30 @@ Minimum required keys:
 - `constraints` (array of strings)
 - `inputs.must_read_paths` (array of strings; paths)
 - `inputs.recommended_skills` (array of strings; optional but recommended when skill routing is enabled)
-- `inputs.skill_routing` (object; optional compact evidence map for why those skills were selected)
+- `inputs.skill_routing` (object; optional compact evidence map for why those skills were selected; when present, it should expose `task_classification`, `envelope_mode_hint` (aligned with `bootstrap_sync_policy.resolve_analysis_envelope_mode`), `required`, `recommended`, `conditional`, `blocked`, `explanation`, and `research_connector_policy`; Evidence: `scripts/orchestration/task_bootstrap.py:786-919`, `scripts/orchestration/task_bootstrap.py:849-859`, `scripts/orchestration/skill_router.py:558-615`, `scripts/orchestration/skill_router.py:659-696`, `scripts/orchestration/skill_router.py:1783-1912`, `tests/test_task_bootstrap.py:147-183`, `tests/test_skill_router.py:1339-1405`)
 - `output_requirements.must_return` (array of strings)
 - `budgets` (object; recommended when cost/latency matters)
+
+Optional packet-level automation metadata (PR2 bootstrap hardening):
+
+- `inputs.automation_flags` (object; additive execution metadata such as
+  `coordinator_first_required`, `skill_routing_applied`,
+  `native_subagent_bridge_available`, `security_review_required`,
+  `judgment_lane_enabled`, `pr_lifecycle_enabled`, `design_lane_enabled`)
+- `inputs.pr_phase` (string; default bootstrap baseline uses `"none"`; PR4
+  lifecycle packets may use `"pre_open"`, `"post_open_review"`, or
+  `"merge_ready"`)
+- `inputs.pr_lifecycle_contract` (object; additive lifecycle metadata derived
+  from `pr_phase`, including post-open review lane and current-head truth)
+- `inputs.design_lane_mode` (string; current bootstrap baseline uses `"disabled"`)
+- `inputs.needs_backlog_update` (boolean; deterministic sync signal)
+- `inputs.needs_docs_sync` (boolean; deterministic sync signal)
+- `inputs.needs_agents_sync` (boolean; deterministic sync signal)
+- `inputs.message_envelope` (object; additive derivation metadata carried by the canonical bootstrap packet, including `protocol_version`, `derived_view`, `mode`, and `output_requirements.must_return`)
+
+Canonical derivation for the sync signals and additive envelope-mode hint above lives in
+`scripts/orchestration/bootstrap_sync_policy.py`, while
+`scripts/orchestration/task_bootstrap.py` remains the only canonical packet builder.
 
 ### 2) `<AGENT_RESULT_V1>` (Agent → coordinator)
 
@@ -154,12 +179,120 @@ Task packet:
     ],
     "recommended_skills": [
       "pulseplate-workflow",
-      "docs-sync"
+      "docs-sync",
+      "pulseplate-gates"
     ],
     "skill_routing": {
       "selection_mode": "deterministic-weighted",
-      "policy_version": "2026-03-08"
-    }
+      "policy_version": "2026-03-27",
+      "task_classification": {
+        "label": "pr_governance",
+        "score": 5,
+        "reasons": [
+          "lexeme:review thread(+2)",
+          "lexeme:merge readiness(+2)"
+        ]
+      },
+      "envelope_mode_hint": "docs_only",
+      "required": [
+        {
+          "skill": "pulseplate-workflow",
+          "rationale": "Mandatory entry skill for all PulsePlate tasks.",
+          "reasons": ["always-on"]
+        },
+        {
+          "skill": "docs-sync",
+          "rationale": "Keep orchestration, runbooks, and product docs aligned with the implementation.",
+          "reasons": ["classification:pr_governance-required"]
+        },
+        {
+          "skill": "pulseplate-gates",
+          "rationale": "Run PulsePlate quality gates for code, docs, and contract-safe changes.",
+          "reasons": ["classification:pr_governance-required"]
+        }
+      ],
+      "recommended": [
+        {
+          "skill": "pulseplate-guards",
+          "score": 8,
+          "category": "repo-tracked",
+          "rationale": "Handle architecture guards, fail-closed policy checks, and security-oriented invariants.",
+          "reasons": [
+            "privileged-surface:docs/review/(+4)"
+          ]
+        }
+      ],
+      "conditional": [
+        {
+          "skill": "gh-address-comments",
+          "when": "Enable when the task explicitly enters PR/review/merge-governance execution.",
+          "rationale": "GitHub review-thread handling should use the dedicated comment workflow.",
+          "reasons": [
+            "lexeme:review thread(+2)"
+          ]
+        }
+      ],
+      "blocked": [],
+      "explanation": {
+        "schema_version": "1.0",
+        "evidence_axes": [
+          "domain_prior",
+          "path_evidence",
+          "lexical_cue",
+          "semantic_group",
+          "requested_agent",
+          "privileged_surface",
+          "policy_block"
+        ],
+        "semantic_groups": [],
+        "per_skill_evidence": [
+          {
+            "skill": "pulseplate-workflow",
+            "bucket": "required",
+            "reasons": ["always-on"]
+          },
+          {
+            "skill": "docs-sync",
+            "bucket": "required",
+            "reasons": ["classification:pr_governance-required"]
+          }
+        ]
+      },
+      "research_connector_policy": {
+        "policy_version": "2026-04-18",
+        "approved": [],
+        "conditional": [],
+        "disallowed": [],
+        "matches": {
+          "approved": [],
+          "conditional": [],
+          "disallowed": []
+        }
+      }
+    },
+    "automation_flags": {
+      "coordinator_first_required": true,
+      "skill_routing_applied": true,
+      "native_subagent_bridge_available": true,
+      "security_review_required": true,
+      "judgment_lane_enabled": false,
+      "pr_lifecycle_enabled": true,
+      "design_lane_enabled": false
+    },
+    "pr_phase": "post_open_review",
+    "pr_lifecycle_contract": {
+      "requires_pr": true,
+      "post_open_review_required": true,
+      "review_lane": ["qa-engineer-agent", "bug-hunter"],
+      "artifact_template": "docs/review/PR_<N>_FIXED_MAPPING.md",
+      "current_head_required": true,
+      "current_head_truth": "latest-current-head",
+      "merge_readiness_entrypoint": ""
+    },
+    "design_lane_mode": "disabled",
+    "needs_backlog_update": false,
+    "needs_docs_sync": false,
+    "needs_agents_sync": false
   },
   "output_requirements": {
     "must_return": [

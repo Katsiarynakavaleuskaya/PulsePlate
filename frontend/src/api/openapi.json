@@ -3,14 +3,20 @@
     "schemas": {
       "ActivateSubscriptionRequest": {
         "additionalProperties": false,
-        "description": "Activation request payload (contract-first, deterministic).",
+        "description": "Activation request envelope supporting canonical and legacy contracts.",
         "properties": {
           "client_event_id": {
-            "description": "Client-generated idempotency event ID",
-            "maxLength": 128,
-            "minLength": 6,
-            "title": "Client Event Id",
-            "type": "string"
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "minLength": 6,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Event Id"
           },
           "external_txn_id": {
             "anyOf": [
@@ -23,12 +29,31 @@
                 "type": "null"
               }
             ],
-            "description": "Provider-side transaction or intent ID",
             "title": "External Txn Id"
           },
+          "payload": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/IOSAppStoreActivationPayload"
+              },
+              {
+                "$ref": "#/components/schemas/ManualActivationPayload"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Payload"
+          },
           "plan": {
-            "$ref": "#/components/schemas/SubscriptionPlan",
-            "description": "Canonical required plan code for activation intent"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SubscriptionPlan"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "source": {
             "$ref": "#/components/schemas/PaymentSource"
@@ -42,33 +67,19 @@
                 "type": "null"
               }
             ],
-            "description": "Deterministic verification result for baseline R1 contract",
             "title": "Verification Ok"
           },
           "verification_payload": {
             "additionalProperties": true,
-            "description": "Opaque verification payload. Server remains source of truth.",
             "title": "Verification Payload",
             "type": "object"
           }
         },
         "required": [
-          "source",
-          "plan",
-          "client_event_id"
+          "source"
         ],
         "title": "ActivateSubscriptionRequest",
         "type": "object"
-      },
-      "ActivationStatus": {
-        "description": "Canonical activation state for subscription activation flow.",
-        "enum": [
-          "pending_verification",
-          "active",
-          "rejected"
-        ],
-        "title": "ActivationStatus",
-        "type": "string"
       },
       "AdherenceResponse": {
         "description": "Response schema for adherence endpoints.\n\nRU: Схема ответа для эндпоинтов adherence.\nEN: Response schema for adherence endpoints.",
@@ -123,46 +134,142 @@
         "title": "AdherenceResponse",
         "type": "object"
       },
+      "AppleProviderError": {
+        "description": "Canonical provider error details for Apple receipt verification.",
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "message"
+        ],
+        "title": "AppleProviderError",
+        "type": "object"
+      },
       "AppleReceiptVerificationRequest": {
         "additionalProperties": false,
         "description": "Request contract for iOS receipt verification.",
         "properties": {
-          "client_event_id": {
-            "maxLength": 128,
-            "minLength": 6,
-            "title": "Client Event Id",
-            "type": "string"
-          },
-          "external_txn_id": {
+          "receipt_data": {
+            "description": "Opaque App Store receipt blob. Canonical field: receipt_data. Compatibility alias accepted: receipt.",
+            "maxLength": 512000,
+            "minLength": 8,
+            "title": "Receipt Data",
+            "type": "string",
+            "x-accepted-aliases": [
+              "receipt"
+            ]
+          }
+        },
+        "required": [
+          "receipt_data"
+        ],
+        "title": "AppleReceiptVerificationRequest",
+        "type": "object"
+      },
+      "AppleReceiptVerificationResponse": {
+        "description": "Normalized Apple receipt verification result without activation side effects.\n\nWhen verified=True, activation_payload carries the full IOSVerifiedActivationResult\n(activation-contract shape) for downstream POST /api/v1/pro/payments/activate.\nWhen verified=False, activation_payload is always None (fail-closed).",
+        "properties": {
+          "activation_payload": {
             "anyOf": [
               {
-                "maxLength": 128,
-                "minLength": 3,
+                "$ref": "#/components/schemas/IOSVerifiedActivationResult"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Activation-contract shaped payload when verified. Must be null whenever verified=false. Client passes this as payload.verification_result and receipt_data as payload.receipt_data inside ActivateSubscriptionRequest to POST /api/v1/pro/payments/activate."
+          },
+          "environment": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AppleVerificationEnvironment"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "error": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AppleProviderError"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "expires_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
                 "type": "string"
               },
               {
                 "type": "null"
               }
             ],
-            "title": "External Txn Id"
+            "title": "Expires At"
           },
-          "plan": {
-            "$ref": "#/components/schemas/SubscriptionPlan"
+          "product_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Product Id"
           },
-          "receipt": {
-            "description": "Opaque App Store receipt blob",
-            "minLength": 8,
-            "title": "Receipt",
+          "provider": {
+            "default": "apple",
+            "title": "Provider",
             "type": "string"
+          },
+          "verification_state": {
+            "$ref": "#/components/schemas/AppleVerificationState"
+          },
+          "verified": {
+            "title": "Verified",
+            "type": "boolean"
           }
         },
         "required": [
-          "plan",
-          "client_event_id",
-          "receipt"
+          "verified",
+          "verification_state"
         ],
-        "title": "AppleReceiptVerificationRequest",
+        "title": "AppleReceiptVerificationResponse",
         "type": "object"
+      },
+      "AppleVerificationEnvironment": {
+        "description": "Verification environment resolved by Apple receipt validation.",
+        "enum": [
+          "production",
+          "sandbox"
+        ],
+        "title": "AppleVerificationEnvironment",
+        "type": "string"
+      },
+      "AppleVerificationState": {
+        "description": "Normalized business outcome of Apple receipt verification.",
+        "enum": [
+          "active",
+          "expired",
+          "restored",
+          "invalid"
+        ],
+        "title": "AppleVerificationState",
+        "type": "string"
       },
       "BMICalculateProRequest": {
         "additionalProperties": false,
@@ -422,6 +529,17 @@
               },
               null
             ]
+          },
+          "next_best_action": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NextBestAction"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Optional backend-authored next-step hint for planning progression."
           },
           "notes": {
             "description": "Aggregated notes (currently only from waist_risk.notes). Empty list if no notes.",
@@ -765,6 +883,17 @@
               },
               null
             ]
+          },
+          "next_best_action": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NextBestAction"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Optional backend-authored next-step hint for planning progression."
           },
           "notes": {
             "description": "Aggregated notes (currently only from waist_risk.notes). Empty list if no notes.",
@@ -1719,6 +1848,471 @@
         "title": "ErrorResponse",
         "type": "object"
       },
+      "FitChefCoachingErrorResponse": {
+        "description": "Standard JSON detail envelope for FitChef coaching errors.",
+        "properties": {
+          "detail": {
+            "minLength": 1,
+            "title": "Detail",
+            "type": "string"
+          }
+        },
+        "required": [
+          "detail"
+        ],
+        "title": "FitChefCoachingErrorResponse",
+        "type": "object"
+      },
+      "FitChefCoachingRequest": {
+        "description": "Mascot insight request payload.",
+        "properties": {
+          "query": {
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Query",
+            "type": "string"
+          }
+        },
+        "required": [
+          "query"
+        ],
+        "title": "FitChefCoachingRequest",
+        "type": "object"
+      },
+      "FitChefCoachingSourceItem": {
+        "description": "Public RAG source item for mascot coaching.",
+        "properties": {
+          "file": {
+            "title": "File",
+            "type": "string"
+          },
+          "preview": {
+            "title": "Preview",
+            "type": "string"
+          },
+          "score": {
+            "title": "Score",
+            "type": "number"
+          }
+        },
+        "required": [
+          "file",
+          "preview",
+          "score"
+        ],
+        "title": "FitChefCoachingSourceItem",
+        "type": "object"
+      },
+      "FitChefDistortionSimulatorRequest": {
+        "description": "Distortion-simulator request payload.",
+        "properties": {
+          "automatic_thought": {
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Automatic Thought",
+            "type": "string"
+          },
+          "emotion": {
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Emotion",
+            "type": "string"
+          },
+          "goal": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Goal"
+          },
+          "situation": {
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Situation",
+            "type": "string"
+          }
+        },
+        "required": [
+          "situation",
+          "automatic_thought",
+          "emotion"
+        ],
+        "title": "FitChefDistortionSimulatorRequest",
+        "type": "object"
+      },
+      "FitChefDistortionSimulatorResponse": {
+        "description": "Public distortion-simulator response envelope.",
+        "properties": {
+          "balanced_reframe": {
+            "minLength": 1,
+            "title": "Balanced Reframe",
+            "type": "string"
+          },
+          "confidence": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Confidence",
+            "type": "number"
+          },
+          "distortion_labels": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Distortion Labels",
+            "type": "array"
+          },
+          "evidence_against": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Evidence Against",
+            "type": "array"
+          },
+          "evidence_for": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Evidence For",
+            "type": "array"
+          },
+          "next_small_action": {
+            "minLength": 1,
+            "title": "Next Small Action",
+            "type": "string"
+          },
+          "quota_state": {
+            "enum": [
+              "not_consumed",
+              "consumed"
+            ],
+            "title": "Quota State",
+            "type": "string"
+          },
+          "scenario": {
+            "const": "distortion_simulator",
+            "title": "Scenario",
+            "type": "string"
+          },
+          "sources": {
+            "items": {
+              "$ref": "#/components/schemas/FitChefCoachingSourceItem"
+            },
+            "title": "Sources",
+            "type": "array"
+          },
+          "transparency_notice_id": {
+            "title": "Transparency Notice Id",
+            "type": "string"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Warnings",
+            "type": "array"
+          },
+          "wellness_boundary": {
+            "title": "Wellness Boundary",
+            "type": "string"
+          },
+          "why_it_matches": {
+            "minLength": 1,
+            "title": "Why It Matches",
+            "type": "string"
+          }
+        },
+        "required": [
+          "scenario",
+          "distortion_labels",
+          "why_it_matches",
+          "evidence_for",
+          "evidence_against",
+          "balanced_reframe",
+          "next_small_action",
+          "sources",
+          "confidence",
+          "warnings",
+          "quota_state",
+          "transparency_notice_id",
+          "wellness_boundary"
+        ],
+        "title": "FitChefDistortionSimulatorResponse",
+        "type": "object"
+      },
+      "FitChefMascotInsightResponse": {
+        "description": "Public mascot insight response envelope.",
+        "properties": {
+          "action_items": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Action Items",
+            "type": "array"
+          },
+          "confidence": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Confidence",
+            "type": "number"
+          },
+          "message": {
+            "minLength": 1,
+            "title": "Message",
+            "type": "string"
+          },
+          "quota_state": {
+            "enum": [
+              "not_consumed",
+              "consumed"
+            ],
+            "title": "Quota State",
+            "type": "string"
+          },
+          "scenario": {
+            "const": "mascot_insight",
+            "title": "Scenario",
+            "type": "string"
+          },
+          "sources": {
+            "items": {
+              "$ref": "#/components/schemas/FitChefCoachingSourceItem"
+            },
+            "title": "Sources",
+            "type": "array"
+          },
+          "transparency_notice_id": {
+            "title": "Transparency Notice Id",
+            "type": "string"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Warnings",
+            "type": "array"
+          },
+          "wellness_boundary": {
+            "title": "Wellness Boundary",
+            "type": "string"
+          }
+        },
+        "required": [
+          "message",
+          "sources",
+          "confidence",
+          "warnings",
+          "action_items",
+          "quota_state",
+          "transparency_notice_id",
+          "wellness_boundary",
+          "scenario"
+        ],
+        "title": "FitChefMascotInsightResponse",
+        "type": "object"
+      },
+      "FitChefSlipSupportRequest": {
+        "description": "Slip-support request payload.",
+        "properties": {
+          "event_text": {
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Event Text",
+            "type": "string"
+          },
+          "goal": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Goal"
+          }
+        },
+        "required": [
+          "event_text"
+        ],
+        "title": "FitChefSlipSupportRequest",
+        "type": "object"
+      },
+      "FitChefSlipSupportResponse": {
+        "description": "Public slip-support response envelope.",
+        "properties": {
+          "action_items": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Action Items",
+            "type": "array"
+          },
+          "confidence": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Confidence",
+            "type": "number"
+          },
+          "message": {
+            "minLength": 1,
+            "title": "Message",
+            "type": "string"
+          },
+          "quota_state": {
+            "enum": [
+              "not_consumed",
+              "consumed"
+            ],
+            "title": "Quota State",
+            "type": "string"
+          },
+          "scenario": {
+            "const": "slip_support",
+            "title": "Scenario",
+            "type": "string"
+          },
+          "sources": {
+            "items": {
+              "$ref": "#/components/schemas/FitChefCoachingSourceItem"
+            },
+            "title": "Sources",
+            "type": "array"
+          },
+          "transparency_notice_id": {
+            "title": "Transparency Notice Id",
+            "type": "string"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Warnings",
+            "type": "array"
+          },
+          "wellness_boundary": {
+            "title": "Wellness Boundary",
+            "type": "string"
+          }
+        },
+        "required": [
+          "message",
+          "sources",
+          "confidence",
+          "warnings",
+          "action_items",
+          "quota_state",
+          "transparency_notice_id",
+          "wellness_boundary",
+          "scenario"
+        ],
+        "title": "FitChefSlipSupportResponse",
+        "type": "object"
+      },
+      "FitChefWeeklyReflectionRequest": {
+        "description": "Weekly reflection request payload.",
+        "properties": {
+          "goal": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Goal"
+          },
+          "summary": {
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Summary",
+            "type": "string"
+          }
+        },
+        "required": [
+          "summary"
+        ],
+        "title": "FitChefWeeklyReflectionRequest",
+        "type": "object"
+      },
+      "FitChefWeeklyReflectionResponse": {
+        "description": "Public weekly reflection response envelope.",
+        "properties": {
+          "action_items": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Action Items",
+            "type": "array"
+          },
+          "confidence": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Confidence",
+            "type": "number"
+          },
+          "message": {
+            "minLength": 1,
+            "title": "Message",
+            "type": "string"
+          },
+          "quota_state": {
+            "enum": [
+              "not_consumed",
+              "consumed"
+            ],
+            "title": "Quota State",
+            "type": "string"
+          },
+          "scenario": {
+            "const": "weekly_reflection",
+            "title": "Scenario",
+            "type": "string"
+          },
+          "sources": {
+            "items": {
+              "$ref": "#/components/schemas/FitChefCoachingSourceItem"
+            },
+            "title": "Sources",
+            "type": "array"
+          },
+          "transparency_notice_id": {
+            "title": "Transparency Notice Id",
+            "type": "string"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Warnings",
+            "type": "array"
+          },
+          "wellness_boundary": {
+            "title": "Wellness Boundary",
+            "type": "string"
+          }
+        },
+        "required": [
+          "message",
+          "sources",
+          "confidence",
+          "warnings",
+          "action_items",
+          "quota_state",
+          "transparency_notice_id",
+          "wellness_boundary",
+          "scenario"
+        ],
+        "title": "FitChefWeeklyReflectionResponse",
+        "type": "object"
+      },
       "FoodAttributionResponse": {
         "description": "RU: Ответ endpoint с атрибуцией источников.\nEN: Attribution endpoint response for food data sources.",
         "properties": {
@@ -1797,8 +2391,141 @@
         "title": "HTTPValidationError",
         "type": "object"
       },
+      "IOSAppStoreActivationPayload": {
+        "additionalProperties": false,
+        "description": "Canonical iOS activation payload for PR-2 activation route.",
+        "properties": {
+          "receipt_data": {
+            "maxLength": 512000,
+            "minLength": 1,
+            "title": "Receipt Data",
+            "type": "string"
+          },
+          "verification_result": {
+            "$ref": "#/components/schemas/IOSVerifiedActivationResult"
+          }
+        },
+        "required": [
+          "verification_result",
+          "receipt_data"
+        ],
+        "title": "IOSAppStoreActivationPayload",
+        "type": "object"
+      },
+      "IOSVerifiedActivationResult": {
+        "additionalProperties": false,
+        "description": "Normalized iOS verification result produced by PR-1 Apple verify.",
+        "properties": {
+          "expires_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expires At"
+          },
+          "original_transaction_id": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "minLength": 3,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Original Transaction Id"
+          },
+          "platform": {
+            "const": "ios",
+            "default": "ios",
+            "title": "Platform",
+            "type": "string"
+          },
+          "product_id": {
+            "maxLength": 255,
+            "minLength": 3,
+            "title": "Product Id",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "active",
+              "expired"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "subscription_tier": {
+            "$ref": "#/components/schemas/SubscriptionTierValue"
+          },
+          "transaction_id": {
+            "maxLength": 255,
+            "minLength": 3,
+            "title": "Transaction Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "transaction_id",
+          "product_id",
+          "subscription_tier",
+          "status",
+          "platform"
+        ],
+        "title": "IOSVerifiedActivationResult",
+        "type": "object"
+      },
+      "ManualActivationPayload": {
+        "additionalProperties": false,
+        "description": "Canonical manual-rail payload for PR-2 activation route.",
+        "properties": {
+          "source_reference": {
+            "maxLength": 255,
+            "minLength": 3,
+            "title": "Source Reference",
+            "type": "string"
+          },
+          "submitted_amount": {
+            "anyOf": [
+              {
+                "maxLength": 32,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Submitted Amount"
+          },
+          "submitted_currency": {
+            "anyOf": [
+              {
+                "maxLength": 8,
+                "minLength": 3,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Submitted Currency"
+          }
+        },
+        "required": [
+          "source_reference"
+        ],
+        "title": "ManualActivationPayload",
+        "type": "object"
+      },
       "ManualPaymentSource": {
-        "description": "Manual payment sources allowed in RU/BY intent flow.",
+        "description": "Manual payment sources allowed on RU/BY billing surfaces.",
         "enum": [
           "erip_qr",
           "swift_manual"
@@ -2094,6 +2821,71 @@
           "currency"
         ],
         "title": "MoneyDTO",
+        "type": "object"
+      },
+      "NextBestAction": {
+        "additionalProperties": false,
+        "description": "Server-authored advisory hint for the next product step.",
+        "properties": {
+          "recommended_surface": {
+            "description": "Canonical backend-owned product surface slug that should be opened next.",
+            "enum": [
+              "pro_targets",
+              "pro_daily_plate",
+              "vip_export"
+            ],
+            "title": "Recommended Surface",
+            "type": "string"
+          },
+          "recommended_tier": {
+            "description": "Advisory target tier for progression copy (not entitlement truth).",
+            "enum": [
+              "FREE",
+              "PRO",
+              "VIP"
+            ],
+            "title": "Recommended Tier",
+            "type": "string"
+          },
+          "trigger_reason": {
+            "description": "Stable v1 rule key for why this hint was selected.",
+            "enum": [
+              "post_bmi",
+              "targets_ready",
+              "weekly_plan_ready"
+            ],
+            "title": "Trigger Reason",
+            "type": "string"
+          },
+          "type": {
+            "description": "Deterministic trigger action type selected by backend rules.",
+            "enum": [
+              "unlock_targets",
+              "open_daily_plate",
+              "upgrade_for_export"
+            ],
+            "title": "Type",
+            "type": "string"
+          },
+          "why_now": {
+            "description": "Stable localization key selected by the deterministic v1 rule set.",
+            "enum": [
+              "post_bmi_baseline_body_metrics",
+              "targets_ready_apply_meal_by_meal",
+              "weekly_plan_ready_export_and_share"
+            ],
+            "title": "Why Now",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "recommended_surface",
+          "recommended_tier",
+          "trigger_reason",
+          "why_now"
+        ],
+        "title": "NextBestAction",
         "type": "object"
       },
       "NumericRangeSchema": {
@@ -3195,8 +3987,17 @@
         "title": "PaymentErrorResponse",
         "type": "object"
       },
+      "PaymentPlatform": {
+        "description": "Platform surface for the payment state.",
+        "enum": [
+          "ios",
+          "web"
+        ],
+        "title": "PaymentPlatform",
+        "type": "string"
+      },
       "PaymentSource": {
-        "description": "Canonical payment sources (RU/BY + iOS baseline).",
+        "description": "Canonical payment sources for the current billing baseline.",
         "enum": [
           "ios_app_store",
           "erip_qr",
@@ -3781,7 +4582,7 @@
         "type": "string"
       },
       "ReconcileStatus": {
-        "description": "Reconciliation status for financial audit trail.",
+        "description": "Reconciliation state used by legacy manual-rail routes.",
         "enum": [
           "pending",
           "verified",
@@ -4779,20 +5580,58 @@
         "type": "object"
       },
       "SubscriptionActivationResponse": {
-        "description": "Canonical activation response for all payment sources.",
+        "description": "Canonical response with compatibility fields for legacy billing routes.",
         "properties": {
+          "activated_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Activated At"
+          },
           "activation_id": {
             "title": "Activation Id",
             "type": "string"
           },
           "audit_id": {
-            "title": "Audit Id",
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Audit Id"
           },
           "created_at": {
-            "format": "date-time",
-            "title": "Created At",
-            "type": "string"
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At"
+          },
+          "expires_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expires At"
           },
           "external_txn_id": {
             "anyOf": [
@@ -4806,29 +5645,134 @@
             "title": "External Txn Id"
           },
           "intent_id": {
-            "title": "Intent Id",
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Intent Id"
           },
           "payment_source": {
-            "$ref": "#/components/schemas/PaymentSource"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PaymentSource"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "plan": {
-            "$ref": "#/components/schemas/SubscriptionPlan"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SubscriptionPlan"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "platform": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PaymentPlatform"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "product_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Product Id"
           },
           "reconcile_status": {
-            "$ref": "#/components/schemas/ReconcileStatus"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ReconcileStatus"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "source": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PaymentSource"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "source_reference": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Reference"
           },
           "status": {
-            "$ref": "#/components/schemas/ActivationStatus"
+            "$ref": "#/components/schemas/SubscriptionStatus"
           },
           "subscription_tier": {
-            "$ref": "#/components/schemas/SubscriptionTierValue",
-            "description": "Requested paid tier implied by the submitted plan. This is the target subscription tier for the activation, not a fallback access tier."
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SubscriptionTierValue"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Requested paid tier implied by the billing intent or verified product mapping. This is the paid target tier, not a free-access fallback."
+          },
+          "tier": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SubscriptionTier"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "updated_at": {
-            "format": "date-time",
-            "title": "Updated At",
-            "type": "string"
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          },
+          "user_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "User Id"
           },
           "verified_at": {
             "anyOf": [
@@ -4845,21 +5789,13 @@
         },
         "required": [
           "activation_id",
-          "intent_id",
-          "audit_id",
-          "payment_source",
-          "plan",
-          "subscription_tier",
-          "status",
-          "reconcile_status",
-          "created_at",
-          "updated_at"
+          "status"
         ],
         "title": "SubscriptionActivationResponse",
         "type": "object"
       },
       "SubscriptionPlan": {
-        "description": "Canonical subscription plans for billing activation.",
+        "description": "Legacy plan contract kept for billing compatibility routes.",
         "enum": [
           "pro_monthly",
           "vip_monthly"
@@ -4867,8 +5803,31 @@
         "title": "SubscriptionPlan",
         "type": "string"
       },
+      "SubscriptionStatus": {
+        "description": "Persisted subscription lifecycle values.",
+        "enum": [
+          "pending_manual_review",
+          "pending_verification",
+          "active",
+          "expired",
+          "cancelled",
+          "rejected"
+        ],
+        "title": "SubscriptionStatus",
+        "type": "string"
+      },
+      "SubscriptionTier": {
+        "description": "Canonical persisted subscription tiers.",
+        "enum": [
+          "free",
+          "pro",
+          "vip"
+        ],
+        "title": "SubscriptionTier",
+        "type": "string"
+      },
       "SubscriptionTierValue": {
-        "description": "Requested paid tier implied by the selected billing plan.",
+        "description": "Paid subscription tiers used by legacy billing responses.",
         "enum": [
           "pro",
           "vip"
@@ -5257,6 +6216,16 @@
             "title": "Macros",
             "type": "object"
           },
+          "next_best_action": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NextBestAction"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "priority_micros": {
             "additionalProperties": {
               "type": "number"
@@ -5533,6 +6502,16 @@
             "title": "Daily Menus",
             "type": "array"
           },
+          "next_best_action": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NextBestAction"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "shopping_list": {
             "additionalProperties": {
               "type": "number"
@@ -5617,6 +6596,102 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/api/v1/billing/apple/verify-receipt": {
+      "post": {
+        "description": "Canonical Apple receipt verification route on additive billing namespace.",
+        "operationId": "verify_apple_receipt_api_v1_billing_apple_verify_receipt_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AppleReceiptVerificationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppleReceiptVerificationResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "detail": {
+                      "description": "FastAPI auth error detail from tier guard",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "detail"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Missing or invalid API key"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitErrorResponse"
+                }
+              }
+            },
+            "description": "Rate limit exceeded"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppleReceiptVerificationResponse"
+                }
+              }
+            },
+            "description": "Apple upstream error"
+          },
+          "504": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppleReceiptVerificationResponse"
+                }
+              }
+            },
+            "description": "Apple verify timeout"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Verify Apple Receipt",
+        "tags": [
+          "billing"
+        ]
+      }
+    },
     "/api/v1/bmi": {
       "post": {
         "description": "RU: Shim endpoint. Исторически использовал legacy BMI math (calc_bmi, bmi_category).\nТеперь это тонкий прокси в канонический handler (app/routers/bmi.py),\nчтобы не было дублирования BMI-логики и чтобы результаты были идентичны.\n\nEN: Shim endpoint. Historically used legacy BMI math (calc_bmi, bmi_category).\nNow it is a thin proxy to the canonical handler (app/routers/bmi.py)\nto avoid duplicate BMI logic and ensure identical results.",
@@ -5748,6 +6823,303 @@
         ],
         "x-alias-of": "/api/v1/pro/bmi",
         "x-migration-path": "Migrate to POST /api/v1/pro/bmi (same contract)"
+      }
+    },
+    "/api/v1/insight/fitchef": {
+      "post": {
+        "description": "Generate VIP-only mascot coaching insight via the FitChef runtime.",
+        "operationId": "fitchef_mascot_insight_api_v1_insight_fitchef_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FitChefCoachingRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FitChefMascotInsightResponse"
+                }
+              }
+            },
+            "description": "FitChef mascot coaching insight generated"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FitChefCoachingErrorResponse"
+                }
+              }
+            },
+            "description": "Unsafe AI input blocked"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FitChefCoachingErrorResponse"
+                }
+              }
+            },
+            "description": "VIP tier required"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitErrorResponse"
+                }
+              }
+            },
+            "description": "Rate limit exceeded"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FitChefCoachingErrorResponse"
+                }
+              }
+            },
+            "description": "Feature disabled or provider unavailable"
+          },
+          "504": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FitChefCoachingErrorResponse"
+                }
+              }
+            },
+            "description": "LLM provider call timed out"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Fitchef Mascot Insight",
+        "tags": [
+          "fitchef",
+          "insight",
+          "vip"
+        ]
+      }
+    },
+    "/api/v1/insight/fitchef/slip-support": {
+      "post": {
+        "description": "Generate VIP-only slip-support coaching via the FitChef runtime.",
+        "operationId": "fitchef_slip_support_api_v1_insight_fitchef_slip_support_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FitChefSlipSupportRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FitChefSlipSupportResponse"
+                }
+              }
+            },
+            "description": "FitChef slip-support coaching generated"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FitChefCoachingErrorResponse"
+                }
+              }
+            },
+            "description": "Unsafe AI input blocked"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FitChefCoachingErrorResponse"
+                }
+              }
+            },
+            "description": "VIP tier required"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitErrorResponse"
+                }
+              }
+            },
+            "description": "Rate limit exceeded"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FitChefCoachingErrorResponse"
+                }
+              }
+            },
+            "description": "Feature disabled or provider unavailable"
+          },
+          "504": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FitChefCoachingErrorResponse"
+                }
+              }
+            },
+            "description": "LLM provider call timed out"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Fitchef Slip Support",
+        "tags": [
+          "fitchef",
+          "insight",
+          "vip"
+        ]
+      }
+    },
+    "/api/v1/insight/fitchef/weekly-reflection": {
+      "post": {
+        "description": "Generate VIP-only weekly reflection coaching via the FitChef runtime.",
+        "operationId": "fitchef_weekly_reflection_api_v1_insight_fitchef_weekly_reflection_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FitChefWeeklyReflectionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FitChefWeeklyReflectionResponse"
+                }
+              }
+            },
+            "description": "FitChef weekly reflection generated"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FitChefCoachingErrorResponse"
+                }
+              }
+            },
+            "description": "Unsafe AI input blocked"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FitChefCoachingErrorResponse"
+                }
+              }
+            },
+            "description": "VIP tier required"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitErrorResponse"
+                }
+              }
+            },
+            "description": "Rate limit exceeded"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FitChefCoachingErrorResponse"
+                }
+              }
+            },
+            "description": "Feature disabled or provider unavailable"
+          },
+          "504": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FitChefCoachingErrorResponse"
+                }
+              }
+            },
+            "description": "LLM provider call timed out"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Fitchef Weekly Reflection",
+        "tags": [
+          "fitchef",
+          "insight",
+          "vip"
+        ]
       }
     },
     "/api/v1/pro/attribution": {
@@ -5935,6 +7307,116 @@
         "tags": [
           "CBT",
           "pro"
+        ]
+      }
+    },
+    "/api/v1/pro/fitchef/explain": {
+      "post": {
+        "description": "Generate the bounded PRO distortion-simulator surface.",
+        "operationId": "fitchef_distortion_simulator_api_v1_pro_fitchef_explain_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FitChefDistortionSimulatorRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FitChefDistortionSimulatorResponse"
+                }
+              }
+            },
+            "description": "FitChef distortion simulator generated"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FitChefCoachingErrorResponse"
+                }
+              }
+            },
+            "description": "Unsafe AI input blocked"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FitChefCoachingErrorResponse"
+                }
+              }
+            },
+            "description": "API key required"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FitChefCoachingErrorResponse"
+                }
+              }
+            },
+            "description": "PRO tier required"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitErrorResponse"
+                }
+              }
+            },
+            "description": "Rate limit exceeded"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FitChefCoachingErrorResponse"
+                }
+              }
+            },
+            "description": "Feature disabled or provider unavailable"
+          },
+          "504": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FitChefCoachingErrorResponse"
+                }
+              }
+            },
+            "description": "LLM provider call timed out"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Fitchef Distortion Simulator",
+        "tags": [
+          "coaching",
+          "fitchef",
+          "pro",
+          "structured"
         ]
       }
     },
@@ -6577,7 +8059,7 @@
     },
     "/api/v1/pro/payments/activate": {
       "post": {
-        "description": "Create activation or return idempotent replay.",
+        "description": "Create or replay a deterministic subscription activation event.",
         "operationId": "activate_subscription_api_v1_pro_payments_activate_post",
         "requestBody": {
           "content": {
@@ -6598,17 +8080,37 @@
                 }
               }
             },
-            "description": "Idempotent replay"
+            "description": "Successful Response"
           },
-          "201": {
+          "400": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/SubscriptionActivationResponse"
+                  "$ref": "#/components/schemas/PaymentErrorResponse"
                 }
               }
             },
-            "description": "Successful Response"
+            "description": "Canonical activation payload is required on this route"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid transport protection"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentErrorResponse"
+                }
+              }
+            },
+            "description": "Activation access forbidden or Apple receipt verification required"
           },
           "409": {
             "content": {
@@ -6618,7 +8120,7 @@
                 }
               }
             },
-            "description": "client_event_id conflict"
+            "description": "Deterministic activation conflict"
           },
           "422": {
             "content": {
@@ -6629,6 +8131,26 @@
               }
             },
             "description": "Validation Error"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentErrorResponse"
+                }
+              }
+            },
+            "description": "Apple receipt verification upstream error"
+          },
+          "504": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentErrorResponse"
+                }
+              }
+            },
+            "description": "Apple receipt verification timed out"
           }
         },
         "security": [
@@ -6645,7 +8167,7 @@
     },
     "/api/v1/pro/payments/activations/{activation_id}": {
       "get": {
-        "description": "Get activation status by ID.",
+        "description": "Get current persisted entitlement view for an activation lineage.",
         "operationId": "get_subscription_activation_api_v1_pro_payments_activations__activation_id__get",
         "parameters": [
           {
@@ -6668,6 +8190,16 @@
               }
             },
             "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid transport protection"
           },
           "403": {
             "content": {
@@ -6712,96 +8244,9 @@
         ]
       }
     },
-    "/api/v1/pro/payments/apple/verify-receipt": {
-      "post": {
-        "description": "Create or replay iOS receipt activation using deterministic baseline verification.",
-        "operationId": "verify_apple_receipt_api_v1_pro_payments_apple_verify_receipt_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/AppleReceiptVerificationRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SubscriptionActivationResponse"
-                }
-              }
-            },
-            "description": "Idempotent replay"
-          },
-          "201": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SubscriptionActivationResponse"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "401": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "properties": {
-                    "detail": {
-                      "description": "FastAPI auth error detail from tier guard",
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "detail"
-                  ],
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Missing or invalid API key"
-          },
-          "409": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PaymentErrorResponse"
-                }
-              }
-            },
-            "description": "client_event_id conflict"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "security": [
-          {
-            "APIKeyHeader": []
-          }
-        ],
-        "summary": "Verify Apple Receipt",
-        "tags": [
-          "payments",
-          "pro"
-        ]
-      }
-    },
     "/api/v1/pro/payments/ru-by/manual-intent": {
       "post": {
-        "description": "Create manual RU/BY payment intent with pending reconciliation lifecycle.",
+        "description": "Create manual RU/BY payment intent on a pre-entitlement transport-auth surface.",
         "operationId": "create_manual_payment_intent_api_v1_pro_payments_ru_by_manual_intent_post",
         "requestBody": {
           "content": {
@@ -6888,7 +8333,7 @@
     },
     "/api/v1/pro/payments/ru-by/reconcile": {
       "post": {
-        "description": "Apply reconciliation decision to pending manual payment intent.",
+        "description": "Apply reconciliation decision on a pre-entitlement transport-auth surface.",
         "operationId": "reconcile_manual_payment_intent_api_v1_pro_payments_ru_by_reconcile_post",
         "requestBody": {
           "content": {
@@ -6992,7 +8437,7 @@
     },
     "/api/v1/pro/payments/ru-by/reconcile/{intent_id}": {
       "get": {
-        "description": "Fetch current status of manual payment reconciliation intent.",
+        "description": "Fetch manual payment reconciliation status on a pre-entitlement transport-auth surface.",
         "operationId": "get_manual_payment_intent_status_api_v1_pro_payments_ru_by_reconcile__intent_id__get",
         "parameters": [
           {

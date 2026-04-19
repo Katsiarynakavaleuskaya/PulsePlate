@@ -23,6 +23,7 @@ from sqlalchemy.exc import OperationalError, ProgrammingError, UnboundExecutionE
 
 import core.recipe_synth as recipe_synth
 from core.test_guards import EXTERNAL_HTTP_BLOCKED_IN_TESTS_MESSAGE
+from tests._client import disable_rate_limiting_for_test_app
 
 # ============================================================================
 # CI NETWORK GUARD (prevents flaky real external calls)
@@ -134,6 +135,32 @@ def _block_external_network_in_ci(monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr(requests.sessions.Session, "request", session_request, raising=True)
 
 
+@pytest.fixture(autouse=True)
+def _disable_singleton_rate_limiters() -> None:
+    """Keep shared singleton app limiter state disabled before each test."""
+    seen_app_ids: set[int] = set()
+
+    for module in tuple(sys.modules.values()):
+        if module is None:
+            continue
+
+        for attr_name in ("app", "main_app"):
+            app_instance = vars(module).get(attr_name)
+            if not isinstance(app_instance, FastAPI):
+                try:
+                    app_instance = getattr(module, attr_name, None)
+                except Exception:
+                    app_instance = None
+            if not isinstance(app_instance, FastAPI):
+                continue
+
+            app_id = id(app_instance)
+            if app_id in seen_app_ids:
+                continue
+            seen_app_ids.add(app_id)
+            disable_rate_limiting_for_test_app(app_instance)
+
+
 # NOTE: core.db is imported LAZILY (inside fixtures) to avoid creating Base
 # before pytest_configure sets DATABASE_URL. Direct module-level import here
 # would create a Base instance before conftest's reload, causing dual-Base issues.
@@ -146,6 +173,31 @@ os.environ.setdefault("SERVER_SALT", "StrongServerSaltForTests123456789!")
 
 # Configure logger for test cleanup operations
 logger = logging.getLogger(__name__)
+
+_TESTING_ENV_WAS_SET = False
+_PREVIOUS_TESTING_ENV: str | None = None
+
+
+def pytest_configure(config: pytest.Config) -> None:
+    """Set import-time test env before any app bootstrap happens."""
+    global _PREVIOUS_TESTING_ENV, _TESTING_ENV_WAS_SET
+    del config
+    _TESTING_ENV_WAS_SET = "TESTING" in os.environ
+    _PREVIOUS_TESTING_ENV = os.environ.get("TESTING")
+    os.environ["TESTING"] = "true"
+
+
+def pytest_unconfigure(config: pytest.Config) -> None:
+    """Restore the original TESTING env after the pytest session ends."""
+    del config
+    if _TESTING_ENV_WAS_SET:
+        if _PREVIOUS_TESTING_ENV is not None:
+            os.environ["TESTING"] = _PREVIOUS_TESTING_ENV
+        else:
+            os.environ.pop("TESTING", None)
+        return
+
+    os.environ.pop("TESTING", None)
 
 
 @pytest.fixture
@@ -437,6 +489,8 @@ def app(app_module: ModuleType) -> FastAPI:
 
     app_instance = app.main.app
 
+    disable_rate_limiting_for_test_app(app_instance)
+
     # Apply lenient API key mode
     def mock_get_api_key(api_key: str = "") -> str:
         if not api_key or len(api_key.strip()) < 3:
@@ -590,6 +644,7 @@ def test_environment(monkeypatch: pytest.MonkeyPatch) -> Generator[None, None, N
     # Set consistent environment for deterministic testing
     monkeypatch.setenv("TESTING", "true")
     monkeypatch.setenv("APP_ENV", "test")
+    monkeypatch.setenv("ENVIRONMENT", "test")
     monkeypatch.setenv("ALLOW_DEV_API_KEY", "true")
     monkeypatch.setenv("FEATURE_PREMIUM_NUTRITION", "true")
     monkeypatch.setenv("VIP_MODULE_ENABLED", "true")
@@ -599,6 +654,10 @@ def test_environment(monkeypatch: pytest.MonkeyPatch) -> Generator[None, None, N
     monkeypatch.setenv("API_KEY_REQUIRED", "false")
     monkeypatch.setenv("METRICS_ENABLED", "true")
     monkeypatch.setenv("SERVER_SALT", "StrongServerSaltForTests123456789!")
+    monkeypatch.setenv(
+        "APPLE_SHARED_SECRET",
+        "StrongAppleSharedSecretForTests123456789!",  # pragma: allowlist secret
+    )
     yield
     # Cleanup is automatic with monkeypatch
 
@@ -770,3 +829,13 @@ def _merge_snapshots(*snapshots) -> Any:
                 seen_alias.add(key)
 
     return CatalogSnapshot(regions=regions, stores=stores, skus=skus, aliases=aliases)
+
+
+@pytest.fixture(autouse=True)
+def _reset_food_store_nutrition_confidence_cache() -> Generator[None, None, None]:
+    """Avoid cross-test drift for food.sqlite pragma cache (mocked vs real DB paths)."""
+
+    yield
+    from app.services import food_store as _food_store
+
+    _food_store.reset_foods_nutrition_confidence_column_cache()

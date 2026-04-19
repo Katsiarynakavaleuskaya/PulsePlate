@@ -74,10 +74,14 @@ struct BMICalculatorScreen: View {
                             }
 
                             if let hook = res.softPaywall {
-                                SoftPaywallHookView(hook: hook) {
+                                SoftPaywallHookView(hook: hook, nextBestAction: res.nextBestAction) {
                                     paywallRouter.presentPaywall(
                                         source: .bmiSoftPaywallCTA,
-                                        target: PaywallTarget.fromSoftPaywallHookTarget(hook.target) ?? .pro
+                                        target: PaywallTarget.resolve(
+                                            softPaywallTarget: hook.target,
+                                            nextBestAction: res.nextBestAction
+                                        ),
+                                        nextBestAction: res.nextBestAction
                                     )
                                 }
                             }

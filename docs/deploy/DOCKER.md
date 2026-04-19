@@ -142,7 +142,7 @@ docker stop test && docker rm test
 - ✅ Read-only filesystem where possible
 - ✅ Proper file permissions
 - ✅ Health checks for monitoring
-- ✅ Resource limits in docker-compose
+- ✅ Resource limits in `docker compose`
 
 ## 📈 **Monitoring & Maintenance**
 

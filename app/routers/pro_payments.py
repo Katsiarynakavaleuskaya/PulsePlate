@@ -1,22 +1,45 @@
 # -*- coding: utf-8 -*-
-"""PRO payments baseline endpoints (contract-first, additive, non-breaking).
+"""Billing activation endpoints for persisted subscription state.
 
-RU: Базовые PRO endpoints для активации подписки (контракт-first, без breaking changes).
-EN: Baseline PRO endpoints for subscription activation (contract-first, non-breaking).
+RU: Runtime endpoints для activation + persisted subscription state.
+EN: Runtime endpoints for activation + persisted subscription state.
 """
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Response, status
+from fastapi import APIRouter, Response, Security, status
 from fastapi.responses import JSONResponse
 
-from app.middleware.api_tiers import require_pro_tier
+from app.http_error_details import (
+    ACTIVATION_ACCESS_FORBIDDEN_DETAIL,
+    DETERMINISTIC_ACTIVATION_CONFLICT_DETAIL,
+    TRANSPORT_AUTH_REQUIRED_DETAIL,
+)
+from app.middleware.api_tiers import (
+    CurrentUser,
+    SubscriptionTier,
+    derive_subject_id_from_api_key,
+    resolve_tier_from_env,
+    tier_allows_access,
+)
+from app.routers.api_key import api_key_header
 from app.schemas.payments import (
     ActivateSubscriptionRequest,
     PaymentErrorResponse,
+    PaymentSource,
     SubscriptionActivationResponse,
 )
 from app.services import payments_activation
+from settings import is_explicit_developer_env, is_truthy_env_var
+
+
+class ActivationTransportUnauthorizedError(PermissionError):
+    """Raised when transport auth is missing or blank."""
+
+
+class ActivationTransportForbiddenError(PermissionError):
+    """Raised when transport auth key is present but lacks PRO access."""
+
 
 router = APIRouter(
     prefix="/api/v1/pro/payments",
@@ -24,49 +47,152 @@ router = APIRouter(
 )
 
 
-def _issuer_from_api_key(api_key: str) -> str:
-    """Return deterministic opaque issuer marker from API key."""
-    return payments_activation.issuer_from_api_key(api_key)
+def _payment_error_response(
+    *,
+    status_code: int,
+    code: str,
+    message: str,
+    detail: str,
+) -> JSONResponse:
+    """Return deterministic JSON error envelope."""
+
+    error = PaymentErrorResponse(
+        code=code,
+        message=message,
+        detail=detail,
+    )
+    return JSONResponse(
+        status_code=status_code,
+        content=error.model_dump(mode="json"),
+    )
+
+
+def _activation_forbidden_response(detail: str) -> JSONResponse:
+    """Return the canonical forbidden response for activation transport/read access."""
+
+    return _payment_error_response(
+        status_code=status.HTTP_403_FORBIDDEN,
+        code="forbidden",
+        message="Activation access forbidden",
+        detail=detail,
+    )
+
+
+def _resolve_activation_user(x_api_key: str | None) -> CurrentUser:
+    """Resolve pre-entitlement transport identity from validated PRO API key."""
+
+    if x_api_key is None:
+        raise ActivationTransportUnauthorizedError("X-API-Key header is required")
+
+    normalized_api_key = x_api_key.strip()
+    if not normalized_api_key:
+        raise ActivationTransportUnauthorizedError("X-API-Key header must not be blank")
+
+    allow_test_keys = is_explicit_developer_env() and is_truthy_env_var(
+        "ALLOW_DEV_API_KEY",
+        "true",
+    )
+    resolved_tier = resolve_tier_from_env(
+        normalized_api_key,
+        allow_test_keys=allow_test_keys,
+    )
+    if resolved_tier is None or not tier_allows_access(resolved_tier, SubscriptionTier.PRO):
+        raise ActivationTransportForbiddenError("API key does not have PRO tier access")
+
+    return CurrentUser(
+        user_id=derive_subject_id_from_api_key(normalized_api_key),
+        api_key=normalized_api_key,
+    )
 
 
 @router.post(
     "/activate",
     response_model=SubscriptionActivationResponse,
-    status_code=status.HTTP_201_CREATED,
     responses={
-        status.HTTP_200_OK: {
-            "description": "Idempotent replay",
-            "model": SubscriptionActivationResponse,
+        status.HTTP_400_BAD_REQUEST: {
+            "description": "Canonical activation payload is required on this route",
+            "model": PaymentErrorResponse,
+        },
+        status.HTTP_401_UNAUTHORIZED: {
+            "description": "Missing or invalid transport protection",
+            "model": PaymentErrorResponse,
+        },
+        status.HTTP_403_FORBIDDEN: {
+            "description": "Activation access forbidden or Apple receipt verification required",
+            "model": PaymentErrorResponse,
+        },
+        status.HTTP_502_BAD_GATEWAY: {
+            "description": "Apple receipt verification upstream error",
+            "model": PaymentErrorResponse,
+        },
+        status.HTTP_504_GATEWAY_TIMEOUT: {
+            "description": "Apple receipt verification timed out",
+            "model": PaymentErrorResponse,
         },
         status.HTTP_409_CONFLICT: {
-            "description": "client_event_id conflict",
+            "description": "Deterministic activation conflict",
             "model": PaymentErrorResponse,
         },
     },
 )
-def activate_subscription(
+async def activate_subscription(
     payload: ActivateSubscriptionRequest,
     response: Response,
-    x_api_key: str = Depends(require_pro_tier),
+    x_api_key: str | None = Security(api_key_header),
 ) -> SubscriptionActivationResponse | JSONResponse:
-    """Create activation or return idempotent replay."""
+    """Create or replay a deterministic subscription activation event."""
+
     try:
-        activation, is_new = payments_activation.activate_subscription(
-            issuer=_issuer_from_api_key(x_api_key),
-            payload=payload,
+        current_user = _resolve_activation_user(x_api_key)
+        if not payload.uses_canonical_payload:
+            return _payment_error_response(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                code="invalid_activation_payload",
+                message="Canonical activation payload is required",
+                detail="canonical activation payload is required on this route",
+            )
+        if payload.source is PaymentSource.ios_app_store:
+            activation = await payments_activation.activate_subscription_async(
+                user_id=current_user.user_id,
+                payload=payload,
+            )
+        else:
+            activation = payments_activation.activate_subscription(
+                user_id=current_user.user_id,
+                payload=payload,
+            )
+    except ActivationTransportUnauthorizedError:
+        return _payment_error_response(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            code="activation_transport_unauthorized",
+            message="Transport protection required",
+            detail=TRANSPORT_AUTH_REQUIRED_DETAIL,
         )
-    except payments_activation.IdempotencyConflictError as exc:
-        error = PaymentErrorResponse(
+    except ActivationTransportForbiddenError:
+        return _activation_forbidden_response(ACTIVATION_ACCESS_FORBIDDEN_DETAIL)
+    except payments_activation.IdempotencyConflictError:
+        return _payment_error_response(
+            status_code=status.HTTP_409_CONFLICT,
             code="idempotency_conflict",
-            message="client_event_id conflict",
+            message="Deterministic activation conflict",
+            detail=DETERMINISTIC_ACTIVATION_CONFLICT_DETAIL,
+        )
+    except payments_activation.ActivationReverifyRejectedError as exc:
+        return _payment_error_response(
+            status_code=status.HTTP_403_FORBIDDEN,
+            code=getattr(exc, "error_code", "activation_reverify_rejected"),
+            message=exc.error_message or "Activation reverification rejected",
             detail=str(exc),
         )
-        return JSONResponse(
-            status_code=status.HTTP_409_CONFLICT,
-            content=error.model_dump(mode="json"),
+    except payments_activation.AppleVerifyTransportError as exc:
+        return _payment_error_response(
+            status_code=exc.status_code,
+            code=exc.error_code,
+            message=exc.error_message,
+            detail=exc.error_message,
         )
-    if not is_new:
-        response.status_code = status.HTTP_200_OK
+
+    response.status_code = status.HTTP_200_OK
     return activation
 
 
@@ -74,6 +200,10 @@ def activate_subscription(
     "/activations/{activation_id}",
     response_model=SubscriptionActivationResponse,
     responses={
+        status.HTTP_401_UNAUTHORIZED: {
+            "description": "Missing or invalid transport protection",
+            "model": PaymentErrorResponse,
+        },
         status.HTTP_403_FORBIDDEN: {
             "description": "Activation access forbidden",
             "model": PaymentErrorResponse,
@@ -86,30 +216,32 @@ def activate_subscription(
 )
 def get_subscription_activation(
     activation_id: str,
-    x_api_key: str = Depends(require_pro_tier),
+    x_api_key: str | None = Security(api_key_header),
 ) -> SubscriptionActivationResponse | JSONResponse:
-    """Get activation status by ID."""
-    issuer = _issuer_from_api_key(x_api_key)
+    """Get current persisted entitlement view for an activation lineage."""
+
     try:
-        activation = payments_activation.get_activation(activation_id, issuer=issuer)
-    except payments_activation.ActivationAccessForbiddenError as exc:
-        error = PaymentErrorResponse(
-            code="forbidden",
-            message="Activation access forbidden",
-            detail=str(exc),
+        current_user = _resolve_activation_user(x_api_key)
+        activation = payments_activation.get_activation(
+            activation_id,
+            user_id=current_user.user_id,
         )
-        return JSONResponse(
-            status_code=status.HTTP_403_FORBIDDEN,
-            content=error.model_dump(mode="json"),
+    except ActivationTransportUnauthorizedError:
+        return _payment_error_response(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            code="activation_transport_unauthorized",
+            message="Transport protection required",
+            detail=TRANSPORT_AUTH_REQUIRED_DETAIL,
         )
+    except (ActivationTransportForbiddenError, payments_activation.ActivationAccessForbiddenError):
+        return _activation_forbidden_response(ACTIVATION_ACCESS_FORBIDDEN_DETAIL)
+
     if activation is None:
-        error = PaymentErrorResponse(
+        return _payment_error_response(
+            status_code=status.HTTP_404_NOT_FOUND,
             code="not_found",
             message="Activation not found",
             detail=activation_id,
         )
-        return JSONResponse(
-            status_code=status.HTTP_404_NOT_FOUND,
-            content=error.model_dump(mode="json"),
-        )
+
     return activation

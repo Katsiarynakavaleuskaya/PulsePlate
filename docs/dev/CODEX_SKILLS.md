@@ -2,11 +2,15 @@
 
 <!-- markdownlint-disable MD013 -->
 
-This document explains how PulsePlate skills are installed and how the coordinator should use them automatically.
+This document explains how PulsePlate skills are discovered, installed, and kept
+strictly passive inside the repository's coordinator-first bootstrap flow.
+
+For the wider agent startup path across Cursor, Codex, and Claude, start with
+[`docs/dev/AGENT_COMPATIBILITY_ONBOARDING.md`](./AGENT_COMPATIBILITY_ONBOARDING.md).
 
 ## Install
 
-Default install mode uses symlinks:
+Default install mode uses symlinks into the official user discovery path:
 
 ```bash
 scripts/install_codex_skills.sh
@@ -17,27 +21,87 @@ Useful options:
 ```bash
 scripts/install_codex_skills.sh --list
 scripts/install_codex_skills.sh --copy
+scripts/install_codex_skills.sh --target compat
 scripts/install_codex_skills.sh --unlink
 scripts/install_codex_skills.sh --dest /tmp/codex-skills
 ```
 
+Discovery and install precedence:
+
+1. Repo source of truth: `tools/codex_skills/`
+2. Repo discovery mirror for Codex: `.agents/skills/`
+3. Primary user install target: `$AGENTS_HOME/skills` (fallback: `$HOME/.agents/skills`)
+4. Compatibility-only legacy target: `$CODEX_HOME/skills` (fallback: `~/.codex/skills`, via `--target compat`)
+
+Use this section as the canonical discovery/install contract. Neighbor docs should reference it instead of restating host-path details independently.
+
+Invariant:
+
+- `tools/codex_skills/` remains the only repo source of truth.
+- `.agents/skills/` is a passive discovery mirror, not a second canonical tree.
+- The installer is operator-invoked only. It must not mutate Cursor config, launchers, shell profiles, or session behavior.
+
 ## Restart requirement
 
 After installation or updates, restart Codex so newly installed skills are loaded.
+This restart requirement is tooling-local only; it does not change repo orchestration semantics.
+
+## Host `~/.codex` (compatibility-only, not repo SoT)
+
+Machine-local Codex settings (`~/.codex/config.toml`, skills under `$CODEX_HOME/skills` with `~/.codex/skills` as the fallback) are **not**
+repository source of truth. Keys drift with Codex CLI versions; verify against current vendor docs.
+Use `$CODEX_HOME/skills` only as an explicit compatibility target when a local Codex setup still expects it.
+
+For a **minimal copy-paste starter only**, see
+[`docs/templates/codex.config.example.toml`](../templates/codex.config.example.toml).
+Customize on your machine; do not treat that template as a production or team contract.
+
+## Repo compatibility bridge
+
+Use the repo bridge documents together:
+
+- [`docs/dev/AGENT_COMPATIBILITY_ONBOARDING.md`](./AGENT_COMPATIBILITY_ONBOARDING.md)
+- [`CLAUDE.md`](../../CLAUDE.md)
+- [`.cursor/commands/init.md`](../../.cursor/commands/init.md)
 
 ## Coordinator-first auto-selection
 
-The user should not have to name skills manually for normal project work.
+The user should not have to name skills manually for normal project work, but
+that routing comes from the canonical bootstrap/orchestration path, not from
+this document by itself.
 
-Selection order:
+**Raw session note:** nothing in this file runs at host session start. Use `scripts/orchestration/local_session_bootstrap.sh` (optional) then `task_bootstrap.py` so routing and `recommended_skills` are produced deterministically.
+
+**Launcher vs skills:** If you use an opt-in machine launcher (see [`docs/dev/LOCAL_COORDINATOR_LAUNCHER_ROLLOUT.md`](./LOCAL_COORDINATOR_LAUNCHER_ROLLOUT.md)), run preflight/bootstrap **before** relying on installed skills or manual task work. **Skills do not replace** `task_bootstrap.py`; they complement routing after a packet exists.
+
+**Non-interference contract:** skills remain passive/discovery-only helpers. They do not:
+
+- replace `agent-coordinator`,
+- replace `scripts/orchestration/task_bootstrap.py`,
+- turn `recommended_skills` into execution authority,
+- change `native_subagent_bridge` semantics,
+- or modify Cursor/custom orchestration behavior without explicit operator action.
+
+**Advisory wiki (optional):** For operator-local wiki snapshots over the experimental support plane, see [`docs/orchestration/LOCAL_WIKI_SUPPORT_PLANE.md`](../orchestration/LOCAL_WIKI_SUPPORT_PLANE.md) (`wiki_ingest` / `wiki_query` / `wiki_lint` / `wiki_promote`). This remains non-canonical and gitignored.
+
+Canonical selection order after bootstrap:
 
 1. `pulseplate-workflow`
-2. Domain routing via `docs/orchestration/AGENT_ROUTING_GRAPH.md`
-3. Skill policy via `docs/orchestration/AGENT_SKILL_ROUTING_POLICY.md`
-4. Deterministic bootstrap via `scripts/orchestration/task_bootstrap.py`
+2. Domain routing via [`docs/orchestration/AGENT_ROUTING_GRAPH.md`](../orchestration/AGENT_ROUTING_GRAPH.md)
+3. Skill policy via [`docs/orchestration/AGENT_SKILL_ROUTING_POLICY.md`](../orchestration/AGENT_SKILL_ROUTING_POLICY.md)
+4. Deterministic bootstrap via [`scripts/orchestration/task_bootstrap.py`](../../scripts/orchestration/task_bootstrap.py)
 
-The bootstrap task packet now carries `recommended_skills`, so coordinator and domain agents can invoke fitting skills as part of the workflow.
+When [`scripts/orchestration/task_bootstrap.py`](../../scripts/orchestration/task_bootstrap.py) produces a task packet, it carries
+`recommended_skills`, so coordinator and domain agents can invoke fitting
+skills as part of the workflow.
 For explainability, the packet also carries `skill_routing` metadata with weighted evidence and blocked-pattern notes.
+Wave 2 routing packets additionally expose `skill_routing.explanation` for the
+stable explanation schema and `skill_routing.research_connector_policy` for the
+approved research-only connector contract. Evidence:
+`scripts/orchestration/skill_router.py:1881-1888`,
+`scripts/orchestration/task_bootstrap.py:786-919`,
+`tests/test_skill_router.py:1318-1378`,
+`tests/test_task_bootstrap.py:163-183`.
 
 ## Skill map (task to skill)
 
@@ -49,6 +113,8 @@ For explainability, the packet also carries `skill_routing` metadata with weight
 - Triage architecture/policy guards: `pulseplate-guards`
 - Add backend endpoints with policy checks: `pulseplate-backend-endpoints`
 - Produce AI trend reports: `pulseplate-ai-reports`
+- Prepare App Store metadata, screenshot packs, and release evidence: `pulseplate-app-store-release`
+- Guide monetization, paywall, pricing, and wellness-safe GTM work: `pulseplate-monetization-gtm`
 - Build/update architecture graph artifact: `pulseplate-graphmap`
 - Run browser E2E flows (step 3 extension): `pulseplate-playwright-e2e`
 
@@ -57,6 +123,8 @@ For explainability, the packet also carries `skill_routing` metadata with weight
 Recommended now for PulsePlate:
 
 - `pulseplate-ai-reports` for founder/wellness/AI reporting
+- `pulseplate-app-store-release` for App Store metadata, screenshot packs, and release evidence
+- `pulseplate-monetization-gtm` for monetization, paywall, pricing, and wellness-safe GTM work
 - `docs-sync` for orchestration, runbooks, and PR support docs
 - `bug-triage` and `pulseplate-gates` for remediation and gate closure
 - `figma` as the first design-system and prototype lane
@@ -64,8 +132,22 @@ Recommended now for PulsePlate:
   structured memory and handoff pages
 - `openai-docs`, `playwright`, `linear` when the task explicitly matches
 
-For canonical design-tooling precedence, see
-`docs/runbooks/DESIGN_TOOLING_OPERATING_MODEL.md`.
+OpenAI-specific baseline:
+
+- `openai-docs` remains the canonical external-docs lane for OpenAI tasks
+- optional runtime pilot for live docs retrieval is documented in
+  `docs/runbooks/OPENAI_EXTERNAL_DOCS_FRESHNESS_PILOT.md`
+- external MCP/CLI outputs remain advisory and must promote durable findings
+  through KPP before they become repo memory
+
+Design-tooling precedence for this repo:
+
+1. `Figma`
+2. `Notion`
+3. `Airweave`
+4. `Penpot`
+
+See `docs/runbooks/DESIGN_TOOLING_OPERATING_MODEL.md`.
 
 Not approved as default:
 
@@ -83,9 +165,11 @@ Not approved as default:
 ## Canonical source
 
 - Skill source folders: `tools/codex_skills/`
+- Repo discovery mirror: `.agents/skills/`
 - Installer script: `scripts/install_codex_skills.sh`
 - Step 3 runbook: `docs/dev/PLAYWRIGHT_E2E_RUNBOOK.md`
 - Skill routing policy: `docs/orchestration/AGENT_SKILL_ROUTING_POLICY.md`
+- Alignment matrix / non-interference policy: `docs/orchestration/CODEX_SKILLS_ALIGNMENT_MATRIX.md`
 - Coordinator and agent index:
   - `.cursor/agents/agent-coordinator.md`
   - `docs/agents/index.md`

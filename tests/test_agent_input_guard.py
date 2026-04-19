@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 import subprocess
 from types import SimpleNamespace
@@ -10,6 +11,7 @@ import pytest
 from fastapi import HTTPException
 
 from app.security.agent_input_guard import (
+    AgentInputThreat,
     AgentInputScanResult,
     UNSAFE_AI_INPUT_DETAIL,
     _try_upstream_scan,
@@ -20,6 +22,13 @@ from app.security.goplus_agentguard_bridge import (
     GoPlusAgentGuardScanResult,
     scan_text_with_goplus_agentguard,
 )
+
+
+def require_feature(feature_key: str, reason: str) -> None:
+    expected_reason = f"feature_disabled:{feature_key}"
+    if reason != expected_reason:
+        pytest.fail(f"invalid feature skip reason: expected {expected_reason!r}, got {reason!r}")
+    pytest.skip(reason)
 
 
 def test_scan_ai_agent_input_allows_benign_wellness_prompt(
@@ -250,7 +259,13 @@ def test_try_upstream_scan_returns_none_when_constructor_fails(
             ),
             AgentInputScanResult(
                 is_safe=False,
-                threats=(SimpleNamespace(),),  # placeholder, assertions below inspect fields
+                threats=(
+                    AgentInputThreat(
+                        category="third_party_agent_guard",
+                        severity="high",
+                        reason="placeholder",
+                    ),
+                ),
             ),
         ),
     ],
@@ -293,6 +308,7 @@ def test_scan_text_with_goplus_agentguard_handles_subprocess_and_payload_failure
 
     from app.security import goplus_agentguard_bridge as bridge_mod
 
+    monkeypatch.setenv(bridge_mod.TEST_RUNTIME_OPT_IN_ENV, "true")
     monkeypatch.setattr(bridge_mod, "AGENTGUARD_SCAN_SCRIPT", Path(__file__))
     monkeypatch.setattr(bridge_mod.shutil, "which", lambda name: "/usr/bin/node")
 
@@ -326,6 +342,7 @@ def test_scan_text_with_goplus_agentguard_returns_normalized_result(
 
     from app.security import goplus_agentguard_bridge as bridge_mod
 
+    monkeypatch.setenv(bridge_mod.TEST_RUNTIME_OPT_IN_ENV, "true")
     monkeypatch.setattr(bridge_mod, "AGENTGUARD_SCAN_SCRIPT", Path(__file__))
     monkeypatch.setattr(bridge_mod.shutil, "which", lambda name: "/usr/bin/node")
     monkeypatch.setattr(
@@ -348,6 +365,62 @@ def test_scan_text_with_goplus_agentguard_returns_normalized_result(
         summary="Found issues",
     )
     assert result.should_block is True
+
+
+def test_scan_text_with_goplus_agentguard_skips_live_node_bridge_by_default_in_tests(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """TESTING=true should avoid expensive live Node subprocess calls by default."""
+
+    from app.security import goplus_agentguard_bridge as bridge_mod
+
+    monkeypatch.setenv(bridge_mod.TEST_RUNTIME_ENV, "true")
+    monkeypatch.setenv(
+        bridge_mod.PYTEST_RUNTIME_ENV,
+        "tests/test_agent_input_guard.py::"
+        "test_scan_text_with_goplus_agentguard_skips_live_node_bridge_by_default_in_tests "
+        "(call)",
+    )
+    monkeypatch.delenv(bridge_mod.TEST_RUNTIME_OPT_IN_ENV, raising=False)
+    monkeypatch.setattr(bridge_mod, "AGENTGUARD_SCAN_SCRIPT", Path(__file__))
+    monkeypatch.setattr(bridge_mod.shutil, "which", lambda name: "/usr/bin/node")
+    monkeypatch.setattr(
+        bridge_mod.subprocess,
+        "run",
+        lambda *args, **kwargs: pytest.fail(
+            "subprocess.run must stay disabled by default in tests"
+        ),
+    )
+
+    assert scan_text_with_goplus_agentguard("payload") is None
+
+
+def test_scan_text_with_goplus_agentguard_live_runtime_smoke(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Live Node scanner path must stay callable for the local heuristic runtime."""
+
+    from app.security import goplus_agentguard_bridge as bridge_mod
+
+    node_binary = bridge_mod.shutil.which("node")
+    if node_binary is None or not bridge_mod.AGENTGUARD_SCAN_SCRIPT.exists():
+        require_feature(
+            "goplus_scanner_runtime",
+            "feature_disabled:goplus_scanner_runtime",
+        )
+        raise AssertionError("require_feature should always raise pytest skip")
+
+    monkeypatch.setenv(bridge_mod.TEST_RUNTIME_OPT_IN_ENV, "true")
+    result = scan_text_with_goplus_agentguard("How can I build a steady breakfast habit?")
+    if result is None:
+        pytest.fail(
+            "GoPlus scanner returned no result despite Node/script availability; "
+            "runtime, dependency, or output contract likely failed"
+        )
+
+    assert result.risk_level == "low"
+    assert result.risk_tags == ()
+    assert result.should_block is False
 
 
 def test_goplus_scan_result_ignores_non_relevant_tags() -> None:

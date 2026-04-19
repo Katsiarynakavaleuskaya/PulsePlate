@@ -13,7 +13,7 @@ struct HomeView: View {
     }
 
     private var hasProKey: Bool {
-        guard let key = ProKeyProvider.value() else { return false }
+        guard let key = AppStoreScreenshotContext.previewProKey ?? ProKeyProvider.value() else { return false }
         return !key.isEmpty
     }
 

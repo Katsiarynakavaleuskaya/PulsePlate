@@ -6,6 +6,20 @@ from typing import Any
 from fastapi.testclient import TestClient
 import pytest
 
+from app.http_error_details import (
+    CONFIRM_ORDER_CONFLICT_DETAIL,
+    CREATE_ORDER_CONFLICT_DETAIL,
+    INVALID_ORDER_TRANSITION_DETAIL,
+    INVALID_WEEKLY_PLAN_ADAPTER_PAYLOAD_DETAIL,
+    ORDER_GONE_DETAIL,
+    PARTNER_CONSENT_REQUIRED_DETAIL,
+    SHARE_ACCESS_FORBIDDEN_DETAIL,
+    SHARE_EXPIRED_DETAIL,
+    SHARE_REVOKED_DETAIL,
+)
+
+TEST_PRO_TIER_TOKEN = "pro-tier-token"
+
 
 @pytest.fixture(autouse=True)
 def _reset_partner_store() -> None:
@@ -165,8 +179,44 @@ def test_preview_partner_order_from_weekly_plan_invalid_shape_422(
             "consent": {"consent_share_with_partner": True, "consent_version": "v1"},
         },
     )
+
     assert response.status_code == 422
-    assert "days/menu.days/data.daily_menus" in _json(response)["detail"]
+    assert response.headers.get("content-type", "").startswith("application/json")
+    assert response.json()["detail"] == INVALID_WEEKLY_PLAN_ADAPTER_PAYLOAD_DETAIL
+    assert "/srv/pulseplate/private-weekly-plan.json" not in response.text
+    assert "adapter trace /srv/pulseplate/private-weekly-plan.json" not in response.text
+    assert "days/menu.days/data.daily_menus" not in response.json()["detail"]
+
+
+def test_preview_partner_order_from_weekly_plan_sanitizes_unexpected_value_error(
+    client: TestClient,
+    pro_headers: dict[str, str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.services import restaurant_partner_export_adapter
+
+    def _raise_sensitive_error(**_kwargs: object) -> dict[str, object]:
+        raise ValueError("adapter trace /srv/pulseplate/private-weekly-plan.json")
+
+    monkeypatch.setattr(
+        restaurant_partner_export_adapter,
+        "build_order_draft_from_weekly_plan",
+        _raise_sensitive_error,
+    )
+
+    response = client.post(
+        "/api/v1/pro/restaurants/partner/orders/adapt/preview",
+        headers=pro_headers,
+        json={
+            "restaurant_id": "resto-weekly-sensitive",
+            "week_plan": {"days": [{"meals": [{"items": [{"name": "Oats", "qty": 1}]}]}]},
+            "consent": {"consent_share_with_partner": True, "consent_version": "v1"},
+        },
+    )
+
+    assert response.status_code == 422
+    assert response.headers.get("content-type", "").startswith("application/json")
+    assert response.json()["detail"] == INVALID_WEEKLY_PLAN_ADAPTER_PAYLOAD_DETAIL
 
 
 def test_preview_partner_order_from_weekly_plan_invalid_currency_422(
@@ -360,14 +410,14 @@ def test_get_partner_order_gone_410_for_terminal_status(
         headers=pro_headers,
     )
     assert response.status_code == 410
-    assert _json(response) == {"detail": "order gone"}
+    assert _json(response) == {"detail": ORDER_GONE_DETAIL}
 
     replay_response = client.get(
         f"/api/v1/pro/restaurants/partner/orders/{order_id}",
         headers=pro_headers,
     )
     assert replay_response.status_code == 410
-    assert _json(replay_response) == {"detail": "order gone"}
+    assert _json(replay_response) == {"detail": ORDER_GONE_DETAIL}
 
 
 def test_confirm_partner_order_happy_path(
@@ -442,6 +492,7 @@ def test_confirm_partner_order_invalid_transition_422(
         headers=pro_headers,
         json={"draft": _sample_draft(), "client_event_id": "evt-create-6"},
     )
+    assert created.status_code == 201, created.text
     order_id = _json(created)["id"]
 
     first = client.post(
@@ -456,7 +507,10 @@ def test_confirm_partner_order_invalid_transition_422(
         headers=pro_headers,
         json={"confirmed_by": "partner-user-3"},
     )
+
     assert second.status_code == 422
+    assert second.headers.get("content-type", "").startswith("application/json")
+    assert second.json()["detail"] == INVALID_ORDER_TRANSITION_DETAIL
 
 
 def test_confirm_partner_order_not_found_404(
@@ -541,7 +595,7 @@ def test_confirm_partner_order_gone_410_for_terminal_status(
         json={"confirmed_by": "partner-user-gone", "client_event_id": "evt-confirm-gone"},
     )
     assert confirm.status_code == 410
-    assert _json(confirm) == {"detail": "order gone"}
+    assert _json(confirm) == {"detail": ORDER_GONE_DETAIL}
 
     replay = client.post(
         f"/api/v1/pro/restaurants/partner/orders/{order_id}/confirm",
@@ -549,7 +603,7 @@ def test_confirm_partner_order_gone_410_for_terminal_status(
         json={"confirmed_by": "partner-user-gone", "client_event_id": "evt-confirm-gone"},
     )
     assert replay.status_code == 410
-    assert _json(replay) == {"detail": "order gone"}
+    assert _json(replay) == {"detail": ORDER_GONE_DETAIL}
 
 
 def test_confirm_partner_order_idempotent_replay_after_terminal_transition(
@@ -618,7 +672,60 @@ def test_confirm_partner_order_idempotency_conflict_409(
         },
     )
     assert second.status_code == 409
-    assert _json(second)["detail"] == "client_event_id conflict: confirm payload mismatch"
+    assert _json(second)["detail"] == CONFIRM_ORDER_CONFLICT_DETAIL
+
+
+def test_create_partner_order_sanitizes_unexpected_conflict_detail(
+    client: TestClient,
+    pro_headers: dict[str, str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.services import restaurant_partner_orders
+
+    def _raise_sensitive_conflict(**_kwargs: object) -> tuple[dict[str, object], bool]:
+        raise ValueError("client_event_id conflict: leaked /srv/orders.db")
+
+    monkeypatch.setattr(restaurant_partner_orders, "create_order", _raise_sensitive_conflict)
+
+    response = client.post(
+        "/api/v1/pro/restaurants/partner/orders",
+        headers=pro_headers,
+        json={"draft": _sample_draft(), "client_event_id": "evt-sensitive-conflict"},
+    )
+
+    assert response.status_code == 409
+    assert response.headers.get("content-type", "").startswith("application/json")
+    assert response.json()["detail"] == CREATE_ORDER_CONFLICT_DETAIL
+    assert "/srv/orders.db" not in response.text
+
+
+def test_get_handoff_share_status_sanitizes_unexpected_forbidden_detail(
+    client: TestClient,
+    pro_headers: dict[str, str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.services import restaurant_partner_orders
+
+    def _raise_sensitive_forbidden(*_args: object, **_kwargs: object) -> dict[str, object]:
+        raise restaurant_partner_orders.ShareAccessForbiddenError(
+            "share access forbidden: /srv/private-share-token"
+        )
+
+    monkeypatch.setattr(
+        restaurant_partner_orders,
+        "get_handoff_share_status",
+        _raise_sensitive_forbidden,
+    )
+
+    response = client.get(
+        "/api/v1/pro/restaurants/partner/handoff/shares/share-sensitive/status",
+        headers=pro_headers,
+    )
+
+    assert response.status_code == 403
+    assert response.headers.get("content-type", "").startswith("application/json")
+    assert response.json()["detail"] == SHARE_ACCESS_FORBIDDEN_DETAIL
+    assert "/srv/private-share-token" not in response.text
 
 
 def test_preview_partner_order_invalid_currency_422(
@@ -813,7 +920,7 @@ def test_issue_handoff_share_forbidden_for_other_issuer_403(
         },
     )
     assert issue.status_code == 403
-    assert _json(issue) == {"detail": "share access forbidden"}
+    assert _json(issue) == {"detail": SHARE_ACCESS_FORBIDDEN_DETAIL}
 
 
 def test_get_handoff_share_status_revoked_403(
@@ -848,7 +955,7 @@ def test_get_handoff_share_status_revoked_403(
         headers=pro_headers,
     )
     assert status_resp.status_code == 403
-    assert _json(status_resp) == {"detail": "share revoked"}
+    assert _json(status_resp) == {"detail": SHARE_REVOKED_DETAIL}
 
 
 def test_get_handoff_share_status_active_200(
@@ -942,7 +1049,7 @@ def test_get_handoff_share_status_forbidden_for_other_issuer_403(
         headers=vip_headers,
     )
     assert status_resp.status_code == 403
-    assert _json(status_resp) == {"detail": "share access forbidden"}
+    assert _json(status_resp) == {"detail": SHARE_ACCESS_FORBIDDEN_DETAIL}
 
 
 def test_revoke_handoff_share_forbidden_for_other_issuer_403(
@@ -974,7 +1081,7 @@ def test_revoke_handoff_share_forbidden_for_other_issuer_403(
         headers=vip_headers,
     )
     assert revoke.status_code == 403
-    assert _json(revoke) == {"detail": "share access forbidden"}
+    assert _json(revoke) == {"detail": SHARE_ACCESS_FORBIDDEN_DETAIL}
 
 
 def test_revoke_handoff_share_not_found_404(
@@ -1023,7 +1130,7 @@ def test_get_handoff_share_status_expired_410(
         headers=pro_headers,
     )
     assert status_resp.status_code == 410
-    assert _json(status_resp) == {"detail": "share expired"}
+    assert _json(status_resp) == {"detail": SHARE_EXPIRED_DETAIL}
 
     # RU: W3-R3 — семантика Gone должна быть стабильна при повторе запроса.
     # EN: W3-R3 — Gone semantics must stay stable on replay.
@@ -1032,7 +1139,7 @@ def test_get_handoff_share_status_expired_410(
         headers=pro_headers,
     )
     assert replay_resp.status_code == 410
-    assert _json(replay_resp) == {"detail": "share expired"}
+    assert _json(replay_resp) == {"detail": SHARE_EXPIRED_DETAIL}
 
 
 def test_get_handoff_share_status_not_found_404(
@@ -1074,7 +1181,7 @@ def test_issue_handoff_share_requires_partner_consent_403(
         },
     )
     assert issue.status_code == 403
-    assert _json(issue) == {"detail": "partner consent required"}
+    assert _json(issue) == {"detail": PARTNER_CONSENT_REQUIRED_DETAIL}
 
 
 def test_issue_handoff_share_service_ttl_guard_value_error(

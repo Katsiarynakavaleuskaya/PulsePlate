@@ -45,7 +45,7 @@
 | **data-scientist-agent** | Evals, metrics, offline experiments, measurement plans |
 | **ml-engineer-agent** | Productionization, latency/cost budgets, caching, infra seams |
 | **bayesian-uq-agent** | Uncertainty quantification, calibration, confidence contracts |
-| **cv-agent** | CV pipeline contracts (photo→items→confidence→nutrition) |
+| **cv-agent** | CV pipeline contracts (photo→items→confidence→nutrition); graph-primary for routing domain `cv` |
 
 ---
 
@@ -72,7 +72,7 @@
 | **app-store-release-agent** | App Store metadata, submission packaging, release checklists, asset readiness |
 | **marketing-strategist** | ASO/SEO, growth, positioning, conversion optimization |
 | **wellness-analyst-agent** | Wellness opportunity analysis, low-capex product ideas, ethics/regulatory notes |
-| **business-strategist-agent** | Market entry, monetization sequencing, low-capex business strategy |
+| **business-strategist-agent** | Director-level business ownership: portfolio framing, B2B packaging, monetization sequencing, investor/partner narrative governance, KPI ownership |
 | **ai-trend-reporter** | AI market reports (daily/weekly/monthly/quarterly), wellness GTM |
 
 ---

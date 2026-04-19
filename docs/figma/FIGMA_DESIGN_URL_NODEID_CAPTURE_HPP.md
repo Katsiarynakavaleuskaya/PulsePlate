@@ -1,8 +1,8 @@
 <!-- markdownlint-disable MD013 -->
 # Figma Design URL + Node ID Capture Protocol (H+P+Pr)
 
-**Date:** March 7, 2026
-**Scope:** unblock Code Connect activation for Home + Plate + Progress CTA mappings
+**Date:** March 12, 2026
+**Scope:** unblock Code Connect activation for Home + Plate + Progress CTA mappings without redefining repo-canonical production ownership
 
 ## 1) Purpose
 
@@ -24,6 +24,12 @@ Code Connect requires a **Full or Dev seat on Organization or Enterprise** per
 <https://developers.figma.com/docs/figma-mcp-server/skill-code-connect-components/>.
 Current MCP `whoami` reports only a `Full` seat on `pro`
 (`docs/figma/orchestration/sessions/2026-03-07_code_connect_blocker_evidence/01_MCP_STATUS.md:3`).
+
+Production boundary reminder:
+
+- `pulseplate.app` and `www.pulseplate.app` remain repo-owned production hosts.
+- Capturing a Design URL or node IDs does not grant permission to publish Figma Sites directly to the production root domain.
+- For the current domain-first stream, web rows are deploy-relevant first; iOS rows remain in the shared P0 capture set for mapping completeness.
 
 ## 3) Capture Procedure
 
@@ -122,6 +128,7 @@ Code Connect activation is unblocked only when, in addition:
 1. A Code Connect-capable Figma seat is available (`whoami` +
    `get_code_connect_suggestions` no longer plan-blocked).
 2. MCP verification succeeds for all four rows.
+3. Production-domain ownership remains unchanged: activation augments design-to-code mapping but does not move `pulseplate.app` or `www.pulseplate.app` away from the repo-backed runtime.
 
 ## 6) Canonical links
 

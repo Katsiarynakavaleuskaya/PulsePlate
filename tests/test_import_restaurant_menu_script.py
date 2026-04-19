@@ -97,6 +97,120 @@ def test_main_fails_when_no_valid_rows(tmp_path: Path, capsys: pytest.CaptureFix
     assert "Import failed:" in capsys.readouterr().err
 
 
+def test_run_import_routes_to_postgres_bridge(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    csv_path = tmp_path / "menustat_like.csv"
+    csv_path.write_text(
+        (
+            "restaurant,item_name,menu_item_id,calories\n"
+            "Chain A,Item 1,item-1,500\n"
+            "Chain A,Item 1,item-1,500\n"
+        ),
+        encoding="utf-8",
+    )
+    captured: dict[str, object] = {}
+
+    def _fake_bridge(
+        rows: list[dict[str, object]],
+        *,
+        snapshot_date: str | None,
+        source_name: str,
+        pg_url: str,
+    ) -> dict[str, int]:
+        captured["rows"] = rows
+        captured["snapshot_date"] = snapshot_date
+        captured["source_name"] = source_name
+        captured["pg_url"] = pg_url
+        return {"chains_upserted": 1, "menu_items_upserted": 1}
+
+    monkeypatch.setattr(
+        import_restaurant_menu.restaurant_postgres_bridge,
+        "import_menustat_rows_to_postgres",
+        _fake_bridge,
+    )
+
+    summary = import_restaurant_menu.run_import(
+        input_path=csv_path,
+        snapshot_date="2026-04-13",
+        source_name="menustat",
+        target_backend=import_restaurant_menu.TARGET_BACKEND_POSTGRES,
+        db_path=None,
+        pg_url="postgresql+psycopg://user:pass@db.example.com/pulseplate",  # pragma: allowlist secret
+    )
+
+    assert summary["target_backend"] == import_restaurant_menu.TARGET_BACKEND_POSTGRES
+    assert summary["rows_loaded"] == 2
+    assert summary["chains_upserted"] == 1
+    assert summary["menu_items_upserted"] == 1
+    assert captured["snapshot_date"] == "2026-04-13"
+    assert captured["source_name"] == "menustat"
+    expected_pg_url = (
+        "postgresql+psycopg://user:pass@db.example.com/pulseplate"  # pragma: allowlist secret
+    )
+    assert captured["pg_url"] == expected_pg_url
+    assert isinstance(captured["rows"], list)
+    assert captured["rows"] == [
+        {
+            "chain_name": "Chain A",
+            "item_name": "Item 1",
+            "source_id": "item-1",
+            "kcal": "500",
+        },
+        {
+            "chain_name": "Chain A",
+            "item_name": "Item 1",
+            "source_id": "item-1",
+            "kcal": "500",
+        },
+    ]
+
+
+def test_run_import_uses_database_url_for_postgres_target(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    csv_path = tmp_path / "menustat_like.csv"
+    csv_path.write_text("restaurant,item_name\nChain A,Item 1\n", encoding="utf-8")
+    monkeypatch.setenv(
+        "DATABASE_URL",
+        "postgresql+psycopg://env-user:env-pass@db/pulseplate",  # pragma: allowlist secret
+    )
+    captured: dict[str, str] = {}
+
+    def _fake_bridge(
+        rows: list[dict[str, object]],
+        *,
+        snapshot_date: str | None,
+        source_name: str,
+        pg_url: str,
+    ) -> dict[str, int]:
+        captured["pg_url"] = pg_url
+        return {"chains_upserted": len(rows), "menu_items_upserted": len(rows)}
+
+    monkeypatch.setattr(
+        import_restaurant_menu.restaurant_postgres_bridge,
+        "import_menustat_rows_to_postgres",
+        _fake_bridge,
+    )
+
+    summary = import_restaurant_menu.run_import(
+        input_path=csv_path,
+        snapshot_date=None,
+        source_name="menustat",
+        target_backend=import_restaurant_menu.TARGET_BACKEND_POSTGRES,
+        db_path=None,
+        pg_url=None,
+    )
+
+    assert summary["target_backend"] == import_restaurant_menu.TARGET_BACKEND_POSTGRES
+    expected_env_pg_url = (
+        "postgresql+psycopg://env-user:env-pass@db/pulseplate"  # pragma: allowlist secret
+    )
+    assert captured["pg_url"] == expected_env_pg_url
+
+
 def test_main_fails_when_input_file_missing(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -106,6 +220,89 @@ def test_main_fails_when_input_file_missing(
     stderr = capsys.readouterr().err
     assert "Import failed:" in stderr
     assert "input file does not exist" in stderr
+
+
+def test_main_fails_when_postgres_target_has_no_database_url(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    csv_path = tmp_path / "ok.csv"
+    csv_path.write_text("restaurant,item_name\nChain A,Item 1\n", encoding="utf-8")
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+
+    exit_code = import_restaurant_menu.main(
+        ["--input", str(csv_path), "--target-backend", "postgres"]
+    )
+
+    assert exit_code == 2
+    stderr = capsys.readouterr().err
+    assert "Import failed:" in stderr
+    assert "postgres target requires --pg-url or DATABASE_URL" in stderr
+
+
+def test_main_fails_when_postgres_target_uses_db_path(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    csv_path = tmp_path / "ok.csv"
+    csv_path.write_text("restaurant,item_name\nChain A,Item 1\n", encoding="utf-8")
+
+    exit_code = import_restaurant_menu.main(
+        [
+            "--input",
+            str(csv_path),
+            "--target-backend",
+            "postgres",
+            "--pg-url",
+            "postgresql+psycopg://user:pass@db/pulseplate",  # pragma: allowlist secret
+            "--db-path",
+            str(tmp_path / "should-not-be-used.sqlite"),
+        ]
+    )
+
+    assert exit_code == 2
+    stderr = capsys.readouterr().err
+    assert "Import failed:" in stderr
+    assert "--db-path is only supported for sqlite target-backend" in stderr
+
+
+def test_run_import_rejects_unknown_target_backend(tmp_path: Path) -> None:
+    csv_path = tmp_path / "ok.csv"
+    csv_path.write_text("restaurant,item_name\nChain A,Item 1\n", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="unsupported target-backend"):
+        import_restaurant_menu.run_import(
+            input_path=csv_path,
+            snapshot_date=None,
+            source_name="menustat",
+            target_backend="bogus",
+            db_path=None,
+            pg_url=None,
+        )
+
+
+def test_main_fail_closed_on_postgres_bridge_error(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    csv_path = tmp_path / "ok.csv"
+    csv_path.write_text("restaurant,item_name\nChain A,Item 1\n", encoding="utf-8")
+
+    def _raise_bridge_error(**_: object) -> dict[str, object]:
+        raise import_restaurant_menu.restaurant_postgres_bridge.RestaurantPostgresBridgeError(
+            "bridge exploded"
+        )
+
+    monkeypatch.setattr(import_restaurant_menu, "run_import", _raise_bridge_error)
+
+    exit_code = import_restaurant_menu.main(["--input", str(csv_path)])
+
+    assert exit_code == 2
+    stderr = capsys.readouterr().err
+    assert "Import failed:" in stderr
+    assert "bridge exploded" in stderr
 
 
 def test_main_fails_when_input_path_is_directory(

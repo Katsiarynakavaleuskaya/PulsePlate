@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import importlib
 import logging
+import math
 import os
 import secrets
 import sys
@@ -29,7 +30,7 @@ from typing import (
 
 import dotenv
 from fastapi import APIRouter, Body, Depends, FastAPI, HTTPException
-from fastapi.responses import HTMLResponse, JSONResponse, Response
+from fastapi.responses import JSONResponse, Response
 from pydantic import (
     BaseModel,
     ConfigDict,
@@ -47,6 +48,10 @@ from settings import get_runtime_env_name, is_explicit_developer_env, is_product
 
 from app.bootstrap.startup_guards import run_startup_guards
 from app.dependencies import validate_template_dir
+from app.http_error_details import (
+    ENHANCED_PLATE_GENERATION_FAILED_DETAIL,
+    INVALID_PREMIUM_PLATE_INPUT_DETAIL,
+)
 from app.routers.api_key import api_key_header
 from app.routers.bmi import router as bmi_router
 from app.routers.bmi_pro import router as bmi_pro_router
@@ -82,6 +87,7 @@ from app.schemas.premium_contracts import (
 from app.schemas.nutrition_targets import TargetsIn as CanonicalTargetsIn
 from app.services import recipe_store
 from app.services.food_store import get_food
+from app.services.intervention_trigger_engine import build_targets_next_action
 
 # tegacy BMI helpers removed from request-path (PR-457=A)
 # /plan now delegates to canonical BMI engine via compat layer
@@ -385,8 +391,8 @@ except ImportError:
 
 # Only load the local .env automatically for explicit local/dev environments.
 _env_was_sanitized = "PATH" not in os.environ
-_app_env = (os.getenv("APP_ENV", "") or "").strip().lower()
-_should_load_local_env = _app_env in {"", "local", "dev", "development"}
+_app_env = get_runtime_env_name()
+_should_load_local_env = _app_env in {"local", "dev", "development"}
 if not _env_was_sanitized and _should_load_local_env and os.getenv("PYTEST_CURRENT_TEST") is None:
     dotenv.load_dotenv()
 
@@ -430,11 +436,7 @@ _DEFAULT_GET_UPDATE_SCHEDULER = get_update_scheduler
 # Set up logging
 # Configure logging - ensure pytest can capture logs
 # In test environment, use DEBUG level to capture all logs
-_log_level = (
-    logging.DEBUG
-    if os.getenv("APP_ENV") == "test" or os.getenv("ENVIRONMENT") == "test"
-    else logging.INFO
-)
+_log_level = logging.DEBUG if _app_env in {"test", "testing"} else logging.INFO
 logging.basicConfig(level=_log_level, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 bmi_logger = logging.getLogger("app.bmi")
@@ -711,16 +713,18 @@ app = FastAPI(
 
 _OPENAPI_ALLOWED_PREFIXES: tuple[str, ...] = (
     "/api/v1/bmi/",
+    "/api/v1/billing/",
+    "/api/v1/insight/",
     "/api/v1/pro/",
     "/api/v1/vip/",
 )
-_OPENAPI_ALLOWED_EXACT: frozenset[str] = frozenset({"/api/v1/bmi"})
+_OPENAPI_ALLOWED_EXACT: frozenset[str] = frozenset({"/api/v1/bmi", "/api/v1/insight"})
 # Note: /ws is no longer in allowed exact - WebSocket is now at /api/v1/pro/ws
 # which is covered by _OPENAPI_ALLOWED_PREFIXES
 
 
 def _is_openapi_public_path(path: str) -> bool:
-    """Keep OpenAPI surface restricted to canonical BMI/PRO/VIP namespaces."""
+    """Keep OpenAPI surface restricted to canonical public namespaces."""
     if path in _OPENAPI_ALLOWED_EXACT:
         return True
     return any(path.startswith(prefix) for prefix in _OPENAPI_ALLOWED_PREFIXES)
@@ -1012,7 +1016,7 @@ except ImportError as e:  # pragma: no cover
 # Conditionally include test router for non-production environments
 # Reuse _app_env defined earlier (line 302) to avoid duplication
 # Exclude staging from test endpoints for security (staging may be externally accessible)
-if _app_env in {"", "local", "dev", "development", "test"} or (
+if _app_env in {"local", "dev", "development", "test", "testing", "ci"} or (
     _app_env == "staging" and os.getenv("ENABLE_TEST_ROUTES") == "1"
 ):
     try:
@@ -1154,7 +1158,7 @@ async def database_health(session: Session = Depends(get_session)) -> Dict[str, 
 
 
 @app.get("/ready", include_in_schema=False)
-async def ready(session: Session = Depends(get_session)) -> Dict[str, str]:
+async def ready(session: Session = Depends(get_session)) -> Dict[str, object]:
     """RU: Readiness probe (alias для /health/db).
 
     EN: Readiness probe for orchestrators (alias for /health/db).
@@ -1163,7 +1167,22 @@ async def ready(session: Session = Depends(get_session)) -> Dict[str, str]:
     Use this for Kubernetes/Docker readiness checks.
     Hidden from OpenAPI — semantics live in /health/db.
     """
-    return await database_health(session=session)
+    readiness_payload = await database_health(session=session)
+    insight_runtime: dict[str, object] = {"status": "unavailable"}
+
+    try:
+        # RU: Добавляем только безопасную runtime-видимость для insight без секретов.
+        # EN: Add only safe insight runtime visibility without leaking secrets.
+        from llm import get_insight_runtime_readiness
+
+        insight_runtime = get_insight_runtime_readiness()
+    except Exception as exc:
+        logger.warning("Insight runtime readiness unavailable on /ready: %s", exc)
+
+    return {
+        **readiness_payload,
+        "insight_runtime": insight_runtime,
+    }
 
 
 # ---------- Helpers ----------
@@ -1477,235 +1496,6 @@ def add_visualization_if_requested(result: Dict[str, Any], req: BMIRequest) -> N
 # ---------- Misc routes ----------
 
 
-@app.get("/")
-async def root(request: Request) -> HTMLResponse:
-    # Get nonce from middleware
-    nonce = getattr(request.state, "csp_nonce", "")
-    nonce_attr = f' nonce="{nonce}"' if nonce else ""
-
-    # Build HTML with nonce injection - use string replacement to avoid f-string issues
-    html_template = """
-    <!DOCTYPE html>
-    <html lang="en">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>BMI Calculator 2025</title>
-        <style{nonce_attr}>
-            body { font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;
-                   padding: 20px; }
-            form { margin-bottom: 20px; }
-            input, button, select { display: block; margin: 10px 0; padding: 10px; width: 100%; }
-            .result { margin-top: 20px; padding: 10px; border: 1px solid #ccc; }
-            .language-selector { position: absolute; top: 20px; right: 20px; }
-        </style>
-    </head>
-    <body>
-        <div class="language-selector">
-            <label for="language">Language:</label>
-            <select id="language" onchange="changeLanguage()">
-                <option value="en">English</option>
-                <option value="ru">Русский</option>
-                <option value="es">Español</option>
-            </select>
-        </div>
-
-        <h1 id="title">BMI Calculator</h1>
-        <form id="bmiForm">
-            <label for="weight" id="label_weight">Weight (kg):</label>
-            <input type="number" id="weight" step="0.1" required>
-
-            <label for="height" id="label_height">Height (m):</label>
-            <input type="number" id="height" step="0.01" required>
-
-            <label for="age" id="label_age">Age:</label>
-            <input type="number" id="age" required>
-
-            <label for="gender" id="label_gender">Gender:</label>
-            <select id="gender" required>
-                <option value="male" id="option_male">Male</option>
-                <option value="female" id="option_female">Female</option>
-            </select>
-
-            <label for="pregnant" id="label_pregnant">Pregnant:</label>
-            <select id="pregnant">
-                <option value="no" id="option_pregnant_no">No</option>
-                <option value="yes" id="option_pregnant_yes">Yes</option>
-            </select>
-
-            <label for="athlete" id="label_athlete">Athlete:</label>
-            <select id="athlete">
-                <option value="no" id="option_athlete_no">No</option>
-                <option value="yes" id="option_athlete_yes">Yes</option>
-            </select>
-
-            <label for="waist" id="label_waist">Waist (cm, optional):</label>
-            <input type="number" id="waist" step="0.1">
-
-            <button type="submit" id="button_calculate">Calculate BMI</button>
-        </form>
-
-        <div id="result" class="result" style="display:none;"></div>
-
-        <script{nonce_attr}>
-            // Language translations
-            const translations = {
-                en: {
-                    title: "BMI Calculator",
-                    label_weight: "Weight (kg):",
-                    label_height: "Height (m):",
-                    label_age: "Age:",
-                    label_gender: "Gender:",
-                    option_male: "Male",
-                    option_female: "Female",
-                    label_pregnant: "Pregnant:",
-                    option_pregnant_no: "No",
-                    option_pregnant_yes: "Yes",
-                    label_athlete: "Athlete:",
-                    option_athlete_no: "No",
-                    option_athlete_yes: "Yes",
-                    label_waist: "Waist (cm, optional):",
-                    button_calculate: "Calculate BMI"
-                },
-                ru: {
-                    title: "Калькулятор ИМТ",
-                    label_weight: "Вес (кг):",
-                    label_height: "Рост (м):",
-                    label_age: "Возраст:",
-                    label_gender: "Пол:",
-                    option_male: "Мужской",
-                    option_female: "Женский",
-                    label_pregnant: "Беременность:",
-                    option_pregnant_no: "Нет",
-                    option_pregnant_yes: "Да",
-                    label_athlete: "Спортсмен:",
-                    option_athlete_no: "Нет",
-                    option_athlete_yes: "Да",
-                    label_waist: "Талия (см, опционально):",
-                    button_calculate: "Рассчитать ИМТ"
-                },
-                es: {
-                    title: "Calculadora de IMC",
-                    label_weight: "Peso (kg):",
-                    label_height: "Altura (m):",
-                    label_age: "Edad:",
-                    label_gender: "Género:",
-                    option_male: "Masculino",
-                    option_female: "Femenino",
-                    label_pregnant: "Embarazada:",
-                    option_pregnant_no: "No",
-                    option_pregnant_yes: "Sí",
-                    label_athlete: "Atleta:",
-                    option_athlete_no: "No",
-                    option_athlete_yes: "Sí",
-                    label_waist: "Cintura (cm, opcional):",
-                    button_calculate: "Calcular IMC"
-                }
-            };
-
-            // Set language from cookie or URL parameter
-            function getLanguage() {
-                // Check URL parameter first
-                const urlParams = new URLSearchParams(window.location.search);
-                if (urlParams.has('lang')) {
-                    return urlParams.get('lang');
-                }
-                // Check cookie
-                const cookies = document.cookie.split(';');
-                for (let cookie of cookies) {
-                    const [name, value] = cookie.trim().split('=');
-                    if (name === 'lang') {
-                        return value;
-                    }
-                }
-                // Default to English
-                return 'en';
-            }
-
-            // Update UI based on selected language
-            function updateUILanguage(lang) {
-                const langCode = translations[lang] ? lang : 'en';
-                const t = translations[langCode];
-
-                // Update text elements
-                document.getElementById('title').textContent = t.title;
-                document.getElementById('label_weight').textContent = t.label_weight;
-                document.getElementById('label_height').textContent = t.label_height;
-                document.getElementById('label_age').textContent = t.label_age;
-                document.getElementById('label_gender').textContent = t.label_gender;
-                document.getElementById('option_male').textContent = t.option_male;
-                document.getElementById('option_female').textContent = t.option_female;
-                document.getElementById('label_pregnant').textContent = t.label_pregnant;
-                document.getElementById('option_pregnant_no').textContent = t.option_pregnant_no;
-                document.getElementById('option_pregnant_yes').textContent = t.option_pregnant_yes;
-                document.getElementById('label_athlete').textContent = t.label_athlete;
-                document.getElementById('option_athlete_no').textContent = t.option_athlete_no;
-                document.getElementById('option_athlete_yes').textContent = t.option_athlete_yes;
-                document.getElementById('label_waist').textContent = t.label_waist;
-                document.getElementById('button_calculate').textContent = t.button_calculate;
-
-                // Set language selector
-                document.getElementById('language').value = langCode;
-            }
-
-            // Set language selector based on current language
-            const currentLang = getLanguage();
-            updateUILanguage(currentLang);
-
-            // Change language function
-            function changeLanguage() {
-                const lang = document.getElementById('language').value;
-                // Set cookie
-                // Security: add SameSite and conditionally Secure under HTTPS.
-                // RU: HttpOnly нельзя выставить из JS — это должен делать сервер.
-                // EN: HttpOnly cannot be set from client-side JS; server must set it.
-                const cookieAttrs = `; path=/; SameSite=Lax${window.location.protocol === 'https:' ? '; Secure' : ''}`;
-                document.cookie = `lang=${lang}${cookieAttrs}`;
-                // Update UI
-                updateUILanguage(lang);
-            }
-
-            document.getElementById('bmiForm').addEventListener('submit', async (e) => {
-                e.preventDefault();
-                const lang = getLanguage();
-                const data = {
-                    weight_kg: parseFloat(document.getElementById('weight').value),
-                    height_m: parseFloat(document.getElementById('height').value),
-                    age: parseInt(document.getElementById('age').value),
-                    gender: document.getElementById('gender').value,
-                    pregnant: document.getElementById('pregnant').value,
-                    athlete: document.getElementById('athlete').value,
-                    waist_cm: document.getElementById('waist').value ?
-                              parseFloat(document.getElementById('waist').value) : null,
-                    lang: lang
-                };
-
-                try {
-                    const response = await fetch('/bmi', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(data)
-                    });
-                    const result = await response.json();
-                    document.getElementById('result').innerHTML = `
-                        <h2>BMI: ${result.bmi}</h2>
-                        <p>Category: ${result.category}</p>
-                        <p>Note: ${result.note}</p>
-                    `;
-                    document.getElementById('result').style.display = 'block';
-                } catch (error) {
-                    document.getElementById('result').innerHTML = '<p>Error calculating BMI</p>';
-                    document.getElementById('result').style.display = 'block';
-                }
-            });
-        </script>
-    </body>
-    </html>
-    """
-    html_content = html_template.replace("{nonce_attr}", nonce_attr)
-    return HTMLResponse(content=html_content)
-
-
 @app.get("/favicon.ico")
 async def favicon() -> Response:
     return Response(status_code=204)
@@ -1722,11 +1512,7 @@ async def health() -> Dict[str, Any]:
 
     # RU: Окружение должно приходить из env. В проде ставим production по умолчанию.
     # EN: Environment must come from env vars. Default to production in prod.
-    environment = (
-        (os.getenv("APP_ENV") or os.getenv("ENVIRONMENT") or os.getenv("ENV") or "production")
-        .strip()
-        .lower()
-    )
+    environment = get_runtime_env_name()
 
     # Get git SHA if available (for version tracking)
     git_sha = _short_git_sha(os.getenv("GIT_SHA"))
@@ -1768,41 +1554,9 @@ async def terms() -> Dict[str, Any]:
     RU: Эндпоинт условий использования для канонической legal-публикации.
     EN: Terms of use endpoint for canonical legal publication.
     """
+    from app.routers.legal import build_terms_endpoint_payload
 
-    return {
-        "terms_of_use": (
-            "PulsePlate provides wellness-oriented planning, nutrition, and coaching-style features. "
-            "It does not provide medical diagnosis, treatment, emergency response, or licensed clinical services."
-        ),
-        "service_scope": {
-            "category": "wellness / nutrition planning / coaching support",
-            "medical_boundary": (
-                "Content is informational and product-guidance only. Users must not treat the service as "
-                "medical, psychiatric, or emergency advice."
-            ),
-            "age_requirement": "The service is intended for adults unless a specific flow states otherwise.",
-        },
-        "billing_and_subscriptions": {
-            "ios_app_store": "Apple-managed digital subscription flow with server-side verification.",
-            "manual_rails": "Operational fallback rails may include ERIP QR or SWIFT manual reconciliation.",
-            "cancellation": "Users manage subscription cancellation in the original purchase channel.",
-            "entitlement_truth": "Subscription entitlement is determined by backend verification and audit state.",
-        },
-        "acceptable_use": {
-            "forbidden": [
-                "attempting to bypass tier controls or payment verification",
-                "submitting unlawful, abusive, or malicious content",
-                "using the service for medical triage or emergency decisions",
-            ],
-            "security_note": "Abuse-prevention and platform-protection controls may block unsafe or fraudulent use.",
-        },
-        "liability_boundary": (
-            "The service is provided on a best-effort basis for wellness support. "
-            "Users remain responsible for critical health, legal, and financial decisions."
-        ),
-        "contact": "For legal or billing questions, please contact the application administrator.",
-        "effective_date": "2026-03-08",
-    }
+    return build_terms_endpoint_payload().model_dump()
 
 
 @app.post("/admin/logs/cleanup", dependencies=[Depends(_get_api_key_dynamic)])
@@ -2204,8 +1958,18 @@ INSIGHT_TEMP_UNAVAILABLE_CODE = "INSIGHT_TEMPORARILY_UNAVAILABLE"
 INSIGHT_TEMP_UNAVAILABLE_MESSAGE = "Insight is temporarily unavailable. Please try again later."
 
 
+from core.ai import (  # noqa: E402
+    DirectInsightProviderStub,
+    InsightProviderLoadError,
+    InsightTransparencyUnavailableError,
+    load_insight_provider as _core_load_insight_provider,
+    require_ai_generated_insight_notice as _core_require_ai_generated_insight_notice,
+)
 from core.insight.llm_provider_loader import (  # noqa: E402
     load_llm_get_provider as _load_llm_get_provider,
+)
+from app.services.insight_application_service import (  # noqa: E402
+    execute_insight_request as _execute_insight_request_via_service,
 )
 from app.security.agent_input_guard import (  # noqa: E402
     require_safe_ai_agent_input,
@@ -2222,122 +1986,48 @@ def _build_rag_source_items(chunks: list[Any]) -> list[RAGSourceItem]:
 def _load_insight_provider() -> Any:
     """Load configured LLM provider with legacy error contract preserved."""
     try:
-        get_provider = _load_llm_get_provider()
-    except Exception as e:
-        raise HTTPException(status_code=503, detail="LLM module is not available") from e
-
-    provider = get_provider()
-    if provider is None:
-        raise HTTPException(status_code=503, detail="No LLM provider configured")
-    return provider
+        return _core_load_insight_provider(provider_factory_loader=_load_llm_get_provider)
+    except InsightProviderLoadError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
 
 
 def _require_ai_generated_insight_notice() -> tuple[str, str]:
     """Return the required transparency notice id and boundary or fail closed."""
-    from core.compliance import get_transparency_registry
-
     try:
-        transparency_notice = get_transparency_registry().get("ai_generated_insight")
-    except Exception as exc:
+        notice = _core_require_ai_generated_insight_notice()
+    except InsightTransparencyUnavailableError as exc:
         raise HTTPException(
             status_code=fastapi_status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="transparency_registry_unavailable",
+            detail=str(exc),
         ) from exc
-    if not isinstance(transparency_notice, dict):
-        raise HTTPException(
-            status_code=fastapi_status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="transparency_registry_unavailable",
-        )
-    surface_id = transparency_notice.get("surface_id")
-    boundary = transparency_notice.get("boundary")
-    if (
-        not isinstance(surface_id, str)
-        or not surface_id
-        or not isinstance(boundary, str)
-        or not boundary
-    ):
-        raise HTTPException(
-            status_code=fastapi_status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="transparency_registry_unavailable",
-        )
-    return surface_id, boundary
+    return notice.surface_id, notice.wellness_boundary
 
 
-class _DirectInsightProviderStub:
-    """Provider stub used when the runtime can answer locally without an LLM call."""
-
-    name = "philosophical_runtime"
-
-    async def generate(self, text: str) -> str:
-        raise RuntimeError("Direct runtime route must not call provider.generate")
+_DirectInsightProviderStub = DirectInsightProviderStub
 
 
 async def _execute_insight_request(
     req: InsightRequest,
     *,
+    route_path: str,
+    user_tier: str,
     subject_id: int | None = None,
 ) -> InsightResponse:
     """Shared /insight execution path with philosophical runtime support."""
-    require_safe_ai_agent_input(req.text)
-    prompt_input = _ensure_insight_text_length(req.text)
-
-    use_rag = str(os.getenv("FEATURE_RAG", "")).strip().lower() in {"1", "true", "on", "yes"}
-    from app.utils.feature_flags import (
-        is_philosophy_linguistic_enabled,
-        is_philosophy_phase12_enabled,
-        is_philosophy_pragmatic_enabled,
-        is_philosophy_router_enabled,
-        is_philosophy_validation_enabled,
-        is_recursive_rag_enabled,
-    )
-    from core.insight.philosophical_runtime import PhilosophicalRuntime
-
-    runtime = PhilosophicalRuntime()
-    philosophy_router_enabled = is_philosophy_router_enabled()
-    philosophy_linguistic_enabled = is_philosophy_linguistic_enabled()
-    decision = runtime.preview_route(
-        text=prompt_input,
-        lang=None,
-        router_enabled=philosophy_router_enabled or philosophy_linguistic_enabled,
-        use_rag=use_rag,
-    )
-    transparency_notice_id, wellness_boundary = _require_ai_generated_insight_notice()
-    provider = (
-        _load_insight_provider() if decision.needs_generation else _DirectInsightProviderStub()
-    )
-    runtime_result = await runtime.generate_insight(
-        text=prompt_input,
-        lang=None,
-        provider=provider,
-        use_rag=use_rag,
-        philo_validation_enabled=is_philosophy_validation_enabled(),
-        recursive_rag_enabled=is_recursive_rag_enabled(),
-        subject_id=subject_id,
-        philosophy_router_enabled=philosophy_router_enabled,
-        philosophy_phase12_enabled=is_philosophy_phase12_enabled(),
-        philosophy_linguistic_enabled=philosophy_linguistic_enabled,
-        philosophy_pragmatic_enabled=is_philosophy_pragmatic_enabled(),
-    )
-    insight_text = runtime_result.insight[:INSIGHT_TEXT_MAX_LENGTH]
-    source_items = [RAGSourceItem(**item) for item in runtime_result.source_dicts]
-    return InsightResponse(
-        provider=runtime_result.provider_name,
-        insight=insight_text,
-        sources=source_items,
-        confidence=runtime_result.confidence,
-        rag_used=runtime_result.rag_used,
-        hops=runtime_result.hops,
-        latency_ms=runtime_result.latency_ms,
-        route_type=runtime_result.metadata.route_type,
-        depth_used=runtime_result.metadata.depth_used,
-        verification_rate=runtime_result.metadata.verification_rate,
-        falsifiability_rate=runtime_result.metadata.falsifiability_rate,
-        contradiction_count=runtime_result.metadata.contradiction_count,
-        reason_codes=runtime_result.metadata.reason_codes,
-        optimization_applied=runtime_result.metadata.optimization_applied,
-        automated_analysis=True,
-        transparency_notice_id=transparency_notice_id,
-        wellness_boundary=wellness_boundary,
+    return cast(
+        InsightResponse,
+        await _execute_insight_request_via_service(
+            req,
+            route_path=route_path,
+            user_tier=user_tier,
+            subject_id=subject_id,
+            input_guard=require_safe_ai_agent_input,
+            provider_loader=_load_insight_provider,
+            transparency_loader=_require_ai_generated_insight_notice,
+            direct_provider_factory=_DirectInsightProviderStub,
+            response_factory=InsightResponse,
+            source_item_factory=RAGSourceItem,
+        ),
     )
 
 
@@ -2357,7 +2047,12 @@ async def insight_v1(
         raise HTTPException(status_code=503, detail="FEATURE_INSIGHT is disabled")
 
     try:
-        return await _execute_insight_request(req, subject_id=subject_id)
+        return await _execute_insight_request(
+            req,
+            route_path="/api/v1/insight",
+            user_tier="VIP",
+            subject_id=subject_id,
+        )
     except HTTPException:
         raise
     except Exception:
@@ -2379,7 +2074,11 @@ async def insight(req: InsightRequest) -> InsightResponse:
         raise HTTPException(status_code=503, detail="FEATURE_INSIGHT is disabled")
 
     try:
-        return await _execute_insight_request(req)
+        return await _execute_insight_request(
+            req,
+            route_path="/insight",
+            user_tier="VIP",
+        )
     except HTTPException:
         raise
     except Exception:
@@ -3208,6 +2907,194 @@ class WeeklyMenuResponse(BaseModel):
     adherence_score: float
 
 
+def _coerce_weekly_menu_float(value: Any, default: float = 0.0) -> float:
+    """Normalize weekly-menu numeric values for legacy compatibility.
+
+    RU: Нормализовать numeric поля недельного меню для legacy-совместимости.
+    EN: Normalize weekly-menu numeric values for legacy compatibility.
+    """
+    if isinstance(value, bool):
+        return default
+    if isinstance(value, (int, float)):
+        try:
+            coerced = float(value)
+        except OverflowError:
+            return default
+        return coerced if math.isfinite(coerced) else default
+    return default
+
+
+def _is_valid_weekly_menu_number(value: Any) -> bool:
+    """Check whether a weekly-menu numeric value is JSON-safe.
+
+    RU: Проверить, что numeric значение weekly menu корректно и конечно.
+    EN: Check that a weekly-menu numeric value is valid and finite.
+    """
+    if not isinstance(value, (int, float)) or isinstance(value, bool):
+        return False
+    try:
+        return math.isfinite(float(value))
+    except OverflowError:
+        return False
+
+
+def _normalize_weekly_menu_number_map(raw_values: Any) -> Dict[str, float]:
+    """Keep only finite numeric values in weekly-menu maps.
+
+    RU: Оставить только конечные numeric значения в weekly-menu словарях.
+    EN: Keep only finite numeric values in weekly-menu dictionaries.
+    """
+    if not isinstance(raw_values, dict):
+        return {}
+
+    return {
+        key: _coerce_weekly_menu_float(value, 0.0)
+        for key, value in raw_values.items()
+        if isinstance(key, str) and _is_valid_weekly_menu_number(value)
+    }
+
+
+def _build_legacy_weekly_menu_response(menu_payload: Dict[str, Any]) -> WeeklyMenuResponse:
+    """Translate canonical VIP weekly payload into legacy weekly-menu response.
+
+    RU: Перевести canonical VIP weekly payload в legacy weekly-menu response.
+    EN: Translate the canonical VIP weekly payload into the legacy weekly-menu response.
+    """
+    raw_daily_menus = menu_payload.get("daily_menus")
+    daily_menus_payload: List[Dict[str, Any]] = []
+    if isinstance(raw_daily_menus, list):
+        for raw_menu in raw_daily_menus:
+            if not isinstance(raw_menu, dict):
+                continue
+            raw_date = raw_menu.get("date")
+            raw_meals = raw_menu.get("meals")
+            if not isinstance(raw_date, str) or not raw_date.strip():
+                continue
+            if not isinstance(raw_meals, list):
+                continue
+            meals = list(raw_meals)
+            raw_total_kcal = raw_menu.get("total_kcal")
+            if not _is_valid_weekly_menu_number(raw_total_kcal):
+                total_kcal = sum(
+                    meal.get("kcal", 0)
+                    for meal in meals
+                    if isinstance(meal, dict) and _is_valid_weekly_menu_number(meal.get("kcal"))
+                )
+            else:
+                total_kcal = raw_total_kcal
+            raw_daily_cost = raw_menu.get("daily_cost")
+            if not _is_valid_weekly_menu_number(raw_daily_cost):
+                raw_daily_cost = raw_menu.get("estimated_cost")
+            daily_menus_payload.append(
+                {
+                    "date": raw_date,
+                    "meals": meals,
+                    "total_kcal": _coerce_weekly_menu_float(total_kcal, 0.0),
+                    "daily_cost": _coerce_weekly_menu_float(raw_daily_cost, 0.0),
+                }
+            )
+
+    weekly_coverage = _normalize_weekly_menu_number_map(menu_payload.get("weekly_coverage"))
+    shopping_list = _normalize_weekly_menu_number_map(menu_payload.get("shopping_list"))
+
+    total_cost = _coerce_weekly_menu_float(menu_payload.get("total_cost"), 0.0)
+    adherence_score = _coerce_weekly_menu_float(menu_payload.get("adherence_score"), 0.0)
+    week_start = menu_payload.get("week_start", "")
+    total_days = len(daily_menus_payload)
+    returned_day_cost_total = sum(
+        _coerce_weekly_menu_float(day.get("daily_cost"), 0.0) for day in daily_menus_payload
+    )
+
+    return WeeklyMenuResponse(
+        week_summary={
+            "week_start": str(week_start),
+            "total_days": total_days,
+            "avg_daily_cost": round(returned_day_cost_total / total_days, 2) if total_days else 0.0,
+        },
+        daily_menus=daily_menus_payload,
+        weekly_coverage=weekly_coverage,
+        shopping_list=shopping_list,
+        total_cost=total_cost,
+        adherence_score=adherence_score,
+    )
+
+
+def _get_app_package_module() -> Optional[Any]:
+    """Return the loaded `app` package module if present.
+
+    RU: Выделено в helper, чтобы тесты не мутировали `sys.modules`.
+    EN: Extracted into a helper so tests can avoid mutating `sys.modules`.
+    """
+
+    import sys as _sys
+
+    return _sys.modules.get("app")
+
+
+def _resolve_package_weekly_menu_export(package_module: Any) -> Optional[Callable[..., Any]]:
+    """Resolve lazy `app.make_weekly_menu` export without surfacing ImportError.
+
+    RU: PEP-562 facade может поднять ImportError при lazy export; для legacy alias
+    это трактуется как «feature unavailable», а не как 500.
+    EN: The PEP-562 facade may raise ImportError during lazy export; for the
+    legacy alias this should mean "feature unavailable", not a 500.
+    """
+
+    try:
+        package_builder = getattr(package_module, "make_weekly_menu", None)
+    except ImportError:
+        return None
+
+    return cast(Callable[..., Any], package_builder) if callable(package_builder) else None
+
+
+def _resolve_legacy_weekly_menu_builder() -> Optional[Callable[..., Any]]:
+    """Resolve the canonical weekly-menu builder for the legacy premium alias.
+
+    RU: Разрешить canonical weekly-menu builder для legacy premium alias.
+    EN: Resolve the canonical weekly-menu builder for the legacy premium alias.
+    """
+
+    def _callable_or_none(value: Any) -> Optional[Callable[..., Any]]:
+        """Return a typed callable or None for explicit override semantics.
+
+        RU: Явно сохраняем семантику override: невызываемое значение означает
+        отключение, а не молчаливый fallback.
+        EN: Preserve explicit override semantics: a non-callable value means
+        disable/override, not a silent fallback.
+        """
+
+        return cast(Callable[..., Any], value) if callable(value) else None
+
+    package_module = _get_app_package_module()
+    package_namespace = getattr(package_module, "__dict__", {}) if package_module else {}
+
+    # RU: Приоритет №1 — явный override в `app.__dict__`.
+    # EN: Priority #1 — explicit override in `app.__dict__`.
+    if "make_weekly_menu" in package_namespace:
+        return _callable_or_none(package_namespace.get("make_weekly_menu"))
+
+    # RU: Приоритет №2 — legacy_app global, если он всё ещё вызываемый.
+    # EN: Priority #2 — legacy_app global, if it is still callable.
+    local_builder = globals().get("make_weekly_menu")
+    resolved_local_builder = _callable_or_none(local_builder)
+    if resolved_local_builder is not None:
+        return resolved_local_builder
+
+    # RU: Если legacy_app.make_weekly_menu временно пропатчен в None, но пакет
+    # `app` по-прежнему экспортирует canonical builder через lazy facade,
+    # используем package export как стабильный fallback.
+    # EN: If legacy_app.make_weekly_menu is temporarily patched to None while the
+    # `app` package still exports the canonical builder through the lazy facade,
+    # use the package export as the stable fallback.
+    if package_module is None:
+        return None
+
+    # RU: Приоритет №3 — lazy package export через `app.__getattr__`.
+    # EN: Priority #3 — lazy package export via `app.__getattr__`.
+    return _resolve_package_weekly_menu_export(package_module)
+
+
 class WeeklyPlanFlexibleRequest(BaseModel):
     # Either 'targets' or a lightweight user profile
     targets: Optional[Dict[str, Any]] = None
@@ -3786,7 +3673,7 @@ async def _compute_premium_plate(req: PlateRequest) -> PlateResponse:
                 diet_flags=diet_flags_str,
             )
         except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
+            raise HTTPException(status_code=400, detail=INVALID_PREMIUM_PLATE_INPUT_DETAIL) from exc
 
         # Sanitize plate data
         plate_data = sanitize_plate_data(plate_data_raw)
@@ -3882,16 +3769,12 @@ async def _compute_premium_plate(req: PlateRequest) -> PlateResponse:
         if _is_missing_nh3_error(e):
             _raise_missing_nh3_http_error(e)
         logger.error("premium_plate validation error: %s", e)
-        raise HTTPException(
-            status_code=400, detail=f"Enhanced plate generation failed: {str(e)}"
-        ) from e
+        raise HTTPException(status_code=400, detail=ENHANCED_PLATE_GENERATION_FAILED_DETAIL) from e
     except Exception as e:
         if _is_missing_nh3_error(e):
             _raise_missing_nh3_http_error(e)
         logger.error(f"premium_plate error: {e}")
-        raise HTTPException(
-            status_code=500, detail=f"Enhanced plate generation failed: {str(e)}"
-        ) from e
+        raise HTTPException(status_code=500, detail=ENHANCED_PLATE_GENERATION_FAILED_DETAIL) from e
 
 
 @app.post(
@@ -4275,6 +4158,7 @@ def _fallback_targets_response(
             warnings.append({"code": "life_stage", "message": reason})
 
     ui_labels = build_who_targets_ui_labels(req.lang)
+    next_best_action = build_targets_next_action(kcal_daily=int(kcal_daily))
 
     return WHOTargetsResponse(
         kcal_daily=int(kcal_daily),
@@ -4290,6 +4174,7 @@ def _fallback_targets_response(
         calculation_date=time.strftime("%Y-%m-%d"),
         warnings=warnings,
         ui_labels=ui_labels,
+        next_best_action=next_best_action,
     )
 
 
@@ -4393,8 +4278,11 @@ def _generate_who_targets_response(
                             _safety_failure_count,
                         )
 
+        kcal_daily = _clamp_daily_kcal(targets.kcal_daily)
+        next_best_action = build_targets_next_action(kcal_daily=kcal_daily)
+
         return WHOTargetsResponse(
-            kcal_daily=_clamp_daily_kcal(targets.kcal_daily),
+            kcal_daily=kcal_daily,
             macros={
                 "protein_g": targets.macros.protein_g,
                 "fat_g": targets.macros.fat_g,
@@ -4413,6 +4301,7 @@ def _generate_who_targets_response(
             calculation_date=targets.calculation_date,
             warnings=life_stage_warnings,
             ui_labels=build_who_targets_ui_labels(req.lang),
+            next_best_action=next_best_action,
         )
     except HTTPException:
         raise
@@ -4489,9 +4378,12 @@ async def api_who_targets(payload: Dict[str, Any] = Body(...)) -> WHOTargetsResp
     "/api/v1/premium/plan/week",
     dependencies=[Depends(_get_api_key_dynamic)],
     response_model=WeeklyMenuResponse,
+    include_in_schema=False,
     deprecated=True,
 )
-async def api_weekly_menu(req: LegacyWeekPlanRequest) -> WeeklyMenuResponse:
+async def api_weekly_menu(
+    req: LegacyWeekPlanRequest,
+) -> WeeklyMenuResponse:
     """
     RU: Генерирует недельный план питания (через core.menu_engine.make_weekly_menu).
     EN: Generate a weekly meal plan using core.menu_engine.make_weekly_menu.
@@ -4507,108 +4399,19 @@ async def api_weekly_menu(req: LegacyWeekPlanRequest) -> WeeklyMenuResponse:
         if _vip_env is None and not VIP_MODULE_ENABLED:
             raise HTTPException(status_code=503, detail="VIP module is disabled")
 
-        # Mode A: targets-only payloads are not yet supported for this endpoint.
-        # For such requests, return a clear validation error instead of leaking 500s.
-        if req.targets is not None and not any(
-            [req.sex, req.age, req.height_cm, req.weight_kg, req.activity]
-        ):
-            raise HTTPException(
-                status_code=422,
-                detail=(
-                    "Targets-based weekly plans are not supported on this endpoint. "
-                    "Provide full profile data or use /api/v1/premium/plan/week-flexible."
-                ),
-            )
-
-        # Resolve make_weekly_menu with preference for package-level patching in tests
-        import sys as _sys
-
-        pkg_mod = _sys.modules.get("app")
-        pkg_override = getattr(pkg_mod, "make_weekly_menu", None) if pkg_mod else None
-        _make_weekly_menu = pkg_override or globals().get("make_weekly_menu")
-        if _make_weekly_menu is None:
+        menu_builder = _resolve_legacy_weekly_menu_builder()
+        if menu_builder is None:
             raise HTTPException(
                 status_code=503, detail="Weekly menu generation feature not available"
             )
 
-        # Convert to UserProfile - validate required fields first
-        from core.targets import UserProfile
+        from app.routers.vip import execute_legacy_premium_week_alias_payload
 
-        if (
-            req.sex is None
-            or req.age is None
-            or req.height_cm is None
-            or req.weight_kg is None
-            or req.activity is None
-        ):
-            raise HTTPException(
-                status_code=422,
-                detail="Required fields missing: sex, age, height_cm, weight_kg, and activity are all required.",
-            )
-
-        profile = UserProfile(
-            sex=req.sex,
-            age=req.age,
-            height_cm=req.height_cm,
-            weight_kg=req.weight_kg,
-            activity=req.activity,
-            goal=req.goal,
-            deficit_pct=req.deficit_pct,
-            surplus_pct=req.surplus_pct,
-            bodyfat=req.bodyfat,
-            diet_flags=set(req.diet_flags or []),
-            life_stage=req.life_stage,
+        menu_payload = await execute_legacy_premium_week_alias_payload(
+            req.model_dump(exclude_none=True),
+            menu_builder=menu_builder,
         )
-
-        # Generate weekly menu via core.menu_engine
-        week_menu = _make_weekly_menu(profile)
-
-        weekly_coverage = getattr(week_menu, "weekly_coverage", {}) or {}
-        if not isinstance(weekly_coverage, dict):
-            weekly_coverage = {}
-
-        shopping_list = getattr(week_menu, "shopping_list", {}) or {}
-        if not isinstance(shopping_list, dict):
-            shopping_list = {}
-
-        total_cost_raw = getattr(week_menu, "total_cost", 0.0)
-        total_cost = float(total_cost_raw) if isinstance(total_cost_raw, (int, float)) else 0.0
-
-        adherence_raw = getattr(week_menu, "adherence_score", 0.0)
-        adherence_score = float(adherence_raw) if isinstance(adherence_raw, (int, float)) else 0.0
-
-        daily_menus = getattr(week_menu, "daily_menus", []) or []
-        daily_menus_payload = []
-        for menu in daily_menus:
-            meals = getattr(menu, "meals", []) or []
-            if not isinstance(meals, (list, tuple)):
-                meals = []
-            date_value = getattr(menu, "date", "")
-            if not isinstance(date_value, str):
-                date_value = str(date_value)
-            daily_cost_raw = getattr(menu, "estimated_cost", 0.0)
-            daily_cost = float(daily_cost_raw) if isinstance(daily_cost_raw, (int, float)) else 0.0
-            daily_menus_payload.append(
-                {
-                    "date": date_value,
-                    "meals": meals,
-                    "total_kcal": sum(meal.get("kcal", 0) for meal in meals) if meals else 0,
-                    "daily_cost": daily_cost,
-                }
-            )
-
-        return WeeklyMenuResponse(
-            week_summary={
-                "week_start": getattr(week_menu, "week_start", ""),
-                "total_days": len(daily_menus_payload),
-                "avg_daily_cost": round(total_cost / 7, 2) if total_cost else 0.0,
-            },
-            daily_menus=daily_menus_payload,
-            weekly_coverage=weekly_coverage,
-            shopping_list=shopping_list,
-            total_cost=total_cost,
-            adherence_score=adherence_score,
-        )
+        return _build_legacy_weekly_menu_response(menu_payload)
 
     except HTTPException:
         # Pass through expected HTTP errors
@@ -4714,15 +4517,14 @@ async def api_nutrient_gaps(req: NutrientGapsRequest) -> NutrientGapsResponse:
 @app.get("/debug_env")
 async def debug_env() -> JSONResponse:
     # Gate /debug_env to avoid leaking environment details in production
-    allowed_envs = {"", "local", "dev", "development", "test"}
     debug_flag = _is_truthy(os.getenv("ENABLE_DEBUG_ENDPOINT"))
-    if os.getenv("APP_ENV", "").strip().lower() not in allowed_envs and not debug_flag:
+    if not is_explicit_developer_env() and not debug_flag:
         raise HTTPException(status_code=404, detail="Not found")
     data = {
         "FEATURE_INSIGHT": os.getenv("FEATURE_INSIGHT", ""),
         "LLM_PROVIDER": os.getenv("LLM_PROVIDER", ""),
-        "GROK_MODEL": os.getenv("GROK_MODEL", ""),
-        "GROK_ENDPOINT": os.getenv("GROK_ENDPOINT", ""),
+        "PERPLEXITY_MODEL": os.getenv("PERPLEXITY_MODEL", ""),
+        "PERPLEXITY_ENDPOINT": os.getenv("PERPLEXITY_ENDPOINT", ""),
     }
     flag = str(os.getenv("FEATURE_INSIGHT", "")).strip().lower()
     data["insight_enabled"] = str(flag in {"1", "true", "yes", "on"})
@@ -4960,7 +4762,7 @@ _export_testing_flag = (
     _is_truthy(os.getenv("TESTING")) if os.getenv("TESTING") is not None else False
 )
 if not _export_testing_flag:
-    _export_app_env = (os.getenv("APP_ENV") or os.getenv("ENVIRONMENT") or "").strip().lower()
+    _export_app_env = get_runtime_env_name()
     if _export_app_env in {"test", "testing", "ci"}:
         _export_testing_flag = True
     elif "pytest" in sys.modules:

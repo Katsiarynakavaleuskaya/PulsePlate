@@ -20,14 +20,15 @@ def _op(path: str, method: str) -> dict[str, Any]:
 
 def test_billing_paths_registered_in_openapi() -> None:
     paths = _paths()
-    assert "/api/v1/pro/payments/apple/verify-receipt" in paths
+    assert "/api/v1/billing/apple/verify-receipt" in paths
     assert "/api/v1/pro/payments/ru-by/manual-intent" in paths
     assert "/api/v1/pro/payments/ru-by/reconcile" in paths
     assert "/api/v1/pro/payments/ru-by/reconcile/{intent_id}" in paths
+    assert "/api/v1/pro/payments/apple/verify-receipt" not in paths
 
 
 def test_billing_request_schema_refs() -> None:
-    apple_ref = _op("/api/v1/pro/payments/apple/verify-receipt", "post")["requestBody"]["content"][
+    apple_ref = _op("/api/v1/billing/apple/verify-receipt", "post")["requestBody"]["content"][
         "application/json"
     ]["schema"]["$ref"]
     manual_ref = _op("/api/v1/pro/payments/ru-by/manual-intent", "post")["requestBody"]["content"][
@@ -42,19 +43,25 @@ def test_billing_request_schema_refs() -> None:
 
 
 def test_billing_security_contract_uses_api_key_header() -> None:
-    security = _op("/api/v1/pro/payments/apple/verify-receipt", "post")["security"]
+    security = _op("/api/v1/billing/apple/verify-receipt", "post")["security"]
     assert {"APIKeyHeader": []} in security
 
 
 def test_billing_routes_document_401_auth_failures() -> None:
     for path, method in (
-        ("/api/v1/pro/payments/apple/verify-receipt", "post"),
+        ("/api/v1/billing/apple/verify-receipt", "post"),
         ("/api/v1/pro/payments/ru-by/manual-intent", "post"),
         ("/api/v1/pro/payments/ru-by/reconcile", "post"),
         ("/api/v1/pro/payments/ru-by/reconcile/{intent_id}", "get"),
     ):
         responses = _op(path, method)["responses"]
         assert "401" in responses, f"Missing 401 response contract for {method.upper()} {path}"
+
+
+def test_billing_apple_verify_openapi_uses_new_response_model() -> None:
+    apple_op = _op("/api/v1/billing/apple/verify-receipt", "post")
+    response_ref = apple_op["responses"]["200"]["content"]["application/json"]["schema"]["$ref"]
+    assert response_ref == "#/components/schemas/AppleReceiptVerificationResponse"
 
 
 def test_manual_intent_source_is_manual_only_in_openapi() -> None:

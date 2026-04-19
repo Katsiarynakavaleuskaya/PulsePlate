@@ -7,12 +7,14 @@ EN: Access to FoodDB (SQLite) with FTS and alias expansion.
 
 from contextlib import contextmanager
 import csv
+import json
+import math
 import sqlite3
 from pathlib import Path
 import logging
 import os
 import re
-from typing import Any, Dict, Iterator, List, Optional, Mapping, Protocol, Sequence, Tuple
+from typing import Any, Callable, Dict, Iterator, List, Optional, Mapping, Protocol, Sequence, Tuple
 import threading
 from collections import defaultdict
 
@@ -43,10 +45,15 @@ MAX_LIMIT: int = 100
 DEFAULT_PER_G: float = 100.0
 FEATURE_FOOD_SEARCH_COMPAT_ENABLED = "FEATURE_FOOD_SEARCH_COMPAT_ENABLED"
 FEATURE_FOOD_SEARCH_SEMANTIC_ENABLED = "FEATURE_FOOD_SEARCH_SEMANTIC_ENABLED"
+FOOD_SEARCH_BACKEND_STRATEGY = "FOOD_SEARCH_BACKEND_STRATEGY"
 FOOD_SEARCH_SEMANTIC_CANDIDATE_LIMIT = "FOOD_SEARCH_SEMANTIC_CANDIDATE_LIMIT"
 DEFAULT_SEMANTIC_CANDIDATE_LIMIT = 250
 BARCODE_MIN_LEN = 8
 BARCODE_MAX_LEN = 14
+
+# Cache: resolved DB path -> whether `foods.nutrition_confidence` exists (additive column).
+_NUTRITION_CONFIDENCE_COLUMN_CACHE: Dict[str, bool] = {}
+_NUTRITION_CONFIDENCE_CACHE_LOCK = threading.Lock()
 
 DEFAULT_ALIASES: Dict[str, List[str]] = {
     # RU/EN/ES базовые соответствия; расширяй из своего alias CSV
@@ -99,6 +106,160 @@ _FOOD_SOURCE_ATTRIBUTION_REGISTRY: Dict[str, Dict[str, str | None]] = {
     },
 }
 _FOOD_ATTRIBUTION_DEFAULT_KEYS: Tuple[str, ...] = ("usda", "open food facts")
+
+
+def _foods_db_cache_key() -> str:
+    """Backward-compatible cache key for the configured DB path.
+
+    RU: Этот helper смотрит только на настроенный глобальный путь и нужен там,
+    где реального sqlite-соединения ещё нет.
+    EN: This helper is intentionally path-only; connection-aware cache invalidation
+    lives in `_foods_db_cache_key_for_connection(...)`.
+    """
+
+    try:
+        return str(DB_PATH.resolve())
+    except OSError:
+        return str(DB_PATH)
+
+
+def _foods_db_cache_key_for_connection(con: sqlite3.Connection) -> str | None:
+    """Return a stable cache key for real SQLite connections only.
+
+    RU: Для mock/stub подключений отключаем глобальный cache, чтобы порядок тестов
+    не влиял на pragma-result.
+    EN: Disable global cache for mock/stub connections to avoid suite-order coupling.
+    This helper intentionally tracks the live connection file state, so pragma cache
+    invalidates when the underlying SQLite file changes in place.
+    """
+
+    if not isinstance(con, sqlite3.Connection):
+        return None
+    try:
+        database_rows = con.execute("PRAGMA database_list").fetchall()
+    except sqlite3.Error:
+        database_path = DB_PATH
+    else:
+        main_db_path_str = next(
+            (
+                str(row[2]).strip()
+                for row in database_rows
+                if len(row) >= 3 and str(row[1]) == "main"
+            ),
+            "",
+        )
+        if not main_db_path_str or main_db_path_str == ":memory:":
+            return None
+        database_path = Path(main_db_path_str)
+
+    try:
+        resolved_path = database_path.resolve()
+    except OSError:
+        resolved_path = database_path
+
+    try:
+        stat_result = resolved_path.stat()
+    except OSError:
+        return str(resolved_path)
+    return f"{resolved_path}:{stat_result.st_mtime_ns}:{stat_result.st_size}"
+
+
+def _foods_has_nutrition_confidence_column(con: sqlite3.Connection) -> bool:
+    """
+    Return True when the local `foods` table includes additive aggregate confidence.
+
+    Older shipped food.sqlite files may omit this column; search/list SQL must stay compatible.
+    """
+
+    cache_key = _foods_db_cache_key_for_connection(con)
+    if cache_key is not None:
+        with _NUTRITION_CONFIDENCE_CACHE_LOCK:
+            cached = _NUTRITION_CONFIDENCE_COLUMN_CACHE.get(cache_key)
+        if cached is not None:
+            return cached
+    try:
+        info_rows = con.execute("PRAGMA table_info(foods)").fetchall()
+    except sqlite3.Error:
+        has_col = False
+    else:
+        has_col = any(str(row[1]) == "nutrition_confidence" for row in info_rows)
+    if cache_key is not None:
+        with _NUTRITION_CONFIDENCE_CACHE_LOCK:
+            _NUTRITION_CONFIDENCE_COLUMN_CACHE[cache_key] = has_col
+    return has_col
+
+
+def _invalidate_foods_nutrition_confidence_cache(con: sqlite3.Connection) -> None:
+    """Drop the cached pragma result for the active SQLite database."""
+
+    cache_key = _foods_db_cache_key_for_connection(con)
+    if cache_key is None:
+        return
+    with _NUTRITION_CONFIDENCE_CACHE_LOCK:
+        _NUTRITION_CONFIDENCE_COLUMN_CACHE.pop(cache_key, None)
+
+
+def _is_missing_nutrition_confidence_column_error(exc: sqlite3.OperationalError) -> bool:
+    """Return True only for the additive legacy-schema failure we intentionally recover from."""
+
+    return bool(
+        re.search(
+            r"no such column:\s*(?:\w+\.)?nutrition_confidence\b",
+            str(exc),
+            re.IGNORECASE,
+        )
+    )
+
+
+def _execute_foods_query_with_legacy_retry(
+    con: sqlite3.Connection,
+    build_query: Callable[[bool], tuple[str, Sequence[Any]]],
+) -> list[sqlite3.Row]:
+    """Execute a foods read query with one legacy-schema retry.
+
+    RU: Повторяем только при additive-ошибке отсутствующей колонки.
+    EN: Retry only for the additive missing-column case; other SQL errors must surface.
+    """
+
+    has_conf = _foods_has_nutrition_confidence_column(con)
+    sql, params = build_query(has_conf)
+    try:
+        return con.execute(sql, params).fetchall()
+    except sqlite3.OperationalError as exc:
+        if not has_conf or not _is_missing_nutrition_confidence_column_error(exc):
+            raise
+    _invalidate_foods_nutrition_confidence_cache(con)
+    fallback_sql, fallback_params = build_query(False)
+    return con.execute(fallback_sql, fallback_params).fetchall()
+
+
+def reset_foods_nutrition_confidence_column_cache() -> None:
+    """Clear pragma cache (tests and in-place DB file replacements)."""
+
+    with _NUTRITION_CONFIDENCE_CACHE_LOCK:
+        _NUTRITION_CONFIDENCE_COLUMN_CACHE.clear()
+
+
+def _coerce_nutrient_confidence_map(raw: object) -> dict[str, float]:
+    """Normalize per-nutrient confidence values to finite non-negative floats."""
+
+    if not isinstance(raw, dict):
+        return {}
+    out: dict[str, float] = {}
+    for key, item in raw.items():
+        sk = str(key)
+        if isinstance(item, (int, float)) and not isinstance(item, bool):
+            val = float(item)
+        elif isinstance(item, str):
+            try:
+                val = float(item.strip())
+            except (TypeError, ValueError):
+                continue
+        else:
+            continue
+        if math.isfinite(val) and val >= 0.0:
+            out[sk] = val
+    return out
 
 
 def _safe_float(value: int | float | str | None) -> float:
@@ -395,6 +556,7 @@ class _BootstrapSemanticSearchBackend:
 _LEGACY_SEARCH_BACKEND: FoodSearchBackend = _LegacyFoodSearchBackend()
 _COMPAT_SEARCH_BACKEND: FoodSearchBackend | None = None
 _SEMANTIC_SEARCH_BACKEND: FoodSearchBackend | None = None
+_STRATEGY_SEARCH_BACKEND: FoodSearchBackend | None = None
 _SEARCH_BACKEND_LOCK = threading.Lock()
 
 
@@ -405,7 +567,7 @@ class FoodRepository:
     def get_by_id(food_id: str) -> Optional[Dict[str, Any]]:
         with _connect() as con:
             row = con.execute("SELECT * FROM foods WHERE id = ?", (food_id,)).fetchone()
-        return dict(row) if row else None
+        return _normalize_food_row(dict(row)) if row else None
 
     @staticmethod
     def get_by_gtin(gtin: str) -> Optional[Dict[str, Any]]:
@@ -413,7 +575,60 @@ class FoodRepository:
             row = con.execute(
                 "SELECT * FROM foods WHERE gtin = ? ORDER BY id ASC LIMIT 1", (gtin,)
             ).fetchone()
-        return dict(row) if row else None
+        return _normalize_food_row(dict(row)) if row else None
+
+
+def _normalize_food_row(row: Dict[str, Any]) -> Dict[str, Any]:
+    """Parse additive JSON fields from SQLite rows when present."""
+
+    normalized = dict(row)
+    raw_inputs = normalized.get("nutrition_inputs_json")
+    if isinstance(raw_inputs, str):
+        try:
+            parsed_inputs = json.loads(raw_inputs)
+        except (TypeError, ValueError):
+            parsed_inputs = []
+        normalized["nutrition_inputs"] = parsed_inputs if isinstance(parsed_inputs, list) else []
+    elif isinstance(raw_inputs, list):
+        normalized["nutrition_inputs"] = list(raw_inputs)
+
+    raw_provenance = normalized.get("nutrition_provenance_json")
+    if isinstance(raw_provenance, str):
+        try:
+            parsed_provenance = json.loads(raw_provenance)
+        except (TypeError, ValueError):
+            parsed_provenance = {}
+        normalized["nutrition_provenance"] = (
+            parsed_provenance if isinstance(parsed_provenance, dict) else {}
+        )
+    elif isinstance(raw_provenance, dict):
+        normalized["nutrition_provenance"] = dict(raw_provenance)
+
+    if "nutrition_confidence" in normalized and normalized["nutrition_confidence"] is None:
+        normalized["nutrition_confidence"] = 0.0
+
+    raw_nut_conf = normalized.get("nutrition_nutrient_confidence_json")
+    if isinstance(raw_nut_conf, str):
+        try:
+            parsed_nut_conf = json.loads(raw_nut_conf)
+        except (TypeError, ValueError):
+            parsed_nut_conf = {}
+        normalized["nutrition_nutrient_confidence"] = _coerce_nutrient_confidence_map(
+            parsed_nut_conf
+        )
+    elif isinstance(raw_nut_conf, dict):
+        normalized["nutrition_nutrient_confidence"] = _coerce_nutrient_confidence_map(raw_nut_conf)
+
+    normalized.setdefault("nutrition_inputs", [])
+    normalized.setdefault("nutrition_provenance", {})
+    normalized.setdefault("nutrition_confidence", 0.0)
+    normalized.setdefault("nutrition_nutrient_confidence", {})
+    if isinstance(normalized.get("nutrition_nutrient_confidence"), dict):
+        normalized["nutrition_nutrient_confidence"] = _coerce_nutrient_confidence_map(
+            normalized["nutrition_nutrient_confidence"]
+        )
+
+    return normalized
 
 
 def _is_truthy_env(value: str | None) -> bool:
@@ -469,6 +684,15 @@ def _semantic_candidate_limit() -> int:
     return min(parsed, 5000)
 
 
+def get_search_backend_strategy() -> str:
+    """Return normalized backend strategy for additive search adapters."""
+
+    strategy = (os.getenv(FOOD_SEARCH_BACKEND_STRATEGY) or "baseline_fts").strip().lower()
+    if strategy not in {"baseline_fts", "meili", "hybrid_shadow"}:
+        return "baseline_fts"
+    return strategy
+
+
 def _load_semantic_candidates(limit: int) -> List[Dict[str, Any]]:
     """
     Load semantic candidate rows directly from foods table.
@@ -477,11 +701,23 @@ def _load_semantic_candidates(limit: int) -> List[Dict[str, Any]]:
     EN: Loads candidates directly from foods, bypassing search pagination clamp.
     """
     with _connect() as con:
-        rows = con.execute(
-            "SELECT id, canonical_name, kcal, protein_g, fat_g, carbs_g "
-            "FROM foods ORDER BY id ASC LIMIT ?",
-            (limit,),
-        ).fetchall()
+        rows = _execute_foods_query_with_legacy_retry(
+            con,
+            lambda has_conf: (
+                (
+                    (
+                        "SELECT id, canonical_name, kcal, protein_g, fat_g, carbs_g, "
+                        "nutrition_confidence FROM foods ORDER BY id ASC LIMIT ?"
+                    )
+                    if has_conf
+                    else (
+                        "SELECT id, canonical_name, kcal, protein_g, fat_g, carbs_g "
+                        "FROM foods ORDER BY id ASC LIMIT ?"
+                    )
+                ),
+                (limit,),
+            ),
+        )
     return [dict(row) for row in rows]
 
 
@@ -518,9 +754,29 @@ def register_search_backend_adapter(adapter: FoodSearchBackend | None) -> None:
         _COMPAT_SEARCH_BACKEND = adapter
 
 
+def register_strategy_search_backend_adapter(adapter: FoodSearchBackend | None) -> None:
+    """Register additive strategy search backend adapter."""
+
+    global _STRATEGY_SEARCH_BACKEND
+    with _SEARCH_BACKEND_LOCK:
+        _STRATEGY_SEARCH_BACKEND = adapter
+
+
 def reset_search_backend_adapter() -> None:
     """Reset compatibility search backend adapter to legacy-only state."""
     register_search_backend_adapter(None)
+
+
+def reset_strategy_search_backend_adapter() -> None:
+    """Reset additive strategy backend adapter."""
+
+    register_strategy_search_backend_adapter(None)
+
+
+def get_legacy_search_backend() -> FoodSearchBackend:
+    """Expose legacy backend for additive wrappers."""
+
+    return _LEGACY_SEARCH_BACKEND
 
 
 def get_search_backend() -> FoodSearchBackend:
@@ -532,6 +788,9 @@ def get_search_backend() -> FoodSearchBackend:
     with _SEARCH_BACKEND_LOCK:
         compat_backend = _COMPAT_SEARCH_BACKEND
         semantic_backend = _SEMANTIC_SEARCH_BACKEND
+        strategy_backend = _STRATEGY_SEARCH_BACKEND
+    if get_search_backend_strategy() != "baseline_fts" and strategy_backend is not None:
+        return strategy_backend
     if _use_semantic_search_backend():
         return _resolve_semantic_backend(semantic_backend=semantic_backend)
     if _use_compat_search_backend() and compat_backend is not None:
@@ -707,33 +966,44 @@ def search_foods(query: str, limit: int | str = 20, offset: int | str = 0) -> Li
     # Validate and normalize pagination parameters
     limit, offset = _validate_pagination_params(limit, offset)
     terms = expand_query(query) if query else []
-    params: List[Any] = []
-    if terms:
-        # Query uses parameter placeholders for all user inputs;
-        # only the number of placeholders is constructed dynamically.
-        # Safe but consider phrase/prefix search (e.g., "term*" for prefix matching)
-        # for better FTS behavior in future enhancements.
-        # Dynamic SQL construction: only clause count is dynamic, all values use placeholders
-        # This is safe because we only construct the number of OR clauses, not the actual values
-        sql = (
-            """
+
+    def _build_query(has_conf: bool) -> tuple[str, Sequence[Any]]:
+        if terms:
+            sql_prefix = (
+                """
+          SELECT f.id, f.canonical_name, f.kcal, f.protein_g, f.fat_g, f.carbs_g,
+                 f.nutrition_confidence
+          FROM foods f
+          JOIN foods_fts ff ON ff.rowid = f.rowid
+          WHERE"""
+                if has_conf
+                else """
           SELECT f.id, f.canonical_name, f.kcal, f.protein_g, f.fat_g, f.carbs_g
           FROM foods f
           JOIN foods_fts ff ON ff.rowid = f.rowid
-          WHERE """
-            + " OR ".join(
-                ["ff.canonical_name MATCH ?"] * len(terms)
-            )  # nosec B608: safe - only clause count is dynamic, all values use placeholders
-            + " LIMIT ? OFFSET ?"
-        )
-        params = [*terms, limit, offset]
-    else:
-        sql = (
-            "SELECT id, canonical_name, kcal, protein_g, fat_g, carbs_g FROM foods LIMIT ? OFFSET ?"
-        )
-        params = [limit, offset]
+          WHERE"""
+            )
+            sql = (
+                sql_prefix
+                + " "
+                + " OR ".join(["ff.canonical_name MATCH ?"] * len(terms))
+                + " LIMIT ? OFFSET ?"
+            )
+            return sql, [*terms, limit, offset]
+        if has_conf:
+            sql = (
+                "SELECT id, canonical_name, kcal, protein_g, fat_g, carbs_g, "
+                "nutrition_confidence FROM foods LIMIT ? OFFSET ?"
+            )
+        else:
+            sql = (
+                "SELECT id, canonical_name, kcal, protein_g, fat_g, carbs_g "
+                "FROM foods LIMIT ? OFFSET ?"
+            )
+        return sql, [limit, offset]
+
     with _connect() as con:
-        rows = con.execute(sql, params).fetchall()
+        rows = _execute_foods_query_with_legacy_retry(con, _build_query)
     return [dict(r) for r in rows]
 
 

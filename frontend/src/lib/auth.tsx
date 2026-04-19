@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect, useRef, useCallback, ReactNode } from 'react';
 import { getStoredApiKey, clearStoredApiKey } from '../auth/storage';
 import { checkProSession, clearProSession, exchangeApiKeyForSession } from '../api/client';
+import { dispatchPremiumChangeEvent } from './premiumEvents';
 
 const MIN_API_KEY_LENGTH = 20;
 const AUTH_PROMPT_DELAY_MS = 500;
@@ -112,6 +113,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       setIsAuthenticated(sessionActive);
       setApiKeyState(sessionActive ? SESSION_AUTH_SENTINEL : null);
       setIsLoading(false);
+      dispatchPremiumChangeEvent();
       if (!sessionActive) {
         scheduleAuthPrompt();
       } else {
@@ -152,6 +154,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     setIsAuthenticated(true);
     setApiKeyState(SESSION_AUTH_SENTINEL);
     setShowAuthPrompt(false);
+    dispatchPremiumChangeEvent();
   };
 
   const clearApiKey = async () => {
@@ -164,6 +167,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
     setIsAuthenticated(false);
     setApiKeyState(null);
+    dispatchPremiumChangeEvent();
     scheduleAuthPrompt();
   };
 

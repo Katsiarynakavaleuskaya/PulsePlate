@@ -11,16 +11,17 @@ from typing import Dict, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel
+from settings import get_runtime_env_name
 
 
 def _ensure_non_production() -> None:
     """
     Guard test routes from being used in production.
 
-    This is evaluated per-request so tests that toggle APP_ENV still work even
-    if the router was included earlier in the process lifecycle.
+    This is evaluated per-request so tests that toggle runtime env still work
+    even if the router was included earlier in the process lifecycle.
     """
-    env = (os.getenv("APP_ENV", "") or "").strip().lower()
+    env = get_runtime_env_name()
     if env == "production":
         raise HTTPException(status_code=404, detail="Test endpoints disabled in production")
 

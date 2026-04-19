@@ -8,6 +8,7 @@ pipeline.
 Use it with:
 
 - `docs/design/TOKENS_SOT.md`
+- `docs/design/COLOR_PROFILE_GOVERNANCE.md`
 - `docs/runbooks/DESIGN_TOOLING_OPERATING_MODEL.md`
 - `docs/figma/FIGMA_IMPLEMENTATION_RUNBOOK.md`
 - `docs/runbooks/FIGMA_MCP_DESIGN_SYSTEM_RULES.md`
@@ -57,6 +58,13 @@ shipped web or iOS surfaces without reviewed promotion into git.
 - HPP token guidance doc: `frontend/src/stories/HppTokenGuidelines.mdx`
 
 Review tooling validates implemented consumers. It does not define token canon.
+
+Color-profile rule:
+
+- Token artifacts define semantic color meaning and runtime ownership.
+- `docs/design/COLOR_PROFILE_GOVERNANCE.md` defines the runtime/export profile
+  baseline (`sRGB`) and the optional `Display P3` asset lane above this token
+  pipeline.
 
 ## 4. Artifact roles
 
@@ -150,6 +158,7 @@ Current rule:
 ## 10. Related docs
 
 - `docs/design/TOKENS_SOT.md`
+- `docs/design/COLOR_PROFILE_GOVERNANCE.md`
 - `docs/runbooks/DESIGN_TOOLING_OPERATING_MODEL.md`
 - `docs/figma/FIGMA_IMPLEMENTATION_RUNBOOK.md`
 - `docs/runbooks/FIGMA_MCP_DESIGN_SYSTEM_RULES.md`
