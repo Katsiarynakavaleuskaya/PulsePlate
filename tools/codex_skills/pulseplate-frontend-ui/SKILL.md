@@ -27,19 +27,26 @@ description: Implement frontend UI in PulsePlate style using design tokens and t
    sed -n '1,220p' frontend/tailwind.config.ts
    ```
 
-2. Check existing component patterns:
+2. Load code-first UI naming SoT:
+
+   ```bash
+   sed -n '1,220p' docs/design/UI_COMPONENT_VOCABULARY.md
+   sed -n '1,220p' docs/design/CODE_FIRST_UI_PROMPT_COOKBOOK.md
+   ```
+
+3. Check existing component patterns:
 
    ```bash
    find frontend/src/components/ui -maxdepth 2 -type f | sort
    ```
 
-3. Enforce thin HTTP adapter policy:
+4. Enforce thin HTTP adapter policy:
 
    ```bash
    rg -n "fetch\\(" frontend/src --glob '!frontend/src/api/client.ts'
    ```
 
-4. Validate frontend:
+5. Validate frontend:
 
    ```bash
    cd frontend
@@ -51,6 +58,7 @@ description: Implement frontend UI in PulsePlate style using design tokens and t
 ## Output format
 
 - `UI scope`: touched components/pages.
+- `Canonical components`: vocabulary names selected for this UI.
 - `Token usage`: which semantic tokens were applied.
 - `Policy checks`: thin-client and component pattern checks.
 - `Validation`: test/build results.
@@ -65,6 +73,7 @@ On failure include:
 ## Guardrails
 
 - No ad-hoc hex colors when equivalent semantic tokens exist.
+- Normalize vague UI language into canonical component names before implementation.
 - No direct `fetch()` outside `frontend/src/api/client.ts`.
 - Preserve existing visual language and token hierarchy.
 - Do not claim UI done without `npm test` and `npm run build`.
@@ -75,5 +84,7 @@ On failure include:
 - `frontend/src/styles/tokens.css`
 - `frontend/src/styles/tokens.ts`
 - `frontend/tailwind.config.ts`
+- `docs/design/UI_COMPONENT_VOCABULARY.md`
+- `docs/design/CODE_FIRST_UI_PROMPT_COOKBOOK.md`
 - `frontend/src/components/ui`
 - `frontend/src/api/client.ts`

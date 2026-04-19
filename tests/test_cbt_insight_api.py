@@ -811,6 +811,36 @@ class TestCBTInsightLLMIntegration:
         data = _json_body(response)
         assert "not available" in data["detail"].lower()
 
+    def test_provider_none_returns_503_without_quota_debit(self) -> None:
+        """A missing configured provider must fail before quota consumption."""
+
+        quota_calls: list[str] = []
+
+        self.monkeypatch.setattr(
+            "core.rag.vector_rag.retrieve_context_structured",
+            lambda *args, **kwargs: _make_rag_context(),
+        )
+        self.monkeypatch.setattr("llm.get_provider", lambda: None)
+
+        def _track_quota(*args: object, **kwargs: object) -> bool:
+            quota_calls.append("called")
+            return True
+
+        self.monkeypatch.setattr(
+            "app.services.fitchef_runtime.attempt_consume_llm_monthly_quota",
+            _track_quota,
+        )
+
+        response = self.client.post(
+            self.url,
+            json={"query": "Need advice"},
+            headers=self.pro_headers,
+        )
+
+        assert response.status_code == 503
+        assert _json_body(response) == {"detail": "LLM provider not available"}
+        assert quota_calls == []
+
     def test_llm_empty_response_returns_503(self) -> None:
         """When LLM returns empty response, endpoint returns 503."""
 

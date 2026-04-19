@@ -1,4 +1,3 @@
-import { api } from "../api/client";
 import { Events, log } from "./analytics";
 
 type PurchaseRequest = {
@@ -6,57 +5,22 @@ type PurchaseRequest = {
   via: string;
 };
 
-type PurchaseResponse = {
-  status: "ok" | string;
-  entitlement?: string;
-};
+export const WEB_CHECKOUT_UNAVAILABLE_MESSAGE =
+  "Web upgrade checkout is not available yet. Use the iOS App Store flow today.";
 
 /**
  * RU: Единая purchase-точка для web paywall CTA.
  * EN: Single purchase entrypoint for web paywall CTA.
  */
-export async function purchasePremium(request: PurchaseRequest): Promise<PurchaseResponse> {
-  const response = await api<PurchaseResponse>("/api/purchase", {
-    method: "POST",
-    body: {
-      source: request.source,
-      via: request.via,
-    },
-  });
-
-  if (response.status !== "ok") {
-    try {
-      log(Events.PURCHASE_FAILURE, {
-        source: request.source,
-        via: request.via,
-        status: response.status,
-      });
-    } catch {
-      // Ignore analytics transport failures in purchase flow.
-    }
-    throw new Error("Purchase failed");
-  }
-
-  // RU: После успешной покупки синхронизируем premium-статус в клиенте.
-  // EN: Keep local premium state in sync after successful purchase.
-  if (typeof window !== "undefined") {
-    try {
-      localStorage.setItem("pp_premium", "true");
-      window.dispatchEvent(new Event("pp-premium-change"));
-    } catch {
-      // Ignore local storage synchronization failures.
-    }
-  }
-
+export async function purchasePremium(request: PurchaseRequest): Promise<never> {
   try {
-    log(Events.PURCHASE_SUCCESS, {
+    log(Events.PURCHASE_FAILURE, {
       source: request.source,
       via: request.via,
-      entitlement: response.entitlement ?? "premium",
+      status: "web_checkout_unavailable",
     });
   } catch {
     // Ignore analytics transport failures in purchase flow.
   }
-
-  return response;
+  throw new Error(WEB_CHECKOUT_UNAVAILABLE_MESSAGE);
 }

@@ -30,7 +30,7 @@ from typing import (
 
 import dotenv
 from fastapi import APIRouter, Body, Depends, FastAPI, HTTPException
-from fastapi.responses import HTMLResponse, JSONResponse, Response
+from fastapi.responses import JSONResponse, Response
 from pydantic import (
     BaseModel,
     ConfigDict,
@@ -48,6 +48,10 @@ from settings import get_runtime_env_name, is_explicit_developer_env, is_product
 
 from app.bootstrap.startup_guards import run_startup_guards
 from app.dependencies import validate_template_dir
+from app.http_error_details import (
+    ENHANCED_PLATE_GENERATION_FAILED_DETAIL,
+    INVALID_PREMIUM_PLATE_INPUT_DETAIL,
+)
 from app.routers.api_key import api_key_header
 from app.routers.bmi import router as bmi_router
 from app.routers.bmi_pro import router as bmi_pro_router
@@ -83,6 +87,7 @@ from app.schemas.premium_contracts import (
 from app.schemas.nutrition_targets import TargetsIn as CanonicalTargetsIn
 from app.services import recipe_store
 from app.services.food_store import get_food
+from app.services.intervention_trigger_engine import build_targets_next_action
 
 # tegacy BMI helpers removed from request-path (PR-457=A)
 # /plan now delegates to canonical BMI engine via compat layer
@@ -1153,7 +1158,7 @@ async def database_health(session: Session = Depends(get_session)) -> Dict[str, 
 
 
 @app.get("/ready", include_in_schema=False)
-async def ready(session: Session = Depends(get_session)) -> Dict[str, str]:
+async def ready(session: Session = Depends(get_session)) -> Dict[str, object]:
     """RU: Readiness probe (alias для /health/db).
 
     EN: Readiness probe for orchestrators (alias for /health/db).
@@ -1162,7 +1167,22 @@ async def ready(session: Session = Depends(get_session)) -> Dict[str, str]:
     Use this for Kubernetes/Docker readiness checks.
     Hidden from OpenAPI — semantics live in /health/db.
     """
-    return await database_health(session=session)
+    readiness_payload = await database_health(session=session)
+    insight_runtime: dict[str, object] = {"status": "unavailable"}
+
+    try:
+        # RU: Добавляем только безопасную runtime-видимость для insight без секретов.
+        # EN: Add only safe insight runtime visibility without leaking secrets.
+        from llm import get_insight_runtime_readiness
+
+        insight_runtime = get_insight_runtime_readiness()
+    except Exception as exc:
+        logger.warning("Insight runtime readiness unavailable on /ready: %s", exc)
+
+    return {
+        **readiness_payload,
+        "insight_runtime": insight_runtime,
+    }
 
 
 # ---------- Helpers ----------
@@ -1476,235 +1496,6 @@ def add_visualization_if_requested(result: Dict[str, Any], req: BMIRequest) -> N
 # ---------- Misc routes ----------
 
 
-@app.get("/")
-async def root(request: Request) -> HTMLResponse:
-    # Get nonce from middleware
-    nonce = getattr(request.state, "csp_nonce", "")
-    nonce_attr = f' nonce="{nonce}"' if nonce else ""
-
-    # Build HTML with nonce injection - use string replacement to avoid f-string issues
-    html_template = """
-    <!DOCTYPE html>
-    <html lang="en">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>BMI Calculator 2025</title>
-        <style{nonce_attr}>
-            body { font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;
-                   padding: 20px; }
-            form { margin-bottom: 20px; }
-            input, button, select { display: block; margin: 10px 0; padding: 10px; width: 100%; }
-            .result { margin-top: 20px; padding: 10px; border: 1px solid #ccc; }
-            .language-selector { position: absolute; top: 20px; right: 20px; }
-        </style>
-    </head>
-    <body>
-        <div class="language-selector">
-            <label for="language">Language:</label>
-            <select id="language" onchange="changeLanguage()">
-                <option value="en">English</option>
-                <option value="ru">Русский</option>
-                <option value="es">Español</option>
-            </select>
-        </div>
-
-        <h1 id="title">BMI Calculator</h1>
-        <form id="bmiForm">
-            <label for="weight" id="label_weight">Weight (kg):</label>
-            <input type="number" id="weight" step="0.1" required>
-
-            <label for="height" id="label_height">Height (m):</label>
-            <input type="number" id="height" step="0.01" required>
-
-            <label for="age" id="label_age">Age:</label>
-            <input type="number" id="age" required>
-
-            <label for="gender" id="label_gender">Gender:</label>
-            <select id="gender" required>
-                <option value="male" id="option_male">Male</option>
-                <option value="female" id="option_female">Female</option>
-            </select>
-
-            <label for="pregnant" id="label_pregnant">Pregnant:</label>
-            <select id="pregnant">
-                <option value="no" id="option_pregnant_no">No</option>
-                <option value="yes" id="option_pregnant_yes">Yes</option>
-            </select>
-
-            <label for="athlete" id="label_athlete">Athlete:</label>
-            <select id="athlete">
-                <option value="no" id="option_athlete_no">No</option>
-                <option value="yes" id="option_athlete_yes">Yes</option>
-            </select>
-
-            <label for="waist" id="label_waist">Waist (cm, optional):</label>
-            <input type="number" id="waist" step="0.1">
-
-            <button type="submit" id="button_calculate">Calculate BMI</button>
-        </form>
-
-        <div id="result" class="result" style="display:none;"></div>
-
-        <script{nonce_attr}>
-            // Language translations
-            const translations = {
-                en: {
-                    title: "BMI Calculator",
-                    label_weight: "Weight (kg):",
-                    label_height: "Height (m):",
-                    label_age: "Age:",
-                    label_gender: "Gender:",
-                    option_male: "Male",
-                    option_female: "Female",
-                    label_pregnant: "Pregnant:",
-                    option_pregnant_no: "No",
-                    option_pregnant_yes: "Yes",
-                    label_athlete: "Athlete:",
-                    option_athlete_no: "No",
-                    option_athlete_yes: "Yes",
-                    label_waist: "Waist (cm, optional):",
-                    button_calculate: "Calculate BMI"
-                },
-                ru: {
-                    title: "Калькулятор ИМТ",
-                    label_weight: "Вес (кг):",
-                    label_height: "Рост (м):",
-                    label_age: "Возраст:",
-                    label_gender: "Пол:",
-                    option_male: "Мужской",
-                    option_female: "Женский",
-                    label_pregnant: "Беременность:",
-                    option_pregnant_no: "Нет",
-                    option_pregnant_yes: "Да",
-                    label_athlete: "Спортсмен:",
-                    option_athlete_no: "Нет",
-                    option_athlete_yes: "Да",
-                    label_waist: "Талия (см, опционально):",
-                    button_calculate: "Рассчитать ИМТ"
-                },
-                es: {
-                    title: "Calculadora de IMC",
-                    label_weight: "Peso (kg):",
-                    label_height: "Altura (m):",
-                    label_age: "Edad:",
-                    label_gender: "Género:",
-                    option_male: "Masculino",
-                    option_female: "Femenino",
-                    label_pregnant: "Embarazada:",
-                    option_pregnant_no: "No",
-                    option_pregnant_yes: "Sí",
-                    label_athlete: "Atleta:",
-                    option_athlete_no: "No",
-                    option_athlete_yes: "Sí",
-                    label_waist: "Cintura (cm, opcional):",
-                    button_calculate: "Calcular IMC"
-                }
-            };
-
-            // Set language from cookie or URL parameter
-            function getLanguage() {
-                // Check URL parameter first
-                const urlParams = new URLSearchParams(window.location.search);
-                if (urlParams.has('lang')) {
-                    return urlParams.get('lang');
-                }
-                // Check cookie
-                const cookies = document.cookie.split(';');
-                for (let cookie of cookies) {
-                    const [name, value] = cookie.trim().split('=');
-                    if (name === 'lang') {
-                        return value;
-                    }
-                }
-                // Default to English
-                return 'en';
-            }
-
-            // Update UI based on selected language
-            function updateUILanguage(lang) {
-                const langCode = translations[lang] ? lang : 'en';
-                const t = translations[langCode];
-
-                // Update text elements
-                document.getElementById('title').textContent = t.title;
-                document.getElementById('label_weight').textContent = t.label_weight;
-                document.getElementById('label_height').textContent = t.label_height;
-                document.getElementById('label_age').textContent = t.label_age;
-                document.getElementById('label_gender').textContent = t.label_gender;
-                document.getElementById('option_male').textContent = t.option_male;
-                document.getElementById('option_female').textContent = t.option_female;
-                document.getElementById('label_pregnant').textContent = t.label_pregnant;
-                document.getElementById('option_pregnant_no').textContent = t.option_pregnant_no;
-                document.getElementById('option_pregnant_yes').textContent = t.option_pregnant_yes;
-                document.getElementById('label_athlete').textContent = t.label_athlete;
-                document.getElementById('option_athlete_no').textContent = t.option_athlete_no;
-                document.getElementById('option_athlete_yes').textContent = t.option_athlete_yes;
-                document.getElementById('label_waist').textContent = t.label_waist;
-                document.getElementById('button_calculate').textContent = t.button_calculate;
-
-                // Set language selector
-                document.getElementById('language').value = langCode;
-            }
-
-            // Set language selector based on current language
-            const currentLang = getLanguage();
-            updateUILanguage(currentLang);
-
-            // Change language function
-            function changeLanguage() {
-                const lang = document.getElementById('language').value;
-                // Set cookie
-                // Security: add SameSite and conditionally Secure under HTTPS.
-                // RU: HttpOnly нельзя выставить из JS — это должен делать сервер.
-                // EN: HttpOnly cannot be set from client-side JS; server must set it.
-                const cookieAttrs = `; path=/; SameSite=Lax${window.location.protocol === 'https:' ? '; Secure' : ''}`;
-                document.cookie = `lang=${lang}${cookieAttrs}`;
-                // Update UI
-                updateUILanguage(lang);
-            }
-
-            document.getElementById('bmiForm').addEventListener('submit', async (e) => {
-                e.preventDefault();
-                const lang = getLanguage();
-                const data = {
-                    weight_kg: parseFloat(document.getElementById('weight').value),
-                    height_m: parseFloat(document.getElementById('height').value),
-                    age: parseInt(document.getElementById('age').value),
-                    gender: document.getElementById('gender').value,
-                    pregnant: document.getElementById('pregnant').value,
-                    athlete: document.getElementById('athlete').value,
-                    waist_cm: document.getElementById('waist').value ?
-                              parseFloat(document.getElementById('waist').value) : null,
-                    lang: lang
-                };
-
-                try {
-                    const response = await fetch('/bmi', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(data)
-                    });
-                    const result = await response.json();
-                    document.getElementById('result').innerHTML = `
-                        <h2>BMI: ${result.bmi}</h2>
-                        <p>Category: ${result.category}</p>
-                        <p>Note: ${result.note}</p>
-                    `;
-                    document.getElementById('result').style.display = 'block';
-                } catch (error) {
-                    document.getElementById('result').innerHTML = '<p>Error calculating BMI</p>';
-                    document.getElementById('result').style.display = 'block';
-                }
-            });
-        </script>
-    </body>
-    </html>
-    """
-    html_content = html_template.replace("{nonce_attr}", nonce_attr)
-    return HTMLResponse(content=html_content)
-
-
 @app.get("/favicon.ico")
 async def favicon() -> Response:
     return Response(status_code=204)
@@ -1763,41 +1554,9 @@ async def terms() -> Dict[str, Any]:
     RU: Эндпоинт условий использования для канонической legal-публикации.
     EN: Terms of use endpoint for canonical legal publication.
     """
+    from app.routers.legal import build_terms_endpoint_payload
 
-    return {
-        "terms_of_use": (
-            "PulsePlate provides wellness-oriented planning, nutrition, and coaching-style features. "
-            "It does not provide medical diagnosis, treatment, emergency response, or licensed clinical services."
-        ),
-        "service_scope": {
-            "category": "wellness / nutrition planning / coaching support",
-            "medical_boundary": (
-                "Content is informational and product-guidance only. Users must not treat the service as "
-                "medical, psychiatric, or emergency advice."
-            ),
-            "age_requirement": "The service is intended for adults unless a specific flow states otherwise.",
-        },
-        "billing_and_subscriptions": {
-            "ios_app_store": "Apple-managed digital subscription flow with server-side verification.",
-            "manual_rails": "Operational fallback rails may include ERIP QR or SWIFT manual reconciliation.",
-            "cancellation": "Users manage subscription cancellation in the original purchase channel.",
-            "entitlement_truth": "Subscription entitlement is determined by backend verification and audit state.",
-        },
-        "acceptable_use": {
-            "forbidden": [
-                "attempting to bypass tier controls or payment verification",
-                "submitting unlawful, abusive, or malicious content",
-                "using the service for medical triage or emergency decisions",
-            ],
-            "security_note": "Abuse-prevention and platform-protection controls may block unsafe or fraudulent use.",
-        },
-        "liability_boundary": (
-            "The service is provided on a best-effort basis for wellness support. "
-            "Users remain responsible for critical health, legal, and financial decisions."
-        ),
-        "contact": "For legal or billing questions, please contact the application administrator.",
-        "effective_date": "2026-03-08",
-    }
+    return build_terms_endpoint_payload().model_dump()
 
 
 @app.post("/admin/logs/cleanup", dependencies=[Depends(_get_api_key_dynamic)])
@@ -2199,8 +1958,18 @@ INSIGHT_TEMP_UNAVAILABLE_CODE = "INSIGHT_TEMPORARILY_UNAVAILABLE"
 INSIGHT_TEMP_UNAVAILABLE_MESSAGE = "Insight is temporarily unavailable. Please try again later."
 
 
+from core.ai import (  # noqa: E402
+    DirectInsightProviderStub,
+    InsightProviderLoadError,
+    InsightTransparencyUnavailableError,
+    load_insight_provider as _core_load_insight_provider,
+    require_ai_generated_insight_notice as _core_require_ai_generated_insight_notice,
+)
 from core.insight.llm_provider_loader import (  # noqa: E402
     load_llm_get_provider as _load_llm_get_provider,
+)
+from app.services.insight_application_service import (  # noqa: E402
+    execute_insight_request as _execute_insight_request_via_service,
 )
 from app.security.agent_input_guard import (  # noqa: E402
     require_safe_ai_agent_input,
@@ -2217,122 +1986,48 @@ def _build_rag_source_items(chunks: list[Any]) -> list[RAGSourceItem]:
 def _load_insight_provider() -> Any:
     """Load configured LLM provider with legacy error contract preserved."""
     try:
-        get_provider = _load_llm_get_provider()
-    except Exception as e:
-        raise HTTPException(status_code=503, detail="LLM module is not available") from e
-
-    provider = get_provider()
-    if provider is None:
-        raise HTTPException(status_code=503, detail="No LLM provider configured")
-    return provider
+        return _core_load_insight_provider(provider_factory_loader=_load_llm_get_provider)
+    except InsightProviderLoadError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
 
 
 def _require_ai_generated_insight_notice() -> tuple[str, str]:
     """Return the required transparency notice id and boundary or fail closed."""
-    from core.compliance import get_transparency_registry
-
     try:
-        transparency_notice = get_transparency_registry().get("ai_generated_insight")
-    except Exception as exc:
+        notice = _core_require_ai_generated_insight_notice()
+    except InsightTransparencyUnavailableError as exc:
         raise HTTPException(
             status_code=fastapi_status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="transparency_registry_unavailable",
+            detail=str(exc),
         ) from exc
-    if not isinstance(transparency_notice, dict):
-        raise HTTPException(
-            status_code=fastapi_status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="transparency_registry_unavailable",
-        )
-    surface_id = transparency_notice.get("surface_id")
-    boundary = transparency_notice.get("boundary")
-    if (
-        not isinstance(surface_id, str)
-        or not surface_id
-        or not isinstance(boundary, str)
-        or not boundary
-    ):
-        raise HTTPException(
-            status_code=fastapi_status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="transparency_registry_unavailable",
-        )
-    return surface_id, boundary
+    return notice.surface_id, notice.wellness_boundary
 
 
-class _DirectInsightProviderStub:
-    """Provider stub used when the runtime can answer locally without an LLM call."""
-
-    name = "philosophical_runtime"
-
-    async def generate(self, text: str) -> str:
-        raise RuntimeError("Direct runtime route must not call provider.generate")
+_DirectInsightProviderStub = DirectInsightProviderStub
 
 
 async def _execute_insight_request(
     req: InsightRequest,
     *,
+    route_path: str,
+    user_tier: str,
     subject_id: int | None = None,
 ) -> InsightResponse:
     """Shared /insight execution path with philosophical runtime support."""
-    require_safe_ai_agent_input(req.text)
-    prompt_input = _ensure_insight_text_length(req.text)
-
-    use_rag = str(os.getenv("FEATURE_RAG", "")).strip().lower() in {"1", "true", "on", "yes"}
-    from app.utils.feature_flags import (
-        is_philosophy_linguistic_enabled,
-        is_philosophy_phase12_enabled,
-        is_philosophy_pragmatic_enabled,
-        is_philosophy_router_enabled,
-        is_philosophy_validation_enabled,
-        is_recursive_rag_enabled,
-    )
-    from core.insight.philosophical_runtime import PhilosophicalRuntime
-
-    runtime = PhilosophicalRuntime()
-    philosophy_router_enabled = is_philosophy_router_enabled()
-    philosophy_linguistic_enabled = is_philosophy_linguistic_enabled()
-    decision = runtime.preview_route(
-        text=prompt_input,
-        lang=None,
-        router_enabled=philosophy_router_enabled or philosophy_linguistic_enabled,
-        use_rag=use_rag,
-    )
-    transparency_notice_id, wellness_boundary = _require_ai_generated_insight_notice()
-    provider = (
-        _load_insight_provider() if decision.needs_generation else _DirectInsightProviderStub()
-    )
-    runtime_result = await runtime.generate_insight(
-        text=prompt_input,
-        lang=None,
-        provider=provider,
-        use_rag=use_rag,
-        philo_validation_enabled=is_philosophy_validation_enabled(),
-        recursive_rag_enabled=is_recursive_rag_enabled(),
-        subject_id=subject_id,
-        philosophy_router_enabled=philosophy_router_enabled,
-        philosophy_phase12_enabled=is_philosophy_phase12_enabled(),
-        philosophy_linguistic_enabled=philosophy_linguistic_enabled,
-        philosophy_pragmatic_enabled=is_philosophy_pragmatic_enabled(),
-    )
-    insight_text = runtime_result.insight[:INSIGHT_TEXT_MAX_LENGTH]
-    source_items = [RAGSourceItem(**item) for item in runtime_result.source_dicts]
-    return InsightResponse(
-        provider=runtime_result.provider_name,
-        insight=insight_text,
-        sources=source_items,
-        confidence=runtime_result.confidence,
-        rag_used=runtime_result.rag_used,
-        hops=runtime_result.hops,
-        latency_ms=runtime_result.latency_ms,
-        route_type=runtime_result.metadata.route_type,
-        depth_used=runtime_result.metadata.depth_used,
-        verification_rate=runtime_result.metadata.verification_rate,
-        falsifiability_rate=runtime_result.metadata.falsifiability_rate,
-        contradiction_count=runtime_result.metadata.contradiction_count,
-        reason_codes=runtime_result.metadata.reason_codes,
-        optimization_applied=runtime_result.metadata.optimization_applied,
-        automated_analysis=True,
-        transparency_notice_id=transparency_notice_id,
-        wellness_boundary=wellness_boundary,
+    return cast(
+        InsightResponse,
+        await _execute_insight_request_via_service(
+            req,
+            route_path=route_path,
+            user_tier=user_tier,
+            subject_id=subject_id,
+            input_guard=require_safe_ai_agent_input,
+            provider_loader=_load_insight_provider,
+            transparency_loader=_require_ai_generated_insight_notice,
+            direct_provider_factory=_DirectInsightProviderStub,
+            response_factory=InsightResponse,
+            source_item_factory=RAGSourceItem,
+        ),
     )
 
 
@@ -2352,7 +2047,12 @@ async def insight_v1(
         raise HTTPException(status_code=503, detail="FEATURE_INSIGHT is disabled")
 
     try:
-        return await _execute_insight_request(req, subject_id=subject_id)
+        return await _execute_insight_request(
+            req,
+            route_path="/api/v1/insight",
+            user_tier="VIP",
+            subject_id=subject_id,
+        )
     except HTTPException:
         raise
     except Exception:
@@ -2374,7 +2074,11 @@ async def insight(req: InsightRequest) -> InsightResponse:
         raise HTTPException(status_code=503, detail="FEATURE_INSIGHT is disabled")
 
     try:
-        return await _execute_insight_request(req)
+        return await _execute_insight_request(
+            req,
+            route_path="/insight",
+            user_tier="VIP",
+        )
     except HTTPException:
         raise
     except Exception:
@@ -3969,7 +3673,7 @@ async def _compute_premium_plate(req: PlateRequest) -> PlateResponse:
                 diet_flags=diet_flags_str,
             )
         except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
+            raise HTTPException(status_code=400, detail=INVALID_PREMIUM_PLATE_INPUT_DETAIL) from exc
 
         # Sanitize plate data
         plate_data = sanitize_plate_data(plate_data_raw)
@@ -4065,16 +3769,12 @@ async def _compute_premium_plate(req: PlateRequest) -> PlateResponse:
         if _is_missing_nh3_error(e):
             _raise_missing_nh3_http_error(e)
         logger.error("premium_plate validation error: %s", e)
-        raise HTTPException(
-            status_code=400, detail=f"Enhanced plate generation failed: {str(e)}"
-        ) from e
+        raise HTTPException(status_code=400, detail=ENHANCED_PLATE_GENERATION_FAILED_DETAIL) from e
     except Exception as e:
         if _is_missing_nh3_error(e):
             _raise_missing_nh3_http_error(e)
         logger.error(f"premium_plate error: {e}")
-        raise HTTPException(
-            status_code=500, detail=f"Enhanced plate generation failed: {str(e)}"
-        ) from e
+        raise HTTPException(status_code=500, detail=ENHANCED_PLATE_GENERATION_FAILED_DETAIL) from e
 
 
 @app.post(
@@ -4458,6 +4158,7 @@ def _fallback_targets_response(
             warnings.append({"code": "life_stage", "message": reason})
 
     ui_labels = build_who_targets_ui_labels(req.lang)
+    next_best_action = build_targets_next_action(kcal_daily=int(kcal_daily))
 
     return WHOTargetsResponse(
         kcal_daily=int(kcal_daily),
@@ -4473,6 +4174,7 @@ def _fallback_targets_response(
         calculation_date=time.strftime("%Y-%m-%d"),
         warnings=warnings,
         ui_labels=ui_labels,
+        next_best_action=next_best_action,
     )
 
 
@@ -4576,8 +4278,11 @@ def _generate_who_targets_response(
                             _safety_failure_count,
                         )
 
+        kcal_daily = _clamp_daily_kcal(targets.kcal_daily)
+        next_best_action = build_targets_next_action(kcal_daily=kcal_daily)
+
         return WHOTargetsResponse(
-            kcal_daily=_clamp_daily_kcal(targets.kcal_daily),
+            kcal_daily=kcal_daily,
             macros={
                 "protein_g": targets.macros.protein_g,
                 "fat_g": targets.macros.fat_g,
@@ -4596,6 +4301,7 @@ def _generate_who_targets_response(
             calculation_date=targets.calculation_date,
             warnings=life_stage_warnings,
             ui_labels=build_who_targets_ui_labels(req.lang),
+            next_best_action=next_best_action,
         )
     except HTTPException:
         raise
@@ -4817,8 +4523,8 @@ async def debug_env() -> JSONResponse:
     data = {
         "FEATURE_INSIGHT": os.getenv("FEATURE_INSIGHT", ""),
         "LLM_PROVIDER": os.getenv("LLM_PROVIDER", ""),
-        "GROK_MODEL": os.getenv("GROK_MODEL", ""),
-        "GROK_ENDPOINT": os.getenv("GROK_ENDPOINT", ""),
+        "PERPLEXITY_MODEL": os.getenv("PERPLEXITY_MODEL", ""),
+        "PERPLEXITY_ENDPOINT": os.getenv("PERPLEXITY_ENDPOINT", ""),
     }
     flag = str(os.getenv("FEATURE_INSIGHT", "")).strip().lower()
     data["insight_enabled"] = str(flag in {"1", "true", "yes", "on"})

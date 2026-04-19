@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import cast
+from unittest.mock import MagicMock
 
 import pytest
 from sqlalchemy import select
@@ -25,12 +27,20 @@ from core.compliance import (
 )
 from core.compliance.transparency import get_blocked_regulated_lane
 
+_REPO_ROOT = Path(__file__).resolve().parents[1]
+_LEGAL_PRIVACY_DOC = _REPO_ROOT / "docs/legal/Privacy.md"
+_DATA_MATRIX_DOC = _REPO_ROOT / "docs/compliance/DATA_CLASSIFICATION_AND_PROCESSING_MATRIX.md"
+_AI_NOTICE_DOC = _REPO_ROOT / "docs/compliance/AI_TRANSPARENCY_AND_PROFILING_NOTICE.md"
+_PROVIDER_INVENTORY_DOC = _REPO_ROOT / "docs/compliance/PROVIDER_INVENTORY.md"
+_REGULATED_LANE_DOC = _REPO_ROOT / "docs/compliance/US_REGULATED_LANE_RFC_42_CFR_PART_2.md"
+_DSAR_MAP_DOC = _REPO_ROOT / "docs/compliance/DSAR_AND_DELETION_MAP.md"
+
 
 def test_privacy_payload_contains_additive_control_plane_fields() -> None:
     payload = build_privacy_endpoint_payload()
 
-    assert payload["policy_version"] == "2026-03-08.eu-first.v1"
-    assert payload["last_updated"] == "2026-03-08"
+    assert payload["policy_version"] == "2026-04-10.eu-first.v1"
+    assert payload["last_updated"] == "2026-04-10"
     assert isinstance(payload["providers"], list)
     assert isinstance(payload["processing_categories"], list)
     assert isinstance(payload["rights"], list)
@@ -42,23 +52,111 @@ def test_privacy_payload_contains_additive_control_plane_fields() -> None:
     wellness_inputs = next(
         item for item in processing_categories if item["category_id"] == "wellness_profile_inputs"
     )
+    ai_generated_analysis = next(
+        item
+        for item in processing_categories
+        if item["category_id"] == "ai_generated_wellness_analysis"
+    )
     endpoints = cast(list[str], wellness_inputs["endpoints"])
+    ai_generated_endpoints = list(cast(list[str], ai_generated_analysis["endpoints"]))
+    llm_processing = cast(dict[str, object], payload["llm_processing"])
+    llm_processing_endpoints = cast(list[str], llm_processing["endpoints"])
     assert "/api/v1/pro/meal/weekly" in endpoints
     assert "/api/v1/premium/plate" in endpoints
+    assert "/api/v1/pro/fitchef/explain" in llm_processing_endpoints
+    assert llm_processing_endpoints == ai_generated_endpoints
+
+
+def test_privacy_metadata_stays_in_sync_with_canonical_docs() -> None:
+    payload = build_privacy_endpoint_payload()
+    legal_privacy_doc = _LEGAL_PRIVACY_DOC.read_text(encoding="utf-8")
+    data_matrix_doc = _DATA_MATRIX_DOC.read_text(encoding="utf-8")
+    ai_notice_doc = _AI_NOTICE_DOC.read_text(encoding="utf-8")
+    provider_inventory_doc = _PROVIDER_INVENTORY_DOC.read_text(encoding="utf-8")
+    regulated_lane_doc = _REGULATED_LANE_DOC.read_text(encoding="utf-8")
+    retention_summary = cast(dict[str, object], payload["retention_summary"])
+    regulated_lane = cast(dict[str, object], retention_summary["regulated_lane"])
+    processing_categories = cast(list[dict[str, object]], payload["processing_categories"])
+    ai_generated_surface = next(
+        item
+        for item in processing_categories
+        if item["category_id"] == "ai_generated_wellness_analysis"
+    )
+
+    expected_policy_version = cast(str, payload["policy_version"])
+    expected_last_updated = cast(str, payload["last_updated"])
+
+    assert f"**Policy version:** `{expected_policy_version}`" in legal_privacy_doc
+    assert f"**Policy version:** `{expected_policy_version}`" in data_matrix_doc
+    assert f"**Policy version:** `{expected_policy_version}`" in ai_notice_doc
+    assert f"**Last updated:** {expected_last_updated}" in legal_privacy_doc
+    assert f"**Last updated:** {expected_last_updated}" in data_matrix_doc
+    assert f"**Last updated:** {expected_last_updated}" in ai_notice_doc
+    assert "Consumer wellness product, not a clinical system" in legal_privacy_doc
+    assert (
+        "This matrix is the canonical control-plane view for the current wellness runtime."
+        in data_matrix_doc
+    )
+    assert (
+        "PulsePlate treats health-adjacent AI features as **automated wellness analysis**."
+        in ai_notice_doc
+    )
+
+    regulated_lane_examples = cast(list[str], regulated_lane["examples"])
+    for blocked_example in regulated_lane_examples:
+        assert blocked_example in ai_notice_doc
+    assert "separate regulated lane" in ai_notice_doc
+
+    provider_doc_markers = {
+        "xai_grok": "xAI/Grok",
+        "openai_compatible": "OpenAI-compatible",
+        "anthropic_compatible": "Anthropic-compatible",
+        "ollama_self_hosted": "Ollama-compatible",
+        "otlp_trace_processor": "OTLP collector",
+        "pico": "Pico",
+    }
+    providers = cast(list[dict[str, object]], payload["providers"])
+    provider_ids = {cast(str, provider["provider_id"]) for provider in providers}
+    for provider_id, doc_marker in provider_doc_markers.items():
+        assert provider_id in provider_ids
+        assert doc_marker in provider_inventory_doc
+        assert doc_marker in legal_privacy_doc
+
+    ai_generated_endpoints = cast(list[str], ai_generated_surface["endpoints"])
+    ai_generated_exposure = cast(str, ai_generated_surface["third_party_exposure"])
+    assert "/api/v1/pro/fitchef/explain" in ai_generated_endpoints
+    assert "/api/v1/pro/fitchef/explain" in legal_privacy_doc
+    assert "/api/v1/pro/fitchef/explain" in data_matrix_doc
+    assert "telemetry processor" in provider_inventory_doc.lower()
+    assert "telemetry processor" in legal_privacy_doc.lower()
+    assert "Telemetry processors" in ai_notice_doc
+    assert "telemetry trace processor is configured" in data_matrix_doc
+    assert "telemetry trace processors" in ai_generated_exposure.lower()
+    assert "does not activate the regulated lane by itself" in regulated_lane_doc
+    regulated_lane_rule_text = cast(str, regulated_lane["rule"])
+    assert "does not activate the regulated lane by itself" in regulated_lane_rule_text
 
 
 def test_transparency_registry_covers_core_healthish_surfaces() -> None:
     registry = get_transparency_registry()
+    ai_notice_doc = _AI_NOTICE_DOC.read_text(encoding="utf-8")
 
     assert "bmi_wellness_screening" in registry
     assert "bodyfat_estimation" in registry
     assert "nutrition_targets_and_weekly_plan" in registry
     assert "ai_generated_insight" in registry
+    assert "fitchef_structured_v1" in registry
     ai_generated_insight = registry["ai_generated_insight"]
     assert ai_generated_insight["analysis_kind"] == "automated AI-assisted analysis"
     nutrition_surface = registry["nutrition_targets_and_weekly_plan"]
     nutrition_endpoints = cast(list[str], nutrition_surface["endpoints"])
     assert "/api/v1/pro/meal/weekly" in nutrition_endpoints
+    fitchef_surface = registry["fitchef_structured_v1"]
+    fitchef_endpoints = cast(list[str], fitchef_surface["endpoints"])
+    assert fitchef_surface["analysis_kind"] == "automated AI-assisted wellness coaching structure"
+    assert "/api/v1/pro/fitchef/explain" in fitchef_endpoints
+    assert "fitchef_structured_v1" in ai_notice_doc
+    assert "/api/v1/pro/fitchef/explain" in ai_notice_doc
 
 
 def test_sensitive_field_taxonomy_and_minimization_rules() -> None:
@@ -71,6 +169,20 @@ def test_sensitive_field_taxonomy_and_minimization_rules() -> None:
         field_name="query",
     )
     hashed_prompt = minimize_free_text("private provider prompt", field_name="prompt")
+    minimized_response = minimize_free_text(
+        "member@example.com " + "y" * 5000,
+        field_name="llm_response",
+    )
+    minimized_correction = minimize_free_text(
+        "member@example.com " + "z" * 5000,
+        field_name="user_correction",
+    )
+    minimized_source_content = minimize_free_text(
+        "member@example.com " + "k" * 1000,
+        field_name="content",
+    )
+    hashed_provider_trace = minimize_free_text("trace payload", field_name="provider_trace")
+    hashed_profile = minimize_free_text("profile payload", field_name="health_profile")
 
     assert minimized_query is not None
     assert "[EMAIL_REDACTED]" in minimized_query
@@ -78,6 +190,27 @@ def test_sensitive_field_taxonomy_and_minimization_rules() -> None:
     assert len(minimized_query) <= 512
     assert hashed_prompt is not None
     assert len(hashed_prompt) == 64
+    assert taxonomy["llm_response"].persistence_rule == "redact_and_truncate"
+    assert taxonomy["user_correction"].persistence_rule == "redact_and_truncate"
+    assert taxonomy["source_content"].persistence_rule == "redact_and_truncate"
+    assert taxonomy["provider_trace"].persistence_rule == "hash_only"
+    assert taxonomy["health_profile"].persistence_rule == "hash_only"
+    assert minimized_response is not None
+    assert "[EMAIL_REDACTED]" in minimized_response
+    assert "member@example.com" not in minimized_response
+    assert len(minimized_response) <= 4000
+    assert minimized_correction is not None
+    assert "[EMAIL_REDACTED]" in minimized_correction
+    assert "member@example.com" not in minimized_correction
+    assert len(minimized_correction) <= 4000
+    assert minimized_source_content is not None
+    assert "[EMAIL_REDACTED]" in minimized_source_content
+    assert "member@example.com" not in minimized_source_content
+    assert len(minimized_source_content) <= 240
+    assert hashed_provider_trace is not None
+    assert len(hashed_provider_trace) == 64
+    assert hashed_profile is not None
+    assert len(hashed_profile) == 64
 
 
 def test_dsar_artifact_map_distinguishes_direct_and_indirect_artifacts() -> None:
@@ -94,10 +227,27 @@ def test_dsar_artifact_map_distinguishes_direct_and_indirect_artifacts() -> None
 def test_provider_inventory_includes_local_and_conditional_ai_families() -> None:
     inventory = get_provider_inventory()
     provider_ids = {item["provider_id"] for item in inventory}
+    assert any(item["provider_id"] == "otlp_trace_processor" for item in inventory)
+    otlp_processor = next(
+        item for item in inventory if item["provider_id"] == "otlp_trace_processor"
+    )
 
     assert "local_runtime" in provider_ids
     assert "ollama_self_hosted" in provider_ids
     assert "xai_grok" in provider_ids
+    assert otlp_processor["category"] == "telemetry_processor"
+    assert "non-reversible, deployment-local" in cast(str, otlp_processor["data_scope"])
+    assert "never raw prompts or completions" in cast(str, otlp_processor["data_scope"])
+
+
+def test_privacy_docs_do_not_promise_public_dsar_api() -> None:
+    legal_privacy_doc = _LEGAL_PRIVACY_DOC.read_text(encoding="utf-8").lower()
+    dsar_map_doc = _DSAR_MAP_DOC.read_text(encoding="utf-8").lower()
+
+    assert "public self-service endpoint is available" not in legal_privacy_doc
+    assert "public dsar api is available" not in legal_privacy_doc
+    assert "public dsar api still deferred" in dsar_map_doc
+    assert dsar_map_doc.count("public dsar api") == 1
 
 
 def test_dsar_timestamp_serializer_covers_none_and_aware_values() -> None:
@@ -365,3 +515,44 @@ def test_dsar_delete_helper_rolls_back_and_logs_on_delete_failure(
 
     assert broken_session.rollback_called is True
     assert "DSAR direct-user artifact delete failed" in caplog.text
+
+
+def test_dsar_helpers_apply_db_rls_context(monkeypatch: pytest.MonkeyPatch) -> None:
+    """DSAR helpers must set DB RLS context before user-bound SQL operations."""
+    trace: list[tuple[str, str, int | None]] = []
+    current_helper = {"name": ""}
+
+    monkeypatch.setattr(
+        dsar_service,
+        "apply_user_rls_context",
+        lambda session, *, user_id: trace.append(("apply", current_helper["name"], user_id)),
+    )
+
+    session = MagicMock()
+    scalar_result = MagicMock()
+    scalar_result.scalar_one.return_value = 0
+    scalar_result.scalars.return_value.all.return_value = []
+    session.get.side_effect = (
+        lambda *args, **kwargs: trace.append(("get", current_helper["name"], None)) or None
+    )
+    session.execute.side_effect = (
+        lambda *args, **kwargs: trace.append(("execute", current_helper["name"], None))
+        or scalar_result
+    )
+
+    for helper in (
+        export_direct_user_artifacts,
+        build_direct_user_deletion_plan,
+        delete_direct_user_artifacts,
+    ):
+        current_helper["name"] = helper.__name__
+        helper(session=cast(Session, session), user_id=17)
+
+    for helper_name in (
+        "export_direct_user_artifacts",
+        "build_direct_user_deletion_plan",
+        "delete_direct_user_artifacts",
+    ):
+        helper_trace = [event for event in trace if event[1] == helper_name]
+        assert helper_trace[0] == ("apply", helper_name, 17)
+        assert any(event[0] in {"get", "execute"} for event in helper_trace[1:])

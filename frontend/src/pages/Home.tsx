@@ -1,14 +1,19 @@
-import { useState } from 'react';
+import { FormEvent, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { getCbtInsight, type CbtInsightResponse } from '../api/premium';
 import { UnauthorizedError } from '../api/client';
-import { HomeOpenSetupCta } from '../components/cta';
-import { Card, CardContent, Input, buttonClasses } from '../components/ui';
-import LiveProgressIndicator from '../features/progress/LiveProgressIndicator';
+import AiInsightPanel from '../components/insight/AiInsightPanel';
+import { Card, CardContent, buttonClasses } from '../components/ui';
+import { canonicalBrand } from '../styles/tokens';
 import { useAuth } from '../lib/auth';
 import { usePremium } from '../lib/usePremium';
 
 const MAX_AI_QUERY_LENGTH = 500;
+const insightSuggestions = ['More protein', 'Less sugar', 'Weekly plan'] as const;
+
+function clampAiQuery(value: string): string {
+  return value.slice(0, MAX_AI_QUERY_LENGTH);
+}
 
 function basenameFromPath(path: string): string {
   const segments = path.split(/[\\/]/).filter(Boolean);
@@ -46,28 +51,92 @@ function mapCbtInsightErrorToMessage(error: unknown): string {
   return defaultMessage;
 }
 
-export default function Home() {
+function SurfaceCard({
+  label,
+  value,
+  detail,
+}: {
+  label: string;
+  value: string;
+  detail: string;
+}): JSX.Element {
+  return (
+    <Card className="rounded-2xl border-white/12 bg-white/[0.08] text-white shadow-none">
+      <CardContent className="space-y-1 p-4">
+        <p className="text-[0.7rem] font-medium uppercase tracking-[0.18em] text-white/48">{label}</p>
+        <p className="text-2xl font-semibold tracking-[-0.04em] text-white">{value}</p>
+        <p className="text-xs text-white/56">{detail}</p>
+      </CardContent>
+    </Card>
+  );
+}
+
+function ActionTile({
+  title,
+  detail,
+  to,
+}: {
+  title: string;
+  detail: string;
+  to: string;
+}): JSX.Element {
+  return (
+    <Link
+      to={to}
+      className="rounded-2xl border border-white/12 bg-white/[0.08] p-4 transition hover:border-white/20 hover:bg-white/[0.11]"
+    >
+      <p className="text-sm font-semibold text-white">{title}</p>
+      <p className="mt-1 text-xs text-white/62">{detail}</p>
+    </Link>
+  );
+}
+
+export default function Home(): JSX.Element {
   const isPremium = usePremium();
   const { isAuthenticated, isLoading } = useAuth();
   const [aiQuery, setAiQuery] = useState('');
   const [aiError, setAiError] = useState<string | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
   const [aiResult, setAiResult] = useState<CbtInsightResponse | null>(null);
-  const hasSession = isAuthenticated;
-  const premiumLabel = isPremium === undefined ? 'Checking…' : isPremium ? 'Active' : 'Inactive';
-  const statusTone = isPremium === true ? 'text-[var(--color-success)]' : 'text-text';
-  const apiStatusLabel = isLoading ? 'Checking…' : hasSession ? 'Connected' : 'Not Set';
-  const apiStatusDescription = isLoading
-    ? 'Verifying your secure session state with the server.'
-      : hasSession
-      ? 'Your secure session is active. Personalized guidance is enabled.'
-      : 'Configure your API key once to establish a secure session and unlock personalized insights.';
-  const aiQueryLength = aiQuery.trim().length;
-  const aiHasPremiumAccess = isAuthenticated && isPremium === true;
-  const aiSources = aiResult?.sources.slice(0, 2) ?? [];
 
-  async function handleAiSubmit(event: React.FormEvent<HTMLFormElement>) {
+  const apiStatusLabel = isLoading ? 'Checking…' : isAuthenticated ? 'Connected' : 'Offline';
+  const premiumLabel = isPremium === undefined ? 'Checking…' : isPremium ? 'Active' : 'Locked';
+  const aiHasPremiumAccess = isAuthenticated && isPremium === true;
+  const aiQueryLength = aiQuery.trim().length;
+
+  const insightResultCard = useMemo(() => {
+    if (!aiResult) {
+      return null;
+    }
+
+    const mappedTags = aiResult.sources
+      .slice(0, 3)
+      .map((source) => basenameFromPath(source.file));
+
+    return {
+      title: 'Tonight’s guidance',
+      body: aiResult.insight,
+      confidenceLabel: `Confidence ${aiResult.confidence.toFixed(2)}`,
+      tags: mappedTags.length > 0 ? mappedTags : ['Meals', 'Goals'],
+      metadata: [
+        `Mode: ${aiResult.mode}`,
+        `Quota: ${aiResult.quota_state}`,
+        `RAG: ${aiResult.rag_used ? 'Used' : 'Not used'}`,
+        `Confidence: ${aiResult.confidence.toFixed(2)}`,
+        `Uncertainty: ${aiResult.uncertainty.toFixed(2)}`,
+      ],
+      warnings: aiResult.warnings,
+      sources: aiResult.sources.map(
+        (source) => `${basenameFromPath(source.file)}: ${source.preview}`
+      ),
+    };
+  }, [aiResult]);
+
+  async function handleAiSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (aiLoading) {
+      return;
+    }
     const nextQuery = aiQuery.trim();
     if (!nextQuery) {
       setAiError('Enter a short question to generate an AI insight.');
@@ -80,6 +149,7 @@ export default function Home() {
 
     setAiLoading(true);
     setAiError(null);
+
     try {
       const result = await getCbtInsight({ query: nextQuery });
       setAiResult(result);
@@ -91,240 +161,134 @@ export default function Home() {
     }
   }
 
+  function handleSuggestionClick(value: string): void {
+    setAiQuery(clampAiQuery(value));
+    setAiError(null);
+  }
+
   return (
-    <main className="flex min-h-screen flex-col bg-[var(--color-bg)]">
-      {/* Hero Section */}
-      <section className="px-4 py-8 sm:px-6 lg:px-8">
-        <div className="mx-auto max-w-4xl">
-          <p className="text-xs font-semibold uppercase tracking-widest text-[var(--color-text-muted)]">
-            Wellness Control Panel
+    <main className="min-h-screen bg-[var(--pp-navy)] px-4 py-6 text-white sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-5xl space-y-8">
+        <section className="rounded-[1.75rem] border border-white/12 bg-white/[0.08] p-6 shadow-[0_30px_60px_rgba(15,23,42,0.28)] sm:p-8">
+          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-white/52">Calm control panel</p>
+          <h1 className="mt-3 text-4xl font-semibold tracking-[-0.06em] text-white sm:text-5xl">PulsePlate Home</h1>
+          <p className="mt-3 max-w-2xl text-sm leading-7 text-white/62 sm:text-base">
+            Quick actions, premium guidance, and one AI surface that stays grounded in your current session.
           </p>
-          <h1 className="mt-3 text-4xl font-bold tracking-tight text-[var(--color-text)] sm:text-5xl">
-            Home
-          </h1>
-          <p className="mt-4 text-lg leading-relaxed text-[var(--color-text-muted)]">
-            Quick access to your wellness setup, nutrition tracking, and progress insights. Everything you need for
-            optimal health in one place.
-          </p>
-        </div>
-      </section>
+          <div className="mt-6 flex flex-wrap gap-3">
+            <span className="rounded-full bg-white/[0.08] px-4 py-2 text-xs font-semibold text-white/88">
+              Session {apiStatusLabel}
+            </span>
+            <span className="rounded-full bg-white/[0.08] px-4 py-2 text-xs font-semibold text-white/88">
+              Premium {premiumLabel}
+            </span>
+          </div>
+        </section>
 
-      {/* Status Cards */}
-      <section className="px-4 py-6 sm:px-6 lg:px-8">
-        <div className="mx-auto max-w-4xl grid grid-cols-1 gap-4 sm:grid-cols-2">
-          {/* API Status Card */}
-          <Card className="transition-shadow hover:shadow-md">
-            <CardContent className="flex h-full flex-col justify-between p-6">
+        <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <SurfaceCard label="Connection" value={apiStatusLabel} detail="Secure session status" />
+          <SurfaceCard label="Premium" value={premiumLabel} detail="Access to guided features" />
+          <SurfaceCard
+            label="AI quota"
+            value={aiResult?.quota_state === 'consumed' ? 'In use' : 'Ready'}
+            detail="Server-side reliability lane"
+          />
+          <SurfaceCard
+            label="Focus"
+            value={aiResult?.rag_used ? 'Grounded' : 'Simple'}
+            detail="RAG-backed when supporting context is available"
+          />
+        </section>
+
+        <section className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(22rem,24rem)]">
+          <div className="space-y-8">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-widest text-[var(--color-text-muted)]">
-                API Connection
-              </p>
-              <p className="mt-3 text-2xl font-semibold text-[var(--color-text)]">
-                {apiStatusLabel}
-              </p>
-            </div>
-            <p className="mt-4 text-sm leading-relaxed text-[var(--color-text-muted)]">
-              {apiStatusDescription}
-            </p>
-            </CardContent>
-          </Card>
-
-          {/* Premium Status Card */}
-          <Card className="transition-shadow hover:shadow-md">
-            <CardContent className="flex h-full flex-col justify-between p-6">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-widest text-[var(--color-text-muted)]">
-                Premium Status
-              </p>
-              <p className={`mt-3 text-2xl font-semibold ${statusTone}`}>
-                {premiumLabel}
-              </p>
-            </div>
-            <p className="mt-4 text-sm leading-relaxed text-[var(--color-text-muted)]">
-              {isPremium
-                ? 'You have access to advanced analytics and premium nutrition optimization.'
-                : 'Upgrade to Pro to unlock advanced insights, meal planning, and premium features.'}
-            </p>
-            </CardContent>
-          </Card>
-        </div>
-      </section>
-
-      {/* Progress Indicator */}
-      <section className="px-4 py-6 sm:px-6 lg:px-8">
-        <div className="mx-auto max-w-4xl">
-          <LiveProgressIndicator source="home" ctaTo="/progress" ctaLabel="View detailed progress" />
-        </div>
-      </section>
-
-      <section className="px-4 py-6 sm:px-6 lg:px-8">
-        <div className="mx-auto max-w-4xl">
-          <Card className="transition-shadow hover:shadow-md">
-            <CardContent className="space-y-4 p-6">
-              <div className="space-y-2">
-                <p className="text-xs font-semibold uppercase tracking-widest text-[var(--color-text-muted)]">
-                  AI Reliability
-                </p>
-                <h2 className="text-xl font-semibold text-[var(--color-text)]">AI Insight</h2>
-                <p className="text-sm leading-relaxed text-[var(--color-text-muted)]">
-                  Ask one question and review the server-validated insight, reliability signals, and source coverage.
-                </p>
+              <p className="text-sm font-semibold text-white">Quick actions</p>
+              <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                <ActionTile title="Meal Log" detail="Log today’s meals" to="/plate" />
+                <ActionTile title="BMI" detail="Check your baseline metrics" to="/bmi" />
+                <ActionTile title="Setup" detail="Tune your nutrition inputs" to="/setup" />
+                <ActionTile title="Progress" detail="Review weekly charts" to="/progress" />
               </div>
+            </div>
 
-              {!isAuthenticated ? (
-                <div className="space-y-3">
-                  <p className="text-sm text-[var(--color-text-muted)]">
-                    Connect your secure session before using the AI insight workflow.
-                  </p>
-                  <Link
-                    to="/enter-key"
-                    className={buttonClasses({ variant: 'secondary', size: 'md', className: 'inline-flex' })}
-                  >
-                    Connect secure session
-                  </Link>
-                </div>
-              ) : isPremium === undefined ? (
-                <p className="text-sm text-[var(--color-text-muted)]">Checking premium access for AI insights…</p>
-              ) : !aiHasPremiumAccess ? (
-                <div className="space-y-3">
-                  <p className="text-sm text-[var(--color-text-muted)]">
-                    Upgrade to Pro to unlock AI reliability signals and guided insight summaries.
-                  </p>
-                  <Link
-                    to="/pro"
-                    className={buttonClasses({ variant: 'secondary', size: 'md', className: 'inline-flex' })}
-                  >
-                    Upgrade to Pro
-                  </Link>
-                </div>
-              ) : (
-                <>
-                  <form className="space-y-3" onSubmit={handleAiSubmit}>
-                    <label className="block text-sm font-medium text-[var(--color-text)]" htmlFor="home-ai-query">
-                      Ask one question
-                    </label>
-                    <Input
-                      id="home-ai-query"
-                      maxLength={MAX_AI_QUERY_LENGTH}
-                      placeholder="Example: What should I focus on this week for steadier nutrition?"
-                      value={aiQuery}
-                      onChange={(event) => setAiQuery(event.target.value)}
-                    />
-                    <div className="flex items-center justify-between gap-3">
-                      <span className="text-xs text-[var(--color-text-muted)]">
-                        {aiQueryLength}/{MAX_AI_QUERY_LENGTH}
-                      </span>
-                      <button
-                        className={buttonClasses({ variant: 'primary', size: 'md' })}
-                        disabled={aiLoading}
-                        type="submit"
-                      >
-                        {aiLoading ? 'Loading…' : 'Generate insight'}
-                      </button>
-                    </div>
-                  </form>
-
-                  {aiError ? (
-                    <div
-                      className="rounded-xl border border-[var(--color-warning)]/40 bg-[var(--color-warning)]/10 p-3 text-sm text-[var(--color-text)]"
-                      role="alert"
-                    >
-                      {aiError}
-                    </div>
-                  ) : null}
-
-                  {aiResult ? (
-                    <div className="space-y-4 rounded-2xl border border-white/10 bg-white/5 p-4">
-                      <div className="space-y-2">
-                        <p className="text-sm leading-relaxed text-[var(--color-text)]">{aiResult.insight}</p>
-                        <div className="flex flex-wrap gap-2 text-xs text-[var(--color-text-muted)]">
-                          <span>Mode: {aiResult.mode}</span>
-                          <span>Quota: {aiResult.quota_state}</span>
-                          <span>RAG: {aiResult.rag_used ? 'Used' : 'Not used'}</span>
-                          <span>Confidence: {aiResult.confidence.toFixed(2)}</span>
-                          <span>Uncertainty: {aiResult.uncertainty.toFixed(2)}</span>
-                        </div>
-                      </div>
-
-                      {aiResult.warnings.length > 0 ? (
-                        <div className="space-y-1">
-                          <p className="text-xs font-semibold uppercase tracking-widest text-[var(--color-text-muted)]">
-                            Warnings
-                          </p>
-                          <ul className="space-y-1 text-sm text-[var(--color-text-muted)]">
-                            {aiResult.warnings.map((warning, index) => (
-                              <li key={index}>{warning}</li>
-                            ))}
-                          </ul>
-                        </div>
-                      ) : null}
-
-                      {aiSources.length > 0 ? (
-                        <div className="space-y-1">
-                          <p className="text-xs font-semibold uppercase tracking-widest text-[var(--color-text-muted)]">
-                            Sources
-                          </p>
-                          <ul className="space-y-1 text-sm text-[var(--color-text-muted)]">
-                            {aiSources.map((source) => (
-                              <li key={source.chunk_id}>
-                                {basenameFromPath(source.file)}: {source.preview}
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      ) : null}
-                    </div>
-                  ) : null}
-                </>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-      </section>
-
-      {/* Quick Actions Section */}
-      <section className="flex-1 px-4 py-6 sm:px-6 lg:px-8">
-        <div className="mx-auto max-w-4xl">
-          <div className="mb-6">
-            <h2 className="text-xl font-semibold text-[var(--color-text)]">
-              Quick Navigation
-            </h2>
-            <p className="mt-1 text-sm text-[var(--color-text-muted)]">
-              Jump to any section of your wellness journey
-            </p>
+            <div>
+              <p className="text-sm font-semibold text-white">Pro tools</p>
+              <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                <ActionTile title="AI Coach" detail="Premium guidance and summaries" to="/pro" />
+                <ActionTile title="Weekly Charts" detail="Longer-term signals" to="/progress" />
+              </div>
+            </div>
           </div>
 
-          {/* Primary Action */}
-          <div className="mb-4">
-            <HomeOpenSetupCta />
-          </div>
+          <div className="space-y-4">
+            {!isAuthenticated ? (
+              <section className="rounded-[2rem] border border-white/12 bg-white/[0.08] p-6">
+                <h2 className="text-xl font-semibold text-white">AI Insight</h2>
+                <p className="mt-2 text-sm leading-6 text-white/62">
+                  Connect your secure session before using the AI insight workflow.
+                </p>
+                <Link
+                  to="/enter-key"
+                  className={buttonClasses({ className: 'mt-5 inline-flex rounded-2xl text-[var(--pp-navy)]' })}
+                  style={{ backgroundColor: canonicalBrand.blue }}
+                >
+                  Connect secure session
+                </Link>
+              </section>
+            ) : isPremium === undefined ? (
+              <section className="rounded-[2rem] border border-white/12 bg-white/[0.08] p-6">
+                <h2 className="text-xl font-semibold text-white">AI Insight</h2>
+                <p className="mt-2 text-sm text-white/62">Checking premium access for AI insights…</p>
+              </section>
+            ) : !aiHasPremiumAccess ? (
+              <section className="rounded-[2rem] border border-white/12 bg-white/[0.08] p-6">
+                <h2 className="text-xl font-semibold text-white">AI Insight</h2>
+                <p className="mt-2 text-sm leading-6 text-white/62">
+                  Upgrade to Pro to unlock AI reliability signals and guided insight summaries.
+                </p>
+                <Link
+                  to="/pro"
+                  className={buttonClasses({ className: 'mt-5 inline-flex rounded-2xl text-[var(--pp-navy)]' })}
+                  style={{ backgroundColor: canonicalBrand.blue }}
+                >
+                  Upgrade to Pro
+                </Link>
+              </section>
+            ) : (
+              <AiInsightPanel
+                error={aiError}
+                isLoading={aiLoading}
+                query={aiQuery}
+                result={insightResultCard}
+                placeholder="For example: what should I focus on this week?"
+                subtitle={
+                  aiLoading
+                    ? 'Generating a recommendation…'
+                    : aiResult
+                      ? 'Personalized recommendation for today'
+                      : 'Formulate one question or use a quick suggestion'
+                }
+                suggestions={[...insightSuggestions]}
+                onQueryChange={(value) => setAiQuery(clampAiQuery(value))}
+                onSubmit={handleAiSubmit}
+                onSuggestionClick={handleSuggestionClick}
+              />
+            )}
 
-          {/* Secondary Actions Grid */}
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-            <Link
-              to="/plate"
-              className={buttonClasses({ variant: 'secondary', size: 'md', className: 'block text-center' })}
-            >
-              Nutrition Plate
-            </Link>
-            <Link
-              to="/progress"
-              className={buttonClasses({ variant: 'secondary', size: 'md', className: 'block text-center' })}
-            >
-              Progress View
-            </Link>
-            <Link
-              to="/pro"
-              className={buttonClasses({ variant: 'secondary', size: 'md', className: 'block text-center' })}
-            >
-              Premium Features
-            </Link>
+            <Card className="rounded-[2rem] border-white/12 bg-white/[0.05] text-white shadow-none">
+              <CardContent className="space-y-3 p-5">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/48">Preview note</p>
+                <p className="text-sm leading-6 text-white/68">
+                  This home surface now follows the Figma review family: calm hero, compact status tiles, quick
+                  actions, and a dedicated AI insight block.
+                </p>
+                <p className="text-xs text-white/48">{aiQueryLength}/{MAX_AI_QUERY_LENGTH} characters</p>
+              </CardContent>
+            </Card>
           </div>
-        </div>
-      </section>
-
-      {/* Footer Spacing for Tab Bar */}
-      <div className="h-24" />
+        </section>
+      </div>
     </main>
   );
 }

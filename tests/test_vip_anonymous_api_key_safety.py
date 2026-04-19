@@ -308,6 +308,7 @@ class TestVIPAnonymousAPIKeySafety:
         monkeypatch.setenv("APP_ENV", "production")
         monkeypatch.setenv("DEBUG", "false")
         monkeypatch.setenv("API_KEY", "secret-key")
+        monkeypatch.setenv("VIP_API_KEYS", "secret-key")  # pragma: allowlist secret
 
         import app
 

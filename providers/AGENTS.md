@@ -2,7 +2,7 @@
 
 ## Scope and layout
 - This AGENTS.md applies to: `providers/` and below.
-- Key files: `grok.py`, `ollama.py`, `pico.py`, `stub.py`.
+- Key files: `perplexity.py`, `ollama.py`, `pico.py`, `stub.py`.
 
 ## Conventions
 - Keep provider interfaces stable; avoid leaking network calls into core logic.

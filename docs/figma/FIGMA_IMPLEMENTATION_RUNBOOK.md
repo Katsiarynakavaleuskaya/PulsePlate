@@ -14,27 +14,37 @@ RU (critical): не расширять scope за пределы `Home + Plate +
 
 ## 2) Start Here (reading order)
 
-Read in this order for every new Figma task:
+Read in this order for every new Figma task in the current repo-first lane:
 
 1. `docs/figma/README.md`
-2. `docs/figma/FIGMA_IMPLEMENTATION_RUNBOOK.md`
-3. `docs/figma/FIGMA_GIT_PACKS_INDEX.md`
-4. `docs/figma/PULSEPLATE_FIGMA_AI_GOVERNANCE_INDEX.md`
-5. `docs/sora/SORA_STYLE_QA_CHECKLIST.md`
-6. `docs/design/TOKENS_SOT.md`
-7. `docs/design/TOKEN_PIPELINE_GOVERNANCE.md`
+2. `docs/figma/FIGMA_WEB_IOS_AUTHORITY_RECONCILIATION_PACKET.md`
+3. `docs/figma/FIGMA_IMPLEMENTATION_RUNBOOK.md`
+4. `docs/figma/PULSEPLATE_V3_DESIGN_SYSTEM_RECONCILIATION.md`
+5. `docs/figma/FIGMA_IOS_PROTOTYPE_V2_RECONCILIATION.md`
+6. `docs/figma/FIGMA_GIT_PACKS_INDEX.md`
+7. `docs/figma/PULSEPLATE_FIGMA_AI_GOVERNANCE_INDEX.md`
 8. `docs/figma/FIGMA_MAKE_SYNC_AUDIT_HPP.md`
-9. `docs/figma/FIGMA_CODE_CONNECT_BRIDGE_HPP.md`
-10. `docs/figma/FIGMA_DESIGN_URL_NODEID_CAPTURE_HPP.md`
-11. `docs/figma/FIGMA_CODE_CONNECT_MAPPING_CANDIDATES_HPP.md`
-12. `docs/design/PULSEPLATE_BUTTON_ACTION_PROMPT_MATRIX.md`
-13. `docs/design/PULSEPLATE_LUXURY_WEB_IOS_VISUAL_GUIDELINES.md`
-14. `docs/design/LUXURY_UI_REVIEW_CHECKLIST.md`
-15. `docs/sora/PULSEPLATE_SORA_PROMPT_ENGINEERING_PLAYBOOK.md`
-16. `docs/figma/FIGMA_CLAWBOT_OPERATING_MODEL.md`
-17. `docs/figma/SANDBOX_DESIGN_AGENT_SPEC.md`
-18. `docs/sora/prompts/hpp/MASTER_NANO_PROMPT_PACK.md`
-19. `docs/sora/BRAND_THROUGHPUT_METRICS_GTM_MATRIX.md`
+9. `docs/figma/FIGMA_AI_HANDOFF_CHECKLIST.md`
+10. `docs/figma/FIGMA_AI_INBOX_TEMPLATE.md`
+11. `docs/design/PULSEPLATE_BUTTON_ACTION_PROMPT_MATRIX.md`
+12. `docs/design/TOKENS_SOT.md`
+13. `docs/design/TOKEN_PIPELINE_GOVERNANCE.md`
+14. `docs/design/PULSEPLATE_LUXURY_WEB_IOS_VISUAL_GUIDELINES.md`
+15. `docs/design/LUXURY_UI_REVIEW_CHECKLIST.md`
+16. `docs/sora/PULSEPLATE_SORA_PROMPT_ENGINEERING_PLAYBOOK.md`
+17. `docs/sora/prompts/hpp/MASTER_NANO_PROMPT_PACK.md`
+18. `docs/sora/BRAND_THROUGHPUT_METRICS_GTM_MATRIX.md`
+
+Auxiliary evidence/tooling references for the current lane (optional after the core repo-first docs are fixed for the task; not authority):
+
+- `docs/figma/FIGMA_CLAWBOT_OPERATING_MODEL.md`
+- `docs/figma/SANDBOX_DESIGN_AGENT_SPEC.md`
+
+Historical reference only for this lane (read only if a future coordinator-owned packet explicitly reopens the old Code Connect path):
+
+- `docs/figma/FIGMA_CODE_CONNECT_BRIDGE_HPP.md`
+- `docs/figma/FIGMA_DESIGN_URL_NODEID_CAPTURE_HPP.md`
+- `docs/figma/FIGMA_CODE_CONNECT_MAPPING_CANDIDATES_HPP.md`
 
 ## 3) Git Packs to Read by Intent
 
@@ -55,6 +65,22 @@ Use when generating prompt stubs, negative constraints, and style-lock clauses.
 - `docs/figma/`
 
 Use for runbooks, inbox contract, delivery checklist, and orchestration session artifacts.
+
+### 3.3a File-specific reconciliation packet
+
+- `docs/figma/PULSEPLATE_V3_DESIGN_SYSTEM_RECONCILIATION.md`
+
+Use when the task targets `PulsePlate_v3` or the clean canonical file for
+`Foundations + Components + Welcome Gate`.
+
+This packet locks:
+
+- file identity and execution lane
+- source precedence
+- alignment matrix
+- blocker classes
+- clean-file page structure
+- the optional FIGR AI read-only ideation lane
 
 ### 3.4 Web token source of truth
 
@@ -84,52 +110,74 @@ Use for iOS color/material/state consistency.
 
 Use when conflicts appear or when acceptance criteria are unclear.
 
-### 3.7 Code Connect and mapping bridge assets
+### 3.7 Historical Code Connect reference docs
 
 - `docs/figma/FIGMA_CODE_CONNECT_BRIDGE_HPP.md`
 - `docs/figma/FIGMA_DESIGN_URL_NODEID_CAPTURE_HPP.md`
 - `docs/figma/FIGMA_CODE_CONNECT_MAPPING_CANDIDATES_HPP.md`
 
-Use when translating Figma nodes to existing site components and tracking map status.
+Use only when a future coordinator-owned packet explicitly reopens the historical Code Connect activation lane. For the current repo-first web/iOS reconciliation lane, these docs are reference-only and are not active prerequisites.
 
 ### 3.8 Clawbot/OpenClaw operating model and sandbox agent spec
 
-- `docs/figma/FIGMA_CLAWBOT_OPERATING_MODEL.md`
-- `docs/figma/SANDBOX_DESIGN_AGENT_SPEC.md`
 - `docs/runbooks/DESIGN_TOOLING_OPERATING_MODEL.md`
 
-Use when running terminal automation, evidence capture, and human-gated design-agent tasks.
+Auxiliary evidence/tooling references for this lane:
+
+- `docs/figma/FIGMA_CLAWBOT_OPERATING_MODEL.md`
+- `docs/figma/SANDBOX_DESIGN_AGENT_SPEC.md`
+
+Use only as auxiliary evidence/tooling references after the core repo-first docs are fixed for the task. These docs do not define current lane authority.
 
 ## 4) Implementation Lookup Matrix
 
 | Need | Read this first | Then validate against |
 | --- | --- | --- |
+| Current lane authority and repo-first bypass | `docs/figma/README.md` | `docs/figma/FIGMA_WEB_IOS_AUTHORITY_RECONCILIATION_PACKET.md` |
+| File-specific scope, clean-file lane, and transfer contract | `docs/figma/PULSEPLATE_V3_DESIGN_SYSTEM_RECONCILIATION.md` | `docs/figma/FIGMA_MAKE_SYNC_AUDIT_HPP.md` |
 | CTA behavior and states | `docs/design/PULSEPLATE_BUTTON_ACTION_PROMPT_MATRIX.md` | `docs/figma/FIGMA_AI_HANDOFF_CHECKLIST.md` |
 | Style and quality constraints | `docs/design/PULSEPLATE_LUXURY_WEB_IOS_VISUAL_GUIDELINES.md` | `docs/design/LUXURY_UI_REVIEW_CHECKLIST.md` |
 | Prompt constraints and guardrails | `docs/sora/PULSEPLATE_SORA_PROMPT_ENGINEERING_PLAYBOOK.md` | `docs/figma/PULSEPLATE_FIGMA_AI_GOVERNANCE_INDEX.md` |
 | Token values | `docs/design/TOKENS_SOT.md`, `/tokens`, `frontend/src/styles/tokens.css`, `ios/PulsePlate/DesignSystem/DesignTokens.generated.swift`, `ios/PulsePlate/DesignSystem/DesignTokens.swift` | `frontend/src/styles/tokens.ts`, `ios/PulsePlate/Assets.xcassets/`, `ios/PulsePlate/Extensions/Color+Assets.swift` |
+| Current repo-first execution path | `docs/figma/FIGMA_WEB_IOS_AUTHORITY_RECONCILIATION_PACKET.md` | `docs/figma/FIGMA_IMPLEMENTATION_RUNBOOK.md`, `docs/figma/FIGMA_AI_INBOX_TEMPLATE.md` |
 | Handoff payload requirements | `docs/figma/FIGMA_AI_HANDOFF_CHECKLIST.md` | `docs/figma/FIGMA_AI_INBOX_TEMPLATE.md` |
-| Make-vs-Git drift status | `docs/figma/FIGMA_MAKE_SYNC_AUDIT_HPP.md` | `docs/figma/FIGMA_CODE_CONNECT_MAPPING_CANDIDATES_HPP.md` |
-| Need Design URL and node IDs for activation | `docs/figma/FIGMA_DESIGN_URL_NODEID_CAPTURE_HPP.md` | `docs/figma/FIGMA_CODE_CONNECT_MAPPING_CANDIDATES_HPP.md` |
-| Site connection via Code Connect | `docs/figma/FIGMA_CODE_CONNECT_BRIDGE_HPP.md` | `docs/figma/FIGMA_CODE_CONNECT_MAPPING_CANDIDATES_HPP.md` |
+| Make-vs-Git drift status | `docs/figma/FIGMA_MAKE_SYNC_AUDIT_HPP.md` | `docs/figma/FIGMA_WEB_IOS_AUTHORITY_RECONCILIATION_PACKET.md` |
+| Historical Code Connect blocker history (reference only) | `docs/figma/FIGMA_DESIGN_URL_NODEID_CAPTURE_HPP.md` | `docs/figma/FIGMA_CODE_CONNECT_BRIDGE_HPP.md`, `docs/figma/FIGMA_CODE_CONNECT_MAPPING_CANDIDATES_HPP.md` |
 
 ## 5) Precedence Rules (Conflict Resolution)
 
 If information conflicts:
 
-1. CTA behavior: `docs/design/PULSEPLATE_BUTTON_ACTION_PROMPT_MATRIX.md` is primary.
-2. Visual quality: `docs/design/LUXURY_UI_REVIEW_CHECKLIST.md` + `docs/design/PULSEPLATE_LUXURY_WEB_IOS_VISUAL_GUIDELINES.md` are primary.
-3. Prompt safety: `docs/sora/PULSEPLATE_SORA_PROMPT_ENGINEERING_PLAYBOOK.md` is primary.
-4. Token values: `docs/sora/SORA_STYLE_QA_CHECKLIST.md` is authoritative for
+1. File-specific reconciliation packet:
+   `docs/figma/PULSEPLATE_V3_DESIGN_SYSTEM_RECONCILIATION.md` is primary for
+   `PulsePlate_v3` and the clean canonical file scope.
+2. CTA behavior: `docs/design/PULSEPLATE_BUTTON_ACTION_PROMPT_MATRIX.md` is primary.
+3. Visual quality: `docs/design/LUXURY_UI_REVIEW_CHECKLIST.md` + `docs/design/PULSEPLATE_LUXURY_WEB_IOS_VISUAL_GUIDELINES.md` are primary.
+4. Prompt safety: `docs/sora/PULSEPLATE_SORA_PROMPT_ENGINEERING_PLAYBOOK.md` is primary.
+5. Token values: `docs/sora/SORA_STYLE_QA_CHECKLIST.md` is authoritative for
    web token governance (web token SoT, staged migration, raw-hex allowlists);
    use `docs/design/TOKENS_SOT.md` and
    `docs/design/TOKEN_PIPELINE_GOVERNANCE.md` as implementation/governance
    references for the current repo pipeline, where `tokens.css` remains the web
    runtime contract, `tokens.ts` remains a typed mirror, and iOS runtime
    mirrors remain primary for app delivery.
-5. Tool precedence: `docs/runbooks/DESIGN_TOOLING_OPERATING_MODEL.md` controls
+6. Tool precedence: `docs/runbooks/DESIGN_TOOLING_OPERATING_MODEL.md` controls
    how Figma, Notion, Airweave, and Penpot interact.
-6. Remaining conflict: follow `AGENTS.md` and record decision in `docs/figma/orchestration/sessions/...`.
+7. Remaining conflict: follow `AGENTS.md` and record decision in `docs/figma/orchestration/sessions/...`.
+
+### 5.1 Current Repo-First Execution Path
+
+Current execution path for this repo-first lane is:
+repo SoT -> `docs/figma/FIGMA_WEB_IOS_AUTHORITY_RECONCILIATION_PACKET.md` / lane-specific reconciliation packet -> `docs/figma/FIGMA_MAKE_SYNC_AUDIT_HPP.md` and other reference evidence -> `docs/figma/FIGMA_AI_INBOX_TEMPLATE.md` / `docs/figma/FIGMA_AI_HANDOFF_CHECKLIST.md` / QA.
+
+Evidence anchors:
+- repo-first authority + Code Connect bypass: `docs/figma/FIGMA_WEB_IOS_AUTHORITY_RECONCILIATION_PACKET.md:74-139`
+- Make audit as reference evidence, not authority: `docs/figma/FIGMA_MAKE_SYNC_AUDIT_HPP.md:9-30`
+- request intake path: `docs/figma/FIGMA_AI_INBOX_TEMPLATE.md:1-52`
+- handoff validation path: `docs/figma/FIGMA_AI_HANDOFF_CHECKLIST.md:1-69`
+- QA/visual gate references for this lane: `docs/design/LUXURY_UI_REVIEW_CHECKLIST.md:1-84`
+
+Code Connect activation is not part of this path unless a reopened historical Code Connect lane is explicitly declared by a future coordinator-owned packet. Evidence: `docs/figma/README.md:16-28`, `docs/figma/FIGMA_WEB_IOS_AUTHORITY_RECONCILIATION_PACKET.md:116-139`.
 
 ## 6) Context Refresh Protocol
 
@@ -167,7 +215,7 @@ Attach this snapshot to request payload:
 - CTA rows impacted
 - token files impacted (web/iOS)
 
-### 6.3 Make sync loop (mandatory for current source mode)
+### 6.3 Make sync loop (current reference-evidence mode)
 
 When source mode is Make-only
 (`docs/figma/FIGMA_MAKE_SYNC_AUDIT_HPP.md`, `Source mode` field):
@@ -178,8 +226,9 @@ When source mode is Make-only
 2. Review latest `guidelines/Guidelines.md`, `src/app/App.tsx`,
    `src/app/components/pp-button.tsx`, `src/styles/theme.css`.
 3. Record findings in `docs/figma/FIGMA_MAKE_SYNC_AUDIT_HPP.md`.
-4. Refresh CTA mapping status in
-   `docs/figma/FIGMA_CODE_CONNECT_MAPPING_CANDIDATES_HPP.md`.
+4. Compare findings against `docs/figma/FIGMA_WEB_IOS_AUTHORITY_RECONCILIATION_PACKET.md` and the active lane-specific reconciliation packet before any handoff claim.
+5. Queue repo-first follow-up work via `docs/figma/FIGMA_AI_INBOX_TEMPLATE.md` and validate handoff fields in `docs/figma/FIGMA_AI_HANDOFF_CHECKLIST.md`.
+6. Leave Code Connect bridge docs untouched unless a future coordinator-owned packet explicitly reopens that historical activation lane.
 
 ## 7) Hard Exclusions
 
@@ -211,7 +260,7 @@ This is the canonical handoff schema for all Figma deliverables:
 - `Platform`
 - `Screen`
 - `State set` (default, interactive, disabled/locked, loading, error)
-- `Figma Node ID` (or `TBD`)
+- `Figma Node ID` (optional; only when Code Connect is explicitly in scope, otherwise `TBD` / not required)
 - `Prompt Stub ID`
 - `Status` (`Implemented` / `Partial` / `Missing` / `Blocked by flag`)
 - `Implement Needed`
@@ -228,17 +277,23 @@ Before any brainstorm session in `docs/figma/orchestration/`:
 
 ## 11) Canonical References
 
+- `docs/figma/README.md`
+- `docs/figma/FIGMA_WEB_IOS_AUTHORITY_RECONCILIATION_PACKET.md`
+- `docs/figma/PULSEPLATE_V3_DESIGN_SYSTEM_RECONCILIATION.md`
+- `docs/figma/FIGMA_IOS_PROTOTYPE_V2_RECONCILIATION.md`
 - `docs/figma/FIGMA_GIT_PACKS_INDEX.md`
 - `docs/figma/PULSEPLATE_FIGMA_AI_GOVERNANCE_INDEX.md`
 - `docs/figma/FIGMA_MAKE_SYNC_AUDIT_HPP.md`
-- `docs/figma/FIGMA_CODE_CONNECT_BRIDGE_HPP.md`
-- `docs/figma/FIGMA_DESIGN_URL_NODEID_CAPTURE_HPP.md`
-- `docs/figma/FIGMA_CODE_CONNECT_MAPPING_CANDIDATES_HPP.md`
+- `docs/figma/FIGMA_AI_HANDOFF_CHECKLIST.md`
+- `docs/figma/FIGMA_AI_INBOX_TEMPLATE.md`
 - `docs/design/TOKENS_SOT.md`
 - `docs/design/TOKEN_PIPELINE_GOVERNANCE.md`
+- `docs/runbooks/DESIGN_TOOLING_OPERATING_MODEL.md`
+
+Auxiliary evidence/tooling references for this lane:
+
 - `docs/figma/FIGMA_CLAWBOT_OPERATING_MODEL.md`
 - `docs/figma/SANDBOX_DESIGN_AGENT_SPEC.md`
-- `docs/runbooks/DESIGN_TOOLING_OPERATING_MODEL.md`
 - `docs/sora/prompts/hpp/MASTER_NANO_PROMPT_PACK.md`
 - `docs/sora/SORA_STYLE_QA_CHECKLIST.md`
 - `docs/sora/BRAND_THROUGHPUT_METRICS_GTM_MATRIX.md`
@@ -248,9 +303,20 @@ Before any brainstorm session in `docs/figma/orchestration/`:
 - `docs/sora/PULSEPLATE_SORA_PROMPT_ENGINEERING_PLAYBOOK.md`
 - `AGENTS.md`
 
-## 12) Code Connect Bridge Flow (Activation)
+Historical reference only for this lane:
 
-Use this only when Design file URL/node IDs are available.
+- `docs/figma/FIGMA_CODE_CONNECT_BRIDGE_HPP.md`
+- `docs/figma/FIGMA_DESIGN_URL_NODEID_CAPTURE_HPP.md`
+- `docs/figma/FIGMA_CODE_CONNECT_MAPPING_CANDIDATES_HPP.md`
+
+## 12) Historical Code Connect Bridge Flow (Reference Only)
+
+This appendix is not part of the current repo-first lane. Use it only if a reopened historical Code Connect lane is explicitly declared by a future coordinator-owned packet and Design file URL/node IDs are available.
+
+Evidence anchors:
+- historical-only classification in the current lane: `docs/figma/README.md:44-49`
+- current bypass policy and historical-only status: `docs/figma/FIGMA_WEB_IOS_AUTHORITY_RECONCILIATION_PACKET.md:116-139`
+- historical bridge docs list in the runbook: `docs/figma/FIGMA_IMPLEMENTATION_RUNBOOK.md:299-303`
 
 1. Validate candidate rows in `docs/figma/FIGMA_CODE_CONNECT_MAPPING_CANDIDATES_HPP.md`.
 2. Run `get_code_connect_suggestions(fileKey, nodeId)`.
@@ -263,9 +329,14 @@ Use this only when Design file URL/node IDs are available.
    `Figma Node ID` entries in
    `docs/design/PULSEPLATE_BUTTON_ACTION_PROMPT_MATRIX.md`.
 
-## 13) Blocker Protocol (No Design URL)
+## 13) Historical Blocker Protocol (No Design URL)
 
-If Design URL/node IDs are missing:
+This appendix is not part of the current repo-first lane. If a reopened historical Code Connect lane is explicitly declared by a future coordinator-owned packet and Design URL/node IDs are still missing:
+
+Evidence anchors:
+- historical-only classification in the current lane: `docs/figma/README.md:44-49`
+- current bypass policy and historical-only status: `docs/figma/FIGMA_WEB_IOS_AUTHORITY_RECONCILIATION_PACKET.md:116-139`
+- historical Design URL/node capture dependency: `docs/figma/FIGMA_DESIGN_URL_NODEID_CAPTURE_HPP.md:1-118`
 
 1. Keep status `blocked_by_design_url` in candidate mapping table.
 2. Do not fabricate file keys or node IDs.

@@ -12,6 +12,8 @@ from datetime import datetime, timezone
 from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
+from core.db_rls import apply_user_rls_context
+
 logger = logging.getLogger(__name__)
 
 
@@ -31,6 +33,7 @@ def export_direct_user_artifacts(*, session: Session, user_id: int) -> dict[str,
     from app.models.rag_feedback import RAGFeedback, UserKnowledge
     from core.models import User
 
+    apply_user_rls_context(session, user_id=user_id)
     user = session.get(User, user_id)
     feedback_rows = (
         session.execute(
@@ -102,6 +105,7 @@ def build_direct_user_deletion_plan(*, session: Session, user_id: int) -> dict[s
     from app.models.rag_feedback import RAGFeedback, UserKnowledge
     from core.models import User
 
+    apply_user_rls_context(session, user_id=user_id)
     user_exists = session.get(User, user_id) is not None
     feedback_count = session.execute(
         select(func.count()).select_from(RAGFeedback).where(RAGFeedback.user_id == user_id)
@@ -136,6 +140,7 @@ def delete_direct_user_artifacts(*, session: Session, user_id: int) -> dict[str,
     from app.models.rag_feedback import RAGFeedback, UserKnowledge
     from core.models import User
 
+    apply_user_rls_context(session, user_id=user_id)
     user_exists = session.get(User, user_id) is not None
     try:
         feedback_result = session.execute(

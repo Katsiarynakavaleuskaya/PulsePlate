@@ -5,11 +5,12 @@
 
 name: trivy
 
+env:
+  PULSEPLATE_PYTHON_INDEX_URL: ${{ secrets.PULSEPLATE_PYTHON_INDEX_URL || vars.PULSEPLATE_PYTHON_INDEX_URL }}
+  PULSEPLATE_PYTHON_TRUSTED_HOST: ${{ secrets.PULSEPLATE_PYTHON_TRUSTED_HOST || vars.PULSEPLATE_PYTHON_TRUSTED_HOST }}
+
 on:
   push:
-    branches: [ "main" ]
-  pull_request:
-    # The branches below must be a subset of the branches above
     branches: [ "main" ]
   schedule:
     - cron: '16 15 * * 6'
@@ -21,59 +22,94 @@ permissions:
 jobs:
   build:
     permissions:
+      actions: write
       contents: read # for actions/checkout to fetch code
+      packages: read # for ghcr.io/aquasecurity/trivy-db pulls (AGENTS.md GHCR policy)
       security-events: write # for github/codeql-action/upload-sarif to upload SARIF results
-      actions: read # only required for a private repository by github/codeql-action/upload-sarif to get the Action run status
     name: Build
     runs-on: ubuntu-latest
+    env:
+      # secrets.* is not available in step-level `if:` (actionlint / context rules); gate at job env instead.
+      GHCR_READ_TOKEN_AVAILABLE: ${{ secrets.GHCR_READ_TOKEN != '' }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Free disk space (Ubuntu hosted runner)
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc
+          df -h
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435
 
       - name: Build Docker image (production target)
-        uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25 # v5
+        uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7.0.0
         with:
           context: .
+          build-args: |
+            PULSEPLATE_PYTHON_INDEX_URL=${{ env.PULSEPLATE_PYTHON_INDEX_URL }}
+            PULSEPLATE_PYTHON_TRUSTED_HOST=${{ env.PULSEPLATE_PYTHON_TRUSTED_HOST }}
           platforms: linux/amd64
           push: false
           load: true
           tags: pulseplate:trivy-scan-${{ github.sha }}
+          cache-from: type=gha,scope=trivy-image-${{ github.ref_name }}
+          cache-to: type=gha,scope=trivy-image-${{ github.ref_name }},mode=min,ignore-error=true
+          provenance: false
           target: production
 
-      - name: Install Trivy via apt
+      # PAT may be present but expired/revoked; anonymous pull still works for public trivy-db.
+      - name: Log in to GHCR (Trivy DB)
+        if: ${{ env.GHCR_READ_TOKEN_AVAILABLE == 'true' }}
+        env:
+          GHCR_READ_TOKEN: ${{ secrets.GHCR_READ_TOKEN }}
         run: |
-          sudo apt-get update
-          sudo apt-get install -y wget apt-transport-https gnupg lsb-release
-          wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | gpg --dearmor | sudo tee /usr/share/keyrings/trivy.gpg > /dev/null
-          echo "deb [signed-by=/usr/share/keyrings/trivy.gpg] https://aquasecurity.github.io/trivy-repo/deb $(lsb_release -sc) main" | sudo tee /etc/apt/sources.list.d/trivy.list
-          sudo apt-get update
-          sudo apt-get install -y trivy
-          trivy --version
+          set -euo pipefail
+          if ! echo "$GHCR_READ_TOKEN" | docker login ghcr.io -u "${{ github.repository_owner }}" --password-stdin
+          then
+            echo "::warning::GHCR_READ_TOKEN is set but docker login was denied; continuing without registry auth."
+          fi
+
+      - name: Prepare Trivy ignore policy
+        run: |
+          set -euo pipefail
+          test -f trivy/ignore-policy.rego
+          cp trivy/ignore-policy.rego .trivy-ignore-policy.rego
+          ls -la .trivy-ignore-policy.rego
 
       - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # v0.35.0
         env:
-          TRIVY_TIMEOUT: 15m
-        run: |
-          trivy image \
-            --db-repository ghcr.io/aquasecurity/trivy-db \
-            --scanners vuln \
-            --timeout "${TRIVY_TIMEOUT}" \
-            --format sarif \
-            --output trivy-results.sarif \
-            --severity CRITICAL,HIGH \
-            --ignore-unfixed \
-            --ignorefile .trivyignore \
-            --ignore-policy trivy/ignore-policy.rego \
-            'pulseplate:trivy-scan-${{ github.sha }}'
+          TRIVY_DB_REPOSITORY: ghcr.io/aquasecurity/trivy-db
+        with:
+          scan-type: image
+          image-ref: pulseplate:trivy-scan-${{ github.sha }}
+          cache-dir: /tmp/trivy-cache
+          scanners: vuln
+          timeout: 15m
+          format: sarif
+          output: trivy-results.sarif
+          severity: CRITICAL,HIGH
+          limit-severities-for-sarif: true
+          ignore-unfixed: true
+          trivyignores: .trivyignore
+          ignore-policy: .trivy-ignore-policy.rego
+          version: v0.69.3
 
-      - name: Verify SARIF file exists
-        run: ls -la trivy-results.sarif
+      - name: Fail when Trivy SARIF is missing
+        if: ${{ always() }}
+        run: |
+          if [ ! -f trivy-results.sarif ]; then
+            echo "::error::Trivy SARIF missing after scan; failing closed."
+            exit 1
+          fi
+          ls -la trivy-results.sarif
 
       - name: Upload Trivy scan results to GitHub Security tab
         uses: github/codeql-action/upload-sarif@c00e4aee0547167576bc6663920491135a3dee27 # v4
-        if: always()
+        if: ${{ always() && hashFiles('trivy-results.sarif') != '' }}
         with:
           sarif_file: 'trivy-results.sarif'

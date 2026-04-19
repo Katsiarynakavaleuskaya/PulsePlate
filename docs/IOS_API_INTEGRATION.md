@@ -1,6 +1,6 @@
 # iOS API Integration (Canonical)
 
-**Last Updated**: 7 February 2026
+**Last Updated**: 18 March 2026
 **Status**: Canonical (repo source of truth)
 **Scope**: iOS thin-client networking only (transport + contracts + tests)
 **Non-goals**: IAP/receipt, analytics, domain logic, “roll your own URLSession client”, new singleton transport layers
@@ -106,20 +106,33 @@ Keep future work out of the canonical networking guide; track it as discrete bac
 
 ---
 
-## Payments Transport (P0 baseline policy)
+## Payments Transport (current canonical state)
 
 Contract source:
-- `docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md:1`
+- `docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md`
+- `docs/contracts/IOS_STOREKIT_PRODUCTS_CONTRACT.md` (canonical StoreKit product contract baseline landed in PR #1172; B3 operational/setup follow-through is now governed by the contract's setup + operational release checklist, and future release work must continue to point there)
+
+Thin-client boundary (current merged state):
+- **What iOS sends:** Receipt verification requests, activation handoff to `POST /api/v1/pro/payments/activate`, manual intent payload, and reconcile requests. Transport-only; no entitlement or billing decision logic.
+- **What backend decides:** Activation, tier assignment, reconciliation status, signature validation. Billing truth is server-authoritative only.
+- **Merged in B2 / PR #1185:** Apple verify now normalizes into the backend activation contract.
+- **B4 runtime truth:** iOS decodes the full backend `activation_payload` from verify-response and forwards it as `payload.verification_result` unchanged when calling `POST /api/v1/pro/payments/activate`. StoreKit/App Store operational setup truth remains centralized in `docs/contracts/IOS_STOREKIT_PRODUCTS_CONTRACT.md`; the later App Store Server API migration is still out of scope for this lane.
+
+### Remaining follow-through (separate lanes)
+
+- Future StoreKit / App Store submission work must use the operational checklist in `docs/contracts/IOS_STOREKIT_PRODUCTS_CONTRACT.md` instead of creating a parallel setup source.
+- Apple receipt verification migration to App Store Server API.
 
 Thin-client rules for payments:
 1. iOS must use existing `APIClient`/`HTTPClient` seam only (evidence: `ios/PulsePlate/Networking/APIClient.swift:57`, `ios/PulsePlate/Networking/HTTPClient.swift:22`).
-2. Receipt/business decision logic stays server-side; the additive Apple verify seam is `/api/v1/billing/apple/verify-receipt`, while RU/BY payment transport remains on `/api/v1/pro/payments/ru-by/*` until the runtime migration lands (evidence: `docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md:27`, `docs/contracts/API_CANONICAL_MAP.md:20`, `docs/roadmap/BACKLOG_LEDGER.md#ledger-p0-payments-ruby-ios`).
+2. Receipt/business decision logic stays server-side; Apple verify seam `/api/v1/billing/apple/verify-receipt`, RU/BY transport on `/api/v1/pro/payments/ru-by/*` (evidence: `docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md`, `docs/contracts/API_CANONICAL_MAP.md`).
 3. Client may send transport payload and render server state, but must not infer activation logic locally (evidence: `ios/PulsePlate/Networking/APIClient.swift:84`, `ios/PulsePlate/Networking/HTTPClient.swift:13`).
 4. Key material/storage remains in Keychain-backed providers; no `UserDefaults` fallback for secrets (evidence: `ios/PulsePlate/Services/ProKeyProvider.swift:20`, `ios/PulsePlate/Services/KeychainStore.swift:8`).
 5. The iOS app must never call Apple `verifyReceipt` directly; server-side verification is production-first with a single sandbox fallback on `21007` and requires backend-held `APPLE_SHARED_SECRET`.
 
-Current / planned transport surfaces:
+Current transport surfaces (B1 implemented):
 - `POST /api/v1/billing/apple/verify-receipt` (implemented additive billing seam for verify-only receipt validation)
+- `POST /api/v1/pro/payments/activate` (current iOS purchase flow handoff after receipt verification; client now forwards backend `activation_payload` as `payload.verification_result` without local reconstruction)
 - `POST /api/v1/pro/payments/ru-by/manual-intent` (current runtime transport during the transition window)
 - `POST /api/v1/pro/payments/ru-by/reconcile` (current runtime transport during the transition window)
 - `GET /api/v1/pro/payments/ru-by/reconcile/{intent_id}` (current runtime transport during the transition window)

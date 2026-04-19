@@ -8,6 +8,8 @@ from fastapi import FastAPI
 
 import app
 import pytest
+from app.bootstrap.direct_api_root import LEGACY_BMI_WEB_ROUTE
+from tests.helpers.module_resolve import resolve_module
 
 
 class TestAppImport:
@@ -64,9 +66,8 @@ class TestAppImport:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Facade access must reapply additive bootstrap when legacy_app.app changes."""
-        import app.main as main_module
-
-        legacy_module = importlib.import_module("legacy_app")
+        main_module = resolve_module("app.main")
+        legacy_module = resolve_module("legacy_app")
 
         original_main_app = main_module.app
         replacement_app = FastAPI()
@@ -85,6 +86,8 @@ class TestAppImport:
         assert "/api/v1/feedback/rag" in route_paths
         assert "/api/v1/pro/cbt/insight" in route_paths
         assert "/ws" in route_paths
+        assert "/" in route_paths
+        assert LEGACY_BMI_WEB_ROUTE in route_paths
 
 
 class TestAppVIPIntegration:

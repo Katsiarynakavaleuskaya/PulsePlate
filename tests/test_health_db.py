@@ -12,24 +12,96 @@ import app
 import legacy_app
 from core import db as db_module
 
-# RU: /ready - alias для /health/db, тестируем оба пути.
-# EN: /ready is an alias for /health/db, test both paths.
-READINESS_PATHS: list[str] = ["/health/db", "/ready"]
+# RU: /health/db сохраняет старый контракт, /ready теперь additive-only.
+# EN: /health/db keeps the old contract, while /ready is now additive-only.
 
 
-@pytest.mark.parametrize("path", READINESS_PATHS)
-def test_readiness_ok(path: str) -> None:
-    """RU: Проверка, что readiness endpoints возвращают 200.
+def test_database_health_ok() -> None:
+    """RU: /health/db остаётся минимальным DB-readiness контрактом.
 
-    EN: Ensure readiness endpoints succeed when DB is available.
+    EN: /health/db remains the minimal DB-readiness contract.
     """
     with TestClient(cast(ASGIApp, app.app)) as client:
-        response = client.get(path)
+        response = client.get("/health/db")
     assert response.status_code == 200
+    assert response.headers.get("content-type", "").startswith("application/json")
     assert response.json() == {"status": "ok"}
 
 
-@pytest.mark.parametrize("path", READINESS_PATHS)
+def test_ready_ok_exposes_additive_insight_runtime() -> None:
+    """RU: /ready добавляет безопасную insight runtime visibility.
+
+    EN: /ready adds safe insight runtime visibility.
+    """
+    with TestClient(cast(ASGIApp, app.app)) as client:
+        response = client.get("/ready")
+
+    assert response.status_code == 200
+    assert response.headers.get("content-type", "").startswith("application/json")
+    payload = response.json()
+    assert payload["status"] == "ok"
+    insight_runtime = payload["insight_runtime"]
+    assert insight_runtime["feature_enabled"] is False
+    assert insight_runtime["primary_provider"] is None
+    assert insight_runtime["fallback_order"] == []
+    assert insight_runtime["echo_mode_provider"] is None
+
+
+def test_ready_ok_exposes_echo_mode_without_secret_leak(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """RU: echo-mode visibility для stub должна быть явной и безопасной.
+
+    EN: Echo-mode visibility for stub must be explicit and safe.
+    """
+    monkeypatch.setenv("FEATURE_INSIGHT", "true")
+    monkeypatch.setenv("LLM_PROVIDER", "stub")
+
+    with TestClient(cast(ASGIApp, app.app)) as client:
+        response = client.get("/ready")
+
+    assert response.status_code == 200
+    assert response.headers.get("content-type", "").startswith("application/json")
+    payload = response.json()
+    assert payload["status"] == "ok"
+    insight_runtime = payload["insight_runtime"]
+    assert insight_runtime["feature_enabled"] is True
+    assert insight_runtime["primary_provider"] == "stub"
+    assert insight_runtime["fallback_order"] == ["stub"]
+    assert insight_runtime["echo_mode_provider"] == "stub"
+
+
+def test_ready_falls_back_to_unavailable_runtime_when_insight_readiness_raises(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """RU: /ready fail-soft branch logs runtime error and keeps additive contract.
+
+    EN: /ready logs insight readiness failure and preserves the additive fallback payload.
+    """
+
+    def _raise_runtime_error() -> None:
+        raise RuntimeError("readiness boom")
+
+    import llm
+
+    monkeypatch.setattr(llm, "get_insight_runtime_readiness", _raise_runtime_error, raising=True)
+
+    with caplog.at_level("WARNING"), TestClient(cast(ASGIApp, app.app)) as client:
+        response = client.get("/ready")
+
+    assert response.status_code == 200
+    assert response.headers.get("content-type", "").startswith("application/json")
+    payload = response.json()
+    assert payload["status"] == "ok"
+    assert payload["insight_runtime"] == {"status": "unavailable"}
+    assert any(
+        "Insight runtime readiness unavailable on /ready" in record.message
+        for record in caplog.records
+    )
+
+
+@pytest.mark.parametrize("path", ["/health/db", "/ready"])
 def test_readiness_failure(monkeypatch: pytest.MonkeyPatch, path: str) -> None:
     """RU: Ошибка БД приводит к 503.
 
@@ -42,6 +114,7 @@ def test_readiness_failure(monkeypatch: pytest.MonkeyPatch, path: str) -> None:
         response = client.get(path)
 
     assert response.status_code == 503
+    assert response.headers.get("content-type", "").startswith("application/json")
     assert response.json()["detail"].lower().startswith("database")
 
 

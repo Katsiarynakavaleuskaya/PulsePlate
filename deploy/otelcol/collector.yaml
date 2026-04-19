@@ -1,0 +1,26 @@
+receivers:
+  otlp:
+    protocols:
+      http: {}
+      grpc: {}
+
+processors:
+  resource/env:
+    attributes:
+      - key: deployment.environment.name
+        action: upsert
+        value: ${env:DEPLOYMENT_ENVIRONMENT_NAME}
+  batch: {}
+
+exporters:
+  otlphttp:
+    endpoint: ${env:OTEL_EXPORTER_OTLP_ENDPOINT}
+  debug:
+    verbosity: basic
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [resource/env, batch]
+      exporters: [otlphttp, debug]

@@ -116,6 +116,33 @@
 "home.accessibility.screen_label" = "Home Screen";
 "home.hero.title" = "PulsePlate";
 "home.hero.subtitle" = "Home + Plate + Progress production slice";
+"plate.preview.title" = "My Plate";
+"plate.preview.subtitle" = "Tap segments to customize your nutrition";
+"plate.preview.add_meal" = "Add Meal";
+"plate.preview.view_details" = "View Details";
+"plate.segment.vegetables" = "Vegetables";
+"plate.segment.protein" = "Protein";
+"plate.segment.carbs" = "Carbs";
+"plate.segment.fats" = "Fats";
+"appstore.paywall.navigation_title" = "PRO & VIP";
+"appstore.paywall.title" = "Upgrade with confidence";
+"appstore.paywall.subtitle" = "Unlock nutrition planning, premium summaries, and wellness progress views.";
+"appstore.paywall.section.plans" = "Plans";
+"appstore.paywall.restore" = "Restore Purchases";
+"appstore.paywall.plan.monthly.title" = "PRO Monthly";
+"appstore.paywall.plan.monthly.price" = "See price in App Store";
+"appstore.paywall.plan.monthly.badge" = "Most flexible";
+"appstore.paywall.plan.yearly.title" = "VIP Annual";
+"appstore.paywall.plan.yearly.price" = "See price in App Store";
+"appstore.paywall.plan.yearly.badge" = "Best value";
+"appstore.health_permission.navigation_title" = "Health Access";
+"appstore.health_permission.title" = "Health access, explained clearly";
+"appstore.health_permission.subtitle" = "PulsePlate reads Health nutrition and body weight data to show progress and planning. It does not diagnose, treat, or make medical decisions.";
+"appstore.health_permission.section" = "What you control";
+"appstore.health_permission.cta" = "Review Health permissions";
+"appstore.health_permission.bullet.read" = "Read your nutrition entries from Health.";
+"appstore.health_permission.bullet.progress" = "Show weekly progress and weight trends inside PulsePlate.";
+"appstore.health_permission.bullet.optional" = "Keep Health access optional and wellness-only.";
 
 /* Shopping List */
 "shopping_list_no_plan_error" = "Generate a weekly plan first to build a shopping list.";

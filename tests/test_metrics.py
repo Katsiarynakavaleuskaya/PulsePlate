@@ -9,11 +9,24 @@ from __future__ import annotations
 import re
 
 import pytest
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 import app
+from app.bootstrap.metrics import register_metrics
 
 # Use conftest.py client fixture (don't define local one to avoid bypassing test setup)
+
+
+def _get_metrics_get_routes(app_instance: FastAPI) -> list[object]:
+    """Collect registered GET routes for the canonical /metrics endpoint."""
+
+    return [
+        route
+        for route in app_instance.routes
+        if getattr(route, "path", None) == "/metrics"
+        and "GET" in (getattr(route, "methods", None) or set())
+    ]
 
 
 def _metric_value(text: str, *, method: str, route: str, status: str) -> float:
@@ -230,6 +243,65 @@ def test_metrics_json_fallback_when_exporter_raises(
     # RuntimeError during generate_latest() should return "Metrics export failed"
     assert data["error"] == "Metrics export failed"
     assert "detail" in data
+
+
+def test_register_metrics_adds_route_after_stack_is_built() -> None:
+    """Late bootstrap must still restore /metrics without mutating middleware."""
+
+    app_instance = FastAPI()
+
+    @app_instance.get("/")
+    def root() -> dict[str, str]:
+        return {"status": "ok"}
+
+    with TestClient(app_instance) as client:
+        response = client.get("/")
+        assert response.status_code == 200
+
+    middleware_stack = getattr(app_instance, "middleware_stack", None)
+    assert middleware_stack is not None
+    before_user_middleware = len(getattr(app_instance, "user_middleware", []))
+
+    register_metrics(app_instance)
+
+    assert getattr(app_instance, "middleware_stack", None) is middleware_stack
+    assert len(_get_metrics_get_routes(app_instance)) == 1
+    assert len(getattr(app_instance, "user_middleware", [])) == before_user_middleware
+
+    with TestClient(app_instance) as client:
+        metrics_response = client.get("/metrics")
+
+    assert metrics_response.status_code == 200
+
+
+def test_register_metrics_is_idempotent_for_route_registration() -> None:
+    """Repeated bootstrap calls must not duplicate the /metrics route."""
+
+    app_instance = FastAPI()
+
+    register_metrics(app_instance)
+    register_metrics(app_instance)
+
+    assert len(_get_metrics_get_routes(app_instance)) == 1
+
+
+def test_register_metrics_is_idempotent_after_stack_is_built() -> None:
+    """Repeated late bootstrap must not duplicate the /metrics route."""
+
+    app_instance = FastAPI()
+    register_metrics(app_instance)
+
+    with TestClient(app_instance) as client:
+        metrics_response = client.get("/metrics")
+        assert metrics_response.status_code == 200
+
+        register_metrics(app_instance)
+        register_metrics(app_instance)
+
+        assert len(_get_metrics_get_routes(app_instance)) == 1
+
+        metrics_response = client.get("/metrics")
+        assert metrics_response.status_code == 200
 
 
 def test_metrics_hidden_from_openapi(client: TestClient) -> None:
@@ -603,6 +675,27 @@ def test_ws_observability_helpers_noop_when_metrics_unavailable(
     metrics_mod.record_ws_message("/ws", direction="in")
     metrics_mod.inc_ws_active_connections("/ws")
     metrics_mod.dec_ws_active_connections("/ws")
+
+
+def test_record_legacy_alias_hit_swallows_counter_inc_errors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """record_legacy_alias_hit must swallow Prometheus label/inc failures."""
+    import app.metrics as app_metrics
+
+    from app.metrics import LEGACY_NUTRITION_DATE_ROUTE_TEMPLATE as route
+
+    class _BadChild:
+        def inc(self, amount: float = 1.0) -> None:
+            raise RuntimeError("boom")
+
+    class _BadCounter:
+        def labels(self, *, alias_route: str) -> _BadChild:
+            assert alias_route == route
+            return _BadChild()
+
+    monkeypatch.setattr(app_metrics, "LEGACY_ALIAS_REQUESTS_TOTAL", _BadCounter())
+    app_metrics.record_legacy_alias_hit(route)
 
 
 def test_ws_observability_helpers_swallow_metrics_backend_errors(

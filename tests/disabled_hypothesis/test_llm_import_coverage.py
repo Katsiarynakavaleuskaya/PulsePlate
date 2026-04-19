@@ -1,10 +1,9 @@
-"""
-Тесты для покрытия исключений при импорте в llm.py
-Цель: достичь 100% покрытия кода включая fallback провайдеры
-"""
+"""Targeted coverage tests for llm provider selector (disabled_hypothesis copy)."""
 
+from __future__ import annotations
+
+import importlib
 import os
-import sys
 from importlib import reload
 from unittest.mock import Mock, patch
 
@@ -14,198 +13,85 @@ import llm
 
 
 @pytest.fixture(autouse=True)
-def setup_test_environment():
-    """Setup test environment for all tests in this module"""
-    os.environ["API_KEY"] = "test_key"
-    os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
+def _llm_test_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("API_KEY", "test_key")
+    monkeypatch.setenv("FEATURE_PREMIUM_NUTRITION", "true")
 
 
 class TestImportFallbacks:
-    """Тесты fallback поведения при недоступности внешних провайдеров"""
+    def test_perplexity_import_exception_coverage(self) -> None:
+        original_import_module = importlib.import_module
+        with patch("importlib.import_module") as mock_import:
 
-    def test_grok_import_exception_coverage(self):
-        """Тест покрытия GrokLiteProvider при ошибке импорта providers.grok"""
-        # Сохраняем оригинальные модули
-        original_modules = sys.modules.copy()
+            def import_side_effect(name: str, package: str | None = None):
+                if name == "providers.perplexity":
+                    raise ImportError("No module named providers.perplexity")
+                return original_import_module(name, package)
 
-        try:
-            # Удаляем модули провайдеров если они загружены
-            modules_to_remove = [
-                name for name in sys.modules.keys() if name.startswith("providers")
-            ]
-            for mod_name in modules_to_remove:
-                del sys.modules[mod_name]
-
-            # Мокаем импорт providers.grok чтобы вызвать исключение
-            import builtins
-
-            real_import = builtins.__import__
-
-            def side_effect(name, globals=None, locals=None, fromlist=(), level=0):
-                if isinstance(name, str) and "providers.grok" in name:
-                    raise ImportError("No module named providers.grok")
-                return real_import(name, globals, locals, fromlist, level)
-
-            # Remove module instead of setting to None (prevents sys.modules None poisoning)
-            module_to_restore = None
-            if "providers.grok" in sys.modules:
-                module_to_restore = sys.modules["providers.grok"]
-                del sys.modules["providers.grok"]
-
-            try:
-                with patch("builtins.__import__", side_effect=side_effect):
-                    # Перезагружаем модуль llm чтобы активировать except блок
-                    if "llm" in sys.modules:
-                        reload(llm)
-
-                    # Теперь GrokLiteProvider должен быть доступен
-                    assert hasattr(llm, "GrokLiteProvider")
-            finally:
-                # Restore module
-                if module_to_restore is not None:
-                    sys.modules["providers.grok"] = module_to_restore
-
-                    # Тестируем создание и использование GrokLiteProvider
-                    provider = llm.GrokLiteProvider()
-                    assert provider.name == "grok"
-
-        finally:
-            # Восстанавливаем оригинальные модули
-            sys.modules.clear()
-            sys.modules.update(original_modules)
-            # Перезагружаем llm в оригинальном состоянии
+            mock_import.side_effect = import_side_effect
             reload(llm)
+            assert llm.PerplexityProvider is None
+            assert hasattr(llm, "PerplexityLiteProvider")
+
+        reload(llm)
 
     @pytest.mark.asyncio
-    async def test_grok_lite_provider_generate_coverage(self):
-        """Тест метода generate класса GrokLiteProvider"""
-        # Используем реальный GrokLiteProvider из llm модуля
-        provider = llm.GrokLiteProvider()
+    async def test_perplexity_lite_provider_generate_coverage(self) -> None:
+        provider = llm.PerplexityLiteProvider()
+        assert provider.name == "perplexity"
         result = await provider.generate("test input")
-
-        # Проверяем поведение реального провайдера
-        assert result == "[grok-lite] test input"
-        assert "grok-lite" in result
-        assert provider.name == "grok"
-
-    def test_ollama_import_exception_coverage(self):
-        """Тест покрытия исключения при импорте OllamaProvider"""
-        # Мокаем ошибку импорта OllamaProvider
-        import builtins
-
-        real_import = builtins.__import__
-
-        with patch("builtins.__import__") as mock_import:
-
-            def import_side_effect(name, globals=None, locals=None, fromlist=(), level=0):
-                if isinstance(name, str) and "providers.ollama" in name:
-                    raise ImportError("No module named 'providers.ollama'")
-                return real_import(name, globals, locals, fromlist, level)
-
-            mock_import.side_effect = import_side_effect
-
-            # Перезагружаем модуль для активации except блока
-            reload(llm)
-
-            # OllamaProvider должен быть None
-            assert llm.OllamaProvider is None
-
-        # Восстанавливаем нормальное состояние
-        reload(llm)
-
-    def test_pico_import_exception_coverage(self):
-        """Тест покрытия исключения при импорте PicoProvider"""
-        # Мокаем ошибку импорта PicoProvider
-        import builtins
-
-        real_import = builtins.__import__
-
-        with patch("builtins.__import__") as mock_import:
-
-            def import_side_effect(name, globals=None, locals=None, fromlist=(), level=0):
-                if isinstance(name, str) and "providers.pico" in name:
-                    raise ImportError("No module named 'providers.pico'")
-                return real_import(name, globals, locals, fromlist, level)
-
-            mock_import.side_effect = import_side_effect
-
-            # Перезагружаем модуль для активации except блока
-            reload(llm)
-
-            # PicoProvider должен быть None
-            assert llm.PicoProvider is None
-
-        # Восстанавливаем нормальное состояние
-        reload(llm)
+        assert result.startswith("[perplexity-lite] ")
+        assert result.endswith("test input")
 
 
 class TestGetProviderEdgeCases:
-    """Тесты граничных случаев функции get_provider()"""
-
-    def test_get_provider_with_pico(self):
-        """Тест несуществующего провайдера pico"""
+    def test_get_provider_with_pico(self) -> None:
         with patch.dict(os.environ, {"LLM_PROVIDER": "pico"}, clear=False):
-            provider = llm.get_provider()
-            # Должен вернуться None так как pico не обрабатывается в get_provider
-            assert provider is None
+            assert llm.get_provider() is None
 
-    def test_get_provider_ollama_with_exception_coverage(self):
-        """Тест покрытия всех путей исключений в Ollama"""
+    def test_get_provider_ollama_with_exception_coverage(self) -> None:
         with patch.dict(os.environ, {"LLM_PROVIDER": "ollama"}, clear=False):
             with patch.object(llm, "OllamaProvider") as mock_ollama:
-                # Тест TypeError в первом try/except блоке
                 mock_ollama.side_effect = [TypeError("keyword error"), Exception("creation failed")]
-
                 provider = llm.get_provider()
-                # По контракту llm.get_provider(): при ошибках создания OllamaProvider
-                # возвращаем безопасный offline fallback (OllamaLiteProvider), а не None.
                 assert provider is not None
-                assert getattr(provider, "name", None) == "ollama"
+                assert provider.name == "ollama"
                 assert mock_ollama.call_count == 2
 
-    @patch("llm.GrokProvider")
-    def test_grok_provider_positional_args_fallback(self, mock_grok_class):
-        """Тест fallback на позиционные аргументы для GrokProvider"""
-        # Первый вызов с keyword args падает, второй с positional успешен
-        mock_instance = Mock()
-        mock_grok_class.side_effect = [TypeError("unexpected keyword"), mock_instance]
-
-        # Включаем ветку реального провайдера: если нет API ключа,
-        # llm.get_provider() возвращает GrokLiteProvider и GrokProvider не вызывается.
+    @patch("llm.PerplexityProvider")
+    def test_perplexity_provider_keyword_exception_fallback(
+        self, mock_perplexity_class: Mock
+    ) -> None:
+        mock_perplexity_class.side_effect = TypeError("unexpected keyword")
         with patch.dict(
-            os.environ, {"LLM_PROVIDER": "grok", "GROK_API_KEY": "test-key"}, clear=False
+            os.environ,
+            {
+                "LLM_PROVIDER": "perplexity",
+                "PERPLEXITY_API_KEY": "dummy",  # pragma: allowlist secret
+            },  # pragma: allowlist secret
+            clear=False,
         ):
             provider = llm.get_provider()
+            assert provider is not None
+            assert provider.name == "perplexity"
+            assert mock_perplexity_class.call_count == 1
 
-            # Должно быть два вызова: kwargs и positional
-            assert mock_grok_class.call_count == 2
-            assert provider == mock_instance
-
-    def test_get_provider_grok_without_real_provider(self):
-        """Тест get_provider с grok когда GrokProvider недоступен"""
-        with patch.dict(os.environ, {"LLM_PROVIDER": "grok"}, clear=False):
-            with patch.object(llm, "GrokProvider", None):
+    def test_get_provider_perplexity_without_real_provider(self) -> None:
+        with patch.dict(os.environ, {"LLM_PROVIDER": "perplexity"}, clear=False):
+            with patch.object(llm, "PerplexityProvider", None):
                 provider = llm.get_provider()
-                # Если у нас нет GrokLiteProvider, должен вернуться None
-                # В реальном модуле возвращается GrokLiteProvider только если GrokProvider=None
-                assert provider is not None or provider is None  # Допускаем оба варианта
+                assert provider is not None
+                assert provider.name == "perplexity"
 
 
 class TestEnvironmentVariableEdgeCases:
-    """Тесты граничных случаев обработки переменных окружения"""
-
-    def test_empty_string_values(self):
-        """Тест различных форм пустых строк"""
+    def test_empty_string_values(self) -> None:
         empty_values = ["", " ", "\t", "\n", "\r\n", "  \t\n  "]
-
         for empty_val in empty_values:
             with patch.dict(os.environ, {"LLM_PROVIDER": empty_val}, clear=False):
-                provider = llm.get_provider()
-                assert provider is None, f"Failed for empty value: '{repr(empty_val)}'"
+                assert llm.get_provider() is None
 
-    def test_case_variations(self):
-        """Тест различных вариантов регистра"""
-        # Тест для stub
+    def test_case_variations(self) -> None:
         stub_variations = ["stub", "STUB", "Stub", "StUb", "sTuB"]
         for variation in stub_variations:
             with patch.dict(os.environ, {"LLM_PROVIDER": variation}, clear=False):
@@ -213,19 +99,15 @@ class TestEnvironmentVariableEdgeCases:
                 assert provider is not None
                 assert provider.name == "stub"
 
-        # Тест для grok
-        grok_variations = ["grok", "GROK", "Grok", "GrOk", "gRoK"]
-        for variation in grok_variations:
+        perplexity_variations = ["perplexity", "PERPLEXITY", "Perplexity", "PeRpLeXiTy"]
+        for variation in perplexity_variations:
             with patch.dict(os.environ, {"LLM_PROVIDER": variation}, clear=False):
                 provider = llm.get_provider()
                 assert provider is not None
-                assert provider.name == "grok"
+                assert provider.name == "perplexity"
 
-    def test_special_none_values(self):
-        """Тест специальных значений, означающих None"""
+    def test_special_none_values(self) -> None:
         none_values = ["none", "NONE", "None", "no", "NO", "No"]
-
         for none_val in none_values:
             with patch.dict(os.environ, {"LLM_PROVIDER": none_val}, clear=False):
-                provider = llm.get_provider()
-                assert provider is None, f"Should be None for: '{none_val}'"
+                assert llm.get_provider() is None

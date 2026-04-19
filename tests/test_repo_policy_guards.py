@@ -55,6 +55,10 @@ ALLOWED_SYS_MODULES_CHECK_FILES = {
     "tests/test_app_init_rebinding_spec.py",  # tests sys.modules["app"] behavior
 }
 
+ALLOWED_NUTRIMENTS_ACCESS_FILES = {
+    "core/food_apis/openfoodfacts_client.py",
+}
+
 # If you intentionally allow a specific file later, add it to an allowlist above.
 
 
@@ -290,6 +294,28 @@ def test_no_sys_modules_none_poisoning() -> None:
     )
 
 
+def test_nutriments_access_is_limited_to_off_ingestion() -> None:
+    """Raw nutriments access must stay inside the OFF ingestion boundary."""
+
+    offenders: list[str] = []
+    for path in (
+        list(_iter_py_files("app/**/*.py"))
+        + list(_iter_py_files("core/**/*.py"))
+        + list(_iter_py_files("scripts/**/*.py"))
+    ):
+        rel = _rel(path)
+        content = _read(path)
+        if content is None:
+            continue
+        if "nutriments" in content and rel not in ALLOWED_NUTRIMENTS_ACCESS_FILES:
+            offenders.append(rel)
+
+    assert not offenders, (
+        "Direct nutriments access is forbidden outside OFF ingestion/resolver files. "
+        f"Offenders: {offenders}"
+    )
+
+
 def test_engineering_lessons_are_linked_from_repo_entrypoints() -> None:
     """Ensure ENGINEERING_LESSONS stays discoverable and doesn't get accidentally unlinked."""
     lessons_path = REPO_ROOT / "docs" / "ENGINEERING_LESSONS.md"
@@ -372,6 +398,8 @@ ALLOWLIST_PATH_SUBSTRINGS: set[str] = set()
 
 SKIP_DIRS_FOR_AST_SCAN = {
     ".git",
+    ".cursor",
+    ".agents",
     ".venv",
     ".venv-ci",
     "venv",
@@ -383,6 +411,8 @@ SKIP_DIRS_FOR_AST_SCAN = {
     ".pytest_cache",
     ".ruff_cache",
     "node_modules",
+    "artifacts",
+    "worktrees",
     # Client apps (not part of backend policy)
     "docs",
     "frontend",

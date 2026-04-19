@@ -18,11 +18,13 @@ import logging
 import math
 import threading
 import time
-from typing import TYPE_CHECKING, Any
+from collections.abc import Sequence
+from typing import TYPE_CHECKING, Any, SupportsFloat, cast
 
 from app.utils.feature_flags import is_rag_vector_enabled
 from core.data_sanitizer import sanitize_rag_markdown
-from core.rag.contracts import AGENT_CORPUS_MAP, RAGChunk, RAGContext
+from core.db_rls import apply_user_rls_context
+from core.rag.contracts import AGENT_CORPUS_MAP, RAGChunk, RAGContext, RAGDegradedReason
 from core.rag.rag_constants import (
     EMBEDDING_DIMENSIONS,
     MAX_CHUNK_SIZE_CHARS,
@@ -32,6 +34,7 @@ from core.rag.rag_constants import (
 
 if TYPE_CHECKING:
     from providers.embeddings import EmbeddingProvider
+    from sqlalchemy.sql.selectable import TableClause
 
 logger = logging.getLogger(__name__)
 
@@ -79,6 +82,90 @@ def _cosine_similarity(a: list[float], b: list[float]) -> float:
     return dot / (norm_a * norm_b)
 
 
+def _user_knowledge_table() -> TableClause:
+    """Return a lightweight SQLAlchemy table descriptor for ``user_knowledge``."""
+
+    from sqlalchemy import column, table
+
+    return table(
+        "user_knowledge",
+        column("id"),
+        column("content"),
+        column("source"),
+        column("embedding"),
+        column("user_id"),
+    )
+
+
+def _escape_like_prefix(prefix: str) -> str:
+    """Escape SQL LIKE wildcards in a corpus prefix before appending ``%``."""
+
+    escaped_prefix = prefix.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    return f"{escaped_prefix}%"
+
+
+def _has_expected_embedding_dimensions(query_embedding: list[float]) -> bool:
+    """Return whether a query embedding matches the configured vector size."""
+
+    if len(query_embedding) != EMBEDDING_DIMENSIONS:
+        logger.error(
+            "Query embedding length %d != expected %d",
+            len(query_embedding),
+            EMBEDDING_DIMENSIONS,
+        )
+        return False
+    return True
+
+
+def _normalize_embedding_vector(values: object) -> list[float] | None:
+    """Return a finite embedding vector with the configured dimensions."""
+
+    if isinstance(values, (str, bytes, bytearray)) or not isinstance(values, Sequence):
+        return None
+
+    numeric_values: list[float] = []
+    for value in values:
+        if isinstance(value, bool):
+            return None
+        candidate: str | int | float | SupportsFloat
+        if isinstance(value, (str, int, float)):
+            candidate = value
+        elif hasattr(value, "__float__"):
+            candidate = cast(SupportsFloat, value)
+        else:
+            return None
+        try:
+            numeric = float(candidate)
+        except (TypeError, ValueError):
+            return None
+        numeric_values.append(numeric)
+
+    if not _has_expected_embedding_dimensions(numeric_values):
+        return None
+    if not all(math.isfinite(value) for value in numeric_values):
+        return None
+    return numeric_values
+
+
+def _normalize_similarity(value: object) -> float | None:
+    """Return a finite similarity score or ``None`` for malformed payloads."""
+
+    candidate: str | int | float | SupportsFloat
+    if isinstance(value, (str, int, float)):
+        candidate = value
+    elif hasattr(value, "__float__"):
+        candidate = cast(SupportsFloat, value)
+    else:
+        return None
+    try:
+        numeric = float(candidate)
+    except (TypeError, ValueError):
+        return None
+    if not math.isfinite(numeric):
+        return None
+    return numeric
+
+
 # ---------------------------------------------------------------------------
 # Vector retrieval (dialect-aware)
 # ---------------------------------------------------------------------------
@@ -96,33 +183,52 @@ def _retrieve_vector_postgres(
     If corpus_prefixes is provided, filters results to rows where source
     starts with one of the given prefixes (agent-specific corpus filtering).
     """
-    from sqlalchemy import text
+    from pgvector.sqlalchemy import VECTOR
+    from sqlalchemy import BigInteger, Integer, String, bindparam, cast, or_, select
 
-    # Format embedding explicitly into pgvector's canonical text form
-    # instead of relying on str(list) which may have inconsistent formatting.
-    qvec_text = "[" + ",".join(str(x) for x in query_embedding) + "]"
+    user_knowledge = _user_knowledge_table()
 
-    # Build WHERE clause with optional corpus filtering
-    where_clause = "WHERE embedding IS NOT NULL AND user_id = :subject_id"
+    vector_type = VECTOR(EMBEDDING_DIMENSIONS)
+    qvec_param = bindparam("qvec", type_=vector_type)
+    qvec_vector = cast(qvec_param, vector_type)
+    limit_param = bindparam("lim", type_=Integer())
+    similarity = (1 - user_knowledge.c.embedding.op("<=>")(qvec_vector)).label("similarity")
+
+    stmt = (
+        select(
+            user_knowledge.c.id,
+            user_knowledge.c.content,
+            user_knowledge.c.source,
+            similarity,
+        )
+        .where(
+            user_knowledge.c.embedding.is_not(None),
+            user_knowledge.c.user_id == bindparam("subject_id", type_=BigInteger()),
+        )
+        .order_by(similarity.desc())
+        .limit(limit_param)
+    )
+
     params: dict[str, Any] = {
-        "qvec": qvec_text,
+        "qvec": query_embedding,
         "lim": limit,
         "subject_id": subject_id,
     }
 
     if corpus_prefixes:
-        # Build OR conditions for each prefix using LIKE
         prefix_conditions = []
         for i, prefix in enumerate(corpus_prefixes):
             param_name = f"prefix_{i}"
-            prefix_conditions.append(f"source LIKE :{param_name}")
-            params[param_name] = f"{prefix}%"
+            prefix_conditions.append(
+                user_knowledge.c.source.like(
+                    bindparam(param_name, type_=String()),
+                    escape="\\",
+                )
+            )
+            params[param_name] = _escape_like_prefix(prefix)
         if prefix_conditions:
-            where_clause += " AND (" + " OR ".join(prefix_conditions) + ")"
+            stmt = stmt.where(or_(*prefix_conditions))
 
-    # Safe: where_clause built from hardcoded AGENT_CORPUS_MAP, values use placeholders
-    sql = f"SELECT id, content, source, 1 - (embedding <=> :qvec::vector) AS similarity FROM user_knowledge {where_clause} ORDER BY embedding <=> :qvec::vector LIMIT :lim"  # nosec B608: where_clause is built from fixed predicates and bound params only (remove-by: 2026-04-30, ref: PR-TBD-RAG-TENANT-SCOPE)
-    stmt = text(sql)
     rows = session.execute(stmt, params).fetchall()
     return [(row, row.similarity) for row in rows]
 
@@ -139,44 +245,53 @@ def _retrieve_vector_sqlite(
     If corpus_prefixes is provided, filters results to rows where source
     starts with one of the given prefixes (agent-specific corpus filtering).
     """
-    from sqlalchemy import text
+    from sqlalchemy import BigInteger, String, bindparam, or_, select
 
-    # Build WHERE clause with optional corpus filtering
-    where_clause = "WHERE embedding IS NOT NULL AND user_id = :subject_id"
+    user_knowledge = _user_knowledge_table()
+
+    stmt = select(
+        user_knowledge.c.id,
+        user_knowledge.c.content,
+        user_knowledge.c.source,
+        user_knowledge.c.embedding,
+    ).where(
+        user_knowledge.c.embedding.is_not(None),
+        user_knowledge.c.user_id == bindparam("subject_id", type_=BigInteger()),
+    )
+
     params: dict[str, Any] = {"subject_id": subject_id}
 
     if corpus_prefixes:
         prefix_conditions = []
         for i, prefix in enumerate(corpus_prefixes):
             param_name = f"prefix_{i}"
-            prefix_conditions.append(f"source LIKE :{param_name}")
-            params[param_name] = f"{prefix}%"
+            prefix_conditions.append(
+                user_knowledge.c.source.like(
+                    bindparam(param_name, type_=String()),
+                    escape="\\",
+                )
+            )
+            params[param_name] = _escape_like_prefix(prefix)
         if prefix_conditions:
-            where_clause += " AND (" + " OR ".join(prefix_conditions) + ")"
+            stmt = stmt.where(or_(*prefix_conditions))
 
-    # Safe: where_clause built from hardcoded AGENT_CORPUS_MAP, values use placeholders
-    sql = f"SELECT id, content, source, embedding FROM user_knowledge {where_clause}"  # nosec B608: where_clause is built from fixed predicates and bound params only (remove-by: 2026-04-30, ref: PR-TBD-RAG-TENANT-SCOPE)
-    rows = session.execute(
-        text(sql),
-        params,
-    ).fetchall()
+    rows = session.execute(stmt, params).fetchall()
 
     scored: list[tuple[Any, float]] = []
 
-    if len(query_embedding) != EMBEDDING_DIMENSIONS:
-        logger.error(
-            "Query embedding length %d != expected %d",
-            len(query_embedding),
-            EMBEDDING_DIMENSIONS,
-        )
+    normalized_query_embedding = _normalize_embedding_vector(query_embedding)
+    if normalized_query_embedding is None:
         return []
+    query_embedding = normalized_query_embedding
 
     for row in rows:
         try:
-            stored = json.loads(row.embedding)
-            if len(stored) != EMBEDDING_DIMENSIONS:
+            stored = _normalize_embedding_vector(json.loads(row.embedding))
+            if stored is None:
                 continue
             sim = _cosine_similarity(query_embedding, stored)
+            if not math.isfinite(sim):
+                continue
             scored.append((row, sim))
         except (json.JSONDecodeError, TypeError):
             continue
@@ -201,7 +316,13 @@ def _retrieve_vector_from_db(
 
     if subject_id is None:
         logger.debug("Vector retrieval skipped because subject_id is missing")
-        return _empty_context(query, agent_id, user_tier, start)
+        return _empty_context(
+            query,
+            agent_id,
+            user_tier,
+            start,
+            degraded_reason=RAGDegradedReason.VECTOR_FALLBACK_SUBJECT_MISSING,
+        )
 
     # Get corpus prefixes for agent-specific filtering
     corpus_prefixes = AGENT_CORPUS_MAP.get(agent_id) if agent_id else None
@@ -209,12 +330,28 @@ def _retrieve_vector_from_db(
     provider = _get_embedding_provider()
     query_vectors = provider.encode([query])
     if not query_vectors:
-        return _empty_context(query, agent_id, user_tier, start)
-    query_embedding = query_vectors[0]
+        return _empty_context(
+            query,
+            agent_id,
+            user_tier,
+            start,
+            degraded_reason=RAGDegradedReason.VECTOR_FALLBACK_NO_RESULTS,
+        )
+    normalized_query_embedding = _normalize_embedding_vector(query_vectors[0])
+    if normalized_query_embedding is None:
+        return _empty_context(
+            query,
+            agent_id,
+            user_tier,
+            start,
+            degraded_reason=RAGDegradedReason.VECTOR_FALLBACK_NO_RESULTS,
+        )
+    query_embedding = normalized_query_embedding
 
     from core.db import session_scope
 
     with session_scope() as session:
+        apply_user_rls_context(session, user_id=subject_id)
         dialect = session.bind.dialect.name if session.bind else "sqlite"
         limit = max(1, min(max_chunks, MAX_SOURCES_IN_RESPONSE))
 
@@ -238,17 +375,23 @@ def _retrieve_vector_from_db(
     # Filter by minimum score and build RAGChunks
     chunks: list[RAGChunk] = []
     for i, (row, similarity) in enumerate(results, 1):
-        if similarity < MIN_VECTOR_SCORE:
+        normalized_similarity = _normalize_similarity(similarity)
+        if normalized_similarity is None or normalized_similarity < MIN_VECTOR_SCORE:
             continue
-        sanitized_content = sanitize_rag_markdown(str(row.content))[:MAX_CHUNK_SIZE_CHARS].strip()
+        row_id = getattr(row, "id", None)
+        row_content = getattr(row, "content", None)
+        if row_id is None or row_content is None:
+            continue
+        sanitized_content = sanitize_rag_markdown(str(row_content))[:MAX_CHUNK_SIZE_CHARS].strip()
         if not sanitized_content:
             continue
+        row_source = getattr(row, "source", None)
         chunks.append(
             RAGChunk(
-                chunk_id=f"uk:{row.id}:{i}",
-                file=row.source or "user_knowledge",
+                chunk_id=f"uk:{row_id}:{i}",
+                file=str(row_source).strip() if row_source else "user_knowledge",
                 content=sanitized_content,
-                score=round(similarity, 4),
+                score=round(normalized_similarity, 4),
                 hop=1,
             )
         )
@@ -281,6 +424,8 @@ def _empty_context(
     agent_id: str | None,
     user_tier: str | None,
     start: float,
+    *,
+    degraded_reason: RAGDegradedReason | None = None,
 ) -> RAGContext:
     """Return an empty RAGContext (no results)."""
     return RAGContext(
@@ -292,6 +437,7 @@ def _empty_context(
         latency_ms=int((time.perf_counter() - start) * 1000),
         agent_id=agent_id,
         user_tier=user_tier,
+        degraded_reason=degraded_reason,
     )
 
 
@@ -316,6 +462,7 @@ def retrieve_context_structured(
 
     Returns: RAGContext per RAG_CONTRACT.md §3.
     """
+    fallback_reason: RAGDegradedReason | None = None
     if is_rag_vector_enabled():
         try:
             ctx = _retrieve_vector_from_db(
@@ -329,8 +476,10 @@ def retrieve_context_structured(
             if ctx.chunks:
                 return ctx
             # No vector results — fall through to Jaccard
+            fallback_reason = ctx.degraded_reason or RAGDegradedReason.VECTOR_FALLBACK_NO_RESULTS
             logger.debug("Vector retrieval returned no chunks; falling back to Jaccard")
         except Exception:
+            fallback_reason = RAGDegradedReason.VECTOR_FALLBACK_EXCEPTION
             logger.warning(
                 "Vector retrieval failed; falling back to Jaccard",
                 exc_info=True,
@@ -345,4 +494,6 @@ def retrieve_context_structured(
         agent_id=agent_id,
         user_tier=user_tier,
     )
+    if fallback_reason is not None:
+        fallback_ctx.degraded_reason = fallback_reason
     return fallback_ctx

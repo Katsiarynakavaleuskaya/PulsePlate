@@ -23,6 +23,7 @@ from fastapi import (  # pyright: ignore[reportMissingImports]
 )
 from fastapi.security import APIKeyHeader  # pyright: ignore[reportMissingImports]
 
+import app.middleware.api_tiers as api_tiers_mod
 from app.schemas.fitchef import FitChefWeeklyPlanInput, FitChefWeeklyPlanTaskEnvelope
 from app.schemas.vip import ErrorResponse, WeeklyPlanRequest, WeeklyPlanResponse
 from app.services import fitchef_runtime
@@ -638,11 +639,32 @@ def _require_api_key_dev_legacy(request: Request) -> str:
     api_key = _extract_api_key(request)
     is_production, app_env = _is_production_environment()
 
+    def _require_vip_access(candidate_key: str) -> None:
+        try:
+            api_tiers_mod.require_vip_tier(x_api_key=candidate_key, request=request)
+        except HTTPException as exc:
+            if exc.status_code in {
+                status.HTTP_401_UNAUTHORIZED,
+                status.HTTP_403_FORBIDDEN,
+            }:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Forbidden: VIP access required",
+                ) from exc
+            raise
+
     if api_key:
         try:
-            return _require_api_key(api_key)
+            resolved_api_key = _require_api_key(api_key)
+            _require_vip_access(resolved_api_key)
+            return resolved_api_key
         except HTTPException as exc:
             if exc.status_code == status.HTTP_401_UNAUTHORIZED:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Forbidden: VIP access required",
+                ) from exc
+            if exc.status_code == status.HTTP_403_FORBIDDEN:
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail="Forbidden: VIP access required",
@@ -665,6 +687,7 @@ def _require_api_key_dev_legacy(request: Request) -> str:
         "off",
     }
     if _is_dev_mode(app_env) and not _explicit_false:
+        _require_vip_access(api_tiers_mod.TEST_KEY_VIP)
         _log_api_key_event(
             "VIP endpoint accessed without API key in legacy dev mode.",
             is_production,

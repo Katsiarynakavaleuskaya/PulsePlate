@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "engines": {
-    "node": ">=20.11.1 <21.0.0"
+    "node": ">=22.0.0 <23.0.0"
   },
   "scripts": {
     "dev": "vite",
@@ -18,6 +18,8 @@
     "test:precommit": "vitest run --environment jsdom --testTimeout=30000 --reporter=verbose",
     "test:coverage": "vitest run --coverage",
     "test:accessibility": "vitest run --environment jsdom --testTimeout=30000 --reporter=verbose src/**/__tests__/*Accessibility.test.tsx",
+    "test:e2e:doctor": "python3 ../scripts/playwright_mcp.py doctor",
+    "test:e2e:install": "python3 ../scripts/playwright_mcp.py install-browser",
     "test:e2e": "playwright test",
     "test:e2e:headed": "playwright test --headed",
     "generate-types": "openapi-typescript src/api/openapi.json --output src/api/schema.ts --alphabetize"
@@ -33,7 +35,7 @@
     "date-fns": "^4.1.0",
     "html2canvas": "^1.4.1",
     "i18next": "^25.5.2",
-    "jspdf": "^4.2.0",
+    "jspdf": "^4.2.1",
     "lucide-react": "^0.544.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
@@ -80,11 +82,12 @@
     "style-dictionary": "^5.3.3",
     "tailwindcss": "^3.4.4",
     "typescript": "^5.4.5",
-    "vite": "^6.3.4",
+    "vite": "^6.4.2",
     "vitest": "^3.2.4"
   },
   "overrides": {
-    "dompurify": "3.3.2"
+    "dompurify": "3.4.0",
+    "path-to-regexp": "8.4.0"
   },
   "msw": {
     "workerDirectory": [

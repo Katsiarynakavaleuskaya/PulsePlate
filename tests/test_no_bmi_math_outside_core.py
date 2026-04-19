@@ -51,6 +51,8 @@ WHITELIST_PARTS = [
     # Uses BMI for nutrition analysis context (not core BMI calculation logic)
     "core/nutrition_bayesian_analyzer.py",
     # NOTE: bodyfat.py NOT whitelisted — guard regex excludes 94.42 via negative lookahead
+    # Vendor submodule: Anthropic cybersecurity skills use 80 for risk scores (0-100), not waist cm
+    "tools/cybersecurity_skills/",
 ]
 
 # Forbidden patterns (domain signatures for BMI math)

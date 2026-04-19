@@ -5,14 +5,17 @@ name: CI
 # Periodically update these SHAs to newer versions for security updates and bug fixes.
 
 env:
-  COVERAGE_PY: "3.13.6"
+  COVERAGE_PY: "3.13"
+  FRONTEND_NODE_VERSION_FILE: ".nvmrc"
+  PULSEPLATE_PYTHON_INDEX_URL: ${{ secrets.PULSEPLATE_PYTHON_INDEX_URL || vars.PULSEPLATE_PYTHON_INDEX_URL }}
+  PULSEPLATE_PYTHON_TRUSTED_HOST: ${{ secrets.PULSEPLATE_PYTHON_TRUSTED_HOST || vars.PULSEPLATE_PYTHON_TRUSTED_HOST }}
 
 permissions:
   contents: read
 
 on:
   push:
-    branches: [ main, feat/**, fix/** ]
+    branches: [ main, feat/**, fix/**, feature/** ]
   pull_request:
     types: [ opened, synchronize, reopened, edited, ready_for_review ]
     branches: [ main, feat/**, fix/** ]
@@ -35,9 +38,25 @@ jobs:
       pull-requests: read
     outputs:
       ios: ${{ steps.filter.outputs.ios }}
+      docs_only: ${{ steps.risk_profile.outputs.docs_only }}
+      frontend_only: ${{ steps.risk_profile.outputs.frontend_only }}
+      ios_only: ${{ steps.risk_profile.outputs.ios_only }}
+      workflow_privileged: ${{ steps.risk_profile.outputs.workflow_privileged }}
+      backend_shared: ${{ steps.risk_profile.outputs.backend_shared }}
+      run_backend_blocking: ${{ steps.risk_profile.outputs.run_backend_blocking }}
+      run_security: ${{ steps.risk_profile.outputs.run_security }}
+      run_openapi_sync: ${{ steps.risk_profile.outputs.run_openapi_sync }}
+      billing_entitlement: ${{ steps.risk_profile.outputs.billing_entitlement }}
+      insight_ai: ${{ steps.risk_profile.outputs.insight_ai }}
+      openapi_contract: ${{ steps.risk_profile.outputs.openapi_contract }}
+      food_catalog: ${{ steps.risk_profile.outputs.food_catalog }}
+      route_contract_safety: ${{ steps.risk_profile.outputs.route_contract_safety }}
+      merge_governance: ${{ steps.risk_profile.outputs.merge_governance }}
+      contract_risk_groups: ${{ steps.risk_profile.outputs.contract_risk_groups }}
+      changed_file_count: ${{ steps.risk_profile.outputs.changed_file_count }}
     steps:
       - name: Checkout
-        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
 
@@ -53,13 +72,32 @@ jobs:
               - '.github/workflows/**'
               - '.github/actions/**'
 
+      - name: Build CI risk profile
+        id: risk_profile
+        if: github.event_name == 'pull_request' || (github.event_name == 'push' && (startsWith(github.ref, 'refs/heads/feat/') || startsWith(github.ref, 'refs/heads/fix/') || startsWith(github.ref, 'refs/heads/feature/')))
+        run: |
+          set -euo pipefail
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            BASE_SHA="${{ github.event.pull_request.base.sha }}"
+            HEAD_SHA="${{ github.event.pull_request.head.sha }}"
+          else
+            git fetch --no-tags --prune origin main
+            BASE_SHA="$(git merge-base origin/main "${GITHUB_SHA}")"
+            HEAD_SHA="${GITHUB_SHA}"
+          fi
+          echo "Risk-profile diff: ${BASE_SHA}...${HEAD_SHA}"
+          python3 scripts/ci/ci_risk_profile.py \
+            --base-sha "${BASE_SHA}" \
+            --head-sha "${HEAD_SHA}" \
+            --github-output "$GITHUB_OUTPUT"
+
   pr_scope_guard:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 2
     steps:
       - name: Checkout
-        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
 
@@ -69,6 +107,14 @@ jobs:
 
           echo "Running PR Scope Guard script..."
           bash scripts/ci/pr_scope_guard.sh
+
+      - name: PR size governance
+        run: |
+          set -euo pipefail
+          python3 scripts/ci/check_pr_size_governance.py \
+            --base-sha "${{ github.event.pull_request.base.sha }}" \
+            --head-sha "${{ github.event.pull_request.head.sha }}" \
+            --event-path "$GITHUB_EVENT_PATH"
 
       - name: Design invariant guard
         run: |
@@ -106,12 +152,39 @@ jobs:
     timeout-minutes: 2
     steps:
       - name: Checkout
-        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Check Trivy ignore-policy expiry dates
         run: python3 scripts/ci/check_trivy_ignore_policy_expiry.py
         env:
           TRIVY_IGNORE_POLICY_PATH: trivy/ignore-policy.rego
+
+  pygments_exception_guard:
+    name: Pygments exception seam guard
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      security-events: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Setup Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: ${{ env.COVERAGE_PY }}
+
+      - name: Guard temporary Pygments exception seam
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          CI: "true"
+        run: |
+          set -euo pipefail
+          python3 scripts/ci/check_pygments_exception_guard.py
 
   docs_phase1_gates:
     name: Docs Phase1 gates
@@ -123,19 +196,19 @@ jobs:
       pull-requests: read
     steps:
       - name: Checkout
-        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
 
       - name: Setup Python
-        uses: actions/setup-python@f677139bbe7f9c59b41e40162b753c062f5d49a3 # v5.2.0
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
           python-version: ${{ env.COVERAGE_PY }}
 
       - name: Setup Node.js
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
         with:
-          node-version: "20.11.1"
+          node-version-file: ${{ env.FRONTEND_NODE_VERSION_FILE }}
 
       - name: Run Phase1 docs gates
         run: |
@@ -211,10 +284,10 @@ jobs:
       pull-requests: read
     steps:
       - name: Checkout
-        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Setup Python
-        uses: actions/setup-python@f677139bbe7f9c59b41e40162b753c062f5d49a3 # v5.2.0
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
           python-version: ${{ env.COVERAGE_PY }}
 
@@ -233,10 +306,10 @@ jobs:
       pull-requests: read
     steps:
       - name: Checkout
-        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Setup Python
-        uses: actions/setup-python@f677139bbe7f9c59b41e40162b753c062f5d49a3 # v5.2.0
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
           python-version: ${{ env.COVERAGE_PY }}
 
@@ -250,35 +323,38 @@ jobs:
 
   lint:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     steps:
       - name: Checkout
-        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Setup Python environment
         uses: ./.github/actions/python-setup
         with:
-          python-version: "3.13.6"
-          install-dev-deps: "true"
+          python-version: ${{ env.COVERAGE_PY }}
+          requirements-profile: ci-lite
+          install-mode: direct-proxy
 
       - name: Pre-commit (lint/format/security quick checks)
         run: pre-commit run --all-files --show-diff-on-failure
         env:
           SKIP: no-commit-to-branch
-        continue-on-error: true
 
   security:
+    needs: [changes]
+    if: github.event_name != 'pull_request' || needs.changes.outputs.run_security == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
       - name: Checkout
-        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Setup Python environment
         uses: ./.github/actions/python-setup
         with:
-          python-version: "3.13.6"
-          install-dev-deps: "true"
+          python-version: ${{ env.COVERAGE_PY }}
+          requirements-profile: ci-lite
+          install-mode: direct-proxy
 
       - name: Security scan with Bandit
         run: |
@@ -290,48 +366,148 @@ jobs:
             echo "::notice::scripts/ci_bandit.sh not found; running bandit directly"
             bandit -r . -x "$EXCLUDES" -f json -o bandit-report.json
           fi
-        continue-on-error: true
+
+      - name: Enforce Bandit HIGH severity gate
+        run: |
+          set -euo pipefail
+
+          if [ ! -f bandit-report.json ]; then
+            echo "❌ Bandit report not found"
+            exit 1
+          fi
+
+          read -r total_findings high_severity_findings <<EOF
+          $(python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          report = Path("bandit-report.json")
+          data = json.loads(report.read_text())
+          results = data.get("results", [])
+          high = sum(1 for item in results if item.get("issue_severity") == "HIGH")
+          print(len(results), high)
+          PY
+          )
+          EOF
+
+          if [ "$high_severity_findings" -gt 0 ]; then
+            echo "❌ Found $high_severity_findings HIGH severity security issues in Bandit report"
+            echo "::error::Bandit found $high_severity_findings HIGH severity issues that must be addressed"
+            exit 1
+          fi
+
+          if [ "$total_findings" -gt 0 ]; then
+            echo "⚠️ Bandit reported $total_findings findings below HIGH severity"
+            echo "::warning::Bandit reported findings below HIGH severity – review bandit-report.json"
+          else
+            echo "✅ No HIGH severity issues found in Bandit report"
+          fi
+
+      - name: Install Safety
+        run: |
+          set -euo pipefail
+          : "${PULSEPLATE_PYTHON_INDEX_URL:?Set PULSEPLATE_PYTHON_INDEX_URL to the approved private package proxy URL.}"
+          pip_index_args=(--index-url "$PULSEPLATE_PYTHON_INDEX_URL")
+          if [[ -n "${PULSEPLATE_PYTHON_TRUSTED_HOST:-}" ]]; then
+            pip_index_args+=(--trusted-host "$PULSEPLATE_PYTHON_TRUSTED_HOST")
+          fi
+          python -m pip install "${pip_index_args[@]}" "safety>=3.7.0" -c constraints.txt
+
+      - name: Dependency audit with Safety
+        run: |
+          set -eo pipefail
+
+          if [ ! -f requirements.txt ]; then
+            echo "❌ ERROR: requirements.txt not found. Safety scan requires requirements.txt to be present."
+            exit 1
+          fi
+
+          extra_args=()
+          if [ -f safety-policy.yaml ]; then
+            extra_args+=(--policy-file safety-policy.yaml)
+          elif [ -f safety-policy.toml ]; then
+            extra_args+=(--policy-file safety-policy.toml)
+          else
+            echo "⚠️ safety-policy.yaml not found — running safety without a policy file"
+          fi
+
+          safety_exit_code=0
+          safety check \
+            "${extra_args[@]}" \
+            --json \
+            -r requirements.txt \
+            --save-json safety-report.json > safety-console.log 2>&1 || safety_exit_code=$?
+
+          if [ -s safety-console.log ]; then
+            echo "=== Raw Safety Output ==="
+            cat safety-console.log
+          fi
+
+          # Safety CLI 3.x may exit with codes >1 when vulnerabilities are found (e.g. 64), not only 1.
+          # Treat missing/empty JSON as a real execution failure; severities are gated in parse-safety-report.py.
+          if [ ! -s safety-report.json ]; then
+            echo "❌ Safety failed to produce safety-report.json (exit code: $safety_exit_code)"
+            exit "${safety_exit_code:-1}"
+          fi
+
+          analysis_status=0
+          python3 .github/scripts/parse-safety-report.py || analysis_status=$?
+
+          if [ "$analysis_status" -eq 10 ]; then
+            echo "❌ Safety found high/critical vulnerabilities"
+            exit 1
+          elif [ "$analysis_status" -eq 2 ]; then
+            echo "⚠️ Safety reported vulnerabilities below HIGH severity"
+          elif [ "$analysis_status" -ne 0 ]; then
+            echo "❌ Failed to analyze Safety report (status $analysis_status)"
+            exit "$analysis_status"
+          else
+            echo "✅ Safety check passed - no high/critical vulnerabilities found"
+          fi
 
       - name: Upload bandit artifact
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
-          name: bandit-report
-          path: bandit-report.json
+          name: security-reports
+          path: |
+            bandit-report.json
+            safety-report.json
+            safety-report.txt
           if-no-files-found: ignore
           retention-days: 7
 
   openapi-sync:
     name: OpenAPI sync (backend -> frontend artifacts)
+    needs: [changes]
+    if: github.event_name != 'pull_request' || needs.changes.outputs.run_openapi_sync == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     env:
       APP_ENV: test
       ENVIRONMENT: test
     steps:
       - name: Checkout
-        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Setup Python environment
         uses: ./.github/actions/python-setup
         with:
-          python-version: "3.13.6"
-          install-dev-deps: "true"
-
-      - name: Install backend dependencies
-        run: |
-          python -m pip install -r requirements.txt -c constraints.txt
+          python-version: ${{ env.COVERAGE_PY }}
+          requirements-profile: ci-lite
+          install-mode: direct-proxy
 
       - name: Setup Node.js
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
         with:
-          node-version: "20.11.1"
+          node-version-file: ${{ env.FRONTEND_NODE_VERSION_FILE }}
           cache: "npm"
           cache-dependency-path: frontend/package-lock.json
 
       - name: Install frontend dependencies
-        working-directory: frontend
-        run: npm ci
+        uses: ./.github/actions/npm-ci-with-retry
+        with:
+          working-directory: frontend
 
       - name: Generate OpenAPI + TS types
         run: make openapi
@@ -342,10 +518,10 @@ jobs:
       - name: Fail if generated artifacts differ
         run: git diff --exit-code frontend/src/api/openapi.json frontend/src/api/schema.ts
 
-  # Fast testing for PRs (single Python version)
+  # Tier 1 PR testing: critical smoke + contract/risk suites
   test-pr:
-    if: github.event_name == 'pull_request'
-    needs: [pr_scope_guard, openapi-sync]
+    if: github.event_name == 'pull_request' && needs.changes.outputs.run_backend_blocking == 'true'
+    needs: [changes, pr_scope_guard]
     runs-on: ubuntu-latest
     timeout-minutes: 60
     permissions:
@@ -354,19 +530,30 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ['3.13.6']
+        python-version: ['3.13']
 
     steps:
       - name: Checkout
-        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Setup Python environment
         uses: ./.github/actions/python-setup
         with:
           python-version: ${{ matrix.python-version }}
+          requirements-profile: ci-test
+          install-mode: direct-proxy
+
+      - name: Setup Node.js
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+        with:
+          node-version-file: ${{ env.FRONTEND_NODE_VERSION_FILE }}
+          cache: "npm"
+          cache-dependency-path: |
+            frontend/package-lock.json
+            package-lock.json
 
       - name: Cache pip dependencies
-        uses: actions/cache@1bd1e32a3bdc45362d1e726936510720a7c30a57 # v4.1.0
+        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
         continue-on-error: true  # GitHub Actions cache service may be unavailable
         with:
           path: ~/.cache/pip
@@ -374,11 +561,8 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pip-
 
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          python -m pip install -r requirements.txt -c constraints.txt
-          python -m pip install -r requirements-dev.txt -c constraints.txt
+      - name: Install root Node dependencies
+        run: npm ci
 
       - name: Clean Python cache
         uses: ./.github/actions/clean-python-cache
@@ -390,10 +574,9 @@ jobs:
           ENVIRONMENT: test
           PYTHONPATH: "${{ github.workspace }}"
 
-      - name: Run tests with coverage
+      - name: Critical smoke (deterministic merge blocker)
         env:
           PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/tests"
-          MATRIX_PYTHON_VERSION: "${{ matrix.python-version }}"
           VIP_MODULE_ENABLED: "true"
           APP_ENV: test
           ENVIRONMENT: test
@@ -403,37 +586,152 @@ jobs:
           PYTHONFAULTHANDLER: "1"
           PYTHONMALLOC: "malloc"
         run: |
-          # Use pytest-xdist for parallel execution with proper coverage collection
-          # Project standard: maintain 97% coverage for PR branches before merge
-          # See .cursorrules and AGENTS.md for coverage requirements
-          #
-          # CI stability: Python 3.13 has seen intermittent segfaults under xdist+coverage.
-          # Run sequentially on 3.13; keep parallelism for older versions.
-          # Intentionally removed `--cov-context=test` due to flaky coverage DB corruption under xdist
-          # on Python 3.13 ("no such table: context"). Revisit after pytest/hypothesis upgrades.
-          PYVER="${MATRIX_PYTHON_VERSION}"
-          if [[ "$PYVER" == 3.13* ]]; then
-            # Fully disable xdist plugin on 3.13 (more stable than `-n 0`)
-            PYTEST_XDIST_ARGS=(-p no:xdist)
-          else
-            PYTEST_XDIST_ARGS=(-n 4 --dist=loadscope)
+          set -euo pipefail
+          python -m coverage erase
+          python -m coverage run -m pytest -q \
+            tests/edges tests/test_remaining_modules.py \
+            --maxfail=3 \
+            --junitxml=tests/smoke-results.xml \
+            -o junit_family=legacy
+
+      - name: Contract and risk suites
+        if: ${{ needs.changes.outputs.contract_risk_groups != '' }}
+        shell: bash
+        env:
+          PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/tests"
+          CONTRACT_RISK_GROUPS: "${{ needs.changes.outputs.contract_risk_groups }}"
+          VIP_MODULE_ENABLED: "true"
+          APP_ENV: test
+          ENVIRONMENT: test
+          FEATURE_PREMIUM_NUTRITION: "true"
+          API_KEY: "test_key"
+          PYTHONUNBUFFERED: "1"
+          PYTHONFAULTHANDLER: "1"
+          PYTHONMALLOC: "malloc"
+        run: |
+          set -euo pipefail
+
+          declare -A suite_targets=()
+
+          add_suite() {
+            for target in "$@"; do
+              suite_targets["$target"]=1
+            done
+          }
+
+          for group in ${CONTRACT_RISK_GROUPS//,/ }; do
+            case "$group" in
+              billing_entitlement)
+                add_suite \
+                  tests/test_api_tiers_db_lookup.py \
+                  tests/test_billing_openapi_contract.py \
+                  tests/test_ios_receipt_verification_api.py \
+                  tests/test_paid_route_guards.py \
+                  tests/test_payment_reconciliation_api.py \
+                  tests/test_payments_activation_paywall_events.py \
+                  tests/test_payment_source_contract_api.py \
+                  tests/test_payment_webhook_signature_api.py \
+                  tests/test_pro_payments_openapi_contract.py \
+                  tests/test_subscription_activation_api.py
+                ;;
+              insight_ai)
+                add_suite \
+                  tests/test_core_ai_insight_runtime.py \
+                  tests/test_fitchef_insight_api.py \
+                  tests/test_insight_error_hygiene.py \
+                  tests/test_insight_vip_guard_api.py \
+                  tests/test_insight_vip_monthly_quota_api.py \
+                  tests/test_llm_extras.py \
+                  tests/test_rag_orchestration.py \
+                  tests/test_vector_rag.py \
+                  tests/test_philosophy_validation_integration.py \
+                  tests/test_rate_limit_llm_and_exports_api.py
+                ;;
+              openapi_contract)
+                add_suite \
+                  tests/test_main_paywall_bootstrap.py \
+                  tests/test_openapi_determinism.py \
+                  tests/test_openapi_import_safe_orm_guard.py \
+                  tests/test_openapi_namespace_guards.py \
+                  tests/test_paywall_exposure_ledger_api.py
+                ;;
+              food_catalog)
+                add_suite \
+                  tests/test_off_nutrition_bridge.py \
+                  tests/test_off_nutrition_resolver.py \
+                  tests/test_food_schema_provenance.py \
+                  tests/test_food_store_additional_coverage.py \
+                  tests/test_food_store_coverage.py \
+                  tests/test_food_store_service.py \
+                  tests/test_openfoodfacts_client.py \
+                  tests/test_unified_db_basics.py \
+                  tests/test_unified_db_off_coverage.py \
+                  tests/test_food_merge.py \
+                  tests/edges/test_unified_db_off_flags.py \
+                  tests/test_food_apis_snapshot_w1.py \
+                  tests/test_food_sources_snapshot_manager.py
+                ;;
+              route_contract_safety)
+                add_suite \
+                  tests/test_api.py \
+                  tests/test_app_endpoints_combined.py \
+                  tests/test_app_error_handling_combined.py \
+                  tests/test_app_extended_coverage.py \
+                  tests/test_creative_research_eval_contract.py \
+                  tests/test_food_search_foundation.py \
+                  tests/test_foods_router_coverage_boost.py \
+                  tests/test_judgment_core.py \
+                  tests/test_judgment_eval_contract.py \
+                  tests/test_legacy_app_diff_coverage.py \
+                  tests/test_metrics.py \
+                  tests/test_paywall_exposure_ledger_api.py \
+                  tests/test_paywall_exposure_ledger_service.py
+                ;;
+              merge_governance)
+                add_suite \
+                  tests/test_check_pr_size_governance.py \
+                  tests/test_ci_risk_profile.py \
+                  tests/test_orchestration_merge_ready.py \
+                  tests/test_pr_body_phase2_gates.py \
+                  tests/test_pr_merge_readiness_gate.py \
+                  tests/test_review_threads_disposition_strict.py
+                ;;
+              *)
+                echo "::error::Unknown contract/risk group: $group"
+                exit 1
+                ;;
+            esac
+          done
+
+          if [ "${#suite_targets[@]}" -eq 0 ]; then
+            echo "No contract/risk suites selected."
+            exit 0
           fi
-          python -c "import sys; print('PY', sys.version)"
-          echo "PYTEST_XDIST_ARGS=${PYTEST_XDIST_ARGS[*]}"
-          python -X faulthandler -m pytest \
-            "${PYTEST_XDIST_ARGS[@]}" \
-            -m "not slow" \
-            --cov=. --cov-report=xml --cov-report=term-missing --cov-fail-under=97 \
-            --junitxml=tests/results.xml -o junit_family=legacy \
-            tests
+
+          mapfile -t SELECTED_TARGETS < <(printf '%s\n' "${!suite_targets[@]}" | sort)
+          printf 'Selected contract/risk suites:\n'
+          printf '  - %s\n' "${SELECTED_TARGETS[@]}"
+
+          python -m coverage run --append -m pytest -q \
+            "${SELECTED_TARGETS[@]}" \
+            --junitxml=tests/contract-results.xml \
+            -o junit_family=legacy
+
+      - name: Finalize coverage artifacts
+        env:
+          PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/tests"
+        run: |
+          set -euo pipefail
+          python -m coverage report -m
+          python -m coverage xml
 
       - name: Clean Python cache (post-test)
         if: always()
         uses: ./.github/actions/clean-python-cache
 
-      - name: Upload coverage artifact (3.13.6 only)
+      - name: Upload coverage artifact (single coverage runtime)
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: coverage-xml-${{ env.COVERAGE_PY }}
           path: coverage.xml
@@ -442,37 +740,51 @@ jobs:
 
       - name: Upload JUnit test report
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: junit-${{ env.COVERAGE_PY }}
-          path: tests/results.xml
+          path: |
+            tests/smoke-results.xml
+            tests/contract-results.xml
           if-no-files-found: ignore
           retention-days: 7
 
   # Fast testing for feature branches (single Python version)
   test-feature:
-    if: github.event_name == 'push' && (startsWith(github.ref, 'refs/heads/feat/') || startsWith(github.ref, 'refs/heads/fix/') || startsWith(github.ref, 'refs/heads/feature/'))
+    if: github.event_name == 'push' && (startsWith(github.ref, 'refs/heads/feat/') || startsWith(github.ref, 'refs/heads/fix/') || startsWith(github.ref, 'refs/heads/feature/')) && needs.changes.outputs.run_backend_blocking == 'true'
+    needs: [changes]
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 90
     permissions:
       contents: read
       actions: write
     strategy:
       fail-fast: false
       matrix:
-        python-version: ['3.13.6']
+        python-version: ['3.13']
 
     steps:
       - name: Checkout
-        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Setup Python environment
         uses: ./.github/actions/python-setup
         with:
           python-version: ${{ matrix.python-version }}
+          requirements-profile: ci-test
+          install-mode: direct-proxy
+
+      - name: Setup Node.js
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+        with:
+          node-version-file: ${{ env.FRONTEND_NODE_VERSION_FILE }}
+          cache: "npm"
+          cache-dependency-path: |
+            frontend/package-lock.json
+            package-lock.json
 
       - name: Cache pip dependencies
-        uses: actions/cache@1bd1e32a3bdc45362d1e726936510720a7c30a57 # v4.1.0
+        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
         continue-on-error: true  # GitHub Actions cache service may be unavailable
         with:
           path: ~/.cache/pip
@@ -480,11 +792,8 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pip-
 
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          python -m pip install -r requirements.txt -c constraints.txt
-          python -m pip install -r requirements-dev.txt -c constraints.txt
+      - name: Install root Node dependencies
+        run: npm ci
 
       - name: Clean Python cache
         uses: ./.github/actions/clean-python-cache
@@ -496,10 +805,9 @@ jobs:
           ENVIRONMENT: test
           PYTHONPATH: "${{ github.workspace }}"
 
-      - name: Run tests with coverage
+      - name: Critical smoke (deterministic merge blocker)
         env:
           PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/tests"
-          MATRIX_PYTHON_VERSION: "${{ matrix.python-version }}"
           VIP_MODULE_ENABLED: "true"
           APP_ENV: test
           ENVIRONMENT: test
@@ -509,37 +817,154 @@ jobs:
           PYTHONFAULTHANDLER: "1"
           PYTHONMALLOC: "malloc"
         run: |
-          # Use pytest-xdist for parallel execution with proper coverage collection
-          # Project standard: maintain 97% coverage for feature branches before merge
-          # See .cursorrules and AGENTS.md for coverage requirements
-          #
-          # CI stability: Python 3.13 has seen intermittent segfaults under xdist+coverage.
-          # Run sequentially on 3.13; keep parallelism for older versions.
-          # Intentionally removed `--cov-context=test` due to flaky coverage DB corruption under xdist
-          # on Python 3.13 ("no such table: context"). Revisit after pytest/hypothesis upgrades.
-          PYVER="${MATRIX_PYTHON_VERSION}"
-          if [[ "$PYVER" == 3.13* ]]; then
-            # Fully disable xdist plugin on 3.13 (more stable than `-n 0`)
-            PYTEST_XDIST_ARGS=(-p no:xdist)
-          else
-            PYTEST_XDIST_ARGS=(-n 4 --dist=loadscope)
+          set -euo pipefail
+          python -m coverage erase
+          python -m coverage run -m pytest -q \
+            -p no:xdist \
+            tests/edges tests/test_remaining_modules.py \
+            --maxfail=3 \
+            --junitxml=tests/smoke-results.xml \
+            -o junit_family=legacy
+
+      - name: Contract and risk suites
+        if: ${{ needs.changes.outputs.contract_risk_groups != '' }}
+        shell: bash
+        env:
+          PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/tests"
+          CONTRACT_RISK_GROUPS: "${{ needs.changes.outputs.contract_risk_groups }}"
+          VIP_MODULE_ENABLED: "true"
+          APP_ENV: test
+          ENVIRONMENT: test
+          FEATURE_PREMIUM_NUTRITION: "true"
+          API_KEY: "test_key"
+          PYTHONUNBUFFERED: "1"
+          PYTHONFAULTHANDLER: "1"
+          PYTHONMALLOC: "malloc"
+        run: |
+          set -euo pipefail
+
+          declare -A suite_targets=()
+
+          add_suite() {
+            for target in "$@"; do
+              suite_targets["$target"]=1
+            done
+          }
+
+          for group in ${CONTRACT_RISK_GROUPS//,/ }; do
+            case "$group" in
+              billing_entitlement)
+                add_suite \
+                  tests/test_api_tiers_db_lookup.py \
+                  tests/test_billing_openapi_contract.py \
+                  tests/test_ios_receipt_verification_api.py \
+                  tests/test_paid_route_guards.py \
+                  tests/test_payment_reconciliation_api.py \
+                  tests/test_payments_activation_paywall_events.py \
+                  tests/test_payment_source_contract_api.py \
+                  tests/test_payment_webhook_signature_api.py \
+                  tests/test_pro_payments_openapi_contract.py \
+                  tests/test_subscription_activation_api.py
+                ;;
+              insight_ai)
+                add_suite \
+                  tests/test_core_ai_insight_runtime.py \
+                  tests/test_fitchef_insight_api.py \
+                  tests/test_insight_error_hygiene.py \
+                  tests/test_insight_vip_guard_api.py \
+                  tests/test_insight_vip_monthly_quota_api.py \
+                  tests/test_llm_extras.py \
+                  tests/test_rag_orchestration.py \
+                  tests/test_vector_rag.py \
+                  tests/test_philosophy_validation_integration.py \
+                  tests/test_rate_limit_llm_and_exports_api.py
+                ;;
+              openapi_contract)
+                add_suite \
+                  tests/test_main_paywall_bootstrap.py \
+                  tests/test_openapi_determinism.py \
+                  tests/test_openapi_import_safe_orm_guard.py \
+                  tests/test_openapi_namespace_guards.py \
+                  tests/test_paywall_exposure_ledger_api.py
+                ;;
+              food_catalog)
+                add_suite \
+                  tests/test_off_nutrition_bridge.py \
+                  tests/test_off_nutrition_resolver.py \
+                  tests/test_food_schema_provenance.py \
+                  tests/test_food_store_additional_coverage.py \
+                  tests/test_food_store_coverage.py \
+                  tests/test_food_store_service.py \
+                  tests/test_openfoodfacts_client.py \
+                  tests/test_unified_db_basics.py \
+                  tests/test_unified_db_off_coverage.py \
+                  tests/test_food_merge.py \
+                  tests/edges/test_unified_db_off_flags.py \
+                  tests/test_food_apis_snapshot_w1.py \
+                  tests/test_food_sources_snapshot_manager.py
+                ;;
+              route_contract_safety)
+                add_suite \
+                  tests/test_api.py \
+                  tests/test_app_endpoints_combined.py \
+                  tests/test_app_error_handling_combined.py \
+                  tests/test_app_extended_coverage.py \
+                  tests/test_creative_research_eval_contract.py \
+                  tests/test_food_search_foundation.py \
+                  tests/test_foods_router_coverage_boost.py \
+                  tests/test_judgment_core.py \
+                  tests/test_judgment_eval_contract.py \
+                  tests/test_legacy_app_diff_coverage.py \
+                  tests/test_metrics.py \
+                  tests/test_paywall_exposure_ledger_api.py \
+                  tests/test_paywall_exposure_ledger_service.py
+                ;;
+              merge_governance)
+                add_suite \
+                  tests/test_check_pr_size_governance.py \
+                  tests/test_ci_risk_profile.py \
+                  tests/test_orchestration_merge_ready.py \
+                  tests/test_pr_body_phase2_gates.py \
+                  tests/test_pr_merge_readiness_gate.py \
+                  tests/test_review_threads_disposition_strict.py
+                ;;
+              *)
+                echo "::error::Unknown contract/risk group: $group"
+                exit 1
+                ;;
+            esac
+          done
+
+          if [ "${#suite_targets[@]}" -eq 0 ]; then
+            echo "No contract/risk suites selected."
+            exit 0
           fi
-          python -c "import sys; print('PY', sys.version)"
-          echo "PYTEST_XDIST_ARGS=${PYTEST_XDIST_ARGS[*]}"
-          python -X faulthandler -m pytest \
-            "${PYTEST_XDIST_ARGS[@]}" \
-            -m "not slow" \
-            --cov=. --cov-report=xml --cov-report=term-missing --cov-fail-under=97 \
-            --junitxml=tests/results.xml -o junit_family=legacy \
-            tests
+
+          mapfile -t SELECTED_TARGETS < <(printf '%s\n' "${!suite_targets[@]}" | sort)
+          printf 'Selected contract/risk suites:\n'
+          printf '  - %s\n' "${SELECTED_TARGETS[@]}"
+
+          python -m coverage run --append -m pytest -q \
+            -p no:xdist \
+            "${SELECTED_TARGETS[@]}" \
+            --junitxml=tests/contract-results.xml \
+            -o junit_family=legacy
+
+      - name: Finalize coverage artifacts
+        env:
+          PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/tests"
+        run: |
+          set -euo pipefail
+          python -m coverage report -m
+          python -m coverage xml
 
       - name: Clean Python cache (post-test)
         if: always()
         uses: ./.github/actions/clean-python-cache
 
-      - name: Upload coverage artifact (3.13.6 only)
+      - name: Upload coverage artifact (single coverage runtime)
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: coverage-xml-${{ env.COVERAGE_PY }}
           path: coverage.xml
@@ -548,10 +973,12 @@ jobs:
 
       - name: Upload JUnit test report
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: junit-${{ env.COVERAGE_PY }}
-          path: tests/results.xml
+          path: |
+            tests/smoke-results.xml
+            tests/contract-results.xml
           if-no-files-found: ignore
           retention-days: 7
 
@@ -559,27 +986,43 @@ jobs:
   test-main:
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: ${{ matrix.timeout-minutes }}
     permissions:
       contents: read
       actions: write
     strategy:
       fail-fast: false
       matrix:
-        python-version: ['3.11', '3.12', '3.13']
+        include:
+          - python-version: '3.11'
+            timeout-minutes: 60
+          - python-version: '3.12'
+            timeout-minutes: 60
+          - python-version: '3.13'
+            timeout-minutes: 90
 
     steps:
       - name: Checkout
-        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Setup Python environment
         uses: ./.github/actions/python-setup
         with:
           python-version: ${{ matrix.python-version }}
-          install-test-deps: "true"
+          requirements-profile: ci-test
+          install-mode: direct-proxy
+
+      - name: Setup Node.js
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+        with:
+          node-version-file: ${{ env.FRONTEND_NODE_VERSION_FILE }}
+          cache: "npm"
+          cache-dependency-path: |
+            frontend/package-lock.json
+            package-lock.json
 
       - name: Cache pip dependencies
-        uses: actions/cache@1bd1e32a3bdc45362d1e726936510720a7c30a57 # v4.1.0
+        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
         continue-on-error: true  # GitHub Actions cache service may be unavailable
         with:
           path: ~/.cache/pip
@@ -587,11 +1030,8 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pip-
 
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          python -m pip install -r requirements.txt -c constraints.txt
-          python -m pip install -r requirements-dev.txt -c constraints.txt
+      - name: Install root Node dependencies
+        run: npm ci
 
       - name: Clean Python cache
         uses: ./.github/actions/clean-python-cache
@@ -636,14 +1076,21 @@ jobs:
           else
             PYTEST_XDIST_ARGS=(-n 4 --dist=loadscope)
           fi
+          echo "TEST_STEP_STARTED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
           python -c "import sys; print('PY', sys.version)"
           echo "PYTEST_XDIST_ARGS=${PYTEST_XDIST_ARGS[*]}"
-          python -X faulthandler -m pytest \
+          set +e
+          time python -X faulthandler -m pytest \
             "${PYTEST_XDIST_ARGS[@]}" \
             -m "not slow" \
+            --durations=25 \
             --cov=. --cov-report=xml --cov-report=term-missing --cov-fail-under=97 \
             --junitxml=tests/results.xml -o junit_family=legacy \
             tests
+          test_exit_code=$?
+          set -e
+          echo "TEST_STEP_FINISHED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          exit "$test_exit_code"
 
       - name: Clean Python cache (post-test)
         if: always()
@@ -651,7 +1098,7 @@ jobs:
 
       - name: Upload coverage artifact (all Python versions)
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: coverage-xml-${{ matrix.python-version }}
           path: coverage.xml
@@ -660,7 +1107,7 @@ jobs:
 
       - name: Upload JUnit test report
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: junit-${{ matrix.python-version }}
           path: tests/results.xml
@@ -669,8 +1116,8 @@ jobs:
 
   # Coverage reporting for PRs
   coverage-pr:
-    if: github.event_name == 'pull_request'
-    needs: [pr_scope_guard, test-pr]
+    if: github.event_name == 'pull_request' && needs.changes.outputs.run_backend_blocking == 'true'
+    needs: [changes, test-pr]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -679,9 +1126,9 @@ jobs:
       id-token: write
     steps:
       - name: Checkout
-        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - name: Download coverage artifact (Python 3.13.6)
+      - name: Download coverage artifact (Python ${{ env.COVERAGE_PY }})
         uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.6.2
         with:
           name: coverage-xml-${{ env.COVERAGE_PY }}
@@ -697,10 +1144,68 @@ jobs:
           use_oidc: true
         continue-on-error: true
 
+  diff-coverage:
+    name: diff-coverage
+    if: github.event_name == 'pull_request' && needs.changes.outputs.run_backend_blocking == 'true'
+    needs: [changes, pr_scope_guard, test-pr]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python environment
+        uses: ./.github/actions/python-setup
+        with:
+          python-version: ${{ env.COVERAGE_PY }}
+          requirements-profile: ci-lite
+          install-mode: direct-proxy
+
+      - name: Download coverage artifact (Python ${{ env.COVERAGE_PY }})
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.6.2
+        with:
+          name: coverage-xml-${{ env.COVERAGE_PY }}
+          path: ./coverage-artifacts
+
+      - name: Fetch base branch
+        run: |
+          git fetch --no-tags --prune origin "${{ github.base_ref }}":"${{ github.base_ref }}"
+          git branch --force base "${{ github.base_ref }}"
+
+      - name: Enforce diff coverage >= 97%
+        env:
+          COVERAGE_THRESHOLD: 97
+        run: |
+          diff-cover ./coverage-artifacts/coverage.xml \
+            --compare-branch "${{ github.base_ref }}" \
+            --fail-under "${{ env.COVERAGE_THRESHOLD }}" \
+            --exclude 'frontend/**' \
+            --exclude 'alembic/**' \
+            --exclude 'releases/**' \
+            --exclude 'cache/**' \
+            --exclude 'data/**' \
+            --exclude 'external/**' \
+            --exclude 'htmlcov/**' \
+            --exclude 'coverage/**' \
+            --exclude 'conftest.py' \
+            --exclude 'tests/**' \
+            --exclude '*.json' \
+            --exclude '*.lock' \
+            --exclude '*.md' \
+            --exclude '*.yml' \
+            --exclude '*.yaml' \
+            --exclude '*.toml' \
+            --exclude '*.txt'
+
   # Coverage reporting for feature branches
   coverage-feature:
-    if: github.event_name == 'push' && (startsWith(github.ref, 'refs/heads/feat/') || startsWith(github.ref, 'refs/heads/fix/') || startsWith(github.ref, 'refs/heads/feature/'))
-    needs: test-feature
+    if: github.event_name == 'push' && (startsWith(github.ref, 'refs/heads/feat/') || startsWith(github.ref, 'refs/heads/fix/') || startsWith(github.ref, 'refs/heads/feature/')) && needs.changes.outputs.run_backend_blocking == 'true'
+    needs: [changes, test-feature]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -709,9 +1214,9 @@ jobs:
       id-token: write
     steps:
       - name: Checkout
-        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - name: Download coverage artifact (Python 3.13.6)
+      - name: Download coverage artifact (Python ${{ env.COVERAGE_PY }})
         uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.6.2
         with:
           name: coverage-xml-${{ env.COVERAGE_PY }}
@@ -739,7 +1244,7 @@ jobs:
       id-token: write
     steps:
       - name: Checkout
-        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Download coverage artifact (Python 3.11)
         uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.6.2
@@ -779,28 +1284,30 @@ jobs:
     if: |
       needs.changes.outputs.ios == 'true' && (
         github.event_name == 'pull_request' ||
-        (github.event_name == 'push' && (startsWith(github.ref, 'refs/heads/feat/') || startsWith(github.ref, 'refs/heads/fix/') || github.ref == 'refs/heads/main'))
+        (github.event_name == 'push' && (startsWith(github.ref, 'refs/heads/feat/') || startsWith(github.ref, 'refs/heads/fix/') || startsWith(github.ref, 'refs/heads/feature/') || github.ref == 'refs/heads/main'))
       )
     needs: [changes]
     steps:
       - name: Checkout
-        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - name: Select Xcode (pin 16.x compatible with iOS 18.5/18.6 runtimes)
+      - name: Select Xcode (require 26.x for iOS 26 SDK readiness)
         id: select-xcode
         shell: bash
         run: |
           set -euo pipefail
 
-          # Prefer newest stable 16.x to match iOS 18.5/18.6 runtimes on runner.
-          # (Xcode 16.2 expects iOS 18.2 platform, which is not installed here.)
+          # Prefer explicit Xcode 26.x installs first.
+          # Keep /Applications/Xcode.app as a final fallback, but verify the major version.
           CANDIDATES=(
-            "/Applications/Xcode_16.4.app/Contents/Developer"
-            "/Applications/Xcode_16.4.0.app/Contents/Developer"
-            "/Applications/Xcode_16.3.app/Contents/Developer"
-            "/Applications/Xcode_16.3.0.app/Contents/Developer"
-            "/Applications/Xcode_16.2.app/Contents/Developer"
-            "/Applications/Xcode_16.2.0.app/Contents/Developer"
+            "/Applications/Xcode_26.2.app/Contents/Developer"
+            "/Applications/Xcode_26.2.0.app/Contents/Developer"
+            "/Applications/Xcode_26.1.app/Contents/Developer"
+            "/Applications/Xcode_26.1.0.app/Contents/Developer"
+            "/Applications/Xcode_26.0.app/Contents/Developer"
+            "/Applications/Xcode_26.app/Contents/Developer"
+            "/Applications/Xcode_26.0.0.app/Contents/Developer"
+            "/Applications/Xcode.app/Contents/Developer"
           )
 
           SELECTED=""
@@ -812,7 +1319,7 @@ jobs:
           done
 
           if [ -z "$SELECTED" ]; then
-            echo "::error::No suitable Xcode 16.x found in /Applications."
+            echo "::error::No suitable Xcode 26.x found in /Applications."
             echo "::error::Available Xcode apps:"
             for app in /Applications/Xcode*.app; do
               [ -e "$app" ] && echo " - $app"
@@ -833,9 +1340,14 @@ jobs:
 
           # Extract Xcode version for cache key (avoid broken pipe from pipe consumers like head/sed)
           XCODEBUILD_VERSION="$(xcodebuild -version)"
-          # First line is like: "Xcode 16.4"
+          # First line is like: "Xcode 26.1"
           XCODE_VERSION="${XCODEBUILD_VERSION#Xcode }"
           XCODE_VERSION="${XCODE_VERSION%%$'\n'*}"
+          XCODE_MAJOR="${XCODE_VERSION%%.*}"
+          if [ "$XCODE_MAJOR" != "26" ]; then
+            echo "::error::Selected Xcode must be 26.x for iOS 26 SDK readiness. Got $XCODE_VERSION"
+            exit 1
+          fi
           echo "xcode_version=$XCODE_VERSION" >> "$GITHUB_OUTPUT"
           echo "XCODE_VERSION=$XCODE_VERSION" >> "$GITHUB_ENV"
 
@@ -843,7 +1355,7 @@ jobs:
           swift --version
 
       - name: Cache SwiftPM packages (SourcePackages only, not Build)
-        uses: actions/cache@1bd1e32a3bdc45362d1e726936510720a7c30a57 # v4.1.0
+        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
         id: cache-swiftpm
         with:
           path: |
@@ -876,7 +1388,8 @@ jobs:
           python3 - << 'PY'
           import json, os, re, subprocess, sys
 
-          # Pin to stable iOS 18.6 to avoid "latest" resolving to iOS 26.x betas.
+          # Prefer stable iOS 26.x to match Xcode 26 / iOS 26 SDK readiness.
+          # Fall back to the highest available iOS runtime instead of using OS=latest.
           out = subprocess.check_output(["xcrun", "simctl", "list", "devices", "available", "-j"], text=True)
           data = json.loads(out)
           devices = data.get("devices", {})
@@ -890,13 +1403,9 @@ jobs:
               print("::error::No iOS Simulator runtimes found", file=sys.stderr)
               sys.exit(1)
 
-          pinned = [r for r in ios_runtimes if re.search(r"SimRuntime\.iOS-18-6\b", r)]
-          if pinned:
-              runtime = pinned[0]
-          else:
-              ios18 = [r for r in ios_runtimes if re.search(r"SimRuntime\.iOS-18-\d+\b", r)]
-              runtime_pool = ios18 if ios18 else ios_runtimes
-              runtime = sorted(runtime_pool, key=parse_ios_ver, reverse=True)[0]
+          ios26 = [r for r in ios_runtimes if re.search(r"SimRuntime\.iOS-26-\d+\b", r)]
+          runtime_pool = ios26 if ios26 else ios_runtimes
+          runtime = sorted(runtime_pool, key=parse_ios_ver, reverse=True)[0]
 
           major, minor = parse_ios_ver(runtime)
           if major < 0 or minor < 0:
@@ -1090,7 +1599,10 @@ jobs:
             # Warm up system services (best-effort, reduces flaky test failures)
             echo "Warming up system services..."
             xcrun simctl launch "$UDID" com.apple.springboard || true
-            sleep 2
+            # Post-boot settle: Data Migration can leave simulator fragile
+            SETTLE="${SIM_POST_BOOT_SETTLE_SECONDS:-5}"
+            echo "Settling simulator (${SETTLE}s) after boot..."
+            sleep "$SETTLE"
             echo "✓ System services ready"
           fi
 
@@ -1136,6 +1648,51 @@ jobs:
               sys.exit(e.returncode)
           PY
 
+          # Step 2: Run unit tests in the blocking iOS lane
+          echo "=== Running unit tests (timeout: 15 minutes) ==="
+          ONLY_TESTING="$(../scripts/ios_test_targets.sh)"
+          export ONLY_TESTING
+          python3 - << 'PY'
+          import os
+          import subprocess
+          import sys
+
+          destination = os.environ.get("DESTINATION", "")
+          if not destination:
+              print("::error::DESTINATION is empty", file=sys.stderr)
+              sys.exit(1)
+
+          tests = [t.strip() for t in os.environ.get("ONLY_TESTING", "").split(",") if t.strip()]
+          if not tests:
+              print(
+                  "::error::ONLY_TESTING is empty — no test targets were found",
+                  file=sys.stderr,
+              )
+              sys.exit(1)
+          only_flags = [f"-only-testing:{t}" for t in tests]
+
+          cmd = [
+              "xcodebuild", "test-without-building",
+              "-project", "PulsePlate.xcodeproj",
+              "-scheme", "PulsePlate",
+              "-skip-testing:PulsePlateUITests",
+          ] + only_flags + [
+              "-destination", destination,
+              "-derivedDataPath", ".derivedData",
+              "-clonedSourcePackagesDirPath", ".derivedData/SourcePackages",
+              "-enableCodeCoverage", "NO",
+              "-parallel-testing-enabled", "NO"
+          ]
+
+          try:
+              subprocess.run(cmd, timeout=900, check=True)
+          except subprocess.TimeoutExpired:
+              print("::error::xcodebuild unit tests timed out after 15 minutes", file=sys.stderr)
+              sys.exit(1)
+          except subprocess.CalledProcessError as e:
+              sys.exit(e.returncode)
+          PY
+
   # iOS UI smoke (minimal, separate signal from unit tests)
   ios-ui-smoke:
     name: iOS UI smoke (xcodebuild)
@@ -1144,26 +1701,28 @@ jobs:
     if: |
       needs.changes.outputs.ios == 'true' && (
         github.event_name == 'pull_request' ||
-        (github.event_name == 'push' && (startsWith(github.ref, 'refs/heads/feat/') || startsWith(github.ref, 'refs/heads/fix/') || github.ref == 'refs/heads/main'))
+        (github.event_name == 'push' && (startsWith(github.ref, 'refs/heads/feat/') || startsWith(github.ref, 'refs/heads/fix/') || startsWith(github.ref, 'refs/heads/feature/') || github.ref == 'refs/heads/main'))
       )
     needs: [changes]
     steps:
       - name: Checkout
-        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - name: Select Xcode (pin 16.x compatible with iOS 18.5/18.6 runtimes)
+      - name: Select Xcode (require 26.x for iOS 26 SDK readiness)
         id: select-xcode
         shell: bash
         run: |
           set -euo pipefail
 
           CANDIDATES=(
-            "/Applications/Xcode_16.4.app/Contents/Developer"
-            "/Applications/Xcode_16.4.0.app/Contents/Developer"
-            "/Applications/Xcode_16.3.app/Contents/Developer"
-            "/Applications/Xcode_16.3.0.app/Contents/Developer"
-            "/Applications/Xcode_16.2.app/Contents/Developer"
-            "/Applications/Xcode_16.2.0.app/Contents/Developer"
+            "/Applications/Xcode_26.2.app/Contents/Developer"
+            "/Applications/Xcode_26.2.0.app/Contents/Developer"
+            "/Applications/Xcode_26.1.app/Contents/Developer"
+            "/Applications/Xcode_26.1.0.app/Contents/Developer"
+            "/Applications/Xcode_26.0.app/Contents/Developer"
+            "/Applications/Xcode_26.app/Contents/Developer"
+            "/Applications/Xcode_26.0.0.app/Contents/Developer"
+            "/Applications/Xcode.app/Contents/Developer"
           )
 
           SELECTED=""
@@ -1175,7 +1734,7 @@ jobs:
           done
 
           if [ -z "$SELECTED" ]; then
-            echo "::error::No suitable Xcode 16.x found in /Applications."
+            echo "::error::No suitable Xcode 26.x found in /Applications."
             echo "::error::Available Xcode apps:"
             for app in /Applications/Xcode*.app; do
               [ -e "$app" ] && echo " - $app"
@@ -1189,9 +1748,14 @@ jobs:
 
           # Extract Xcode version for cache key (avoid broken pipe from pipe consumers like head/sed)
           XCODEBUILD_VERSION="$(xcodebuild -version)"
-          # First line is like: "Xcode 16.4"
+          # First line is like: "Xcode 26.1"
           XCODE_VERSION="${XCODEBUILD_VERSION#Xcode }"
           XCODE_VERSION="${XCODE_VERSION%%$'\n'*}"
+          XCODE_MAJOR="${XCODE_VERSION%%.*}"
+          if [ "$XCODE_MAJOR" != "26" ]; then
+            echo "::error::Selected Xcode must be 26.x for iOS 26 SDK readiness. Got $XCODE_VERSION"
+            exit 1
+          fi
           echo "xcode_version=$XCODE_VERSION" >> "$GITHUB_OUTPUT"
           echo "XCODE_VERSION=$XCODE_VERSION" >> "$GITHUB_ENV"
 
@@ -1199,7 +1763,7 @@ jobs:
           swift --version
 
       - name: Cache SwiftPM packages (SourcePackages only, not Build)
-        uses: actions/cache@1bd1e32a3bdc45362d1e726936510720a7c30a57 # v4.1.0
+        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
         id: cache-swiftpm
         with:
           path: |
@@ -1231,7 +1795,8 @@ jobs:
           python3 - << 'PY'
           import json, os, re, subprocess, sys
 
-          # Pin to stable iOS 18.6 to avoid "latest" resolving to iOS 26.x betas.
+          # Prefer stable iOS 26.x to match Xcode 26 / iOS 26 SDK readiness.
+          # Fall back to the highest available iOS runtime instead of using OS=latest.
           out = subprocess.check_output(["xcrun", "simctl", "list", "devices", "available", "-j"], text=True)
           data = json.loads(out)
           devices = data.get("devices", {})
@@ -1245,13 +1810,9 @@ jobs:
               print("::error::No iOS Simulator runtimes found", file=sys.stderr)
               sys.exit(1)
 
-          pinned = [r for r in ios_runtimes if re.search(r"SimRuntime\.iOS-18-6\b", r)]
-          if pinned:
-              runtime = pinned[0]
-          else:
-              ios18 = [r for r in ios_runtimes if re.search(r"SimRuntime\.iOS-18-\d+\b", r)]
-              runtime_pool = ios18 if ios18 else ios_runtimes
-              runtime = sorted(runtime_pool, key=parse_ios_ver, reverse=True)[0]
+          ios26 = [r for r in ios_runtimes if re.search(r"SimRuntime\.iOS-26-\d+\b", r)]
+          runtime_pool = ios26 if ios26 else ios_runtimes
+          runtime = sorted(runtime_pool, key=parse_ios_ver, reverse=True)[0]
 
           major, minor = parse_ios_ver(runtime)
           if major < 0 or minor < 0:
@@ -1320,6 +1881,7 @@ jobs:
         working-directory: ios
         env:
           DEVELOPER_DIR: ${{ steps.select-xcode.outputs.developer_dir }}
+          UI_SMOKE_FOREGROUND_TIMEOUT_SECONDS: "90"
         run: |
           set -euo pipefail
 
@@ -1384,7 +1946,10 @@ jobs:
             # Warm up system services (best-effort, reduces flaky UI test failures)
             echo "Warming up system services..."
             xcrun simctl launch "$UDID" com.apple.springboard || true
-            sleep 2
+            # Post-boot settle: Data Migration can leave simulator fragile; extra delay reduces launch crashes
+            SETTLE="${SIM_POST_BOOT_SETTLE_SECONDS:-5}"
+            echo "Settling simulator (${SETTLE}s) after boot..."
+            sleep "$SETTLE"
             echo "✓ System services ready"
           fi
 
@@ -1451,46 +2016,10 @@ jobs:
               sys.exit(e.returncode)
           PY
 
-          # Step 2: Run tests (without building)
-          # Timeout: 15 minutes (fail fast instead of consuming full job budget)
-          echo "=== Running tests (timeout: 15 minutes) ==="
-          python3 - << 'PY'
-          import subprocess
-          import sys
-          import os
-
-          destination = os.environ.get("DESTINATION", "")
-          if not destination:
-              print("::error::DESTINATION is empty", file=sys.stderr)
-              sys.exit(1)
-
-          cmd = [
-              "xcodebuild", "test-without-building",
-              "-project", "PulsePlate.xcodeproj",
-              "-scheme", "PulsePlate",
-              "-skip-testing:PulsePlateUITests",
-              "-only-testing:PulsePlateTests/ThinClientGuardsTests",
-              "-only-testing:PulsePlateTests/ProKeyProviderTests",
-              "-only-testing:PulsePlateTests/KeychainStoreTests",
-              "-only-testing:PulsePlateTests/BMIServiceTests",
-              "-only-testing:PulsePlateTests/BMIResponseDecodingTests",
-              "-only-testing:PulsePlateTests/BMIRequestEncodingTests",
-              "-only-testing:PulsePlateTests/LocaleParsingTests",
-              "-only-testing:PulsePlateTests/HTTPClientTests",
-              "-only-testing:PulsePlateTests/APIClientTests",
-              "-only-testing:PulsePlateTests/BMIServiceThinAdapterTests",
-              "-destination", destination,
-              "-derivedDataPath", ".derivedData",
-              "-clonedSourcePackagesDirPath", ".derivedData/SourcePackages",
-              "-enableCodeCoverage", "NO",
-              "-parallel-testing-enabled", "NO"
-          ]
-
-          try:
-              result = subprocess.run(cmd, timeout=900, check=True)  # 15 minutes
-          except subprocess.TimeoutExpired:
-              print("::error::xcodebuild test timed out after 15 minutes", file=sys.stderr)
-              sys.exit(1)
-          except subprocess.CalledProcessError as e:
-              sys.exit(e.returncode)
-          PY
+      - name: Upload xcresult on failure (crash evidence)
+        if: failure()
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: ios-ui-smoke-xcresult-${{ github.run_id }}
+          path: ios/.derivedData/Logs/Test/
+          retention-days: 7

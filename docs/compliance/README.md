@@ -1,7 +1,8 @@
 # Compliance Control Plane
 
 **Status:** Canonical compliance index
-**Last updated:** 2026-03-08
+**Last updated:** 2026-04-10
+**Policy version:** `2026-04-10.eu-first.v1`
 **Scope:** Backend + legal/docs + guards
 
 This directory is the compliance control-plane source of truth for the current
@@ -14,7 +15,7 @@ PulsePlate wellness runtime.
 - `AI_TRANSPARENCY_AND_PROFILING_NOTICE.md`
   - Canonical automated-analysis and wellness-boundary notices.
 - `PROVIDER_INVENTORY.md`
-  - Configurable processor families and their disclosure posture.
+  - Configurable AI provider and telemetry processor families with their disclosure posture.
 - `DSAR_AND_DELETION_MAP.md`
   - Internal artifact map for access/export/delete handling.
 - `US_REGULATED_LANE_RFC_42_CFR_PART_2.md`

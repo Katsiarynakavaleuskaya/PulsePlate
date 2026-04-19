@@ -164,14 +164,22 @@ def test_aggregate_single_signal() -> None:
 
 
 def test_build_rollup_empty_dir(tmp_path: Path) -> None:
-    out = build_rollup(tmp_path)
+    out = build_rollup(
+        tmp_path,
+        experiment_results_dir=tmp_path / "results",
+        experiment_promotions_dir=tmp_path / "promotions",
+    )
     assert out["signals_count"] == 0
     assert "runs_dir" in out
 
 
 def test_build_rollup_with_json(tmp_path: Path) -> None:
     run_dir = tmp_path / "runs"
+    results_dir = tmp_path / "results"
+    promotions_dir = tmp_path / "promotions"
     run_dir.mkdir()
+    results_dir.mkdir()
+    promotions_dir.mkdir()
     (run_dir / "abc123__agent-coordinator__docs.json").write_text(
         json.dumps(
             {
@@ -196,7 +204,11 @@ def test_build_rollup_with_json(tmp_path: Path) -> None:
         ),
         encoding="utf-8",
     )
-    out = build_rollup(run_dir)
+    out = build_rollup(
+        run_dir,
+        experiment_results_dir=results_dir,
+        experiment_promotions_dir=promotions_dir,
+    )
     assert out["signals_count"] == 1
     assert "agent-coordinator" in out["agents"]
     assert out["experiment_signals_count"] == 0
@@ -204,9 +216,24 @@ def test_build_rollup_with_json(tmp_path: Path) -> None:
 
 def test_main_writes_output(tmp_path: Path) -> None:
     runs_dir = tmp_path / "runs"
+    results_dir = tmp_path / "results"
+    promotions_dir = tmp_path / "promotions"
     runs_dir.mkdir()
+    results_dir.mkdir()
+    promotions_dir.mkdir()
     out_path = tmp_path / "rollup.json"
-    exit_code = main(["--runs-dir", str(runs_dir), "--output", str(out_path)])
+    exit_code = main(
+        [
+            "--runs-dir",
+            str(runs_dir),
+            "--experiment-results-dir",
+            str(results_dir),
+            "--experiment-promotions-dir",
+            str(promotions_dir),
+            "--output",
+            str(out_path),
+        ]
+    )
     assert exit_code == 0
     assert out_path.exists()
     data = json.loads(out_path.read_text(encoding="utf-8"))

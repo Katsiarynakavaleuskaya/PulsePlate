@@ -236,6 +236,25 @@ def test_numeric_range_schema_rejects_inverted_range() -> None:
 class TestBMICalculateResponse:
     """Tests for BMICalculateResponse schema structure."""
 
+    def test_response_defaults_next_best_action_to_none(self) -> None:
+        """Test additive next_best_action field stays optional by default."""
+        response = BMICalculateResponse(
+            bmi=22.5,
+            category="normal",
+            group="general",
+            group_display="General",
+            interpretation="OK",
+            wht_ratio=None,
+            waist_risk=None,
+            notes=[],
+            age_band="adult",
+            visualization=None,
+            interpretation_v1=None,
+            soft_paywall=None,
+        )
+
+        assert response.next_best_action is None
+
     def test_minimal_response(self) -> None:
         """Test minimal response structure (no waist)."""
         response = BMICalculateResponse(

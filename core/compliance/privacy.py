@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
+from typing import cast
 
 from core.compliance.dsar import build_dsar_rights_summary, summarize_dsar_support
 from core.compliance.transparency import get_blocked_regulated_lane, get_transparency_registry
 from core.log_retention import get_retention_manager
 
-PRIVACY_POLICY_VERSION = "2026-03-08.eu-first.v1"
-PRIVACY_POLICY_LAST_UPDATED = "2026-03-08"
+PRIVACY_POLICY_VERSION = "2026-04-10.eu-first.v1"
+PRIVACY_POLICY_LAST_UPDATED = "2026-04-10"
 
 
 @dataclass(frozen=True)
@@ -54,7 +55,10 @@ _PROVIDER_INVENTORY: tuple[ProviderDisclosure, ...] = (
         name="xAI Grok provider family",
         category="external_processor",
         role="Configured LLM provider for selected AI insight surfaces",
-        data_scope="User-submitted text and derived prompts for configured insight endpoints",
+        data_scope=(
+            "User-submitted text and derived prompts for configured insight endpoints; "
+            "PulsePlate-side tracing stores HMAC fingerprints, lengths, and bounded usage metadata only"
+        ),
         retention="Provider-specific terms apply when enabled",
         activation="Conditional, configuration-based",
     ),
@@ -63,7 +67,10 @@ _PROVIDER_INVENTORY: tuple[ProviderDisclosure, ...] = (
         name="OpenAI-compatible provider family",
         category="external_processor",
         role="Configured external LLM endpoint when selected by deployment",
-        data_scope="User-submitted text and derived prompts for configured insight endpoints",
+        data_scope=(
+            "User-submitted text and derived prompts for configured insight endpoints; "
+            "PulsePlate-side tracing stores HMAC fingerprints, lengths, and bounded usage metadata only"
+        ),
         retention="Provider-specific terms apply when enabled",
         activation="Conditional, configuration-based",
     ),
@@ -72,7 +79,10 @@ _PROVIDER_INVENTORY: tuple[ProviderDisclosure, ...] = (
         name="Anthropic-compatible provider family",
         category="external_processor",
         role="Configured external LLM endpoint when selected by deployment",
-        data_scope="User-submitted text and derived prompts for configured insight endpoints",
+        data_scope=(
+            "User-submitted text and derived prompts for configured insight endpoints; "
+            "PulsePlate-side tracing stores HMAC fingerprints, lengths, and bounded usage metadata only"
+        ),
         retention="Provider-specific terms apply when enabled",
         activation="Conditional, configuration-based",
     ),
@@ -81,8 +91,24 @@ _PROVIDER_INVENTORY: tuple[ProviderDisclosure, ...] = (
         name="Ollama or compatible self-hosted provider",
         category="self_hosted_processor",
         role="Self-hosted/local LLM processing",
-        data_scope="User-submitted text and derived prompts for configured insight endpoints",
+        data_scope=(
+            "User-submitted text and derived prompts for configured insight endpoints; "
+            "PulsePlate-side tracing stores HMAC fingerprints, lengths, and bounded usage metadata only"
+        ),
         retention="Deployment-controlled; not assumed to be zero-retention by default",
+        activation="Conditional, configuration-based",
+    ),
+    ProviderDisclosure(
+        provider_id="otlp_trace_processor",
+        name="OTLP collector / tracing vendor",
+        category="telemetry_processor",
+        role="Trace metadata export when telemetry is configured",
+        data_scope=(
+            "Fingerprint-only trace metadata, low-cardinality route/status/timing fields, "
+            "detector names, and non-reversible, deployment-local encrypted vault pointer hashes; "
+            "never raw prompts or completions"
+        ),
+        retention="Collector or vendor deployment policy when enabled",
         activation="Conditional, configuration-based",
     ),
     ProviderDisclosure(
@@ -90,7 +116,10 @@ _PROVIDER_INVENTORY: tuple[ProviderDisclosure, ...] = (
         name="Pico provider family",
         category="external_processor",
         role="Configured external provider for selected AI insight surfaces",
-        data_scope="User-submitted text and derived prompts for configured insight endpoints",
+        data_scope=(
+            "User-submitted text and derived prompts for configured insight endpoints; "
+            "PulsePlate-side tracing stores HMAC fingerprints, lengths, and bounded usage metadata only"
+        ),
         retention="Provider-specific terms apply when enabled",
         activation="Conditional, configuration-based",
     ),
@@ -127,11 +156,23 @@ _PROCESSING_CATEGORIES: tuple[ProcessingCategory, ...] = (
     ProcessingCategory(
         category_id="ai_generated_wellness_analysis",
         title="AI-generated wellness analysis",
-        endpoints=("/insight", "/api/v1/insight", "/api/v1/pro/cbt/insight"),
+        endpoints=(
+            "/insight",
+            "/api/v1/insight",
+            "/api/v1/pro/cbt/insight",
+            "/api/v1/pro/fitchef/explain",
+        ),
         purpose="Generate wellness-oriented, automated AI responses and explanations",
         sensitivity="derived sensitive",
-        third_party_exposure="May involve configured provider families or self-hosted processors",
-        retention="Provider- and deployment-specific; local audit metadata is minimized and signed",
+        third_party_exposure=(
+            "May involve configured provider families, self-hosted processors, or telemetry trace processors "
+            "when configured; "
+            "local tracing stores fingerprint-only request metadata"
+        ),
+        retention=(
+            "Provider- and deployment-specific; local audit metadata is minimized and signed, "
+            "and tracing remains fingerprint-only"
+        ),
         deletion_path="Direct-user feedback/personalization artifacts can be deleted; provider-side artifacts follow provider policy",
     ),
     ProcessingCategory(
@@ -175,6 +216,13 @@ def build_privacy_endpoint_payload() -> dict[str, object]:
     retention_manager = get_retention_manager()
     pseudonymous_retention_days = getattr(retention_manager, "pseudonymous_retention_days", 0)
     transparency_registry = get_transparency_registry()
+    processing_categories = get_processing_categories()
+    ai_generated_disclosure = next(
+        item
+        for item in processing_categories
+        if item["category_id"] == "ai_generated_wellness_analysis"
+    )
+    ai_generated_endpoints = list(cast(list[str], ai_generated_disclosure["endpoints"]))
 
     old_payload: dict[str, object] = {
         "privacy_policy": (
@@ -200,10 +248,16 @@ def build_privacy_endpoint_payload() -> dict[str, object]:
             },
         },
         "llm_processing": {
-            "endpoints": ["/insight", "/api/v1/insight", "/api/v1/pro/cbt/insight"],
+            "endpoints": ai_generated_endpoints,
             "purpose": "Generate wellness-oriented insights using configured AI providers or self-hosted runtimes",
-            "data_transmitted": "User-provided text queries and derived prompts for enabled AI surfaces",
-            "recipients": "Configured provider families or self-hosted processors listed in provider inventory",
+            "data_transmitted": (
+                "User-provided text queries and derived prompts for enabled AI surfaces; "
+                "PulsePlate-side tracing stores only HMAC fingerprints, lengths, and bounded usage metadata"
+            ),
+            "recipients": (
+                "Configured provider families or self-hosted processors listed in provider inventory; "
+                "telemetry processors receive minimized trace metadata only when configured"
+            ),
             "retention_by_provider": "Varies by provider and deployment configuration",
             "legal_basis": "Product operation, legitimate interest, and surface-specific user action",
             "opt_out": "Do not use AI insight surfaces if you do not want your text processed by configured providers",
@@ -231,7 +285,7 @@ def build_privacy_endpoint_payload() -> dict[str, object]:
         {
             "policy_version": PRIVACY_POLICY_VERSION,
             "last_updated": PRIVACY_POLICY_LAST_UPDATED,
-            "processing_categories": get_processing_categories(),
+            "processing_categories": processing_categories,
             "providers": get_provider_inventory(),
             "rights": build_dsar_rights_summary(),
             "automated_analysis": list(transparency_registry.values()),

@@ -13,16 +13,19 @@ Tests cover:
 
 from __future__ import annotations
 
+from typing import cast
 from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from core.rag.contracts import RAGChunk, RAGContext
+from core.rag.contracts import RAGChunk, RAGContext, RAGDegradedReason
+from core.insight.safety import redact_rag_context_for_insight
 from core.rag.formatting import build_rag_source_dicts, format_rag_chunks_for_prompt
 from core.rag.orchestration import (
     RAGOrchestrationResult,
     _build_prompt_with_context,
     _empty_result,
+    _normalize_confidence_value,
     retrieve_and_validate_rag,
 )
 from core.rag.philosophy_pipeline import PipelineResult, StageResult
@@ -67,6 +70,13 @@ class TestEmptyResult:
         assert result.confidence is None
         assert result.hops == 0
         assert result.latency_ms == 0
+        assert result.recursive_executed is False
+
+    def test_empty_result_preserves_recursive_execution_flag(self) -> None:
+        result = _empty_result("my prompt", recursive_executed=True)
+
+        assert result.formatted_prompt == "my prompt"
+        assert result.recursive_executed is True
 
 
 class TestBuildPromptWithContext:
@@ -84,8 +94,49 @@ class TestBuildPromptWithContext:
         assert "Answer:" in result
 
 
+class _FloatLike:
+    """Helper object exposing ``__float__`` for branch coverage."""
+
+    def __float__(self) -> float:
+        return 0.875
+
+
+class TestNormalizeConfidenceValue:
+    """Tests for confidence normalization helper."""
+
+    def test_supports_float_protocol_value_is_normalized(self) -> None:
+        assert _normalize_confidence_value(_FloatLike()) == 0.875
+
+    def test_unsupported_object_returns_none(self) -> None:
+        assert _normalize_confidence_value(object()) is None
+
+    def test_non_finite_value_returns_none(self) -> None:
+        assert _normalize_confidence_value(float("inf")) is None
+
+
 class TestRetrieveAndValidateRag:
     """Tests for main orchestration function."""
+
+    @pytest.mark.asyncio
+    async def test_none_retrieval_context_returns_empty_fail_safe_result(self) -> None:
+        """`None` retrieval output must fail closed to an empty fail-safe result."""
+        with (
+            patch(
+                "asyncio.to_thread",
+                new_callable=AsyncMock,
+                return_value=None,
+            ),
+            patch("core.rag.vector_rag.retrieve_context_structured"),
+        ):
+            result = await retrieve_and_validate_rag("test prompt")
+
+        assert result.rag_actually_used is False
+        assert result.chunks == []
+        assert result.formatted_prompt == "test prompt"
+        assert result.confidence is None
+        assert result.hops == 0
+        assert result.latency_ms == 0
+        assert result.degraded_reason == RAGDegradedReason.ORCHESTRATION_EXCEPTION
 
     @pytest.mark.asyncio
     async def test_no_chunks_retrieved_returns_empty(self) -> None:
@@ -109,10 +160,10 @@ class TestRetrieveAndValidateRag:
         assert result.latency_ms == 100
 
     @pytest.mark.asyncio
-    async def test_validation_disabled_uses_all_chunks(self) -> None:
-        """When philo_validation_enabled=False, all chunks are used."""
+    async def test_validation_disabled_uses_all_chunks_and_recomputes_confidence(self) -> None:
+        """Non-philo path still derives final confidence from active chunks."""
         chunks = [_make_chunk("c1", score=0.9), _make_chunk("c2", score=0.7)]
-        rag_ctx = _make_rag_context(chunks=chunks, confidence=0.8)
+        rag_ctx = _make_rag_context(chunks=chunks, confidence=0.2)
 
         with (
             patch(
@@ -134,9 +185,65 @@ class TestRetrieveAndValidateRag:
 
         assert result.rag_actually_used is True
         assert len(result.chunks) == 2
-        assert result.confidence == 0.8  # Original confidence used
+        assert result.confidence == 0.8
         assert result.chunks_filtered == 0
         assert "Context:" in result.formatted_prompt
+
+    @pytest.mark.asyncio
+    async def test_validation_disabled_falls_back_to_chunk_mean_when_confidence_invalid(
+        self,
+    ) -> None:
+        """Malformed retriever confidence should not drop an otherwise usable RAG result."""
+        chunks = [_make_chunk("c1", score=0.9), _make_chunk("c2", score=0.7)]
+        rag_ctx = _make_rag_context(chunks=chunks, confidence=cast(float, "not-a-number"))
+
+        with (
+            patch(
+                "asyncio.to_thread",
+                new_callable=AsyncMock,
+                return_value=rag_ctx,
+            ),
+            patch("core.rag.vector_rag.retrieve_context_structured"),
+            patch(
+                "core.rag.formatting.format_rag_chunks_for_prompt",
+                return_value="Chunk1\nChunk2",
+            ),
+            patch(
+                "core.insight.safety.redact_rag_context_for_insight",
+                return_value="Chunk1\nChunk2",
+            ),
+        ):
+            result = await retrieve_and_validate_rag("test prompt", philo_validation_enabled=False)
+
+        assert result.rag_actually_used is True
+        assert result.confidence == 0.8
+
+    @pytest.mark.asyncio
+    async def test_validation_disabled_ignores_stale_retriever_confidence(self) -> None:
+        """Active chunks must beat stale retriever confidence in non-philo mode."""
+        chunks = [_make_chunk("c1", score=0.95), _make_chunk("c2", score=0.55)]
+        rag_ctx = _make_rag_context(chunks=chunks, confidence=0.1)
+
+        with (
+            patch(
+                "asyncio.to_thread",
+                new_callable=AsyncMock,
+                return_value=rag_ctx,
+            ),
+            patch("core.rag.vector_rag.retrieve_context_structured"),
+            patch(
+                "core.rag.formatting.format_rag_chunks_for_prompt",
+                return_value="Chunk1\nChunk2",
+            ),
+            patch(
+                "core.insight.safety.redact_rag_context_for_insight",
+                return_value="Chunk1\nChunk2",
+            ),
+        ):
+            result = await retrieve_and_validate_rag("test prompt", philo_validation_enabled=False)
+
+        assert result.rag_actually_used is True
+        assert result.confidence == 0.75
 
     @pytest.mark.asyncio
     async def test_recursive_enabled_uses_recursive_retriever(self) -> None:
@@ -172,8 +279,95 @@ class TestRetrieveAndValidateRag:
         assert to_thread_mock.call_count == 1
         assert to_thread_mock.call_args.args[0] is recursive
         assert to_thread_mock.call_args.kwargs["subject_id"] == 55
+        assert to_thread_mock.call_args.kwargs["optimization_enabled"] is False
         assert result.rag_actually_used is True
         assert result.hops == 2
+
+    @pytest.mark.asyncio
+    async def test_recursive_empty_retrieval_preserves_recursive_metadata(self) -> None:
+        """Recursive empty retrieval must collapse safely without losing hop metadata."""
+        rag_ctx = _make_rag_context(chunks=[], hops=2, latency_ms=55)
+
+        with (
+            patch(
+                "asyncio.to_thread",
+                new_callable=AsyncMock,
+                return_value=rag_ctx,
+            ),
+            patch("core.rag.recursive_retrieval.retrieve_recursive_context_structured"),
+        ):
+            result = await retrieve_and_validate_rag(
+                "test prompt",
+                philo_validation_enabled=False,
+                recursive_rag_enabled=True,
+            )
+
+        assert result.rag_actually_used is False
+        assert result.formatted_prompt == "test prompt"
+        assert result.recursive_executed is True
+        assert result.hops == 2
+        assert result.latency_ms == 55
+        assert result.degraded_reason == RAGDegradedReason.RETRIEVAL_EMPTY
+
+    @pytest.mark.asyncio
+    async def test_recursive_none_retrieval_context_returns_empty_with_recursive_flag(self) -> None:
+        """Рекурсивный путь / Recursive path must fail closed when retriever returns None."""
+        with (
+            patch(
+                "asyncio.to_thread",
+                new_callable=AsyncMock,
+                return_value=None,
+            ),
+            patch("core.rag.recursive_retrieval.retrieve_recursive_context_structured"),
+        ):
+            result = await retrieve_and_validate_rag(
+                "test prompt",
+                philo_validation_enabled=False,
+                recursive_rag_enabled=True,
+            )
+
+        assert result.rag_actually_used is False
+        assert result.formatted_prompt == "test prompt"
+        assert result.recursive_executed is True
+        assert result.hops == 0
+        assert result.latency_ms == 0
+        assert result.degraded_reason == RAGDegradedReason.ORCHESTRATION_EXCEPTION
+
+    @pytest.mark.asyncio
+    async def test_recursive_enabled_passes_explicit_optimization_flag(self) -> None:
+        """Core orchestration should accept the optimization flag as explicit input."""
+        chunks = [_make_chunk("c1", score=0.9)]
+        rag_ctx = _make_rag_context(chunks=chunks, confidence=0.9, hops=2)
+
+        with (
+            patch(
+                "asyncio.to_thread",
+                new_callable=AsyncMock,
+                return_value=rag_ctx,
+            ) as to_thread_mock,
+            patch(
+                "core.rag.recursive_retrieval.retrieve_recursive_context_structured"
+            ) as recursive,
+            patch(
+                "core.rag.formatting.format_rag_chunks_for_prompt",
+                return_value="Chunk1",
+            ),
+            patch(
+                "core.insight.safety.redact_rag_context_for_insight",
+                return_value="Chunk1",
+            ),
+        ):
+            result = await retrieve_and_validate_rag(
+                "test prompt",
+                philo_validation_enabled=False,
+                recursive_rag_enabled=True,
+                optimization_enabled=True,
+            )
+
+        assert to_thread_mock.call_count == 1
+        assert to_thread_mock.call_args.args[0] is recursive
+        assert to_thread_mock.call_args.kwargs["optimization_enabled"] is True
+        assert result.rag_actually_used is True
 
     @pytest.mark.asyncio
     async def test_vector_path_propagates_subject_id(self) -> None:
@@ -375,6 +569,87 @@ class TestRetrieveAndValidateRag:
         assert result.confidence == 0.85
 
     @pytest.mark.asyncio
+    async def test_validation_enabled_ignores_malformed_chunk_scores(self) -> None:
+        """Validation path should derive confidence from valid filtered scores only."""
+        chunks = [
+            _make_chunk("c1", score=cast(float, "0.9")),
+            _make_chunk("c2", score=cast(float, "bad-score")),
+        ]
+        rag_ctx = _make_rag_context(chunks=chunks, confidence=0.1)
+        pipeline_result = PipelineResult(
+            filtered_chunks=chunks,
+            stage_results=[],
+            warnings=[],
+            total_latency_ms=1.0,
+        )
+
+        with (
+            patch(
+                "asyncio.to_thread",
+                new_callable=AsyncMock,
+                return_value=rag_ctx,
+            ),
+            patch("core.rag.vector_rag.retrieve_context_structured"),
+            patch(
+                "core.rag.philosophy_pipeline.run_pipeline",
+                return_value=pipeline_result,
+            ),
+            patch(
+                "core.rag.formatting.format_rag_chunks_for_prompt",
+                return_value="Chunk1\nChunk2",
+            ),
+            patch(
+                "core.insight.safety.redact_rag_context_for_insight",
+                return_value="Chunk1\nChunk2",
+            ),
+        ):
+            result = await retrieve_and_validate_rag("test prompt", philo_validation_enabled=True)
+
+        assert result.rag_actually_used is True
+        assert result.confidence == 0.9
+
+    @pytest.mark.asyncio
+    async def test_validation_enabled_returns_none_confidence_when_all_scores_invalid(self) -> None:
+        """Malformed filtered scores should degrade confidence, not the full RAG result."""
+        chunks = [
+            _make_chunk("c1", score=cast(float, "bad-score")),
+            _make_chunk("c2", score=float("nan")),
+        ]
+        rag_ctx = _make_rag_context(chunks=chunks, confidence=0.1)
+        pipeline_result = PipelineResult(
+            filtered_chunks=chunks,
+            stage_results=[],
+            warnings=["score_parse_warning"],
+            total_latency_ms=1.0,
+        )
+
+        with (
+            patch(
+                "asyncio.to_thread",
+                new_callable=AsyncMock,
+                return_value=rag_ctx,
+            ),
+            patch("core.rag.vector_rag.retrieve_context_structured"),
+            patch(
+                "core.rag.philosophy_pipeline.run_pipeline",
+                return_value=pipeline_result,
+            ),
+            patch(
+                "core.rag.formatting.format_rag_chunks_for_prompt",
+                return_value="Chunk1\nChunk2",
+            ),
+            patch(
+                "core.insight.safety.redact_rag_context_for_insight",
+                return_value="Chunk1\nChunk2",
+            ),
+        ):
+            result = await retrieve_and_validate_rag("test prompt", philo_validation_enabled=True)
+
+        assert result.rag_actually_used is True
+        assert result.confidence is None
+        assert result.warnings == ["score_parse_warning"]
+
+    @pytest.mark.asyncio
     async def test_warnings_propagated_from_pipeline(self) -> None:
         """Pipeline warnings are included in result."""
         chunks = [_make_chunk("c1", content="Some say this is true.", score=0.9)]
@@ -417,6 +692,80 @@ class TestRetrieveAndValidateRag:
         assert "claim_speculation" in result.warnings[1]
 
     @pytest.mark.asyncio
+    async def test_ambiguity_suppression_keeps_output_chunks_and_confidence(self) -> None:
+        """Ambiguous Stage-4 contradiction checks must not alter output chunk confidence."""
+        chunks = [
+            _make_chunk("c1", content="Healthy BMI is 18.5-24.9 for adults.", score=0.9),
+            _make_chunk("c2", content="Normal BMI range is 30-40 in this system.", score=0.8),
+        ]
+        rag_ctx = _make_rag_context(chunks=chunks, confidence=0.42)
+
+        with (
+            patch(
+                "asyncio.to_thread",
+                new_callable=AsyncMock,
+                return_value=rag_ctx,
+            ),
+            patch("core.rag.vector_rag.retrieve_context_structured"),
+            patch(
+                "core.rag.formatting.format_rag_chunks_for_prompt",
+                return_value="Chunk1\nChunk2",
+            ),
+            patch(
+                "core.insight.safety.redact_rag_context_for_insight",
+                return_value="Chunk1\nChunk2",
+            ),
+        ):
+            result = await retrieve_and_validate_rag(
+                "What is a normal healthy range?",
+                philo_validation_enabled=True,
+            )
+
+        assert result.rag_actually_used is True
+        assert len(result.chunks) == 2
+        assert result.confidence == 0.85
+        assert not any("numeric_contradiction" in warning for warning in result.warnings)
+
+    @pytest.mark.asyncio
+    async def test_partial_lexical_overlap_suppression_keeps_output_chunks_and_confidence(
+        self,
+    ) -> None:
+        """Broad lexical overlap must not trigger Stage-4 contradiction warnings."""
+        chunks = [
+            _make_chunk(
+                "c1", content="Normal blood pressure range is 90-120 for adults.", score=0.9
+            ),
+            _make_chunk("c2", content="Normal blood sugar range is 140-180 for adults.", score=0.8),
+        ]
+        rag_ctx = _make_rag_context(chunks=chunks, confidence=0.42)
+
+        with (
+            patch(
+                "asyncio.to_thread",
+                new_callable=AsyncMock,
+                return_value=rag_ctx,
+            ),
+            patch("core.rag.vector_rag.retrieve_context_structured"),
+            patch(
+                "core.rag.formatting.format_rag_chunks_for_prompt",
+                return_value="Chunk1\nChunk2",
+            ),
+            patch(
+                "core.insight.safety.redact_rag_context_for_insight",
+                return_value="Chunk1\nChunk2",
+            ),
+        ):
+            result = await retrieve_and_validate_rag(
+                "What blood pressure range is normal?",
+                philo_validation_enabled=True,
+            )
+
+        assert result.rag_actually_used is True
+        assert len(result.chunks) == 2
+        assert result.confidence == 0.85
+        assert not any("numeric_contradiction" in warning for warning in result.warnings)
+
+    @pytest.mark.asyncio
     async def test_failsafe_on_exception_returns_empty(self) -> None:
         """On any exception, returns empty result (fail-safe)."""
         with patch(
@@ -429,6 +778,51 @@ class TestRetrieveAndValidateRag:
         assert result.rag_actually_used is False
         assert result.formatted_prompt == "test prompt"
         assert result.chunks == []
+        assert result.recursive_executed is False
+
+    @pytest.mark.asyncio
+    async def test_recursive_failsafe_preserves_execution_metadata(self) -> None:
+        """Recursive fail-safe should preserve that the recursive path executed."""
+        rag_ctx = _make_rag_context(chunks=[_make_chunk("c1", score=0.9)], confidence=0.9, hops=2)
+        with (
+            patch(
+                "asyncio.to_thread",
+                new_callable=AsyncMock,
+                return_value=rag_ctx,
+            ),
+            patch("core.rag.recursive_retrieval.retrieve_recursive_context_structured"),
+            patch(
+                "core.rag.formatting.format_rag_chunks_for_prompt",
+                side_effect=RuntimeError("formatting failed after retrieval"),
+            ),
+        ):
+            result = await retrieve_and_validate_rag(
+                "test prompt",
+                recursive_rag_enabled=True,
+            )
+
+        assert result.rag_actually_used is False
+        assert result.formatted_prompt == "test prompt"
+        assert result.chunks == []
+        assert result.recursive_executed is True
+
+    @pytest.mark.asyncio
+    async def test_recursive_failsafe_does_not_mark_execution_without_confirmation(self) -> None:
+        """Recursive fail-safe must keep execution false when retrieval never completes."""
+        with patch(
+            "asyncio.to_thread",
+            new_callable=AsyncMock,
+            side_effect=RuntimeError("RAG retrieval failed"),
+        ):
+            result = await retrieve_and_validate_rag(
+                "test prompt",
+                recursive_rag_enabled=True,
+            )
+
+        assert result.rag_actually_used is False
+        assert result.formatted_prompt == "test prompt"
+        assert result.chunks == []
+        assert result.recursive_executed is False
 
     @pytest.mark.asyncio
     async def test_prompt_formatted_with_redacted_context(self) -> None:
@@ -460,6 +854,288 @@ class TestRetrieveAndValidateRag:
         assert "Knowledge about wellness" in result.formatted_prompt
         assert "Question: What is wellness?" in result.formatted_prompt
         assert "Answer:" in result.formatted_prompt
+
+    @pytest.mark.asyncio
+    async def test_empty_formatted_context_returns_fail_safe_non_rag_result(self) -> None:
+        """Empty formatted context must not mark the result as RAG-used."""
+        chunks = [_make_chunk("c1", content="Knowledge about wellness.", score=0.9)]
+        rag_ctx = _make_rag_context(chunks=chunks, hops=2, latency_ms=75)
+
+        with (
+            patch(
+                "asyncio.to_thread",
+                new_callable=AsyncMock,
+                return_value=rag_ctx,
+            ),
+            patch("core.rag.vector_rag.retrieve_context_structured"),
+            patch(
+                "core.rag.formatting.format_rag_chunks_for_prompt",
+                return_value="   ",
+            ),
+        ):
+            result = await retrieve_and_validate_rag(
+                "What is wellness?", philo_validation_enabled=False
+            )
+
+        assert result.rag_actually_used is False
+        assert result.formatted_prompt == "What is wellness?"
+        assert result.chunks == []
+        assert result.confidence is None
+        assert result.hops == 2
+        assert result.latency_ms == 75
+        assert result.degraded_reason == RAGDegradedReason.FORMATTED_CONTEXT_EMPTY
+
+    @pytest.mark.asyncio
+    async def test_non_string_formatted_context_returns_fail_safe_non_rag_result(self) -> None:
+        """Non-string formatted context must collapse to a non-RAG result."""
+        chunks = [_make_chunk("c1", content="Knowledge about wellness.", score=0.9)]
+        rag_ctx = _make_rag_context(chunks=chunks, hops=2, latency_ms=75)
+
+        with (
+            patch(
+                "asyncio.to_thread",
+                new_callable=AsyncMock,
+                return_value=rag_ctx,
+            ),
+            patch("core.rag.vector_rag.retrieve_context_structured"),
+            patch(
+                "core.rag.formatting.format_rag_chunks_for_prompt",
+                return_value=["unexpected-context"],
+            ),
+        ):
+            result = await retrieve_and_validate_rag(
+                "What is wellness?", philo_validation_enabled=False
+            )
+
+        assert result.rag_actually_used is False
+        assert result.formatted_prompt == "What is wellness?"
+        assert result.chunks == []
+        assert result.confidence is None
+        assert result.hops == 2
+        assert result.latency_ms == 75
+        assert result.degraded_reason == RAGDegradedReason.FORMATTED_CONTEXT_MALFORMED
+
+    @pytest.mark.asyncio
+    async def test_empty_chunks_preserve_vector_metadata_and_retrieval_reason(self) -> None:
+        """Пустой retrieval context / Empty retrieval context must keep metadata and reason."""
+        rag_ctx = _make_rag_context(chunks=[], hops=3, latency_ms=48)
+        rag_ctx.degraded_reason = RAGDegradedReason.RETRIEVAL_EMPTY
+
+        with (
+            patch(
+                "asyncio.to_thread",
+                new_callable=AsyncMock,
+                return_value=rag_ctx,
+            ),
+            patch("core.rag.vector_rag.retrieve_context_structured"),
+        ):
+            result = await retrieve_and_validate_rag(
+                "What is wellness?",
+                philo_validation_enabled=False,
+            )
+
+        assert result.rag_actually_used is False
+        assert result.formatted_prompt == "What is wellness?"
+        assert result.chunks == []
+        assert result.hops == 3
+        assert result.latency_ms == 48
+        assert result.degraded_reason == RAGDegradedReason.RETRIEVAL_EMPTY
+
+    @pytest.mark.asyncio
+    async def test_empty_redacted_context_returns_fail_safe_non_rag_result(self) -> None:
+        """Redaction that removes all context must collapse to a non-RAG result."""
+        chunks = [_make_chunk("c1", content="Knowledge about wellness.", score=0.9)]
+        rag_ctx = _make_rag_context(chunks=chunks, hops=3, latency_ms=60)
+
+        with (
+            patch(
+                "asyncio.to_thread",
+                new_callable=AsyncMock,
+                return_value=rag_ctx,
+            ),
+            patch("core.rag.vector_rag.retrieve_context_structured"),
+            patch(
+                "core.rag.formatting.format_rag_chunks_for_prompt",
+                return_value="Knowledge about wellness.",
+            ),
+            patch(
+                "core.insight.safety.redact_rag_context_for_insight",
+                return_value="",
+            ),
+        ):
+            result = await retrieve_and_validate_rag(
+                "What is wellness?", philo_validation_enabled=False
+            )
+
+        assert result.rag_actually_used is False
+        assert result.formatted_prompt == "What is wellness?"
+        assert result.chunks == []
+        assert result.confidence is None
+        assert result.hops == 3
+        assert result.latency_ms == 60
+        assert result.degraded_reason == RAGDegradedReason.REDACTED_CONTEXT_EMPTY
+
+    @pytest.mark.asyncio
+    async def test_non_string_redacted_context_returns_fail_safe_non_rag_result(self) -> None:
+        """Non-string redacted context must collapse to a non-RAG result."""
+        chunks = [_make_chunk("c1", content="Knowledge about wellness.", score=0.9)]
+        rag_ctx = _make_rag_context(chunks=chunks, hops=3, latency_ms=60)
+
+        with (
+            patch(
+                "asyncio.to_thread",
+                new_callable=AsyncMock,
+                return_value=rag_ctx,
+            ),
+            patch("core.rag.vector_rag.retrieve_context_structured"),
+            patch(
+                "core.rag.formatting.format_rag_chunks_for_prompt",
+                return_value="Knowledge about wellness.",
+            ),
+            patch(
+                "core.insight.safety.redact_rag_context_for_insight",
+                return_value={"unexpected": "context"},
+            ),
+        ):
+            result = await retrieve_and_validate_rag(
+                "What is wellness?", philo_validation_enabled=False
+            )
+
+        assert result.rag_actually_used is False
+        assert result.formatted_prompt == "What is wellness?"
+        assert result.chunks == []
+        assert result.confidence is None
+        assert result.hops == 3
+        assert result.latency_ms == 60
+        assert result.degraded_reason == RAGDegradedReason.REDACTED_CONTEXT_MALFORMED
+
+    @pytest.mark.asyncio
+    async def test_post_retrieval_exception_returns_non_rag_result_with_metadata(self) -> None:
+        """Исключение после retrieval / Post-retrieval exception must degrade with metadata."""
+        chunks = [_make_chunk("c1", content="Knowledge about wellness.", score=0.9)]
+        rag_ctx = _make_rag_context(chunks=chunks, hops=6, latency_ms=92)
+
+        with (
+            patch(
+                "asyncio.to_thread",
+                new_callable=AsyncMock,
+                return_value=rag_ctx,
+            ),
+            patch("core.rag.vector_rag.retrieve_context_structured"),
+            patch(
+                "core.rag.formatting.format_rag_chunks_for_prompt",
+                return_value="Knowledge about wellness.",
+            ),
+            patch(
+                "core.insight.safety.redact_rag_context_for_insight",
+                side_effect=RuntimeError("redaction boom"),
+            ),
+        ):
+            result = await retrieve_and_validate_rag(
+                "What is wellness?",
+                philo_validation_enabled=False,
+            )
+
+        assert result.rag_actually_used is False
+        assert result.formatted_prompt == "What is wellness?"
+        assert result.chunks == []
+        assert result.hops == 6
+        assert result.latency_ms == 92
+        assert result.degraded_reason == RAGDegradedReason.POST_RETRIEVAL_ORCHESTRATION_EXCEPTION
+
+    @pytest.mark.asyncio
+    async def test_philo_enabled_late_formatted_context_collapse_preserves_metadata(self) -> None:
+        """Late context collapse after validation must keep retrieval metadata and warnings."""
+        chunks = [
+            _make_chunk("c1", content="Knowledge about wellness.", score=0.9),
+            _make_chunk("c2", content="Extra chunk.", score=0.6),
+        ]
+        rag_ctx = _make_rag_context(chunks=chunks, hops=4, latency_ms=88)
+        pipeline_result = PipelineResult(
+            filtered_chunks=[chunks[0]],
+            stage_results=[],
+            warnings=["medical_boundary: chunk c2 rejected"],
+            total_latency_ms=1.0,
+        )
+
+        with (
+            patch(
+                "asyncio.to_thread",
+                new_callable=AsyncMock,
+                return_value=rag_ctx,
+            ),
+            patch("core.rag.vector_rag.retrieve_context_structured"),
+            patch(
+                "core.rag.philosophy_pipeline.run_pipeline",
+                return_value=pipeline_result,
+            ),
+            patch(
+                "core.rag.formatting.format_rag_chunks_for_prompt",
+                return_value="   ",
+            ),
+        ):
+            result = await retrieve_and_validate_rag(
+                "What is wellness?",
+                philo_validation_enabled=True,
+            )
+
+        assert result.rag_actually_used is False
+        assert result.formatted_prompt == "What is wellness?"
+        assert result.warnings == ["medical_boundary: chunk c2 rejected"]
+        assert result.chunks_retrieved == 2
+        assert result.chunks_filtered == 1
+        assert result.hops == 4
+        assert result.latency_ms == 88
+        assert result.degraded_reason == RAGDegradedReason.FORMATTED_CONTEXT_EMPTY
+
+    @pytest.mark.asyncio
+    async def test_philo_enabled_late_redacted_context_collapse_preserves_metadata(self) -> None:
+        """Late redaction collapse after validation must keep retrieval metadata and warnings."""
+        chunks = [
+            _make_chunk("c1", content="Knowledge about wellness.", score=0.9),
+            _make_chunk("c2", content="Extra chunk.", score=0.6),
+        ]
+        rag_ctx = _make_rag_context(chunks=chunks, hops=5, latency_ms=91)
+        pipeline_result = PipelineResult(
+            filtered_chunks=[chunks[0]],
+            stage_results=[],
+            warnings=["medical_boundary: chunk c2 rejected"],
+            total_latency_ms=1.0,
+        )
+
+        with (
+            patch(
+                "asyncio.to_thread",
+                new_callable=AsyncMock,
+                return_value=rag_ctx,
+            ),
+            patch("core.rag.vector_rag.retrieve_context_structured"),
+            patch(
+                "core.rag.philosophy_pipeline.run_pipeline",
+                return_value=pipeline_result,
+            ),
+            patch(
+                "core.rag.formatting.format_rag_chunks_for_prompt",
+                return_value="Knowledge about wellness.",
+            ),
+            patch(
+                "core.insight.safety.redact_rag_context_for_insight",
+                return_value="",
+            ),
+        ):
+            result = await retrieve_and_validate_rag(
+                "What is wellness?",
+                philo_validation_enabled=True,
+            )
+
+        assert result.rag_actually_used is False
+        assert result.formatted_prompt == "What is wellness?"
+        assert result.warnings == ["medical_boundary: chunk c2 rejected"]
+        assert result.chunks_retrieved == 2
+        assert result.chunks_filtered == 1
+        assert result.hops == 5
+        assert result.latency_ms == 91
+        assert result.degraded_reason == RAGDegradedReason.REDACTED_CONTEXT_EMPTY
 
 
 def test_format_rag_chunks_for_prompt_sanitizes_injection_lines() -> None:
@@ -509,6 +1185,91 @@ def test_build_rag_source_dicts_sanitizes_preview_content() -> None:
     assert result[0]["preview"] == "Helpful reframing technique."
 
 
+def test_redact_rag_context_for_insight_redacts_pii_and_identity_markers() -> None:
+    """Prompt-path redaction must strip source metadata plus PII/identity markers."""
+
+    result = redact_rag_context_for_insight(
+        (
+            "# Source: docs/private_note.md (score=0.91)\n"
+            "Reach out via coach@example.com.\n"
+            "subject_id: 42\n"
+            "Grounding routine for anxious mornings."
+        )
+    )
+
+    assert "# Source:" not in result
+    assert "coach@example.com" not in result
+    assert "[EMAIL_REDACTED]" in result
+    assert "subject_id: 42" not in result
+    assert "[IDENTITY_REDACTED]" in result
+    assert "Grounding routine for anxious mornings." in result
+
+
+def test_redact_rag_context_for_insight_redacts_quoted_identity_markers_and_case_variants() -> None:
+    """Prompt-path redaction must handle lowercase source labels and quoted markers."""
+
+    result = redact_rag_context_for_insight(
+        (
+            "# source: docs/private_note.md\n"
+            '"tenant_id":"vip-42"\n'
+            '"api_key" = "secret-token"\n'  # pragma: allowlist secret
+            "Grounded breathing guidance."
+        )
+    )
+
+    assert "# source:" not in result.lower()
+    assert "vip-42" not in result
+    assert "secret-token" not in result
+    assert result.count("[IDENTITY_REDACTED]") >= 2
+    assert "Grounded breathing guidance." in result
+
+
+def test_build_rag_source_dicts_redacts_pii_and_identity_markers_in_preview() -> None:
+    """Source previews must not leak PII or tenant-linked identifiers."""
+
+    chunks = [
+        _make_chunk(
+            content=(
+                "Coach note: coach@example.com\n"
+                "tenant_id=vip-42\n"
+                "Gentle routine for stressful mornings."
+            )
+        )
+    ]
+
+    result = build_rag_source_dicts(chunks)
+
+    assert result[0]["preview"]
+    assert "coach@example.com" not in result[0]["preview"]
+    assert "[EMAIL_REDACTED]" in result[0]["preview"]
+    assert "vip-42" not in result[0]["preview"]
+    assert "[IDENTITY_REDACTED]" in result[0]["preview"]
+    assert "Gentle routine for stressful mornings." in result[0]["preview"]
+
+
+def test_build_rag_source_dicts_redacts_serialized_identity_markers_in_preview() -> None:
+    """Serialized preview payloads must redact quoted identity markers and emails."""
+
+    chunks = [
+        _make_chunk(
+            content=(
+                '"coach_email":"coach@example.com"\n'
+                '"tenant_id":"vip-42"\n'
+                "Gentle routine for stressful mornings."
+            )
+        )
+    ]
+
+    result = build_rag_source_dicts(chunks)
+
+    assert result[0]["preview"]
+    assert "coach@example.com" not in result[0]["preview"]
+    assert "[EMAIL_REDACTED]" in result[0]["preview"]
+    assert "vip-42" not in result[0]["preview"]
+    assert "[IDENTITY_REDACTED]" in result[0]["preview"]
+    assert "Gentle routine for stressful mornings." in result[0]["preview"]
+
+
 def test_build_rag_source_dicts_skips_empty_sanitized_chunks() -> None:
     """Source previews should stay aligned with prompt chunks after sanitization."""
     chunks = [
@@ -521,3 +1282,35 @@ def test_build_rag_source_dicts_skips_empty_sanitized_chunks() -> None:
     assert len(result) == 1
     assert result[0]["chunk_id"] == "safe"
     assert result[0]["preview"] == "Helpful reframing technique."
+
+
+def test_simple_rag_skips_chunks_that_become_empty_after_redaction(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Simple RAG fallback must backfill lower-ranked safe chunks after redaction."""
+    import core.rag.simple_rag as simple_rag
+
+    monkeypatch.setattr(
+        simple_rag,
+        "_get_index",
+        lambda: [
+            ("docs/unsafe.md", "unsafe chunk"),
+            ("docs/safe.md", "safe chunk"),
+        ],
+    )
+    monkeypatch.setattr(
+        simple_rag,
+        "_score",
+        lambda query, chunk: 0.9 if chunk == "unsafe chunk" else 0.4,
+    )
+    monkeypatch.setattr(simple_rag, "MIN_CHUNK_SCORE", 0.0)
+    monkeypatch.setattr(
+        simple_rag,
+        "redact_chunk_content",
+        lambda content: "" if content == "unsafe chunk" else content,
+    )
+
+    result = simple_rag.retrieve_context_structured("query", max_chunks=1)
+
+    assert len(result.chunks) == 1
+    assert result.chunks[0].content == "safe chunk"

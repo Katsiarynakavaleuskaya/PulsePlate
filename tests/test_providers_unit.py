@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Изолированные юнит‑тесты для провайдеров: stub, grok, ollama, pico.
+"""Изолированные юнит‑тесты для провайдеров: stub, perplexity, ollama, pico.
 Все сетевые вызовы замещаются фейковыми клиентами; ретраи не ждут времени,
 т.к. мы обращаемся к __wrapped__ при необходимости.
 """
@@ -48,10 +48,10 @@ def test_stub_provider_text_truncation():
     assert "a" * 121 not in result
 
 
-# ---------------- GrokProvider -----------------
+# ---------------- PerplexityProvider -----------------
 
 
-def test_grok_generate_success(monkeypatch):
+def test_perplexity_generate_success(monkeypatch):
     class _Msg:
         def __init__(self, content: str):
             self.content = content
@@ -75,13 +75,13 @@ def test_grok_generate_success(monkeypatch):
     openai_fake = types.ModuleType("openai")
     openai_fake.AsyncOpenAI = _FakeClient  # pyright: ignore[reportAttributeAccessIssue]
     monkeypatch.setitem(sys.modules, "openai", openai_fake)
-    # гарантируем, что модуль grok увидит наш openai
-    if "providers.grok" in sys.modules:
-        grok_mod = importlib.reload(sys.modules["providers.grok"])  # type: ignore[arg-type]
+    # гарантируем, что модуль perplexity увидит наш openai
+    if "providers.perplexity" in sys.modules:
+        perplexity_mod = importlib.reload(sys.modules["providers.perplexity"])
     else:
-        from providers import grok as grok_mod  # type: ignore
+        from providers import perplexity as perplexity_mod
 
-    p = grok_mod.GrokProvider(endpoint="http://x", model="m", api_key="k")
+    p = perplexity_mod.PerplexityProvider(endpoint="http://x", model="m", api_key="k")
     loop = asyncio.new_event_loop()
     try:
         out = loop.run_until_complete(p.generate("test"))
@@ -90,7 +90,7 @@ def test_grok_generate_success(monkeypatch):
     assert out == "hello"  # content.strip()
 
 
-def test_grok_generate_error_wrapped(monkeypatch):
+def test_perplexity_generate_error_wrapped(monkeypatch):
     class _FakeChat:
         async def create(self, *a, **kw):
             raise RuntimeError("boom")
@@ -102,20 +102,20 @@ def test_grok_generate_error_wrapped(monkeypatch):
     openai_fake = types.ModuleType("openai")
     openai_fake.AsyncOpenAI = _FakeClient  # pyright: ignore[reportAttributeAccessIssue]
     monkeypatch.setitem(sys.modules, "openai", openai_fake)
-    if "providers.grok" in sys.modules:
-        grok_mod = importlib.reload(sys.modules["providers.grok"])  # type: ignore[arg-type]
+    if "providers.perplexity" in sys.modules:
+        perplexity_mod = importlib.reload(sys.modules["providers.perplexity"])
     else:
-        from providers import grok as grok_mod  # type: ignore
+        from providers import perplexity as perplexity_mod
 
-    p = grok_mod.GrokProvider(endpoint="http://x", model="m", api_key="k")
+    p = perplexity_mod.PerplexityProvider(endpoint="http://x", model="m", api_key="k")
     with pytest.raises(RuntimeError) as ei:
         # обходим декоратор retry
         loop = asyncio.new_event_loop()
         try:
-            loop.run_until_complete(p.generate.__wrapped__(p, "oops"))  # type: ignore[attr-defined]
+            loop.run_until_complete(p.generate.__wrapped__(p, "oops"))
         finally:
             loop.close()
-    assert "Grok error:" in str(ei.value)
+    assert "Perplexity error:" in str(ei.value)
 
 
 # ---------------- OllamaProvider -----------------
@@ -199,7 +199,7 @@ def test_ollama_unavailable_wrapped(monkeypatch):
         # обойти retries
         loop = asyncio.new_event_loop()
         try:
-            loop.run_until_complete(p.generate.__wrapped__(p, "text"))  # type: ignore[attr-defined]
+            loop.run_until_complete(p.generate.__wrapped__(p, "text"))
         finally:
             loop.close()
 
@@ -223,7 +223,7 @@ def test_ollama_request_error_wrapped(monkeypatch):
     with pytest.raises(RuntimeError) as ei:
         loop = asyncio.new_event_loop()
         try:
-            loop.run_until_complete(p.generate.__wrapped__(p, "text"))  # type: ignore[attr-defined]
+            loop.run_until_complete(p.generate.__wrapped__(p, "text"))
         finally:
             loop.close()
     assert "ollama_unavailable" in str(ei.value)
@@ -357,9 +357,9 @@ def test_pico_generate_choices_and_response_and_else(monkeypatch):
     p = pico_mod.PicoProvider(endpoint="http://x")
     out = _await_or_value(p.generate("t"))
     assert out == "A"
-    p.client.data = {"response": " B "}  # type: ignore[attr-defined]
+    p.client.data = {"response": " B "}
     out = _await_or_value(p.generate("t"))
     assert out == "B"
-    p.client.data = {"unknown": 1}  # type: ignore[attr-defined]
+    p.client.data = {"unknown": 1}
     out = _await_or_value(p.generate("t"))
     assert out == "{'unknown': 1}"

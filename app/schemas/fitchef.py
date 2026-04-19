@@ -12,6 +12,8 @@ FitChefAgentId = Literal["fitchef-agent"]
 FitChefExecutionMode = Literal["auto-safe", "review-required", "blocked"]
 FitChefTaskType = Literal[
     "coach_insight",
+    "distortion_simulator",
+    "identity_loop_mapper",
     "weekly_plan",
     "shopping_followup",
     "mascot_insight",
@@ -44,6 +46,44 @@ class FitChefCoachInsightTaskEnvelope(FitChefTaskEnvelope):
 
     task_type: Literal["coach_insight"] = "coach_insight"
     input: FitChefCoachInsightInput
+
+
+class FitChefDistortionSimulatorInput(BaseModel):
+    """Internal distortion-simulator task input."""
+
+    safe_situation: str = Field(..., min_length=1)
+    safe_automatic_thought: str = Field(..., min_length=1)
+    safe_emotion: str = Field(..., min_length=1)
+    safe_goal: str | None = None
+    api_key: str = Field(..., min_length=1)
+    endpoint: str = Field(..., min_length=1)
+    method: str = Field(..., min_length=1)
+
+
+class FitChefDistortionSimulatorTaskEnvelope(FitChefTaskEnvelope):
+    """Distortion-simulator task envelope."""
+
+    task_type: Literal["distortion_simulator"] = "distortion_simulator"
+    input: FitChefDistortionSimulatorInput
+
+
+class FitChefIdentityLoopMapperInput(BaseModel):
+    """Internal identity-loop mapper task input."""
+
+    safe_goal: str = Field(..., min_length=1)
+    safe_recent_pattern: str = Field(..., min_length=1)
+    safe_self_talk: str = Field(..., min_length=1)
+    safe_trigger_context: str | None = None
+    api_key: str = Field(..., min_length=1)
+    endpoint: str = Field(..., min_length=1)
+    method: str = Field(..., min_length=1)
+
+
+class FitChefIdentityLoopMapperTaskEnvelope(FitChefTaskEnvelope):
+    """Identity-loop mapper task envelope."""
+
+    task_type: Literal["identity_loop_mapper"] = "identity_loop_mapper"
+    input: FitChefIdentityLoopMapperInput
 
 
 class FitChefMascotInsightInput(BaseModel):
@@ -130,6 +170,51 @@ class FitChefCoachInsightResult(BaseModel):
     mode: FitChefExecutionMode
     quota_state: FitChefQuotaState
     automated_analysis: bool
+    transparency_notice_id: str
+    wellness_boundary: str
+
+
+class FitChefDistortionSimulatorResult(BaseModel):
+    """Internal structured result for distortion simulator."""
+
+    scenario: Literal["distortion_simulator"] = "distortion_simulator"
+    distortion_labels: list[str]
+    why_it_matches: str
+    evidence_for: list[str]
+    evidence_against: list[str]
+    balanced_reframe: str
+    next_small_action: str
+    sources: list[FitChefSourceItem]
+    confidence: float
+    warnings: list[str]
+    mode: FitChefExecutionMode
+    quota_state: FitChefQuotaState
+    transparency_notice_id: str
+    wellness_boundary: str
+
+
+class FitChefIdentityLoopValue(BaseModel):
+    """Structured identity-loop block."""
+
+    belief: str
+    behavior: str
+    short_term_reward: str
+    long_term_cost: str
+
+
+class FitChefIdentityLoopMapperResult(BaseModel):
+    """Internal structured result for identity-loop mapper."""
+
+    scenario: Literal["identity_loop_mapper"] = "identity_loop_mapper"
+    identity_loop: FitChefIdentityLoopValue
+    identity_shift_statement: str
+    replacement_action: str
+    repair_if_slip: str
+    sources: list[FitChefSourceItem]
+    confidence: float
+    warnings: list[str]
+    mode: FitChefExecutionMode
+    quota_state: FitChefQuotaState
     transparency_notice_id: str
     wellness_boundary: str
 

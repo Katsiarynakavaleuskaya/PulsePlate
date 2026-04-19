@@ -37,6 +37,9 @@
 **Аудит «что добавить»:** `docs/audit/FRONTEND_MODERN_COMPONENTS_AUDIT.md`
 **Быстрый старт по компонентам:** `docs/audit/FRONTEND_COMPONENTS_QUICK_START.md`
 **Сравнение с Component Gallery:** `docs/audit/DESIGN_SYSTEM_COMPONENT_GALLERY_AUDIT.md`
+**Канонический словарь компонентов:** `docs/design/UI_COMPONENT_VOCABULARY.md`
+**Machine-readable реестр:** `docs/design/ui_component_vocabulary.json`
+**Code-first cookbook:** `docs/design/CODE_FIRST_UI_PROMPT_COOKBOOK.md`
 
 Кнопки (варианты и состояния): `docs/design/PULSEPLATE_BUTTON_ACTION_PROMPT_MATRIX.md`, CTA реестр — в полной спецификации Figma/Figr (12 разделов).
 
@@ -56,7 +59,8 @@
 | «Нужна дизайн-система под код» | Этот файл + путь к `frontend/src/styles/tokens.css` (или выдержку из него) |
 | «Цвета/отступы для вёрстки» | `tokens.css` + `TOKENS_SOT.md` |
 | «Правила по виду и контрасту» | `PULSEPLATE_LUXURY_WEB_IOS_VISUAL_GUIDELINES.md` |
-| «Какие компоненты есть / чего не хватает» | `FRONTEND_MODERN_COMPONENTS_AUDIT.md` или `FRONTEND_COMPONENTS_QUICK_START.md` |
+| «Какие компоненты есть / чего не хватает» | `UI_COMPONENT_VOCABULARY.md` + `ui_component_vocabulary.json` + `FRONTEND_MODERN_COMPONENTS_AUDIT.md` |
+| «Как собирать дизайн по коду, а не по расплывчатому описанию» | `CODE_FIRST_UI_PROMPT_COOKBOOK.md` + `UI_SCREEN_BRIEF_TEMPLATES.md` + `UI_VOCABULARY_EVALS.md` |
 | «Полная спецификация» | Ссылка на артефакт Figr + при необходимости выдержки из пунктов 1–3 выше |
 
 Если дизайнер уточнит задачу (токены, компоненты, экраны, стиль), по этому указателю можно сразу выбрать нужный документ или кусок кода.

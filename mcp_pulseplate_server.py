@@ -24,6 +24,9 @@ DEFAULT_PROTOCOL_VERSION = "2024-11-05"
 
 JsonRpcId = int | str | None
 _SAFE_CODE_LANGUAGE_RE = re.compile(r"^[a-z0-9][a-z0-9+_.-]{0,29}$")
+ERROR_INTERNAL = "internal_error"
+ERROR_PARSE = "parse_error"
+ERROR_TOOL_EXECUTION_FAILED = "tool_execution_failed"
 
 
 @dataclass(frozen=True)
@@ -91,6 +94,12 @@ class PulsePlateMCPServer:
 
     # Alias static whitelist used by older code/tests to the fallback list.
     ALLOWED_MODELS = FALLBACK_ALLOWED_MODELS
+
+    @staticmethod
+    def _safe_tool_error(error_code: str = ERROR_TOOL_EXECUTION_FAILED) -> Dict[str, str]:
+        """Return a stable client-safe tool error payload."""
+
+        return {"error": error_code}
 
     @classmethod
     def _fetch_available_models(cls) -> set[str]:
@@ -284,8 +293,9 @@ class PulsePlateMCPServer:
                 return await self._call_tool(params)
             return RpcError(code=-32601, message="Method not found", data={"method": method})
 
-        except Exception as e:
-            return RpcError(code=-32603, message="Internal error", data={"error": str(e)})
+        except Exception:
+            logger.exception("Unhandled MCP request failure")
+            return RpcError(code=-32603, message="Internal error", data={"error": ERROR_INTERNAL})
 
     async def _list_tools(self) -> Dict[str, Any]:
         """List available tools"""
@@ -548,8 +558,9 @@ Please provide a helpful response considering the PulsePlate project context.
 
             return {"content": [{"type": "text", "text": response.choices[0].message.content}]}
 
-        except Exception as e:
-            return {"error": f"ChatGPT query failed: {str(e)}"}
+        except Exception:
+            logger.exception("MCP chatgpt_query execution failed")
+            return self._safe_tool_error()
 
     async def _code_review(self, args: Dict[str, Any]) -> Dict[str, Any]:
         """Review code with ChatGPT"""
@@ -590,8 +601,9 @@ Please provide a helpful response considering the PulsePlate project context.
 
             return {"content": [{"type": "text", "text": response.choices[0].message.content}]}
 
-        except Exception as e:
-            return {"error": f"Code review failed: {str(e)}"}
+        except Exception:
+            logger.exception("MCP code_review execution failed")
+            return self._safe_tool_error()
 
     async def _generate_code(self, args: Dict[str, Any]) -> Dict[str, Any]:
         """Generate code with ChatGPT"""
@@ -634,8 +646,9 @@ Requirements:
 
             return {"content": [{"type": "text", "text": response.choices[0].message.content}]}
 
-        except Exception as e:
-            return {"error": f"Code generation failed: {str(e)}"}
+        except Exception:
+            logger.exception("MCP generate_code execution failed")
+            return self._safe_tool_error()
 
 
 async def main() -> None:
@@ -650,7 +663,8 @@ async def main() -> None:
 
         try:
             request = json.loads(line)
-        except json.JSONDecodeError as e:
+        except json.JSONDecodeError:
+            logger.exception("Invalid JSON-RPC payload")
             print(
                 json.dumps(
                     {
@@ -659,7 +673,7 @@ async def main() -> None:
                         "error": {
                             "code": -32700,
                             "message": "Parse error",
-                            "data": {"error": str(e)},
+                            "data": {"error": ERROR_PARSE},
                         },
                     }
                 )
@@ -733,7 +747,7 @@ async def main() -> None:
             print(json.dumps(response))
             sys.stdout.flush()
 
-        except Exception as e:
+        except Exception:
             logger.exception("Internal JSON-RPC error")
             safe_id = (
                 request_id if isinstance(request_id, (int, str)) or request_id is None else None
@@ -746,7 +760,7 @@ async def main() -> None:
                         "error": {
                             "code": -32603,
                             "message": "Internal error",
-                            "data": {"error": str(e)},
+                            "data": {"error": ERROR_INTERNAL},
                         },
                     }
                 )

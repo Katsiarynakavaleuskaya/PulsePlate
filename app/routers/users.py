@@ -25,7 +25,6 @@ T = TypeVar("T")
 
 def _require_users_api_key(api_key: str = Depends(api_key_header)) -> str:
     """Validate app-level API key access for the users CRUD surface."""
-
     app_get_api_key = resolve_attr("get_api_key", None)
     if not callable(app_get_api_key):
         raise HTTPException(

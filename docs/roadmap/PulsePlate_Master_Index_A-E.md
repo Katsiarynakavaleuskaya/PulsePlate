@@ -1,0 +1,32 @@
+# PulsePlate — Unified Execution Tracker
+Batches A–E in one operational view: what is archived, what executes next, what stays queued and what must wait.
+
+**Date:** 21 March 2026
+**Last sync:** B4 thin-client SubscriptionManager receipt-send flow merged in PR #1207 after B3 operational setup consolidation in PR #1189.
+
+## Current truth
+
+| Current truth | What is next | What stays out of scope for now |
+|---------------|--------------|----------------------------------|
+| Batch A is archived after PR-6.<br/>Batch B monetization foundations already merged on `main` are:<br/>- B1 baseline runtime in PR #1182<br/>- StoreKit contract baseline in PR #1172<br/>- Apple verify -> activation normalization in PR #1185<br/>- B3 operational/setup close-out in PR #1189<br/>- B4 thin-client SubscriptionManager receipt-send flow in PR #1207 | Any remaining Batch B close-out should now be tracked as explicit backend/readiness follow-ups in the ledger; do not reopen the merged iOS thin-client handoff. | Do not reopen baseline contract work, and do not mix unrelated AI/GTM or dependency-remediation scope into this lane. |
+
+## Batch B — Item-level execution tracker
+
+| ID | Deliverable | Priority | Current state | Trigger to start | Next concrete action |
+|----|-------------|----------|---------------|------------------|----------------------|
+| B1 | Payments RU/BY + iOS Baseline Runtime W1 | P0/P1 | **✅ Completed** | — | PR #1182 merged. |
+| B2 | Apple Receipt Verification Backend (full activation) | P0/P1 | **✅ Completed** | — | PR #1185 merged. |
+| B3 | StoreKit Product Contract and Operational Setup | P0/P1 | **✅ Completed** | — | PR #1189 merged; future TestFlight / App Store setup work must use the canonical checklist in `docs/contracts/IOS_STOREKIT_PRODUCTS_CONTRACT.md`. |
+| B4 | iOS SubscriptionManager Thin-Client Integration | P0/P1 | **✅ Completed** | — | PR #1207 merged; any residual Batch B cleanup must be tracked as a separate explicit follow-up instead of keeping B4 open. |
+
+**Batch rule:** PR-6 and Batch A governance work closed; do not mix with AI/GTM.
+
+## Source basis
+
+- `docs/roadmap/BACKLOG_LEDGER.md#ledger-p0-payments-ruby-ios`
+- `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-ios-storekit-products`
+- `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-ios-subscription-manager`
+- `docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md`
+- `docs/contracts/IOS_STOREKIT_PRODUCTS_CONTRACT.md`
+- `docs/IOS_API_INTEGRATION.md`
+- `docs/orchestration/TOP20_PR_RECOVERY_TASK_PACKETS_2026-03-08.md`

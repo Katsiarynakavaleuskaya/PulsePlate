@@ -120,6 +120,17 @@ def _extract_sqlite_path(database_url: str) -> str | None:
     return sqlite_path if sqlite_path else None
 
 
+def _is_sqlite_database_url(database_url: str) -> bool:
+    """Return True when the URL resolves to any SQLite backend variant."""
+
+    try:
+        backend_name = str(make_url(database_url).get_backend_name()).lower()
+        return backend_name == "sqlite"
+    except Exception:
+        scheme = urlparse(database_url).scheme.lower()
+        return scheme == "sqlite" or scheme.startswith("sqlite+")
+
+
 def _ensure_sqlite_directory(database_url: str, env_provided: bool = False) -> None:
     """Create parent directory for SQLite file if path is file-based and controlled by app.
 
@@ -148,8 +159,26 @@ def _ensure_sqlite_directory(database_url: str, env_provided: bool = False) -> N
 def _build_engine_url() -> str:
     """Return the database URL from env or fall back to local SQLite."""
     default_path = os.path.join("cache", "app.db")
-    env_provided = "DATABASE_URL" in os.environ
-    database_url = os.getenv("DATABASE_URL", f"sqlite:///{default_path}")
+    raw_database_url = (os.getenv("DATABASE_URL") or "").strip()
+    env_provided = bool(raw_database_url)
+    from settings import get_runtime_env_name, is_production_like_env
+
+    if not env_provided:
+        if is_production_like_env():
+            runtime_env = get_runtime_env_name() or "unknown"
+            raise RuntimeError(
+                f"DATABASE_URL is required in production-like environments (resolved env: {runtime_env}). "
+                "SQLite fallback is allowed only for local/dev/test runtimes."
+            )
+
+    if env_provided and is_production_like_env() and _is_sqlite_database_url(raw_database_url):
+        runtime_env = get_runtime_env_name() or "unknown"
+        raise RuntimeError(
+            f"SQLite DATABASE_URL is not allowed in production-like environments (resolved env: {runtime_env}). "
+            "Use a Postgres DATABASE_URL for production/staging runtimes."
+        )
+
+    database_url = raw_database_url or f"sqlite:///{default_path}"
 
     # Create directory only for non-env SQLite URLs that we control
     _ensure_sqlite_directory(database_url, env_provided)

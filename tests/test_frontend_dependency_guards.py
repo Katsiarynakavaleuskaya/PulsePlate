@@ -15,7 +15,7 @@ from packaging.version import Version
 REPO_ROOT = Path(__file__).resolve().parents[1]
 FRONTEND_PACKAGE_JSON = REPO_ROOT / "frontend" / "package.json"
 FRONTEND_LOCK_JSON = REPO_ROOT / "frontend" / "package-lock.json"
-MIN_DOMPURIFY_VERSION = Version("3.3.2")
+MIN_DOMPURIFY_VERSION = Version("3.4.0")
 
 
 def _load_json(path: Path) -> dict:

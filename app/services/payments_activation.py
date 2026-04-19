@@ -11,11 +11,14 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 import hashlib
+import hmac
 import httpx
 import json
+import logging
 from typing import Any, overload
 from uuid import uuid4
 
+from pydantic import ValidationError
 from sqlalchemy import delete
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
@@ -23,11 +26,11 @@ from app.middleware.api_tiers import derive_subject_id_from_api_key
 from app.models import Subscription, SubscriptionActivationAudit
 from app.schemas.payments import (
     ActivateSubscriptionRequest,
-    AppleActivationHint,
     AppleProviderError,
     AppleReceiptVerificationResponse,
     AppleVerificationEnvironment,
     AppleVerificationState,
+    IOSAppStoreActivationPayload,
     IOSVerifiedActivationResult,
     IosVerificationStatus,
     ManualActivationPayload,
@@ -43,7 +46,10 @@ from app.schemas.payments import (
     SubscriptionTier,
     SubscriptionTierValue,
 )
+from app.schemas.paywall_analytics import PaywallExposureEventName
+from app.services.paywall_exposure_ledger import record_activation_lifecycle_event
 from app.services import subscriptions as subscriptions_store
+from core.billing_policy import manual_monthly_entitlement_expires_at
 from core.db import get_session_factory
 from settings import require_apple_shared_secret
 
@@ -54,7 +60,8 @@ APPLE_EXPIRED_RECEIPT_STATUS = 21006
 APPLE_VERIFY_TIMEOUT_SECONDS = 10.0
 APPLE_ETC_GMT_DATETIME_FORMAT = "%Y-%m-%d %H:%M:%S Etc/GMT"
 _LEGACY_ISSUER_PREFIX = "subject:"
-_ACTIVATIONS: dict[str, dict[str, Any]] = {}
+
+logger = logging.getLogger(__name__)
 
 
 class ActivationAccessForbiddenError(PermissionError):
@@ -89,6 +96,14 @@ class AppleVerifyTimeoutError(AppleVerifyTransportError):
     error_message = "Apple receipt verification timed out"
 
 
+class ActivationReverifyRejectedError(ValueError):
+    """Raised when iOS activation cannot be completed because server-side receipt reverification failed."""
+
+    status_code = 403
+    error_code = "activation_reverify_rejected"
+    error_message = "Apple receipt verification required for activation"
+
+
 @dataclass(frozen=True)
 class NormalizedActivation:
     """Internal normalized activation state before persistence."""
@@ -118,6 +133,32 @@ def _utc_now() -> datetime:
     return datetime.now(timezone.utc)
 
 
+def _record_activation_lifecycle_event_best_effort(
+    *,
+    event_name: PaywallExposureEventName,
+    normalized: NormalizedActivation,
+    subject_id: int,
+) -> None:
+    """Persist activation analytics without risking the paid activation path.
+
+    RU: Ledger telemetry не должна ломать canonical activation flow.
+    EN: Ledger telemetry must never break the canonical activation flow.
+    """
+
+    try:
+        record_activation_lifecycle_event(
+            event_name=event_name,
+            normalized=normalized,
+            subject_id=subject_id,
+        )
+    except Exception:
+        logger.warning(
+            "paywall exposure ledger write failed for activation lifecycle event=%s",
+            event_name.value,
+            exc_info=True,
+        )
+
+
 def _hash_payload(payload: dict[str, Any]) -> str:
     """Build stable payload hash for deterministic idempotency validation."""
 
@@ -131,6 +172,41 @@ def _hash_receipt(receipt_data: str | None) -> str | None:
     if receipt_data is None:
         return None
     return hashlib.sha256(receipt_data.encode("utf-8")).hexdigest()
+
+
+def validate_webhook_signature(secret: str, payload: bytes, signature: str) -> bool:
+    """Validate webhook payload signature before state transition.
+
+    Contract:
+    - HMAC-SHA256 hex digest over the exact raw HTTP request body bytes.
+    - Secret bytes are used exactly as configured.
+    - Signature comparison is fail-closed.
+    - Hex casing is normalized, but whitespace is significant.
+
+    Returns True if signature is valid, otherwise False.
+    """
+    if not secret:
+        return False
+    if not signature:
+        return False
+
+    try:
+        provided_signature = signature.encode("ascii").decode("ascii").lower()
+    except UnicodeEncodeError:
+        return False
+
+    if len(provided_signature) != 64:
+        return False
+    if any(ch not in "0123456789abcdef" for ch in provided_signature):
+        return False
+
+    expected_signature = hmac.new(
+        secret.encode("utf-8"),
+        payload,
+        hashlib.sha256,
+    ).hexdigest()
+
+    return hmac.compare_digest(expected_signature, provided_signature)
 
 
 def _amount_to_minor_units(submitted_amount: str | None) -> int | None:
@@ -164,6 +240,29 @@ def _plan_to_subscription_tier(plan: SubscriptionPlan) -> SubscriptionTier:
     """Map plan to persisted subscription tier."""
 
     return SubscriptionTier(_plan_to_tier(plan).value)
+
+
+def _plan_from_subscription_tier_value(tier_value: SubscriptionTierValue) -> SubscriptionPlan:
+    """Map legacy paid-tier values back to the canonical monthly plan contract."""
+
+    if tier_value is SubscriptionTierValue.vip:
+        return SubscriptionPlan.vip_monthly
+    if tier_value is SubscriptionTierValue.pro:
+        return SubscriptionPlan.pro_monthly
+    raise ValueError(f"unsupported subscription tier value: {tier_value}")
+
+
+def _manual_plan_expires_at(*, plan: SubscriptionPlan, activated_at: datetime) -> datetime:
+    """Derive bounded expiry for verified manual monthly plans.
+
+    RU: Manual monthly plans должны получать детерминированный bounded expiry.
+    EN: Verified manual monthly plans must persist a deterministic bounded expiry.
+    """
+
+    if plan not in {SubscriptionPlan.pro_monthly, SubscriptionPlan.vip_monthly}:
+        raise ValueError(f"unsupported subscription plan: {plan}")
+    expires_at: datetime = manual_monthly_entitlement_expires_at(activated_at=activated_at)
+    return expires_at
 
 
 def _reconcile_status_from_subscription_status(
@@ -213,12 +312,9 @@ def _response_tier_value(
 ) -> SubscriptionTierValue | None:
     """Resolve legacy subscription_tier field for compatibility responses."""
 
-    tier_value = _parse_optional_subscription_tier_value(evidence_summary.get("subscription_tier"))
-    if tier_value is not None:
-        return tier_value
     if tier in {SubscriptionTier.pro, SubscriptionTier.vip}:
         return SubscriptionTierValue(tier.value)
-    return None
+    return _parse_optional_subscription_tier_value(evidence_summary.get("subscription_tier"))
 
 
 def _resolve_user_id(
@@ -286,17 +382,13 @@ def _normalize_canonical_ios_activation(
 
     ios_payload = payload.get_ios_payload()
     status = SubscriptionStatus(verification_result.status.value)
-    reconcile_status = (
-        ReconcileStatus.rejected
-        if verification_result.status is IosVerificationStatus.rejected
-        else ReconcileStatus.verified
-    )
+    reconcile_status = ReconcileStatus.verified
     activated_at = _utc_now() if status is SubscriptionStatus.active else None
     receipt_hash = _hash_receipt(ios_payload.receipt_data)
     safe_payload = payload.model_dump(mode="json", exclude_none=True)
     return NormalizedActivation(
         source=PaymentSource.ios_app_store,
-        tier=verification_result.subscription_tier,
+        tier=SubscriptionTier(verification_result.subscription_tier.value),
         status=status,
         platform=verification_result.platform,
         idempotency_key=_build_idempotency_key(
@@ -339,9 +431,11 @@ def _normalize_canonical_manual_activation(
 
     amount_minor = _amount_to_minor_units(manual_payload.submitted_amount)
     safe_payload = request_payload.model_dump(mode="json", exclude_none=True)
+    requested_plan = request_payload.plan or SubscriptionPlan.pro_monthly
+    requested_tier = _plan_to_subscription_tier(requested_plan)
     return NormalizedActivation(
         source=source,
-        tier=SubscriptionTier.pro,
+        tier=requested_tier,
         status=SubscriptionStatus.pending_manual_review,
         platform=PaymentPlatform.web,
         idempotency_key=_build_idempotency_key(
@@ -356,13 +450,15 @@ def _normalize_canonical_manual_activation(
         provider_receipt_hash=None,
         submitted_amount_minor=amount_minor,
         submitted_currency=manual_payload.submitted_currency,
-        requested_plan=None,
+        requested_plan=requested_plan,
         external_txn_id=None,
         reconcile_status=ReconcileStatus.pending,
         evidence_summary={
             "source_reference": manual_payload.source_reference,
             "submitted_amount_minor": amount_minor,
             "submitted_currency": manual_payload.submitted_currency,
+            "requested_plan": requested_plan.value,
+            "subscription_tier": _plan_to_tier(requested_plan).value,
         },
     )
 
@@ -637,21 +733,27 @@ def _to_response(
     return response
 
 
-def _current_manual_response_overrides(
+def _current_response_overrides(
     *,
     session: Any,
     audit: SubscriptionActivationAudit,
 ) -> tuple[Subscription | None, ReconcileStatus | None, str | None]:
-    """Return manual-reconcile overrides for current-state read paths."""
+    """Return current-state overrides for activation read paths.
 
-    if audit.source == PaymentSource.ios_app_store.value:
-        return None, None, None
+    RU: Для readback-эндпоинтов источником истины остаётся текущее persisted
+    subscription state, а не исторический audit snapshot.
+    EN: For readback endpoints, current persisted subscription state remains the
+    source of truth rather than the historical audit snapshot.
+    """
+
     subscription = subscriptions_store.get_subscription_by_id(
         session=session,
         subscription_id=audit.subscription_id,
     )
     if subscription is None:
         return None, None, None
+    if subscription.user_id != audit.user_id:
+        raise ActivationAccessForbiddenError("activation access forbidden")
     latest_audit = subscriptions_store.get_latest_audit_for_subscription(
         session=session,
         subscription_id=subscription.id,
@@ -665,11 +767,41 @@ def _current_manual_response_overrides(
     if isinstance(raw_external_txn, str) and raw_external_txn.strip():
         external_txn_id = raw_external_txn.strip()
 
+    reconcile_status = None
+    if (
+        audit.source != PaymentSource.ios_app_store.value
+        and latest_audit.status == subscription.status
+    ):
+        reconcile_status = _parse_optional_reconcile_status(latest_summary.get("reconcile_status"))
+
     return (
         subscription,
-        _parse_optional_reconcile_status(latest_summary.get("reconcile_status")),
+        reconcile_status,
         external_txn_id,
     )
+
+
+def _infer_manual_reconcile_plan(
+    *,
+    audit: SubscriptionActivationAudit,
+    subscription: Subscription,
+) -> SubscriptionPlan | None:
+    """Infer manual reconcile plan from canonical audit data or compat tier hints."""
+
+    evidence_summary = audit.evidence_summary or {}
+    requested_plan = _parse_optional_plan(evidence_summary.get("requested_plan"))
+    if requested_plan is not None:
+        return requested_plan
+
+    compat_tier = _parse_optional_subscription_tier_value(evidence_summary.get("subscription_tier"))
+    if compat_tier is not None:
+        return _plan_from_subscription_tier_value(compat_tier)
+
+    persisted_tier = _parse_optional_subscription_tier_value(getattr(subscription, "tier", None))
+    if persisted_tier is not None:
+        return _plan_from_subscription_tier_value(persisted_tier)
+
+    return None
 
 
 def _parse_optional_reconcile_status(raw_value: Any) -> ReconcileStatus | None:
@@ -791,6 +923,56 @@ def _entry_expires_at(entry: dict[str, Any]) -> datetime | None:
     )
 
 
+def _entry_transaction_id(entry: dict[str, Any]) -> str | None:
+    """Return transaction_id from Apple receipt entry."""
+
+    raw = _first_present_entry_value(entry, "transaction_id", "transactionId")
+    if isinstance(raw, str) and raw.strip():
+        return raw.strip()
+    return None
+
+
+def _entry_original_transaction_id(entry: dict[str, Any]) -> str | None:
+    """Return original_transaction_id from Apple receipt entry."""
+
+    raw = _first_present_entry_value(entry, "original_transaction_id", "originalTransactionId")
+    if isinstance(raw, str) and raw.strip():
+        return raw.strip()
+    return None
+
+
+# Canonical Apple product_id → tier map for the B2 verify->activation handoff.
+# StoreKit catalog governance is tracked separately in `ledger-p1-ios-storekit-products`.
+APPLE_PRODUCT_TIER_MAP: dict[str, SubscriptionTier] = {
+    "com.pulseplate.premium.monthly": SubscriptionTier.pro,
+    "com.pulseplate.premium.yearly": SubscriptionTier.pro,
+    "com.pulseplate.vip.monthly": SubscriptionTier.vip,
+}
+
+
+def _subscription_tier_for_product(product_id: str | None) -> SubscriptionTier | None:
+    """Map Apple product identifiers to SubscriptionTier for activation contract.
+
+    Uses explicit allowlist only; unknown or prefix-like SKUs return None (fail-closed).
+    """
+    if not product_id:
+        return None
+    normalized = product_id.strip().lower()
+    return APPLE_PRODUCT_TIER_MAP.get(normalized)
+
+
+def _verification_state_to_ios_status(
+    state: AppleVerificationState,
+) -> IosVerificationStatus:
+    """Map AppleVerificationState to IosVerificationStatus for activation contract."""
+
+    if state is AppleVerificationState.active or state is AppleVerificationState.restored:
+        return IosVerificationStatus.active
+    if state is AppleVerificationState.expired:
+        return IosVerificationStatus.expired
+    return IosVerificationStatus.rejected
+
+
 def _entry_has_expiry_value(entry: dict[str, Any]) -> bool:
     """Return whether Apple provided an expiry value that must be parseable."""
 
@@ -862,19 +1044,48 @@ def _entry_cancellation_at(entry: dict[str, Any]) -> datetime | None:
     )
 
 
-def _activation_payload_for_product(product_id: str | None) -> AppleActivationHint | None:
-    """Map Apple product identifiers to downstream activation-prep hints."""
+def _build_activation_contract_from_entry(
+    *,
+    entry: dict[str, Any],
+    product_id: str,
+    expires_at: datetime | None,
+    verification_state: AppleVerificationState,
+) -> IOSVerifiedActivationResult | None:
+    """Build IOSVerifiedActivationResult (activation-contract shape) from Apple receipt entry."""
 
-    if not product_id:
+    transaction_id = _entry_transaction_id(entry)
+    if not transaction_id:
         return None
-    normalized = product_id.strip().lower()
-    if normalized.startswith("com.pulseplate.premium.") or normalized.startswith(
-        "com.pulseplate.pro."
-    ):
-        return AppleActivationHint(tier=SubscriptionTierValue.pro)
-    if normalized.startswith("com.pulseplate.vip."):
-        return AppleActivationHint(tier=SubscriptionTierValue.vip)
-    return None
+    subscription_tier = _subscription_tier_for_product(product_id)
+    if subscription_tier is None:
+        return None
+    ios_status = _verification_state_to_ios_status(verification_state)
+    if ios_status not in {IosVerificationStatus.active, IosVerificationStatus.expired}:
+        return None
+    if expires_at is None:
+        return None
+    try:
+        if ios_status is IosVerificationStatus.active:
+            return IOSVerifiedActivationResult(
+                transaction_id=transaction_id,
+                original_transaction_id=_entry_original_transaction_id(entry),
+                product_id=product_id,
+                subscription_tier=SubscriptionTierValue(subscription_tier.value),
+                status=IosVerificationStatus.active,
+                expires_at=expires_at,
+                platform=PaymentPlatform.ios,
+            )
+        return IOSVerifiedActivationResult(
+            transaction_id=transaction_id,
+            original_transaction_id=_entry_original_transaction_id(entry),
+            product_id=product_id,
+            subscription_tier=SubscriptionTierValue(subscription_tier.value),
+            status=IosVerificationStatus.expired,
+            expires_at=expires_at,
+            platform=PaymentPlatform.ios,
+        )
+    except ValidationError:
+        return None
 
 
 def _build_invalid_verification_response(
@@ -962,17 +1173,28 @@ def _normalize_apple_verification(
         )
 
     if expires_at is not None and expires_at <= _utc_now():
-        return _build_invalid_verification_response(
+        if not product_id:
+            return _build_invalid_verification_response(
+                environment=environment,
+                product_id=product_id,
+                expires_at=expires_at,
+                code="APPLE_RECEIPT_INVALID",
+                message="Receipt verification failed",
+                verification_state=AppleVerificationState.invalid,
+            )
+        return AppleReceiptVerificationResponse(
+            verified=False,
+            verification_state=AppleVerificationState.expired,
             environment=environment,
             product_id=product_id,
             expires_at=expires_at,
-            code="APPLE_RECEIPT_EXPIRED",
-            message="Apple receipt is expired",
-            verification_state=AppleVerificationState.expired,
+            error=AppleProviderError(
+                code="APPLE_RECEIPT_EXPIRED",
+                message="Apple receipt is expired",
+            ),
         )
 
-    activation_payload = _activation_payload_for_product(product_id)
-    if activation_payload is None:
+    if not product_id:
         return _build_invalid_verification_response(
             environment=environment,
             product_id=product_id,
@@ -987,6 +1209,22 @@ def _normalize_apple_verification(
         if _has_reliable_restore_signal(payload, latest_entry)
         else AppleVerificationState.active
     )
+    activation_payload = _build_activation_contract_from_entry(
+        entry=latest_entry,
+        product_id=product_id,
+        expires_at=expires_at,
+        verification_state=verification_state,
+    )
+    if activation_payload is None:
+        return _build_invalid_verification_response(
+            environment=environment,
+            product_id=product_id,
+            expires_at=expires_at,
+            code="APPLE_RECEIPT_INVALID",
+            message="Receipt verification failed",
+            verification_state=AppleVerificationState.invalid,
+        )
+
     return AppleReceiptVerificationResponse(
         verified=True,
         verification_state=verification_state,
@@ -1029,6 +1267,47 @@ async def verify_apple_receipt(receipt_data: str) -> AppleReceiptVerificationRes
         payload=production_payload,
         environment=AppleVerificationEnvironment.production,
     )
+
+
+async def activate_subscription_async(
+    *,
+    payload: ActivateSubscriptionRequest,
+    user_id: int,
+) -> SubscriptionActivationResponse:
+    """Activate subscription with server-side Apple receipt reverification for iOS.
+
+    For source=ios_app_store, receipt_data is required. The server re-verifies
+    the receipt with Apple and uses only the server-verified result for
+    persistence. Client-supplied verification_result is never trusted as
+    entitlement truth.
+    """
+    if payload.source is not PaymentSource.ios_app_store:
+        return activate_subscription(payload=payload, user_id=user_id)
+
+    ios_payload = payload.get_ios_payload()
+    receipt_data = ios_payload.receipt_data
+    normalized_receipt_data = receipt_data.strip()
+    if not normalized_receipt_data:
+        raise ActivationReverifyRejectedError(
+            "receipt_data is required for iOS activation; server must verify with Apple"
+        )
+
+    verify_response = await verify_apple_receipt(normalized_receipt_data)
+    if verify_response.activation_payload is None:
+        raise ActivationReverifyRejectedError(
+            "Apple receipt verification failed or did not produce activation payload"
+        )
+
+    server_verified = verify_response.activation_payload
+    server_payload = IOSAppStoreActivationPayload(
+        verification_result=server_verified,
+        receipt_data=normalized_receipt_data,
+    )
+    server_request = ActivateSubscriptionRequest(
+        source=payload.source,
+        payload=server_payload,
+    )
+    return activate_subscription(payload=server_request, user_id=user_id)
 
 
 @overload
@@ -1080,6 +1359,12 @@ def activate_subscription(
                 return existing_response, False
             return existing_response
 
+        _record_activation_lifecycle_event_best_effort(
+            event_name=PaywallExposureEventName.upgrade_started,
+            normalized=normalized,
+            subject_id=resolved_user_id,
+        )
+
         subscription = subscriptions_store.get_subscription_for_user_source(
             session=session,
             user_id=resolved_user_id,
@@ -1119,16 +1404,17 @@ def activate_subscription(
         session.refresh(audit)
         session.refresh(subscription)
 
+        _record_activation_lifecycle_event_best_effort(
+            event_name=PaywallExposureEventName.upgrade_completed,
+            normalized=normalized,
+            subject_id=resolved_user_id,
+        )
+
         response = _to_response(
             activation_id=audit.id,
             audit=audit,
             subscription=subscription,
         )
-        _ACTIVATIONS[audit.id] = {
-            "payment_source": normalized.source.value,
-            "reconcile_status": normalized.reconcile_status.value,
-            "status": normalized.status.value,
-        }
         if _legacy_response_mode(user_id=user_id, issuer=issuer):
             return response, True
         return response
@@ -1158,7 +1444,13 @@ def get_activation(
     user_id: int | None = None,
     issuer: str | None = None,
 ) -> SubscriptionActivationResponse | None:
-    """Fetch activation event by id with user-level access control."""
+    """Fetch activation view by id with user-level access control.
+
+    RU: Readback keyed by activation id returns the current persisted entitlement
+    view for that activation lineage, not a frozen audit-only snapshot.
+    EN: Activation-id readback returns the current persisted entitlement view for
+    the activation lineage rather than a frozen audit-only snapshot.
+    """
 
     resolved_user_id = _resolve_user_id(user_id=user_id, issuer=issuer)
     session_factory = get_session_factory()
@@ -1169,10 +1461,12 @@ def get_activation(
             return None
         if audit.user_id != resolved_user_id:
             raise ActivationAccessForbiddenError("activation access forbidden")
-        subscription, reconcile_status, external_txn_id = _current_manual_response_overrides(
+        subscription, reconcile_status, external_txn_id = _current_response_overrides(
             session=session,
             audit=audit,
         )
+        if subscription is None:
+            return None
         return _to_response(
             activation_id=activation_id,
             audit=audit,
@@ -1205,7 +1499,7 @@ def get_reconcile_activation_status(
             raise ActivationStateError(
                 "manual reconciliation status is unavailable for ios_app_store"
             )
-        subscription, reconcile_status, external_txn_id = _current_manual_response_overrides(
+        subscription, reconcile_status, external_txn_id = _current_response_overrides(
             session=session,
             audit=audit,
         )
@@ -1313,6 +1607,19 @@ def reconcile_activation(
             else SubscriptionStatus.rejected.value
         )
         subscription.activated_at = now if payload.decision is ReconcileDecision.verified else None
+        requested_plan = _infer_manual_reconcile_plan(
+            audit=initial_audit,
+            subscription=subscription,
+        )
+        if payload.decision is ReconcileDecision.verified:
+            if requested_plan is None:
+                raise ActivationStateError("manual reconcile requires requested plan")
+            subscription.expires_at = _manual_plan_expires_at(
+                plan=requested_plan,
+                activated_at=now,
+            )
+        else:
+            subscription.expires_at = None
         subscription.updated_at = now
 
         initial_summary = initial_audit.evidence_summary or {}
@@ -1346,11 +1653,6 @@ def reconcile_activation(
         session.commit()
         session.refresh(reconcile_audit)
         session.refresh(subscription)
-        _ACTIVATIONS[payload.intent_id] = {
-            "payment_source": initial_audit.source,
-            "reconcile_status": reconcile_status.value,
-            "status": subscription.status,
-        }
 
         return _to_response(
             activation_id=payload.intent_id,
@@ -1382,7 +1684,6 @@ def reset_state() -> None:
         session.execute(delete(SubscriptionActivationAudit))
         session.execute(delete(Subscription))
         session.commit()
-        _ACTIVATIONS.clear()
     except SQLAlchemyError:
         session.rollback()
     finally:

@@ -15,6 +15,7 @@
 - Coordinator-first workflow: `docs/orchestration/workflow.md`
 - Context loading: `docs/orchestration/AGENT_CONTEXT_MAP.md`
 - Skill selection: `docs/orchestration/AGENT_SKILL_ROUTING_POLICY.md`
+- CV-specific offline overlay: `docs/orchestration/CV_EXPERIMENTATION_PROTOCOL.md`
 - Reflection and KPP promotion: `docs/orchestration/AGENT_REFLECTION_PROTOCOL.md`
 - Canonical memory policy: `docs/memory/kpp_knowledge_promotion_pipeline.md`
 - Quality gates and repo hard rules: `AGENTS.md`
@@ -30,6 +31,29 @@ This file is the single source of truth for:
 
 Other docs must link here instead of restating these rules.
 
+### Governed sub-lanes
+
+This protocol may be extended by task-specific governed sub-lane docs.
+
+Allowed:
+
+- sub-lane semantics
+- task-class-specific contracts
+- role mapping
+- recommended phase defaults that stay within umbrella caps
+
+Forbidden in sub-lane docs:
+
+- redefining mutable vs immutable surfaces
+- weakening autonomy bans
+- changing hard caps or quality gates
+- creating an alternate promotion or merge-readiness constitution
+
+Current governed sub-lane:
+
+- `docs/orchestration/CREATIVE_RESEARCH_SUBLANE_PROTOCOL.md`
+- `docs/orchestration/JUDGMENT_ADJUDICATION_SUBLANE_PROTOCOL.md`
+
 ---
 
 ## 1. Scope and non-goals
@@ -40,6 +64,8 @@ Other docs must link here instead of restating these rules.
 - Fixed-budget candidate runs against immutable evaluation oracles.
 - Experiment charters, result packets, and KPP-compliant promotion decisions.
 - First-wave experimentation for `LLM/RAG reliability`, then later `CV` evaluation and other approved research lanes.
+- CV-specific packet fields, privacy posture, and degrade semantics live in
+  `docs/orchestration/CV_EXPERIMENTATION_PROTOCOL.md`.
 
 ### Out of scope
 
@@ -308,6 +334,7 @@ An experimentation cycle is complete only when all are true:
 ## Related documents
 
 - `docs/orchestration/AGENT_EXPERIMENT_PACKET_TEMPLATE.md`
+- `docs/orchestration/contracts/LOGIC_PHILOSOPHY_REPLAY_EVAL_CONTRACT.md`
 - `docs/orchestration/AGENT_REFLECTION_PROTOCOL.md`
 - `docs/memory/kpp_knowledge_promotion_pipeline.md`
 - `docs/roadmap/BACKLOG_LEDGER.md`

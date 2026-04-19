@@ -133,6 +133,9 @@ export default function WeeklyPlanViewer() {
   const [hint, setHint] = useState<string | null>(null);
   const [lastSignedLink, setLastSignedLink] = useState<string | null>(null);
   const [request] = useState<ProWeekPlanRequest>(getInitialRequest);
+  const getErrorMessage = (error: unknown): string => {
+    return error instanceof Error ? error.message || t("plan.unknownError") : t("plan.unknownError");
+  };
 
   const { data, loading, error: err } = useWeeklyPlan({
     targets: request,
@@ -169,8 +172,8 @@ export default function WeeklyPlanViewer() {
           ? t('plan.linkCopied')
           : `${t('plan.copyFailed')}: ${link.absolute}`
       );
-    } catch (error: any) {
-      setHint(`${t('plan.linkRequestFailed')}: ${error?.message || t('plan.unknownError')}`);
+    } catch (error: unknown) {
+      setHint(`${t('plan.linkRequestFailed')}: ${getErrorMessage(error)}`);
     }
   };
 
@@ -180,8 +183,8 @@ export default function WeeklyPlanViewer() {
       await downloadSignedFile(link.absolute, filename);
       setLastSignedLink(link.absolute);
       setHint(t('plan.exportReady'));
-    } catch (error: any) {
-      setHint(`${t('plan.downloadFailed')}: ${error?.message || t('plan.unknownError')}. ${t('plan.tryAgain')}`);
+    } catch (error: unknown) {
+      setHint(`${t('plan.downloadFailed')}: ${getErrorMessage(error)}. ${t('plan.tryAgain')}`);
     }
   };
 
@@ -190,7 +193,7 @@ export default function WeeklyPlanViewer() {
       const link = await shareSignedExport(path, filename, title, { ttlSeconds: DEFAULT_TTL_SECONDS });
       setLastSignedLink(link.absolute);
       setHint(t('plan.shareReady'));
-    } catch (error: any) {
+    } catch (error: unknown) {
       setHint(formatShareErrorMessage(error, `${t('plan.shareFailed')}. ${t('plan.tryAgain')}`));
     }
   };
@@ -201,8 +204,8 @@ export default function WeeklyPlanViewer() {
       setLastSignedLink(link.absolute);
       window.open(link.absolute, "_blank", "noopener,noreferrer");
       setHint(t('plan.linkOpened'));
-    } catch (error: any) {
-      setHint(`${t('plan.linkOpenFailed')}: ${error?.message || t('plan.unknownError')}. ${t('plan.tryAgain')}`);
+    } catch (error: unknown) {
+      setHint(`${t('plan.linkOpenFailed')}: ${getErrorMessage(error)}. ${t('plan.tryAgain')}`);
     }
   };
 

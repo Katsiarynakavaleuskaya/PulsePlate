@@ -1,6 +1,5 @@
 /* Russian Info.plist Localization */
-"NSHealthShareUsageDescription" = "PulsePlate использует данные о питании и весе из Health для расчета вашего питания в соответствии с целями и отображения прогресса.";
-"NSHealthUpdateUsageDescription" = "PulsePlate обновляет ваши данные о здоровье для отслеживания прогресса питания.";
+"NSHealthShareUsageDescription" = "PulsePlate читает данные о питании и весе из Health, чтобы с вашего согласия показывать wellness-прогресс и планирование.";
 "NSCameraUsageDescription" = "PulsePlate использует камеру для сканирования штрих-кодов продуктов и их идентификации.";
 "NSLocationWhenInUseUsageDescription" = "PulsePlate использует геолокацию для поиска ближайших магазинов и местных продуктов.";
 "NSPhotoLibraryUsageDescription" = "PulsePlate использует фотоальбом для сохранения и обмена вашим прогрессом питания.";

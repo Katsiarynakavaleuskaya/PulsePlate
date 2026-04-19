@@ -1,8 +1,8 @@
 # Privacy Policy
 
 **Status:** Canonical legal document
-**Last updated:** 2026-03-08
-**Policy version:** `2026-03-08.eu-first.v1`
+**Last updated:** 2026-04-10
+**Policy version:** `2026-04-10.eu-first.v1`
 **Scope:** All product tiers (FREE / PRO / VIP)
 **Markets:** CIS / EU / US
 **Positioning:** Consumer wellness product, not a clinical system
@@ -44,6 +44,7 @@
 - BMI / body-fat / nutrition-target calculations
 - nutrition planning and weekly-plan generation
 - AI insight surfaces (`/insight`, `/api/v1/insight`, `/api/v1/pro/cbt/insight`)
+- FitChef structured coaching (`/api/v1/pro/fitchef/explain`)
 
 Для таких поверхностей действуют общие правила:
 
@@ -51,6 +52,7 @@
 - не предназначен для emergency use
 - не должен использоваться как единственное основание для treatment decisions
 - при признаках клинического риска нужен переход к qualified professional support
+- backend tracing хранит только HMAC-отпечатки, длины и usage metadata; raw prompts/completions не экспортируются в v1
 
 ### Внешние и self-hosted processors
 
@@ -59,8 +61,9 @@
 - локальным/runtime processing PulsePlate
 - self-hosted provider (например, Ollama-compatible)
 - external provider family (например, xAI/Grok, OpenAI-compatible, Anthropic-compatible, Pico)
+- OTLP collector/vendor tracing processor, если задан `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` (telemetry processor, not an AI model provider)
 
-Конкретный processor зависит от deployment configuration. Retention и downstream processing у внешних processors регулируются их собственными условиями и настройками развертывания.
+Конкретный processor зависит от deployment configuration. OTLP collector или tracing vendor создаёт дополнительный путь обработки и retention для trace metadata, который регулируется конфигурацией collector/vendored deployment. Такой telemetry-only export сам по себе не активирует regulated lane, если trace metadata остаётся non-identifying, не включает regulated content и остаётся в пределах настроенного telemetry-control boundary. Retention и downstream processing у внешних processors регулируются их собственными условиями и настройками развертывания.
 
 ### Хранение и удаление
 
@@ -114,7 +117,7 @@
 
 - We do **not** promise that the entire product is zero-storage or purely local-only
 - We do **not** position the current product as HIPAA-ready, clinical-grade, or 42 CFR Part 2 compliant
-- We do **not** use the current wellness runtime for clinical records, crisis workflows, or substance-use-disorder records
+- We do **not** use the current wellness runtime for clinical records, crisis workflows, or substance use disorder records
 
 ### AI / Automated Analysis
 
@@ -123,6 +126,7 @@ Some surfaces perform **automated wellness analysis**, including:
 - BMI, body-fat, and nutrition-target calculations
 - nutrition planning and weekly-plan generation
 - AI insight surfaces (`/insight`, `/api/v1/insight`, `/api/v1/pro/cbt/insight`)
+- FitChef structured coaching (`/api/v1/pro/fitchef/explain`)
 
 For these surfaces:
 
@@ -130,6 +134,7 @@ For these surfaces:
 - they are not for emergency use
 - they must not be used as the sole basis for treatment decisions
 - signs of clinical risk require escalation to qualified professional support
+- backend tracing stores only HMAC fingerprints, lengths, and bounded usage metadata; raw prompts/completions are not exported in v1
 
 ### External and Self-Hosted Processors
 
@@ -138,8 +143,9 @@ When AI features are enabled, requests may be processed by:
 - PulsePlate local/runtime processing
 - a self-hosted provider family (for example, Ollama-compatible deployments)
 - an external provider family (for example, xAI/Grok, OpenAI-compatible, Anthropic-compatible, or Pico)
+- an OTLP collector or tracing vendor processor when `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` is configured (a telemetry processor, not an AI model provider)
 
-The active processor depends on deployment configuration. Retention and downstream processing at external processors are governed by the selected provider or deployment terms.
+The active processor depends on deployment configuration. An OTLP collector or tracing vendor adds a separate processing and retention path for trace metadata, governed by the collector or vendor deployment configuration. That telemetry-only export does not activate the regulated lane by itself when trace metadata remains non-identifying, excludes regulated content, and stays within the configured telemetry-control boundary. Retention and downstream processing at external processors are governed by the selected provider or deployment terms.
 
 ### Retention and Deletion
 
@@ -188,8 +194,10 @@ Algunas superficies realizan análisis automatizado de wellness:
 - cálculos de BMI, body-fat y nutrition targets
 - planificación nutricional y weekly-plan generation
 - superficies AI insight (`/insight`, `/api/v1/insight`, `/api/v1/pro/cbt/insight`)
+- coaching estructurado de FitChef (`/api/v1/pro/fitchef/explain`)
 
 Estos resultados son para wellness y educación, no para emergencias ni decisiones de tratamiento.
+El tracing backend solo almacena huellas HMAC, longitudes y metadatos de uso limitados; no exporta prompts/completions en texto plano en v1.
 
 ### Procesadores Externos y Self-Hosted
 
@@ -198,6 +206,9 @@ Cuando las funciones de AI están habilitadas, las solicitudes pueden ser proces
 - PulsePlate runtime local
 - una familia self-hosted (por ejemplo, Ollama-compatible)
 - una familia externa (por ejemplo, xAI/Grok, OpenAI-compatible, Anthropic-compatible o Pico)
+- un collector OTLP o processor de tracing vendor cuando `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` está configurado (un procesador de telemetría, no un proveedor de modelo de AI)
+
+El processor activo depende de la configuración del deployment. Un collector OTLP o tracing vendor añade una ruta separada de procesamiento y retención para trace metadata, gobernada por la configuración del collector o vendor. Ese export telemetry-only no activa por sí solo el regulated lane cuando la trace metadata sigue siendo non-identifying, excluye regulated content y permanece dentro del telemetry-control boundary configurado. La retención y el procesamiento downstream en processors externos se rigen por los términos del provider o deployment seleccionado.
 
 ### Retención y Eliminación
 

@@ -10,6 +10,21 @@
 
 PulsePlate API has been consolidated into a clean, tiered structure optimized for mobile app integration with subscription-based access levels.
 
+### StoreKit copy contract for mobile consumers
+
+For iOS subscription surfaces, price / trial duration / eligibility messaging
+must come from StoreKit / App Store truth rather than manual UI copy.
+
+- Canonical governance source:
+  `docs/contracts/IOS_STOREKIT_PRODUCTS_CONTRACT.md`
+- This guide is pointer-only for App Store pricing / offer / eligibility rules.
+- Mobile consumers may render live StoreKit fields when available.
+- If live truth is unavailable, mobile copy must use non-assertive fallback
+  wording rather than numeric price claims, exact trial-length claims, or
+  definite eligibility claims.
+- Do not treat this guide as a competing canon for introductory offers, offer
+  codes, promotional offers, win-back pricing, or price/trial messaging policy.
+
 ### What Changed
 
 **Before** (Legacy):
@@ -59,7 +74,8 @@ let request = URLRequest(url: URL(string: "https://api.pulseplate.com/api/v1/foo
 
 ### Tier 2: PRO (API Key Required - Level 1)
 
-**Target Users**: PRO subscribers ($4.99/month)
+**Target Users**: PRO subscribers (current pricing / trial / eligibility must
+resolve from StoreKit / App Store truth)
 
 **Features**:
 
@@ -167,7 +183,8 @@ runtime code.
 
 ### Tier 3: VIP (API Key Required - Level 2)
 
-**Target Users**: VIP subscribers ($9.99/month)
+**Target Users**: VIP subscribers (current pricing / trial / eligibility must
+resolve from StoreKit / App Store truth)
 
 **Features** (All PRO features +):
 

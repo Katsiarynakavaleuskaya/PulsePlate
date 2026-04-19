@@ -1,5 +1,6 @@
 import XCTest
 import Foundation
+@testable import PulsePlate
 
 
 final class ThinClientGuardsTests: XCTestCase {
@@ -376,6 +377,193 @@ final class ThinClientGuardsTests: XCTestCase {
         XCTAssertTrue(hits.isEmpty)
     }
 
+    func test_subscriptionFlowFilesDoNotUseDirectURLSession() throws {
+        let root = try repoRoot(from: #filePath)
+        let guardedFiles = [
+            "ios/PulsePlate/Services/SubscriptionManager.swift",
+            "ios/PulsePlate/Services/SubscriptionBillingService.swift",
+            "ios/PulsePlate/Screens/PaywallScreen.swift"
+        ]
+
+        var hits: [String] = []
+        for relativeFile in guardedFiles {
+            let fileURL = root.appendingPathComponent(relativeFile)
+            guard FileManager.default.fileExists(atPath: fileURL.path) else {
+                hits.append("\(relativeFile): missing guarded file")
+                continue
+            }
+            let content = try String(contentsOf: fileURL, encoding: .utf8)
+            let scanContent = stripSwiftComments(from: content)
+            if scanContent.contains("URLSession") {
+                hits.append(relativeFile)
+            }
+        }
+
+        XCTAssertTrue(
+            hits.isEmpty,
+            """
+            ThinClientGuards failed: direct URLSession usage or missing guarded files detected in subscription flow files.
+
+            Fix:
+            - Route billing transport through APIClient / HTTPClient only.
+
+            Hits:
+            \(hits.joined(separator: "\n"))
+            """
+        )
+    }
+
+    func test_subscriptionFlowFilesDoNotReintroduceLocalPaidTruthFlags() throws {
+        let root = try repoRoot(from: #filePath)
+        let guardedFiles = [
+            "ios/PulsePlate/Models/StoreKitManager.swift",
+            "ios/PulsePlate/Services/SubscriptionManager.swift",
+            "ios/PulsePlate/Screens/PaywallScreen.swift"
+        ]
+        let forbiddenFlags = ["isPremium", "isPro", "isVip", "hasPaidAccess"]
+
+        var hits: [String] = []
+        for relativeFile in guardedFiles {
+            let fileURL = root.appendingPathComponent(relativeFile)
+            guard FileManager.default.fileExists(atPath: fileURL.path) else {
+                hits.append("\(relativeFile): missing guarded file")
+                continue
+            }
+            let content = try String(contentsOf: fileURL, encoding: .utf8)
+            let scanContent = stripSwiftComments(from: content)
+            for forbiddenFlag in forbiddenFlags where containsToken(forbiddenFlag, in: scanContent) {
+                hits.append("\(relativeFile): \(forbiddenFlag)")
+            }
+        }
+
+        XCTAssertTrue(
+            hits.isEmpty,
+            """
+            ThinClientGuards failed: local paid-truth flags detected in subscription flow files.
+
+            Fix:
+            - Publish backend entitlement state instead of local tier booleans.
+
+            Hits:
+            \(hits.joined(separator: "\n"))
+            """
+        )
+    }
+
+    func test_noHardcodedStoreKitProductIDsOutsideCatalog() throws {
+        let root = try repoRoot(from: #filePath)
+        let swiftFiles = try collectSwiftFiles(
+            root: root,
+            includeDirs: ["ios/PulsePlate"],
+            excludeSubpaths: [
+                "ios/PulsePlate/Models/StoreKitProductCatalog.swift"
+            ]
+        )
+
+        XCTAssertFalse(swiftFiles.isEmpty, "Guard scan found 0 Swift files. Check paths.")
+
+        var hits: [String] = []
+
+        let productIDRegex = try NSRegularExpression(
+            pattern: #"\bcom\.pulseplate\.premium\.[A-Za-z0-9._-]+\b"#,
+            options: [.caseInsensitive]
+        )
+
+        for file in swiftFiles {
+            let content = try String(contentsOf: file, encoding: .utf8)
+            let scanContent = stripSwiftComments(from: content)
+            let range = NSRange(scanContent.startIndex..<scanContent.endIndex, in: scanContent)
+            for match in productIDRegex.matches(in: scanContent, options: [], range: range) {
+                guard let idRange = Range(match.range, in: scanContent) else { continue }
+                let productID = String(scanContent[idRange])
+                hits.append("\(relativePath(file, root: root)): \(productID)")
+            }
+        }
+
+        XCTAssertTrue(
+            hits.isEmpty,
+            """
+            ThinClientGuards failed: hardcoded StoreKit product IDs detected outside the canonical catalog.
+
+            Fix:
+            - Keep runtime product IDs only in StoreKitProductCatalog.
+
+            Hits:
+            \(hits.joined(separator: "\n"))
+            """
+        )
+    }
+
+    func test_noManualPriceOrTrialCopyUsedAsRuntimeTruth() throws {
+        let root = try repoRoot(from: #filePath)
+        let swiftFiles = try collectSwiftFiles(
+            root: root,
+            includeDirs: ["ios/PulsePlate"],
+            excludeSubpaths: guardedSourceExcludeSubpaths()
+        )
+
+        XCTAssertFalse(swiftFiles.isEmpty, "Guard scan found 0 Swift files. Check paths.")
+
+        let forbiddenFragments = [
+            "free trial",
+            "introductory offer",
+            "intro offer",
+            "trial eligible",
+            "See price in App Store"
+        ]
+
+        var hits: [String] = []
+        for file in swiftFiles {
+            let content = try String(contentsOf: file, encoding: .utf8)
+            let scanContent = stripSwiftComments(from: content)
+            for fragment in forbiddenFragments where scanContent.localizedCaseInsensitiveContains(fragment) {
+                hits.append("\(relativePath(file, root: root)): \(fragment)")
+            }
+        }
+
+        XCTAssertTrue(
+            hits.isEmpty,
+            """
+            ThinClientGuards failed: manual pricing / trial runtime copy detected in app sources.
+
+            Fix:
+            - Keep pricing, trial, and eligibility truth in StoreKit / App Store policy layers, not runtime strings.
+
+            Hits:
+            \(hits.joined(separator: "\n"))
+            """
+        )
+    }
+
+    func test_storeKitContractDocMatchesSwiftCatalog() throws {
+        let root = try repoRoot(from: #filePath)
+        let contractURL = root.appendingPathComponent(
+            "docs/contracts/IOS_STOREKIT_PRODUCTS_CONTRACT.md"
+        )
+
+        XCTAssertTrue(
+            FileManager.default.fileExists(atPath: contractURL.path),
+            "Canonical StoreKit contract doc is missing."
+        )
+
+        let content = try String(contentsOf: contractURL, encoding: .utf8)
+        let contractIDs = try extractCanonicalStoreKitProductIDs(from: content)
+        let codeIDs = StoreKitProductCatalog.allowedProductIDs
+
+        XCTAssertFalse(contractIDs.isEmpty, "Canonical StoreKit contract has no product IDs.")
+        XCTAssertEqual(
+            Set(contractIDs).count,
+            contractIDs.count,
+            "Duplicate IDs found in canonical StoreKit contract doc."
+        )
+        XCTAssertEqual(
+            Set(codeIDs).count,
+            codeIDs.count,
+            "Duplicate IDs found in StoreKitProductCatalog."
+        )
+        XCTAssertEqual(contractIDs, codeIDs, "Contract IDs must match StoreKitProductCatalog IDs and order.")
+    }
+
     func test_fixturesContainBackendThresholds() throws {
         let json = String(data: BMIFixtures.successJSON(), encoding: .utf8) ?? ""
         XCTAssertTrue(json.contains("18.5"))
@@ -386,6 +574,16 @@ final class ThinClientGuardsTests: XCTestCase {
     private func relativePath(_ url: URL, root: URL) -> String {
         url.path.replacingOccurrences(of: root.path + "/", with: "")
     }
+}
+
+private func containsToken(_ token: String, in content: String) -> Bool {
+    let pattern = "(?<![A-Za-z0-9_])\(NSRegularExpression.escapedPattern(for: token))(?![A-Za-z0-9_])"
+    guard let regex = try? NSRegularExpression(pattern: pattern) else {
+        return false
+    }
+
+    let range = NSRange(content.startIndex..<content.endIndex, in: content)
+    return regex.firstMatch(in: content, range: range) != nil
 }
 
 // MARK: - Helpers
@@ -452,6 +650,25 @@ private func collectTextFiles(
     }
 
     return results.sorted { $0.path < $1.path }
+}
+
+private func extractCanonicalStoreKitProductIDs(from content: String) throws -> [String] {
+    let regex = try NSRegularExpression(
+        pattern: #"\|\s*`(com\.pulseplate\.[A-Za-z0-9._-]+)`\s*\|"#,
+        options: [.caseInsensitive]
+    )
+
+    let nsRange = NSRange(content.startIndex..<content.endIndex, in: content)
+    let matches = regex.matches(in: content, options: [], range: nsRange)
+
+    return matches.compactMap { match in
+        guard match.numberOfRanges > 1,
+              let range = Range(match.range(at: 1), in: content)
+        else {
+            return nil
+        }
+        return String(content[range])
+    }
 }
 
 private func guardedSourceExcludeSubpaths() -> [String] {

@@ -10,6 +10,7 @@ import sys
 from fastapi.testclient import TestClient
 
 from app import app
+from app.bootstrap.direct_api_root import LEGACY_BMI_WEB_ROUTE
 
 
 class TestWebInterfaceSpanish:
@@ -28,7 +29,7 @@ class TestWebInterfaceSpanish:
     def test_web_interface_contains_spanish_option(self) -> None:
         """Test that the web interface contains Spanish language option."""
         # Test that the root endpoint returns HTML with Spanish option
-        response = self.client.get("/")
+        response = self.client.get(LEGACY_BMI_WEB_ROUTE)
         assert response.status_code == 200
         assert "text/html" in response.headers["content-type"]
 
@@ -41,7 +42,7 @@ class TestWebInterfaceSpanish:
     def test_web_interface_form_labels_spanish(self) -> None:
         """Test that form labels are correctly translated to Spanish."""
         # Get the web interface with Spanish language
-        response = self.client.get("/?lang=es")
+        response = self.client.get(f"{LEGACY_BMI_WEB_ROUTE}?lang=es")
         assert response.status_code == 200
 
         html_content = response.text
@@ -59,7 +60,7 @@ class TestWebInterfaceSpanish:
     def test_web_interface_translations_loaded(self) -> None:
         """Test that translation script is loaded in the web interface."""
         # Get the web interface
-        response = self.client.get("/")
+        response = self.client.get(LEGACY_BMI_WEB_ROUTE)
         assert response.status_code == 200
 
         html_content = response.text

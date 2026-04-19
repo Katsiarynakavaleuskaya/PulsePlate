@@ -26,12 +26,12 @@ Evidence:
 
 ## 3. Governance Phases
 
-| Phase   | Gate              | Artifact                                | Blocks Merge |
-| ------- | ----------------- | --------------------------------------- | ------------ |
-| Phase 1 | CI hygiene        | workflows/checks                        | yes          |
-| Phase 2 | PR body contract  | PR body                                 | yes          |
-| Phase 3 | Merge readiness   | unresolved threads + actionable mapping | yes          |
-| Phase 4 | Disposition proof | script semantics                        | yes          |
+| Phase   | Gate                    | Artifact                                                         | Blocks Merge |
+| ------- | ----------------------- | ---------------------------------------------------------------- | ------------ |
+| Phase 1 | CI hygiene              | workflows/checks                                                 | yes          |
+| Phase 2 | artifact-first contract | canonical artifact (authoritative) + optional PR body mirror     | yes          |
+| Phase 3 | Merge readiness         | unresolved threads + actionable mapping                          | yes          |
+| Phase 4 | Disposition proof       | script semantics                                                 | yes          |
 
 Canonical operator entrypoint:
 
@@ -42,14 +42,15 @@ Canonical operator entrypoint:
 
 Canonical source: `docs/review/PR_<N>_FIXED_MAPPING.md`.
 
-PR body **must mirror** the same review-governance sections for human review and fallback runs:
+PR body **may mirror** the same review-governance sections for human review and fallback runs:
 
 - `## Discussion Thread Pass`
 - `### Fixed in Commit Mapping`
 - completed checkboxes matching the artifact
+- full URL→SHA mapping lines are required only in the canonical artifact when `pr_number` is available
 
 Canonical runtime behavior is artifact-first when `pr_number` is available.
-PR-body parsing is a temporary compatibility seam for local/body-only checks and human-readable review context.
+PR-body parsing is a temporary compatibility seam for local/body-only checks and human-readable review context. When `pr_number` is available, Phase 2 treats the artifact as authoritative and the PR body as an optional mirror-only surface.
 
 Temporary seam tracking:
 
@@ -62,17 +63,20 @@ Exit criteria for removing PR-body fallback:
 2. Local tooling supports deterministic artifact lookup without PR-body parsing.
 3. The fallback branch in `scripts/ci/check_pr_body_phase2_gates.py` can be removed without losing local validation ergonomics.
 
-Required sections (artifact and PR-body mirror):
+Required sections:
 
 - `## Discussion Thread Pass`
 - Checkbox contract (completed / mapping completed)
-- `## Fixed in Commit Mapping`
+- `## Fixed in Commit Mapping` in the canonical artifact
+- `### Fixed in Commit Mapping` in the optional PR-body mirror
 
-Valid mapping forms:
+Valid mapping forms in the canonical artifact:
 
 - `- <url> -> <sha>`
 - `- <url>`
 - `- No actionable review comments`
+
+PR body mirror requires the section headings and completed checkboxes only when the mirror is present. Mapping-line duplication in the body is optional once the canonical artifact exists. Use `render_phase2_body_mirror()` to generate the mirror block from the canonical artifact path.
 
 Evidence:
 - `scripts/orchestration/review_mapping_artifact.py:44`
@@ -91,6 +95,12 @@ Artifact-only governance findings are fixed in the canonical artifact itself, bu
 - Unresolved review threads must be zero
 - Actionable bot comments must be mapped
 - Cancelled/stale runs do not define mergeability
+- PR lifecycle packets may distinguish `post_open_review` from `merge_ready`,
+  but both phases still use current-head truth and the canonical artifact
+  `docs/review/PR_<N>_FIXED_MAPPING.md`
+- `post_open_review` is the packet-level phase where the canonical
+  `qa-engineer-agent -> bug-hunter` lane is synthesized; `merge_ready` keeps the
+  current-head merge-wrapper contract explicit without widening the review lane
 
 Evidence:
 - `scripts/ci/check_pr_merge_readiness.py:1`
@@ -146,6 +156,11 @@ Evidence:
 - Ignore cancelled runs
 - Ignore stale runs
 - External review tools do not block unless explicitly required
+- `gh pr checks <PR_NUMBER>` is diagnostic only; a non-zero exit can mean live
+  `pending`/`in_progress` required jobs, not failed current-head checks
+- When only one current-head job remains live, inspect the exact run/job with
+  `gh run view <RUN_ID>` or `gh run view --job=<JOB_ID>` before calling the PR
+  red or green
 
 ## 9. CI Check Classification
 
@@ -155,11 +170,65 @@ Evidence:
 | Soft gate | advisory quality signal   | no                          |
 | External  | third-party review signal | only if explicitly required |
 
+Canonical lane matrix:
+
+| Lane        | Command / Surface | Class | Blocking Rule |
+| ----------- | ----------------- | ----- | ------------- |
+| Local       | `pre-commit run --all-files` | Hard gate | Must pass before push; hook modifications must be committed |
+| Local       | `make verify` | Hard gate | Canonical code-quality bundle for merge claims |
+| Local / CI  | `python scripts/orchestration/check_merge_ready.py ...` | Hard gate | Wrapper must pass Phase 2 + review governance + current-head required checks + disposition proof |
+| PR CI       | GitHub branch-protection required checks on current HEAD | Hard gate | Pending/failed current-head required jobs block merge |
+| PR CI       | Non-required jobs / informational workflows | Soft gate | Visible signal only; fix or ledger if risk is real |
+| Release ops | App Store / Fastlane validation lanes | Hard gate for release, not PR merge by default | Must pass before upload/publish claims; may be out-of-scope for code-only PR merge |
+| External    | CodeRabbit / Sourcery / Cubic / similar bots | External | Advisory unless GitHub explicitly marks them required |
+
+Current repo workflow inventory (Tier 1 post-PR2 state):
+
+| Workflow / Surface | Lane | Class | Default Merge Effect | Tier 1 status |
+| ------------------ | ---- | ----- | -------------------- | ------------- |
+| `.github/workflows/ci.yml` (`CI`) | Backend / shared PR lane | Hard gate | Sole canonical backend/shared PR workflow for merge claims; current-head required jobs from this lane block merge when branch protection requires them | Canonical backend/shared PR lane |
+| `.github/workflows/ci.yml` (`lint`, `security`, `diff-coverage`) | Backend / shared PR lane | Hard gate | Canonical lint, PR-time security, and diff coverage live inside `CI`; failures block merge when attached to current HEAD | Canonical enforcement surface |
+| `.github/workflows/ci.yml` (`OpenAPI sync`, docs gates, merge-readiness, review governance) | Backend / shared PR lane | Hard gate | Blocks merge when the corresponding job is required on current HEAD | Canonical governance surface |
+| `.github/workflows/pr-tests.yml` (`PR Tests (Fast)`) | Archived / non-canonical | No current PR lane | Retired as an active PR lane after PR2; keep only as historical reference if the file still exists in branch history | Removed as active PR lane |
+| `.github/workflows/pr-coverage.yml` (`PR Coverage Guard`) | Archived / non-canonical | No current PR lane | Retired as an active PR lane after PR2; keep only as historical reference if the file still exists in branch history | Removed as active PR lane |
+| `.github/workflows/security.yml` (`Security Scan`) | Scheduled / manual security audit lane | Soft gate | Advisory deep-audit lane outside ordinary PR merge truth; findings still require fix-first engineering response when the surface is in scope | Demoted out of PR-time blocking path |
+| `.github/workflows/trivy.yml` (`trivy`) | Main / scheduled / manual image-security lane | Soft gate | Internal image-security reporting lane that still runs on `main`, but stays outside ordinary PR merge truth unless branch protection explicitly promotes it elsewhere | Demoted out of PR-time blocking path |
+| `.github/workflows/frontend-ci.yml` (`Frontend CI`) | Frontend specialized lane | Hard gate when attached | Blocks merge only for frontend/design-token/OpenAPI-sync surfaces when attached by path or required checks | Specialized add-on lane |
+| `.github/workflows/accessibility.yml` (`Accessibility Tests`) | Frontend specialized lane | Soft gate by default | Advisory frontend quality signal unless branch protection requires it | Specialized add-on lane |
+| `.github/workflows/ci.yml` (`iOS unit tests`, `iOS UI smoke`) | iOS specialized lane | Hard gate when attached | Blocks merge for iOS / workflow-change surfaces when attached; note current path router also attaches on `.github/workflows/**` and `.github/actions/**` changes | Specialized add-on lane with current workflow-change coupling |
+| `.github/workflows/greenlight-ios.yml` (`Greenlight iOS Preflight`) | iOS specialized lane | Soft gate | Report-only preflight (`GREENLIGHT_BLOCKING=false`) | Advisory iOS lane |
+| `.github/workflows/build.yml` (`Docker Build and Push`) | Release / image lifecycle lane | Hard gate for release / image claims, not ordinary PR merge by default | Required before publish/image assertions; ordinary code-only PRs treat it as release-ops | Specialized release lane retained in PR2+ |
+
+Bot governance distinction (Tier 1 baseline):
+
+- Third-party bot **status checks** remain `External` and advisory unless GitHub marks them required.
+- Third-party or first-party bot **review comments** remain merge-blocking when they contain actionable items, because review governance/disposition policy is separate from status-check classification.
+- Contributors must use `CI` as the canonical backend/shared PR lane for operator decisions; `pr-tests.yml` and `pr-coverage.yml` are no longer active PR lanes, `security.yml` is now scheduled/manual only, and `trivy.yml` remains a non-PR image-security lane on `main`/schedule/manual.
+- Canonical backend/shared PR merge truth does not imply that all other PR-triggered workflows disappear. Specialized repo-level workflows such as `Frontend CI`, `CodeQL Advanced`, and Docker/image lanes may still appear on workflow/governance PRs, but they remain non-canonical unless GitHub branch protection explicitly requires them.
+
 Evidence:
 - `scripts/ci/check_pr_merge_readiness.py:349`
 - `scripts/ci/check_pr_merge_readiness.py:400`
+- `scripts/ci/check_current_head_pr_checks.py:406`
+- `scripts/orchestration/check_merge_ready.py:1`
 - `scripts/ci/check_pr_body_phase2_gates.py:162`
 - `scripts/ci/check_pr_body_phase2_gates.py:182`
+- `.github/workflows/ci.yml:1`
+- `.github/workflows/ci.yml:31`
+- `.github/workflows/ci.yml:292`
+- `.github/workflows/ci.yml:311`
+- `.github/workflows/ci.yml:333`
+- `.github/workflows/ci.yml:841`
+- `.github/workflows/security.yml:2`
+- `.github/workflows/security.yml:47`
+- `.github/workflows/trivy.yml:6`
+- `.github/workflows/trivy.yml:56`
+- `.github/workflows/frontend-ci.yml:1`
+- `.github/workflows/accessibility.yml:1`
+- `.github/workflows/build.yml:1`
+- `.github/workflows/build.yml:221`
+- `.github/workflows/greenlight-ios.yml:2`
+- `.github/workflows/greenlight-ios.yml:24`
 
 ## 10. Review Thread Lifecycle
 
@@ -207,3 +276,13 @@ Evidence:
 - Stabilize allowlist keys
 - AST subprocess guard
 - Path-aware trigger proof
+
+## 14. Stacked PR Replacement Rule
+
+- If a stacked child PR auto-closes because its parent base branch was merged
+  and deleted, the child review lane is no longer active
+- Operators must create a new branch from `origin/main`, cherry-pick the child
+  commits, rerun local gates, and open a replacement PR on `main`
+- Replacement PR must get a new canonical artifact path:
+  `docs/review/PR_<NEW_NUMBER>_FIXED_MAPPING.md`
+- Do not continue mapping/reviewing against the auto-closed PR number
