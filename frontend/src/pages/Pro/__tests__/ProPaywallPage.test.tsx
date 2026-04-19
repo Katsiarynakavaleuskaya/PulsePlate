@@ -49,6 +49,10 @@ function renderAtProRoute(state?: {
   source?: string;
   triggerReason?: string;
   via?: string;
+  actionType?: string;
+  recommendedSurface?: string;
+  recommendedTier?: string;
+  whyNow?: string;
 }) {
   return render(
     <MemoryRouter initialEntries={[{ pathname: "/pro", state }]}>
@@ -84,6 +88,7 @@ describe("ProPaywallPage", () => {
     expect(purchasePremiumMock).toHaveBeenCalledWith({
       source: "pro_page",
       via: "pro_page",
+      triggerReason: "unknown",
     });
     expect(logPaywallExposureMock).toHaveBeenCalledWith("paywall_view", {
       client_event_id: "event-pro-view",
@@ -119,6 +124,7 @@ describe("ProPaywallPage", () => {
       expect(purchasePremiumMock).toHaveBeenCalledWith({
         source: "pro_page",
         via: "pro_page",
+        triggerReason: "unknown",
       });
       expect(logPaywallExposureMock).toHaveBeenCalledTimes(2);
       expect(logPaywallExposureMock).toHaveBeenNthCalledWith(1, "paywall_view", {
@@ -188,6 +194,36 @@ describe("ProPaywallPage", () => {
       expect(purchasePremiumMock).toHaveBeenCalledWith({
         source: "bmi_soft_paywall",
         via: "pro_page",
+        triggerReason: "post_bmi",
+      });
+    });
+  });
+
+  it("passes next_best_action context into the fail-closed purchase seam when provided", async () => {
+    purchasePremiumMock.mockResolvedValueOnce(undefined);
+
+    renderAtProRoute({
+      exposureId: "upstream-exposure-id",
+      source: "bmi_soft_paywall",
+      triggerReason: "post_bmi",
+      via: "pro_page",
+      actionType: "unlock_targets",
+      recommendedSurface: "pro_targets",
+      recommendedTier: "PRO",
+      whyNow: "post_bmi_baseline_body_metrics",
+    });
+
+    fireEvent.click(screen.getByTestId("paywall-cta"));
+
+    await waitFor(() => {
+      expect(purchasePremiumMock).toHaveBeenCalledWith({
+        source: "bmi_soft_paywall",
+        via: "pro_page",
+        triggerReason: "post_bmi",
+        actionType: "unlock_targets",
+        recommendedSurface: "pro_targets",
+        recommendedTier: "PRO",
+        whyNow: "post_bmi_baseline_body_metrics",
       });
     });
   });

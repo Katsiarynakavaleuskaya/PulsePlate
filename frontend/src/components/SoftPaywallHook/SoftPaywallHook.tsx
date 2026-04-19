@@ -9,8 +9,11 @@ import { createAnalyticsEventId, logPaywallExposure } from '../../lib/analytics'
 const BMI_SOFT_PAYWALL_SOURCE = 'bmi_soft_paywall';
 const BMI_SOFT_PAYWALL_TRIGGER_REASON = 'post_bmi';
 
+type NextBestAction = components['schemas']['NextBestAction'];
+
 interface SoftPaywallHookProps {
   hook?: components['schemas']['SoftPaywallHook'] | null;
+  nextBestAction?: NextBestAction | null;
   onCtaClick?: () => void;
 }
 
@@ -21,17 +24,24 @@ interface SoftPaywallHookProps {
  * - Uses default_* fields from backend (no i18n lookup)
  * - No hardcoded text
  * - No BMI value/category conditions
+ * - next_best_action is advisory route context only (no local entitlement logic)
  *
  * @param hook - Soft paywall hook data from backend (optional, null-safe)
+ * @param nextBestAction - Optional server-authored next step hint for CTA context
  * @param onCtaClick - Optional custom CTA handler (defaults to navigate to /pro)
  */
-export default function SoftPaywallHook({ hook, onCtaClick }: SoftPaywallHookProps): JSX.Element | null {
+export default function SoftPaywallHook({
+  hook,
+  nextBestAction,
+  onCtaClick,
+}: SoftPaywallHookProps): JSX.Element | null {
   const navigate = useNavigate();
   const exposureIdRef = useRef<string | null>(null);
   const hookIdRef = useRef<string | null>(null);
   const hasLoggedShownRef = useRef(false);
   const hookId = hook?.id ?? null;
   const isRenderable = Boolean(hook?.availability?.pro_available);
+  const triggerReason = nextBestAction?.trigger_reason ?? BMI_SOFT_PAYWALL_TRIGGER_REASON;
 
   useEffect(() => {
     if (!isRenderable || !hookId) {
@@ -67,12 +77,20 @@ export default function SoftPaywallHook({ hook, onCtaClick }: SoftPaywallHookPro
           exposure_id: ensureExposureId(),
           event_name: eventName,
           source_surface: BMI_SOFT_PAYWALL_SOURCE,
-          trigger_reason: BMI_SOFT_PAYWALL_TRIGGER_REASON,
+          trigger_reason: triggerReason,
           via: 'soft_paywall_hook',
           metadata: {
             hook_id: hook.id,
             position: hook.position,
             target: hook.target,
+            ...(nextBestAction
+              ? {
+                  next_best_action_type: nextBestAction.type,
+                  recommended_surface: nextBestAction.recommended_surface,
+                  recommended_tier: nextBestAction.recommended_tier,
+                  why_now: nextBestAction.why_now,
+                }
+              : {}),
           },
         });
       } catch {
@@ -80,7 +98,7 @@ export default function SoftPaywallHook({ hook, onCtaClick }: SoftPaywallHookPro
         // EN: Analytics failures must never break teaser/paywall UX.
       }
     },
-    [ensureExposureId, hook, isRenderable]
+    [ensureExposureId, hook, isRenderable, nextBestAction, triggerReason]
   );
 
   useEffect(() => {
@@ -112,8 +130,16 @@ export default function SoftPaywallHook({ hook, onCtaClick }: SoftPaywallHookPro
         state: {
           exposureId,
           source: BMI_SOFT_PAYWALL_SOURCE,
-          triggerReason: BMI_SOFT_PAYWALL_TRIGGER_REASON,
+          triggerReason,
           via: 'pro_page',
+          ...(nextBestAction
+            ? {
+                actionType: nextBestAction.type,
+                recommendedSurface: nextBestAction.recommended_surface,
+                recommendedTier: nextBestAction.recommended_tier,
+                whyNow: nextBestAction.why_now,
+              }
+            : {}),
         },
       });
     }

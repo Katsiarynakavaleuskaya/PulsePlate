@@ -26,4 +26,29 @@ describe("purchasePremium", () => {
       status: "web_checkout_unavailable",
     });
   });
+
+  it("records hint context when the paywall seam receives next_best_action metadata", async () => {
+    await expect(
+      purchasePremium({
+        source: "bmi_soft_paywall",
+        via: "pro_page",
+        triggerReason: "post_bmi",
+        actionType: "unlock_targets",
+        recommendedSurface: "pro_targets",
+        recommendedTier: "PRO",
+        whyNow: "post_bmi_baseline_body_metrics",
+      })
+    ).rejects.toThrow(WEB_CHECKOUT_UNAVAILABLE_MESSAGE);
+
+    expect(logMock).toHaveBeenCalledWith("purchase_failure", {
+      source: "bmi_soft_paywall",
+      via: "pro_page",
+      status: "web_checkout_unavailable",
+      triggerReason: "post_bmi",
+      actionType: "unlock_targets",
+      recommendedSurface: "pro_targets",
+      recommendedTier: "PRO",
+      whyNow: "post_bmi_baseline_body_metrics",
+    });
+  });
 });
