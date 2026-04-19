@@ -216,8 +216,8 @@ def test_root_and_provider_backend_surfaces_are_backend_shared(
     assert profile.backend_shared is True
     assert profile.run_backend_blocking is True
     assert profile.run_security is True
-    assert profile.route_contract_safety is False
-    assert profile.contract_risk_groups == ()
+    assert profile.route_contract_safety is True
+    assert profile.contract_risk_groups == ("route_contract_safety",)
 
 
 def test_food_schema_change_hits_food_catalog_openapi_and_route_groups() -> None:
