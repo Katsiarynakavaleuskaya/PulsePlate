@@ -19,6 +19,11 @@ This lane follows that merged baseline and does not reopen bridge-closeout work.
 Its job is to move from design-ops parity into the first product-facing UI
 coherence slices on current `main`.
 
+Evidence:
+- `docs/orchestration/DESIGN_BRIDGE_OPERATIONALIZATION_PACKET_2026-04-11.md:44-72`
+- `docs/roadmap/BACKLOG_LEDGER.md:860-876`
+- `docs/roadmap/BACKLOG_LEDGER.md:900-939`
+
 ## Contract Boundaries
 
 - This runbook owns process, PR order, role order, sync points, and hard rules
@@ -28,16 +33,25 @@ coherence slices on current `main`.
 - This runbook stays pointer-only. It must not duplicate per-PR evidence tables
   that belong in the active packet or handoff.
 
-**IN**
+### IN
 - iOS visible coherence and localization work for `RootTabs`, `ProgressView`,
   and the remaining visible-copy debt in `PlateView`
 - one governed semantic surface seam for iOS `Home`, `Plate`, and `Progress`
+  - ADR / exit criteria:
+    `docs/architecture/ADR_UI_SEMANTIC_SURFACE_SEAM_2026-04-19.md:1-45`
+  - Backlog / blockers:
+    `docs/roadmap/BACKLOG_LEDGER.md:900-939`
 - Storybook-backed web parity expansion only after the iOS coherence slices are
   stabilized
 - late-phase thin-client consumption of the already existing backend
   `next_best_action` contract
+  - Evidence:
+    `app/schemas/weekly_plan.py:201-206`, `app/routers/pro.py:360-368`,
+    `docs/orchestration/MONETIZATION_PLANNING_WAVE_PR_SERIES_RUNBOOK.md:74-103`,
+    `frontend/src/api/__tests__/thin-client-guards.test.ts:7-19`,
+    `frontend/AGENTS.md:27-38`, `ios/AGENTS.md:86-92`
 
-**OUT**
+### OUT
 - reopening merged design-bridge operationalization or parity-closeout work
 - billing, entitlement, checkout, provider modernization, or pricing changes
 - deploy/runtime infrastructure changes
@@ -76,6 +90,15 @@ contract work or the merged design-bridge lane:
 - expand governed Storybook review only after iOS coherence is in place,
 - keep clients thin when they later consume the already existing backend
   `next_best_action` contract.
+
+Evidence:
+- `docs/roadmap/BACKLOG_LEDGER.md:900-939`
+- `docs/architecture/ADR_UI_SEMANTIC_SURFACE_SEAM_2026-04-19.md:1-45`
+- `app/schemas/weekly_plan.py:201-206`
+- `app/routers/pro.py:360-368`
+- `frontend/src/api/__tests__/thin-client-guards.test.ts:7-19`
+- `frontend/AGENTS.md:27-38`
+- `ios/AGENTS.md:86-92`
 
 ## Review Surfaces and Evidence
 
@@ -120,11 +143,15 @@ contract work or the merged design-bridge lane:
   - introduce one semantic surface role abstraction,
   - move `Home`, `Plate`, and `Progress` onto that seam,
   - keep the change bounded to surface governance, not product flow redesign.
+- ADR / exit criteria:
+  `docs/architecture/ADR_UI_SEMANTIC_SURFACE_SEAM_2026-04-19.md:1-45`
+- Backlog / blockers:
+  `docs/roadmap/BACKLOG_LEDGER.md:900-939`
 
 ### PR-4: Web Storybook parity expansion
 
 - Branch: `codex/ui-web-storybook-parity-pack`
-- Title: `feat(web): expand storybook parity for plate progress and paywall review surfaces`
+- Title: `feat(web): expand Storybook parity for plate progress and paywall review surfaces`
 - Scope:
   - expand governed Storybook review for real runtime surfaces already on
     `main`,
@@ -140,6 +167,11 @@ contract work or the merged design-bridge lane:
     web and iOS surfaces,
   - keep clients renderer-only,
   - do not introduce a new UI API rail.
+- Evidence:
+  `app/schemas/weekly_plan.py:201-206`, `app/routers/pro.py:360-368`,
+  `docs/orchestration/MONETIZATION_PLANNING_WAVE_PR_SERIES_RUNBOOK.md:95-103`,
+  `frontend/src/api/__tests__/thin-client-guards.test.ts:7-19`,
+  `frontend/AGENTS.md:27-38`, `ios/AGENTS.md:86-92`
 
 ## Routing Card
 
@@ -201,7 +233,8 @@ contract work or the merged design-bridge lane:
 - Do not claim a full Liquid Glass migration in the iOS surface-seam PR.
 - Do not add `/api/v1/ui/state` or any second backend UI rail in this series.
 - Any deferred UI gap discovered during execution must be recorded immediately in
-  `docs/roadmap/BACKLOG_LEDGER.md`.
+  `docs/roadmap/BACKLOG_LEDGER.md`
+  (`docs/roadmap/BACKLOG_LEDGER.md:900-939`).
 
 ## Validation
 
@@ -209,28 +242,25 @@ Every PR in this line runs:
 - `python3 scripts/orchestration/check_preflight.py`
 - `python3 scripts/orchestration/check_agent_consistency.py`
 - `pre-commit run --all-files`
+- `make verify`
 
 PR-2 additionally runs:
 - targeted iOS tests for visible localized surfaces,
 - simulator sanity for workspace `ios/PulsePlate.xcworkspace` and scheme
-  `PulsePlate`,
-- `make verify`
+  `PulsePlate`
 
 PR-3 additionally runs:
 - targeted iOS unit, snapshot, or view-level tests for surface-role mapping,
-- simulator sanity,
-- `make verify`
+- simulator sanity
 
 PR-4 additionally runs:
 - `cd frontend && npm run build`
 - `cd frontend && npm run build-storybook`
-- relevant frontend tests,
-- `make verify`
+- relevant frontend tests
 
 PR-5 additionally runs:
 - targeted frontend and iOS rendering tests,
-- contract-safe verification that clients consume hints without computing them,
-- `make verify`
+- contract-safe verification that clients consume hints without computing them
 
 ## Deferred from This Wave
 

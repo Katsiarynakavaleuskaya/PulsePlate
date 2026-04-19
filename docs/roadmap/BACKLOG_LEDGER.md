@@ -911,15 +911,33 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     iOS surface seam, then bounded Storybook parity expansion, and only later
     thin-client consumption of the already existing backend
     `next_best_action` contract.
+  - Evidence:
+    - `docs/orchestration/DESIGN_BRIDGE_OPERATIONALIZATION_PACKET_2026-04-11.md:44-72`
+    - `docs/roadmap/BACKLOG_LEDGER.md:860-876`
+    - `app/schemas/weekly_plan.py:201-206`
+    - `app/routers/pro.py:360-368`
+    - `docs/orchestration/MONETIZATION_PLANNING_WAVE_PR_SERIES_RUNBOOK.md:74-103`
+    - `frontend/src/api/__tests__/thin-client-guards.test.ts:7-19`
+    - `frontend/AGENTS.md:27-38`
+    - `ios/AGENTS.md:86-92`
   - Links:
     - `docs/orchestration/UI_EPIC_PR_SERIES_RUNBOOK.md`
     - `docs/orchestration/UI_EPIC_PR1_BOOTSTRAP_PACKET_2026-04-18.md`
+    - `docs/architecture/ADR_UI_SEMANTIC_SURFACE_SEAM_2026-04-19.md`
     - `docs/orchestration/DESIGN_BRIDGE_OPERATIONALIZATION_PACKET_2026-04-11.md`
     - `docs/design/DESIGN_BRIDGE_FIRST_PARITY_PACK_2026-04-11.md`
     - `docs/runbooks/DESIGN_TOOLING_OPERATING_MODEL.md`
     - `frontend/src/stories/PulsePlateDesignSystemGuidelines.mdx`
     - `ios/PulsePlate.xcworkspace`
     - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-design-bridge-operationalization-pr21`
+  - Blockers:
+    - PR-3 must keep the semantic surface seam presentation-only and ADR-backed
+      (`docs/architecture/ADR_UI_SEMANTIC_SURFACE_SEAM_2026-04-19.md:1-45`)
+    - PR-3 must ship simulator evidence and targeted tests before the seam is
+      considered stable
+    - PR-5 may consume `next_best_action`, but clients must remain thin and
+      renderer-only (`frontend/src/api/__tests__/thin-client-guards.test.ts:7-19`;
+      `frontend/AGENTS.md:27-38`; `ios/AGENTS.md:86-92`)
   - DoD:
     - A dedicated post-bridge UI epic runbook exists and locks PR order,
       role order, sync points, validation, and merge-path rules

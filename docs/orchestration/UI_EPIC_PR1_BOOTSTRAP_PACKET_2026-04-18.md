@@ -15,16 +15,21 @@ PR `#1391`. This PR does not reopen that work. It bootstraps the follow-on UI
 lane by adding the governing runbook and the explicit backlog anchor that the
 next executable slices will reference.
 
+Evidence:
+- `docs/orchestration/DESIGN_BRIDGE_OPERATIONALIZATION_PACKET_2026-04-11.md:44-72`
+- `docs/roadmap/BACKLOG_LEDGER.md:860-876`
+- `docs/orchestration/UI_EPIC_PR_SERIES_RUNBOOK.md:14-23`
+
 ## Scope
 
-**IN**
+### IN
 - add the post-bridge UI epic series runbook
 - add one explicit backlog anchor for the post-bridge UI line
 - lock PR order, role order, worktree isolation, and evidence rules for the
   UI series
 - keep the packet minimal and process-level for PR-1 only
 
-**OUT**
+### OUT
 - runtime, API, OpenAPI, or client behavior changes
 - reopening the merged design-bridge parity lane
 - billing, entitlement, provider modernization, pricing, or deploy/runtime
@@ -68,8 +73,18 @@ This order is fixed for the lane unless a later packet explicitly updates it.
 ## DoD
 
 - the runbook exists and is consistent with merged bridge baseline state
+  (`docs/orchestration/UI_EPIC_PR_SERIES_RUNBOOK.md:1-241`;
+  `docs/orchestration/DESIGN_BRIDGE_OPERATIONALIZATION_PACKET_2026-04-11.md:44-72`;
+  `docs/roadmap/BACKLOG_LEDGER.md:860-876`)
 - PR-1 has a real branch-scoped packet file, not only a runbook
+  (`docs/orchestration/UI_EPIC_PR1_BOOTSTRAP_PACKET_2026-04-18.md:1-66`)
 - the runbook no longer implies the whole series runs from the PR-1 worktree
+  (`docs/orchestration/UI_EPIC_PR_SERIES_RUNBOOK.md:4-7`;
+  `docs/orchestration/UI_EPIC_PR_SERIES_RUNBOOK.md:95-149`)
 - the backlog anchor points to PR `#1463` instead of a placeholder
+  (`docs/roadmap/BACKLOG_LEDGER.md:900-939`)
 - the canonical review artifact for PR `#1463` is parser-valid
+  (`docs/review/PR_1463_FIXED_MAPPING.md:1-19`;
+  `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md:93-125`;
+  `scripts/orchestration/check_merge_ready.py:20-24`)
 - no runtime or client behavior changes are introduced
