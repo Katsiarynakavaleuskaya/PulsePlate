@@ -25,6 +25,16 @@ Evidence: `docs/security/DEPENDENCY_SECURITY_GUARD_WORKFLOW.md:65`, `docs/review
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1479#discussion_r3106799881 -> dfe1537e5
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1479#discussion_r3106799885 -> dfe1537e5
 
+Disposition: NOT-A-BUG
+Evidence: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1479#discussion_r3106809175
+Reason: This CodeRabbit review entry is a summary shell around one live inline merge-readiness finding plus non-blocking advisory nitpicks from the prior head; the canonical actionable thread is dispositioned separately below.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1479#pullrequestreview-4135927959
+
+Disposition: FIXED
+Commit: PENDING-COMMIT
+Evidence: `docs/review/PR_1479_FIXED_MAPPING.md:43`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1479#discussion_r3106809175 -> PENDING-COMMIT
+
 ## Merge Readiness
 
 Merge-readiness contract:
@@ -39,7 +49,7 @@ Merge-readiness contract:
   Evidence: `AGENTS.md:43-45`; `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md:95-112`.
 - [ ] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
   Evidence: `AGENTS.md:44-45`; `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md:95-112`.
-- [x] Pre-commit green on latest pushed head
+- [ ] Pre-commit green on latest pushed head
   Evidence: local `pre-commit run --all-files`; push gate output on branch head `a5828403e`.
 - [ ] `make verify` green on latest pushed head
   Evidence: `AGENTS.md:1-16`; `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md:175-180`.
