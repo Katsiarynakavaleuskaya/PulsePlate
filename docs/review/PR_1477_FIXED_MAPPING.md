@@ -18,6 +18,7 @@ Reason: The remaining review delta is now fixed on-branch: docker CLI calls are 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1477#pullrequestreview-4135810855 -> 019f002e02d9e6fab89574b89633de191b53b409
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1477#pullrequestreview-4135812976 -> 019f002e02d9e6fab89574b89633de191b53b409
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1477#pullrequestreview-4135818093 -> 019f002e02d9e6fab89574b89633de191b53b409
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1477#discussion_r3106664624 -> 019f002e02d9e6fab89574b89633de191b53b409
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1477#discussion_r3106669576 -> 019f002e02d9e6fab89574b89633de191b53b409
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1477#discussion_r3106669577 -> 019f002e02d9e6fab89574b89633de191b53b409
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1477#discussion_r3106669582 -> 019f002e02d9e6fab89574b89633de191b53b409
@@ -33,6 +34,7 @@ Disposition: FIXED
 Commit: `2805c4243e67716c3d25845542d017c67f916592`
 Evidence: `scripts/ci/docker_image_telemetry.py:96-119`; `tests/test_docker_image_telemetry.py:62-74`
 Reason: cubic found that Docker history sizes like `65.4kB`/`12MB` could be misparsed; the helper now normalizes Docker-style unit aliases before conversion and the new regression test locks that behavior.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1477#discussion_r3106664334 -> 2805c4243e67716c3d25845542d017c67f916592
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1477#discussion_r3106669572 -> 2805c4243e67716c3d25845542d017c67f916592
 
 ## Merge Readiness
