@@ -6,9 +6,22 @@
 
 ## Fixed in Commit Mapping
 
-- Pending current review-cycle mappings; actionable bot comments from the
-  post-undraft review wave must be mapped after the corresponding fix commits
-  are pushed.
+Disposition: FIXED
+Commit: f6fdbf3fc
+Evidence: `docs/orchestration/UI_EPIC_PR_SERIES_RUNBOOK.md:22-25`, `docs/orchestration/UI_EPIC_PR_SERIES_RUNBOOK.md:36-52`, `docs/orchestration/UI_EPIC_PR_SERIES_RUNBOOK.md:94-101`, `docs/orchestration/UI_EPIC_PR_SERIES_RUNBOOK.md:146-174`, `docs/orchestration/UI_EPIC_PR_SERIES_RUNBOOK.md:241-263`, `docs/orchestration/UI_EPIC_PR1_BOOTSTRAP_PACKET_2026-04-18.md:18-21`, `docs/orchestration/UI_EPIC_PR1_BOOTSTRAP_PACKET_2026-04-18.md:25-37`, `docs/orchestration/UI_EPIC_PR1_BOOTSTRAP_PACKET_2026-04-18.md:75-89`, `docs/review/PR_1463_FIXED_MAPPING.md:13-28`, `docs/roadmap/BACKLOG_LEDGER.md:914-940`, `docs/architecture/ADR_UI_SEMANTIC_SURFACE_SEAM_2026-04-19.md:1-45`
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1463#discussion_r3106656933 -> f6fdbf3fc
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1463#discussion_r3106658340 -> f6fdbf3fc
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1463#discussion_r3106658851 -> f6fdbf3fc
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1463#discussion_r3106658856 -> f6fdbf3fc
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1463#discussion_r3106658860 -> f6fdbf3fc
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1463#discussion_r3106658862 -> f6fdbf3fc
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1463#discussion_r3106658864 -> f6fdbf3fc
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1463#discussion_r3106658866 -> f6fdbf3fc
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1463#discussion_r3106658869 -> f6fdbf3fc
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1463#discussion_r3106663003 -> f6fdbf3fc
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1463#discussion_r3106663006 -> f6fdbf3fc
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1463#discussion_r3106663008 -> f6fdbf3fc
 
 ## Merge Readiness
 
