@@ -31,9 +31,9 @@ Reason: This CodeRabbit review entry is a summary shell around one live inline m
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1479#pullrequestreview-4135927959
 
 Disposition: FIXED
-Commit: PENDING-COMMIT
+Commit: 625a57471
 Evidence: `docs/review/PR_1479_FIXED_MAPPING.md:43`
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1479#discussion_r3106809175 -> PENDING-COMMIT
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1479#discussion_r3106809175 -> 625a57471
 
 ## Merge Readiness
 
