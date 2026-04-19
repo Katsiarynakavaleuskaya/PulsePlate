@@ -82,7 +82,7 @@ def test_resolve_requirement_files_prefers_dev_only_when_requested(tmp_path: Pat
     requirements_test.write_text("pytest==8.4.2\n", encoding="utf-8")
     requirements_ci_lite = tmp_path / "requirements-ci-lite.txt"
     requirements_rag_vector = tmp_path / "requirements-rag-vector.txt"
-    requirements_rag_vector.write_text("sentence-transformers==5.4.0\n", encoding="utf-8")
+    requirements_rag_vector.write_text("sentence-transformers==5.4.1\n", encoding="utf-8")
 
     files = installer.resolve_requirement_files(
         requirements_file=requirements,
@@ -107,7 +107,7 @@ def test_resolve_requirement_files_includes_test_surface_when_requested(tmp_path
     requirements_test.write_text("pytest==8.4.2\n", encoding="utf-8")
     requirements_ci_lite = tmp_path / "requirements-ci-lite.txt"
     requirements_rag_vector = tmp_path / "requirements-rag-vector.txt"
-    requirements_rag_vector.write_text("sentence-transformers==5.4.0\n", encoding="utf-8")
+    requirements_rag_vector.write_text("sentence-transformers==5.4.1\n", encoding="utf-8")
 
     files = installer.resolve_requirement_files(
         requirements_file=requirements,
@@ -133,7 +133,7 @@ def test_resolve_requirement_files_supports_explicit_ci_lite_profile(tmp_path: P
     requirements_ci_lite = tmp_path / "requirements-ci-lite.txt"
     requirements_ci_lite.write_text("pre-commit==4.5.1\n", encoding="utf-8")
     requirements_rag_vector = tmp_path / "requirements-rag-vector.txt"
-    requirements_rag_vector.write_text("sentence-transformers==5.4.0\n", encoding="utf-8")
+    requirements_rag_vector.write_text("sentence-transformers==5.4.1\n", encoding="utf-8")
 
     files = installer.resolve_requirement_files(
         requirements_file=requirements,
@@ -159,7 +159,7 @@ def test_resolve_requirement_files_supports_explicit_ci_test_profile(tmp_path: P
     requirements_ci_lite = tmp_path / "requirements-ci-lite.txt"
     requirements_ci_lite.write_text("pre-commit==4.5.1\n", encoding="utf-8")
     requirements_rag_vector = tmp_path / "requirements-rag-vector.txt"
-    requirements_rag_vector.write_text("sentence-transformers==5.4.0\n", encoding="utf-8")
+    requirements_rag_vector.write_text("sentence-transformers==5.4.1\n", encoding="utf-8")
 
     files = installer.resolve_requirement_files(
         requirements_file=requirements,
@@ -185,7 +185,7 @@ def test_resolve_requirement_files_supports_explicit_rag_vector_profile(tmp_path
     requirements_ci_lite = tmp_path / "requirements-ci-lite.txt"
     requirements_ci_lite.write_text("pre-commit==4.5.1\n", encoding="utf-8")
     requirements_rag_vector = tmp_path / "requirements-rag-vector.txt"
-    requirements_rag_vector.write_text("sentence-transformers==5.4.0\n", encoding="utf-8")
+    requirements_rag_vector.write_text("sentence-transformers==5.4.1\n", encoding="utf-8")
 
     files = installer.resolve_requirement_files(
         requirements_file=requirements,

@@ -102,7 +102,7 @@ scipy==1.17.1
     # via
     #   scikit-learn
     #   sentence-transformers
-sentence-transformers==5.4.0
+sentence-transformers==5.4.1
     # via -r requirements-rag-vector.in
 shellingham==1.5.4
     # via typer
