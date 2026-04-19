@@ -357,7 +357,12 @@ export default function BMICalculatePage(): JSX.Element {
           </div>
         </section>
 
-        {response?.soft_paywall ? <SoftPaywallHook hook={response.soft_paywall} /> : null}
+        {response?.soft_paywall ? (
+          <SoftPaywallHook
+            hook={response.soft_paywall}
+            nextBestAction={response.next_best_action}
+          />
+        ) : null}
 
         {response ? (
           <button

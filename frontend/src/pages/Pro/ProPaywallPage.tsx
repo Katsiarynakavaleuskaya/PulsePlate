@@ -13,6 +13,10 @@ type ProPaywallLocationState = {
   source?: string;
   triggerReason?: string;
   via?: string;
+  actionType?: string;
+  recommendedSurface?: string;
+  recommendedTier?: string;
+  whyNow?: string;
 };
 
 export default function ProPaywallPage(): JSX.Element {
@@ -22,13 +26,31 @@ export default function ProPaywallPage(): JSX.Element {
   const source = state?.source ?? DEFAULT_PRO_PAYWALL_SOURCE;
   const triggerReason = state?.triggerReason ?? DEFAULT_PRO_PAYWALL_TRIGGER_REASON;
   const via = state?.via ?? 'pro_page';
+  const hasNextBestActionContext = Boolean(
+    state?.actionType &&
+      state?.recommendedSurface &&
+      state?.recommendedTier &&
+      state?.whyNow
+  );
 
   const handleClose = (): void => {
     navigate(-1); // Go back to previous page
   };
 
   const handlePurchase = async (): Promise<void> => {
-    await purchasePremium({ source, via });
+    await purchasePremium({
+      source,
+      via,
+      ...(hasNextBestActionContext
+        ? {
+            triggerReason,
+            actionType: state?.actionType,
+            recommendedSurface: state?.recommendedSurface,
+            recommendedTier: state?.recommendedTier,
+            whyNow: state?.whyNow,
+          }
+        : {}),
+    });
     navigate(-1);
   };
 

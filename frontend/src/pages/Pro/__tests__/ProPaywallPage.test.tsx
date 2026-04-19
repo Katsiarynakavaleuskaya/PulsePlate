@@ -191,4 +191,33 @@ describe("ProPaywallPage", () => {
       });
     });
   });
+
+  it("passes next_best_action context into the fail-closed purchase seam when provided", async () => {
+    purchasePremiumMock.mockResolvedValueOnce(undefined);
+
+    renderAtProRoute({
+      exposureId: "upstream-exposure-id",
+      source: "bmi_soft_paywall",
+      triggerReason: "post_bmi",
+      via: "pro_page",
+      actionType: "unlock_targets",
+      recommendedSurface: "pro_targets",
+      recommendedTier: "PRO",
+      whyNow: "post_bmi_baseline_body_metrics",
+    });
+
+    fireEvent.click(screen.getByTestId("paywall-cta"));
+
+    await waitFor(() => {
+      expect(purchasePremiumMock).toHaveBeenCalledWith({
+        source: "bmi_soft_paywall",
+        via: "pro_page",
+        triggerReason: "post_bmi",
+        actionType: "unlock_targets",
+        recommendedSurface: "pro_targets",
+        recommendedTier: "PRO",
+        whyNow: "post_bmi_baseline_body_metrics",
+      });
+    });
+  });
 });

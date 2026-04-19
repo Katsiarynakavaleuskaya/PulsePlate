@@ -43,6 +43,13 @@ describe("SoftPaywallHook", () => {
     },
     availability: { pro_available: true },
   };
+  const mockNextBestAction: components["schemas"]["NextBestAction"] = {
+    type: "unlock_targets",
+    recommended_surface: "pro_targets",
+    recommended_tier: "PRO",
+    trigger_reason: "post_bmi",
+    why_now: "post_bmi_baseline_body_metrics",
+  };
 
   beforeEach((): void => {
     vi.clearAllMocks();
@@ -211,5 +218,28 @@ describe("SoftPaywallHook", () => {
 
     expect(customHandler).toHaveBeenCalledTimes(1);
     expect(mockNavigate).not.toHaveBeenCalled();
+  });
+
+  it("forwards next_best_action context through the existing paywall route state", (): void => {
+    render(
+      <MemoryRouter>
+        <SoftPaywallHook hook={mockHook} nextBestAction={mockNextBestAction} />
+      </MemoryRouter>
+    );
+
+    fireEvent.click(screen.getByTestId("soft-paywall-cta"));
+
+    expect(mockNavigate).toHaveBeenCalledWith("/pro", {
+      state: {
+        exposureId: "analytics-id-1",
+        source: "bmi_soft_paywall",
+        triggerReason: "post_bmi",
+        via: "pro_page",
+        actionType: "unlock_targets",
+        recommendedSurface: "pro_targets",
+        recommendedTier: "PRO",
+        whyNow: "post_bmi_baseline_body_metrics",
+      },
+    });
   });
 });

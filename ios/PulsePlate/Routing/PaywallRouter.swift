@@ -11,10 +11,16 @@ final class PaywallRouter: ObservableObject {
     @Published var isPaywallPresented: Bool = false
     @Published var lastSource: PaywallSource? = nil
     @Published var lastTarget: PaywallTarget? = nil
+    @Published var lastNextBestAction: NextBestActionDTO? = nil
 
-    func presentPaywall(source: PaywallSource, target: PaywallTarget) {
+    func presentPaywall(
+        source: PaywallSource,
+        target: PaywallTarget,
+        nextBestAction: NextBestActionDTO? = nil
+    ) {
         lastSource = source
         lastTarget = target
+        lastNextBestAction = nextBestAction
         isPaywallPresented = true
     }
 
@@ -22,6 +28,7 @@ final class PaywallRouter: ObservableObject {
         isPaywallPresented = false
         lastSource = nil
         lastTarget = nil
+        lastNextBestAction = nil
     }
 }
 
@@ -33,6 +40,17 @@ enum PaywallTarget: String, Equatable {
     case pro
     case vip
 
+    /// RU: `next_best_action` остаётся advisory route context и не открывает экран сам.
+    /// EN: `next_best_action` stays advisory route context and never auto-opens a screen.
+    static func resolve(
+        softPaywallTarget: String,
+        nextBestAction: NextBestActionDTO?
+    ) -> PaywallTarget {
+        fromNextBestActionSurface(nextBestAction?.recommendedSurface ?? "")
+            ?? fromSoftPaywallHookTarget(softPaywallTarget)
+            ?? .pro
+    }
+
     /// Map backend soft-paywall `hook.target` strings to typed enum.
     ///
     /// Backend currently emits `pro_paywall` (see app.schemas.bmi.SoftPaywallHook).
@@ -43,6 +61,21 @@ enum PaywallTarget: String, Equatable {
         case "pro_paywall", "pro":
             return .pro
         case "vip_paywall", "vip":
+            return .vip
+        default:
+            return nil
+        }
+    }
+
+    /// Map backend next_best_action surfaces to the existing paywall targets.
+    ///
+    /// This is route-safe consumption only; it does not infer entitlement or checkout behavior.
+    static func fromNextBestActionSurface(_ surface: String) -> PaywallTarget? {
+        let normalized = surface.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        switch normalized {
+        case "pro_targets", "pro_daily_plate":
+            return .pro
+        case "vip_export":
             return .vip
         default:
             return nil
