@@ -13,6 +13,7 @@ import argparse
 from dataclasses import asdict, dataclass
 import json
 from pathlib import Path
+import re
 import shlex
 import shutil
 import subprocess  # nosec B404: bounded local Docker inspection is required for CI telemetry evidence (remove-by: 2026-09-30, ref: PR-docker-telemetry-baseline)
@@ -91,11 +92,24 @@ def _human_size_to_bytes(size_text: str) -> int:
     value = size_text.strip()
     if value in {"", "0", "0B"}:
         return 0
-    for unit, multiplier in SIZE_UNITS.items():
-        if value.upper().endswith(unit):
-            number_text = value[: -len(unit)].strip()
-            return int(float(number_text) * multiplier)
-    raise ValueError(f"Unsupported Docker size format: {size_text}")
+    match = re.fullmatch(r"(?P<number>\d+(?:\.\d+)?)\s*(?P<unit>[A-Za-z]+)", value)
+    if match is None:
+        raise ValueError(f"Unsupported Docker size format: {size_text}")
+    unit_aliases = {
+        "B": "B",
+        "K": "KB",
+        "KB": "KB",
+        "M": "MB",
+        "MB": "MB",
+        "G": "GB",
+        "GB": "GB",
+        "T": "TB",
+        "TB": "TB",
+    }
+    normalized_unit = unit_aliases.get(match.group("unit").upper())
+    if normalized_unit is None:
+        raise ValueError(f"Unsupported Docker size format: {size_text}")
+    return int(float(match.group("number")) * SIZE_UNITS[normalized_unit])
 
 
 def _bytes_to_human(size_bytes: int) -> str:

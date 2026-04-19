@@ -40,6 +40,21 @@ def _write_context_files(tmp_path: Path) -> tuple[Path, Path]:
     return dockerfile, dockerignore
 
 
+@pytest.mark.parametrize(
+    ("size_text", "expected_bytes"),
+    (
+        ("65.4kB", 65_400),
+        ("65.4k", 65_400),
+        ("12MB", 12_000_000),
+        ("512B", 512),
+    ),
+)
+def test_human_size_to_bytes_accepts_docker_style_units(
+    size_text: str, expected_bytes: int
+) -> None:
+    assert docker_image_telemetry._human_size_to_bytes(size_text) == expected_bytes
+
+
 def test_collect_telemetry_without_baseline_is_warning_only(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
