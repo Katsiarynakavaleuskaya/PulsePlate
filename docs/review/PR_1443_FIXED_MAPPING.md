@@ -8,14 +8,26 @@
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1443#pullrequestreview-4131508358
 Disposition: FIXED
 Commit: a93752a34
-Evidence: `tests/test_api_tiers.py:186` covers the blank-`APP_ENV` fallback branch requested by CodeRabbit; `tests/test_api_tiers.py:194` proves `ENVIRONMENT=staging` is used when `APP_ENV` is blank; `settings.py:43` and `settings.py:45` keep the non-production fallback order explicit.
+Evidence: `tests/test_api_tiers.py:192-225` covers blank-`APP_ENV` fallback to `ENVIRONMENT` plus the production-like conflict case; `settings.py:45-54` keeps the merged precedence order explicit and fail-closed for production-like values.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1443#pullrequestreview-4131508358 -> a93752a34
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1443#discussion_r3102738674
 Disposition: FIXED
 Commit: a93752a34
-Evidence: `settings.py:39` and `settings.py:41` now fail closed toward any production-like value from either env var; `tests/test_api_tiers.py:209` reproduces `APP_ENV=local` plus `ENVIRONMENT=production`; `tests/test_api_tiers.py:217` and `tests/test_api_tiers.py:219` prove the runtime stays production-like and rejects the VIP fallback path.
+Evidence: `settings.py:48-54` preserves the fail-closed production-like override while keeping non-empty `ENVIRONMENT` canonical otherwise; `tests/test_api_tiers.py:215-225` reproduces `APP_ENV=local` plus `ENVIRONMENT=production` and proves the VIP fallback stays blocked.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1443#discussion_r3102738674 -> a93752a34
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1443#pullrequestreview-4136318979
+Disposition: FIXED
+Commit: 74e2489b0
+Evidence: `docs/deploy/VIP_API_KEYS.md:16-21` now documents the merged precedence contract with exact implementation/test pointers; `docs/deploy/VIP_API_KEYS.md:96-135` and `docs/deploy/VIP_API_KEYS.md:169-175` synchronize the copy-paste env examples on both `APP_ENV` and `ENVIRONMENT`; `settings.py:45-54` and `tests/test_api_tiers.py:180-225` match that contract after the merge from `main`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1443#pullrequestreview-4136318979 -> 74e2489b0
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1443#pullrequestreview-4136321662
+Disposition: FIXED
+Commit: 74e2489b0
+Evidence: `docs/deploy/VIP_API_KEYS.md:96-135` updates every production/development/staging example to export both `APP_ENV` and `ENVIRONMENT`; `docs/deploy/VIP_API_KEYS.md:169-175` does the same for the testing snippet, removing the inconsistent `ENVIRONMENT`-only guidance flagged by cubic.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1443#pullrequestreview-4136321662 -> 74e2489b0
 
 ## Merge Readiness
 - [x] Scope tied to PR objective
