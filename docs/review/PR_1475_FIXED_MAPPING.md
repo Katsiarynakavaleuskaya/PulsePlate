@@ -20,6 +20,12 @@ Evidence: `scripts/orchestration/skill_router.py:521-530`, `docs/dev/CODEX_SKILL
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1475#pullrequestreview-4135801467 -> ca2c82f9c
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1475#pullrequestreview-4135803447 -> ca2c82f9c
 
+Disposition: FIXED
+Commit: a1c0bef17
+Evidence: `scripts/orchestration/skill_router.py:521-533`, `tests/test_skill_router.py:1338-1362`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1475#pullrequestreview-4135813600 -> a1c0bef17
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1475#pullrequestreview-4135817214 -> a1c0bef17
+
 ## Merge Readiness
 
 - [ ] Current-head CI green for PR branch head
