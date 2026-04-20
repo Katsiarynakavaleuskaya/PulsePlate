@@ -648,7 +648,10 @@ async def test_missing_agent_input_guard_fails_closed_in_strict_mode(tmp_path: P
 
 
 @pytest.mark.asyncio
-async def test_missing_philosophy_validator_records_strict_violation(tmp_path: Path) -> None:
+async def test_missing_philosophy_validator_records_strict_violation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Strict mode must record missing philosophy validation as a blocker."""
 
     async def fake_generate_answer(
@@ -691,11 +694,10 @@ async def test_missing_philosophy_validator_records_strict_violation(tmp_path: P
         human_label_if_any=1,
     )
 
-    original_retrieve = runner.retrieve
-    original_generate = runner.generate_answer
-    original_evaluate_faithfulness = runner.evaluate_faithfulness
-    try:
-        runner.retrieve = AsyncMock(  # type: ignore[assignment]
+    monkeypatch.setattr(
+        runner,
+        "retrieve",
+        AsyncMock(
             return_value=(
                 [
                     {
@@ -706,9 +708,13 @@ async def test_missing_philosophy_validator_records_strict_violation(tmp_path: P
                 ],
                 {"max_supported_top_k": 5},
             )
-        )
-        runner.generate_answer = fake_generate_answer  # type: ignore[assignment]
-        runner.evaluate_faithfulness = Mock(  # type: ignore[assignment]
+        ),
+    )
+    monkeypatch.setattr(runner, "generate_answer", fake_generate_answer)
+    monkeypatch.setattr(
+        runner,
+        "evaluate_faithfulness",
+        Mock(
             return_value={
                 "extracted_claim_spans": [],
                 "per_span_entailment_score": [],
@@ -717,13 +723,10 @@ async def test_missing_philosophy_validator_records_strict_violation(tmp_path: P
                 "mean_nli_entailment": 1.0,
                 "support_precision": 1.0,
             }
-        )
+        ),
+    )
 
-        trace = await evaluate_one(state, row)
-    finally:
-        runner.retrieve = original_retrieve  # type: ignore[assignment]
-        runner.generate_answer = original_generate  # type: ignore[assignment]
-        runner.evaluate_faithfulness = original_evaluate_faithfulness  # type: ignore[assignment]
+    trace = await evaluate_one(state, row)
 
     assert trace["philosophy_output_validation"]["ok"] is False
     assert "philosophy_validator_unavailable:validate_llm_output_missing" in state.strict_violations
