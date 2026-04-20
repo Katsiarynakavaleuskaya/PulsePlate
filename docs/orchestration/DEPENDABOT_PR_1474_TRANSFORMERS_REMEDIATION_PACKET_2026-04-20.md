@@ -15,7 +15,8 @@ profile.
 - Replacement remediation branch:
   `codex/pr1474-transformers-5.5.4-replacement`
 - Replacement remediation worktree:
-  `/Users/katsiaryna_kavaleuskaya/.codex/worktrees/pr1474r/BMI-App_2025_clean`
+  `pr1474r/BMI-App_2025_clean` (dedicated local worktree slug; canonical docs
+  intentionally omit machine-specific absolute filesystem paths)
 - Real current-head blockers observed on `19 April 2026`:
   - The canonical governance artifacts are missing, so `PR Body Phase2 gates`
     and `Merge readiness gate` fail by design until the packet, fixed mapping,
