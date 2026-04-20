@@ -161,7 +161,7 @@ metadata, screenshot-pack, App Privacy, or release-evidence intent.
 | QA / CI / remediation | `bug-triage`, `pulseplate-gates` | `ci-fix`, `gh-fix-ci`, `gh-address-comments`, `code-review-expert` |
 | Reports / wellness / GTM research | `pulseplate-ai-reports`, `docs-sync` | `notion-research-documentation`, `notion-knowledge-capture`, `linear`, `openai-docs`, `pulseplate-monetization-gtm` (evidence: `scripts/orchestration/skill_router.py:533`, `tests/test_skill_router.py:744`) |
 | Monetization / paywall / subscriptions | `docs-sync`, `pulseplate-monetization-gtm` (evidence: `tools/codex_skills/pulseplate-monetization-gtm/SKILL.md:1`, `tests/test_install_codex_skills.py:276`) | `build-web-apps:stripe-best-practices`, `pulseplate-ai-reports`, `linear`, `notion-research-documentation` |
-| Design / media / launch assets | `figma`, `docs-sync` | `figma-implement-design`, `pulseplate-frontend-ui`, `build-web-apps:web-design-guidelines`, `playwright`, `notion-research-documentation`, `notion-knowledge-capture`, `sora`, `imagegen`, `speech`, `screenshot`, `pulseplate-design-launch-system`; `Airweave` and `Penpot` stay Phase 1 runbook-only lanes and are not skill-routed yet |
+| Design / media / launch assets | `figma`, `docs-sync` | `figma-implement-design`, `pulseplate-frontend-ui`, `build-web-apps:web-design-guidelines`, `playwright`, `notion-research-documentation`, `notion-knowledge-capture`, `sora`, `imagegen`, `speech`, `screenshot`, `pulseplate-design-launch-system`; `Airweave` and `Penpot` stay Phase 1 runbook-only lanes and are not skill-routed yet (evidence: `scripts/orchestration/skill_router.py:66`, `scripts/orchestration/skill_router.py:1154`, `tests/test_skill_router.py:750`, `docs/runbooks/DESIGN_TOOLING_OPERATING_MODEL.md:65`) |
 
 ---
 

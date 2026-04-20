@@ -67,6 +67,10 @@ DESIGN_CONDITIONAL_SKILLS: frozenset[str] = frozenset(
     {
         "figma",
         "figma-implement-design",
+    }
+)
+LAUNCH_GOVERNANCE_CONDITIONAL_SKILLS: frozenset[str] = frozenset(
+    {
         "pulseplate-design-launch-system",
     }
 )
@@ -1542,6 +1546,11 @@ def _conditional_when_for_skill(*, skill: str, task_classification_label: str) -
         return (
             "Enable when a concrete Figma/design node-id or fidelity requirement becomes explicit."
         )
+    if skill in LAUNCH_GOVERNANCE_CONDITIONAL_SKILLS:
+        return (
+            "Enable when launch-asset work includes execution-ready design packet metadata, "
+            "concrete source anchors, and token/brand governance intent."
+        )
     if skill in RESEARCH_CONDITIONAL_SKILLS and task_classification_label != "creative_research":
         return "Enable when the task requires a report/research deliverable or durable knowledge capture."
     return None
@@ -1569,6 +1578,13 @@ def _conditional_when_for_skill_with_design_state(
                 "Enable when a concrete Figma/design node-id or fidelity requirement "
                 "becomes explicit."
             )
+    if skill in LAUNCH_GOVERNANCE_CONDITIONAL_SKILLS:
+        if explicit_design_metadata:
+            return None
+        return (
+            "Enable when launch-asset governance work becomes execution-ready with "
+            "design packet metadata, source anchors, and explicit token/brand scope."
+        )
     return _conditional_when_for_skill(
         skill=skill,
         task_classification_label=task_classification_label,
@@ -1832,6 +1848,9 @@ def route_skills(
         for result, rule in zip(scored, SKILL_RULES)
         if (result["score"] >= rule.min_score or rule.skill in ALWAYS_ON_SKILLS)
         and (result["skill"] not in DESIGN_CONDITIONAL_SKILLS or figma_execution_ready)
+        and (
+            result["skill"] not in LAUNCH_GOVERNANCE_CONDITIONAL_SKILLS or explicit_design_metadata
+        )
         and result["skill"] not in required_skill_names
     ]
 

@@ -40,6 +40,15 @@ def _load_workflow(path: str) -> dict[str, object]:
     return yaml.safe_load((REPO_ROOT / path).read_text(encoding="utf-8"))
 
 
+def _workflow_events(path: str) -> dict[str, object]:
+    """Return the GitHub Actions `on` block, including YAML boolean-key normalization."""
+
+    workflow = _load_workflow(path)
+    events = workflow.get("on", workflow.get(True))
+    assert isinstance(events, dict), f"Missing workflow events block for {path}"
+    return events
+
+
 def _workflow_steps(path: str, job_name: str) -> list[dict[str, object]]:
     """Return workflow steps for a specific job."""
     workflow = _load_workflow(path)
@@ -338,23 +347,26 @@ def test_ci_workflow_uses_single_direct_proxy_python_install_path_per_job() -> N
 
 def test_frontend_ci_workflow_uses_ci_lite_python_setup() -> None:
     setup_step = _python_setup_step(".github/workflows/frontend-ci.yml", "build-and-test")
-    workflow_text = (REPO_ROOT / ".github" / "workflows" / "frontend-ci.yml").read_text(
-        encoding="utf-8"
+    workflow_events = _workflow_events(".github/workflows/frontend-ci.yml")
+    expected_paths = (
+        "requirements.txt",
+        "requirements-ci-lite.in",
+        "requirements-ci-lite.txt",
+        "constraints.txt",
+        ".github/actions/python-setup/**",
+        "scripts/ci/install_locked_python_requirements.py",
+        "scripts/ci/check_python_startup_hooks.py",
+        "scripts/ci/emergency_python_wheels.json",
+        "tests/test_python_supply_chain_controls.py",
     )
 
     assert setup_step["with"]["python-version"] == "${{ env.PYTHON_VERSION }}"
     assert setup_step["with"]["requirements-profile"] == "ci-lite"
     assert setup_step["with"]["install-mode"] == "direct-proxy"
-    assert "python scripts/ci/install_locked_python_requirements.py" not in workflow_text
-    assert "'requirements.txt'" in workflow_text
-    assert "'requirements-ci-lite.in'" in workflow_text
-    assert "'requirements-ci-lite.txt'" in workflow_text
-    assert "'constraints.txt'" in workflow_text
-    assert "'.github/actions/python-setup/**'" in workflow_text
-    assert "'scripts/ci/install_locked_python_requirements.py'" in workflow_text
-    assert "'scripts/ci/check_python_startup_hooks.py'" in workflow_text
-    assert "'scripts/ci/emergency_python_wheels.json'" in workflow_text
-    assert "'tests/test_python_supply_chain_controls.py'" in workflow_text
+    for event_name in ("pull_request", "push"):
+        event_paths = workflow_events[event_name]["paths"]
+        for expected_path in expected_paths:
+            assert expected_path in event_paths
 
 
 def test_test_dependency_profile_is_split_from_dev_tooling() -> None:

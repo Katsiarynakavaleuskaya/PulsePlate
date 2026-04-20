@@ -2,7 +2,7 @@
 
 **Version:** 2026-04-20 (`America/New_York`)
 **Branch:** `codex/pulseplate-design-launch-system`
-**PR:** `TBD`
+**PR:** `#1482`
 **Title:** `feat(codex-skills): add pulseplate design launch system skill`
 
 ## Summary
@@ -38,7 +38,7 @@ This PR does **not** implement:
   green:
   - canonical `ci-lite` Python setup for frontend-controlled OpenAPI/token
     checks
-  - path-filter alignment for the actual backend dependency/install surfaces the
+  - path-filter alignment for the actual backend dependency/install surfaces that the
     workflow consumes
 
 ### OUT
