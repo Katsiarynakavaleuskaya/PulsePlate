@@ -6,9 +6,12 @@ RU: Тесты для оставшихся модулей с низким пок
 EN: Tests for remaining modules with low coverage
 """
 
+import sys
+from collections.abc import Sequence
 from pathlib import Path
 from datetime import datetime, timezone
-from types import SimpleNamespace
+from types import ModuleType, SimpleNamespace
+from typing import TYPE_CHECKING
 from unittest.mock import patch
 
 import asyncio
@@ -16,6 +19,11 @@ import asyncio
 import pytest
 
 from tests.test_root_npm_dependency_guards import _load_json
+
+if TYPE_CHECKING:
+    from core.knowledge.contracts import KnowledgeFactCandidate
+    from core.knowledge.policy import KnowledgePolicy
+    from core.rag.contracts import RAGChunk
 
 
 def test_root_npm_security_override_smoke() -> None:
@@ -297,7 +305,7 @@ class TestKnowledgePromotionFastLane:
         enabled: bool = True,
         allow_promotion: bool = True,
         subject_scope_required: bool = True,
-    ):
+    ) -> "KnowledgePolicy":
         from core.knowledge.policy import KnowledgePolicy
 
         return KnowledgePolicy(
@@ -312,7 +320,7 @@ class TestKnowledgePromotionFastLane:
         )
 
     @staticmethod
-    def _chunk(*, content: str = "Validated chunk."):
+    def _chunk(*, content: str = "Validated chunk.") -> "RAGChunk":
         from core.rag.contracts import RAGChunk
 
         return RAGChunk(
@@ -324,7 +332,13 @@ class TestKnowledgePromotionFastLane:
         )
 
     @staticmethod
-    def _candidate(*, fact_key: str, confidence: float, observed_at: datetime, supersedes=()):
+    def _candidate(
+        *,
+        fact_key: str,
+        confidence: float,
+        observed_at: datetime,
+        supersedes: Sequence[str] = (),
+    ) -> "KnowledgeFactCandidate":
         from core.knowledge.contracts import KnowledgeEvidenceRef, KnowledgeFactCandidate
 
         return KnowledgeFactCandidate(
@@ -443,7 +457,13 @@ class TestKnowledgeStoreFastLane:
     """Keep bounded knowledge store seams covered by test-fast."""
 
     @staticmethod
-    def _candidate(*, fact_key: str, confidence: float, observed_at: datetime, supersedes=()):
+    def _candidate(
+        *,
+        fact_key: str,
+        confidence: float,
+        observed_at: datetime,
+        supersedes: Sequence[str] = (),
+    ) -> "KnowledgeFactCandidate":
         from core.knowledge.contracts import KnowledgeEvidenceRef, KnowledgeFactCandidate
 
         return KnowledgeFactCandidate(
@@ -746,26 +766,18 @@ class TestPhilosophicalRuntimeFastLane:
 class TestVectorTypeFastLane:
     """Keep pgvector SQLAlchemy fallback covered inside test-fast."""
 
-    def test_build_sqlalchemy_vector_type_falls_back_when_pgvector_is_missing(self) -> None:
+    def test_build_sqlalchemy_vector_type_falls_back_when_pgvector_is_missing(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """Fallback vector type must still render valid SQL when pgvector is absent."""
 
         from core.rag import vector_rag
 
-        original_import = __import__
-
-        def _fake_import(
-            name: str,
-            globals=None,
-            locals=None,
-            fromlist=(),
-            level: int = 0,
-        ):
-            if name == "pgvector.sqlalchemy":
-                raise ModuleNotFoundError("pgvector not installed")
-            return original_import(name, globals, locals, fromlist, level)
-
-        with patch("builtins.__import__", side_effect=_fake_import):
-            vector_type = vector_rag._build_sqlalchemy_vector_type(7)
+        # RU: Имитируем отсутствие установленного pgvector без моков import hook.
+        # EN: Simulate a missing pgvector install without patching Python's import hook.
+        monkeypatch.setitem(sys.modules, "pgvector", ModuleType("pgvector"))
+        monkeypatch.delitem(sys.modules, "pgvector.sqlalchemy", raising=False)
+        vector_type = vector_rag._build_sqlalchemy_vector_type(7)
 
         assert vector_type.get_col_spec() == "VECTOR(7)"
 
