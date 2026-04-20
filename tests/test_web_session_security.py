@@ -380,6 +380,8 @@ def test_verify_rejects_payload_shape(monkeypatch: pytest.MonkeyPatch) -> None:
         b'{"enc_api_key":"k","tier":"PRO","iat":1,"exp":"2","v":1}',
         b'{"enc_api_key":"k","tier":"PRO","iat":-1,"exp":2,"v":1}',
         b'{"enc_api_key":"k","tier":"PRO","iat":2,"exp":2,"v":1}',
+        b'{"enc_api_key":"k","tier":"PRO","iat":true,"exp":2,"v":1}',
+        b'{"enc_api_key":"k","tier":"PRO","iat":1,"exp":false,"v":1}',
         (
             f'{{"enc_api_key":"k","tier":"PRO","iat":{now_epoch},"exp":{expires_epoch},"v":"1"}}'.encode(
                 "utf-8"

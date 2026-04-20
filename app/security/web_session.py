@@ -259,7 +259,9 @@ def verify_web_session(
 
     if not isinstance(tier, str):
         return None
-    if not isinstance(issued_at, int) or not isinstance(expires_at, int):
+    # RU: bool — подкласс int; отвергаем явным сравнением типа.
+    # EN: bool subclasses int; reject with exact-type checks (JWT claim hygiene).
+    if type(issued_at) is not int or type(expires_at) is not int:
         return None
     if version != 1:
         return None
