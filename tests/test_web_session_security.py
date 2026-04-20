@@ -87,6 +87,87 @@ def test_issue_and_verify_success(monkeypatch: pytest.MonkeyPatch) -> None:
     assert claims.expires_at_epoch == int((now + timedelta(seconds=120)).timestamp())
 
 
+def test_verify_legacy_plaintext_api_key_cookie(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Pre-encryption cookies with plaintext api_key must verify until TTL expires."""
+
+    monkeypatch.setenv("SERVER_SALT", "session-secret")
+    now = datetime(2026, 6, 1, tzinfo=timezone.utc)
+    issued_at = int(now.timestamp())
+    expires_at = issued_at + 300
+    payload = {
+        "api_key": TEST_PRO_KEY,
+        "tier": "PRO",
+        "iat": issued_at,
+        "exp": expires_at,
+        "v": 1,
+    }
+    payload_bytes = json.dumps(
+        payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True
+    ).encode("utf-8")
+    payload_b64 = _b64url_encode(payload_bytes)
+    sig = _sign_payload(payload_b64, server_salt="session-secret")
+    token = f"{payload_b64}.{sig}"
+
+    claims = web_session.verify_web_session(token, now=now + timedelta(seconds=10))
+    assert claims is not None
+    assert claims.api_key == TEST_PRO_KEY
+    assert claims.tier == "PRO"
+
+
+def test_verify_prefers_encrypted_claim_when_both_enc_and_legacy_present(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """If both enc_api_key and legacy api_key exist, decrypted enc wins (no downgrade)."""
+
+    monkeypatch.setenv("SERVER_SALT", "session-secret")
+    now = datetime(2026, 6, 2, tzinfo=timezone.utc)
+    issued = web_session.issue_web_session(
+        api_key=TEST_PRO_KEY,
+        tier="PRO",
+        now=now,
+        ttl_seconds=400,
+    )
+    payload_b64, sig = issued.token.split(".", 1)
+    payload_obj = json.loads(_b64url_decode(payload_b64).decode("utf-8"))
+    payload_obj["api_key"] = "attacker_override_value"  # pragma: allowlist secret
+    payload_bytes = json.dumps(
+        payload_obj, sort_keys=True, separators=(",", ":"), ensure_ascii=True
+    ).encode("utf-8")
+    tampered_b64 = _b64url_encode(payload_bytes)
+    tampered_sig = _sign_payload(tampered_b64, server_salt="session-secret")
+    claims = web_session.verify_web_session(
+        f"{tampered_b64}.{tampered_sig}",
+        now=now + timedelta(seconds=10),
+    )
+    assert claims is not None
+    assert claims.api_key == TEST_PRO_KEY
+
+
+def test_verify_rejects_invalid_enc_without_legacy_fallback(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Invalid enc_api_key must fail closed even if legacy api_key is present."""
+
+    monkeypatch.setenv("SERVER_SALT", "session-secret")
+    now = datetime(2026, 6, 3, tzinfo=timezone.utc)
+    issued_at = int(now.timestamp())
+    expires_at = issued_at + 200
+    payload = {
+        "enc_api_key": "not-valid-fernet-ciphertext",  # pragma: allowlist secret
+        "api_key": TEST_PRO_KEY,
+        "tier": "PRO",
+        "iat": issued_at,
+        "exp": expires_at,
+        "v": 1,
+    }
+    payload_bytes = json.dumps(
+        payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True
+    ).encode("utf-8")
+    payload_b64 = _b64url_encode(payload_bytes)
+    sig = _sign_payload(payload_b64, server_salt="session-secret")
+    assert web_session.verify_web_session(f"{payload_b64}.{sig}", now=now) is None
+
+
 def test_token_payload_does_not_expose_raw_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
     """Token payload must not include plaintext API key claim."""
 

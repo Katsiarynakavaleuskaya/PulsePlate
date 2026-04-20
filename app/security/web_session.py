@@ -7,6 +7,7 @@ EN: Stateless web session cookie for PRO/VIP web flow.
 from __future__ import annotations
 
 import base64
+import functools
 import hashlib
 import hmac
 import json
@@ -111,18 +112,28 @@ def _sign_payload(*, payload_b64: str, secret: str | None = None) -> str:
     ).hex()
 
 
-def _derive_session_encryption_key(secret: str | None = None) -> bytes:
-    """Derive deterministic Fernet key for encrypted claim fields."""
+@functools.lru_cache(maxsize=32)
+def _fernet_key_b64_from_hmac_key(hmac_key: bytes) -> bytes:
+    """Derive Fernet key material; PBKDF2 password is secret key, salt is public context.
 
-    hmac_key = _derive_session_hmac_key(secret)
+    RU: Пароль PBKDF2 — секретный HMAC-ключ; соль — публичный контекст (стандартная семантика).
+    EN: PBKDF2 password is the secret HMAC key; salt is the public context label.
+    """
+
     derived = hashlib.pbkdf2_hmac(
         "sha256",
-        _SESSION_ENCRYPTION_CONTEXT,
         hmac_key,
+        _SESSION_ENCRYPTION_CONTEXT,
         _SESSION_SIGNATURE_ITERATIONS,
         dklen=32,
     )
     return base64.urlsafe_b64encode(derived)
+
+
+def _derive_session_encryption_key(secret: str | None = None) -> bytes:
+    """Derive deterministic Fernet key for encrypted claim fields."""
+
+    return _fernet_key_b64_from_hmac_key(_derive_session_hmac_key(secret))
 
 
 def _encrypt_api_key(api_key: str, *, secret: str | None = None) -> str:
@@ -144,9 +155,7 @@ def _decrypt_api_key(encrypted_api_key: str, *, secret: str | None = None) -> st
         normalized = decrypted.decode("utf-8").strip()
     except UnicodeDecodeError:
         return None
-    if not normalized:
-        return None
-    return normalized
+    return normalized if normalized else None
 
 
 def issue_web_session(
@@ -226,13 +235,12 @@ def verify_web_session(
         return None
 
     encrypted_api_key = payload_obj.get("enc_api_key")
+    legacy_plain_api_key = payload_obj.get("api_key")
     tier = payload_obj.get("tier")
     issued_at = payload_obj.get("iat")
     expires_at = payload_obj.get("exp")
     version = payload_obj.get("v")
 
-    if not isinstance(encrypted_api_key, str) or not encrypted_api_key.strip():
-        return None
     if not isinstance(tier, str):
         return None
     if not isinstance(issued_at, int) or not isinstance(expires_at, int):
@@ -240,8 +248,16 @@ def verify_web_session(
     if version != 1:
         return None
 
-    decrypted_api_key = _decrypt_api_key(encrypted_api_key, secret=secret)
-    if decrypted_api_key is None:
+    resolved_api_key: str | None = None
+    if isinstance(encrypted_api_key, str) and encrypted_api_key.strip():
+        resolved_api_key = _decrypt_api_key(encrypted_api_key.strip(), secret=secret)
+        if resolved_api_key is None:
+            return None
+    elif isinstance(legacy_plain_api_key, str) and legacy_plain_api_key.strip():
+        # RU: Совместимость со старыми cookie до выката шифрования (plaintext api_key).
+        # EN: Backward compatibility for pre-encryption cookies (plaintext api_key claim).
+        resolved_api_key = legacy_plain_api_key.strip()
+    else:
         return None
 
     try:
@@ -257,7 +273,7 @@ def verify_web_session(
         return None
 
     return WebSessionClaims(
-        api_key=decrypted_api_key,
+        api_key=resolved_api_key,
         tier=normalized_tier,
         issued_at_epoch=issued_at,
         expires_at_epoch=expires_at,
