@@ -13,7 +13,7 @@ This artifact is created immediately after replacement-PR creation.
 Record every new review or bot disposition here before resolving threads on
 GitHub.
 
-## Fixed in Commit Mapping
+### Fixed in Commit Mapping
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1474#issuecomment-4275090332
 Disposition: DEFERRED
@@ -22,8 +22,8 @@ Reason: The invalid Dependabot assignee remains a live repo-wide config defect i
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1474#pullrequestreview-4135424346
 Disposition: NOT-A-BUG
-Evidence: `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1474`
-Reason: cubic identified no actionable issues on the live source PR review surface; any later bot or reviewer actionables on the replacement PR must be added below before thread resolution.
+Evidence: `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md:41-90`
+Reason: The canonical governance contract allows a NOT-A-BUG disposition when a review leaves no actionable defect and the source PR surface itself contains no inline or parent-thread fix request to implement in the replacement lane.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1485#pullrequestreview-4139907864
 Disposition: DEFERRED
