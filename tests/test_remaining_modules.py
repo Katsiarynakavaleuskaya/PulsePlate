@@ -7,6 +7,8 @@ EN: Tests for remaining modules with low coverage
 """
 
 from pathlib import Path
+from datetime import datetime, timezone
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
@@ -259,7 +261,6 @@ class TestTimeUtilsModule:
         # Test datetime parsing
         result = parse_datetime("2024-01-01T00:00:00")
         assert result is not None
-
         result = parse_datetime("2024-01-01")
         assert result is not None
 
@@ -283,6 +284,448 @@ class TestTimeUtilsModule:
         # Test date validation
         assert is_valid_date("2024-01-01") is True
         assert is_valid_date("invalid") is False
+
+
+class TestKnowledgePromotionFastLane:
+    """Keep knowledge promotion fail-closed branches in the deterministic fast lane."""
+
+    @staticmethod
+    def _knowledge_policy(
+        *,
+        enabled: bool = True,
+        allow_promotion: bool = True,
+        subject_scope_required: bool = True,
+    ):
+        from core.knowledge.policy import KnowledgePolicy
+
+        return KnowledgePolicy(
+            enabled=enabled,
+            allow_reads=True,
+            allow_promotion=allow_promotion,
+            min_confidence=0.7,
+            require_rag_factual_route=True,
+            deny_degraded_reasons=("retrieval_empty", "all_chunks_filtered"),
+            subject_scope_required=subject_scope_required,
+            rail="product_ai_runtime",
+        )
+
+    @staticmethod
+    def _chunk(*, content: str = "Validated chunk."):
+        from core.rag.contracts import RAGChunk
+
+        return RAGChunk(
+            chunk_id="chunk-1",
+            file="docs/one.md",
+            content=content,
+            score=0.88,
+            hop=1,
+        )
+
+    @staticmethod
+    def _candidate(*, fact_key: str, confidence: float, observed_at: datetime, supersedes=()):
+        from core.knowledge.contracts import KnowledgeEvidenceRef, KnowledgeFactCandidate
+
+        return KnowledgeFactCandidate(
+            fact_key=fact_key,
+            subject="subject:42",
+            predicate="validated_rag_evidence:docs/one.md:chunk-1",
+            value=f"chunk=chunk-1;source=docs/one.md;digest={fact_key};hop=1",
+            observed_at=observed_at,
+            confidence=confidence,
+            access_scope="subject:42",
+            rail="product_ai_runtime",
+            provenance=(KnowledgeEvidenceRef("chunk-1", "docs/one.md", confidence, 1),),
+            supersedes=tuple(supersedes),
+        )
+
+    def test_build_knowledge_promotion_candidates_covers_fail_closed_branches(self) -> None:
+        """Promotion must reject missing inputs and empty validated content deterministically."""
+
+        from core.knowledge.promotion import build_knowledge_promotion_candidates
+
+        policy = self._knowledge_policy()
+
+        assert (
+            build_knowledge_promotion_candidates(
+                chunks=[],
+                confidence=0.9,
+                degraded_reason=None,
+                subject_id=42,
+                knowledge_policy=policy,
+            )
+            == []
+        )
+        assert (
+            build_knowledge_promotion_candidates(
+                chunks=[self._chunk()],
+                confidence=0.9,
+                degraded_reason="retrieval_empty",
+                subject_id=42,
+                knowledge_policy=policy,
+            )
+            == []
+        )
+        assert (
+            build_knowledge_promotion_candidates(
+                chunks=[self._chunk()],
+                confidence=None,
+                degraded_reason=None,
+                subject_id=42,
+                knowledge_policy=policy,
+            )
+            == []
+        )
+        assert (
+            build_knowledge_promotion_candidates(
+                chunks=[self._chunk()],
+                confidence=0.9,
+                degraded_reason=None,
+                subject_id=None,
+                knowledge_policy=policy,
+            )
+            == []
+        )
+        assert (
+            build_knowledge_promotion_candidates(
+                chunks=[self._chunk(content="   ")],
+                confidence=0.9,
+                degraded_reason=None,
+                subject_id=42,
+                knowledge_policy=policy,
+            )
+            == []
+        )
+
+    def test_knowledge_promotion_record_helpers_cover_supersession_paths(self) -> None:
+        """Same-confidence newer evidence may supersede only when explicitly declared."""
+
+        from core.knowledge.contracts import KnowledgeRecord
+        from core.knowledge.promotion import (
+            candidate_should_supersede,
+            candidate_to_record,
+            mark_record_superseded,
+        )
+
+        observed_at = datetime(2026, 4, 20, 12, 0, tzinfo=timezone.utc)
+        existing = KnowledgeRecord(
+            fact_key="fact-1",
+            subject="subject:42",
+            predicate="validated_rag_evidence:docs/one.md:chunk-1",
+            value="chunk=chunk-1;source=docs/one.md;digest=fact-1;hop=1",
+            status="active",
+            confidence=0.9,
+            access_scope="subject:42",
+            rail="product_ai_runtime",
+            provenance=(),
+            observed_at=observed_at,
+        )
+        candidate = self._candidate(
+            fact_key="fact-2",
+            confidence=0.9,
+            observed_at=observed_at.replace(minute=1),
+            supersedes=("fact-1",),
+        )
+
+        assert candidate_should_supersede(existing=existing, candidate=candidate) is True
+
+        active_record = candidate_to_record(candidate)
+        assert active_record.status == "active"
+        assert active_record.fact_key == "fact-2"
+
+        superseded = mark_record_superseded(record=existing, superseded_by="fact-2")
+        assert superseded.status == "superseded"
+        assert superseded.superseded_by == "fact-2"
+
+
+class TestKnowledgeStoreFastLane:
+    """Keep bounded knowledge store seams covered by test-fast."""
+
+    @staticmethod
+    def _candidate(*, fact_key: str, confidence: float, observed_at: datetime, supersedes=()):
+        from core.knowledge.contracts import KnowledgeEvidenceRef, KnowledgeFactCandidate
+
+        return KnowledgeFactCandidate(
+            fact_key=fact_key,
+            subject="subject:42",
+            predicate="validated_rag_evidence:docs/test.md:chunk-1",
+            value=f"value:{fact_key}",
+            observed_at=observed_at,
+            confidence=confidence,
+            access_scope="subject:42",
+            rail="product_ai_runtime",
+            provenance=(KnowledgeEvidenceRef("chunk-1", "docs/test.md", confidence, 1),),
+            supersedes=tuple(supersedes),
+        )
+
+    def test_noop_knowledge_store_discards_promotions_and_reads(self) -> None:
+        """No-op store must fail closed without persisting or leaking records."""
+
+        from core.knowledge.store import NoOpKnowledgeStore
+
+        store = NoOpKnowledgeStore()
+        candidate = self._candidate(
+            fact_key="fact-1",
+            confidence=0.8,
+            observed_at=datetime(2026, 4, 20, 12, 0, tzinfo=timezone.utc),
+        )
+
+        assert store.promote([candidate]) == []
+        assert (
+            store.read(
+                subject="subject:42",
+                predicate="validated_rag_evidence:docs/test.md:chunk-1",
+                access_scope="subject:42",
+                rail="product_ai_runtime",
+            )
+            == []
+        )
+
+    def test_in_memory_knowledge_store_replays_reads_and_supersedes_only_when_eligible(
+        self,
+    ) -> None:
+        """Store must support idempotent replay, scoped reads, and explicit supersession only."""
+
+        from core.knowledge.store import InMemoryKnowledgeStore
+
+        observed_at = datetime(2026, 4, 20, 12, 0, tzinfo=timezone.utc)
+        store = InMemoryKnowledgeStore()
+        first = self._candidate(fact_key="fact-1", confidence=0.8, observed_at=observed_at)
+        weaker = self._candidate(
+            fact_key="fact-2",
+            confidence=0.7,
+            observed_at=observed_at.replace(minute=1),
+            supersedes=("fact-1",),
+        )
+        stronger = self._candidate(
+            fact_key="fact-3",
+            confidence=0.95,
+            observed_at=observed_at.replace(minute=2),
+            supersedes=("fact-1",),
+        )
+
+        first_promoted = store.promote([first])
+        replay_promoted = store.promote([first])
+        weaker_promoted = store.promote([weaker])
+        stronger_promoted = store.promote([stronger])
+
+        assert [record.fact_key for record in first_promoted] == ["fact-1"]
+        assert replay_promoted == []
+        assert weaker_promoted == []
+        assert [record.fact_key for record in stronger_promoted] == ["fact-3"]
+
+        active = store.read(
+            subject="subject:42",
+            predicate="validated_rag_evidence:docs/test.md:chunk-1",
+            access_scope="subject:42",
+            rail="product_ai_runtime",
+        )
+        wrong_scope = store.read(
+            subject="subject:42",
+            predicate="validated_rag_evidence:docs/test.md:chunk-1",
+            access_scope="subject:99",
+            rail="product_ai_runtime",
+        )
+
+        assert [record.fact_key for record in active] == ["fact-3"]
+        assert wrong_scope == []
+        assert len([record for record in store._records if record.status == "superseded"]) == 1
+
+
+class TestInsightApplicationServiceFastLane:
+    """Keep async knowledge-promotion seam covered by test-fast."""
+
+    @pytest.mark.asyncio
+    async def test_maybe_promote_knowledge_candidates_awaits_async_store(self) -> None:
+        """Async stores must be awaited before the response path continues."""
+
+        from app.services.insight_application_service import _maybe_promote_knowledge_candidates
+
+        observed: dict[str, object] = {}
+        candidate = SimpleNamespace(fact_key="fact-1")
+
+        class _AsyncStore:
+            async def promote(self, candidates: list[object]) -> list[object]:
+                observed["candidates"] = candidates
+                return []
+
+        await _maybe_promote_knowledge_candidates(
+            knowledge_store=_AsyncStore(),
+            candidates=[candidate],
+        )
+
+        assert observed["candidates"] == [candidate]
+
+    @pytest.mark.asyncio
+    async def test_maybe_promote_knowledge_candidates_logs_and_swallows_store_errors(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Store failures must not break the user response path."""
+
+        from app.services.insight_application_service import _maybe_promote_knowledge_candidates
+
+        warnings: list[tuple[tuple[object, ...], dict[str, object]]] = []
+
+        class _BrokenStore:
+            def promote(self, candidates: list[object]) -> list[object]:
+                del candidates
+                raise RuntimeError("boom")
+
+        monkeypatch.setattr(
+            "app.services.insight_application_service.logger.warning",
+            lambda *args, **kwargs: warnings.append((args, kwargs)),
+            raising=True,
+        )
+
+        await _maybe_promote_knowledge_candidates(
+            knowledge_store=_BrokenStore(),
+            candidates=[SimpleNamespace(fact_key="fact-1")],
+        )
+
+        assert warnings
+        assert "Knowledge promotion failed" in str(warnings[0][0][0])
+        assert warnings[0][1]["exc_info"] is True
+
+
+class TestPhilosophicalRuntimeFastLane:
+    """Keep runtime knowledge-candidate gating covered by the fast lane."""
+
+    @staticmethod
+    def _runtime_policy(*, enabled: bool = True, allow_promotion: bool = True):
+        from core.knowledge.policy import KnowledgePolicy
+
+        return KnowledgePolicy(
+            enabled=enabled,
+            allow_reads=True,
+            allow_promotion=allow_promotion,
+            min_confidence=0.7,
+            require_rag_factual_route=True,
+            deny_degraded_reasons=("retrieval_empty", "all_chunks_filtered"),
+            subject_scope_required=True,
+            rail="product_ai_runtime",
+        )
+
+    @staticmethod
+    def _runtime_candidate():
+        from core.knowledge.contracts import KnowledgeEvidenceRef, KnowledgeFactCandidate
+
+        return KnowledgeFactCandidate(
+            fact_key="fact-1",
+            subject="subject:42",
+            predicate="validated_rag_evidence:docs/test.md:chunk-1",
+            value="chunk=chunk-1;source=docs/test.md;digest=abc123;hop=1",
+            observed_at=datetime(2026, 4, 20, 12, 0, tzinfo=timezone.utc),
+            confidence=0.9,
+            access_scope="subject:42",
+            rail="product_ai_runtime",
+            provenance=(KnowledgeEvidenceRef("chunk-1", "docs/test.md", 0.9, 1),),
+        )
+
+    @pytest.mark.parametrize(
+        (
+            "route_type",
+            "philo_validation_enabled",
+            "policy",
+            "rag_actually_used",
+            "degraded_reason",
+            "canonical",
+            "expected_count",
+        ),
+        [
+            ("DEEP_REASONING", True, "enabled", True, None, True, 0),
+            ("RAG_FACTUAL", False, "enabled", True, None, True, 0),
+            ("RAG_FACTUAL", True, "none", True, None, True, 0),
+            ("RAG_FACTUAL", True, "disabled", True, None, True, 0),
+            ("RAG_FACTUAL", True, "deny", True, None, True, 0),
+            ("RAG_FACTUAL", True, "enabled", False, None, True, 0),
+            ("RAG_FACTUAL", True, "enabled", True, "retrieval_empty", True, 0),
+            ("RAG_FACTUAL", True, "enabled", True, None, False, 0),
+            ("RAG_FACTUAL", True, "enabled", True, None, True, 1),
+        ],
+    )
+    def test_resolve_runtime_knowledge_candidates_honors_all_guards(
+        self,
+        route_type: str,
+        philo_validation_enabled: bool,
+        policy: str,
+        rag_actually_used: bool,
+        degraded_reason: str | None,
+        canonical: bool,
+        expected_count: int,
+    ) -> None:
+        """Runtime may promote only canonical candidates from validated factual RAG paths."""
+
+        from core.insight.philosophical_runtime import (
+            PhilosophicalRuntime,
+            RiskLevel,
+            RouteDecision,
+            RouteType,
+        )
+        from core.rag.orchestration import RAGOrchestrationResult
+
+        runtime = PhilosophicalRuntime()
+        candidate = self._runtime_candidate()
+        decision = RouteDecision(
+            route_type=RouteType(route_type),
+            target_depth=1,
+            needs_rag=True,
+            needs_generation=True,
+            risk_level=RiskLevel.LOW,
+        )
+        if policy == "none":
+            knowledge_policy = None
+        elif policy == "disabled":
+            knowledge_policy = self._runtime_policy(enabled=False)
+        elif policy == "deny":
+            knowledge_policy = self._runtime_policy(allow_promotion=False)
+        else:
+            knowledge_policy = self._runtime_policy()
+
+        result = runtime._resolve_runtime_knowledge_candidates(
+            decision=decision,
+            rag_result=RAGOrchestrationResult(
+                chunks=[],
+                formatted_prompt="prompt",
+                rag_actually_used=rag_actually_used,
+                confidence=0.9,
+                hops=1,
+                latency_ms=1,
+                degraded_reason=degraded_reason,
+                knowledge_candidates=[candidate],
+                knowledge_candidates_canonical=canonical,
+            ),
+            philo_validation_enabled=philo_validation_enabled,
+            knowledge_policy=knowledge_policy,
+        )
+
+        assert len(result) == expected_count
+
+
+class TestVectorTypeFastLane:
+    """Keep pgvector SQLAlchemy fallback covered inside test-fast."""
+
+    def test_build_sqlalchemy_vector_type_falls_back_when_pgvector_is_missing(self) -> None:
+        """Fallback vector type must still render valid SQL when pgvector is absent."""
+
+        from core.rag import vector_rag
+
+        original_import = __import__
+
+        def _fake_import(
+            name: str,
+            globals=None,
+            locals=None,
+            fromlist=(),
+            level: int = 0,
+        ):
+            if name == "pgvector.sqlalchemy":
+                raise ModuleNotFoundError("pgvector not installed")
+            return original_import(name, globals, locals, fromlist, level)
+
+        with patch("builtins.__import__", side_effect=_fake_import):
+            vector_type = vector_rag._build_sqlalchemy_vector_type(7)
+
+        assert vector_type.get_col_spec() == "VECTOR(7)"
 
 
 class TestDbGuardAndFallbackSmokeCoverage:
