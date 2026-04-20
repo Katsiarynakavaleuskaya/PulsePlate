@@ -1,0 +1,85 @@
+name: RAG Release Gates
+
+on:
+  pull_request:
+    paths:
+      - "scripts/evals/**"
+      - "tests/test_rag_release_gates_runner.py"
+      - "notebooks/pulseplate_rag_release_gates.ipynb"
+      - "data/evals/pulseplate_rag_eval_sample.jsonl"
+      - "docs/evals/PULSEPLATE_RAG_RELEASE_GATES.md"
+      - "docs/orchestration/PULSEPLATE_RAG_RELEASE_GATES_TASK_PACKET_2026-04-20.md"
+      - "core/rag/**"
+      - "core/ai/**"
+      - "core/insight/philosophy_validator.py"
+      - "app/services/insight_runtime.py"
+      - "app/security/agent_input_guard.py"
+  workflow_dispatch:
+  schedule:
+    - cron: "0 7 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  rag-release-gates-smoke:
+    name: RAG Release Gates Smoke
+    runs-on: ubuntu-latest
+    if: github.event_name != 'schedule'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Run cheap smoke lane
+        run: |
+          python3 scripts/evals/run_rag_release_gates.py \
+            --input-path data/evals/pulseplate_rag_eval_sample.jsonl \
+            --experiment-id pr_smoke_${{ github.run_id }} \
+            --retriever-mode local_tfidf \
+            --generator-mode extractive_stub
+
+      - name: Upload gate artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: rag-release-gates-smoke
+          path: artifacts/rag_eval/pr_smoke_${{ github.run_id }}/
+
+  rag-release-gates-weekly:
+    name: RAG Release Gates Weekly
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install CI-lite dependencies for strict import path
+        run: |
+          python3 -m pip install --upgrade pip
+          python3 -m pip install -r requirements-ci-lite.txt
+
+      - name: Run strict weekly/manual lane
+        env:
+          PULSEPLATE_RAG_EVAL_INPUT: data/evals/rag_weekly_500.jsonl
+          RETRIEVER_MODE: pulseplate
+          GENERATOR_MODE: pulseplate_runtime
+        run: |
+          python3 scripts/evals/run_rag_release_gates.py \
+            --experiment-id weekly_${{ github.run_id }} \
+            --retriever-mode "${RETRIEVER_MODE}" \
+            --generator-mode "${GENERATOR_MODE}"
+
+      - name: Upload weekly gate artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: rag-release-gates-weekly
+          path: artifacts/rag_eval/weekly_${{ github.run_id }}/
