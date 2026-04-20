@@ -15,6 +15,9 @@
 
 set -euo pipefail
 
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT_DIR"
+
 # Debug mode: set PREPUSH_DEBUG=1 to see detailed information
 DEBUG="${PREPUSH_DEBUG:-0}"
 log_debug() {
@@ -28,7 +31,16 @@ if [ "${SKIP_TESTS:-0}" = "1" ]; then
     exit 0
 fi
 
-if ! command -v pytest > /dev/null 2>&1; then
+VENV_PYTHON_BIN="${VENV_PYTHON:-$ROOT_DIR/.venv/bin/python}"
+declare -a PYTEST_COMMAND=()
+
+if [ -x "$VENV_PYTHON_BIN" ]; then
+    PYTEST_COMMAND=("$VENV_PYTHON_BIN" -m pytest)
+    log_debug "Using repo venv pytest via: ${PYTEST_COMMAND[*]}"
+elif command -v pytest > /dev/null 2>&1; then
+    PYTEST_COMMAND=("pytest")
+    log_debug "Using PATH pytest via: $(command -v pytest)"
+else
     echo "⚠️  Warning: pytest not found, skipping backend tests"
     exit 0
 fi
@@ -222,7 +234,7 @@ if [ ${#TEST_FILES[@]} -gt 0 ]; then
 
     echo "Running tests: ${TEST_FILES[*]}"
     # Use explicit exit code handling to ensure proper error propagation
-    if pytest "${PYTEST_ARGS[@]}" "${TEST_FILES[@]}"; then
+    if "${PYTEST_COMMAND[@]}" "${PYTEST_ARGS[@]}" "${TEST_FILES[@]}"; then
         echo "✅ Backend tests passed"
     else
         echo "❌ Backend tests failed"

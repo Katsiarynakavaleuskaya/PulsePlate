@@ -268,6 +268,7 @@ def test_repo_agents_skills_mirror_points_to_codex_skill_sources() -> None:
         "pulseplate-ai-reports",
         "pulseplate-app-store-release",
         "pulseplate-backend-endpoints",
+        "pulseplate-design-launch-system",
         "pulseplate-frontend-ui",
         "pulseplate-gates",
         "pulseplate-graphmap",

@@ -94,7 +94,7 @@ Interpretation:
 
 ### Wave 2 — Planned
 
-- `pulseplate-design-launch-system`
+- `pulseplate-design-launch-system` — governance-only skill bundle for design-system readiness, token/brand consistency, and launch-asset boundaries (evidence: `tools/codex_skills/pulseplate-design-launch-system/SKILL.md:1`, `docs/runbooks/DESIGN_TOOLING_OPERATING_MODEL.md:15`, `tests/test_skill_router.py:750`)
 - `pulseplate-web-launch-site`
 
 ### Wave 3 — Planned
