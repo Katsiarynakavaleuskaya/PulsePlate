@@ -66,6 +66,18 @@ Commit: ff6bdcb81
 Evidence: `docs/roadmap/BACKLOG_LEDGER.md:3649-3667`
 Reason: cubic identified the actionable inline version of the same ledger ordering issue; fixed in the same commit that moved the entry into the `### P2` section.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1485#pullrequestreview-4140209667
+Disposition: FIXED
+Commit: 1780f9c6a
+Evidence: `docs/review/PR_1485_FIXED_MAPPING.md:16-26`
+Reason: CodeRabbit identified two valid governance-format issues in the canonical mapping artifact: the heading level needed to match the mirror contract exactly, and the earlier NOT-A-BUG evidence needed a concrete contract reference instead of a bare PR URL.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1485#discussion_r3110836357
+Disposition: FIXED
+Commit: 1780f9c6a
+Evidence: `docs/review/PR_1485_FIXED_MAPPING.md:23-26`
+Reason: CodeRabbit identified the actionable inline proof-format issue for the NOT-A-BUG entry; the evidence now points to a concrete contract range instead of a bare PR URL.
+
 ## Merge Readiness
 
 Merge-readiness contract:
