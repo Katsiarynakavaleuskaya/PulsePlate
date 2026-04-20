@@ -18,6 +18,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
+from core.knowledge.policy import KnowledgePolicy
 from core.rag.contracts import RAGChunk, RAGContext, RAGDegradedReason
 from core.insight.safety import redact_rag_context_for_insight
 from core.rag.formatting import build_rag_source_dicts, format_rag_chunks_for_prompt
@@ -30,6 +31,19 @@ from core.rag.orchestration import (
 )
 from core.rag.philosophy_pipeline import PipelineResult, StageResult
 from core.rag.validation import ValidationResult
+
+
+def _knowledge_policy() -> KnowledgePolicy:
+    return KnowledgePolicy(
+        enabled=True,
+        allow_reads=True,
+        allow_promotion=True,
+        min_confidence=0.7,
+        require_rag_factual_route=True,
+        deny_degraded_reasons=tuple(reason.value for reason in RAGDegradedReason),
+        subject_scope_required=True,
+        rail="product_ai_runtime",
+    )
 
 
 def _make_chunk(
@@ -1314,3 +1328,186 @@ def test_simple_rag_skips_chunks_that_become_empty_after_redaction(
 
     assert len(result.chunks) == 1
     assert result.chunks[0].content == "safe chunk"
+
+
+@pytest.mark.asyncio
+async def test_rag_orchestration_builds_candidates_only_from_validated_chunks() -> None:
+    """Knowledge candidates must derive from surviving validated chunks only."""
+
+    chunks = [
+        _make_chunk(chunk_id="keep", file="docs/keep.md", score=0.9),
+        _make_chunk(chunk_id="drop", file="docs/drop.md", score=0.2),
+    ]
+    rag_ctx = _make_rag_context(chunks=chunks, confidence=0.5)
+    pipeline_result = PipelineResult(
+        filtered_chunks=[chunks[0]],
+        stage_results=[],
+        warnings=[],
+        total_latency_ms=1.0,
+    )
+
+    with (
+        patch("asyncio.to_thread", new_callable=AsyncMock, return_value=rag_ctx),
+        patch("core.rag.vector_rag.retrieve_context_structured"),
+        patch("core.rag.philosophy_pipeline.run_pipeline", return_value=pipeline_result),
+        patch("core.rag.formatting.format_rag_chunks_for_prompt", return_value="Keep chunk"),
+        patch("core.insight.safety.redact_rag_context_for_insight", return_value="Keep chunk"),
+    ):
+        result = await retrieve_and_validate_rag(
+            "test prompt",
+            philo_validation_enabled=True,
+            subject_id=42,
+            knowledge_policy=_knowledge_policy(),
+        )
+
+    assert [chunk.chunk_id for chunk in result.chunks] == ["keep"]
+    assert len(result.knowledge_candidates) == 1
+    assert result.knowledge_candidates_canonical is True
+    assert result.knowledge_candidates[0].predicate == "validated_rag_evidence:docs/keep.md:keep"
+
+
+@pytest.mark.asyncio
+async def test_rag_orchestration_denies_candidates_on_degraded_and_empty_context_paths() -> None:
+    """Fail-closed paths must never emit knowledge candidates."""
+
+    chunk = _make_chunk(chunk_id="keep", file="docs/keep.md", score=0.9)
+    rag_ctx = _make_rag_context(chunks=[chunk], confidence=0.9)
+    rag_ctx.degraded_reason = RAGDegradedReason.RETRIEVAL_EMPTY
+
+    with (
+        patch("asyncio.to_thread", new_callable=AsyncMock, return_value=rag_ctx),
+        patch("core.rag.vector_rag.retrieve_context_structured"),
+    ):
+        degraded_result = await retrieve_and_validate_rag(
+            "test prompt",
+            subject_id=42,
+            knowledge_policy=_knowledge_policy(),
+        )
+
+    filtered_pipeline = PipelineResult(
+        filtered_chunks=[],
+        stage_results=[],
+        warnings=[],
+        total_latency_ms=1.0,
+    )
+    with (
+        patch(
+            "asyncio.to_thread",
+            new_callable=AsyncMock,
+            return_value=_make_rag_context(chunks=[chunk], confidence=0.9),
+        ),
+        patch("core.rag.vector_rag.retrieve_context_structured"),
+        patch("core.rag.philosophy_pipeline.run_pipeline", return_value=filtered_pipeline),
+    ):
+        filtered_result = await retrieve_and_validate_rag(
+            "test prompt",
+            philo_validation_enabled=True,
+            subject_id=42,
+            knowledge_policy=_knowledge_policy(),
+        )
+
+    with (
+        patch(
+            "asyncio.to_thread",
+            new_callable=AsyncMock,
+            return_value=_make_rag_context(chunks=[chunk], confidence=0.9),
+        ),
+        patch("core.rag.vector_rag.retrieve_context_structured"),
+        patch("core.rag.formatting.format_rag_chunks_for_prompt", return_value="usable"),
+        patch("core.insight.safety.redact_rag_context_for_insight", return_value="   "),
+    ):
+        redacted_empty_result = await retrieve_and_validate_rag(
+            "test prompt",
+            subject_id=42,
+            knowledge_policy=_knowledge_policy(),
+        )
+
+    assert degraded_result.knowledge_candidates == []
+    assert filtered_result.knowledge_candidates == []
+    assert redacted_empty_result.knowledge_candidates == []
+
+
+@pytest.mark.asyncio
+async def test_rag_orchestration_denies_canonical_candidates_when_retrieval_is_degraded() -> None:
+    """Validated pipelines must not mark degraded retrieval as canonical evidence."""
+
+    chunk = _make_chunk(chunk_id="keep", file="docs/keep.md", score=0.9)
+    rag_ctx = _make_rag_context(chunks=[chunk], confidence=0.9)
+    rag_ctx.degraded_reason = RAGDegradedReason.RETRIEVAL_EMPTY
+    pipeline_result = PipelineResult(
+        filtered_chunks=[chunk],
+        stage_results=[],
+        warnings=[],
+        total_latency_ms=1.0,
+    )
+
+    with (
+        patch("asyncio.to_thread", new_callable=AsyncMock, return_value=rag_ctx),
+        patch("core.rag.vector_rag.retrieve_context_structured"),
+        patch("core.rag.philosophy_pipeline.run_pipeline", return_value=pipeline_result),
+        patch("core.rag.formatting.format_rag_chunks_for_prompt", return_value="Keep chunk"),
+        patch("core.insight.safety.redact_rag_context_for_insight", return_value="Keep chunk"),
+    ):
+        result = await retrieve_and_validate_rag(
+            "test prompt",
+            philo_validation_enabled=True,
+            subject_id=42,
+            knowledge_policy=_knowledge_policy(),
+        )
+
+    assert result.knowledge_candidates == []
+    assert result.knowledge_candidates_canonical is False
+
+
+@pytest.mark.asyncio
+async def test_rag_orchestration_confidence_threshold_gates_candidates() -> None:
+    """Sub-threshold confidence must keep usable RAG output but deny promotion."""
+
+    chunk = _make_chunk(chunk_id="keep", file="docs/keep.md", score=0.65)
+    with (
+        patch(
+            "asyncio.to_thread",
+            new_callable=AsyncMock,
+            return_value=_make_rag_context(chunks=[chunk], confidence=0.2),
+        ),
+        patch("core.rag.vector_rag.retrieve_context_structured"),
+        patch("core.rag.formatting.format_rag_chunks_for_prompt", return_value="Keep chunk"),
+        patch("core.insight.safety.redact_rag_context_for_insight", return_value="Keep chunk"),
+    ):
+        result = await retrieve_and_validate_rag(
+            "test prompt",
+            subject_id=42,
+            knowledge_policy=_knowledge_policy(),
+        )
+
+    assert result.rag_actually_used is True
+    assert result.confidence == 0.65
+    assert result.knowledge_candidates == []
+    assert result.knowledge_candidates_canonical is False
+
+
+@pytest.mark.asyncio
+async def test_rag_orchestration_denies_candidates_when_validation_is_disabled() -> None:
+    """Promotion candidates are canonical only on the validated orchestration path."""
+
+    chunk = _make_chunk(chunk_id="keep", file="docs/keep.md", score=0.9)
+    with (
+        patch(
+            "asyncio.to_thread",
+            new_callable=AsyncMock,
+            return_value=_make_rag_context(chunks=[chunk], confidence=0.9),
+        ),
+        patch("core.rag.vector_rag.retrieve_context_structured"),
+        patch("core.rag.formatting.format_rag_chunks_for_prompt", return_value="Keep chunk"),
+        patch("core.insight.safety.redact_rag_context_for_insight", return_value="Keep chunk"),
+    ):
+        result = await retrieve_and_validate_rag(
+            "test prompt",
+            philo_validation_enabled=False,
+            subject_id=42,
+            knowledge_policy=_knowledge_policy(),
+        )
+
+    assert result.rag_actually_used is True
+    assert result.knowledge_candidates == []
+    assert result.knowledge_candidates_canonical is False

@@ -6,7 +6,9 @@ from typing import Any
 
 import pytest
 
+from core.knowledge.policy import KnowledgePolicy
 from core.rag.contracts import OptimizationStopReason, RAGChunk, RAGContext
+from core.rag.orchestration import retrieve_and_validate_rag
 from core.rag.philosophy_pipeline import PipelineResult
 from core.rag.recursive_retrieval import retrieve_recursive_context_structured
 from core.rag.validation import ValidationResult
@@ -1000,3 +1002,60 @@ def test_hop_vector_cache_disabled_when_optimization_flag_off(
 
     assert result.optimization_stats is None
     assert calls["n"] == 3
+
+
+@pytest.mark.asyncio
+async def test_recursive_nonvalidated_path_never_emits_knowledge_candidates(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Recursive request-local memoization must remain optimization-only."""
+    import core.rag.recursive_retrieval as recursive
+
+    monkeypatch.setattr(recursive, "MAX_RAG_HOPS", 3)
+    monkeypatch.setattr(recursive, "MAX_REFINEMENT_PASSES", 5)
+    monkeypatch.setattr(recursive, "MAX_VERIFICATION_QUERIES", 0)
+    monkeypatch.setattr(recursive, "MIN_CONFIDENCE_GAIN_PER_HOP", -1.0)
+
+    calls = {"n": 0}
+
+    def _fake_retrieve(query: str, **_: Any) -> RAGContext:
+        calls["n"] += 1
+        return _ctx(
+            query,
+            [
+                RAGChunk(
+                    chunk_id=f"doc-{len(query)}",
+                    file="doc.md",
+                    content=f"fiber vegetables nutrition guidance token{len(query)}",
+                    score=0.7,
+                )
+            ],
+            confidence=0.7,
+        )
+
+    monkeypatch.setattr("core.rag.vector_rag.retrieve_context_structured", _fake_retrieve)
+    monkeypatch.setattr(recursive, "_refine_query", lambda current, *_args, **_kwargs: current)
+
+    result = await retrieve_and_validate_rag(
+        "first",
+        philo_validation_enabled=False,
+        recursive_rag_enabled=True,
+        optimization_enabled=True,
+        subject_id=42,
+        knowledge_policy=KnowledgePolicy(
+            enabled=True,
+            allow_reads=True,
+            allow_promotion=True,
+            min_confidence=0.7,
+            require_rag_factual_route=True,
+            deny_degraded_reasons=("retrieval_empty", "all_chunks_filtered"),
+            subject_scope_required=True,
+            rail="product_ai_runtime",
+        ),
+    )
+
+    assert calls["n"] >= 1
+    assert result.recursive_executed is True
+    assert result.rag_actually_used is True
+    assert result.knowledge_candidates == []
+    assert result.knowledge_candidates_canonical is False

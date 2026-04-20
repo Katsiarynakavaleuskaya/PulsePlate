@@ -12,12 +12,14 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Callable, Mapping
 
+from core.knowledge.policy import KnowledgePolicy
 from core.insight.llm_provider_loader import (
     LLMProvider,
     LLMProviderFactory,
     load_llm_get_provider,
 )
-from core.insight.philosophical_runtime import PhilosophicalRuntime, RouteDecision
+from core.insight.philosophical_runtime import PhilosophicalRuntime, RouteDecision, RouteType
+from core.rag.contracts import RAGDegradedReason
 
 
 class InsightProviderLoadError(RuntimeError):
@@ -44,6 +46,7 @@ class PreparedInsightRuntime:
     decision: RouteDecision
     provider: LLMProvider
     transparency_notice: InsightTransparencyNotice
+    knowledge_policy: KnowledgePolicy
 
 
 class DirectInsightProviderStub:
@@ -177,9 +180,29 @@ def prepare_insight_runtime(
         provider_factory = direct_provider_factory or DirectInsightProviderStub
         provider = provider_factory()
 
+    knowledge_policy = _build_default_knowledge_policy(decision=decision)
+
     return PreparedInsightRuntime(
         runtime=runtime,
         decision=decision,
         provider=provider,
         transparency_notice=transparency_notice,
+        knowledge_policy=knowledge_policy,
+    )
+
+
+def _build_default_knowledge_policy(*, decision: RouteDecision) -> KnowledgePolicy:
+    """Build the canonical runtime knowledge policy from the route decision."""
+
+    route_type_value = getattr(decision.route_type, "value", decision.route_type)
+    allow_knowledge = route_type_value == RouteType.RAG_FACTUAL.value
+    return KnowledgePolicy(
+        enabled=allow_knowledge,
+        allow_reads=allow_knowledge,
+        allow_promotion=allow_knowledge,
+        min_confidence=0.7,
+        require_rag_factual_route=True,
+        deny_degraded_reasons=tuple(reason.value for reason in RAGDegradedReason),
+        subject_scope_required=True,
+        rail="product_ai_runtime",
     )

@@ -6,6 +6,9 @@ EN: Application service for the /insight execution path.
 
 from __future__ import annotations
 
+import asyncio
+import inspect
+import logging
 import os
 from collections.abc import Callable
 from typing import Any
@@ -22,10 +25,14 @@ from app.utils.feature_flags import (
     is_recursive_rag_enabled,
 )
 from core.ai.insight_runtime import InsightTransparencyNotice
+from core.knowledge.contracts import KnowledgeFactCandidate
+from core.knowledge.store import KnowledgeStore
 from core.insight.llm_provider_loader import LLMProvider
 from core.ai import prepare_insight_runtime
 
 INSIGHT_TEXT_MAX_LENGTH = 2000
+KNOWLEDGE_PROMOTION_TIMEOUT_SECONDS = 0.25
+logger = logging.getLogger(__name__)
 
 
 def _ensure_insight_text_length(prompt_text: str) -> str:
@@ -56,6 +63,40 @@ def _resolve_effective_provider_name(
     return runtime_provider_name
 
 
+async def _maybe_promote_knowledge_candidates(
+    *,
+    knowledge_store: KnowledgeStore | None,
+    candidates: list[KnowledgeFactCandidate],
+) -> None:
+    """Best-effort promotion must never break the user response path."""
+
+    if knowledge_store is None or not candidates:
+        return
+
+    try:
+        # RU: Даже синхронный store должен идти вне response path и под тем же timeout.
+        # EN: Even sync stores must run off the response path and under the same timeout.
+        promote_result = await asyncio.wait_for(
+            asyncio.to_thread(knowledge_store.promote, candidates),
+            timeout=KNOWLEDGE_PROMOTION_TIMEOUT_SECONDS,
+        )
+        if inspect.isawaitable(promote_result):
+            await asyncio.wait_for(
+                promote_result,
+                timeout=KNOWLEDGE_PROMOTION_TIMEOUT_SECONDS,
+            )
+    except asyncio.TimeoutError:
+        logger.warning(
+            "Knowledge promotion timed out; response path continues without persistence",
+            exc_info=True,
+        )
+    except Exception:
+        logger.warning(
+            "Knowledge promotion failed; response path continues without persistence",
+            exc_info=True,
+        )
+
+
 async def execute_insight_request(
     req: Any,
     *,
@@ -66,6 +107,7 @@ async def execute_insight_request(
     provider_loader: Callable[[], LLMProvider | None],
     transparency_loader: Callable[[], tuple[str, str] | InsightTransparencyNotice],
     direct_provider_factory: Callable[[], LLMProvider] | None = None,
+    knowledge_store: KnowledgeStore | None = None,
     response_factory: Callable[..., Any],
     source_item_factory: Callable[..., Any],
 ) -> Any:
@@ -100,9 +142,14 @@ async def execute_insight_request(
         philosophy_phase12_enabled=is_philosophy_phase12_enabled(),
         philosophy_linguistic_enabled=philosophy_linguistic_enabled,
         philosophy_pragmatic_enabled=is_philosophy_pragmatic_enabled(),
+        knowledge_policy=prepared_runtime.knowledge_policy,
         route_path=route_path,
         route_type=prepared_runtime.decision.route_type.value,
         user_tier=user_tier,
+    )
+    await _maybe_promote_knowledge_candidates(
+        knowledge_store=knowledge_store,
+        candidates=list(runtime_result.knowledge_candidates),
     )
     insight_text = runtime_result.insight[:INSIGHT_TEXT_MAX_LENGTH]
     source_items = [source_item_factory(**item) for item in runtime_result.source_dicts]

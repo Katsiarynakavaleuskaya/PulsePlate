@@ -93,6 +93,7 @@ async def _traced_retrieve_and_validate_rag(
     philo_validation_enabled: bool,
     recursive_rag_enabled: bool,
     subject_id: int | None,
+    knowledge_policy: Any,
     user_tier: str,
     route_path: str,
 ) -> Any:
@@ -112,6 +113,7 @@ async def _traced_retrieve_and_validate_rag(
             recursive_rag_enabled=recursive_rag_enabled,
             optimization_enabled=optimization_enabled,
             subject_id=subject_id,
+            knowledge_policy=knowledge_policy,
         )
         set_attributes(span, **{"pulseplate.rag.hops": rag_result.hops})
         return rag_result
@@ -131,6 +133,7 @@ async def generate_traced_insight(
     philosophy_phase12_enabled: bool,
     philosophy_linguistic_enabled: bool,
     philosophy_pragmatic_enabled: bool,
+    knowledge_policy: Any,
     route_path: str,
     route_type: str,
     user_tier: str,
@@ -150,6 +153,7 @@ async def generate_traced_insight(
         philo_validation_enabled: bool,
         recursive_rag_enabled: bool,
         subject_id: int | None,
+        knowledge_policy: Any = None,
     ) -> Any:
         return await _traced_retrieve_and_validate_rag(
             prompt_input,
@@ -157,6 +161,7 @@ async def generate_traced_insight(
             philo_validation_enabled=philo_validation_enabled,
             recursive_rag_enabled=recursive_rag_enabled,
             subject_id=subject_id,
+            knowledge_policy=knowledge_policy,
             user_tier=user_tier,
             route_path=route_path,
         )
@@ -180,6 +185,7 @@ async def generate_traced_insight(
             philosophy_phase12_enabled=philosophy_phase12_enabled,
             philosophy_linguistic_enabled=philosophy_linguistic_enabled,
             philosophy_pragmatic_enabled=philosophy_pragmatic_enabled,
+            knowledge_policy=knowledge_policy,
             rag_retriever=_rag_retriever,
         )
 
