@@ -88,6 +88,58 @@ Reason: The parquet-export fallback no longer binds an unused exception variable
 the CSV fallback behavior remains unchanged.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1484#discussion_r3110456134 -> f9e730981
 
+Disposition: FIXED
+Commit: `f9e730981`
+Evidence: `scripts/evals/run_rag_release_gates.py:1788-1800`
+Reason: This CodeRabbit shell only summarized the single unused parquet-fallback
+exception binding, which is already fixed in the runner.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1484#pullrequestreview-4139720492 -> f9e730981
+
+Disposition: FIXED
+Commit: `e0d463d12`
+Evidence: `.github/workflows/rag-release-gates.yml:5-18,37-43,75-81`
+Reason: The workflow now self-triggers on edits to its own file, sets
+`SERVER_SALT` for both jobs, and uses the repo-level timeout variable through
+`fromJSON(...)` across smoke and weekly/manual jobs.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1484#pullrequestreview-4139765757 -> e0d463d12
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1484#discussion_r3110489329 -> e0d463d12
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1484#discussion_r3110489367 -> e0d463d12
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1484#discussion_r3110489370 -> e0d463d12
+
+Disposition: FIXED
+Commit: `b1320803a`
+Evidence: `.github/workflows/rag-release-gates.yml:37-43`;
+`notebooks/pulseplate_rag_release_gates.ipynb`;
+`scripts/evals/run_rag_release_gates.py:2049-2066`;
+`tests/test_rag_release_gates_runner.py:332-377`
+Reason: The cubic shell findings are now closed: manual dispatch no longer runs
+the smoke lane, the notebook preserves guard-blocked routing decisions, and the
+runner rejects non-positive `sample_size` / `top_k` instead of silently
+degrading the evaluation.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1484#pullrequestreview-4139739953 -> b1320803a
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1484#discussion_r3110469280 -> b1320803a
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1484#discussion_r3110469281 -> b1320803a
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1484#discussion_r3110469284 -> b1320803a
+
+Disposition: FIXED
+Commit: `b1320803a`
+Evidence: `notebooks/pulseplate_rag_release_gates.ipynb`
+Reason: The notebook now matches the runner defaults for
+`support_precision=0.70`, and the dead `answer_norm` assignment is removed.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1484#pullrequestreview-4139863623 -> b1320803a
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1484#discussion_r3110563101 -> b1320803a
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1484#discussion_r3110563123 -> b1320803a
+
+Disposition: FIXED
+Commit: `b95ec5a04`
+Evidence: `docs/evals/PULSEPLATE_RAG_RELEASE_GATES.md:282-289`;
+`scripts/evals/run_rag_release_gates.py:1458-1484`;
+`tests/test_rag_release_gates_runner.py:210-219`
+Reason: Final cleanup for the cubic shell: the notebook execution example now
+writes into the experiment-scoped artifact directory, and the ECE implementation
+keeps the terminal bucket bounded to `[0.9, 1.0]` with regression coverage.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1484#pullrequestreview-4139739953 -> b95ec5a04
+
 ## Merge Readiness
 
 Merge-readiness contract:
@@ -95,15 +147,15 @@ Merge-readiness contract:
 `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md:153-216`.
 
 - [ ] Current-head CI is green for PR branch head
-  Evidence: pending live runs on current head `f9e730981`
+  Evidence: live runs queued/pending on current head `fa9634d3e`
 - [ ] Required checks complete (no pending jobs)
-  Evidence: pending live runs on current head `f9e730981`
+  Evidence: pending required jobs on current head `fa9634d3e`
 - [ ] All review threads resolved on GitHub after disposition updates
-  Evidence: pending final post-push review sweep
+  Evidence: pending final post-push review sweep after current-head bot reruns
 - [ ] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
-  Evidence: pending final CodeRabbit / cubic post-push review sweep
-- [ ] Pre-commit green on latest pushed head
-  Evidence: pending final governance sync on latest pushed head
+  Evidence: pending current-head CodeRabbit / cubic rerun results
+- [x] Pre-commit green on latest pushed head
+  Evidence: local pre-push hooks passed on latest pushed head `fa9634d3e`
 - [ ] `make verify` green on latest pushed head
   Evidence: not yet run for this lane
 
