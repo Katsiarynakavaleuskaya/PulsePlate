@@ -30,13 +30,15 @@ Disposition: DEFERRED
 Backlog: `docs/roadmap/BACKLOG_LEDGER.md#ledger-p2-dependency-fallback-artifact-dedup`
 Reason: Sourcery identified maintainability drift in duplicated fallback version tuples and brittle line-range evidence. That follow-up is valid but intentionally deferred out of the narrow blocker-fix lane for `#1485`.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1485#pullrequestreview-4139931770 -> e1ad74fec
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1485#pullrequestreview-4139931770
 Disposition: FIXED
+Commit: e1ad74fec
 Evidence: `docs/orchestration/DEPENDABOT_PR_1474_TRANSFORMERS_REMEDIATION_PACKET_2026-04-20.md:15-18`
 Reason: cubic found a valid portability issue: the packet embedded a machine-specific absolute worktree path. The canonical packet now uses a portable local worktree slug instead of an absolute filesystem path.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1485#discussion_r3110616657 -> e1ad74fec
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1485#discussion_r3110616657
 Disposition: FIXED
+Commit: e1ad74fec
 Evidence: `docs/orchestration/DEPENDABOT_PR_1474_TRANSFORMERS_REMEDIATION_PACKET_2026-04-20.md:15-18`
 Reason: cubic found the actionable inline review comment for the same packet portability issue; fixed in the same docs-only follow-up commit as the review summary above.
 
