@@ -1790,7 +1790,7 @@ def _write_flat_export(run_dir: Path, traces: Sequence[dict[str, Any]]) -> str:
 
         pd.DataFrame(flat_rows).to_parquet(parquet_path, index=False)
         return str(parquet_path)
-    except Exception as exc:
+    except Exception:
         fieldnames = list(flat_rows[0].keys()) if flat_rows else []
         with csv_path.open("w", encoding="utf-8", newline="") as handle:
             writer = csv.DictWriter(handle, fieldnames=fieldnames)
