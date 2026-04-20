@@ -142,7 +142,8 @@ def _encrypt_api_key(api_key: str, *, secret: str | None = None) -> str:
     """Encrypt API key so cookie payload does not expose raw credential."""
 
     cipher = Fernet(_derive_session_encryption_key(secret))
-    return cipher.encrypt(api_key.encode("utf-8")).decode("ascii")
+    encrypted: bytes = cipher.encrypt(api_key.encode("utf-8"))
+    return encrypted.decode("ascii")
 
 
 def _decrypt_api_key(encrypted_api_key: str, *, secret: str | None = None) -> str | None:
