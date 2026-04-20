@@ -51,6 +51,8 @@ WHITELIST_PARTS = [
     # Uses BMI for nutrition analysis context (not core BMI calculation logic)
     "core/nutrition_bayesian_analyzer.py",
     # NOTE: bodyfat.py NOT whitelisted — guard regex excludes 94.42 via negative lookahead
+    # Vendor submodule: Anthropic cybersecurity skills use 80 for risk scores (0-100), not waist cm
+    "tools/cybersecurity_skills/",
 ]
 
 # Forbidden patterns (domain signatures for BMI math)
@@ -451,8 +453,7 @@ def test_skip_context_does_not_filter_whr_thresholds() -> None:
         ), "WHR threshold with type hint should not be skipped by SKIP_CONTEXT filter"
     finally:
         # Clean up: remove test file
-        if test_file.exists():
-            test_file.unlink()
+        test_file.unlink(missing_ok=True)
 
 
 def test_bmi_thresholds_re_matches_new_whr_thresholds() -> None:

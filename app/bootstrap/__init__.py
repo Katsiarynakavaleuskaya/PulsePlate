@@ -11,5 +11,6 @@ FastAPI app instance (not in legacy_app.py).
 from __future__ import annotations
 
 from app.bootstrap.metrics import metrics_endpoint
+from app.bootstrap.tracing import register_tracing
 
-__all__ = ["metrics_endpoint"]
+__all__ = ["metrics_endpoint", "register_tracing"]

@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>iOS BMI</title>
+    <link rel="stylesheet" href="./styles.css" />
+    <script src="https://mcp.figma.com/mcp/html-to-design/capture.js" async></script>
+  </head>
+  <body>
+    <main class="screen">
+      <div class="status-bar">
+        <span>9:41</span>
+        <span>PulsePlate iOS v2</span>
+      </div>
+
+      <div class="top-row">
+        <span class="screen-label">iOS_BMI</span>
+        <span class="ghost-chip">Body metrics</span>
+      </div>
+
+      <section class="glass-card">
+        <p class="eyebrow">BMI calculator</p>
+        <h1 class="headline">BMI</h1>
+        <p class="subheadline">
+          Быстрый вход в базовые метрики: ввести ключевые значения, получить
+          понятный результат и при необходимости мягко открыть PRO через
+          дополнительный hook, не ломая основной flow.
+        </p>
+        <div class="summary-strip">
+          <span class="summary-pill success">Weight</span>
+          <span class="summary-pill">Height</span>
+          <span class="summary-pill">Age + context</span>
+        </div>
+      </section>
+
+      <section class="glass-card">
+        <div class="section-heading-row">
+          <h2>Input</h2>
+          <span class="row-badge blue">Step 1</span>
+        </div>
+        <div class="form-grid">
+          <div class="field-card">
+            <p class="field-label">Weight (kg)</p>
+            <p class="field-value">70</p>
+            <p class="field-support">Decimal input</p>
+          </div>
+          <div class="field-card">
+            <p class="field-label">Height (cm)</p>
+            <p class="field-value">175</p>
+            <p class="field-support">Decimal input</p>
+          </div>
+          <div class="field-card">
+            <p class="field-label">Age</p>
+            <p class="field-value">30</p>
+            <p class="field-support">Whole number</p>
+          </div>
+          <div class="field-card">
+            <p class="field-label">Gender</p>
+            <div class="field-chip-row">
+              <span class="field-chip">female</span>
+              <span class="field-chip active">male</span>
+            </div>
+          </div>
+          <div class="field-card field-card-full">
+            <p class="field-label">Language</p>
+            <div class="field-chip-row">
+              <span class="field-chip">en</span>
+              <span class="field-chip active">ru</span>
+              <span class="field-chip">es</span>
+            </div>
+          </div>
+        </div>
+        <p class="screen-footer-note">
+          Анатомия формы повторяет реальный экран: сначала поля, потом pickers и только затем CTA.
+        </p>
+      </section>
+
+      <div class="button-stack">
+        <button class="primary-button" type="button">Calculate</button>
+      </div>
+
+      <section class="glass-card">
+        <h2>Result</h2>
+        <div class="status-grid">
+          <div class="status-tile">
+            <p class="status-kicker">BMI</p>
+            <p class="status-value">22.86</p>
+          </div>
+          <div class="status-tile">
+            <p class="status-kicker">Category</p>
+            <p class="status-value"><span class="status-dot"></span>Normal</p>
+          </div>
+        </div>
+        <div class="status-grid single-column compact">
+          <div class="status-tile">
+            <p class="status-kicker">Interpretation</p>
+            <p class="status-value">Healthy range</p>
+            <p class="section-copy">
+              Group: healthy range. The explanation stays readable, calm, and clearly wellness-framed.
+            </p>
+          </div>
+        </div>
+        <div class="scale-card" aria-label="BMI visualization summary">
+          <div class="scale-track">
+            <span class="scale-stop"></span>
+            <span class="scale-stop"></span>
+            <span class="scale-stop active"></span>
+            <span class="scale-stop"></span>
+          </div>
+          <div class="scale-meta">
+            <span>visualization.ranges</span>
+            <span>4 segments</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="glass-card gold-outline">
+        <p class="eyebrow">Optional hook</p>
+        <h2>Более точная интерпретация</h2>
+        <p class="section-copy">
+          BMI не учитывает распределение жира и контекст. Хотите более точную
+          интерпретацию рисков (wellness)?
+        </p>
+        <div class="button-stack">
+          <a class="secondary-button" href="./paywall-pro-vip.html">Открыть PRO</a>
+        </div>
+        <p class="screen-footer-note">Показывается только если backend вернул `soft_paywall`.</p>
+      </section>
+    </main>
+  </body>
+</html>

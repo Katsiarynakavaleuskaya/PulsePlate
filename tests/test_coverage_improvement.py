@@ -39,8 +39,8 @@ class TestCoverageImprovement:
             # This line is covered by the environment setup
             pass
 
-        # Test the root endpoint more thoroughly
-        response = self.client.get("/")
+        # Legacy embedded BMI calculator HTML (canonical path; GET / is JSON probe)
+        response = self.client.get("/legacy/bmi-calculator")
         assert response.status_code == 200
         assert "BMI Calculator" in response.text
 
@@ -99,7 +99,7 @@ class TestCoverageImprovement:
         # Test /insight endpoint with feature explicitly enabled but no provider
         with (
             patch.dict(os.environ, {"FEATURE_INSIGHT": "1"}),
-            patch("llm.get_provider", return_value=None),
+            patch("llm.get_insight_provider", return_value=None),
         ):
             response = self.client.post("/insight", json={"text": "test"}, headers=self.vip_headers)
             assert response.status_code == 503

@@ -7,7 +7,7 @@ Targets ~40 lines in update_manager.py (15% coverage) and unified_db.py (19% cov
 import json
 import tempfile
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from core.food_apis.update_manager import DatabaseUpdateManager, UpdateResult
@@ -274,27 +274,36 @@ class TestFoodAPIsUpdatePipeline:
     @pytest.mark.asyncio
     async def test_update_usda_database_no_force_same_checksum(self, update_manager):
         """Test _update_usda_database with same checksum, no force (line 308)."""
-        # Mock current version with same checksum
-        current_version = type(
-            "Version", (), {"checksum": "same_checksum_123", "timestamp": "2023-01-01T00:00:00Z"}
-        )()
+        from core.food_apis.update_manager import DatabaseVersion
 
-        with patch.object(update_manager, "_load_versions", return_value={"usda": current_version}):
-            with patch("core.food_apis.update_manager.USDAClient") as mock_usda:
-                mock_usda.return_value.get_all_foods.return_value = []
+        current_version = DatabaseVersion(
+            source="usda",
+            version="20230101_000000",
+            last_updated="2023-01-01T00:00:00Z",
+            record_count=1,
+            checksum="same_checksum_123",
+            metadata={},
+        )
+        update_manager.versions["usda"] = current_version
 
-                # Mock checksum calculation to return same value
-                with patch("core.food_apis.update_manager.hashlib.sha256") as mock_hash:
-                    mock_hash.return_value.hexdigest.return_value = "same_checksum_123"
-
+        with patch.object(
+            update_manager.unified_db,
+            "get_common_foods_database",
+            return_value={},
+        ):
+            with patch.object(
+                update_manager,
+                "_calculate_checksum",
+                return_value="same_checksum_123",
+            ):
+                with patch.object(update_manager, "_create_backup", new=AsyncMock()) as mock_backup:
                     result = await update_manager._update_usda_database(force=False)
 
-                    # Should skip update due to same checksum (or fail gracefully if API rate limited)
-                    assert result is not None
-                    assert isinstance(result.success, bool)
-                    # If successful, should have 0 records updated (same checksum)
-                    if result.success:
-                        assert result.records_updated == 0
+        assert result is not None
+        assert result.success is True
+        assert result.new_version == current_version.version
+        assert result.records_updated == 0
+        mock_backup.assert_awaited_once_with("usda", current_version.version)
 
     @pytest.mark.asyncio
     async def test_update_usda_database_old_data_load_error(

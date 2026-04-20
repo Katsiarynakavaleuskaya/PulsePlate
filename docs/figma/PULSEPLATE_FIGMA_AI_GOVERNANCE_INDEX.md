@@ -7,14 +7,31 @@
 
 ## 1) Purpose
 
-This document is a governance SoT for Figma AI (`Guidelines.md` in Figma Make)
-and a structured index for design execution.
+This document is the governance index for Figma AI (`Guidelines.md` in Figma Make)
+in the `Home + Plate + Progress` slice.
 
-Operational runbook (mandatory):
+It is subordinate to repo code/docs/tests, `docs/figma/README.md`, and the lane
+authority packet; it does not reopen a Code Connect-first delivery path.
 
+Operational runbook for the current lane:
+
+- `docs/figma/README.md`
+- `docs/figma/FIGMA_WEB_IOS_AUTHORITY_RECONCILIATION_PACKET.md`
 - `docs/figma/FIGMA_IMPLEMENTATION_RUNBOOK.md`
+- `docs/figma/PULSEPLATE_V3_DESIGN_SYSTEM_RECONCILIATION.md`
+- `docs/figma/FIGMA_IOS_PROTOTYPE_V2_RECONCILIATION.md`
 - `docs/figma/FIGMA_GIT_PACKS_INDEX.md`
 - `docs/figma/FIGMA_MAKE_SYNC_AUDIT_HPP.md`
+- `docs/figma/FIGMA_AI_HANDOFF_CHECKLIST.md`
+- `docs/figma/FIGMA_AI_INBOX_TEMPLATE.md`
+
+Auxiliary evidence/tooling references for the current lane:
+
+- `docs/figma/FIGMA_CLAWBOT_OPERATING_MODEL.md`
+- `docs/figma/SANDBOX_DESIGN_AGENT_SPEC.md`
+
+Historical reference only for the current lane:
+
 - `docs/figma/FIGMA_CODE_CONNECT_BRIDGE_HPP.md`
 - `docs/figma/FIGMA_DESIGN_URL_NODEID_CAPTURE_HPP.md`
 - `docs/figma/FIGMA_CODE_CONNECT_MAPPING_CANDIDATES_HPP.md`
@@ -221,7 +238,7 @@ Fields:
 - `Platform`
 - `Screen`
 - `State set`
-- `Figma Node ID` (or `TBD`)
+- `Design Review Reference` (tool-neutral; optional Figma node ID when Code Connect is in scope)
 - `Prompt Stub ID`
 - `Status` (`Implemented` / `Partial` / `Missing` / `Blocked by flag`)
 - `Implement Needed`
@@ -246,16 +263,27 @@ Fields:
 - 2026-02-18: Prompt stubs kept template-level by design; no mass final-prompt generation in this phase.
 - 2026-02-18: Added operational runbook + Git packs index as mandatory context layer.
 - 2026-02-18: Added deep-link to CTA visual-system and trend forecast SoT for variant decisions.
-- 2026-02-18: Added Make sync audit + Code Connect bridge layer for existing-site integration.
+- 2026-02-18: Added Make sync audit and retained the older Code Connect bridge docs as historical-reference context for the earlier existing-site integration lane.
 
-## 11) Make Sync + Code Connect Operations
+## 11) Current Repo-First Execution Path
 
-Use these artifacts as mandatory operational layer:
+Use this order as the active operational layer for the current lane:
 
-1. `docs/figma/FIGMA_MAKE_SYNC_AUDIT_HPP.md` for reconciliation findings.
-2. `docs/figma/FIGMA_CODE_CONNECT_BRIDGE_HPP.md` for activation flow and blocker protocol.
-3. `docs/figma/FIGMA_DESIGN_URL_NODEID_CAPTURE_HPP.md` for Design URL + P0 node capture.
-4. `docs/figma/FIGMA_CODE_CONNECT_MAPPING_CANDIDATES_HPP.md` for 23 CTA map readiness.
+1. repo code/docs/tests plus `docs/figma/README.md` for the delivery model
+2. `docs/figma/FIGMA_WEB_IOS_AUTHORITY_RECONCILIATION_PACKET.md` plus the relevant lane-specific reconciliation packet (`docs/figma/PULSEPLATE_V3_DESIGN_SYSTEM_RECONCILIATION.md` for web `v3`, `docs/figma/FIGMA_IOS_PROTOTYPE_V2_RECONCILIATION.md` for iOS `v2`)
+3. `docs/figma/FIGMA_IMPLEMENTATION_RUNBOOK.md` and `docs/figma/FIGMA_GIT_PACKS_INDEX.md` for context refresh and source precedence
+4. `docs/figma/FIGMA_MAKE_SYNC_AUDIT_HPP.md` and other reference evidence for drift review only
+5. `docs/figma/FIGMA_AI_INBOX_TEMPLATE.md`, `docs/figma/FIGMA_AI_HANDOFF_CHECKLIST.md`, and `docs/design/LUXURY_UI_REVIEW_CHECKLIST.md` for request intake, handoff, and QA
 
-RU (critical): без Design URL/node IDs все строки остаются `blocked_by_design_url`; не подставлять фиктивные node-id.
+Current execution path for this lane is repo SoT -> authority packet / relevant reconciliation packet -> audit/reference evidence -> inbox/checklist / QA, without Code Connect activation.
+
+Historical reference only for this lane:
+
+1. `docs/figma/FIGMA_CODE_CONNECT_BRIDGE_HPP.md`
+2. `docs/figma/FIGMA_DESIGN_URL_NODEID_CAPTURE_HPP.md`
+3. `docs/figma/FIGMA_CODE_CONNECT_MAPPING_CANDIDATES_HPP.md`
+
+If a future coordinator-owned packet explicitly reopens the historical Code Connect path, those docs can be used for that scoped task only.
+
+RU (critical): не подставлять фиктивные node-id или legacy blocker-статусы для текущего repo-first lane.
 <!-- markdownlint-enable MD013 -->

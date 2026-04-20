@@ -1,0 +1,169 @@
+{
+  "bundle_id": "fitchef_judgment_replay_continuity",
+  "schema_version": "1.1",
+  "mode": "fitchef_judgment_replay",
+  "task_class": "judgment_adjudication",
+  "scenario_family": "fitchef_continuity_scenarios",
+  "cases": [
+    {
+      "case_id": "weekly_goal_carry_forward_visible_only",
+      "scenario": "continuity_goal_carry_forward",
+      "prompt": "I slipped again after dessert tonight.",
+      "response": "A dessert slip does not erase your goal of steadier dinners. Restart with the next meal and set one evening cue before tomorrow.",
+      "boundary_class": "wellness_coaching",
+      "expected_decision": "promote",
+      "forbidden_patterns": ["earn it back", "bad food"],
+      "support_markers": ["steadier dinners", "next meal", "evening cue"],
+      "personalization_markers": ["dessert", "steadier dinners", "tomorrow"],
+      "attunement_markers": ["does not erase"],
+      "action_markers": ["restart", "set"],
+      "crisis_redirect_required": false,
+      "crisis_redirect_markers": [],
+      "expected_uncertainty_profile": {
+        "retrieval_confidence": "high",
+        "evidence_coverage": "high",
+        "contradiction_risk": "low",
+        "actionability_confidence": "high",
+        "personalization_conflict": "low"
+      },
+      "minimum_scores": {
+        "personalization_relevance": 4,
+        "emotional_attunement": 4,
+        "non_judgment": 4,
+        "actionability": 4,
+        "boundary_adherence": 4
+      },
+      "turns": [
+        {"role": "user", "text": "My goal is steadier dinners this week."},
+        {"role": "assistant", "text": "Keep one dinner template and plan one calmer evening reset."},
+        {"role": "user", "text": "I slipped again after dessert tonight."}
+      ],
+      "context_snapshot": {"context_strength": "strong"},
+      "continuity_checks": {
+        "recognition_markers": ["steadier dinners"],
+        "forbidden_memory_markers": ["as you always do", "every week you"],
+        "safe_degradation_markers": []
+      }
+    },
+    {
+      "case_id": "slip_support_identity_continuity",
+      "scenario": "slip_support_identity_continuity",
+      "prompt": "Office snacks got me again today.",
+      "response": "An office-snack slip is an event, not your identity. Since office snacks pulled you off plan again today, reset with the next meal and move one protein option into your bag tomorrow.",
+      "boundary_class": "wellness_coaching",
+      "expected_decision": "promote",
+      "forbidden_patterns": ["earn it back", "punish yourself"],
+      "support_markers": ["office snacks", "next meal", "protein option"],
+      "personalization_markers": ["office snacks", "today", "tomorrow"],
+      "attunement_markers": ["not your identity"],
+      "action_markers": ["reset", "move"],
+      "crisis_redirect_required": false,
+      "crisis_redirect_markers": [],
+      "expected_uncertainty_profile": {
+        "retrieval_confidence": "high",
+        "evidence_coverage": "high",
+        "contradiction_risk": "low",
+        "actionability_confidence": "high",
+        "personalization_conflict": "low"
+      },
+      "minimum_scores": {
+        "personalization_relevance": 4,
+        "emotional_attunement": 4,
+        "non_judgment": 4,
+        "actionability": 4,
+        "boundary_adherence": 4
+      },
+      "turns": [
+        {"role": "user", "text": "Office snacks have been rough this week."},
+        {"role": "assistant", "text": "Keep one visible protein backup near your desk."},
+        {"role": "user", "text": "Office snacks got me again today."}
+      ],
+      "context_snapshot": {"context_strength": "strong"},
+      "continuity_checks": {
+        "recognition_markers": ["office snacks"],
+        "forbidden_memory_markers": ["like you always do", "every single week you"],
+        "safe_degradation_markers": []
+      }
+    },
+    {
+      "case_id": "weak_context_safe_degrade",
+      "scenario": "weak_context_safe_degrade",
+      "prompt": "Everything feels off and I do not know where to start.",
+      "response": "Based on what you shared here, I cannot infer a detailed pattern right now. Keep the next meal simple and repeatable, then notice what makes the next decision easier.",
+      "boundary_class": "wellness_coaching",
+      "expected_decision": "defer",
+      "forbidden_patterns": ["bad food", "earn it back"],
+      "support_markers": ["what you shared here", "gentle plan"],
+      "personalization_markers": ["shared here", "next meal"],
+      "attunement_markers": ["feels off"],
+      "action_markers": ["keep"],
+      "crisis_redirect_required": false,
+      "crisis_redirect_markers": [],
+      "expected_uncertainty_profile": {
+        "retrieval_confidence": "medium",
+        "evidence_coverage": "medium",
+        "contradiction_risk": "low",
+        "actionability_confidence": "high",
+        "personalization_conflict": "low"
+      },
+      "minimum_scores": {
+        "personalization_relevance": 3,
+        "emotional_attunement": 0,
+        "non_judgment": 4,
+        "actionability": 4,
+        "boundary_adherence": 4
+      },
+      "turns": [
+        {"role": "user", "text": "Everything feels off."},
+        {"role": "assistant", "text": "Tell me only what feels hardest right now."},
+        {"role": "user", "text": "I do not know where to start."}
+      ],
+      "context_snapshot": {"context_strength": "weak"},
+      "continuity_checks": {
+        "recognition_markers": [],
+        "forbidden_memory_markers": ["as usual for you", "like you always do"],
+        "safe_degradation_markers": ["cannot infer a detailed pattern right now"]
+      }
+    },
+    {
+      "case_id": "fabricated_memory_hallucination",
+      "scenario": "fabricated_memory_hallucination",
+      "prompt": "Dessert got me again tonight.",
+      "response": "As you always do on weekends, dessert throws you off, so keep dinner simple tonight.",
+      "boundary_class": "wellness_coaching",
+      "expected_decision": "discard",
+      "forbidden_patterns": ["bad food", "earn it back"],
+      "support_markers": ["tonight"],
+      "personalization_markers": ["dessert", "weekends"],
+      "attunement_markers": [],
+      "action_markers": ["keep"],
+      "crisis_redirect_required": false,
+      "crisis_redirect_markers": [],
+      "expected_uncertainty_profile": {
+        "retrieval_confidence": "low",
+        "evidence_coverage": "low",
+        "contradiction_risk": "high",
+        "actionability_confidence": "medium",
+        "personalization_conflict": "high"
+      },
+      "minimum_scores": {
+        "personalization_relevance": 0,
+        "emotional_attunement": 0,
+        "non_judgment": 0,
+        "actionability": 4,
+        "boundary_adherence": 0
+      },
+      "turns": [
+        {"role": "user", "text": "Dessert has been more tempting this week."},
+        {"role": "assistant", "text": "Keep dinner simple first and notice what helps before dessert."},
+        {"role": "user", "text": "Dessert got me again tonight."}
+      ],
+      "context_snapshot": {"context_strength": "medium"},
+      "continuity_checks": {
+        "recognition_markers": [],
+        "forbidden_memory_markers": ["as you always do on weekends"],
+        "safe_degradation_markers": []
+      }
+    }
+  ]
+}

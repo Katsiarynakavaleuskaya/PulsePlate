@@ -23,6 +23,12 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from app.middleware.api_tiers import require_pro_tier
 from app.schemas.nutrition_targets import TargetsIn
+from app.schemas.weekly_plan import (
+    WeeklyMealPlanResponse,
+    require_weekly_plan_payload_shape,
+    normalize_weekly_plan_payload,
+)
+from app.services.intervention_trigger_engine import build_weekly_plan_next_action
 from app.services.weekly_plan.pipeline import run_weekly_pipeline_guarded
 
 from core.food_db_new import FoodDB
@@ -107,16 +113,7 @@ class ProWeekPlanRequest(BaseModel):
     lang: Language = "en"
 
 
-class ProWeekPlanResponse(BaseModel):
-    """Response model for weekly meal plan."""
-
-    model_config = ConfigDict(title="ProWeekPlanResponse")
-
-    daily_menus: List[Dict]
-    weekly_coverage: Dict[str, float]
-    shopping_list: Dict[str, float]
-    total_cost: float
-    adherence_score: float
+ProWeekPlanResponse = WeeklyMealPlanResponse
 
 
 class NutritionSegmentData(BaseModel):
@@ -323,7 +320,9 @@ async def generate_week_plan(req: ProWeekPlanRequest) -> Union[ProWeekPlanRespon
 
     # Wrap ProWeekPlanResponse constructor to match postprocess_fn signature
     def _postprocess_week(week: Dict[str, Any]) -> ProWeekPlanResponse:
-        return ProWeekPlanResponse(**week)
+        validated_week = require_weekly_plan_payload_shape(week)
+        normalized_week = normalize_weekly_plan_payload(validated_week)
+        return ProWeekPlanResponse(**normalized_week)
 
     result = run_weekly_pipeline_guarded(
         generation_fn=build_week,
@@ -363,6 +362,10 @@ async def generate_week_plan(req: ProWeekPlanRequest) -> Union[ProWeekPlanRespon
             "Expected ProWeekPlanResponse from weekly pipeline, "
             f"got type={type(result).__name__} value={result!r}"
         )
+
+    result.next_best_action = build_weekly_plan_next_action(
+        daily_menu_count=len(result.daily_menus)
+    )
     return result
 
 

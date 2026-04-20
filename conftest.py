@@ -249,6 +249,8 @@ def production_environment():  # sourcery skip: dict-assign-update-to-union
             "APP_ENV": "production",
             "ALLOW_DEV_API_KEY": "false",
             "API_KEY": "production-secret-key",
+            "PRO_API_KEYS": "test_pro_key",  # nosec B105: deterministic non-production test key (remove-by: 2026-09-30, ref: PR-1052)  # pragma: allowlist secret
+            "VIP_API_KEYS": "test_vip_key",  # nosec B105: deterministic non-production test key (remove-by: 2026-09-30, ref: PR-1052)  # pragma: allowlist secret
             "FEATURE_PREMIUM_NUTRITION": "true",
             "VIP_MODULE_ENABLED": "true",
         }

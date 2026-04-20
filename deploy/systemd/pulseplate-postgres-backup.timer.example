@@ -1,0 +1,14 @@
+# Example systemd timer: daily Postgres backup at 02:15 UTC.
+# Install alongside pulseplate-postgres-backup.service, then:
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now pulseplate-postgres-backup.timer
+
+[Unit]
+Description=Daily PulsePlate Postgres backup
+
+[Timer]
+OnCalendar=*-*-* 02:15:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

@@ -52,10 +52,10 @@ echo ""
 
 # Check for duplicates
 echo "=== Step 1: Check for duplicate env vars ==="
-DUPLICATES=$(grep -nE '^(APP_ENV|ENVIRONMENT|POSTGRES_PASSWORD)=' .env 2>/dev/null | wc -l || echo "0")
-if [ "$DUPLICATES" -gt 3 ]; then
+DUPLICATES=$({ grep -nE '^(APP_ENV|ENVIRONMENT|POSTGRES_DB|POSTGRES_USER|POSTGRES_PASSWORD|DATABASE_URL)=' .env 2>/dev/null || true; } | wc -l | tr -d '[:space:]')
+if [ "$DUPLICATES" -gt 6 ]; then
     echo "⚠️  Found potential duplicates in .env"
-    grep -nE '^(APP_ENV|ENVIRONMENT|POSTGRES_PASSWORD)=' .env || true
+    grep -nE '^(APP_ENV|ENVIRONMENT|POSTGRES_DB|POSTGRES_USER|POSTGRES_PASSWORD|DATABASE_URL)=' .env || true
 fi
 echo ""
 
@@ -67,10 +67,34 @@ fi
 
 # Clean and set env vars
 echo "=== Step 2: Clean and set environment variables ==="
-sed -i '/^APP_ENV=/d;/^ENVIRONMENT=/d;/^POSTGRES_PASSWORD=/d' .env 2>/dev/null || true
-printf "\nAPP_ENV=production\nENVIRONMENT=production\nPOSTGRES_PASSWORD=dummy\n" >> .env  # pragma: allowlist secret
-echo "✅ Set: APP_ENV=production, ENVIRONMENT=production, POSTGRES_PASSWORD=dummy"
+sed -i '/^APP_ENV=/d;/^ENVIRONMENT=/d;/^SUBSCRIPTION_DB_ENABLED=/d;/^ALLOW_DEV_API_KEY=/d;/^API_KEY_REQUIRED=/d' .env 2>/dev/null || true
+{
+    echo ""
+    echo "APP_ENV=production"
+    echo "ENVIRONMENT=production"
+    echo "SUBSCRIPTION_DB_ENABLED=true"
+    echo "ALLOW_DEV_API_KEY=false"
+    echo "API_KEY_REQUIRED=true"
+} >> .env
+echo "✅ Set: APP_ENV=production, ENVIRONMENT=production, SUBSCRIPTION_DB_ENABLED=true, ALLOW_DEV_API_KEY=false, API_KEY_REQUIRED=true"
 echo ""
+
+echo "=== Step 2.1: Validate required Postgres env ==="
+for key in DATABASE_URL POSTGRES_DB POSTGRES_USER POSTGRES_PASSWORD; do
+    if ! grep -qE "^${key}=" .env 2>/dev/null; then
+        echo "❌ Missing required env var: ${key}"
+        exit 1
+    fi
+done
+
+DATABASE_URL_VALUE="$(grep '^DATABASE_URL=' .env | tail -1 | cut -d'=' -f2- | tr -d '\r\n')"
+case "$DATABASE_URL_VALUE" in
+    postgresql+psycopg://*) echo "✅ DATABASE_URL uses Postgres DSN" ;;
+    *)
+        echo "❌ DATABASE_URL must use canonical Postgres DSN (postgresql+psycopg://...)"
+        exit 1
+        ;;
+esac
 
 # Validate compose
 echo "=== Step 3: Validate compose file ==="
@@ -138,9 +162,13 @@ echo ""
 
 # Check health
 echo "=== Step 8: Health check ==="
-PUBLIC_DOMAIN=$(grep PRODUCTION_DOMAIN .env 2>/dev/null | cut -d'=' -f2 | tr -d '\n\r' || echo "pulseplate.app")
-echo "Checking: https://${PUBLIC_DOMAIN}/health"
-curl -fsS "https://${PUBLIC_DOMAIN}/health" | jq . 2>/dev/null || curl -fsS "https://${PUBLIC_DOMAIN}/health" || echo "⚠️  Health check failed"
+PUBLIC_DOMAIN=$(grep '^PRODUCTION_DOMAIN=' .env 2>/dev/null | tail -1 | cut -d'=' -f2- | tr -d '\n\r' || echo "pulseplate.app")
+echo "Checking: https://${PUBLIC_DOMAIN}/ready"
+if command -v jq >/dev/null 2>&1; then
+    curl -fsS "https://${PUBLIC_DOMAIN}/ready" | jq . 2>/dev/null || echo "⚠️  Health check failed"
+else
+    curl -fsS "https://${PUBLIC_DOMAIN}/ready" || echo "⚠️  Health check failed"
+fi
 echo ""
 
 echo "=========================================="
@@ -151,4 +179,4 @@ echo "Expected results:"
 echo "  - Caddy image: caddy:2.10.2 (or latest)"
 echo "  - APP_ENV: production"
 echo "  - ENVIRONMENT: production"
-echo "  - Health endpoint: environment='production'"
+echo "  - Readiness endpoint: environment='production'"

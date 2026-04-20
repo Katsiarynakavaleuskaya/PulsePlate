@@ -102,3 +102,41 @@ def test_design_guard_rejects_palette_drift_in_locked_state(tmp_path: Path) -> N
 
     assert result.returncode == 1
     assert "palette drift" in result.stdout
+
+
+def test_design_guard_rejects_missing_allowed_palette_color_in_token_source(
+    tmp_path: Path,
+) -> None:
+    _write(
+        tmp_path / "frontend/src/styles/tokens.css",
+        ":root { --pp-navy: #102A43; --pp-blue: #3B82F6; }\n",
+    )
+
+    manifest = {
+        "manifest_version": "1.0",
+        "contract_status": "bootstrap",
+        "token_source": "frontend/src/styles/tokens.css",
+        "allowed_palette_hex": ["#102A43", "#20C997"],
+        "core_lock": {
+            "path": "assets/brand/icon/core/v1.0/icon_core_v1.svg",
+            "svg_sha256": "",
+            "version": "v1.0",
+            "lock_type": "L4",
+            "figma_url": "",
+            "node_id": "",
+        },
+        "exports": [],
+    }
+    manifest_path = tmp_path / "docs/design/figma-manifest.json"
+    _write(manifest_path, json.dumps(manifest, indent=2))
+
+    result = subprocess.run(
+        [sys.executable, str(SCRIPT_PATH), "--manifest", "docs/design/figma-manifest.json"],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 1
+    assert "token drift" in result.stdout

@@ -10,8 +10,8 @@ default ignore := false
 # - CI enforces a single file-level expiry (exactly one "Suppression expires: YYYY-MM-DD" per policy file)
 #
 # Suppression expires: 2026-05-27 (manual removal)
-# Last reviewed: 2026-02-27
-# Documented in: docs/security/CVE-2026-0915-glibc.md, docs/security/CVE-2025-15281-glibc.md, docs/security/CVE-2026-27171-zlib1g.md, docs/security/CVE-2026-3184-util-linux.md, docs/security/CVE-2025-14831-gnutls.md
+# Last reviewed: 2026-04-02
+# Documented in: docs/security/CVE-2026-0915-glibc.md, docs/security/CVE-2026-4046-glibc.md, docs/security/CVE-2025-15281-glibc.md, docs/security/CVE-2026-27171-zlib1g.md, docs/security/CVE-2026-3184-util-linux.md, docs/security/CVE-2025-14831-gnutls.md, docs/security/CVE-2025-69720-ncurses.md, docs/security/CVE-2026-29111-systemd.md
 
 ignore if {
 	input.VulnerabilityID == "CVE-2026-0915"
@@ -25,6 +25,40 @@ ignore if {
 	input.PkgName == "libc-bin"
 	input.InstalledVersion == "2.36-9+deb12u13"
 	startswith(input.PkgID, "libc-bin@2.36-9+deb12u13")
+}
+
+# CVE-2026-4046 (glibc) - upstream unfixed in Debian bookworm at triage time
+# Review-by: 2026-05-27 (manual removal)
+# Rationale: Trivy code-scanning alerts on main report empty Fixed Version for libc6/libc-bin in the
+#   Debian bookworm base image; repo code cannot patch glibc in the upstream image layer
+# Monitor: https://security-tracker.debian.org/tracker/CVE-2026-4046
+# Documented in: docs/security/CVE-2026-4046-glibc.md
+# Removal condition: Remove when Debian bookworm publishes a fixed glibc package line or Trivy metadata includes Fixed Version
+
+cve_2026_4046_version := "2.36-9+deb12u13"
+
+cve_2026_4046_pkg_match if {
+	glibc_pkgs := {"libc6", "libc-bin"}
+	glibc_pkgs[input.PkgName]
+}
+
+cve_2026_4046_version_match if {
+	input.InstalledVersion == cve_2026_4046_version
+}
+
+cve_2026_4046_pkgid_match if {
+	startswith(input.PkgID, sprintf("libc6@%s", [cve_2026_4046_version]))
+}
+
+cve_2026_4046_pkgid_match if {
+	startswith(input.PkgID, sprintf("libc-bin@%s", [cve_2026_4046_version]))
+}
+
+ignore if {
+	input.VulnerabilityID == "CVE-2026-4046"
+	cve_2026_4046_pkg_match
+	cve_2026_4046_version_match
+	cve_2026_4046_pkgid_match
 }
 
 # CVE-2025-15281 (glibc) - upstream unfixed in GitHub runner base image
@@ -133,4 +167,76 @@ ignore if {
 	input.VulnerabilityID == "CVE-2026-3184"
 	cve_2026_3184_pkg_match
 	cve_2026_3184_version_match
+}
+
+# CVE-2026-29111 (systemd family) - upstream unfixed in Debian bookworm
+# Review-by: 2026-05-27 (manual removal)
+# Rationale: Debian bookworm remains vulnerable; fix is published only in forky/sid at triage time
+# Monitor: https://security-tracker.debian.org/tracker/CVE-2026-29111
+# Documented in: docs/security/CVE-2026-29111-systemd.md
+# Removal condition: Remove when Debian bookworm publishes a fixed systemd package line or Trivy metadata includes Fixed Version
+
+cve_2026_29111_version := "252.38-1~deb12u1"
+
+cve_2026_29111_pkg_match if {
+	systemd_pkgs := {"libsystemd0", "libudev1"}
+	systemd_pkgs[input.PkgName]
+}
+
+cve_2026_29111_version_match if {
+	input.InstalledVersion == cve_2026_29111_version
+}
+
+cve_2026_29111_pkgid_match if {
+	startswith(input.PkgID, sprintf("libsystemd0@%s", [cve_2026_29111_version]))
+}
+
+cve_2026_29111_pkgid_match if {
+	startswith(input.PkgID, sprintf("libudev1@%s", [cve_2026_29111_version]))
+}
+
+ignore if {
+	input.VulnerabilityID == "CVE-2026-29111"
+	cve_2026_29111_pkg_match
+	cve_2026_29111_version_match
+	cve_2026_29111_pkgid_match
+}
+
+# CVE-2025-69720 (ncurses family) - upstream unfixed in Debian bookworm
+# Review-by: 2026-05-27 (manual removal)
+# Rationale: Debian bookworm remains vulnerable; fix is published only in forky/sid at triage time
+# Monitor: https://security-tracker.debian.org/tracker/CVE-2025-69720
+# Documented in: docs/security/CVE-2025-69720-ncurses.md
+# Removal condition: Remove when Debian bookworm publishes a fixed ncurses package or Trivy metadata includes Fixed Version
+
+cve_2025_69720_pkg_match if {
+	ncurses_pkgs := {"libncursesw6", "libtinfo6", "ncurses-base", "ncurses-bin"}
+	ncurses_pkgs[input.PkgName]
+}
+
+cve_2025_69720_version_match if {
+	input.InstalledVersion == "6.4-4"
+}
+
+cve_2025_69720_pkgid_match if {
+	startswith(input.PkgID, "libncursesw6@6.4-4")
+}
+
+cve_2025_69720_pkgid_match if {
+	startswith(input.PkgID, "libtinfo6@6.4-4")
+}
+
+cve_2025_69720_pkgid_match if {
+	startswith(input.PkgID, "ncurses-base@6.4-4")
+}
+
+cve_2025_69720_pkgid_match if {
+	startswith(input.PkgID, "ncurses-bin@6.4-4")
+}
+
+ignore if {
+	input.VulnerabilityID == "CVE-2025-69720"
+	cve_2025_69720_pkg_match
+	cve_2025_69720_version_match
+	cve_2025_69720_pkgid_match
 }

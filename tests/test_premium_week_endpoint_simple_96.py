@@ -12,6 +12,41 @@ from fastapi.testclient import TestClient
 from app import app
 
 
+def _make_canonical_week_payload() -> dict[str, object]:
+    """Return a weekly-plan payload that matches the public endpoint contract.
+
+    RU: Фейковые build_week ответы должны быть каноническими.
+    EN: Fake build_week responses must use the canonical typed weekly-plan shape.
+    """
+    return {
+        "daily_menus": [
+            {
+                "meals": [
+                    {
+                        "title": "Protein bowl",
+                        "title_translated": "Protein bowl",
+                        "grams": {"serving_g": 420.0},
+                        "kcal": 550.0,
+                        "macros": {"protein_g": 42.0},
+                        "micros": {"iron_mg": 4.2},
+                        "price_est": 8.5,
+                    }
+                ],
+                "kcal": 550.0,
+                "macros": {"protein_g": 42.0},
+                "micros": {"iron_mg": 4.2},
+                "coverage": {"protein": 0.8},
+                "tips": ["Stay hydrated"],
+                "total_cost": 8.5,
+            }
+        ],
+        "weekly_coverage": {"protein": 0.8},
+        "shopping_list": {"apple": 5.0},
+        "total_cost": 25.50,
+        "adherence_score": 0.85,
+    }
+
+
 class TestPremiumWeekEndpointSimple96:
     """Simple tests for premium week endpoint coverage."""
 
@@ -30,13 +65,7 @@ class TestPremiumWeekEndpointSimple96:
             mock_recipedb.return_value = Mock()
 
             # Mock build_week response
-            mock_build_week.return_value = {
-                "daily_menus": [{"breakfast": "test"}],
-                "weekly_coverage": {"protein": 0.8},
-                "shopping_list": {"apple": 5.0},
-                "total_cost": 25.50,
-                "adherence_score": 0.85,
-            }
+            mock_build_week.return_value = _make_canonical_week_payload()
 
             payload = {
                 "sex": "male",
@@ -88,13 +117,7 @@ class TestPremiumWeekEndpointSimple96:
             }
 
             # Mock build_week response
-            mock_build_week.return_value = {
-                "daily_menus": [{"breakfast": "test"}],
-                "weekly_coverage": {"protein": 0.8},
-                "shopping_list": {"apple": 5.0},
-                "total_cost": 25.50,
-                "adherence_score": 0.85,
-            }
+            mock_build_week.return_value = _make_canonical_week_payload()
 
             payload = {
                 "sex": "male",

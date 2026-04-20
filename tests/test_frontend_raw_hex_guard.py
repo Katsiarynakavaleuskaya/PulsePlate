@@ -12,6 +12,7 @@ HEX_RE = re.compile(r"#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-
 ALLOWLIST_FILES = {
     FRONTEND_SRC / "styles" / "tokens.css",
     FRONTEND_SRC / "styles" / "tokens.ts",
+    FRONTEND_SRC / "components" / "marketing" / "marketing-tokens.css",
 }
 ALLOWLIST_NAME_PARTS = (".test.", ".spec.", ".stories.")
 SCAN_EXTENSIONS = {".ts", ".tsx", ".js", ".jsx", ".css"}

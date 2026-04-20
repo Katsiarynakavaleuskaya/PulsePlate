@@ -1,0 +1,10 @@
+# Keep Caddy+SPA image build context small and reproducible (see Dockerfile.caddy-spa).
+node_modules
+dist
+coverage
+.husky
+*.log
+.DS_Store
+.env
+.env.*
+!.env.example

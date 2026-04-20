@@ -3,49 +3,55 @@
 Дополнительные тесты для покрытия llm.py и связанных веток.
 """
 
-import builtins
-import sys
-import types
-from contextlib import contextmanager
-from typing import Optional
+from __future__ import annotations
+
+import logging
+
+import pytest
+
+import llm
 
 
-@contextmanager
-def mock_module(module_name: str, module_obj: types.ModuleType):
-    """Context manager to safely mock sys.modules entries."""
-    orig = sys.modules.get(module_name)
-    sys.modules[module_name] = module_obj
-    try:
-        yield
-    finally:
-        restore_module(module_name, orig)
+class _FailingPerplexityProvider:
+    name = "perplexity"
+
+    def __init__(self, *, endpoint: str, model: str, api_key: str) -> None:
+        self.endpoint = endpoint
+        self.model = model
+        self.api_key = api_key
+
+    async def generate(self, text: str) -> str:
+        raise RuntimeError("perplexity down")
 
 
-def restore_module(module_name: str, original: Optional[types.ModuleType]):
-    """Restore or remove a module from sys.modules."""
-    if original is not None:
-        sys.modules[module_name] = original
-    else:
-        sys.modules.pop(module_name, None)
+class _FailingOllamaProvider:
+    name = "ollama"
+
+    def __init__(
+        self,
+        endpoint: str,
+        model: str,
+        timeout_s: float | None = None,
+        /,
+    ) -> None:
+        self.endpoint = endpoint
+        self.model = model
+        self.timeout_s = timeout_s
+
+    async def generate(self, text: str) -> str:
+        raise RuntimeError("ollama down")
 
 
-@contextmanager
-def clean_llm_import():
-    """Context manager to clean and restore llm module import."""
-    orig_llm = sys.modules.get("llm")
-    if "llm" in sys.modules:
-        del sys.modules["llm"]
-    try:
-        yield
-    finally:
-        restore_module("llm", orig_llm)
+class _FailingPrimaryProvider:
+    name = "primary"
+
+    async def generate(self, text: str) -> str:
+        raise RuntimeError(f"primary failed: {text}")
 
 
-def test__with_name_handles_attribute_error():
-    import llm
-
-    # У некоторых веток llm.py нет вспомогательной функции _with_name
-    # Skip test if _with_name is not available
+def test__with_name_handles_attribute_error() -> None:
+    # У некоторых веток llm.py нет вспомогательной функции _with_name.
+    # Some llm.py revisions do not expose the _with_name helper.
     if not hasattr(llm, "_with_name"):
         assert hasattr(llm, "get_provider")
         return
@@ -54,48 +60,64 @@ def test__with_name_handles_attribute_error():
         __slots__ = ()
 
     obj = NoAttrs()
-    # не падает, покрывает ветку except внутри _with_name
-    res = llm._with_name(obj, "any")  # type: ignore[attr-defined]
+    res = llm._with_name(obj, "any")
     assert res is obj
 
 
-def test_llm_stub_import_alias_path(monkeypatch):
-    """Провоцируем падение импорта StubProvider и успешный импорт Provider as StubProvider."""
-    # Создаём фейковый модуль providers.stub без StubProvider, но с Provider
-    fake = types.ModuleType("providers.stub")
+def test_get_provider_stub_branch(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("LLM_PROVIDER", "stub")
 
-    class Provider:
-        name = "provider"
+    provider = llm.get_provider()
 
-        def generate(self, text: str) -> str:
-            return f"ok:{text}"
-
-    fake.Provider = Provider  # pyright: ignore[reportAttributeAccessIssue]
-
-    with mock_module("providers.stub", fake), clean_llm_import(), monkeypatch.context() as m:
-        m.setenv("LLM_PROVIDER", "stub")
-
-        # Перезагружаем llm, чтобы прошёл путь с import Provider as StubProvider
-        import llm as llm_reloaded  # noqa: F401
-
-        # sanity: получаем провайдера stub и убеждаемся, что generate работает
-        from llm import get_provider  # type: ignore
-
-        p = get_provider()
-        assert p is not None
-        assert hasattr(p, "generate")
-        assert p.name == "stub"
+    assert provider is not None
+    assert getattr(provider, "name", "") == "stub"
 
 
-def test_get_provider_grok_env_block_executes(monkeypatch):
-    """Делаем импорт providers.grok успешным, чтобы пройти код до проверки API-ключа."""
-    mod = types.ModuleType("providers.grok")
+def test_get_provider_ollama_typeerror_posargs_fallback(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class OllamaProvider:
+        name = "ollama"
 
-    class GrokProvider:
-        name = "grok"
+        def __init__(self, endpoint: str, model: str, /) -> None:
+            self.endpoint = endpoint
+            self.model = model
 
-        # позиционно-только — вызов с именованными параметрами приведёт к TypeError
-        def __init__(self, endpoint, model, api_key, /):  # noqa: D401
+        async def generate(self, text: str) -> str:
+            return text
+
+    monkeypatch.setattr(llm, "OllamaProvider", OllamaProvider)
+    monkeypatch.setenv("LLM_PROVIDER", "ollama")
+    monkeypatch.setenv("OLLAMA_ENDPOINT", "http://ollama.local:11434")
+    monkeypatch.setenv("OLLAMA_MODEL", "llama3.1:8b")
+
+    provider = llm.get_provider()
+
+    assert provider is not None
+    assert isinstance(provider, OllamaProvider)
+    assert provider.endpoint == "http://ollama.local:11434"
+    assert provider.model == "llama3.1:8b"
+    assert getattr(provider, "name", "") == "ollama"
+
+
+def test_get_provider_ollama_import_error_fallback(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(llm, "OllamaProvider", None)
+    monkeypatch.setenv("LLM_PROVIDER", "ollama")
+
+    provider = llm.get_provider()
+
+    assert provider is not None
+    assert isinstance(provider, llm.OllamaLiteProvider)
+    assert getattr(provider, "name", "") == "ollama"
+
+
+def test_get_provider_perplexity_with_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
+    class _PerplexityProvider:
+        name = "perplexity"
+
+        def __init__(self, *, endpoint: str, model: str, api_key: str) -> None:
             self.endpoint = endpoint
             self.model = model
             self.api_key = api_key
@@ -103,93 +125,337 @@ def test_get_provider_grok_env_block_executes(monkeypatch):
         async def generate(self, text: str) -> str:
             return text
 
-    mod.GrokProvider = GrokProvider  # pyright: ignore[reportAttributeAccessIssue]
+    monkeypatch.setattr(llm, "PerplexityProvider", _PerplexityProvider)
+    monkeypatch.setenv("LLM_PROVIDER", "perplexity")
+    monkeypatch.setenv("PERPLEXITY_API_KEY", "pplx-key")  # pragma: allowlist secret
+    monkeypatch.setenv("PERPLEXITY_MODEL", "sonar-pro")
+    monkeypatch.setenv("PERPLEXITY_ENDPOINT", "https://api.perplexity.ai")
 
-    with mock_module("providers.grok", mod), monkeypatch.context() as m:
-        # Даём непустой ключ, чтобы пройти до конструктора
-        m.setenv("GROK_API_KEY", "dummy")
-        m.delenv("XAI_API_KEY", raising=False)
-        m.setenv("LLM_PROVIDER", "grok")
+    provider = llm.get_provider()
 
-        from llm import get_provider  # type: ignore
-
-        p = get_provider()
-        # Первая попытка с именованными параметрами падает, вторая (позиционная) — успешна
-        assert p is not None and getattr(p, "name", "") == "grok"
+    assert provider is not None
+    assert isinstance(provider, _PerplexityProvider)
+    assert provider.endpoint == "https://api.perplexity.ai"
+    assert provider.model == "sonar-pro"
+    assert provider.api_key == "pplx-key"  # pragma: allowlist secret
+    assert getattr(provider, "name", "") == "perplexity"
 
 
-def test_get_provider_ollama_typeerror_posargs_fallback(monkeypatch):
-    """Инициализация с именованными аргументами вызывает TypeError, затем успех с позиционными."""
-    mod = types.ModuleType("providers.ollama")
+def test_get_provider_perplexity_without_api_key_uses_lite(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class _PerplexityProvider:
+        name = "perplexity"
 
-    class OllamaProvider:
-        name = "ollama"
-
-        # позиционно-только — именованные параметры вызовут TypeError
-        def __init__(self, endpoint, model, /):  # noqa: D401
+        def __init__(self, *, endpoint: str, model: str, api_key: str) -> None:
             self.endpoint = endpoint
             self.model = model
+            self.api_key = api_key
 
         async def generate(self, text: str) -> str:
             return text
 
-    mod.OllamaProvider = OllamaProvider  # pyright: ignore[reportAttributeAccessIssue]
+    monkeypatch.setenv("LLM_PROVIDER", "perplexity")
+    monkeypatch.delenv("PERPLEXITY_API_KEY", raising=False)
+    monkeypatch.setattr(llm, "PerplexityProvider", _PerplexityProvider)
 
-    with mock_module("providers.ollama", mod), monkeypatch.context() as m:
-        m.setenv("LLM_PROVIDER", "ollama")
+    provider = llm.get_provider()
 
-        from llm import get_provider  # type: ignore
-
-        p = get_provider()
-        assert p is not None and getattr(p, "name", "") == "ollama"
-
-
-def test_get_provider_ollama_import_error_fallback(monkeypatch):
-    """Импорт providers.ollama падает — получаем заглушку под именем ollama."""
-    sys.modules.pop("providers.ollama", None)
-
-    real_import = builtins.__import__
-
-    def fake_import(name, *args, **kwargs):
-        # Move the conditional logic to a helper to reduce complexity in test
-        return handle_fake_import(name, real_import, *args, **kwargs)
-
-    with monkeypatch.context() as m:
-        m.setattr(builtins, "__import__", fake_import)
-        m.setenv("LLM_PROVIDER", "ollama")
-
-        from llm import get_provider  # type: ignore
-
-        p = get_provider()
-        assert p is not None and getattr(p, "name", "") == "ollama"
+    assert provider is not None
+    assert isinstance(provider, llm.PerplexityLiteProvider)
+    assert getattr(provider, "name", "") == "perplexity"
 
 
-def handle_fake_import(name, real_import, *args, **kwargs):
-    """Helper function to handle fake import logic."""
-    if name == "providers.ollama":
-        raise ImportError("simulated")
-    return real_import(name, *args, **kwargs)
+def test_get_provider_perplexity_placeholder_key_uses_lite(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class _PerplexityProvider:
+        name = "perplexity"
+
+        def __init__(self, *, endpoint: str, model: str, api_key: str) -> None:
+            self.endpoint = endpoint
+            self.model = model
+            self.api_key = api_key
+
+        async def generate(self, text: str) -> str:
+            return text
+
+    monkeypatch.setattr(llm, "PerplexityProvider", _PerplexityProvider)
+    monkeypatch.setenv("LLM_PROVIDER", "perplexity")
+    monkeypatch.setenv("PERPLEXITY_API_KEY", "__replace_me__")
+
+    provider = llm.get_provider()
+
+    assert provider is not None
+    assert isinstance(provider, llm.PerplexityLiteProvider)
+    assert getattr(provider, "name", "") == "perplexity"
 
 
-def test_get_provider_grok_missing_api_key_triggers_branch(monkeypatch):
-    """Импорт grok успешен, ключа нет — покрываем ветку raise RuntimeError('no api key')."""
-    mod = types.ModuleType("providers.grok")
+def test_get_insight_provider_none_branch(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("LLM_PROVIDER", "none")
 
-    class GrokProvider:
-        name = "grok"
+    provider = llm.get_insight_provider()
 
-        def __init__(self, *args, **kwargs):
-            pass
+    assert provider is None
 
-    mod.GrokProvider = GrokProvider  # pyright: ignore[reportAttributeAccessIssue]
 
-    with mock_module("providers.grok", mod), monkeypatch.context() as m:
-        m.delenv("GROK_API_KEY", raising=False)
-        m.delenv("XAI_API_KEY", raising=False)
-        m.setenv("LLM_PROVIDER", "grok")
+def test_get_insight_provider_stub_branch(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("LLM_PROVIDER", "stub")
 
-        from llm import get_provider  # type: ignore
+    provider = llm.get_insight_provider()
 
-        p = get_provider()
-        # Возвращается заглушка под именем grok
-        assert p is not None and getattr(p, "name", "") == "grok"
+    assert provider is not None
+    assert isinstance(provider, llm.StubProvider)
+    assert getattr(provider, "name", "") == "stub"
+
+
+def test_get_insight_runtime_readiness_perplexity_chain(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("LLM_PROVIDER", "perplexity")
+
+    readiness = llm.get_insight_runtime_readiness()
+
+    assert readiness["primary_provider"] == "perplexity"
+    assert readiness["fallback_order"] == ["perplexity", "ollama", "stub"]
+    assert readiness["feature_enabled"] is False
+    assert readiness["echo_mode_provider"] is None
+
+
+def test_get_insight_runtime_readiness_ollama_chain(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("LLM_PROVIDER", "ollama")
+
+    readiness = llm.get_insight_runtime_readiness()
+
+    assert readiness["primary_provider"] == "ollama"
+    assert readiness["fallback_order"] == ["ollama", "stub"]
+    assert readiness["feature_enabled"] is False
+    assert readiness["echo_mode_provider"] is None
+
+
+def test_get_insight_runtime_readiness_unknown_provider(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("LLM_PROVIDER", "unknown")
+
+    readiness = llm.get_insight_runtime_readiness()
+
+    assert readiness["primary_provider"] is None
+    assert readiness["fallback_order"] == []
+    assert readiness["feature_enabled"] is False
+    assert readiness["echo_mode_provider"] is None
+
+
+def test_parse_ollama_timeout_below_minimum_defaults_with_warning(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    monkeypatch.setenv("OLLAMA_TIMEOUT", "0.05")
+
+    with caplog.at_level(logging.WARNING):
+        timeout = llm._parse_ollama_timeout()
+
+    assert timeout == 1.5
+    assert any("below minimum" in record.message for record in caplog.records)
+
+
+def test_parse_ollama_timeout_invalid_value_defaults_with_warning(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    monkeypatch.setenv("OLLAMA_TIMEOUT", "not-a-float")
+
+    with caplog.at_level(logging.WARNING):
+        timeout = llm._parse_ollama_timeout()
+
+    assert timeout == 1.5
+    assert any("Invalid OLLAMA_TIMEOUT" in record.message for record in caplog.records)
+
+
+def test_build_ollama_family_provider_uses_lite_after_double_constructor_failure(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    class _BrokenOllamaProvider:
+        name = "ollama"
+
+        def __init__(self, *args: object, **kwargs: object) -> None:
+            raise RuntimeError(f"ctor failed args={args} kwargs={kwargs}")
+
+    monkeypatch.setattr(llm, "OllamaProvider", _BrokenOllamaProvider)
+    monkeypatch.setenv("OLLAMA_ENDPOINT", "http://ollama.local:11434")
+    monkeypatch.setenv("OLLAMA_MODEL", "llama3.1:8b")
+
+    with caplog.at_level(logging.WARNING):
+        provider = llm._build_ollama_family_provider()
+
+    assert isinstance(provider, llm.OllamaLiteProvider)
+    assert any("OllamaProvider construction failed" in record.message for record in caplog.records)
+
+
+def test_build_perplexity_family_provider_uses_lite_when_constructor_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class _BrokenPerplexityProvider:
+        name = "perplexity"
+
+        def __init__(self, *, endpoint: str, model: str, api_key: str) -> None:
+            raise RuntimeError(f"ctor failed: {endpoint}/{model}/{api_key}")
+
+    monkeypatch.setattr(llm, "PerplexityProvider", _BrokenPerplexityProvider)
+    monkeypatch.setenv("PERPLEXITY_API_KEY", "pplx-live-key")  # pragma: allowlist secret
+
+    provider = llm._build_perplexity_family_provider()
+
+    assert isinstance(provider, llm.PerplexityLiteProvider)
+
+
+def test_build_perplexity_family_provider_uses_lite_when_provider_unavailable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(llm, "PerplexityProvider", None)
+    monkeypatch.setenv("PERPLEXITY_API_KEY", "pplx-live-key")  # pragma: allowlist secret
+
+    provider = llm._build_perplexity_family_provider()
+
+    assert isinstance(provider, llm.PerplexityLiteProvider)
+
+
+def test_get_provider_none_branch(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("LLM_PROVIDER", "none")
+
+    provider = llm.get_provider()
+
+    assert provider is None
+
+
+def test_get_provider_unknown_branch_returns_none(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("LLM_PROVIDER", "unknown-provider")
+
+    provider = llm.get_provider()
+
+    assert provider is None
+
+
+def test_get_insight_provider_ollama_branch_wraps_provider_with_stub_fallback(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(llm, "OllamaProvider", None)
+    monkeypatch.setenv("LLM_PROVIDER", "ollama")
+
+    provider = llm.get_insight_provider()
+
+    assert provider is not None
+    assert getattr(provider, "fallback_order", []) == ["ollama", "stub"]
+    assert getattr(provider, "primary_provider_name", "") == "ollama"
+
+
+def test_get_insight_provider_unknown_branch_returns_none(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("LLM_PROVIDER", "unknown-provider")
+
+    provider = llm.get_insight_provider()
+
+    assert provider is None
+
+
+@pytest.mark.asyncio
+async def test_get_provider_perplexity_runtime_falls_back_to_ollama_family(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(llm, "PerplexityProvider", _FailingPerplexityProvider)
+    monkeypatch.setattr(llm, "OllamaProvider", None)
+    monkeypatch.setenv("LLM_PROVIDER", "perplexity")
+    monkeypatch.setenv("PERPLEXITY_API_KEY", "pplx-live-key")  # pragma: allowlist secret
+
+    provider = llm.get_insight_provider()
+
+    assert provider is not None
+    assert getattr(provider, "name", "") == "perplexity"
+    assert getattr(provider, "fallback_order", []) == ["perplexity", "ollama", "stub"]
+
+    out = await provider.generate("ping")
+    assert "ping" in out
+    assert getattr(provider, "active_provider_name", "") == "ollama"
+
+
+@pytest.mark.asyncio
+async def test_get_provider_perplexity_runtime_falls_back_to_stub_when_chain_exhausted(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(llm, "PerplexityProvider", _FailingPerplexityProvider)
+    monkeypatch.setattr(llm, "OllamaProvider", _FailingOllamaProvider)
+    monkeypatch.setenv("LLM_PROVIDER", "perplexity")
+    monkeypatch.setenv("PERPLEXITY_API_KEY", "pplx-live-key")  # pragma: allowlist secret
+
+    provider = llm.get_insight_provider()
+
+    assert provider is not None
+    out = await provider.generate("ping")
+    assert out.startswith("[stub @ ")
+    assert "Insight: ping" in out
+    assert getattr(provider, "active_provider_name", "") == "stub"
+
+
+@pytest.mark.asyncio
+async def test_get_insight_provider_skips_broken_fallback_builder(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    class _FailingPerplexityPrimary:
+        name = "perplexity"
+
+        async def generate(self, text: str) -> str:
+            raise RuntimeError(f"perplexity failed: {text}")
+
+    def _raise_ollama_builder() -> llm.ProviderBase:
+        raise RuntimeError("ollama builder boom")
+
+    monkeypatch.setenv("LLM_PROVIDER", "perplexity")
+    monkeypatch.setattr(
+        llm,
+        "_build_perplexity_family_provider",
+        lambda: _FailingPerplexityPrimary(),
+    )
+    monkeypatch.setattr(llm, "_build_ollama_family_provider", _raise_ollama_builder)
+
+    provider = llm.get_insight_provider()
+
+    assert provider is not None
+    with caplog.at_level(logging.WARNING):
+        out = await provider.generate("ping")
+    assert out.startswith("[stub @ ")
+    assert "Insight: ping" in out
+    assert getattr(provider, "active_provider_name", "") == "stub"
+    assert any("fallback builder 'ollama' failed" in record.message for record in caplog.records)
+
+
+@pytest.mark.asyncio
+async def test_get_provider_keeps_non_insight_factory_without_runtime_chain(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(llm, "PerplexityProvider", _FailingPerplexityProvider)
+    monkeypatch.setenv("LLM_PROVIDER", "perplexity")
+    monkeypatch.setenv("PERPLEXITY_API_KEY", "pplx-live-key")  # pragma: allowlist secret
+
+    provider = llm.get_provider()
+
+    assert provider is not None
+    assert not hasattr(provider, "fallback_order")
+    with pytest.raises(RuntimeError, match="perplexity down"):
+        await provider.generate("ping")
+
+
+@pytest.mark.asyncio
+async def test_decorate_provider_with_fallback_reraises_last_error_without_fallbacks() -> None:
+    provider = llm._decorate_provider_with_fallback(
+        provider=_FailingPrimaryProvider(),
+        primary_name="primary",
+        fallback_builders=[],
+    )
+
+    with pytest.raises(RuntimeError, match="primary failed: ping"):
+        await provider.generate("ping")

@@ -1,7 +1,7 @@
 <!-- markdownlint-disable MD013 -->
 # Executable Design Index (PulsePlate H+P+Pr)
 
-**Date:** 2026-02-24
+**Date:** 2026-03-21
 **Scope:** Home + Plate + Progress (iOS + Web)
 **Status:** Active
 
@@ -20,6 +20,13 @@ python scripts/design/execute_design.py --screen ios.home --validate-only
 
 # Execute a design
 python scripts/design/execute_design.py --screen ios.home --execute
+
+# Execute and emit governed HTML preview from pulseplate_canvas_v1
+# The preview lane auto-selects `code_native_canvas` when needed.
+python scripts/design/execute_design.py --screen ios.home --execute --emit-preview
+
+# Or render preview directly from manifest/canvas artifact
+python scripts/design/html_preview.py --screen ios.home
 
 # Verify all designs
 python scripts/design/verify_design.py --all
@@ -125,6 +132,10 @@ python scripts/design/execute_design.py --screen <screen_id> --execute
 # Verify results
 python scripts/design/verify_design.py --screen <screen_id>
 
+# Generate or refresh HTML preview (no design re-execution)
+# The preview metadata stays repo-relative under artifacts/design_previews/.
+python scripts/design/html_preview.py --screen <screen_id>
+
 # Check manifest
 cat docs/design/figma-manifest.json | jq '.exports'
 
@@ -152,6 +163,7 @@ scripts/design/instructions/
 scripts/design/
 ├── generate_figma_instructions.py  # Generate instructions from docs
 ├── execute_design.py               # Execute via MCP
+├── html_preview.py                 # Derived HTML/browser preview lane
 └── verify_design.py                # Verify created designs
 ```
 
@@ -197,6 +209,9 @@ make design-execute SCREEN=ios.home
 
 # Verify all designs
 make design-verify
+
+# Render derived HTML preview
+make design-preview SCREEN=ios.home
 ```
 
 ## Canonical References
@@ -224,5 +239,6 @@ Recommended order:
 - Actual MCP execution requires Figma MCP connection (see MCP_SETUP_GUIDE.md)
 - Without MCP connection, execution is simulated
 - Manifest tracks both simulated and actual executions
+- HTML preview is derived from `pulseplate_canvas_v1` and remains read-only
 - Audit logs preserved in `docs/figma/execution_logs/`
 <!-- markdownlint-enable MD013 -->

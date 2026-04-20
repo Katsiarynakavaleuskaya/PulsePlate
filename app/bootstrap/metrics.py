@@ -23,6 +23,7 @@ from app.middleware.metrics import metrics_middleware
 logger = logging.getLogger(__name__)
 
 _Importer = Callable[[str], ModuleType]
+_STATE_REGISTRATION_KEY = "pulseplate_metrics_registered"
 
 
 def _import_prometheus_client(importer: _Importer = import_module) -> ModuleType:
@@ -88,10 +89,17 @@ def register_metrics(app: FastAPI) -> None:
     Args:
         app: FastAPI application instance
     """
-    # Starlette forbids adding middleware after the stack is built (first request).
-    # In that case, we must skip registration to avoid runtime errors in tests/teardown.
-    can_mutate = getattr(app, "middleware_stack", None) is None
+    state = getattr(app, "state", None)
+    if state is not None and getattr(state, _STATE_REGISTRATION_KEY, False):
+        return
 
+    # Starlette forbids adding middleware after the stack is built (first request).
+    # In that case, we must skip middleware registration to avoid runtime errors.
+    can_mutate_middleware = getattr(app, "middleware_stack", None) is None
+
+    # Starlette does not expose a public middleware-registry API, so register_metrics()
+    # still checks user_middleware/middleware_stack and keeps an app.state fallback
+    # marker once metrics_middleware is registered.
     # Register middleware last so it becomes outermost (idempotent).
     has_middleware = any(
         mw.cls is BaseHTTPMiddleware
@@ -99,13 +107,19 @@ def register_metrics(app: FastAPI) -> None:
         is metrics_middleware
         for mw in getattr(app, "user_middleware", None) or []
     )
-    if not has_middleware and can_mutate:
+    if not has_middleware and can_mutate_middleware:
         app.middleware("http")(metrics_middleware)
+        has_middleware = True
 
-    # Register /metrics endpoint (idempotent).
+    # Route registration remains safe after the stack is built, which is important
+    # for legacy import-order paths that bootstrap observability late.
     has_metrics_route = any(
         getattr(r, "path", None) == "/metrics" and "GET" in (getattr(r, "methods", None) or set())
         for r in getattr(app, "routes", None) or []
     )
-    if not has_metrics_route and can_mutate:
+    if not has_metrics_route:
         app.add_api_route("/metrics", metrics_endpoint, methods=["GET"], include_in_schema=False)
+        has_metrics_route = True
+
+    if state is not None and has_middleware and has_metrics_route:
+        setattr(state, _STATE_REGISTRATION_KEY, True)

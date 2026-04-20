@@ -24,6 +24,34 @@ Reflect when any occurs:
 - repeat failure (same class ≥2 times)
 - safety boundary risk (wellness-only)
 - budget breach
+- bootstrap envelope vs skill-routing mismatch (for example `message_envelope.mode` is `docs-only` while execution plans or recommended skills imply runtime code change, or `skill_routing.envelope_mode_hint` disagrees with envelope derivation for the same `candidate_paths`)
+
+---
+
+## Bootstrap and routing awareness (local workforce lane)
+
+Coordinator and review agents should treat the canonical task packet as the only orchestration SoT:
+
+- `inputs.message_envelope.mode` (`docs-only` vs `analysis`) is a **derived view** over the same path signals as `skill_routing.envelope_mode_hint` (`docs_only` vs `analysis` in `bootstrap_sync_policy.resolve_analysis_envelope_mode`). Evidence: `scripts/orchestration/task_bootstrap.py:814`, `scripts/orchestration/skill_router.py` (return payload includes `envelope_mode_hint`).
+- When triaging repeat failures or doc/code drift, if routing output and envelope disagree for identical inputs, reflect using the artifact format below and promote a **single** fix: either path normalization, policy doc correction, or deterministic router/bootstrap tests — not ad-hoc parallel contracts.
+
+This section does not authorize a second reflection schema; it extends **when** to reflect for orchestration hygiene.
+
+---
+
+## Post-open PR review reflection (merge governance)
+
+After a PR is opened and automation/humans leave actionable feedback, coordinator-owned work should produce **one** systemic outcome per incident class (KPP), not ad-hoc thread chatter.
+
+Canonical cycle (see `AGENTS.md` / `RUNBOOK_AGENT.md`): **qa-engineer-agent** → **bug-hunter** → when privileged paths are touched (`scripts/ci/**`, `docs/orchestration/**`, `docs/review/**`) → **security-auditor**. Review threads require an explicit disposition (**FIXED** / **NOT-A-BUG** / **DEFERRED**) with evidence; map threads in `docs/review/PR_<N>_FIXED_MAPPING.md` before claiming merge readiness.
+
+Reflect using the artifact format below when:
+
+- the same bot or human finding repeats across PRs (guard drift, mapping hygiene, subprocess/binary path policy),
+- merge-readiness scripts fail for mapping or auth semantics,
+- or post-open review discovered a bootstrap/routing/envelope inconsistency not caught by pre-push checks.
+
+Promotion targets remain a **single** KPP destination (doc, guard test, or backlog item)—never parallel “shadow” checklists outside the canonical mapping artifact.
 
 ---
 
@@ -34,6 +62,7 @@ Reflect when any occurs:
 - **Evidence failure:** claims without `file:line` or reproducible command evidence
 - **Safety boundary:** wellness-only wording violated or ambiguous
 - **Budget breach:** timebox/limits exceeded; recursion/hops unbounded
+- **Routing/envelope mismatch:** docs-only envelope paired with implementation skills, or `envelope_mode_hint` inconsistent with `message_envelope.mode` for the same path set
 
 ---
 

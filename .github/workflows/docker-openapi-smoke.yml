@@ -30,7 +30,12 @@ on:
   workflow_dispatch:
 
 permissions:
+  actions: write
   contents: read
+
+env:
+  PULSEPLATE_PYTHON_INDEX_URL: ${{ secrets.PULSEPLATE_PYTHON_INDEX_URL || vars.PULSEPLATE_PYTHON_INDEX_URL }}
+  PULSEPLATE_PYTHON_TRUSTED_HOST: ${{ secrets.PULSEPLATE_PYTHON_TRUSTED_HOST || vars.PULSEPLATE_PYTHON_TRUSTED_HOST }}
 
 defaults:
   run:
@@ -39,15 +44,40 @@ defaults:
 jobs:
   smoke:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
 
     steps:
       - name: Checkout
-        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Free disk space (Ubuntu hosted runner)
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc || true
+          df -h
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435
 
       - name: Build Docker image
-        run: |
-          docker build -t pulseplate-smoke:${{ github.sha }} .
+        uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7.0.0
+        with:
+          context: .
+          build-args: |
+            PULSEPLATE_PYTHON_INDEX_URL=${{ env.PULSEPLATE_PYTHON_INDEX_URL }}
+            PULSEPLATE_PYTHON_TRUSTED_HOST=${{ env.PULSEPLATE_PYTHON_TRUSTED_HOST }}
+            PULSEPLATE_REQUIREMENTS_FILE=requirements-ci-lite.txt
+          platforms: linux/amd64
+          push: false
+          load: true
+          tags: pulseplate-smoke:${{ github.sha }}
+          # Scope rev suffix: GHA cache can 404 on stale blobs; rotating scope recovers without disabling cache.
+          cache-from: type=gha,scope=docker-openapi-smoke-v2-${{ github.ref_name }}
+          cache-to: type=gha,scope=docker-openapi-smoke-v2-${{ github.ref_name }},mode=min,ignore-error=true
+          # Provenance / SLSA attestations require a registry push; docker exporter + load:true cannot
+          # attach attestations (Docker docs: build CI attestations). Do not enable provenance here
+          # without a separate push-based job — see docs/architecture/ADR_DOCKER_BUILD_PROVENANCE_WORKAROUND_2026-03-01.md.
+          provenance: false
+          target: production
 
       - name: Run container
         run: |
@@ -55,16 +85,25 @@ jobs:
           # Build the env var names dynamically to avoid false positives while still configuring the container.
           api_key_name="API""_KEY"
           allow_dev_api_key_name="ALLOW_DEV_API""_KEY"
+          export_token_secret_name="EXPORT_TOKEN""_SECRET"
           server_salt_name="SERVER""_SALT"
+          apple_shared_secret_name="APPLE_SHARED""_SECRET"
+          subscription_db_enabled_name="SUBSCRIPTION_DB""_ENABLED"
+          database_url_name="DATABASE""_URL"
 
           args=(
             -d
             --rm
             -p 8000:8000
             -e "${api_key_name}=test_key"
-            -e "${server_salt_name}=ci-test-salt"
-            -e APP_ENV=production
-            -e ENVIRONMENT=production
+            -e "${export_token_secret_name}=ci-smoke-export-secret"
+            -e "${server_salt_name}=StrongServerSaltForCI1234567890!"
+            -e "${apple_shared_secret_name}=StrongAppleSharedSecretForCI1234567890!"
+            -e "${subscription_db_enabled_name}=true"
+            # CI smoke is a local/CI contract check, not a production-like runtime.
+            -e "${database_url_name}=sqlite:////app/cache/pulseplate-smoke.db"
+            -e APP_ENV=ci
+            -e ENVIRONMENT=ci
             -e "${allow_dev_api_key_name}=false"
             --name
             pulseplate-smoke

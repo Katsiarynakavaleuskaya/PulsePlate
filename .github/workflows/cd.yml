@@ -12,9 +12,16 @@
 # and secrets: SSH_HOST_STAGING, SSH_USER, SSH_KEY, SSH_HOST_STAGING_FINGERPRINT,
 # STAGING_DOMAIN, GHCR_READ_TOKEN. If unset, only build+push run (no SSH); avoids "ssh: no key found".
 #
-# Production deploy: set PROD_DEPLOY_MODE to 'ssh' or 'self-hosted'. When unset or any other value,
-# deploy jobs are skipped (container images are still built and pushed to GHCR). For PROD_DEPLOY_MODE=ssh
-# configure Environment "production" secrets: SSH_HOST_PRODUCTION, SSH_USER, SSH_KEY, PRODUCTION_DOMAIN, GHCR_READ_TOKEN.
+# Production deploy: set PROD_DEPLOY_MODE to 'ssh' or 'self-hosted'. Production deploy config
+# is resolved inside a small "production-deploy-config" job that reads repository/environment
+# Actions variables via the GitHub API, then the actual deploy jobs gate on those resolved
+# outputs. This avoids both the GitHub Actions footgun where job-level `if:` cannot reliably
+# see environment-scoped vars and the accidental approval gate on build-only tags.
+# Production host bootstrap lock: set PRODUCTION_ENV_READY=true only after the target host
+# already contains the server-local runtime env file ($DEPLOY_DIR/.env, usually
+# /srv/pulseplate-production/.env). GitHub Actions does not create this file.
+# For PROD_DEPLOY_MODE=ssh configure Environment "production" secrets: SSH_HOST_PRODUCTION,
+# SSH_HOST_PRODUCTION_FINGERPRINT, SSH_USER, SSH_KEY, PRODUCTION_DOMAIN, GHCR_READ_TOKEN.
 # See deploy/PRODUCTION.md.
 
 name: CD
@@ -25,6 +32,7 @@ on:
     tags: ['v*']
 
 permissions:
+  actions: read
   contents: read
   packages: write
   id-token: write
@@ -32,11 +40,18 @@ permissions:
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
+  PULSEPLATE_PYTHON_INDEX_URL: ${{ secrets.PULSEPLATE_PYTHON_INDEX_URL || vars.PULSEPLATE_PYTHON_INDEX_URL }}
+  PULSEPLATE_PYTHON_TRUSTED_HOST: ${{ secrets.PULSEPLATE_PYTHON_TRUSTED_HOST || vars.PULSEPLATE_PYTHON_TRUSTED_HOST }}
 
 jobs:
   build:
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    permissions:
+      actions: write
+      contents: read
+      packages: write
+      id-token: write
     environment:
       name: staging
       # Staging domain: pulseplate-staging.duckdns.org (DuckDNS, free DDNS)
@@ -47,7 +62,12 @@ jobs:
       cancel-in-progress: true
     steps:
       - name: Checkout
-        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Free disk space (Ubuntu hosted runner)
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc || true
+          df -h
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435
@@ -65,13 +85,24 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build & Push image (staging)
-        uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25
+        uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7.0.0
         with:
           context: .
+          build-args: |
+            PULSEPLATE_PYTHON_INDEX_URL=${{ env.PULSEPLATE_PYTHON_INDEX_URL }}
+            PULSEPLATE_PYTHON_TRUSTED_HOST=${{ env.PULSEPLATE_PYTHON_TRUSTED_HOST }}
+          # Single-arch for cache/push stability. Restore linux/arm64 when
+          # buildx + GHA cache/provenance path is stable again.
+          platforms: linux/amd64
           push: true
           tags: ${{ env.REGISTRY }}/${{ steps.image-name.outputs.image_name }}:staging-latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=cd-staging-${{ github.ref_name }}
+          cache-to: type=gha,scope=cd-staging-${{ github.ref_name }},mode=min,ignore-error=true
+          # Disable provenance to avoid buildx/GHA cache export failures
+          # ("cache entry no longer exists" / BlobNotFound). Trade-off: SLSA
+          # attestations are disabled, so cosign verify-attestation will fail
+          # for this image until the cache/provenance stack is stable.
+          provenance: false
           # Use dedicated staging target which extends production but allows
           # staging-specific customizations (e.g., debug logging, extended health checks)
           target: staging
@@ -128,7 +159,7 @@ jobs:
         run: |
           set -euo pipefail
           for i in 1 2 3; do
-            if curl -fsS --max-time 10 "https://${{ secrets.STAGING_DOMAIN }}/health" > /dev/null; then
+            if curl -fsS --max-time 10 "https://${{ secrets.STAGING_DOMAIN }}/ready" > /dev/null; then
               echo "Healthcheck passed"
               exit 0
             fi
@@ -144,7 +175,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
 
@@ -164,8 +195,8 @@ jobs:
         run: |
           TAG_COMMIT=$(git rev-parse "${GITHUB_REF#refs/tags/}")
 
-          LAST_NIGHTLY_CONCLUSION=$(gh run list --workflow=nightly.yml --branch=main --limit=1 --json conclusion --jq '.[0].conclusion // "null"')
-          LAST_NIGHTLY_COMMIT=$(gh run list --workflow=nightly.yml --branch=main --limit=1 --json headSha --jq '.[0].headSha // "null"')
+          LAST_NIGHTLY_CONCLUSION=$(gh run list --workflow=nightly-tests.yml --branch=main --limit=1 --json conclusion --jq '.[0].conclusion // "null"')
+          LAST_NIGHTLY_COMMIT=$(gh run list --workflow=nightly-tests.yml --branch=main --limit=1 --json headSha --jq '.[0].headSha // "null"')
 
           if [ "$LAST_NIGHTLY_CONCLUSION" != "success" ] || [ "$LAST_NIGHTLY_CONCLUSION" = "null" ]; then
             echo "❌ Last nightly test did not pass or is missing: $LAST_NIGHTLY_CONCLUSION"
@@ -215,6 +246,11 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v')
     needs: production-gates
     runs-on: ubuntu-latest
+    permissions:
+      actions: write
+      contents: read
+      packages: write
+      id-token: write
     outputs:
       digest: ${{ steps.build.outputs.digest }}
       image_name: ${{ steps.image-name.outputs.image_name }}
@@ -223,7 +259,12 @@ jobs:
       cancel-in-progress: true
     steps:
       - name: Checkout
-        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Free disk space (Ubuntu hosted runner)
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc || true
+          df -h
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435
@@ -242,36 +283,191 @@ jobs:
 
       - name: Build & Push image (production)
         id: build
-        uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25
+        uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7.0.0
         with:
           context: .
+          build-args: |
+            PULSEPLATE_PYTHON_INDEX_URL=${{ env.PULSEPLATE_PYTHON_INDEX_URL }}
+            PULSEPLATE_PYTHON_TRUSTED_HOST=${{ env.PULSEPLATE_PYTHON_TRUSTED_HOST }}
+          # Single-arch for cache/push stability. Restore linux/arm64 when
+          # buildx + GHA cache/provenance path is stable again.
+          platforms: linux/amd64
           push: true
           # Source of truth for production deployments: prod-${tag} (never `latest`).
           tags: ${{ env.REGISTRY }}/${{ steps.image-name.outputs.image_name }}:prod-${{ github.ref_name }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=cd-production-${{ github.ref_name }}
+          cache-to: type=gha,scope=cd-production-${{ github.ref_name }},mode=min,ignore-error=true
+          # Disable provenance to avoid buildx/GHA cache export failures
+          # ("cache entry no longer exists" / BlobNotFound). Trade-off: SLSA
+          # attestations are disabled, so cosign verify-attestation will fail
+          # for this image until the cache/provenance stack is stable.
+          provenance: false
           target: production
+
+  production-deploy-config:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [production-gates, build-production]
+    runs-on: ubuntu-latest
+    outputs:
+      deploy_mode: ${{ steps.resolve.outputs.deploy_mode }}
+      release_ready: ${{ steps.resolve.outputs.release_ready }}
+      should_deploy: ${{ steps.resolve.outputs.should_deploy }}
+    steps:
+      - name: Resolve production deploy configuration
+        id: resolve
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PRODUCTION_ENV_READ_TOKEN: ${{ secrets.PRODUCTION_ENV_READ_TOKEN }}
+        run: |
+          set -euo pipefail
+          DEFAULT_GH_TOKEN="${GH_TOKEN}"
+          FALLBACK_GH_TOKEN="${PRODUCTION_ENV_READ_TOKEN:-}"
+          gh auth status >/dev/null
+
+          gh_api_value() {
+            local token="$1"
+            local scope_path="$2"
+            local variable_name="$3"
+
+            GH_TOKEN="$token" gh api \
+              -H "Accept: application/vnd.github+json" \
+              "/repos/${GITHUB_REPOSITORY}/${scope_path}/${variable_name}" \
+              --jq '.value'
+          }
+
+          get_actions_variable() {
+            local scope_path="$1"
+            local variable_name="$2"
+            local response
+            if response="$(gh_api_value "$DEFAULT_GH_TOKEN" "$scope_path" "$variable_name" 2>&1)"; then
+              printf '%s\n' "$response"
+              return 0
+            fi
+
+            if printf '%s' "$response" | grep -Eq '(^|[^0-9])404([^0-9]|$)|Not Found'; then
+              return 0
+            fi
+
+            if [ -n "$FALLBACK_GH_TOKEN" ] && printf '%s' "$response" | grep -Eq '(^|[^0-9])403([^0-9]|$)|Resource not accessible by integration'; then
+              if response="$(gh_api_value "$FALLBACK_GH_TOKEN" "$scope_path" "$variable_name" 2>&1)"; then
+                printf '%s\n' "$response"
+                return 0
+              fi
+
+              if printf '%s' "$response" | grep -Eq '(^|[^0-9])404([^0-9]|$)|Not Found'; then
+                return 0
+              fi
+            fi
+
+            echo "❌ Failed to resolve GitHub Actions variable: ${scope_path}/${variable_name}" >&2
+            printf '%s\n' "$response" >&2
+            exit 1
+          }
+
+          deploy_mode="$(get_actions_variable "environments/production/variables" "PROD_DEPLOY_MODE")"
+          if [ -z "$deploy_mode" ]; then
+            deploy_mode="$(get_actions_variable "actions/variables" "PROD_DEPLOY_MODE")"
+          fi
+
+          release_ready="$(get_actions_variable "environments/production/variables" "WEB_IOS_RELEASE_READY")"
+          if [ -z "$release_ready" ]; then
+            release_ready="$(get_actions_variable "actions/variables" "WEB_IOS_RELEASE_READY")"
+          fi
+          release_ready="${release_ready:-false}"
+
+          env_ready="$(get_actions_variable "environments/production/variables" "PRODUCTION_ENV_READY")"
+          if [ -z "$env_ready" ]; then
+            env_ready="$(get_actions_variable "actions/variables" "PRODUCTION_ENV_READY")"
+          fi
+          env_ready="${env_ready:-false}"
+
+          case "$deploy_mode" in
+            "")
+              ;;
+            ssh|self-hosted)
+              ;;
+            *)
+              echo "❌ Unsupported PROD_DEPLOY_MODE: $deploy_mode"
+              echo "Expected: ssh, self-hosted, or unset"
+              exit 1
+              ;;
+          esac
+
+          should_deploy=false
+          if [ "$release_ready" = "true" ]; then
+            if [ -z "$deploy_mode" ]; then
+              echo "❌ WEB_IOS_RELEASE_READY=true but PROD_DEPLOY_MODE is unset"
+              exit 1
+            fi
+            if [ "$env_ready" = "true" ]; then
+              should_deploy=true
+            else
+              echo "Production deploy remains build-only: PRODUCTION_ENV_READY=true is required after host bootstrap confirms \$DEPLOY_DIR/.env exists."
+            fi
+          fi
+
+          {
+            echo "deploy_mode=$deploy_mode"
+            echo "release_ready=$release_ready"
+            echo "env_ready=$env_ready"
+            echo "should_deploy=$should_deploy"
+          } >> "$GITHUB_OUTPUT"
+          echo "Resolved production deploy config: release_ready=$release_ready env_ready=$env_ready deploy_mode=${deploy_mode:-unset} should_deploy=$should_deploy"
 
   deploy-production:
     # Run only when PROD_DEPLOY_MODE is explicitly 'ssh' (SSH from GitHub-hosted runners).
-    # When unset or any value other than 'ssh', this job is skipped; avoids "ssh: no key found" when secrets not configured.
-    if: startsWith(github.ref, 'refs/tags/v') && vars.PROD_DEPLOY_MODE == 'ssh' && vars.WEB_IOS_RELEASE_READY == 'true'
-    needs: [production-gates, build-production]
+    # The config is resolved inside production-deploy-config so environment-scoped vars
+    # are visible before the deploy jobs decide whether to run.
+    if: startsWith(github.ref, 'refs/tags/v') && needs.production-deploy-config.outputs.should_deploy == 'true' && needs.production-deploy-config.outputs.deploy_mode == 'ssh'
+    needs: [production-gates, build-production, production-deploy-config]
     runs-on: ubuntu-latest
     environment:
       name: production
       url: https://pulseplate.app
     concurrency:
-      group: cd-deploy-production-${{ github.ref_name }}
+      group: cd-deploy-production
       cancel-in-progress: false
     steps:
       - name: Checkout
-        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Encode deploy script for SSH
         id: deploy-script
         run: |
           echo "script_b64=$(base64 -w0 scripts/deploy_production.sh)" >> "$GITHUB_OUTPUT"
+
+      - name: Stage production shell bundle for SSH deploy
+        env:
+          SSH_HOST_PRODUCTION: ${{ secrets.SSH_HOST_PRODUCTION }}
+          SSH_HOST_PRODUCTION_FINGERPRINT: ${{ secrets.SSH_HOST_PRODUCTION_FINGERPRINT }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          SSH_KEY: ${{ secrets.SSH_KEY }}
+        run: |
+          set -euo pipefail
+
+          mkdir -p "$HOME/.ssh"
+          chmod 700 "$HOME/.ssh"
+          key_path="$HOME/.ssh/pulseplate_production"
+          printf '%s\n' "$SSH_KEY" > "$key_path"
+          chmod 600 "$key_path"
+          scan_path="$(mktemp)"
+          ssh-keyscan -H -t ed25519 "$SSH_HOST_PRODUCTION" > "$scan_path"
+          if ! ssh-keygen -lf "$scan_path" | awk '{print $2}' | grep -Fx "$SSH_HOST_PRODUCTION_FINGERPRINT" >/dev/null; then
+            echo "❌ SSH host fingerprint mismatch for $SSH_HOST_PRODUCTION" >&2
+            exit 1
+          fi
+          cat "$scan_path" >> "$HOME/.ssh/known_hosts"
+          rm -f "$scan_path"
+          chmod 600 "$HOME/.ssh/known_hosts"
+
+          bundle_dir="$(mktemp -d)"
+          bundle_name="pulseplate-shell-bundle-${{ github.run_id }}-${{ github.run_attempt }}"
+          archive_path="$bundle_dir/${bundle_name}.tgz"
+          tar -czf "$archive_path" frontend deploy/Caddyfile.production scripts/diagnose_web.sh
+
+          scp -i "$key_path" \
+            "$archive_path" \
+            "${SSH_USER}@${SSH_HOST_PRODUCTION}:/tmp/${bundle_name}.tgz"
 
       - name: Deploy to production over SSH (pinned digest)
         uses: appleboy/ssh-action@3ca8a7c5359ac6ad91aa47f1946ece1c3b025004
@@ -296,14 +492,20 @@ jobs:
               exit 1
             fi
 
-            if [ -n "${GHCR_TOKEN:-}" ]; then
-              echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
-            fi
-
             tmp_script="/tmp/pulseplate_deploy_production.sh"
             echo "$DEPLOY_SCRIPT_B64" | base64 -d > "$tmp_script"
             chmod +x "$tmp_script"
+            "$tmp_script" --preflight-only
+
+            bundle_name="pulseplate-shell-bundle-${{ github.run_id }}-${{ github.run_attempt }}"
+            tmp_bundle_dir="/tmp/${bundle_name}"
+            rm -rf "$tmp_bundle_dir"
+            mkdir -p "$tmp_bundle_dir"
+            tar -xzf "/tmp/${bundle_name}.tgz" -C "$tmp_bundle_dir"
+            export SHELL_BUNDLE_DIR="$tmp_bundle_dir"
             "$tmp_script"
+            rm -f "/tmp/${bundle_name}.tgz"
+            rm -rf "$tmp_bundle_dir"
         env:
           DEPLOY_SCRIPT_B64: ${{ steps.deploy-script.outputs.script_b64 }}
           DEPLOY_DIR: ${{ vars.DEPLOY_DIR }}
@@ -314,34 +516,57 @@ jobs:
           GHCR_TOKEN: ${{ secrets.GHCR_READ_TOKEN }}
 
   deploy-production-self-hosted:
-    if: startsWith(github.ref, 'refs/tags/v') && vars.PROD_DEPLOY_MODE == 'self-hosted' && vars.WEB_IOS_RELEASE_READY == 'true'
-    needs: [production-gates, build-production]
+    if: startsWith(github.ref, 'refs/tags/v') && needs.production-deploy-config.outputs.should_deploy == 'true' && needs.production-deploy-config.outputs.deploy_mode == 'self-hosted'
+    needs: [production-gates, build-production, production-deploy-config]
     runs-on: [self-hosted, linux, x64, pulseplate-prod]
     environment:
       name: production
       url: https://pulseplate.app
     concurrency:
-      group: cd-deploy-production-${{ github.ref_name }}
+      group: cd-deploy-production
       cancel-in-progress: false
     steps:
       - name: Checkout
-        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Preflight production deploy on self-hosted runner
+        shell: bash
+        run: |
+          set -euo pipefail
+          export DEPLOY_DIR='${{ vars.DEPLOY_DIR }}'
+          export PRODUCTION_DOMAIN='${{ secrets.PRODUCTION_DOMAIN }}'
+          bash scripts/deploy_production.sh --preflight-only
 
       - name: Deploy on self-hosted runner (pinned digest)
         shell: bash
         run: |
           set -euo pipefail
-          GHCR_USER='${{ github.repository_owner }}'
-          GHCR_TOKEN='${{ secrets.GHCR_READ_TOKEN }}'
-          if [ -n "$GHCR_TOKEN" ]; then
-            echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
-          fi
-
           export DEPLOY_DIR='${{ vars.DEPLOY_DIR }}'
           export PRODUCTION_DOMAIN='${{ secrets.PRODUCTION_DOMAIN }}'
           export IMAGE_REF="ghcr.io/${{ needs.build-production.outputs.image_name }}@${{ needs.build-production.outputs.digest }}"
           export TAG="prod-${{ github.ref_name }}"
+          export GHCR_USER='${{ github.repository_owner }}'
+          export GHCR_TOKEN='${{ secrets.GHCR_READ_TOKEN }}'
+          export SHELL_BUNDLE_DIR="${GITHUB_WORKSPACE}"
           bash scripts/deploy_production.sh
 
+      - name: Best-effort self-hosted Docker image prune
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          PRUNE_DOCKER_BIN=''
+
           # Clean up dangling Docker images on the self-hosted runner to prevent disk bloat over time.
-          docker image prune -f || true
+          for candidate in /usr/bin/docker /usr/local/bin/docker /snap/bin/docker; do
+            if [[ -x "$candidate" ]]; then
+              PRUNE_DOCKER_BIN="$candidate"
+              break
+            fi
+          done
+
+          if [[ -n "$PRUNE_DOCKER_BIN" ]]; then
+            "$PRUNE_DOCKER_BIN" image prune -f
+          else
+            echo "Skipping Docker image prune: trusted docker binary not found on self-hosted runner" >&2
+          fi

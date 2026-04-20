@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """
-Figma Design Execution Pipeline for PulsePlate.
+Design Execution Pipeline for PulsePlate.
 
-Executes Figma design instructions via MCP and tracks results.
+Executes code-first design instructions through runtime adapters and tracks results.
 
 Usage:
     python scripts/design/execute_design.py --screen ios.home --validate-only
-    python scripts/design/execute_design.py --screen ios.home --execute
+    python scripts/design/execute_design.py --screen ios.home --execute --adapter code_native_canvas
 """
 
 from __future__ import annotations
@@ -16,10 +16,25 @@ import json
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
+
+if __package__ in {None, ""}:
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
+
+from scripts.design.contracts import (
+    SUPPORTED_SCREENS,
+    validate_canvas_artifact_contract,
+    validate_instruction_contract,
+)
+from scripts.design.execution_adapters import (
+    available_adapter_names,
+    resolve_execution_adapter,
+)
+from scripts.design.html_preview import HtmlPreviewArtifact, write_html_preview
 
 # Project root for resolving paths
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+PREVIEW_REQUIRED_ADAPTER = "code_native_canvas"
 
 
 def load_instruction(screen_id: str) -> dict[str, Any]:
@@ -31,13 +46,13 @@ def load_instruction(screen_id: str) -> dict[str, Any]:
     if not instruction_path.exists():
         raise FileNotFoundError(f"Instruction file not found: {instruction_path}")
 
-    with open(instruction_path) as f:
-        return json.load(f)
+    with open(instruction_path, encoding="utf-8") as f:
+        return cast(dict[str, Any], json.load(f))
 
 
 def validate_governance(instruction: dict[str, Any]) -> list[str]:
     """Validate instruction against governance rules."""
-    errors = []
+    errors: list[str] = list(validate_instruction_contract(instruction))
     checks = instruction.get("governance_checks", [])
 
     # Token usage check
@@ -51,21 +66,15 @@ def validate_governance(instruction: dict[str, Any]) -> list[str]:
     # HPP compliance check
     if "verify_hpp_compliance" in checks:
         screen_id = instruction.get("screen_id", "")
-        valid_screens = [
-            "ios.home",
-            "ios.plate",
-            "ios.progress",
-            "web.home",
-            "web.plate",
-            "web.progress",
-        ]
-        if screen_id not in valid_screens:
+        if screen_id not in SUPPORTED_SCREENS:
             errors.append(f"Screen {screen_id} not in H+P+Pr scope")
 
     # CTA registry check
     if "verify_cta_registry_match" in checks:
         instructions_list = instruction.get("instructions", [])
         for inst in instructions_list:
+            if not isinstance(inst, dict):
+                continue
             if inst.get("type") == "create_button":
                 cta_key = inst.get("cta_key", "")
                 if not cta_key:
@@ -74,48 +83,83 @@ def validate_governance(instruction: dict[str, Any]) -> list[str]:
     return errors
 
 
-def simulate_mcp_execution(instruction: dict[str, Any]) -> dict[str, Any]:
-    """Simulate MCP execution (placeholder for actual MCP calls).
+def execute_instruction(instruction: dict[str, Any], adapter_name: str) -> dict[str, Any]:
+    """Execute one instruction payload through the configured adapter seam."""
 
-    In production, this would invoke actual Figma MCP tools:
-    - figma.create_frame
-    - figma.create_components
-    - figma.apply_styles
-
-    For now, it returns a simulated result structure.
-    """
-    screen_id = instruction.get("screen_id", "unknown")
-    instructions_list = instruction.get("instructions", [])
-
-    # Simulate node ID generation
-    results = {
-        "screen_id": screen_id,
-        "executed_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
-        "status": "simulated",
-        "created_nodes": [],
-        "mcp_calls": [],
-    }
-
-    for i, inst in enumerate(instructions_list):
-        inst_type = inst.get("type", "unknown")
-        inst_name = inst.get("name", f"Node_{i}")
-
-        # Simulate MCP call
-        results["mcp_calls"].append(
-            {"tool": f"figma.{inst_type}", "params": {"name": inst_name}, "status": "simulated"}
+    adapter = resolve_execution_adapter(adapter_name)
+    raw_results = adapter.execute(instruction)
+    if not isinstance(raw_results, dict):
+        raise ValueError(
+            f"Invalid results emitted by {adapter_name}: expected object, "
+            f"got {type(raw_results).__name__}"
         )
+    results: dict[str, Any] = raw_results
 
-        # Simulate created node
-        results["created_nodes"].append(
-            {
-                "type": inst_type,
-                "name": inst_name,
-                "node_id": f"simulated:{screen_id}:{i}",
-                "status": "pending_real_execution",
-            }
+    canvas_artifact = results.get("canvas_artifact")
+    if canvas_artifact is not None and not isinstance(canvas_artifact, dict):
+        raise ValueError(
+            f"Invalid canvas artifact emitted by {adapter_name}: expected object, "
+            f"got {type(canvas_artifact).__name__}"
         )
+    if adapter_name == "code_native_canvas" and not isinstance(canvas_artifact, dict):
+        raise ValueError(
+            f"Invalid canvas artifact emitted by {adapter_name}: missing artifact payload"
+        )
+    if isinstance(canvas_artifact, dict):
+        canvas_errors = validate_canvas_artifact_contract(canvas_artifact, instruction)
+        if canvas_errors:
+            joined_errors = "; ".join(canvas_errors)
+            raise ValueError(f"Invalid canvas artifact emitted by {adapter_name}: {joined_errors}")
 
     return results
+
+
+def generate_preview_artifact(
+    screen_id: str,
+    results: dict[str, Any],
+    *,
+    output_path: Path | None = None,
+) -> HtmlPreviewArtifact:
+    """Generate deterministic HTML preview metadata from one code-native result."""
+
+    canvas_artifact = results.get("canvas_artifact")
+    if not isinstance(canvas_artifact, dict):
+        raise ValueError(
+            "HTML preview requires a validated canvas_artifact payload from code_native_canvas"
+        )
+    missing_keys = [
+        key
+        for key in ("interaction_contract", "sections", "nodes", "render_ops")
+        if key not in canvas_artifact
+    ]
+    if missing_keys:
+        raise ValueError(
+            "HTML preview requires a validated canvas_artifact with keys " f"{tuple(missing_keys)}"
+        )
+
+    preview_artifact = write_html_preview(screen_id, canvas_artifact, output_path)
+    results["preview_artifact"] = preview_artifact
+    return preview_artifact
+
+
+def resolve_runtime_adapter(
+    adapter_name: str,
+    *,
+    emit_preview: bool,
+) -> tuple[str, str | None]:
+    """Normalize CLI adapter selection for governed preview execution."""
+
+    if not emit_preview or adapter_name == PREVIEW_REQUIRED_ADAPTER:
+        return adapter_name, None
+
+    if adapter_name == "deterministic_stub":
+        return (
+            PREVIEW_REQUIRED_ADAPTER,
+            "Preview requires code_native_canvas; auto-selecting code_native_canvas "
+            "for preview emission.",
+        )
+
+    raise ValueError(f"HTML preview requires {PREVIEW_REQUIRED_ADAPTER}; got {adapter_name}")
 
 
 def update_manifest(screen_id: str, results: dict[str, Any]) -> None:
@@ -126,7 +170,7 @@ def update_manifest(screen_id: str, results: dict[str, Any]) -> None:
         print(f"Warning: Manifest not found at {manifest_path}")
         return
 
-    with open(manifest_path) as f:
+    with open(manifest_path, encoding="utf-8") as f:
         manifest = json.load(f)
 
     # Add execution results to exports
@@ -135,13 +179,29 @@ def update_manifest(screen_id: str, results: dict[str, Any]) -> None:
 
     # Check if screen already exists in exports
     existing = next((e for e in manifest["exports"] if e.get("screen_id") == screen_id), None)
+    interaction_contract = results.get("interaction_contract")
+    if interaction_contract is None and isinstance(results.get("canvas_artifact"), dict):
+        interaction_contract = results["canvas_artifact"].get("interaction_contract")
 
     export_entry = {
         "screen_id": screen_id,
         "executed_at": results.get("executed_at"),
         "status": results.get("status"),
+        "surface": results.get("surface"),
+        "layout_archetype": results.get("layout_archetype"),
+        "layout_pattern": results.get("layout_pattern"),
+        "interaction_contract": interaction_contract,
+        "section_count": results.get("section_count"),
+        "adapter_name": results.get("adapter_name"),
+        "adapter_mode": results.get("adapter_mode"),
+        "simulation_mode": results.get("simulation_mode"),
+        "artifact_type": results.get("artifact_type"),
+        "artifact_version": results.get("artifact_version"),
         "node_count": len(results.get("created_nodes", [])),
+        "component_count": results.get("component_count"),
         "nodes": results.get("created_nodes", []),
+        "canvas_artifact": results.get("canvas_artifact"),
+        "preview_artifact": results.get("preview_artifact"),
     }
 
     if existing:
@@ -152,7 +212,7 @@ def update_manifest(screen_id: str, results: dict[str, Any]) -> None:
         # Add new entry
         manifest["exports"].append(export_entry)
 
-    with open(manifest_path, "w") as f:
+    with open(manifest_path, "w", encoding="utf-8") as f:
         json.dump(manifest, f, indent=2)
 
     print(f"Updated manifest: {manifest_path}")
@@ -166,7 +226,7 @@ def log_execution(screen_id: str, results: dict[str, Any]) -> None:
     timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d_%H-%M-%S")
     log_path = logs_dir / f"{timestamp}_{screen_id.replace('.', '_')}.json"
 
-    with open(log_path, "w") as f:
+    with open(log_path, "w", encoding="utf-8") as f:
         json.dump(results, f, indent=2)
 
     print(f"Execution log: {log_path}")
@@ -174,7 +234,7 @@ def log_execution(screen_id: str, results: dict[str, Any]) -> None:
 
 def main() -> int:
     """Main entry point."""
-    parser = argparse.ArgumentParser(description="Execute Figma design instructions via MCP")
+    parser = argparse.ArgumentParser(description="Execute design instructions via runtime adapters")
     parser.add_argument(
         "--screen",
         required=True,
@@ -188,13 +248,29 @@ def main() -> int:
     parser.add_argument(
         "--execute",
         action="store_true",
-        help="Execute instruction via MCP (currently simulated)",
+        help="Execute instruction via the selected adapter (currently simulated)",
+    )
+    parser.add_argument(
+        "--adapter",
+        choices=available_adapter_names(),
+        default="deterministic_stub",
+        help="Execution adapter seam to use",
     )
     parser.add_argument(
         "--update-manifest",
         action="store_true",
         default=True,
         help="Update figma-manifest.json after execution",
+    )
+    parser.add_argument(
+        "--emit-preview",
+        action="store_true",
+        help="Emit deterministic HTML preview for code_native_canvas results",
+    )
+    parser.add_argument(
+        "--preview-output",
+        type=Path,
+        help="Optional HTML preview output path (local-only artifact)",
     )
 
     args = parser.parse_args()
@@ -225,17 +301,38 @@ def main() -> int:
         return 0
 
     if not args.execute:
-        print("\nUse --execute to run MCP execution (currently simulated)")
+        print("\nUse --execute to run via the selected adapter (currently simulated)")
         return 0
+
+    try:
+        adapter_name, adapter_notice = resolve_runtime_adapter(
+            args.adapter,
+            emit_preview=args.emit_preview,
+        )
+    except ValueError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 1
+
+    if adapter_notice:
+        print(f"\n{adapter_notice}")
 
     # Execute (currently simulated)
     print("\nExecuting design instructions...")
-    results = simulate_mcp_execution(instruction)
+    results = execute_instruction(instruction, adapter_name)
 
     print("\nExecution results:")
     print(f"  Status: {results.get('status')}")
+    print(f"  Adapter: {results.get('adapter_name')} ({results.get('adapter_mode')})")
     print(f"  Nodes created: {len(results.get('created_nodes', []))}")
     print(f"  MCP calls: {len(results.get('mcp_calls', []))}")
+
+    if args.emit_preview:
+        preview_artifact = generate_preview_artifact(
+            args.screen,
+            results,
+            output_path=args.preview_output,
+        )
+        print(f"  HTML preview: {preview_artifact.get('output_path')}")
 
     # Log execution
     log_execution(args.screen, results)
@@ -244,8 +341,8 @@ def main() -> int:
     if args.update_manifest:
         update_manifest(args.screen, results)
 
-    print("\nNote: Actual MCP execution requires Figma MCP connection.")
-    print("Current execution is simulated. Connect MCP to create real designs.")
+    print("\nNote: live external design tools are intentionally optional.")
+    print("Current execution uses local runtime adapter seams.")
 
     return 0
 

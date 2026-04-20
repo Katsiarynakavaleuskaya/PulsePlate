@@ -1,0 +1,13 @@
+{
+  "motion": {
+    "duration": {
+      "fast": { "$type": "duration", "$value": "150ms" },
+      "standard": { "$type": "duration", "$value": "250ms" },
+      "slow": { "$type": "duration", "$value": "400ms" }
+    },
+    "spring": {
+      "response": { "$type": "number", "$value": 0.3 },
+      "damping": { "$type": "number", "$value": 0.7 }
+    }
+  }
+}

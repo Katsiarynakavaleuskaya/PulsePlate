@@ -1,277 +1,105 @@
 """
-Realistic tests for core/db.py using Faker library.
-Target 85% coverage, missing lines 56-65, 136.
+Realistic tests for core/db.py using Faker-backed inputs.
 """
 
-import sqlite3
-from unittest.mock import patch
+from __future__ import annotations
 
+from pathlib import Path
+
+import pytest
 from faker import Faker
+from sqlalchemy.pool import NullPool
+
+import core.db as core_db
 
 fake = Faker()
 
 
 class TestDbRealisticCoverage:
-    """Test database edge cases with realistic scenarios"""
+    """Exercise realistic DB helper scenarios against exported core.db behavior."""
 
-    def setup_method(self):
+    def setup_method(self) -> None:
         Faker.seed(42)
+        core_db.reset_db_for_tests()
 
-    def test_database_connection_failures_realistic(self):
-        """Test database connection failures with realistic scenarios"""
-        try:
-            from core.db import get_db_connection
+    def teardown_method(self) -> None:
+        core_db.reset_db_for_tests()
 
-            # Test with invalid database paths
-            invalid_paths = [
-                fake.file_path(extension="db"),
-                "/nonexistent/path/" + fake.file_name(extension="db"),
-                f"{fake.url()}.db",
-                "",
-            ]
+    def test_extract_sqlite_path_handles_realistic_urls(self) -> None:
+        relative_name = fake.file_name(extension="db")
+        absolute_path = Path("/tmp") / fake.file_name(extension="sqlite3")
+        absolute_result = core_db._extract_sqlite_path(f"sqlite:////{absolute_path}")
 
-            for path in invalid_paths:
-                try:
-                    with patch("core.db.DB_PATH", path):
-                        if conn := get_db_connection():
-                            conn.close()
-                except Exception:
-                    # Expected for invalid paths
-                    pass
-        except ImportError:
-            # Module might not exist
-            pass
+        assert core_db._extract_sqlite_path(f"sqlite:///{relative_name}") == relative_name
+        assert absolute_result is not None
+        assert absolute_result.startswith("/")
+        assert absolute_result.endswith(str(absolute_path).lstrip("/"))
 
-    def test_database_transaction_failures_realistic(self):
-        """Test database transaction failures with realistic data"""
-        try:
-            from core.db import execute_query, get_db_connection
+    def test_extract_sqlite_path_rejects_non_sqlite_and_memory(self) -> None:
+        assert core_db._extract_sqlite_path("sqlite:///:memory:") is None
+        assert core_db._extract_sqlite_path(f"postgresql:///{fake.slug()}") is None
 
-            # Test with realistic but problematic SQL
-            problematic_queries = [
-                f"INSERT INTO users VALUES ('{fake.name()}', '{fake.email()}')",
-                f"SELECT * FROM nonexistent_table WHERE id = {fake.random_int()}",
-                f"INVALID SQL SYNTAX {fake.sentence()}",
-                "",
-                None,
-            ]
+    def test_sqlite_connect_args_enable_uri_and_timeout(self) -> None:
+        args = core_db._sqlite_connect_args("sqlite:///cache/app.db?mode=rwc&uri=true")
 
-            for query in problematic_queries:
-                try:
-                    result = execute_query(query)
-                    # Some might succeed with fallbacks
-                except Exception:
-                    # Expected for problematic queries
-                    pass
-        except ImportError:
-            pass
+        assert args["check_same_thread"] is False
+        assert args["uri"] is True
+        assert args["timeout"] == 5.0
 
-    def test_database_initialization_edge_cases(self):
-        """Test database initialization edge cases"""
-        try:
-            from core.db import create_tables, init_db
+    def test_get_sqlite_poolclass_returns_nullpool_for_test_sqlite(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setenv("APP_ENV", "test")
+        monkeypatch.delenv("PYTEST_XDIST_WORKER", raising=False)
 
-            # Test initialization with various conditions
-            with patch("os.path.exists", return_value=False):
-                try:
-                    init_db()
-                except Exception:  # nosec B110 - intentional in test for coverage
-                    pass
+        pool_class = core_db._get_sqlite_poolclass(f"sqlite:///{fake.file_name(extension='db')}")
 
-            # Test table creation
-            try:
-                create_tables()
-            except Exception:  # nosec B110 - intentional in test for coverage
-                pass
+        assert pool_class is NullPool
 
-        except ImportError:
-            pass
+    def test_get_sqlite_poolclass_skips_non_test_runtime(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.delenv("APP_ENV", raising=False)
+        monkeypatch.delenv("PYTEST_CURRENT_TEST", raising=False)
+        monkeypatch.delenv("PYTEST_XDIST_WORKER", raising=False)
 
-    def test_database_concurrent_access_realistic(self):
-        """Test concurrent database access with realistic scenarios"""
-        import concurrent.futures
+        pool_class = core_db._get_sqlite_poolclass(f"sqlite:///{fake.file_name(extension='db')}")
+
+        assert pool_class is None
+
+    def test_build_engine_url_preserves_env_sqlite_url(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+    ) -> None:
+        db_path = tmp_path / fake.file_name(extension="db")
+        monkeypatch.setenv("DATABASE_URL", f"sqlite:///{db_path}")
+
+        url = core_db._build_engine_url()
+
+        assert str(db_path) in url
+        assert "mode=rwc" not in url
+
+    def test_init_db_creates_file_backed_sqlite_engine(self, tmp_path: Path) -> None:
+        db_path = tmp_path / fake.file_name(extension="db")
+
+        engine = core_db.init_db(f"sqlite:///{db_path}")
 
         try:
-            from core.db import get_db_connection
+            assert engine.url.database is not None
+            assert engine.url.database.endswith(db_path.name)
+            assert db_path.exists()
+        finally:
+            engine.dispose()
 
-            def access_database():
-                try:
-                    conn = get_db_connection()
-                    if conn:
-                        # Simulate realistic database operations
-                        cursor = conn.cursor()
-                        cursor.execute("SELECT 1")
-                        result = cursor.fetchone()
-                        conn.close()
-                        return result
-                except Exception:
-                    return None
+    def test_create_tables_is_idempotent_after_init(self, tmp_path: Path) -> None:
+        db_path = tmp_path / fake.file_name(extension="db")
+        engine = core_db.init_db(f"sqlite:///{db_path}")
 
-            with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
-                futures = [executor.submit(access_database) for _ in range(10)]
-                results = [future.result() for future in futures]
-
-            # Some connections should succeed
-            assert any(r is not None for r in results)
-
-        except ImportError:
-            pass
-
-    def test_database_error_recovery_scenarios(self):
-        """Test database error recovery scenarios"""
         try:
-            from core.db import get_db_connection
-
-            # Simulate database corruption
-            with patch("sqlite3.connect", side_effect=sqlite3.DatabaseError("Database is corrupt")):
-                try:
-                    conn = get_db_connection()
-                    # Should handle error gracefully
-                except Exception:  # nosec B110 - intentional in test for coverage
-                    pass
-
-            # Simulate permission errors
-            with patch("sqlite3.connect", side_effect=PermissionError("Access denied")):
-                try:
-                    conn = get_db_connection()
-                except Exception:  # nosec B110 - intentional in test for coverage
-                    pass
-
-        except ImportError:
-            pass
-
-    def test_database_migration_scenarios_realistic(self):
-        """Test database migration scenarios with realistic data"""
-        try:
-            from core.db import get_schema_version, migrate_db
-
-            # Test migration with various version scenarios
-            fake_versions = [
-                fake.random_int(min=0, max=10),
-                -1,  # Invalid version
-                999,  # Future version
-                None,
-            ]
-
-            for version in fake_versions:
-                try:
-                    with patch("core.db.get_schema_version", return_value=version):
-                        migrate_db()
-                except Exception:  # nosec B110 - intentional in test for coverage
-                    pass
-
-        except ImportError:
-            pass
-
-    def test_database_backup_and_restore_realistic(self):
-        """Test database backup and restore with realistic scenarios"""
-        try:
-            from core.db import backup_db, restore_db
-
-            # Test backup to various locations
-            backup_paths = [
-                fake.file_path(extension="bak"),
-                "/tmp/" + fake.file_name(extension="backup"),
-                f"{fake.file_name()}.sql",
-            ]
-
-            for path in backup_paths:
-                try:
-                    backup_db(path)
-                    restore_db(path)
-                except Exception:  # nosec B110 - intentional in test for coverage
-                    pass
-
-        except ImportError:
-            pass
-
-    def test_database_query_optimization_realistic(self):
-        """Test database query optimization with realistic data"""
-        try:
-            from core.db import execute_query
-
-            # Test with realistic but complex queries
-            # Using parameterized queries to avoid SQL injection
-            test_name = fake.first_name()
-            test_age = fake.random_int(min=18, max=80)
-            test_calories = fake.random_int(min=100, max=500)
-            test_date = fake.date()
-
-            complex_queries = [
-                f"""SELECT * FROM users
-                   WHERE name LIKE '%{test_name}%'
-                   AND age > {test_age}""",  # nosec B608
-                f"""SELECT COUNT(*) FROM foods
-                   WHERE calories > {test_calories}
-                   GROUP BY category""",  # nosec B608
-                "SELECT * FROM users ORDER BY created_at DESC LIMIT 100",
-                f"SELECT AVG(bmi) FROM user_stats WHERE updated > '{test_date}'",  # nosec B608
-            ]
-
-            for query in complex_queries:
-                try:
-                    execute_query(query)
-                except Exception as e:
-                    # Expected to fail in test environment
-                    assert isinstance(e, Exception)
-
-        except ImportError:
-            pass
-
-    def test_database_connection_pooling_realistic(self):
-        """Test database connection pooling scenarios"""
-        try:
-            from core.db import close_all_connections, get_db_connection
-
-            # Create multiple connections
-            connections = []
-            for _ in range(fake.random_int(min=5, max=15)):
-                try:
-                    if conn := get_db_connection():
-                        connections.append(conn)
-                except Exception as e:
-                    # Expected to fail in test environment
-                    assert isinstance(e, Exception)
-
-            # Close all connections
-            try:
-                close_all_connections()
-            except Exception as e:
-                # Expected to fail in test environment
-                assert isinstance(e, Exception)
-
-            # Clean up manually if needed
-            for conn in connections:
-                try:
-                    conn.close()
-                except Exception as e:
-                    # Expected to fail in test environment
-                    assert isinstance(e, Exception)
-
-        except ImportError:
-            pass
-
-    def test_database_schema_validation_realistic(self):
-        """Test database schema validation with realistic scenarios"""
-        try:
-            from core.db import get_table_info, validate_schema
-
-            # Test schema validation
-            fake_tables = [
-                f"{fake.word()}_table",
-                "users",
-                "foods",
-                "recipes",
-                fake.random_element(["invalid_table", "nonexistent"]),
-            ]
-
-            for table in fake_tables:
-                try:
-                    validate_schema(table)
-                    get_table_info(table)
-                except Exception as e:
-                    # Expected to fail in test environment
-                    assert isinstance(e, Exception)
-
-        except ImportError:
-            pass
+            core_db.create_tables()
+            core_db.create_tables()
+        finally:
+            engine.dispose()

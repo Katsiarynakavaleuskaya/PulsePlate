@@ -191,6 +191,25 @@ describe('API Client Auth', () => {
   });
 
   describe('server-session helpers', () => {
+    it('getProSessionStatus returns canonical session payload', async () => {
+      const { getProSessionStatus } = await import('../client');
+      fetchMock.mockImplementationOnce(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const request = input instanceof Request ? input : new Request(input, init);
+        expect(request.url).toBe('http://test-api.com/api/v1/pro/session');
+        return createMockResponse(
+          { status: 'ok', authenticated: true, auth_source: 'cookie', tier: 'PRO' },
+          { ok: true, status: 200 }
+        );
+      });
+
+      await expect(getProSessionStatus()).resolves.toEqual({
+        status: 'ok',
+        authenticated: true,
+        auth_source: 'cookie',
+        tier: 'PRO',
+      });
+    });
+
     it('checkProSession returns true for authenticated response', async () => {
       const { checkProSession } = await import('../client');
       fetchMock.mockImplementationOnce(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -198,7 +217,10 @@ describe('API Client Auth', () => {
         expect(request.url).toBe('http://test-api.com/api/v1/pro/session');
         expect(request.method).toBe('GET');
         expect(request.credentials).toBe('include');
-        return createMockResponse({ authenticated: true }, { ok: true, status: 200 });
+        return createMockResponse(
+          { status: 'ok', authenticated: true, auth_source: 'cookie', tier: 'PRO' },
+          { ok: true, status: 200 }
+        );
       });
 
       await expect(checkProSession()).resolves.toBe(true);
@@ -216,6 +238,13 @@ describe('API Client Auth', () => {
       fetchMock.mockResolvedValueOnce(createMockResponse({ status: 'ok' }, { ok: true, status: 200 }));
 
       await expect(checkProSession()).resolves.toBe(false);
+    });
+
+    it('getProSessionStatus fails closed for malformed session payload', async () => {
+      const { getProSessionStatus } = await import('../client');
+      fetchMock.mockResolvedValueOnce(createMockResponse({ status: 'ok' }, { ok: true, status: 200 }));
+
+      await expect(getProSessionStatus()).resolves.toBeNull();
     });
 
     it('exchangeApiKeyForSession posts exchange payload and returns true', async () => {

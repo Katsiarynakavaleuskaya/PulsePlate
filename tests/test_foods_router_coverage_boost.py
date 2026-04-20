@@ -11,6 +11,8 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app import app
+import app.metrics as app_metrics
+from app.services.search_meili import MeiliSearchBackend, ShadowSearchBackend
 
 try:
     from app.routers.foods import router
@@ -65,6 +67,119 @@ class TestFoodsRouterCoverage:
         assert data[0]["kcal"] == 52
         assert data[1]["name"] == "banana"
         assert data[1]["kcal"] == 89
+
+    def test_list_foods_coerces_bad_nutrition_confidence_safely(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """List hits must not raise on corrupt DB cells; bool/NaN → 0, valid strings kept."""
+
+        def fake_search_foods(*_a: object, **_kw: object) -> list[dict[str, object]]:
+            return [
+                {
+                    "id": "1",
+                    "canonical_name": "apple",
+                    "kcal": 52,
+                    "protein_g": 0.3,
+                    "fat_g": 0.2,
+                    "carbs_g": 14.0,
+                    "nutrition_confidence": True,
+                },
+                {
+                    "id": "2",
+                    "canonical_name": "banana",
+                    "kcal": 89,
+                    "protein_g": 1.1,
+                    "fat_g": 0.3,
+                    "carbs_g": 23.0,
+                    "nutrition_confidence": float("nan"),
+                },
+                {
+                    "id": "3",
+                    "canonical_name": "oat",
+                    "kcal": 10,
+                    "protein_g": 0.0,
+                    "fat_g": 0.0,
+                    "carbs_g": 0.0,
+                    "nutrition_confidence": " 0.5 ",
+                },
+                {
+                    "id": "4",
+                    "canonical_name": "bad-str",
+                    "kcal": 1,
+                    "protein_g": 0.0,
+                    "fat_g": 0.0,
+                    "carbs_g": 0.0,
+                    "nutrition_confidence": "not-a-float",
+                },
+                {
+                    "id": "5",
+                    "canonical_name": "no-key",
+                    "kcal": 2,
+                    "protein_g": 0.0,
+                    "fat_g": 0.0,
+                    "carbs_g": 0.0,
+                },
+                {
+                    "id": "6",
+                    "canonical_name": "explicit-none",
+                    "kcal": 3,
+                    "protein_g": 0.0,
+                    "fat_g": 0.0,
+                    "carbs_g": 0.0,
+                    "nutrition_confidence": None,
+                },
+                {
+                    "id": "7",
+                    "canonical_name": "wrong-type",
+                    "kcal": 4,
+                    "protein_g": 0.0,
+                    "fat_g": 0.0,
+                    "carbs_g": 0.0,
+                    "nutrition_confidence": [],
+                },
+                {
+                    "id": "8",
+                    "canonical_name": "neg-num",
+                    "kcal": 5,
+                    "protein_g": 0.0,
+                    "fat_g": 0.0,
+                    "carbs_g": 0.0,
+                    "nutrition_confidence": -0.1,
+                },
+                {
+                    "id": "9",
+                    "canonical_name": "inf-num",
+                    "kcal": 6,
+                    "protein_g": 0.0,
+                    "fat_g": 0.0,
+                    "carbs_g": 0.0,
+                    "nutrition_confidence": float("inf"),
+                },
+                {
+                    "id": "10",
+                    "canonical_name": "neg-str",
+                    "kcal": 7,
+                    "protein_g": 0.0,
+                    "fat_g": 0.0,
+                    "carbs_g": 0.0,
+                    "nutrition_confidence": "-3",
+                },
+            ]
+
+        monkeypatch.setattr("app.routers.foods.food_store.search_foods", fake_search_foods)
+        response = client.get("/api/v1/foods?query=x&limit=10&offset=0")
+        assert response.status_code == 200
+        data = response.json()
+        assert data[0]["nutrition_confidence"] == 0.0
+        assert data[1]["nutrition_confidence"] == 0.0
+        assert data[2]["nutrition_confidence"] == pytest.approx(0.5)
+        assert data[3]["nutrition_confidence"] == 0.0
+        assert data[4]["nutrition_confidence"] == 0.0
+        assert data[5]["nutrition_confidence"] == 0.0
+        assert data[6]["nutrition_confidence"] == 0.0
+        assert data[7]["nutrition_confidence"] == 0.0
+        assert data[8]["nutrition_confidence"] == 0.0
+        assert data[9]["nutrition_confidence"] == 0.0
 
     @patch("app.routers.foods.food_store.search_foods")
     def test_list_foods_empty_query(self, mock_search_foods):
@@ -274,3 +389,155 @@ class TestFoodsRouterCoverage:
         data = response.json()
         assert data["id"] == "123"
         assert data["canonical_name"] == "numeric food"
+
+
+def test_foods_route_contract_remains_stable_with_meili_backend(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    backend = MeiliSearchBackend(
+        base_url="https://meili.example",
+        index_name="foods",
+        show_performance_details=True,
+        transport=lambda *_args: {
+            "hits": [
+                {
+                    "id": "m-1",
+                    "name": "Apple",
+                    "kcal": 52,
+                    "protein_g": 0.3,
+                    "fat_g": 0.2,
+                    "carbs_g": 14.0,
+                }
+            ],
+            "processingTimeMs": 21,
+        },
+    )
+
+    monkeypatch.setattr("app.routers.foods.food_store.get_search_backend", lambda: backend)
+
+    response = client.get("/api/v1/foods?query=apple&limit=10&offset=0")
+
+    assert response.status_code == 200
+    assert response.json() == [
+        {
+            "id": "m-1",
+            "name": "Apple",
+            "kcal": 52.0,
+            "protein_g": 0.3,
+            "fat_g": 0.2,
+            "carbs_g": 14.0,
+            "nutrition_confidence": 0.0,
+        }
+    ]
+
+
+def test_foods_route_contract_remains_stable_with_shadow_backend(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class _BaselineBackend:
+        def search_foods(
+            self, query: str, limit: int = 20, offset: int = 0
+        ) -> list[dict[str, object]]:
+            return [
+                {
+                    "id": "b-1",
+                    "canonical_name": "Baseline Apple",
+                    "kcal": 51,
+                    "protein_g": 0.2,
+                    "fat_g": 0.1,
+                    "carbs_g": 13.0,
+                }
+            ]
+
+    shadow_backend = MeiliSearchBackend(
+        base_url="https://meili.example",
+        index_name="foods",
+        show_performance_details=True,
+        search_strategy_label="hybrid_shadow",
+        transport=lambda *_args: {
+            "hits": [
+                {
+                    "id": "shadow-1",
+                    "name": "Shadow Apple",
+                    "kcal": 55,
+                    "protein_g": 0.4,
+                    "fat_g": 0.3,
+                    "carbs_g": 15.0,
+                }
+            ],
+            "processingTimeMs": 19,
+            "performanceDetails": {"tokenization": {"durationMs": 2}},
+        },
+    )
+    backend = ShadowSearchBackend(
+        baseline_backend=_BaselineBackend(),
+        shadow_backend=shadow_backend,
+        shadow_runner=lambda task: task(),
+    )
+
+    monkeypatch.setattr("app.routers.foods.food_store.get_search_backend", lambda: backend)
+
+    response = client.get("/api/v1/foods/search?query=apple&limit=10&offset=0")
+
+    assert response.status_code == 200
+    assert response.json() == [
+        {
+            "id": "b-1",
+            "name": "Baseline Apple",
+            "kcal": 51.0,
+            "protein_g": 0.2,
+            "fat_g": 0.1,
+            "carbs_g": 13.0,
+            "nutrition_confidence": 0.0,
+        }
+    ]
+
+
+def test_metrics_scrape_includes_meili_observability_series(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    if app_metrics.FOOD_SEARCH_MEILI_PERF_EVENTS_TOTAL is None:
+        pytest.skip("prometheus_client not available")
+
+    backend = MeiliSearchBackend(
+        base_url="https://meili.example",
+        index_name="foods",
+        show_performance_details=True,
+        transport=lambda *_args: {
+            "hits": [
+                {
+                    "id": "m-2",
+                    "name": "Apple",
+                    "kcal": 52,
+                    "protein_g": 0.3,
+                    "fat_g": 0.2,
+                    "carbs_g": 14.0,
+                }
+            ],
+            "processingTimeMs": 25,
+            "performanceDetails": {
+                "wait for permit": "295.29µs",
+                "search > tokenize": "436.67µs",
+                "search > format": "288.54µs",
+                "degraded": False,
+            },
+        },
+    )
+
+    monkeypatch.setattr("app.routers.foods.food_store.get_search_backend", lambda: backend)
+
+    search_response = client.get("/api/v1/foods?query=apple&limit=10&offset=0")
+    assert search_response.status_code == 200
+
+    metrics_response = client.get("/metrics")
+    assert metrics_response.status_code == 200
+    assert metrics_response.headers["content-type"].startswith("text/plain")
+    metrics_body = metrics_response.text
+    assert "food_search_meili_perf_events_total" in metrics_body
+    assert "food_search_meili_processing_time_ms_bucket" in metrics_body
+    assert "food_search_meili_stage_processing_time_ms_bucket" in metrics_body
+    assert 'strategy="meili"' in metrics_body
+    assert 'perf_state="captured"' in metrics_body
+    assert 'stage="authorization"' in metrics_body
+    assert 'stage="tokenization"' in metrics_body
+    assert "query=apple" not in metrics_body

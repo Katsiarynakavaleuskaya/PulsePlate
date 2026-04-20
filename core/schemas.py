@@ -53,6 +53,24 @@ class FoodItem(BaseModel):
     version_date: str = Field(..., description="Data version date")
     price_per_100g: float = Field(default=0.0, description="Price per 100g in local currency")
 
+    # Resolver provenance (additive; persisted via SQLite/Parquet builders)
+    nutrition_inputs: List[Dict[str, object]] = Field(
+        default_factory=list,
+        description="Ordered nutrition source inputs used by the resolver",
+    )
+    nutrition_provenance: Dict[str, str] = Field(
+        default_factory=dict,
+        description="Per-nutrient winning source label after resolution",
+    )
+    nutrition_nutrient_confidence: Dict[str, float] = Field(
+        default_factory=dict,
+        description="Per-nutrient confidence weights from the resolver",
+    )
+    nutrition_confidence: float = Field(
+        default=0.0,
+        description="Aggregate nutrition confidence from the resolver",
+    )
+
 
 class RecipeIngredient(BaseModel):
     """

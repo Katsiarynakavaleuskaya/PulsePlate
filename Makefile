@@ -4,26 +4,35 @@ all: lint test cov-check
 validate-data: ensure-database-versions
 	python3 scripts/validate_data.py
 
-.PHONY: all ensure-database-versions
+.PHONY: all ensure-database-versions ensure-python-proxy
 ensure-database-versions:
 	python3 scripts/ensure_database_versions.py
+
+ensure-python-proxy:
+	@test -n "$$PULSEPLATE_PYTHON_INDEX_URL" || (echo "❌ Export PULSEPLATE_PYTHON_INDEX_URL to the approved private package proxy before continuing." && exit 1)
 
 # Docker targets
 # 🐳 Docker Best Practices:
 # - Always test builds locally: make docker-build && docker run -p 8000:8000 pulseplate:latest
 # - Clean old images regularly: make docker-clean-images
 # - Use versioned tags for production: docker tag pulseplate:latest pulseplate:v1.0.0
-docker-build: ## Build production Docker image
-	docker build -t pulseplate:latest --target production .
+docker-build: ensure-python-proxy ## Build production Docker image
+	docker build -t pulseplate:latest --target production \
+		--build-arg PULSEPLATE_PYTHON_INDEX_URL="$$PULSEPLATE_PYTHON_INDEX_URL" \
+		--build-arg PULSEPLATE_PYTHON_TRUSTED_HOST="$${PULSEPLATE_PYTHON_TRUSTED_HOST:-}" \
+		.
 	docker tag pulseplate:latest pulseplate:$(shell git rev-parse --short HEAD)
 
-docker-build-dev: ## Build development Docker image
-	docker build -t pulseplate:dev --target development .
+docker-build-dev: ensure-python-proxy ## Build development Docker image
+	docker build -t pulseplate:dev --target development \
+		--build-arg PULSEPLATE_PYTHON_INDEX_URL="$$PULSEPLATE_PYTHON_INDEX_URL" \
+		--build-arg PULSEPLATE_PYTHON_TRUSTED_HOST="$${PULSEPLATE_PYTHON_TRUSTED_HOST:-}" \
+		.
 
-docker-run: ## Run Docker containers in background
+docker-run: ensure-python-proxy ## Run Docker containers in background
 	docker-compose up -d
 
-docker-run-dev: ## Run development Docker containers
+docker-run-dev: ensure-python-proxy ## Run development Docker containers
 	docker-compose --profile dev up -d
 
 docker-stop: ## Stop and remove Docker containers
@@ -51,7 +60,9 @@ health-check:
 unit-fast:
 	python3 -m pytest -q tests
 SHELL := /bin/bash
-PIP ?= . .venv/bin/activate && pip
+VENV_PYTHON ?= .venv/bin/python
+OPENAPI_PYTHON ?= $(if $(wildcard $(VENV_PYTHON)),$(VENV_PYTHON),python3)
+PIP ?= $(VENV_PYTHON) -m pip
 
 # Цвета для вывода
 GREEN := \033[0;32m
@@ -67,16 +78,21 @@ help:
 	@awk 'BEGIN{FS=":.*##"} /^[a-zA-Z0-9_.-]+:.*##/{printf "$(GREEN)%-22s$(NC) %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
 ## Create & install venv deps + setup automation
-venv: ## Create venv, install requirements & setup git hooks
-	$(PIP) install -U pip
-	@if [ -f requirements-dev.txt ]; then $(PIP) install -r requirements-dev.txt; fi
-	@if [ -f requirements.txt ]; then $(PIP) install -r requirements.txt; fi
+venv: ensure-python-proxy ## Create venv, install requirements & setup git hooks
+	@test -x $(VENV_PYTHON) || python3 -m venv .venv
+	PIP_REQUIRE_VIRTUALENV=1 $(VENV_PYTHON) scripts/ci/install_locked_python_requirements.py --python-executable $(VENV_PYTHON) --constraints-file constraints.txt --install-dev --require-virtualenv
 	@echo "$(YELLOW)🔧 Настройка автоматизации...$(NC)"
 	pre-commit install
 	pre-commit install --hook-type pre-push
 	chmod +x scripts/*.sh
 	./scripts/setup_git_aliases.sh
 	@echo "$(GREEN)✅ Окружение готово!$(NC)"
+
+## Refresh locked dependencies inside the existing .venv
+venv-sync: ensure-python-proxy ## Refresh .venv from locked requirements without recreating it
+	@test -x $(VENV_PYTHON) || (echo "$(RED)❌ .venv missing. Run 'make venv' first.$(NC)" && exit 1)
+	PIP_REQUIRE_VIRTUALENV=1 $(VENV_PYTHON) scripts/ci/install_locked_python_requirements.py --python-executable $(VENV_PYTHON) --constraints-file constraints.txt --install-dev --require-virtualenv
+	@echo "$(GREEN)✅ .venv refreshed from locked requirements$(NC)"
 
 ## Setup automation only (git hooks & aliases)
 setup-automation: ## Setup pre-commit hooks and git aliases
@@ -100,38 +116,63 @@ test: ## Run pytest
 ## Fast tests (deterministic smoke subset)
 test-fast: ## Run smoke tests (deterministic subset)
 	@echo "$(YELLOW)⚡ Smoke tests...$(NC)"
-	. .venv/bin/activate && pytest -q tests/edges tests/test_remaining_modules.py --maxfail=3
+	$(VENV_PYTHON) -m pytest -q tests/edges tests/test_remaining_modules.py --maxfail=3
+
+## Cheap deterministic local validation (guards + smoke)
+validate-min: ## Run the cheap deterministic local validation bundle
+	@echo "$(YELLOW)🧭 Running cheap local validation bundle...$(NC)"
+	@test -x $(VENV_PYTHON) || (echo "$(RED)❌ VENV_PYTHON missing. Run 'make venv' or override VENV_PYTHON first.$(NC)" && exit 1)
+	$(VENV_PYTHON) -m pytest -q tests/test_repo_policy_guards.py
+	$(MAKE) --no-print-directory test-fast
+	@echo "$(GREEN)✅ Cheap local validation bundle passed$(NC)"
+
+## Diff-based validation for changed Python files
+validate-changed: ## Run tests inferred from changed Python files
+	@echo "$(YELLOW)🧪 Running diff-based validation for changed Python files...$(NC)"
+	@test -x $(VENV_PYTHON) || (echo "$(RED)❌ VENV_PYTHON missing. Run 'make venv' or override VENV_PYTHON first.$(NC)" && exit 1)
+	PATH="$(dir $(VENV_PYTHON)):$$PATH" BRANCH_DIFF_MODE=1 bash scripts/run-backend-tests-pre-commit.sh
+	@echo "$(GREEN)✅ Diff-based validation completed$(NC)"
 
 ## Coverage in terminal + XML (uses .coveragerc)
 cov: ## Run coverage with pytest (term + XML)
 	@echo "$(YELLOW)📊 Анализ покрытия...$(NC)"
-	. .venv/bin/activate && coverage erase && coverage run -m pytest -q && coverage report -m && coverage xml
+	$(VENV_PYTHON) -m coverage erase && $(VENV_PYTHON) -m coverage run -m pytest -q && $(VENV_PYTHON) -m coverage report -m && $(VENV_PYTHON) -m coverage xml
 	@echo "$(GREEN)✅ Покрытие завершено$(NC)"
 
 ## Coverage check >=97%
 cov-check: ## Check coverage >= 97%
 	@echo "$(YELLOW)🎯 Проверка покрытия >=97%...$(NC)"
-	. .venv/bin/activate && coverage run -m pytest && coverage report --fail-under=97
+	$(VENV_PYTHON) -m coverage run -m pytest && \
+	$(VENV_PYTHON) -m coverage report --fail-under=97
 	@echo "$(GREEN)✅ Покрытие соответствует требованиям$(NC)"
 
 ## Diff coverage check (PR gate, >=97% on changed lines)
 diff-cov: ## Check diff coverage >= 97% against origin/main
 	@echo "$(YELLOW)📊 Проверка diff-coverage >=97%...$(NC)"
-	. .venv/bin/activate && coverage erase && coverage run -m pytest -q && coverage xml
-	diff-cover coverage.xml --compare-branch=origin/main --fail-under=97
+	$(VENV_PYTHON) -m coverage erase && \
+	$(VENV_PYTHON) -m coverage run -m pytest -q && \
+	$(VENV_PYTHON) -m coverage xml
+	$(VENV_PYTHON) -m diff_cover.diff_cover_tool coverage.xml --compare-branch=origin/main --fail-under=97
 	@echo "$(GREEN)✅ Diff-coverage соответствует требованиям$(NC)"
 
 ## Typecheck with mypy (no cache for clean runs)
 typecheck: ## Run mypy typecheck on app and core
 	@echo "$(YELLOW)🔬 Проверка типов (mypy)...$(NC)"
-	. .venv/bin/activate && mypy --no-incremental --cache-dir=/dev/null app core
+	$(VENV_PYTHON) -m mypy --no-incremental --cache-dir=/dev/null app core
 	@echo "$(GREEN)✅ Типы корректны$(NC)"
+
+## Fail-fast local dependency parity check for make verify
+verify-env: ## Check .venv for verify-critical locked dependencies
+	@echo "$(YELLOW)🧰 Проверка parity локального verify-окружения...$(NC)"
+	@test -x $(VENV_PYTHON) || (echo "$(RED)❌ .venv missing. Run 'make venv' first.$(NC)" && exit 1)
+	$(VENV_PYTHON) scripts/ci/check_local_verify_environment.py
+	@echo "$(GREEN)✅ Verify-окружение готово$(NC)"
 
 ## Full verification gate (all checks must pass before push)
 ## NOTE: Currently runs pytest twice (test-fast + diff-cov). Optimization possible via
 ## single coverage run + diff-cover on existing XML. Keeping as-is for simplicity;
 ## can be optimized in a follow-up PR if runtime becomes a bottleneck.
-verify: lint typecheck test-fast diff-cov ## Run all gates: lint + typecheck + tests + diff-coverage
+verify: verify-env lint typecheck test-fast diff-cov ## Run all gates: env + lint + typecheck + tests + diff-coverage
 	@echo "$(GREEN)🎉 Все проверки пройдены! Ready for push.$(NC)"
 
 # --- App Icon L4 silhouette control ------------------------------------------
@@ -143,8 +184,10 @@ ICON_1024 ?= assets/brand/icon/core/v1.0/icon_core_v1_1024.png
 # Baseline ratios (from docs/design/EMBLEM_CORE_v1.0_LOCK.md)
 ICON_BASELINE_WHITE ?= 0.0000
 ICON_BASELINE_BLACK ?= 0.0000
+TOKEN_PARITY_PATHS := frontend/src/styles/tokens.css frontend/src/styles/tokens.ts ios/PulsePlate/DesignSystem/DesignTokens.generated.swift ios/PulsePlate/DesignSystem/DesignTokens.swift ios/PulsePlate/Extensions/Color+Assets.swift ios/PulsePlate/Assets.xcassets/Navy.colorset/Contents.json ios/PulsePlate/Assets.xcassets/AppPrimary.colorset/Contents.json ios/PulsePlate/Assets.xcassets/AccentGreen.colorset/Contents.json ios/PulsePlate/Assets.xcassets/HeartRed.colorset/Contents.json ios/PulsePlate/Assets.xcassets/Gold.colorset/Contents.json
+TOKEN_PARITY_TESTS := tests/test_design_token_parity.py tests/test_design_invariant_guard.py tests/test_frontend_raw_hex_guard.py
 
-.PHONY: icon-silhouette-lock icon-silhouette-check design-guard
+.PHONY: icon-silhouette-lock icon-silhouette-check design-guard tokens-build tokens-check
 
 ## Validate icon core v1.0 folder structure
 icon-core-validate:
@@ -153,6 +196,40 @@ icon-core-validate:
 ## Enforce design invariant manifest, palette, and lock hashes
 design-guard:
 	python3 scripts/design_guard.py --manifest docs/design/figma-manifest.json
+
+## Build design-token runtime mirrors from the repo authoring tree
+tokens-build:
+	@echo "$(YELLOW)🎨 Building design token runtime mirrors...$(NC)"
+	@missing_paths=""; \
+	for path in tokens docs/design/figma-manifest.json frontend/package.json; do \
+		if [ ! -e "$$path" ]; then \
+			missing_paths="$$missing_paths\n$$path"; \
+		fi; \
+	done; \
+	if [ -n "$$missing_paths" ]; then \
+		printf 'Missing design token pipeline input(s):%b\n' "$$missing_paths"; \
+		exit 1; \
+	fi; \
+	cd frontend && npm run tokens:build
+
+## Run design-token generation hooks, drift gate, guard, and deterministic parity tests
+tokens-check:
+	@echo "$(YELLOW)🧪 Checking design token pipeline parity...$(NC)"
+	@before_diff=$$(mktemp); \
+	after_diff=$$(mktemp); \
+	trap 'rm -f "$$before_diff" "$$after_diff"' EXIT; \
+	git diff -- $(TOKEN_PARITY_PATHS) > "$$before_diff"; \
+	$(MAKE) --no-print-directory tokens-build && \
+	(cd frontend && npm run tokens:check) && \
+	git diff -- $(TOKEN_PARITY_PATHS) > "$$after_diff" && \
+	diff -u "$$before_diff" "$$after_diff" && \
+	python3 scripts/design_guard.py --manifest docs/design/figma-manifest.json && \
+	if [ -x .venv/bin/python ]; then \
+		. .venv/bin/activate && python -m pytest -q $(TOKEN_PARITY_TESTS); \
+	else \
+		python3 -m pytest -q $(TOKEN_PARITY_TESTS); \
+	fi
+	@echo "$(GREEN)✅ Design token pipeline checks passed$(NC)"
 
 ## Print silhouette hashes + density ratios (initial lock/evidence)
 icon-silhouette-lock:
@@ -174,7 +251,7 @@ icon-silhouette-check:
 ##        make design-execute SCREEN=ios.home
 ##        make design-verify
 
-.PHONY: design-validate design-execute design-verify design-list
+.PHONY: design-validate design-execute design-verify design-list design-preview
 
 ## List available screens for design execution
 design-list:
@@ -206,6 +283,16 @@ design-verify:
 	@echo "$(YELLOW)✅ Verifying all designs...$(NC)"
 	python3 scripts/design/verify_design.py --all
 
+## Emit deterministic HTML preview for one executed screen
+design-preview:
+ifndef SCREEN
+	@echo "$(RED)❌ Error: SCREEN not specified$(NC)"
+	@echo "Usage: make design-preview SCREEN=web.progress"
+	@exit 1
+endif
+	@echo "$(YELLOW)🖥️  Emitting HTML preview for $(SCREEN)...$(NC)"
+	python3 scripts/design/html_preview.py --screen $(SCREEN)
+
 ## Coverage HTML and open report (uses .coveragerc)
 cov-html: ## Generate HTML coverage and open in browser
 	@echo "$(YELLOW)📊 Создание HTML отчета...$(NC)"
@@ -214,7 +301,7 @@ cov-html: ## Generate HTML coverage and open in browser
 ## Lint (flake8)
 lint: ## Lint with flake8
 	@echo "$(YELLOW)🔍 Проверка качества кода...$(NC)"
-	flake8 .
+	$(VENV_PYTHON) -m flake8 .
 
 ## Auto-fix (format + imports)
 fmt: ## Format with black and isort
@@ -363,16 +450,31 @@ smoke-8001: ## Smoke against http://127.0.0.1:8001
 
 ## Generate OpenAPI schema (backend) and regenerate frontend TypeScript types
 openapi: frontend-install ## Generate OpenAPI schema and regenerate FE types (deterministic)
-	PYTHONPATH=. python3 scripts/generate_openapi.py
-	cd frontend && npm run generate-types
+	@OPENAPI_PYTHON="$(VENV_PYTHON)"; \
+	if [ -x "$$OPENAPI_PYTHON" ]; then \
+		:; \
+	elif [ "$$CI" = "true" ] && command -v python3 >/dev/null 2>&1; then \
+		OPENAPI_PYTHON="$$(command -v python3)"; \
+	elif [ "$$CI" = "true" ] && command -v python >/dev/null 2>&1; then \
+		OPENAPI_PYTHON="$$(command -v python)"; \
+	else \
+		echo "$(RED)❌ .venv missing. Run 'make venv' first.$(NC)"; \
+		exit 1; \
+	fi; \
+	"$$OPENAPI_PYTHON" -c 'import sys; raise SystemExit(0 if sys.version_info.major == 3 else 1)' || { \
+		echo "$(RED)❌ OpenAPI fallback requires Python 3.$(NC)"; \
+		exit 1; \
+	}; \
+	PYTHONPATH=. "$$OPENAPI_PYTHON" scripts/generate_openapi.py
+	./scripts/frontend_npm.sh --prefix frontend run generate-types
 ## Install frontend dependencies (run once or when package.json changes)
 frontend-install: ## Install frontend dependencies
 	@if [ -d frontend/node_modules ] && [ -f frontend/node_modules/.package-lock.json ] \
 		&& cmp -s frontend/package-lock.json frontend/node_modules/.package-lock.json; then \
 		echo "Frontend dependencies already installed"; \
 	else \
-		cd frontend && npm install --no-audit --no-fund && \
-		cp package-lock.json node_modules/.package-lock.json; \
+		./scripts/frontend_npm.sh --prefix frontend ci --no-audit --no-fund && \
+		cp frontend/package-lock.json frontend/node_modules/.package-lock.json; \
 	fi
 
 ## Verify OpenAPI schema + generated TypeScript types are in sync (no git diff)
@@ -394,7 +496,7 @@ ios-test: ## Run iOS unit tests (recommended before pushing iOS PR)
 		DESTINATION="$${IOS_DESTINATION:-$(IOS_DESTINATION)}"; \
 		if [ -z "$$DESTINATION" ]; then DESTINATION="platform=iOS Simulator,name=$$SIM_NAME,OS=$$SIM_OS"; fi; \
 		echo "Using destination: $$DESTINATION"; \
-		ONLY_ITEMS="$${IOS_ONLY_TESTING:-$(IOS_ONLY_TESTING)}"; \
+		ONLY_ITEMS="$${IOS_ONLY_TESTING:-$(shell ./scripts/ios_test_targets.sh)}"; \
 		SKIP_ITEMS="$${IOS_SKIP_TESTING:-$(IOS_SKIP_TESTING)}"; \
 		SKIP_PROVIDED=""; \
 		if [ -n "$${IOS_SKIP_TESTING+x}" ]; then SKIP_PROVIDED="1"; fi; \
@@ -403,8 +505,6 @@ ios-test: ## Run iOS unit tests (recommended before pushing iOS PR)
 		SKIP_FLAGS=""; \
 		if [ -n "$$ONLY_ITEMS" ]; then \
 			IFS=','; for t in $$ONLY_ITEMS; do t=$${t# }; t=$${t% }; [ -n "$$t" ] && ONLY_FLAGS="$$ONLY_FLAGS -only-testing:$$t"; done; unset IFS; \
-		else \
-			ONLY_FLAGS="-only-testing:PulsePlateTests/ThinClientGuardsTests -only-testing:PulsePlateTests/BMIServiceTests -only-testing:PulsePlateTests/BMIResponseDecodingTests -only-testing:PulsePlateTests/BMIRequestEncodingTests -only-testing:PulsePlateTests/LocaleParsingTests -only-testing:PulsePlateTests/SoftPaywallCTARoutingTests -only-testing:PulsePlateTests/PlateViewTests -only-testing:PulsePlateTests/PlateRingTests -only-testing:PulsePlateTests/PlateSegmentsTests -only-testing:PulsePlateTests/SegmentDetailViewTests"; \
 		fi; \
 		if [ -z "$$ONLY_ITEMS" ] && [ -z "$$SKIP_PROVIDED" ]; then \
 			SKIP_FLAGS="-skip-testing:PulsePlateUITests"; \
@@ -424,4 +524,22 @@ ios-test: ## Run iOS unit tests (recommended before pushing iOS PR)
 			-parallel-testing-enabled NO
 	@echo "$(GREEN)✅ iOS тесты пройдены$(NC)"
 
-.PHONY: all help venv setup-automation dev test test-fast cov cov-check cov-html lint fmt fmt-check security pre-commit quick-check auto-push safe-push feature sync-main status clean check-all fix-all ci smoke-auto smoke-8000 smoke-8001 docker-build docker-build-dev docker-run docker-run-dev docker-stop docker-clean docker-logs docker-shell bandit-full diff-cov typecheck verify openapi frontend-install openapi-check ios-test icon-silhouette-lock icon-silhouette-check icon-core-validate design-guard design-validate design-execute design-verify design-list
+IOS_FASTLANE = cd ios && BUNDLE_PATH=vendor/bundle bundle install && BUNDLE_PATH=vendor/bundle bundle exec fastlane ios
+
+ios-snapshot: ## Capture App Store screenshots via Fastlane
+	@echo "$(YELLOW)📸 Running iOS App Store screenshots...$(NC)"
+	@$(IOS_FASTLANE) snapshot_all
+
+ios-appstore-validate: ## Validate App Store screenshots, metadata, and privacy copy
+	@echo "$(YELLOW)🔎 Validating iOS App Store assets...$(NC)"
+	@$(IOS_FASTLANE) validate_assets
+
+ios-appstore-upload: ## Upload App Store metadata and screenshots (requires ASC API key env)
+	@echo "$(YELLOW)🚀 Uploading iOS App Store metadata and screenshots...$(NC)"
+	@$(IOS_FASTLANE) upload_metadata_and_screenshots
+
+ios-appstore-upload-privacy: ## Upload App Privacy answers (requires Apple ID session env)
+	@echo "$(YELLOW)🔐 Uploading iOS App Privacy answers...$(NC)"
+	@$(IOS_FASTLANE) upload_app_privacy
+
+.PHONY: all help venv venv-sync setup-automation dev test test-fast validate-min validate-changed cov cov-check cov-html lint fmt fmt-check security pre-commit quick-check auto-push safe-push feature sync-main status clean check-all fix-all ci smoke-auto smoke-8000 smoke-8001 docker-build docker-build-dev docker-run docker-run-dev docker-stop docker-clean docker-logs docker-shell bandit-full diff-cov typecheck verify verify-env openapi frontend-install openapi-check ios-test ios-snapshot ios-appstore-validate ios-appstore-upload ios-appstore-upload-privacy icon-silhouette-lock icon-silhouette-check icon-core-validate design-guard tokens-build tokens-check design-validate design-execute design-verify design-list

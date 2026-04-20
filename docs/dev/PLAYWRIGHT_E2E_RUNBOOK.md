@@ -20,29 +20,56 @@ This runbook defines the Step 3 browser E2E extension for the PulsePlate product
 
 ## Prerequisites (local)
 
-1. Ensure Node toolchain is available:
-
-   ```bash
-   command -v npx >/dev/null 2>&1
-   node --version
-   npm --version
-   ```
-
-2. Resolve Playwright CLI wrapper path:
+1. Export `CODEX_HOME` first when your Codex install is not under the default `~/.codex`:
 
    ```bash
    export CODEX_HOME="${CODEX_HOME:-$HOME/.codex}"
-   export PWCLI="$CODEX_HOME/skills/playwright/scripts/playwright_cli.sh"
-   "$PWCLI" --help
    ```
 
-3. Prepare frontend dependencies:
+2. Run the repo-owned Playwright MCP doctor from repo root:
+
+   ```bash
+   python3 scripts/playwright_mcp.py doctor
+   ```
+
+   This is a hard preflight for local MCP/browser work:
+   - exact Node parity with `.nvmrc` is required
+   - `npm` / `npx` must be present
+   - `frontend/node_modules` must exist
+   - local Playwright package must exist
+   - Codex Playwright wrapper must exist
+
+3. Install frontend dependencies if doctor reports missing packages:
 
    ```bash
    cd frontend
    npm ci
    cd ..
    ```
+
+4. Install the Chromium payload via the repo-owned helper:
+
+   ```bash
+   cd frontend
+   npm run test:e2e:install
+   cd ..
+   ```
+
+5. Resolve Playwright CLI wrapper path only after doctor passes:
+
+   ```bash
+   export PWCLI="$CODEX_HOME/skills/playwright/scripts/playwright_cli.sh"
+   "$PWCLI" --help
+   ```
+
+### Tooling contract
+
+- Repo-local Playwright runtime comes from `frontend/node_modules/playwright`.
+- Repo-local diagnostics/bootstrap come from `scripts/playwright_mcp.py`.
+- Codex browser automation still enters through the wrapper at
+  `$CODEX_HOME/skills/playwright/scripts/playwright_cli.sh`.
+- Do not treat a globally available `node` or `npx` as sufficient unless the
+  doctor confirms exact `.nvmrc` parity and local browser payload presence.
 
 ## Local execution profile
 
@@ -61,6 +88,8 @@ This runbook defines the Step 3 browser E2E extension for the PulsePlate product
 From `frontend/`:
 
 ```bash
+npm run test:e2e:doctor
+npm run test:e2e:install
 npm run test:e2e
 ```
 
@@ -90,6 +119,7 @@ npm run storybook
 Use element references from the latest snapshot only. Do not hardcode `e*` ids.
 
 ```bash
+python3 scripts/playwright_mcp.py doctor
 "$PWCLI" open http://127.0.0.1:4173/plate --headed
 "$PWCLI" snapshot
 "$PWCLI" click eX
@@ -139,12 +169,14 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
-          node-version: '20.11.1'
+          node-version-file: '.nvmrc'
           cache: 'npm'
           cache-dependency-path: frontend/package-lock.json
 
       - name: Install dependencies
-        run: npm ci
+        uses: ./.github/actions/npm-ci-with-retry
+        with:
+          working-directory: frontend
 
       - name: Install Playwright browser
         run: npx playwright install --with-deps chromium

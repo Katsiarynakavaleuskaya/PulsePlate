@@ -82,6 +82,12 @@ Defining a contract with explicit confidence + degrade states will reduce “hal
 - Promote as:
   - schema doc + ledger items for runtime implementation + tests
 
+Canonical PR5 follow-up docs:
+
+- `docs/orchestration/CV_EXPERIMENTATION_PROTOCOL.md`
+- `docs/orchestration/CV_EXPERIMENT_PACKET_TEMPLATE.md`
+- `docs/orchestration/contracts/CV_PHOTO_FOOD_EVAL_CONTRACT.md`
+
 ### Negative controls
 
 - Ensure contract works even when recognition returns empty/ambiguous results
