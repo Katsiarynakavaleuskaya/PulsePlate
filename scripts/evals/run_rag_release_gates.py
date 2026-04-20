@@ -343,12 +343,18 @@ def resolve_git_sha() -> str:
     return head_value or "unknown"
 
 
+def _record_strict_violation(state: EvalRuntimeState, message: str) -> None:
+    """Track deterministic strict-lane violations once per unique message."""
+
+    state.warnings.append(message)
+    if not state.config.allow_runtime_fallbacks and message not in state.strict_violations:
+        state.strict_violations.append(message)
+
+
 def _record_runtime_fallback(state: EvalRuntimeState, warning: str) -> None:
     """Track runtime degradations and mark strict lanes as failed-closed."""
 
-    state.warnings.append(warning)
-    if not state.config.allow_runtime_fallbacks:
-        state.strict_violations.append(warning)
+    _record_strict_violation(state, warning)
 
 
 def _try_import(imports: PulsePlateImports, name: str, import_fn: Any) -> None:
@@ -1036,16 +1042,30 @@ def validate_output_with_pulseplate(
     if validate_llm_output is None:
         return {
             "philosophy_validator_available": False,
-            "ok": None,
-            "blockers": [],
+            "ok": False,
+            "blockers": [
+                {
+                    "code": "validator_unavailable",
+                    "start": None,
+                    "end": None,
+                    "matched": None,
+                },
+            ],
         }
     try:
         report = validate_llm_output(answer, domain="rag_eval")
     except Exception as exc:
         return {
             "philosophy_validator_available": True,
-            "ok": None,
-            "blockers": [],
+            "ok": False,
+            "blockers": [
+                {
+                    "code": "validator_error",
+                    "start": None,
+                    "end": None,
+                    "matched": None,
+                },
+            ],
             "error": f"{type(exc).__name__}: {exc}",
         }
 
@@ -1166,7 +1186,17 @@ def scan_agent_input(
 
     scan_ai_agent_input = imports.scan_ai_agent_input
     if scan_ai_agent_input is None:
-        return {"available": False, "is_safe": True, "threats": []}
+        return {
+            "available": False,
+            "is_safe": False,
+            "threats": [
+                {
+                    "category": "guard_unavailable",
+                    "severity": "critical",
+                    "reason": "scan_ai_agent_input_missing",
+                },
+            ],
+        }
     try:
         scan = scan_ai_agent_input(query_text)
     except Exception as exc:
@@ -1205,6 +1235,11 @@ async def evaluate_one(
     trace_id = f"{state.config.experiment_id}:{row.query_id}"
     started = time.perf_counter()
     guard_result = scan_agent_input(state.pulseplate_imports, query_text)
+    if not guard_result.get("available", False):
+        _record_strict_violation(
+            state,
+            "agent_input_guard_unavailable:scan_ai_agent_input_missing",
+        )
     user_context_hash = stable_hash(
         {"subject_id": row.subject_id, "user_tier": row.user_tier},
     )
@@ -1259,6 +1294,16 @@ async def evaluate_one(
         state.pulseplate_imports,
         answer,
     )
+    if not output_validation.get("philosophy_validator_available", False):
+        _record_strict_violation(
+            state,
+            "philosophy_validator_unavailable:validate_llm_output_missing",
+        )
+    elif output_validation.get("error"):
+        _record_strict_violation(
+            state,
+            "philosophy_validator_error:" f"{output_validation['error']}",
+        )
     latency_ms = int((time.perf_counter() - started) * 1_000)
     retrieval_metrics = {
         "recall_at_3": recall_at_k(retrieved, row.gold_doc_ids, k=3),
@@ -1759,12 +1804,33 @@ def write_summary_notebook(
     run_dir: Path,
     metrics_summary: dict[str, Any],
     gate_report: str,
+    *,
+    template_notebook_path: Path | None = None,
 ) -> Path:
-    """Write a lightweight executed notebook artifact without Jupyter."""
+    """Write an executed notebook artifact derived from the tracked template."""
 
     notebook_path = run_dir / "latest_executed.ipynb"
-    notebook = {
-        "cells": [
+    notebook: dict[str, Any]
+    if template_notebook_path is not None:
+        notebook = json.loads(template_notebook_path.read_text(encoding="utf-8"))
+    else:
+        notebook = {
+            "cells": [],
+            "metadata": {
+                "kernelspec": {
+                    "display_name": "Python 3",
+                    "language": "python",
+                    "name": "python3",
+                },
+                "language_info": {"name": "python"},
+            },
+            "nbformat": 4,
+            "nbformat_minor": 5,
+        }
+
+    notebook.setdefault("cells", [])
+    notebook["cells"].extend(
+        [
             {
                 "cell_type": "markdown",
                 "metadata": {},
@@ -1795,17 +1861,7 @@ def write_summary_notebook(
                 ],
             },
         ],
-        "metadata": {
-            "kernelspec": {
-                "display_name": "Python 3",
-                "language": "python",
-                "name": "python3",
-            },
-            "language_info": {"name": "python"},
-        },
-        "nbformat": 4,
-        "nbformat_minor": 5,
-    }
+    )
     notebook_path.write_text(
         json.dumps(notebook, ensure_ascii=False, indent=2),
         encoding="utf-8",
@@ -1817,6 +1873,8 @@ def write_artifacts(
     run_dir: Path,
     traces: list[dict[str, Any]],
     metrics_summary: dict[str, Any],
+    *,
+    template_notebook_path: Path | None = None,
 ) -> dict[str, str]:
     """Write the canonical artifact pack for the evaluation run."""
 
@@ -1833,7 +1891,12 @@ def write_artifacts(
     )
     gate_report = build_gate_report_markdown(metrics_summary)
     report_path.write_text(gate_report, encoding="utf-8")
-    notebook_path = write_summary_notebook(run_dir, metrics_summary, gate_report)
+    notebook_path = write_summary_notebook(
+        run_dir,
+        metrics_summary,
+        gate_report,
+        template_notebook_path=template_notebook_path,
+    )
     return {
         "traces_jsonl": str(traces_path),
         "parquet_or_csv": parquet_or_csv_status,
@@ -2076,7 +2139,12 @@ async def async_main(args: argparse.Namespace) -> int:
         dataset_path_used=dataset_path_used,
     )
     run_dir = config.artifact_root / config.experiment_id
-    artifacts = write_artifacts(run_dir, traces, metrics_summary)
+    artifacts = write_artifacts(
+        run_dir,
+        traces,
+        metrics_summary,
+        template_notebook_path=config.notebook_path,
+    )
     _write_github_step_summary(metrics_summary, artifacts)
 
     print("PulsePlate import status:", json.dumps(imports.status, indent=2))

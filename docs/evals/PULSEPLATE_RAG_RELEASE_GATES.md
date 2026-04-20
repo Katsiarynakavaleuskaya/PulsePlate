@@ -266,7 +266,7 @@ python3 scripts/evals/run_rag_release_gates.py \
 Stricter local lane:
 
 ```bash
-PULSEPLATE_RAG_EVAL_INPUT=data/evals/rag_weekly_500.jsonl \
+PULSEPLATE_RAG_EVAL_INPUT=${PULSEPLATE_RAG_EVAL_INPUT:-data/evals/pulseplate_rag_eval_sample.jsonl} \
 RETRIEVER_MODE=pulseplate \
 GENERATOR_MODE=pulseplate_runtime \
 ENABLE_NLI_MODEL=true \
@@ -280,12 +280,18 @@ python3 scripts/evals/run_rag_release_gates.py \
 Notebook execution remains available for analyst-facing review:
 
 ```bash
-PULSEPLATE_RAG_EVAL_INPUT=data/evals/rag_weekly_500.jsonl \
+PULSEPLATE_RAG_EVAL_INPUT=${PULSEPLATE_RAG_EVAL_INPUT:-data/evals/pulseplate_rag_eval_sample.jsonl} \
 RETRIEVER_MODE=local_tfidf \
 GENERATOR_MODE=extractive_stub \
 jupyter nbconvert --to notebook --execute notebooks/pulseplate_rag_release_gates.ipynb \
   --output artifacts/rag_eval/latest_executed.ipynb
 ```
+
+For the strict weekly/manual GitHub lane, inject a larger curated dataset through
+the `workflow_dispatch` input `eval_input_path` or the repo variable
+`PULSEPLATE_RAG_EVAL_INPUT`; when neither is set, the workflow falls back to the
+tracked sample fixture so the lane remains deterministic and runnable from a
+clean repo checkout.
 
 ## CI Guidance
 

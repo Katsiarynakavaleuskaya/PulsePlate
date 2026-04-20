@@ -6,6 +6,7 @@ import argparse
 import asyncio
 import json
 from pathlib import Path
+from unittest.mock import AsyncMock, Mock
 
 import pytest
 
@@ -15,13 +16,16 @@ from core.rag.contracts import RAGChunk, RAGDegradedReason
 from core.rag.orchestration import RAGOrchestrationResult, retrieve_and_validate_rag
 from app.security.agent_input_guard import scan_ai_agent_input
 from app.services.insight_runtime import generate_traced_insight
+from scripts.evals import run_rag_release_gates as runner
 from scripts.evals.run_rag_release_gates import (
     EvalConfig,
+    EvalRow,
     EvalRuntimeState,
     PulsePlateImports,
     apply_calibration,
     build_config,
     chunk_text,
+    evaluate_one,
     generate_answer,
     lexical_support_score,
     load_pulseplate_imports,
@@ -34,6 +38,7 @@ from scripts.evals.run_rag_release_gates import (
     sanitize_experiment_id,
     validate_output_with_pulseplate,
     write_artifacts,
+    write_summary_notebook,
 )
 
 
@@ -471,6 +476,21 @@ def test_write_artifacts_returns_machine_stable_flat_export_path(tmp_path: Path)
     """Artifact metadata must expose a path, not a prose status blob."""
 
     run_dir = tmp_path / "artifacts" / "rag_eval" / "stable_export"
+    run_dir.mkdir(parents=True)
+    template_dir = tmp_path / "notebooks"
+    template_dir.mkdir(parents=True)
+    template_path = template_dir / "pulseplate_rag_release_gates.ipynb"
+    template_path.write_text(
+        json.dumps(
+            {
+                "cells": [],
+                "metadata": {},
+                "nbformat": 4,
+                "nbformat_minor": 5,
+            },
+        ),
+        encoding="utf-8",
+    )
     traces = [
         {
             "trace_id": "trace-1",
@@ -518,22 +538,189 @@ def test_write_artifacts_returns_machine_stable_flat_export_path(tmp_path: Path)
         "gate_checks": {},
     }
 
-    artifacts = write_artifacts(run_dir, traces, metrics_summary)
+    artifacts = write_artifacts(
+        run_dir,
+        traces,
+        metrics_summary,
+        template_notebook_path=template_path,
+    )
 
     assert artifacts["parquet_or_csv"].endswith((".parquet", ".csv"))
 
 
-def test_notebook_parity_uses_runner_thresholds_and_metric_keys() -> None:
-    """Notebook and runner must not drift on critical thresholds and schema keys."""
+@pytest.mark.asyncio
+async def test_missing_agent_input_guard_fails_closed_in_strict_mode(tmp_path: Path) -> None:
+    """Strict mode must not silently bypass the shared AI input guard."""
 
-    notebook_text = Path("notebooks/pulseplate_rag_release_gates.ipynb").read_text(encoding="utf-8")
+    state = EvalRuntimeState(
+        config=EvalConfig(
+            project_root=tmp_path,
+            input_path=tmp_path / "data" / "eval.jsonl",
+            artifact_root=tmp_path / "artifacts" / "rag_eval",
+            experiment_id="strict_guard_gap",
+            sample_size=1,
+            top_k=5,
+            random_seed=42,
+            retriever_mode="local_tfidf",
+            generator_mode="extractive_stub",
+            enable_nli_model=False,
+            nli_model_name="roberta-large-mnli",
+            notebook_path=tmp_path / "notebooks" / "pulseplate_rag_release_gates.ipynb",
+            require_pass=True,
+            allow_dataset_fallback=True,
+            allow_runtime_fallbacks=False,
+        ),
+        pulseplate_imports=PulsePlateImports(),
+    )
+    row = EvalRow(
+        query_id="q1",
+        query_text="How does PulsePlate tiering work?",
+        gold_doc_ids=["docs/tiers.md"],
+        gold_answer="PulsePlate has tiers.",
+        expected_claims=[],
+        evidence_quotes=[],
+        user_tier="PRO",
+        subject_id=1,
+        human_label_if_any=1,
+    )
 
-    assert "ROUTING_CONFIDENCE_THRESHOLD" in notebook_text
-    assert '\\"0.65\\"' in notebook_text
-    assert "SUPPORT_ENTAILMENT_THRESHOLD" in notebook_text
-    assert '\\"0.50\\"' in notebook_text
-    assert "recall_at_effective_k" in notebook_text
-    assert "mean_nli_entailment" in notebook_text
-    assert "::chunk_" not in notebook_text
-    assert "recall@50" not in notebook_text
-    assert "mean_entailment" not in notebook_text
+    trace = await evaluate_one(state, row)
+
+    assert trace["routing_decision"] == "blocked_by_agent_input_guard"
+    assert "agent_input_guard_unavailable:scan_ai_agent_input_missing" in state.strict_violations
+
+
+@pytest.mark.asyncio
+async def test_missing_philosophy_validator_records_strict_violation(tmp_path: Path) -> None:
+    """Strict mode must record missing philosophy validation as a blocker."""
+
+    async def fake_generate_answer(
+        *args: object, **kwargs: object
+    ) -> tuple[str, float, dict[str, object]]:
+        return "PulsePlate answer backed by evidence.", 0.91, {"generator": "stub"}
+
+    def fake_scan(_: str) -> object:
+        return type("Guard", (), {"is_safe": True, "threats": ()})()
+
+    state = EvalRuntimeState(
+        config=EvalConfig(
+            project_root=tmp_path,
+            input_path=tmp_path / "data" / "eval.jsonl",
+            artifact_root=tmp_path / "artifacts" / "rag_eval",
+            experiment_id="strict_validator_gap",
+            sample_size=1,
+            top_k=5,
+            random_seed=42,
+            retriever_mode="local_tfidf",
+            generator_mode="extractive_stub",
+            enable_nli_model=False,
+            nli_model_name="roberta-large-mnli",
+            notebook_path=tmp_path / "notebooks" / "pulseplate_rag_release_gates.ipynb",
+            require_pass=True,
+            allow_dataset_fallback=True,
+            allow_runtime_fallbacks=False,
+        ),
+        pulseplate_imports=PulsePlateImports(scan_ai_agent_input=fake_scan),
+    )
+    row = EvalRow(
+        query_id="q2",
+        query_text="Summarize PulsePlate tiering.",
+        gold_doc_ids=["docs/tiers.md"],
+        gold_answer="PulsePlate has tiers.",
+        expected_claims=[],
+        evidence_quotes=[],
+        user_tier="PRO",
+        subject_id=1,
+        human_label_if_any=1,
+    )
+
+    original_retrieve = runner.retrieve
+    original_generate = runner.generate_answer
+    original_evaluate_faithfulness = runner.evaluate_faithfulness
+    try:
+        runner.retrieve = AsyncMock(  # type: ignore[assignment]
+            return_value=(
+                [
+                    {
+                        "doc_id": "docs/tiers.md",
+                        "source_url": "docs/tiers.md",
+                        "doc_snippet": "tiers",
+                    }
+                ],
+                {"max_supported_top_k": 5},
+            )
+        )
+        runner.generate_answer = fake_generate_answer  # type: ignore[assignment]
+        runner.evaluate_faithfulness = Mock(  # type: ignore[assignment]
+            return_value={
+                "extracted_claim_spans": [],
+                "per_span_entailment_score": [],
+                "support_flags": [],
+                "evidence_exact_match": True,
+                "mean_nli_entailment": 1.0,
+                "support_precision": 1.0,
+            }
+        )
+
+        trace = await evaluate_one(state, row)
+    finally:
+        runner.retrieve = original_retrieve  # type: ignore[assignment]
+        runner.generate_answer = original_generate  # type: ignore[assignment]
+        runner.evaluate_faithfulness = original_evaluate_faithfulness  # type: ignore[assignment]
+
+    assert trace["philosophy_output_validation"]["ok"] is False
+    assert "philosophy_validator_unavailable:validate_llm_output_missing" in state.strict_violations
+
+
+def test_notebook_parity_uses_emitted_artifact_from_template(tmp_path: Path) -> None:
+    """The emitted notebook artifact must derive from the tracked template notebook."""
+
+    template_dir = tmp_path / "notebooks"
+    template_dir.mkdir(parents=True)
+    template_path = template_dir / "pulseplate_rag_release_gates.ipynb"
+    template_notebook = {
+        "cells": [
+            {
+                "cell_type": "markdown",
+                "metadata": {},
+                "source": [
+                    "ROUTING_CONFIDENCE_THRESHOLD=0.65\n",
+                    "SUPPORT_ENTAILMENT_THRESHOLD=0.50\n",
+                    "recall_at_effective_k\n",
+                    "mean_nli_entailment\n",
+                    "# template sentinel\n",
+                ],
+            }
+        ],
+        "metadata": {},
+        "nbformat": 4,
+        "nbformat_minor": 5,
+    }
+    template_path.write_text(json.dumps(template_notebook), encoding="utf-8")
+
+    run_dir = tmp_path / "artifacts" / "rag_eval" / "parity"
+    run_dir.mkdir(parents=True)
+    metrics_summary = {
+        "experiment_id": "parity",
+        "release_decision": "PASS",
+        "retriever_mode": "local_tfidf",
+        "generator_mode": "extractive_stub",
+        "dataset_path_used": "data/evals/pulseplate_rag_eval_sample.jsonl",
+    }
+
+    emitted = write_summary_notebook(
+        run_dir,
+        metrics_summary,
+        "gate report",
+        template_notebook_path=template_path,
+    )
+    emitted_text = emitted.read_text(encoding="utf-8")
+
+    assert "# template sentinel" in emitted_text
+    assert "ROUTING_CONFIDENCE_THRESHOLD=0.65" in emitted_text
+    assert "SUPPORT_ENTAILMENT_THRESHOLD=0.50" in emitted_text
+    assert "recall_at_effective_k" in emitted_text
+    assert "mean_nli_entailment" in emitted_text
+    assert "::chunk_" not in emitted_text
+    assert "recall@50" not in emitted_text
+    assert "mean_entailment" not in emitted_text

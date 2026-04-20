@@ -21,6 +21,11 @@ on:
       - "app/services/insight_runtime.py"
       - "app/security/agent_input_guard.py"
   workflow_dispatch:
+    inputs:
+      eval_input_path:
+        description: "Strict dataset path inside the repo; defaults to the committed sample fixture when unset."
+        required: false
+        default: "data/evals/pulseplate_rag_eval_sample.jsonl"
   schedule:
     - cron: "0 7 * * 1"
 
@@ -78,7 +83,7 @@ jobs:
 
       - name: Run strict weekly/manual lane
         env:
-          PULSEPLATE_RAG_EVAL_INPUT: data/evals/rag_weekly_500.jsonl
+          PULSEPLATE_RAG_EVAL_INPUT: ${{ inputs.eval_input_path || vars.PULSEPLATE_RAG_EVAL_INPUT || 'data/evals/pulseplate_rag_eval_sample.jsonl' }}
           RETRIEVER_MODE: pulseplate
           GENERATOR_MODE: pulseplate_runtime
         run: |
