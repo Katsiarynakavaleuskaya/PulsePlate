@@ -36,6 +36,7 @@ jobs:
   rag-release-gates-smoke:
     name: RAG Release Gates Smoke
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     if: github.event_name != 'schedule'
     steps:
       - name: Checkout
@@ -45,6 +46,11 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+
+      - name: Install CI-lite dependencies for smoke lane
+        run: |
+          python3 -m pip install --upgrade pip
+          python3 -m pip install -r requirements-ci-lite.txt
 
       - name: Run cheap smoke lane
         run: |
