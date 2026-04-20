@@ -448,7 +448,7 @@ rich==14.3.3
     #   bandit
     #   pip-audit
     #   typer
-ruff==0.15.11
+ruff==0.15.10
     # via -r requirements-dev.in
 six==1.17.0
     # via
