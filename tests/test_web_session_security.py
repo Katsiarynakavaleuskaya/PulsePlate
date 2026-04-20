@@ -168,6 +168,69 @@ def test_verify_rejects_invalid_enc_without_legacy_fallback(
     assert web_session.verify_web_session(f"{payload_b64}.{sig}", now=now) is None
 
 
+def test_verify_rejects_empty_enc_api_key_without_legacy_fallback(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Empty enc_api_key claim must not fall back to legacy plaintext api_key."""
+
+    monkeypatch.setenv("SERVER_SALT", "session-secret")
+    now = datetime(2026, 6, 4, tzinfo=timezone.utc)
+    issued_at = int(now.timestamp())
+    expires_at = issued_at + 200
+    payload = {
+        "enc_api_key": "",
+        "api_key": TEST_PRO_KEY,
+        "tier": "PRO",
+        "iat": issued_at,
+        "exp": expires_at,
+        "v": 1,
+    }
+    payload_bytes = json.dumps(
+        payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True
+    ).encode("utf-8")
+    payload_b64 = _b64url_encode(payload_bytes)
+    sig = _sign_payload(payload_b64, server_salt="session-secret")
+    assert web_session.verify_web_session(f"{payload_b64}.{sig}", now=now) is None
+
+
+def test_verify_rejects_future_iat_beyond_skew(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Token with iat far in the future must fail closed (not-before)."""
+
+    monkeypatch.setenv("SERVER_SALT", "session-secret")
+    now = datetime(2026, 7, 1, tzinfo=timezone.utc)
+    now_epoch = int(now.timestamp())
+    issued_at = now_epoch + 500
+    expires_at = issued_at + 400
+    payload = {
+        "api_key": TEST_PRO_KEY,
+        "tier": "PRO",
+        "iat": issued_at,
+        "exp": expires_at,
+        "v": 1,
+    }
+    payload_bytes = json.dumps(
+        payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True
+    ).encode("utf-8")
+    payload_b64 = _b64url_encode(payload_bytes)
+    sig = _sign_payload(payload_b64, server_salt="session-secret")
+    assert web_session.verify_web_session(f"{payload_b64}.{sig}", now=now) is None
+
+
+def test_verify_returns_none_when_server_salt_missing(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Missing SERVER_SALT during verify must return None, not raise."""
+
+    monkeypatch.setenv("SERVER_SALT", "session-secret")
+    now = datetime(2026, 8, 1, tzinfo=timezone.utc)
+    issued = web_session.issue_web_session(
+        api_key=TEST_PRO_KEY,
+        tier="PRO",
+        now=now,
+        ttl_seconds=120,
+    )
+    monkeypatch.delenv("SERVER_SALT", raising=False)
+    assert web_session.verify_web_session(issued.token, now=now + timedelta(seconds=10)) is None
+
+
 def test_token_payload_does_not_expose_raw_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
     """Token payload must not include plaintext API key claim."""
 

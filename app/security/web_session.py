@@ -27,6 +27,8 @@ DEFAULT_WEB_SESSION_TTL_SECONDS = 60 * 60 * 12  # 12h
 _COOKIE_PATH = "/"
 _COOKIE_SAMESITE: Literal["lax"] = "lax"
 _SESSION_SIGNATURE_ITERATIONS = 20_000
+# RU/EN: Допуск рассинхрона часов для `iat` (not-before), секунды.
+_SESSION_IAT_CLOCK_SKEW_SECONDS = 120
 _SESSION_ENCRYPTION_CONTEXT = b"web_session_v1::api_key"
 
 
@@ -209,7 +211,11 @@ def verify_web_session(
     now: datetime | None = None,
     secret: str | None = None,
 ) -> WebSessionClaims | None:
-    """Verify signed token and return claims, else None (fail-closed)."""
+    """Verify signed token and return claims, else None (fail-closed).
+
+    Misconfigured crypto env (e.g. missing SERVER_SALT when secret is omitted) returns None;
+    does not raise — callers may treat this like any other invalid token.
+    """
 
     raw = token.strip()
     if not raw:
@@ -223,7 +229,10 @@ def verify_web_session(
     if not payload_b64 or not signature:
         return None
 
-    expected_sig = _sign_payload(payload_b64=payload_b64, secret=secret)
+    try:
+        expected_sig = _sign_payload(payload_b64=payload_b64, secret=secret)
+    except RuntimeError:
+        return None
     if not hmac.compare_digest(expected_sig, signature):
         return None
 
@@ -234,7 +243,6 @@ def verify_web_session(
     if not isinstance(payload_obj, dict):
         return None
 
-    encrypted_api_key = payload_obj.get("enc_api_key")
     legacy_plain_api_key = payload_obj.get("api_key")
     tier = payload_obj.get("tier")
     issued_at = payload_obj.get("iat")
@@ -248,8 +256,15 @@ def verify_web_session(
     if version != 1:
         return None
 
+    # If encrypted claim key is present on the wire (even null/empty), never fall back to legacy
+    # plaintext — prevents downgrade when both fields appear.
+    enc_api_key_present = "enc_api_key" in payload_obj  # pragma: allowlist secret
+    encrypted_api_key = payload_obj.get("enc_api_key")
+
     resolved_api_key: str | None = None
-    if isinstance(encrypted_api_key, str) and encrypted_api_key.strip():
+    if enc_api_key_present:
+        if not isinstance(encrypted_api_key, str) or not encrypted_api_key.strip():
+            return None
         resolved_api_key = _decrypt_api_key(encrypted_api_key.strip(), secret=secret)
         if resolved_api_key is None:
             return None
@@ -270,6 +285,9 @@ def verify_web_session(
 
     now_epoch = int((now or datetime.now(timezone.utc)).astimezone(timezone.utc).timestamp())
     if now_epoch >= expires_at:
+        return None
+    # Reject if iat is in the future vs verifier clock (beyond allowed skew).
+    if issued_at > now_epoch + _SESSION_IAT_CLOCK_SKEW_SECONDS:
         return None
 
     return WebSessionClaims(
