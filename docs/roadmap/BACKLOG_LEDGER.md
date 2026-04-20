@@ -443,24 +443,6 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - [ ] Locked install, Docker build, and `make verify` succeed with the private proxy alone
     - [ ] Advisory is updated to mark the emergency fallback retired
 
-<a id="ledger-p2-dependency-fallback-artifact-dedup"></a>
-- [ ] P2: Deduplicate dependency fallback version references across packet / ledger / tests
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P2 (dependency-governance follow-up)
-  - Target PR: `PR-TBD-DEPENDENCY-FALLBACK-DEDUP`
-  - Status: Planned
-  - Area: docs / CI / dependency governance
-  - Reason (EN): Narrow dependency remediation lanes currently repeat the same fallback package/version tuples across `scripts/ci/emergency_python_wheels.json`, backlog evidence, orchestration packets, and narrow tests. That duplication increases drift risk and makes line-range evidence brittle as the manifest evolves. A follow-up lane should introduce a more stable single-source-of-truth pattern or generator and replace line-range references with package/key-based evidence anchors. (RU: узкие dependency remediation lane сейчас дублируют одни и те же fallback package/version tuple в `scripts/ci/emergency_python_wheels.json`, ledger evidence, orchestration packet и узких тестах. Такое дублирование повышает риск дрейфа и делает line-range evidence хрупким при эволюции manifest. Нужен отдельный follow-up lane с более устойчивым single-source-of-truth/generator pattern и package/key-based ссылками вместо диапазонов строк.)
-  - Links:
-    - `scripts/ci/emergency_python_wheels.json`
-    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-cryptography-private-index-sync`
-    - `docs/orchestration/DEPENDABOT_PR_1474_TRANSFORMERS_REMEDIATION_PACKET_2026-04-20.md`
-    - `tests/test_install_locked_python_requirements.py`
-  - DoD:
-    - A canonical source exists for dependency fallback package/version tuples used by narrow remediation artifacts
-    - Ledger/package evidence points to package keys or stable anchors rather than fragile line ranges
-    - Narrow dependency remediation packets/tests consume the canonical source without manual tuple drift
-
 <a id="ledger-p1-mako-private-index-sync"></a>
 - [ ] P1: Remove temporary `mako 1.3.11` emergency wheel fallback after approved mirror sync
   - Owner: @katsiaryna_kavaleuskaya
@@ -3665,6 +3647,24 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 
 
 ### P2
+
+<a id="ledger-p2-dependency-fallback-artifact-dedup"></a>
+- [ ] P2: Deduplicate dependency fallback version references across packet / ledger / tests
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2 (dependency-governance follow-up)
+  - Target PR: `PR-TBD-DEPENDENCY-FALLBACK-DEDUP`
+  - Status: Planned
+  - Area: docs / CI / dependency governance
+  - Reason (EN): Narrow dependency remediation lanes currently repeat the same fallback package/version tuples across `scripts/ci/emergency_python_wheels.json`, backlog evidence, orchestration packets, and narrow tests. That duplication increases drift risk and makes line-range evidence brittle as the manifest evolves. A follow-up lane should introduce a more stable single-source-of-truth pattern or generator and replace line-range references with package/key-based evidence anchors. (RU: узкие dependency remediation lane сейчас дублируют одни и те же fallback package/version tuple в `scripts/ci/emergency_python_wheels.json`, ledger evidence, orchestration packet и узких тестах. Такое дублирование повышает риск дрейфа и делает line-range evidence хрупким при эволюции manifest. Нужен отдельный follow-up lane с более устойчивым single-source-of-truth/generator pattern и package/key-based ссылками вместо диапазонов строк.)
+  - Links:
+    - `scripts/ci/emergency_python_wheels.json`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-cryptography-private-index-sync`
+    - `docs/orchestration/DEPENDABOT_PR_1474_TRANSFORMERS_REMEDIATION_PACKET_2026-04-20.md`
+    - `tests/test_install_locked_python_requirements.py`
+  - DoD:
+    - A canonical source exists for dependency fallback package/version tuples used by narrow remediation artifacts
+    - Ledger/package evidence points to package keys or stable anchors rather than fragile line ranges
+    - Narrow dependency remediation packets/tests consume the canonical source without manual tuple drift
 
 <a id="ledger-p2-dagger-pilot-after-docker-baseline"></a>
 - [ ] P2: Re-evaluate Dagger pilot only after Docker baseline stabilizes
