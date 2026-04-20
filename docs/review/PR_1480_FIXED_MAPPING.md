@@ -55,14 +55,14 @@ Reason: cubic identified a real contradiction between the pending canonical `## 
 Disposition: FIXED
 Evidence: `docs/review/PR_1480_FIXED_MAPPING.md:107-110`
 Reason: cubic found the same merge-readiness contradiction on the inline note at line 103; commit `d2b45c36438d3bd13068c5f2f74ee291c023217c` replaced it with a neutral statement that defers final truth to the checklist above.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1480#pullrequestreview-4136602523 -> 096ddf9c413032055cd56d690f509676c21bc6b8
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1480#pullrequestreview-4136602523 -> 096ddf9c4a243bb528010c520a294eedd4795ece
 Disposition: FIXED
 Evidence: `docs/review/PR_1480_FIXED_MAPPING.md:86-109`
-Reason: CodeRabbit's review summary reported that the `## Notes` block still contained unsupported truth claims; commit `096ddf9c413032055cd56d690f509676c21bc6b8` rewrote that section to use only evidence-backed bullets with explicit `file:line` anchors.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1480#discussion_r3107562893 -> 096ddf9c413032055cd56d690f509676c21bc6b8
+Reason: CodeRabbit's review summary reported that the `## Notes` block still contained unsupported truth claims; commit `096ddf9c4a243bb528010c520a294eedd4795ece` rewrote that section to use only evidence-backed bullets with explicit `file:line` anchors.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1480#discussion_r3107562893 -> 096ddf9c4a243bb528010c520a294eedd4795ece
 Disposition: FIXED
 Evidence: `docs/review/PR_1480_FIXED_MAPPING.md:86-109`
-Reason: The inline CodeRabbit finding requested `file:line` anchors for the factual claims in `## Notes`; commit `096ddf9c413032055cd56d690f509676c21bc6b8` added those anchors and removed the uncited live-session assertions.
+Reason: The inline CodeRabbit finding requested `file:line` anchors for the factual claims in `## Notes`; commit `096ddf9c4a243bb528010c520a294eedd4795ece` added those anchors and removed the uncited live-session assertions.
 
 ## Merge Readiness
 
