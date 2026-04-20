@@ -51,8 +51,9 @@ Merge-readiness contract:
   - the source Dependabot head introduces unrelated `cuda-*`, `nvidia-*`, and `triton` churn in `requirements-rag-vector.txt`
   - the active emergency wheel manifest still points at `transformers==5.5.3`
 - governance-only failures remain expected until this artifact and the PR body mirror are synchronized
-- current-head `build-and-test` is failing on an ambient locked-install blocker
-  for `ruff==0.15.11` from `requirements-dev.txt`, inherited from
-  `origin/main` and currently out of scope for this narrow transformers lane
+- current-head `build-and-test` exposed a locked-install fallback drift for
+  `ruff==0.15.11` from `requirements-dev.txt`, inherited from `origin/main`;
+  on `20 April 2026` the user explicitly approved fixing that manifest parity
+  blocker inside this replacement PR as a narrow follow-up
 - Canonical lane packet:
   `docs/orchestration/DEPENDABOT_PR_1474_TRANSFORMERS_REMEDIATION_PACKET_2026-04-20.md`

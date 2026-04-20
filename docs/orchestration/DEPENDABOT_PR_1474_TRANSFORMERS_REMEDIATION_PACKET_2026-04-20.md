@@ -38,13 +38,14 @@ profile.
   - Runtime / validation checks on the live Dependabot head are green; the
     remaining red checks are governance-only and must stay red until the
     canonical artifact + PR body mirror exist on the replacement lane.
-  - Post-open current-head CI for replacement PR `#1485` exposed an additional
-    ambient blocker outside the narrow transformers lane: `build-and-test`
+  - Post-open current-head CI for replacement PR `#1485` exposed an inherited
+    mainline blocker alongside the narrow transformers lane: `build-and-test`
     fails during locked backend dependency install because
     `requirements-dev.txt` pins `ruff==0.15.11` while the approved index lacks
-    a matching distribution for the CI environment. This is inherited from
-    `origin/main` and must be escalated instead of widened silently into this
-    remediation slice.
+    a matching distribution for the CI environment. On `20 April 2026`, the
+    user explicitly approved fixing this blocker inside the replacement PR as a
+    narrow manifest/test/docs follow-up instead of widening into a broader
+    dependency-policy lane.
 
 ## Mandatory Role Order
 
@@ -77,6 +78,9 @@ Rules:
   preserved
 - Rotating the temporary emergency wheel fallback from
   `transformers==5.5.3` to `transformers==5.5.4`
+- Rotating the temporary emergency wheel fallback for `ruff` from `0.15.10` to
+  `0.15.11` so the current `requirements-dev.txt` pin remains installable on
+  current-head CI while the approved proxy catches up
 - Updating the narrow documentation surfaces that explicitly encode the active
   fallback version
 - Refreshing `.secrets.baseline` only if `detect-secrets` requires a hashed
@@ -94,6 +98,8 @@ Rules:
   optional-rag-vector boundary
 - Broad GPU/CUDA enablement policy work
 - Frontend, iOS, API, OpenAPI, Cloudflare, Sentry, or unrelated infra work
+- Pulling unrelated `origin/main` history into this branch purely for sync
+  hygiene; PR current-head checks already evaluate against the live base branch
 
 ## Expected Touched Surfaces
 
@@ -105,6 +111,7 @@ Rules:
 - `docs/roadmap/BACKLOG_LEDGER.md`
 - `docs/orchestration/DEPENDABOT_PR_1474_TRANSFORMERS_REMEDIATION_PACKET_2026-04-20.md`
 - `docs/review/PR_<NEW_PR_NUMBER>_FIXED_MAPPING.md`
+- `tests/test_install_locked_python_requirements.py`
 
 ## Acceptance Criteria
 
@@ -115,7 +122,7 @@ Rules:
 - The emergency wheel fallback now matches `transformers==5.5.4` exactly with
   pinned `sha256` evidence
 - No unrelated dependency churn is introduced beyond the patch bump and the
-  fallback rotation
+  fallback rotations
 - All required checks are green with no pending required jobs on the latest
   replacement PR head
 - The post-open `qa-engineer-agent -> bug-hunter` review pass is complete
@@ -161,6 +168,11 @@ Rules:
 - `scripts/ci/emergency_python_wheels.json` still pinned
   `transformers==5.5.3`, so the active fallback contract must rotate together
   with the dependency bump.
+- `origin/main` and current `#1485` current-head CI both carry
+  `requirements-dev.txt:229` as `ruff==0.15.11` while
+  `scripts/ci/emergency_python_wheels.json:107-112` originally still pinned
+  `ruff==0.15.10`, so the replacement PR must also rotate the active `ruff`
+  fallback to restore locked-install parity on current head.
 - PyPI JSON metadata for `transformers==5.5.4` confirmed the canonical wheel
   filename / URL / `sha256` used for the temporary fallback entry:
   - filename: `transformers-5.5.4-py3-none-any.whl`
