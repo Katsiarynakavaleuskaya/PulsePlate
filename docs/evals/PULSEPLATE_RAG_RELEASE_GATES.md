@@ -280,11 +280,13 @@ python3 scripts/evals/run_rag_release_gates.py \
 Notebook execution remains available for analyst-facing review:
 
 ```bash
+EXPERIMENT_ID=${EXPERIMENT_ID:-manual_notebook_review} \
 PULSEPLATE_RAG_EVAL_INPUT=${PULSEPLATE_RAG_EVAL_INPUT:-data/evals/pulseplate_rag_eval_sample.jsonl} \
 RETRIEVER_MODE=local_tfidf \
 GENERATOR_MODE=extractive_stub \
 jupyter nbconvert --to notebook --execute notebooks/pulseplate_rag_release_gates.ipynb \
-  --output artifacts/rag_eval/latest_executed.ipynb
+  --output-dir "artifacts/rag_eval/${EXPERIMENT_ID}" \
+  --output latest_executed.ipynb
 ```
 
 For the strict weekly/manual GitHub lane, inject a larger curated dataset through

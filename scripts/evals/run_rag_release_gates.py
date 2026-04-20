@@ -1472,7 +1472,8 @@ def expected_calibration_error(
         bucket = [
             (label, probability)
             for label, probability in zip(labels, probabilities)
-            if lower <= probability < upper or (upper == 1.0 and probability <= upper)
+            if lower <= probability
+            and (probability < upper or (upper == 1.0 and probability <= upper))
         ]
         if not bucket:
             continue

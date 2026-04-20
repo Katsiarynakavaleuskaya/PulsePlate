@@ -26,6 +26,7 @@ from scripts.evals.run_rag_release_gates import (
     build_config,
     chunk_text,
     evaluate_one,
+    expected_calibration_error,
     generate_answer,
     lexical_support_score,
     load_pulseplate_imports,
@@ -205,6 +206,17 @@ def test_apply_calibration_keeps_guard_blocks_intact() -> None:
     assert traces[0]["routing_decision"] == "blocked_by_agent_input_guard"
     assert traces[1]["routing_decision"] == "ship_candidate"
     assert traces[1]["post_hoc_calibrated_confidence"] is not None
+
+
+def test_expected_calibration_error_keeps_last_bin_bounded() -> None:
+    """The terminal ECE bin must not double-count probabilities from lower bins."""
+
+    labels = [0, 1]
+    probabilities = [0.05, 0.95]
+
+    observed = expected_calibration_error(labels, probabilities, n_bins=10)
+
+    assert observed == pytest.approx(0.05)
 
 
 def test_runner_smoke_writes_expected_artifacts(tmp_path: Path) -> None:
