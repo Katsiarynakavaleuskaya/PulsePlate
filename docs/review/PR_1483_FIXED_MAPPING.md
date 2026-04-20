@@ -73,6 +73,42 @@ Evidence: `core/rag/orchestration.py:295-304`, `core/insight/philosophical_runti
 Reason: The Cubic wrapper review only aggregates the two inline findings already dispositioned above; on current head the promotion-canonical guard and `**kwargs` retriever forwarding are already correct, so the wrapper itself does not represent a separate unresolved defect.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1483#pullrequestreview-4139263200
 
+Disposition: FIXED
+Commit: 7eec5d903
+Evidence: `app/services/insight_application_service.py:76-97`, `tests/test_remaining_modules.py:655-690`
+Reason: Sync knowledge-store promotion is now offloaded via `asyncio.to_thread(...)` and bounded by the same timeout contract as awaitable stores, so slow synchronous persistence can no longer stall the response path.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1483#discussion_r3110157635 -> 7eec5d903
+
+Disposition: FIXED
+Commit: 7eec5d903
+Evidence: `core/insight/philosophical_runtime.py:85-96`, `tests/test_philosophical_runtime.py:628-637`
+Reason: `_retriever_accepts_knowledge_policy(...)` no longer uses `@lru_cache`, so callable retriever instances do not need to be hashable and the helper cannot accumulate an unbounded per-callable cache.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1483#discussion_r3110157643 -> 7eec5d903
+
+Disposition: FIXED
+Commit: 7eec5d903
+Evidence: `app/services/insight_application_service.py:76-97`, `core/insight/philosophical_runtime.py:85-96`, `tests/test_remaining_modules.py:655-690`, `tests/test_philosophical_runtime.py:628-637`
+Reason: The latest CodeRabbit wrapper is fully covered by the current-head fixes for sync promotion timeout handling and removal of the unsafe retriever-signature cache.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1483#pullrequestreview-4139390601 -> 7eec5d903
+
+Disposition: FIXED
+Commit: 7eec5d903
+Evidence: `core/insight/philosophical_runtime.py:85-96`, `tests/test_philosophical_runtime.py:628-637`
+Reason: The cubic inline request is satisfied by removing the cache decorator entirely, which resolves both the unhashable-callable failure mode and the unbounded-cache-growth concern.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1483#discussion_r3110174850 -> 7eec5d903
+
+Disposition: FIXED
+Commit: 7eec5d903
+Evidence: `core/insight/philosophical_runtime.py:85-96`, `tests/test_philosophical_runtime.py:628-637`
+Reason: The helper no longer maintains any cache state, so there is no remaining unbounded `lru_cache(maxsize=None)` growth path on current head.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1483#discussion_r3110174851 -> 7eec5d903
+
+Disposition: FIXED
+Commit: 7eec5d903
+Evidence: `core/insight/philosophical_runtime.py:85-96`, `tests/test_philosophical_runtime.py:628-637`
+Reason: The latest cubic wrapper is fully covered by the same current-head cache-removal fix mapped above; no separate unresolved defect remains beyond those inline comments.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1483#pullrequestreview-4139408489 -> 7eec5d903
+
 ## Merge Readiness
 
 Merge-readiness contract:
