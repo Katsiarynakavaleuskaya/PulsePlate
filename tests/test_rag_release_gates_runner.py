@@ -329,6 +329,51 @@ def test_build_config_rejects_paths_outside_project_root(tmp_path: Path) -> None
         build_config(args)
 
 
+@pytest.mark.parametrize(
+    ("field_name", "field_value"),
+    [
+        ("sample_size", "0"),
+        ("sample_size", "-1"),
+        ("top_k", "0"),
+        ("top_k", "-5"),
+    ],
+)
+def test_build_config_rejects_non_positive_sampling_values(
+    tmp_path: Path,
+    field_name: str,
+    field_value: str,
+) -> None:
+    """Sampling knobs must fail closed instead of silently disabling evaluation."""
+
+    project_root = tmp_path / "repo"
+    project_root.mkdir()
+    (project_root / "artifacts").mkdir()
+    inside_input = project_root / "input.jsonl"
+    inside_input.write_text("", encoding="utf-8")
+
+    args = argparse.Namespace(
+        project_root=str(project_root),
+        input_path=str(inside_input),
+        artifact_root=str(project_root / "artifacts" / "rag_eval"),
+        experiment_id="safe_run",
+        sample_size="5",
+        top_k="5",
+        random_seed="42",
+        retriever_mode="local_tfidf",
+        generator_mode="extractive_stub",
+        enable_nli_model=False,
+        nli_model_name="roberta-large-mnli",
+        notebook_path=str(project_root / "notebooks" / "pulseplate_rag_release_gates.ipynb"),
+        require_pass=False,
+        disallow_dataset_fallback=False,
+        disallow_runtime_fallbacks=False,
+    )
+    setattr(args, field_name, field_value)
+
+    with pytest.raises(ValueError, match=field_name):
+        build_config(args)
+
+
 def test_require_pass_returns_nonzero_for_no_go_dataset(tmp_path: Path) -> None:
     """Strict require-pass mode must fail the process on a NO-GO decision."""
 

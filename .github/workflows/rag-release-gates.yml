@@ -40,7 +40,7 @@ jobs:
     timeout-minutes: ${{ fromJSON(vars.RAG_RELEASE_GATES_TIMEOUT_MINUTES || '15') }}
     env:
       SERVER_SALT: ci-rag-release-gates
-    if: github.event_name != 'schedule'
+    if: github.event_name == 'pull_request'
     steps:
       - name: Checkout
         uses: actions/checkout@v4

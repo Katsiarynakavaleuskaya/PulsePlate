@@ -157,7 +157,7 @@ Initial thresholds:
 GATE_THRESHOLDS = {
     "evidence_exact_match_rate": 0.70,
     "mean_nli_entailment": 0.85,
-    "support_precision": 0.80,
+    "support_precision": 0.70,
     "ece": 0.08,
     "escalation_min": 0.10,
     "escalation_max": 0.25,

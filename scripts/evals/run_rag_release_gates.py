@@ -195,6 +195,14 @@ def _safe_int(value: Any, *, default: int = 0) -> int:
         return default
 
 
+def _require_positive_int(value: int, *, label: str) -> int:
+    """Fail closed when a numeric config would silently disable evaluation."""
+
+    if value <= 0:
+        raise ValueError(f"{label} must be > 0")
+    return value
+
+
 def nanmean(values: Iterable[float]) -> float:
     """Return a NaN-safe mean for numeric iterables."""
 
@@ -2041,19 +2049,27 @@ def build_config(args: argparse.Namespace) -> EvalConfig:
     )
     _ensure_within(input_path, project_root, label="input_path")
     _ensure_within(artifact_root, project_root / "artifacts", label="artifact_root")
+    sample_size = _require_positive_int(
+        _safe_int(
+            args.sample_size or os.getenv("PULSEPLATE_RAG_EVAL_SAMPLE_SIZE", "500"),
+            default=500,
+        ),
+        label="sample_size",
+    )
+    top_k = _require_positive_int(
+        _safe_int(
+            args.top_k or os.getenv("PULSEPLATE_RAG_EVAL_TOP_K", "50"),
+            default=50,
+        ),
+        label="top_k",
+    )
     return EvalConfig(
         project_root=project_root,
         input_path=input_path,
         artifact_root=artifact_root,
         experiment_id=experiment_id,
-        sample_size=_safe_int(
-            args.sample_size or os.getenv("PULSEPLATE_RAG_EVAL_SAMPLE_SIZE", "500"),
-            default=500,
-        ),
-        top_k=_safe_int(
-            args.top_k or os.getenv("PULSEPLATE_RAG_EVAL_TOP_K", "50"),
-            default=50,
-        ),
+        sample_size=sample_size,
+        top_k=top_k,
         random_seed=_safe_int(
             args.random_seed or os.getenv("PULSEPLATE_RAG_EVAL_RANDOM_SEED", "42"),
             default=42,
