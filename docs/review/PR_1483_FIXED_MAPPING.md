@@ -40,6 +40,28 @@ Evidence: `core/knowledge/store.py:20-27` already allows awaitable `promote(...)
 Reason: The CodeRabbit wrapper review does not introduce a separate standalone defect once the stale protocol nitpick is checked against current code and the concrete inline issues are dispositioned.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1483#pullrequestreview-4139178116
 
+Disposition: FIXED
+Commit: a7acaff6d
+Evidence: `tests/test_remaining_modules.py:303-341`, `tests/test_remaining_modules.py:459-479`
+Reason: The fast-lane helper seams now carry explicit return annotations and a typed `supersedes` parameter, matching repo typing requirements for modified Python helpers.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1483#discussion_r3110020760 -> a7acaff6d
+
+Disposition: FIXED
+Commit: a7acaff6d
+Evidence: `tests/test_remaining_modules.py:769-780`
+Reason: The pgvector-missing smoke test no longer patches `builtins.__import__`; it now simulates the missing module through `monkeypatch` + `sys.modules`, which stays within repo test policy.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1483#discussion_r3110020770 -> a7acaff6d
+
+Disposition: NOT-A-BUG
+Evidence: `core/rag/orchestration.py:295-304`
+Reason: Current head no longer marks knowledge candidates canonical unconditionally; promotion is allowed only when the philosophy path ran without recursion and without a degraded retrieval reason, so the bot comment is stale relative to current code.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1483#discussion_r3110038251
+
+Disposition: NOT-A-BUG
+Evidence: `core/insight/philosophical_runtime.py:86-98`, `core/insight/philosophical_runtime.py:572-580`
+Reason: Current head already supports retrievers that accept `**kwargs` and falls back safely when signature introspection is opaque, so the strict-forwarding concern is stale on this head.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1483#discussion_r3110038254
+
 ## Merge Readiness
 
 Merge-readiness contract:
