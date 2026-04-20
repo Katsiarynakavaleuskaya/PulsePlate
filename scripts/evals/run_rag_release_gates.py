@@ -33,15 +33,15 @@ if str(REPO_ROOT) not in sys.path:
 
 
 # Safe defaults for local PulsePlate imports.
-os.environ.setdefault("TESTING", "true")
 os.environ.setdefault("SERVER_SALT", "pulseplate-rag-eval-local-dummy-salt")
 
 SENTENCE_RE = re.compile(r"(?<=[.!?。！？])\s+|\n+")
 TOKEN_RE = re.compile(r"[\wА-Яа-яЁё]+", flags=re.UNICODE)
 
-DEFAULT_INPUT_PATH = REPO_ROOT / "data" / "evals" / "rag_weekly_500.jsonl"
+DEFAULT_INPUT_PATH = REPO_ROOT / "data" / "evals" / "pulseplate_rag_eval_sample.jsonl"
 DEFAULT_ARTIFACT_ROOT = REPO_ROOT / "artifacts" / "rag_eval"
 DEFAULT_NOTEBOOK_PATH = REPO_ROOT / "notebooks" / "pulseplate_rag_release_gates.ipynb"
+SAFE_EXPERIMENT_ID_RE = re.compile(r"[^A-Za-z0-9_-]+")
 
 DEFAULT_SAMPLE_ROWS: list[dict[str, Any]] = [
     {
@@ -221,6 +221,8 @@ class EvalConfig:
     nli_model_name: str
     notebook_path: Path
     require_pass: bool
+    allow_dataset_fallback: bool = True
+    allow_runtime_fallbacks: bool = True
 
 
 @dataclass(frozen=True)
@@ -280,6 +282,73 @@ class EvalRuntimeState:
     local_retriever: "LocalTfidfRetriever | None" = None
     local_corpus_size: int = 0
     warnings: list[str] = field(default_factory=list)
+    strict_violations: list[str] = field(default_factory=list)
+
+
+def _resolve_path(value: str | Path) -> Path:
+    """Resolve a path without requiring it to exist yet."""
+
+    return Path(value).expanduser().resolve()
+
+
+def _ensure_within(child: Path, parent: Path, *, label: str) -> Path:
+    """Ensure a path stays inside the documented repo boundary."""
+
+    try:
+        child.relative_to(parent)
+    except ValueError as exc:
+        raise ValueError(f"{label} must stay within {parent}") from exc
+    return child
+
+
+def sanitize_experiment_id(raw_value: str) -> str:
+    """Normalize experiment IDs into safe artifact directory names."""
+
+    cleaned = SAFE_EXPERIMENT_ID_RE.sub("_", raw_value.strip()).strip("_")
+    if not cleaned:
+        raise ValueError("experiment_id must contain at least one safe character")
+    return cleaned
+
+
+def resolve_git_sha() -> str:
+    """Resolve the current git SHA without relying on CI-only env vars."""
+
+    env_sha = os.getenv("GITHUB_SHA") or os.getenv("CI_COMMIT_SHA")
+    if env_sha:
+        return env_sha
+
+    git_metadata_path = REPO_ROOT / ".git"
+    git_dir = git_metadata_path
+    if git_metadata_path.is_file():
+        content = git_metadata_path.read_text(encoding="utf-8").strip()
+        if not content.startswith("gitdir:"):
+            return "unknown"
+        git_dir = (REPO_ROOT / content.split("gitdir:", maxsplit=1)[1].strip()).resolve()
+
+    head_path = git_dir / "HEAD"
+    if not head_path.is_file():
+        return "unknown"
+
+    try:
+        head_value = head_path.read_text(encoding="utf-8").strip()
+    except OSError:
+        return "unknown"
+
+    if head_value.startswith("ref:"):
+        ref_path = git_dir / head_value.split("ref:", maxsplit=1)[1].strip()
+        try:
+            return ref_path.read_text(encoding="utf-8").strip() or "unknown"
+        except OSError:
+            return "unknown"
+    return head_value or "unknown"
+
+
+def _record_runtime_fallback(state: EvalRuntimeState, warning: str) -> None:
+    """Track runtime degradations and mark strict lanes as failed-closed."""
+
+    state.warnings.append(warning)
+    if not state.config.allow_runtime_fallbacks:
+        state.strict_violations.append(warning)
 
 
 def _try_import(imports: PulsePlateImports, name: str, import_fn: Any) -> None:
@@ -379,7 +448,7 @@ def chunk_text(text: str, *, max_chars: int = 1_200, overlap: int = 160) -> list
             chunks.append(paragraph[start:end])
             if end >= len(paragraph):
                 break
-            start = max(end - overlap, end)
+            start = max(0, end - overlap)
         current = ""
     if current:
         chunks.append(current)
@@ -586,13 +655,16 @@ async def pulseplate_retrieve(
     )
     result = await retrieve_and_validate_rag(
         query,
-        max_chunks=min(top_k, 10),
+        max_chunks=top_k,
         philo_validation_enabled=True,
         recursive_rag_enabled=recursive_enabled,
         optimization_enabled=optimization_enabled,
         subject_id=subject_id,
     )
-    return map_orchestration_result_to_retrieved(result, retriever="pulseplate")
+    retrieved, metadata = map_orchestration_result_to_retrieved(result, retriever="pulseplate")
+    metadata["max_supported_top_k"] = len(retrieved) or top_k
+    metadata["requested_top_k"] = top_k
+    return retrieved, metadata
 
 
 async def retrieve(
@@ -613,7 +685,10 @@ async def retrieve(
                 subject_id=subject_id,
             )
         except Exception as exc:
-            state.warnings.append("pulseplate_retriever_fallback:" f"{type(exc).__name__}:{exc}")
+            _record_runtime_fallback(
+                state,
+                "pulseplate_retriever_fallback:" f"{type(exc).__name__}:{exc}",
+            )
     local_retriever = ensure_local_retriever(state)
     return local_retriever.retrieve(query, top_k=top_k), {
         "rag_actually_used": bool(local_retriever.chunks),
@@ -626,6 +701,8 @@ async def retrieve(
         "recursive_executed": False,
         "degraded_reason": None,
         "formatted_prompt_present": False,
+        "max_supported_top_k": top_k,
+        "requested_top_k": top_k,
     }
 
 
@@ -789,8 +866,9 @@ async def generate_answer(
                 subject_id=subject_id,
             )
         except Exception as exc:
-            state.warnings.append(
-                "pulseplate_runtime_generator_fallback:" f"{type(exc).__name__}:{exc}"
+            _record_runtime_fallback(
+                state,
+                "pulseplate_runtime_generator_fallback:" f"{type(exc).__name__}:{exc}",
             )
     return extractive_grounded_generate(query, retrieved)
 
@@ -1186,6 +1264,20 @@ async def evaluate_one(
         "recall_at_3": recall_at_k(retrieved, row.gold_doc_ids, k=3),
         "recall_at_10": recall_at_k(retrieved, row.gold_doc_ids, k=10),
         "recall_at_50": recall_at_k(retrieved, row.gold_doc_ids, k=50),
+        "recall_at_effective_k": recall_at_k(
+            retrieved,
+            row.gold_doc_ids,
+            k=max(
+                1,
+                min(
+                    state.config.top_k,
+                    _safe_int(
+                        retrieval_stats.get("max_supported_top_k"),
+                        default=state.config.top_k,
+                    ),
+                ),
+            ),
+        ),
         "mrr_at_10": mrr_at_k(retrieved, row.gold_doc_ids, k=10),
         "ndcg_at_10": ndcg_at_k(retrieved, row.gold_doc_ids, k=10),
     }
@@ -1401,6 +1493,10 @@ def build_metrics_summary(
         "recall_at_50": nanmean(
             trace["retrieval_metrics"].get("recall_at_50", float("nan")) for trace in traces
         ),
+        "recall_at_effective_k": nanmean(
+            trace["retrieval_metrics"].get("recall_at_effective_k", float("nan"))
+            for trace in traces
+        ),
         "mrr_at_10": nanmean(
             trace["retrieval_metrics"].get("mrr_at_10", float("nan")) for trace in traces
         ),
@@ -1468,9 +1564,9 @@ def build_metrics_summary(
         ),
     }
     gate_checks = {
-        "gate_a_recall_at_50": (
-            retrieval_summary["recall_at_50"] >= GATE_THRESHOLDS["recall_at_50"]
-            if not math.isnan(retrieval_summary["recall_at_50"])
+        "gate_a_recall_at_effective_k": (
+            retrieval_summary["recall_at_effective_k"] >= GATE_THRESHOLDS["recall_at_50"]
+            if not math.isnan(retrieval_summary["recall_at_effective_k"])
             else False
         ),
         "gate_b1_evidence_exact_match": (
@@ -1489,12 +1585,15 @@ def build_metrics_summary(
             <= routing_summary["escalation_rate"]
             <= GATE_THRESHOLDS["escalation_max"]
         ),
+        "gate_d1_no_runtime_mode_fallbacks": (
+            not state.strict_violations if not state.config.allow_runtime_fallbacks else True
+        ),
     }
     release_decision = "PASS" if all(gate_checks.values()) else "NO-GO"
     metrics_summary = {
         "experiment_id": state.config.experiment_id,
         "timestamp": _iso_now(),
-        "git_sha": os.getenv("GITHUB_SHA") or os.getenv("CI_COMMIT_SHA") or "unknown",
+        "git_sha": resolve_git_sha(),
         "sample_size": len(traces),
         "retriever_mode": state.config.retriever_mode,
         "generator_mode": state.config.generator_mode,
@@ -1503,6 +1602,7 @@ def build_metrics_summary(
         "local_corpus_size": state.local_corpus_size,
         "pulseplate_import_status": state.pulseplate_imports.status,
         "runtime_warnings": state.warnings,
+        "strict_violations": state.strict_violations,
         "retrieval": retrieval_summary,
         "faithfulness": faithfulness_summary,
         "calibration": calibration_metrics,
@@ -1561,6 +1661,14 @@ def build_gate_report_markdown(metrics_summary: dict[str, Any]) -> str:
                 "",
                 "## Runtime warnings",
                 *[f"- `{warning}`" for warning in metrics_summary["runtime_warnings"]],
+            ],
+        )
+    if metrics_summary.get("strict_violations"):
+        lines.extend(
+            [
+                "",
+                "## Strict mode violations",
+                *[f"- `{violation}`" for violation in metrics_summary["strict_violations"]],
             ],
         )
     return "\n".join(lines)
@@ -1644,9 +1752,7 @@ def _write_flat_export(run_dir: Path, traces: Sequence[dict[str, Any]]) -> str:
             if fieldnames:
                 writer.writeheader()
                 writer.writerows(flat_rows)
-        return (
-            "Parquet unavailable " f"({type(exc).__name__}: {exc}); wrote CSV fallback: {csv_path}"
-        )
+        return str(csv_path)
 
 
 def write_summary_notebook(
@@ -1784,7 +1890,11 @@ def parse_bool_label(value: Any) -> int | None:
 
 
 def load_eval_input(
-    path: Path, *, sample_size: int, random_seed: int
+    path: Path,
+    *,
+    sample_size: int,
+    random_seed: int,
+    allow_fallback: bool,
 ) -> tuple[list[EvalRow], bool, str]:
     """Load JSONL/CSV/Parquet input with a deterministic fallback sample."""
 
@@ -1792,6 +1902,8 @@ def load_eval_input(
     dataset_path_used = str(path.resolve())
     dataset_fallback_used = False
     if not path.exists():
+        if not allow_fallback:
+            raise FileNotFoundError(f"Evaluation input not found and fallback is disabled: {path}")
         rows = list(DEFAULT_SAMPLE_ROWS)
         dataset_fallback_used = True
         dataset_path_used = "embedded_smoke_fixture"
@@ -1845,19 +1957,27 @@ def load_eval_input(
 def build_config(args: argparse.Namespace) -> EvalConfig:
     """Resolve config from CLI args and env vars."""
 
-    project_root = Path(
+    project_root = _resolve_path(
         args.project_root or os.getenv("PULSEPLATE_REPO_ROOT", REPO_ROOT),
-    ).resolve()
-    input_path = Path(
-        args.input_path or os.getenv("PULSEPLATE_RAG_EVAL_INPUT", DEFAULT_INPUT_PATH),
-    ).resolve()
-    artifact_root = Path(
-        args.artifact_root or os.getenv("PULSEPLATE_RAG_EVAL_ARTIFACT_ROOT", DEFAULT_ARTIFACT_ROOT),
-    ).resolve()
-    experiment_id = args.experiment_id or os.getenv(
-        "EXPERIMENT_ID",
-        f"rag_eval_{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}",
     )
+    if not project_root.is_dir():
+        raise ValueError(f"project_root must exist and be a directory: {project_root}")
+    input_path = _resolve_path(
+        args.input_path or os.getenv("PULSEPLATE_RAG_EVAL_INPUT", DEFAULT_INPUT_PATH),
+    )
+    artifact_root = _resolve_path(
+        args.artifact_root or os.getenv("PULSEPLATE_RAG_EVAL_ARTIFACT_ROOT", DEFAULT_ARTIFACT_ROOT),
+    )
+    notebook_path = _resolve_path(args.notebook_path or DEFAULT_NOTEBOOK_PATH)
+    experiment_id = sanitize_experiment_id(
+        args.experiment_id
+        or os.getenv(
+            "EXPERIMENT_ID",
+            f"rag_eval_{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}",
+        )
+    )
+    _ensure_within(input_path, project_root, label="input_path")
+    _ensure_within(artifact_root, project_root / "artifacts", label="artifact_root")
     return EvalConfig(
         project_root=project_root,
         input_path=input_path,
@@ -1885,8 +2005,10 @@ def build_config(args: argparse.Namespace) -> EvalConfig:
         nli_model_name=(
             args.nli_model_name or os.getenv("NLI_MODEL_NAME", "roberta-large-mnli")
         ).strip(),
-        notebook_path=Path(args.notebook_path or DEFAULT_NOTEBOOK_PATH).resolve(),
+        notebook_path=notebook_path,
         require_pass=bool(args.require_pass),
+        allow_dataset_fallback=not bool(args.disallow_dataset_fallback),
+        allow_runtime_fallbacks=not bool(args.disallow_runtime_fallbacks),
     )
 
 
@@ -1919,6 +2041,16 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Exit non-zero when the release decision is NO-GO.",
     )
+    parser.add_argument(
+        "--disallow-dataset-fallback",
+        action="store_true",
+        help="Fail when the requested dataset is missing instead of using the embedded smoke fixture.",
+    )
+    parser.add_argument(
+        "--disallow-runtime-fallbacks",
+        action="store_true",
+        help="Mark runtime retriever/generator degradations as strict violations.",
+    )
     return parser
 
 
@@ -1932,6 +2064,7 @@ async def async_main(args: argparse.Namespace) -> int:
         config.input_path,
         sample_size=config.sample_size,
         random_seed=config.random_seed,
+        allow_fallback=config.allow_dataset_fallback,
     )
     traces = await run_evaluation(state, rows)
     calibration_metrics = apply_calibration(traces)

@@ -7,8 +7,14 @@ on:
       - "tests/test_rag_release_gates_runner.py"
       - "notebooks/pulseplate_rag_release_gates.ipynb"
       - "data/evals/pulseplate_rag_eval_sample.jsonl"
+      - ".gitignore"
       - "docs/evals/PULSEPLATE_RAG_RELEASE_GATES.md"
       - "docs/orchestration/PULSEPLATE_RAG_RELEASE_GATES_TASK_PACKET_2026-04-20.md"
+      - "docs/roadmap/BACKLOG_LEDGER.md"
+      - "requirements-ci-lite.txt"
+      - "requirements-dev.in"
+      - "requirements-dev.txt"
+      - "requirements-lock.txt"
       - "core/rag/**"
       - "core/ai/**"
       - "core/insight/philosophy_validator.py"
@@ -47,7 +53,10 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: rag-release-gates-smoke
-          path: artifacts/rag_eval/pr_smoke_${{ github.run_id }}/
+          path: |
+            artifacts/rag_eval/pr_smoke_${{ github.run_id }}/gate_report.md
+            artifacts/rag_eval/pr_smoke_${{ github.run_id }}/metrics_summary.json
+            artifacts/rag_eval/pr_smoke_${{ github.run_id }}/latest_executed.ipynb
 
   rag-release-gates-weekly:
     name: RAG Release Gates Weekly
@@ -76,10 +85,16 @@ jobs:
           python3 scripts/evals/run_rag_release_gates.py \
             --experiment-id weekly_${{ github.run_id }} \
             --retriever-mode "${RETRIEVER_MODE}" \
-            --generator-mode "${GENERATOR_MODE}"
+            --generator-mode "${GENERATOR_MODE}" \
+            --require-pass \
+            --disallow-dataset-fallback \
+            --disallow-runtime-fallbacks
 
       - name: Upload weekly gate artifacts
         uses: actions/upload-artifact@v4
         with:
           name: rag-release-gates-weekly
-          path: artifacts/rag_eval/weekly_${{ github.run_id }}/
+          path: |
+            artifacts/rag_eval/weekly_${{ github.run_id }}/gate_report.md
+            artifacts/rag_eval/weekly_${{ github.run_id }}/metrics_summary.json
+            artifacts/rag_eval/weekly_${{ github.run_id }}/latest_executed.ipynb

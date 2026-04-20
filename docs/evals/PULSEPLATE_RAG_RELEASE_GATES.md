@@ -76,7 +76,8 @@ Properties:
 
 - exercises real PulsePlate orchestration and runtime hooks when imports/env are available
 - still uses an offline eval stub provider for generation to avoid paid provider calls
-- falls back to the cheap deterministic path when strict imports/dependencies are unavailable
+- can fall back to the cheap deterministic path for exploratory local runs
+- canonical weekly/manual CI should add `--disallow-dataset-fallback --disallow-runtime-fallbacks --require-pass`
 
 ## Dataset Contract
 
@@ -171,6 +172,7 @@ Release decision:
 
 The runner does not fail the process on `NO-GO` unless explicitly asked via `--require-pass`.
 This keeps PR smoke deterministic while still surfacing release-gate evidence.
+Strict weekly/manual runs should also disable dataset/runtime fallbacks.
 
 ## Schema Contract
 
@@ -226,7 +228,10 @@ The source of truth for run output is the gitignored artifact pack under:
 
 PR / CI visibility:
 
-- upload `gate_report.md` as a build artifact
+- upload only the safe artifact subset:
+  - `gate_report.md`
+  - `metrics_summary.json`
+  - `latest_executed.ipynb`
 - write a compact markdown summary to the CI check summary / PR check output
 
 ### v2 persistence
@@ -266,7 +271,10 @@ RETRIEVER_MODE=pulseplate \
 GENERATOR_MODE=pulseplate_runtime \
 ENABLE_NLI_MODEL=true \
 NLI_MODEL_NAME=roberta-large-mnli \
-python3 scripts/evals/run_rag_release_gates.py
+python3 scripts/evals/run_rag_release_gates.py \
+  --require-pass \
+  --disallow-dataset-fallback \
+  --disallow-runtime-fallbacks
 ```
 
 Notebook execution remains available for analyst-facing review:
