@@ -605,29 +605,36 @@ class TestPhilosophicalRuntime:
                 )
 
         opaque_retriever = _OpaqueRetriever()
-        runtime_mod._retriever_accepts_knowledge_policy.cache_clear()
-        try:
-            with patch.object(runtime_mod.inspect, "signature", side_effect=ValueError("opaque")):
-                result = await runtime.generate_insight(
-                    text="How much protein should I eat for recovery?",
-                    lang="en",
-                    provider=provider,
-                    use_rag=True,
-                    philo_validation_enabled=True,
-                    recursive_rag_enabled=False,
-                    subject_id=42,
-                    philosophy_router_enabled=True,
-                    philosophy_phase12_enabled=False,
-                    philosophy_linguistic_enabled=True,
-                    philosophy_pragmatic_enabled=False,
-                    knowledge_policy=policy,
-                    rag_retriever=opaque_retriever,
-                )
-        finally:
-            runtime_mod._retriever_accepts_knowledge_policy.cache_clear()
+        with patch.object(runtime_mod.inspect, "signature", side_effect=ValueError("opaque")):
+            result = await runtime.generate_insight(
+                text="How much protein should I eat for recovery?",
+                lang="en",
+                provider=provider,
+                use_rag=True,
+                philo_validation_enabled=True,
+                recursive_rag_enabled=False,
+                subject_id=42,
+                philosophy_router_enabled=True,
+                philosophy_phase12_enabled=False,
+                philosophy_linguistic_enabled=True,
+                philosophy_pragmatic_enabled=False,
+                knowledge_policy=policy,
+                rag_retriever=opaque_retriever,
+            )
 
         assert observed["knowledge_policy"] == policy
         assert result.knowledge_candidates == [candidate]
+
+    async def test_retriever_accepts_knowledge_policy_handles_unhashable_callable_instance(
+        self,
+    ) -> None:
+        @dataclass(eq=True)
+        class _UnhashableRetriever:
+            async def __call__(self, prompt_input: str, **kwargs: object) -> object:
+                del prompt_input, kwargs
+                return None
+
+        assert runtime_mod._retriever_accepts_knowledge_policy(_UnhashableRetriever()) is True
 
     async def test_metadata_hidden_when_new_flags_are_off(self) -> None:
         runtime = PhilosophicalRuntime()

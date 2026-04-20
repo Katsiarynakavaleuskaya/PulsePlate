@@ -7,11 +7,12 @@ EN: Tests for remaining modules with low coverage
 """
 
 import sys
+import time
 from collections.abc import Sequence
 from pathlib import Path
 from datetime import datetime, timezone
 from types import ModuleType, SimpleNamespace
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 from unittest.mock import patch
 
 import asyncio
@@ -561,9 +562,10 @@ class TestInsightApplicationServiceFastLane:
         """Async stores must be awaited before the response path continues."""
 
         from app.services.insight_application_service import _maybe_promote_knowledge_candidates
+        from core.knowledge.contracts import KnowledgeFactCandidate
 
         observed: dict[str, object] = {}
-        candidate = SimpleNamespace(fact_key="fact-1")
+        candidate = cast(KnowledgeFactCandidate, SimpleNamespace(fact_key="fact-1"))
 
         class _AsyncStore:
             async def promote(self, candidates: list[object]) -> list[object]:
@@ -585,6 +587,7 @@ class TestInsightApplicationServiceFastLane:
         """Store failures must not break the user response path."""
 
         from app.services.insight_application_service import _maybe_promote_knowledge_candidates
+        from core.knowledge.contracts import KnowledgeFactCandidate
 
         warnings: list[tuple[tuple[object, ...], dict[str, object]]] = []
 
@@ -601,7 +604,7 @@ class TestInsightApplicationServiceFastLane:
 
         await _maybe_promote_knowledge_candidates(
             knowledge_store=_BrokenStore(),
-            candidates=[SimpleNamespace(fact_key="fact-1")],
+            candidates=[cast(KnowledgeFactCandidate, SimpleNamespace(fact_key="fact-1"))],
         )
 
         assert warnings
@@ -616,6 +619,7 @@ class TestInsightApplicationServiceFastLane:
         """Timed-out promotion must degrade to logging instead of request latency."""
 
         from app.services.insight_application_service import _maybe_promote_knowledge_candidates
+        from core.knowledge.contracts import KnowledgeFactCandidate
 
         warnings: list[tuple[tuple[object, ...], dict[str, object]]] = []
 
@@ -641,7 +645,45 @@ class TestInsightApplicationServiceFastLane:
 
         await _maybe_promote_knowledge_candidates(
             knowledge_store=_SlowStore(),
-            candidates=[SimpleNamespace(fact_key="fact-1")],
+            candidates=[cast(KnowledgeFactCandidate, SimpleNamespace(fact_key="fact-1"))],
+        )
+
+        assert warnings
+        assert "Knowledge promotion timed out" in str(warnings[0][0][0])
+        assert warnings[0][1]["exc_info"] is True
+
+    @pytest.mark.asyncio
+    async def test_maybe_promote_knowledge_candidates_times_out_sync_store(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Sync promotion must also respect the bounded timeout via thread offload."""
+
+        from app.services.insight_application_service import _maybe_promote_knowledge_candidates
+        from core.knowledge.contracts import KnowledgeFactCandidate
+
+        warnings: list[tuple[tuple[object, ...], dict[str, object]]] = []
+
+        class _SlowSyncStore:
+            def promote(self, candidates: list[object]) -> list[object]:
+                del candidates
+                time.sleep(0.05)
+                return []
+
+        monkeypatch.setattr(
+            "app.services.insight_application_service.KNOWLEDGE_PROMOTION_TIMEOUT_SECONDS",
+            0.01,
+            raising=True,
+        )
+        monkeypatch.setattr(
+            "app.services.insight_application_service.logger.warning",
+            lambda *args, **kwargs: warnings.append((args, kwargs)),
+            raising=True,
+        )
+
+        await _maybe_promote_knowledge_candidates(
+            knowledge_store=_SlowSyncStore(),
+            candidates=[cast(KnowledgeFactCandidate, SimpleNamespace(fact_key="fact-1"))],
         )
 
         assert warnings

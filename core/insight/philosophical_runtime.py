@@ -11,7 +11,6 @@ import re
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from enum import Enum
-from functools import lru_cache
 from typing import Protocol, cast
 
 from core.knowledge.contracts import KnowledgeFactCandidate
@@ -83,9 +82,8 @@ _SAFE_WELLNESS_DISCLAIMER = {
 }
 
 
-@lru_cache(maxsize=None)
 def _retriever_accepts_knowledge_policy(retrieve_rag: Callable[..., object]) -> bool:
-    """Cache whether the retriever accepts the canonical knowledge-policy kwarg."""
+    """Return whether the retriever accepts the canonical knowledge-policy kwarg."""
 
     try:
         parameters = inspect.signature(retrieve_rag).parameters.values()
