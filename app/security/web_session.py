@@ -11,6 +11,7 @@ import functools
 import hashlib
 import hmac
 import json
+import logging
 import os
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -30,6 +31,8 @@ _SESSION_SIGNATURE_ITERATIONS = 20_000
 # RU/EN: Допуск рассинхрона часов для `iat` (not-before), секунды.
 _SESSION_IAT_CLOCK_SKEW_SECONDS = 120
 _SESSION_ENCRYPTION_CONTEXT = b"web_session_v1::api_key"
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -214,8 +217,8 @@ def verify_web_session(
 ) -> WebSessionClaims | None:
     """Verify signed token and return claims, else None (fail-closed).
 
-    Misconfigured crypto env (e.g. missing SERVER_SALT when secret is omitted) returns None;
-    does not raise — callers may treat this like any other invalid token.
+    Misconfigured crypto env (e.g. missing SERVER_SALT when secret is omitted) returns None
+    after a warning log; does not raise — callers may treat this like any other invalid token.
     """
 
     raw = token.strip()
@@ -232,7 +235,11 @@ def verify_web_session(
 
     try:
         expected_sig = _sign_payload(payload_b64=payload_b64, secret=secret)
-    except RuntimeError:
+    except RuntimeError as exc:
+        logger.warning(
+            "web_session: payload signing unavailable (check SERVER_SALT / explicit secret): %s",
+            exc,
+        )
         return None
     if not hmac.compare_digest(expected_sig, signature):
         return None

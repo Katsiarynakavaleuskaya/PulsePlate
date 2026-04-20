@@ -5,6 +5,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
+import logging
 from datetime import datetime, timedelta, timezone
 from unittest.mock import patch
 
@@ -297,6 +298,19 @@ def test_verify_rejects_malformed_tokens(monkeypatch: pytest.MonkeyPatch) -> Non
     assert web_session.verify_web_session("a.b.c") is None
     assert web_session.verify_web_session("a.") is None
     assert web_session.verify_web_session(".b") is None
+
+
+def test_verify_logs_when_signing_unavailable_without_server_salt(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Missing SERVER_SALT during signature verify must log a warning (operator signal)."""
+
+    monkeypatch.setenv("SERVER_SALT", TEST_SERVER_SALT)
+    issued = web_session.issue_web_session(api_key=TEST_PRO_KEY, tier="PRO", ttl_seconds=120)
+    monkeypatch.delenv("SERVER_SALT", raising=False)
+    with caplog.at_level(logging.WARNING, logger="app.security.web_session"):
+        assert web_session.verify_web_session(issued.token) is None
+    assert any("payload signing unavailable" in r.message for r in caplog.records)
 
 
 def test_verify_rejects_invalid_base64_payload_with_valid_signature(
