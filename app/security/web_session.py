@@ -235,10 +235,10 @@ def verify_web_session(
 
     try:
         expected_sig = _sign_payload(payload_b64=payload_b64, secret=secret)
-    except RuntimeError as exc:
+    except RuntimeError:
         logger.warning(
-            "web_session: payload signing unavailable (check SERVER_SALT / explicit secret): %s",
-            exc,
+            "web_session: payload signing unavailable (check SERVER_SALT / explicit secret)",
+            exc_info=True,
         )
         return None
     if not hmac.compare_digest(expected_sig, signature):
