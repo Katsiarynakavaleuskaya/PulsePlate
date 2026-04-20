@@ -69,6 +69,11 @@ DESIGN_CONDITIONAL_SKILLS: frozenset[str] = frozenset(
         "figma-implement-design",
     }
 )
+LAUNCH_GOVERNANCE_CONDITIONAL_SKILLS: frozenset[str] = frozenset(
+    {
+        "pulseplate-design-launch-system",
+    }
+)
 RESEARCH_CONDITIONAL_SKILLS: frozenset[str] = frozenset(
     {
         "pulseplate-ai-reports",
@@ -146,6 +151,7 @@ DOCS_ONLY_EXCLUDED_ROUTING_SKILLS: frozenset[str] = frozenset(
         "pulseplate-playwright-e2e",
         "playwright",
         "figma-implement-design",
+        "pulseplate-design-launch-system",
         "notion-spec-to-implementation",
     }
 )
@@ -1149,6 +1155,34 @@ SKILL_RULES: tuple[SkillRule, ...] = (
         keywords=("implement design", "design fidelity", "figma", "node-id"),
     ),
     SkillRule(
+        skill="pulseplate-design-launch-system",
+        category="repo-tracked",
+        rationale=(
+            "PulsePlate launch-asset governance, token/brand consistency, and "
+            "design-system readiness work should use the dedicated passive "
+            "design launch system skill."
+        ),
+        min_score=6,
+        domain_weights={"design": 2, "frontend": 1, "docs": 1},
+        path_prefixes=(
+            "docs/runbooks/DESIGN_TOOLING_OPERATING_MODEL.md",
+            "docs/design/",
+            "tokens/",
+        ),
+        keywords=(
+            "launch asset",
+            "launch assets",
+            "launch readiness",
+            "launch kit",
+            "asset bundle",
+            "asset bundles",
+            "brand consistency",
+            "brand alignment",
+            "token consistency",
+            "design system readiness",
+        ),
+    ),
+    SkillRule(
         skill="linear",
         category="global",
         rationale="Linear-linked work should use the dedicated issue/project integration skill.",
@@ -1512,6 +1546,11 @@ def _conditional_when_for_skill(*, skill: str, task_classification_label: str) -
         return (
             "Enable when a concrete Figma/design node-id or fidelity requirement becomes explicit."
         )
+    if skill in LAUNCH_GOVERNANCE_CONDITIONAL_SKILLS:
+        return (
+            "Enable when launch-asset work includes explicit design packet metadata, "
+            "concrete source anchors, and token/brand governance intent."
+        )
     if skill in RESEARCH_CONDITIONAL_SKILLS and task_classification_label != "creative_research":
         return "Enable when the task requires a report/research deliverable or durable knowledge capture."
     return None
@@ -1539,6 +1578,13 @@ def _conditional_when_for_skill_with_design_state(
                 "Enable when a concrete Figma/design node-id or fidelity requirement "
                 "becomes explicit."
             )
+    if skill in LAUNCH_GOVERNANCE_CONDITIONAL_SKILLS:
+        if explicit_design_metadata:
+            return None
+        return (
+            "Enable when launch-asset governance work includes "
+            "design packet metadata, source anchors, and explicit token/brand scope."
+        )
     return _conditional_when_for_skill(
         skill=skill,
         task_classification_label=task_classification_label,
@@ -1802,6 +1848,9 @@ def route_skills(
         for result, rule in zip(scored, SKILL_RULES)
         if (result["score"] >= rule.min_score or rule.skill in ALWAYS_ON_SKILLS)
         and (result["skill"] not in DESIGN_CONDITIONAL_SKILLS or figma_execution_ready)
+        and (
+            result["skill"] not in LAUNCH_GOVERNANCE_CONDITIONAL_SKILLS or explicit_design_metadata
+        )
         and result["skill"] not in required_skill_names
     ]
 

@@ -15,7 +15,7 @@ Implement it as a **separate advisory compiled-memory workforce rail**, while th
 | Rail B1 | `P2: Karpathy-style advisory wiki umbrella` | Advisory workforce compiled memory | local operator memory, advisory wiki/compiler/query-lint/reference-corpus controls | product RAG replacement, DB/runtime/API source of truth, public response-contract logic |
 | Rail B2 | `P2: Plugin/control-plane families umbrella` | Advisory plugin/control-plane families | GitHub governance/CI review truth, Cloudflare preview/deploy control-plane, Figma design execution/review evidence, Hugging Face research/model-eval tooling | product runtime truth, public response-contract logic, semantic cache, bounded-context ownership |
 
-For the continuous bootstrap lane `PR-S0 -> PR-A5`, `docs/orchestration/WAVE6_AI_RUNTIME_AND_ADVISORY_SERIES_PACKET_2026-04-13.md` is the canonical series SoT. This roadmap epic defers to that packet whenever sequencing, rail-boundary, or semantic-cache-gating wording diverges.
+For the continuous bootstrap lane `PR-S0 -> PR-A5`, `docs/orchestration/WAVE6_AI_RUNTIME_AND_ADVISORY_SERIES_PACKET_2026-04-13.md` is the canonical series SoT. This roadmap epic defers to that packet whenever sequencing, rail-boundary, or semantic-cache-gating wording diverges. The first bounded post-A5 runtime follow-up is `PR-K1`, governed by `docs/orchestration/WAVE6_K1_KNOWLEDGE_PROMOTION_PACKET_2026-04-19.md`.
 
 ### Temporary `security-floor` seam (canonical wording)
 
@@ -96,6 +96,7 @@ Use it as:
 - architecture/packet preparation now
 - implementation rail after the emergency fixes are stabilized
 - strict one-PR-at-a-time runtime sequence through `A5`
+- treat `K1` as the first bounded post-A5 follow-up, not as semantic-cache rollout
 
 ### Governance rule for the prep PR
 
@@ -356,6 +357,38 @@ Make AI quality drift detectable before merge/release.
 - explicit evaluation package exists
 - gates are deterministic
 - runtime docs point to one gate source
+
+---
+
+## PR-K1 — knowledge promotion from validated RAG evidence
+#### Title
+`feat(knowledge): add knowledge contracts and promotion from validated RAG evidence`
+
+#### Backlog target
+`ledger-p1-knowledge-promotion-from-validated-rag`
+
+#### Goal
+Add a bounded internal knowledge seam after `A5` so that later runtime work can
+promote validated RAG evidence without treating retrieval artifacts, raw model
+output, or request-local recursive caches as canonical facts.
+
+#### In scope
+- `core/knowledge/*` contracts, policy, promotion, and store protocol
+- runtime knowledge policy via `prepare_insight_runtime(...)`
+- internal-only promotion candidates threaded through runtime seams
+- deterministic promotion allow/deny and supersession tests
+
+#### Out of scope
+- semantic cache implementation
+- DB migrations or persistent knowledge storage rollout
+- route / OpenAPI / public response shape changes
+- promotion from `DEEP_REASONING` or from raw provider output
+
+#### DoD
+- promotion is derived only from validated RAG evidence that survives orchestration
+- degraded paths fail closed
+- route layer remains thin and unchanged
+- semantic cache stays deferred and out of scope
 
 ---
 

@@ -314,6 +314,16 @@ If adding rate-limit to endpoints, use thin **route wrappers**; do not change ca
 
 **Rationale:** WebSocket transport is long-lived and stateful; strict baseline rules prevent auth bypass and uncontrolled scope creep.
 
+**Knowledge promotion invariant (hard rule):**
+
+- RAG chunks are evidence artifacts, not canonical facts.
+- Knowledge promotion is allowed only from validated RAG evidence.
+- `prepare_insight_runtime(...)` is the canonical seam for runtime knowledge policy.
+- Route layer and `legacy_app.py` must never write or mutate knowledge records.
+- Request-local recursive caches are optimization helpers only and must never be treated as persistent knowledge.
+- Promotion must fail closed on degraded retrieval/orchestration reasons.
+- Semantic cache must not be widened or implied by knowledge-promotion work unless the dedicated semantic-cache gate explicitly opens.
+
 ---
 
 ## REQUIRED READING (before any change)

@@ -166,6 +166,34 @@ def _normalize_similarity(value: object) -> float | None:
     return numeric
 
 
+def _build_sqlalchemy_vector_type(dimensions: int) -> Any:
+    """Return pgvector SQLAlchemy type or a SQL-rendering fallback.
+
+    RU: В verify/test-окружении Python-пакет `pgvector` может отсутствовать,
+    но Postgres SQL path всё равно должен быть построим и проверяем.
+    EN: In verify/test environments the `pgvector` Python package may be absent,
+    but the Postgres SQL path must still be constructible and testable.
+    """
+
+    try:
+        from pgvector.sqlalchemy import VECTOR
+
+        return VECTOR(dimensions)
+    except ModuleNotFoundError:
+        from sqlalchemy.types import UserDefinedType
+
+        class _FallbackVector(UserDefinedType):
+            cache_ok = True
+
+            def __init__(self, size: int | None = None) -> None:
+                self._size = dimensions if size is None else size
+
+            def get_col_spec(self, **_kwargs: Any) -> str:
+                return f"VECTOR({self._size})"
+
+        return _FallbackVector(dimensions)
+
+
 # ---------------------------------------------------------------------------
 # Vector retrieval (dialect-aware)
 # ---------------------------------------------------------------------------
@@ -183,12 +211,11 @@ def _retrieve_vector_postgres(
     If corpus_prefixes is provided, filters results to rows where source
     starts with one of the given prefixes (agent-specific corpus filtering).
     """
-    from pgvector.sqlalchemy import VECTOR
     from sqlalchemy import BigInteger, Integer, String, bindparam, cast, or_, select
 
     user_knowledge = _user_knowledge_table()
 
-    vector_type = VECTOR(EMBEDDING_DIMENSIONS)
+    vector_type = _build_sqlalchemy_vector_type(EMBEDDING_DIMENSIONS)
     qvec_param = bindparam("qvec", type_=vector_type)
     qvec_vector = cast(qvec_param, vector_type)
     limit_param = bindparam("lim", type_=Integer())

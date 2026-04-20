@@ -39,10 +39,19 @@ on:
       - 'ios/PulsePlate/Assets.xcassets/Gold.colorset/**'
       - 'docs/design/figma-manifest.json'
       - 'Makefile'
+      - 'requirements.txt'
+      - 'requirements-ci-lite.in'
+      - 'requirements-ci-lite.txt'
+      - 'constraints.txt'
+      - '.github/actions/python-setup/**'
+      - 'scripts/ci/install_locked_python_requirements.py'
+      - 'scripts/ci/check_python_startup_hooks.py'
+      - 'scripts/ci/emergency_python_wheels.json'
       - 'scripts/design_guard.py'
       - 'tests/test_design_token_parity.py'
       - 'tests/test_design_invariant_guard.py'
       - 'tests/test_frontend_raw_hex_guard.py'
+      - 'tests/test_python_supply_chain_controls.py'
       - '.github/workflows/frontend-ci.yml'
   push:
     branches: [main, feat/**, fix/**]
@@ -68,10 +77,19 @@ on:
       - 'ios/PulsePlate/Assets.xcassets/Gold.colorset/**'
       - 'docs/design/figma-manifest.json'
       - 'Makefile'
+      - 'requirements.txt'
+      - 'requirements-ci-lite.in'
+      - 'requirements-ci-lite.txt'
+      - 'constraints.txt'
+      - '.github/actions/python-setup/**'
+      - 'scripts/ci/install_locked_python_requirements.py'
+      - 'scripts/ci/check_python_startup_hooks.py'
+      - 'scripts/ci/emergency_python_wheels.json'
       - 'scripts/design_guard.py'
       - 'tests/test_design_token_parity.py'
       - 'tests/test_design_invariant_guard.py'
       - 'tests/test_frontend_raw_hex_guard.py'
+      - 'tests/test_python_supply_chain_controls.py'
       - '.github/workflows/frontend-ci.yml'
   workflow_dispatch:
 
@@ -113,15 +131,12 @@ jobs:
             echo "VITE_API_BASE=http://localhost:8000/api/v1" >> .env
           fi
 
-      - name: Set up Python
-        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+      - name: Setup Python environment
+        uses: ./.github/actions/python-setup
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-
-      - name: Install backend dependencies
-        run: |
-          cd ..
-          python scripts/ci/install_locked_python_requirements.py --python-executable python --constraints-file constraints.txt --install-dev
+          requirements-profile: ci-lite
+          install-mode: direct-proxy
 
       - name: Run design token pipeline checks
         run: |

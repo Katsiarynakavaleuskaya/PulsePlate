@@ -1635,6 +1635,35 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - LLM outputs used for product copy/coaching pass `philosophy_validator` (BLOCKER = rewrite)
     - AI runtime/runbook docs link to the same gate source instead of ad-hoc evaluation notes
 
+<a id="ledger-p1-knowledge-promotion-from-validated-rag"></a>
+- [ ] P1: Knowledge contracts and promotion from validated RAG evidence
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-K1
+  - Status: 🟡 In progress in PR `#1483` (PR-K1 runtime seam); close via docs-only follow-up after merge per ledger policy.
+  - Area: AI runtime / knowledge / retrieval orchestration
+  - Finding Type: bounded knowledge-promotion contract gap
+  - Reason (EN): The current AI runtime already has deterministic retrieval diagnostics, bounded `core/ai/*` ownership, and request-local recursive optimization caches, but it does not yet expose a first-class internal fact-promotion contract separated from retrieval artifacts. Without that seam, later runtime work risks promoting raw provider output, route-layer behavior, or request-local caches into canonical knowledge. `PR-K1` closes that gap as a bounded post-A5 follow-up without widening into semantic cache or DB/storage rollout.
+  - Deferred follow-up (PR #1483 merge closeout): add explicit return annotations to `TestPhilosophicalRuntimeFastLane._runtime_policy` and `_runtime_candidate` in `tests/test_remaining_modules.py`; keep it out of PR-K1 because touching that file here would pull a full-file `black` reformat into the merge lane for a low-risk test-only nitpick.
+  - Links:
+    - `docs/orchestration/WAVE6_K1_KNOWLEDGE_PROMOTION_PACKET_2026-04-19.md`
+    - `docs/orchestration/contracts/AI_RUNTIME_GATE_CONTRACT.md`
+    - `docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md`
+    - `docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md`
+    - `core/ai/insight_runtime.py`
+    - `core/rag/orchestration.py`
+    - `core/insight/philosophical_runtime.py`
+    - `app/services/insight_application_service.py`
+    - `docs/memory/kpp_knowledge_promotion_pipeline.md`
+    - `AGENTS.md`
+  - DoD:
+    - A bounded `core/knowledge/*` internal subdomain exists for knowledge contracts, policy, promotion, and store protocol only
+    - `prepare_insight_runtime(...)` owns the canonical knowledge-policy seam for runtime execution
+    - Promotion candidates are derived only from validated RAG evidence that survives orchestration and fail closed on degraded paths or insufficient confidence
+    - `legacy_app.py`, `app/routers/*`, OpenAPI, and public response DTOs remain unchanged
+    - No DB migration, Redis/GPTCache, or semantic-cache rollout is introduced in this slice
+    - Deterministic tests cover promotion allow/deny behavior, supersession rules, and the invariant that request-local recursive caches never become persistent knowledge
+
 <a id="ledger-p1-apple-server-api-migration"></a>
 - [ ] P1: Apple receipt verification migration to App Store Server API
   - Owner: @katsiaryna_kavaleuskaya
@@ -5029,18 +5058,22 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P2: Add custom Codex skill `pulseplate-design-launch-system` (Wave 2)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2
-  - Target PR: PR-TBD-CODEX-SKILL-WAVE2A
-  - Status: Planned
+  - Target PR: #1482
+  - Status: 🛠 Implemented in worktree `pulseplate-design-launch-system`; pending merge of PR `#1482` (evidence: `tools/codex_skills/pulseplate-design-launch-system/SKILL.md:1`, `docs/orchestration/CODEX_SKILL_PULSEPLATE_DESIGN_LAUNCH_SYSTEM_PACKET_2026-04-20.md:5`, `tests/test_install_codex_skills.py:264`)
   - Area: design / launch assets / orchestration
   - Finding Type: capability expansion
   - Reason: PulsePlate needs a project-specific design launch system skill that links Figma/design tokens/brand assets with launch-readiness constraints while keeping design tooling passive with respect to coordinator-first routing.
   - Links:
     - `docs/orchestration/CODEX_SKILLS_ALIGNMENT_MATRIX.md`
     - `docs/runbooks/DESIGN_TOOLING_OPERATING_MODEL.md`
+    - `docs/orchestration/CODEX_SKILL_PULSEPLATE_DESIGN_LAUNCH_SYSTEM_PACKET_2026-04-20.md`
+    - `tools/codex_skills/pulseplate-design-launch-system/SKILL.md`
+    - `docs/dev/CODEX_SKILLS.md`
+    - `tools/codex_skills/README.md`
   - DoD:
     - Skill exists under `tools/codex_skills/pulseplate-design-launch-system/`
     - Skill covers design system readiness, launch asset bundles, and token/brand consistency
-    - Skill docs explicitly preserve passive discovery-only boundaries
+    - Skill docs explicitly preserve fail-closed packet metadata expectations and passive discovery-only boundaries
 
 <a id="ledger-p2-codex-skill-pulseplate-web-launch-site"></a>
 - [ ] P2: Add custom Codex skill `pulseplate-web-launch-site` (Wave 2)
