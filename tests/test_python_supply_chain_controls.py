@@ -336,6 +336,27 @@ def test_ci_workflow_uses_single_direct_proxy_python_install_path_per_job() -> N
         assert all(step.get("name") != "Install dependencies" for step in jobs[job_name]["steps"])
 
 
+def test_frontend_ci_workflow_uses_ci_lite_python_setup() -> None:
+    setup_step = _python_setup_step(".github/workflows/frontend-ci.yml", "build-and-test")
+    workflow_text = (REPO_ROOT / ".github" / "workflows" / "frontend-ci.yml").read_text(
+        encoding="utf-8"
+    )
+
+    assert setup_step["with"]["python-version"] == "${{ env.PYTHON_VERSION }}"
+    assert setup_step["with"]["requirements-profile"] == "ci-lite"
+    assert setup_step["with"]["install-mode"] == "direct-proxy"
+    assert "python scripts/ci/install_locked_python_requirements.py" not in workflow_text
+    assert "'requirements.txt'" in workflow_text
+    assert "'requirements-ci-lite.in'" in workflow_text
+    assert "'requirements-ci-lite.txt'" in workflow_text
+    assert "'constraints.txt'" in workflow_text
+    assert "'.github/actions/python-setup/**'" in workflow_text
+    assert "'scripts/ci/install_locked_python_requirements.py'" in workflow_text
+    assert "'scripts/ci/check_python_startup_hooks.py'" in workflow_text
+    assert "'scripts/ci/emergency_python_wheels.json'" in workflow_text
+    assert "'tests/test_python_supply_chain_controls.py'" in workflow_text
+
+
 def test_test_dependency_profile_is_split_from_dev_tooling() -> None:
     requirements_test = (REPO_ROOT / "requirements-test.txt").read_text(encoding="utf-8")
 

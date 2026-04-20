@@ -16,6 +16,9 @@ The PR is intentionally narrow:
 - activate the skill as a governed conditional helper for design/media/launch
   asset tasks
 - preserve passive discovery-only behavior
+- include the minimum Frontend CI bootstrap fix required to keep the branch and
+  `main` from inheriting the current `build-and-test` red state while this lane
+  is open
 
 This PR does **not** implement:
 - `pulseplate-web-launch-site`
@@ -31,6 +34,12 @@ This PR does **not** implement:
 - repo mirror and installer/test alignment for the new slug
 - routing/policy/docs alignment for the design/media/launch-assets lane
 - one packet describing role order, boundaries, and validation
+- the minimum Frontend CI dependency-bootstrap fix needed for this PR to stay
+  green:
+  - canonical `ci-lite` Python setup for frontend-controlled OpenAPI/token
+    checks
+  - path-filter alignment for the actual backend dependency/install surfaces the
+    workflow consumes
 
 ### OUT
 - new frontend routes or launch pages
@@ -38,6 +47,7 @@ This PR does **not** implement:
 - Figma/Notion/Airweave/Penpot execution control
 - any change that lets skills bypass `agent-coordinator` or `task_bootstrap.py`
 - bundling `pulseplate-web-launch-site` or `pulseplate-agent-product` into this PR
+- broad dependency refreshes or unrelated CI topology redesign
 
 ## Files
 
@@ -49,8 +59,10 @@ This PR does **not** implement:
 - `scripts/orchestration/skill_router.py`
 - `docs/orchestration/AGENT_SKILL_ROUTING_POLICY.md`
 - `docs/orchestration/CODEX_SKILLS_ALIGNMENT_MATRIX.md`
+- `.github/workflows/frontend-ci.yml`
 - `tests/test_install_codex_skills.py`
 - `tests/test_skill_router.py`
+- `tests/test_python_supply_chain_controls.py`
 - `docs/orchestration/CODEX_SKILL_PULSEPLATE_DESIGN_LAUNCH_SYSTEM_PACKET_2026-04-20.md`
 
 ## Role Order
@@ -72,6 +84,8 @@ This PR does **not** implement:
 - The new skill remains passive/discovery-only.
 - It may shape readiness/governance for launch assets, but it must not become
   design execution authority.
+- The Frontend CI fix is bootstrap-only and must not widen into a general
+  dependency policy rewrite.
 - Figma/code-native/tokens source precedence stays governed by
   `docs/runbooks/DESIGN_TOOLING_OPERATING_MODEL.md`.
 - `docs_only` routing must continue to strip this skill from generic
@@ -96,5 +110,8 @@ This PR does **not** implement:
 - Routing exposes the skill as a conditional helper for governed
   design/media/launch-asset work
 - `docs_only` envelope keeps the skill out of generic documentation routing
+- `Frontend CI` uses the canonical lightweight backend bootstrap for
+  OpenAPI/token checks and re-triggers when its real dependency/install surfaces
+  change
 - `pulseplate-web-launch-site` and `pulseplate-agent-product` remain untouched
 - Review/governance artifacts can be added without revising this packet's scope
