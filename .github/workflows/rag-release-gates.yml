@@ -15,6 +15,7 @@ on:
       - "requirements-dev.in"
       - "requirements-dev.txt"
       - "requirements-lock.txt"
+      - ".github/workflows/rag-release-gates.yml"
       - "core/rag/**"
       - "core/ai/**"
       - "core/insight/philosophy_validator.py"
@@ -36,7 +37,9 @@ jobs:
   rag-release-gates-smoke:
     name: RAG Release Gates Smoke
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: ${{ fromJSON(vars.RAG_RELEASE_GATES_TIMEOUT_MINUTES || '15') }}
+    env:
+      SERVER_SALT: ci-rag-release-gates
     if: github.event_name != 'schedule'
     steps:
       - name: Checkout
@@ -72,6 +75,9 @@ jobs:
   rag-release-gates-weekly:
     name: RAG Release Gates Weekly
     runs-on: ubuntu-latest
+    timeout-minutes: ${{ fromJSON(vars.RAG_RELEASE_GATES_TIMEOUT_MINUTES || '15') }}
+    env:
+      SERVER_SALT: ci-rag-release-gates
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     steps:
       - name: Checkout
