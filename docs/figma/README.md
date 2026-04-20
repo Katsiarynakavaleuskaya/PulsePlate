@@ -1,53 +1,98 @@
-# Figma AI Handoff Folder
+# Figma Handoff Folder
 
-Purpose: single Git folder for everything you pass to Figma AI.
-(RU: единая папка для всех инструкций/индексов, которые передаются в Figma AI.)
+Purpose: single Git folder for repo-native Figma handoff, reconciliation, and
+evidence docs.
+(RU: единая папка для repo-native инструкций, reconciliation-пакетов и evidence
+доков для Figma-assisted работы.)
+
+Current delivery model:
+
+- repo code/docs/tests remain the source of truth
+- Figma MCP, Make, internal bridge systems, web terminal, and Cursor terminal
+  are auxiliary evidence tools only
+- Code Connect is not required, not planned, and not gating for the current
+  web/iOS reconciliation lane
+
+Glossary:
+
+- `repo-first lane` = the current web/iOS reconciliation lane governed by repo code/docs/tests, the authority packet, lane-specific reconciliation packets, inbox/checklist, and QA
+- `historical Code Connect lane` = the earlier activation/mapping path kept only as historical/reference context for the current delivery model
+- `reopened historical Code Connect lane` = a scoped exception where a future coordinator-owned packet explicitly says the historical Code Connect lane is active again for that task
+- `canonical_execution` = the only execution lane for that surface
+- `implementation_safe` = repo-subordinate visual/node reference only
+- `reference_only` = comparison and provenance only
+- `historical_reference_only` = prior blocker/audit evidence only
+- `spec_index_only` = lookup/index surface only
 
 ## Start Here (Reading Order)
 
 1. `docs/figma/README.md`
-2. `docs/figma/FIGMA_IMPLEMENTATION_RUNBOOK.md`
-3. `docs/figma/FIGMA_GIT_PACKS_INDEX.md`
-4. `docs/figma/PULSEPLATE_FIGMA_AI_GOVERNANCE_INDEX.md`
-5. `docs/figma/FIGMA_MAKE_SYNC_AUDIT_HPP.md`
-6. `docs/figma/FIGMA_CODE_CONNECT_BRIDGE_HPP.md`
-7. `docs/figma/FIGMA_DESIGN_URL_NODEID_CAPTURE_HPP.md`
-8. `docs/figma/FIGMA_CODE_CONNECT_MAPPING_CANDIDATES_HPP.md`
-9. `docs/design/PULSEPLATE_BUTTON_VISUAL_SYSTEM_TRENDS_AND_FORECAST.md`
-10. `docs/figma/FIGMA_AI_HANDOFF_CHECKLIST.md`
-11. `docs/figma/FIGMA_AI_INBOX_TEMPLATE.md`
-12. `docs/figma/FIGMA_CLAWBOT_OPERATING_MODEL.md`
-13. `docs/figma/SANDBOX_DESIGN_AGENT_SPEC.md`
-14. `docs/sora/prompts/hpp/MASTER_NANO_PROMPT_PACK.md`
-15. `docs/sora/SORA_STYLE_QA_CHECKLIST.md`
-16. `docs/sora/BRAND_THROUGHPUT_METRICS_GTM_MATRIX.md`
-17. `docs/figma/orchestration/README.md`
+2. `docs/figma/FIGMA_WEB_IOS_AUTHORITY_RECONCILIATION_PACKET.md`
+3. `docs/figma/FIGMA_IMPLEMENTATION_RUNBOOK.md`
+4. `docs/figma/PULSEPLATE_V3_DESIGN_SYSTEM_RECONCILIATION.md`
+5. `docs/figma/FIGMA_IOS_PROTOTYPE_V2_RECONCILIATION.md`
+6. `docs/figma/FIGMA_GIT_PACKS_INDEX.md`
+7. `docs/figma/PULSEPLATE_FIGMA_AI_GOVERNANCE_INDEX.md`
+8. `docs/figma/FIGMA_MAKE_SYNC_AUDIT_HPP.md`
+9. `docs/figma/FIGMA_AI_HANDOFF_CHECKLIST.md`
+10. `docs/figma/FIGMA_AI_INBOX_TEMPLATE.md`
+11. `docs/design/PULSEPLATE_BUTTON_VISUAL_SYSTEM_TRENDS_AND_FORECAST.md`
+12. `docs/sora/SORA_STYLE_QA_CHECKLIST.md`
+13. `docs/sora/BRAND_THROUGHPUT_METRICS_GTM_MATRIX.md`
+14. `docs/figma/FIGMA_CLAWBOT_OPERATING_MODEL.md`
+15. `docs/figma/SANDBOX_DESIGN_AGENT_SPEC.md`
+16. `docs/figma/orchestration/README.md`
+17. `docs/sora/prompts/hpp/MASTER_NANO_PROMPT_PACK.md`
+
+Historical reference only for the current delivery model:
+
+- `docs/figma/FIGMA_CODE_CONNECT_BRIDGE_HPP.md`
+- `docs/figma/FIGMA_DESIGN_URL_NODEID_CAPTURE_HPP.md`
+- `docs/figma/FIGMA_CODE_CONNECT_MAPPING_CANDIDATES_HPP.md`
+- `docs/figma/FIGMA_IOS_PROTOTYPE_V2_CODE_CONNECT_READINESS.md`
 
 ## Files
 
 - `docs/figma/FIGMA_IMPLEMENTATION_RUNBOOK.md`
   - Full runbook for where to read Git context, refresh protocol,
     conflict resolution, and output contract.
+- `docs/figma/FIGMA_WEB_IOS_AUTHORITY_RECONCILIATION_PACKET.md`
+  - Canonical cross-file packet for the current delivery model.
+  - Locks web `v3`, iOS `v2`, Make, and spec/index authority and records the
+    explicit Code Connect bypass policy.
+- `docs/figma/PULSEPLATE_V3_DESIGN_SYSTEM_RECONCILIATION.md`
+  - Canonical file-specific reconciliation packet for `PulsePlate_v3` and the
+    clean canonical Figma file used for `Foundations + Components + Welcome Gate`.
+  - Defines source precedence, transfer contract, alignment matrix, blocker
+    classes, clean-file page structure, and the advisory-only AI evidence policy.
+- `docs/figma/FIGMA_IOS_PROTOTYPE_V2_RECONCILIATION.md`
+  - Canonical iOS implementation-safe reconciliation packet for
+    `AhyS6u4dZXMRHVUDO3Cfn6`.
+  - Keeps iOS capture evidence repo-subordinate and separates it from web `v3`
+    execution authority.
 - `docs/figma/FIGMA_GIT_PACKS_INDEX.md`
   - Compact map: which project packs to read, when, and drift risk if skipped.
 - `docs/figma/PULSEPLATE_FIGMA_AI_GOVERNANCE_INDEX.md`
-  - Main governance SoT for Home + Plate + Progress (Web + iOS).
-  - Includes paste-ready rules block for Figma `guidelines/Guidelines.md`.
+  - Governance guidance for Figma-assisted design work across Home + Plate + Progress.
+  - Use as a reference index, not as product/runtime authority.
 - `docs/figma/FIGMA_MAKE_SYNC_AUDIT_HPP.md`
-  - Make-vs-Git reconciliation audit with drift blocks and action queue.
+  - Make-vs-Git reconciliation audit with drift blocks, action queue, and
+    supporting delta appendices used as evidence only.
+  - `reference_only` for the current delivery model.
 - `docs/figma/FIGMA_CODE_CONNECT_BRIDGE_HPP.md`
-  - Canonical runbook for Code Connect bridge to existing site components.
+  - `historical_reference_only` runbook for an out-of-scope Code Connect path.
 - `docs/figma/FIGMA_DESIGN_URL_NODEID_CAPTURE_HPP.md`
-  - Deterministic protocol to capture `figma.com/design` URL and P0 node IDs.
+  - `historical_reference_only` capture protocol from the earlier Code Connect lane.
 - `docs/figma/FIGMA_CODE_CONNECT_MAPPING_CANDIDATES_HPP.md`
-  - 23-row CTA mapping registry for candidate/blocked/active states.
+  - `historical_reference_only` CTA mapping registry from the earlier Code Connect lane.
 - `docs/figma/FIGMA_AI_HANDOFF_CHECKLIST.md`
   - What to verify before sending and after receiving outputs.
 - `docs/figma/FIGMA_AI_INBOX_TEMPLATE.md`
   - Template for adding new requests in a stable format.
 - `docs/figma/FIGMA_CLAWBOT_OPERATING_MODEL.md`
-  - Canonical operating model for Make vs Design source-of-truth lock and
-    OpenClaw/Clawbat terminal workflow contract.
+  - Reference operating model for Make-vs-Design evidence capture and
+    OpenClaw/Clawbat terminal workflow notes.
+  - Not an authority source for the current delivery model.
 - `docs/figma/SANDBOX_DESIGN_AGENT_SPEC.md`
   - P1 specification for sandbox design-agent contracts, safety gates, and DoD.
 - `docs/figma/orchestration/README.md`
@@ -61,18 +106,30 @@ Purpose: single Git folder for everything you pass to Figma AI.
 
 ## Recommended workflow
 
-1. Refresh Git context using `docs/figma/FIGMA_IMPLEMENTATION_RUNBOOK.md`.
-2. Reconcile Make updates with `docs/figma/FIGMA_MAKE_SYNC_AUDIT_HPP.md`.
-3. Review bridge rules in `docs/figma/FIGMA_CODE_CONNECT_BRIDGE_HPP.md`.
-4. If Design URL/node IDs are missing, run
-   `docs/figma/FIGMA_DESIGN_URL_NODEID_CAPTURE_HPP.md`.
-5. Update CTA map candidates in `docs/figma/FIGMA_CODE_CONNECT_MAPPING_CANDIDATES_HPP.md`.
+1. Lock cross-file authority first with
+   `docs/figma/FIGMA_WEB_IOS_AUTHORITY_RECONCILIATION_PACKET.md`.
+2. Refresh Git context using `docs/figma/FIGMA_IMPLEMENTATION_RUNBOOK.md`.
+3. If the task is specifically about the clean web `v3`
+   `Foundations + Components + Welcome Gate` execution lane, use
+   `docs/figma/PULSEPLATE_V3_DESIGN_SYSTEM_RECONCILIATION.md`.
+4. If the task is specifically about the implementation-safe iOS `v2` lane,
+   use `docs/figma/FIGMA_IOS_PROTOTYPE_V2_RECONCILIATION.md`.
+5. Use `docs/figma/FIGMA_MAKE_SYNC_AUDIT_HPP.md` and
+   `docs/figma/FIGMA_CLAWBOT_OPERATING_MODEL.md` only as reference/evidence
+   support. They do not define authority.
 6. Add request via `docs/figma/FIGMA_AI_INBOX_TEMPLATE.md`.
-7. Align request with `docs/figma/PULSEPLATE_FIGMA_AI_GOVERNANCE_INDEX.md`.
-8. Validate ops evidence via `docs/figma/FIGMA_CLAWBOT_OPERATING_MODEL.md`.
-9. Validate output via `docs/figma/FIGMA_AI_HANDOFF_CHECKLIST.md`.
-10. Run QA pass/fail checks in `docs/sora/SORA_STYLE_QA_CHECKLIST.md`.
-11. If session is complex, record decisions in `docs/figma/orchestration/sessions/`.
+7. Align request with `docs/figma/PULSEPLATE_FIGMA_AI_GOVERNANCE_INDEX.md`,
+   treating Figma AI guidance as advisory only.
+8. Validate output via `docs/figma/FIGMA_AI_HANDOFF_CHECKLIST.md`.
+9. Run QA pass/fail checks in `docs/sora/SORA_STYLE_QA_CHECKLIST.md`.
+10. If session is complex, record decisions in
+    `docs/figma/orchestration/sessions/`.
+
+Code Connect is not part of the current recommended workflow for the
+repo-first lane covered by this folder.
+If a future task uses a reopened historical Code Connect lane under a
+coordinator-owned packet, use the dedicated runbook and bridge docs for that
+scoped task instead of treating this lane-scoped bypass as a repo-wide ban.
 
 ## Canonical project links
 
@@ -82,3 +139,4 @@ Purpose: single Git folder for everything you pass to Figma AI.
 - `docs/design/PULSEPLATE_BUTTON_ACTION_PROMPT_MATRIX.md`
 - `docs/design/PULSEPLATE_BUTTON_VISUAL_SYSTEM_TRENDS_AND_FORECAST.md`
 - `docs/sora/PULSEPLATE_SORA_BUTTON_VARIANTS_HPP.md`
+- `docs/design/PENPOT_STORYBOOK_BRIDGE.md`

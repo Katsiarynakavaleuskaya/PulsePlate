@@ -17,10 +17,14 @@ const sizeClasses = {
   lg: 'px-3 py-1.5 text-sm'
 };
 
+// Brand VIP styling uses PulsePlate token SoT only (frontend/src/styles/tokens.css).
 const variantClasses = {
-  default: 'bg-gradient-to-r from-purple-500 to-pink-500 text-white',
-  outline: 'border border-purple-500 text-purple-600 dark:text-purple-400',
-  subtle: 'bg-purple-100 dark:bg-purple-900 text-purple-800 dark:text-purple-200'
+  default:
+    'bg-gradient-to-r from-[var(--pp-gold)] to-[var(--pp-navy)] text-[var(--color-primary-foreground)] ring-1 ring-[var(--pp-navy)]/25',
+  outline:
+    'border border-[var(--pp-gold)] text-[var(--color-text)] bg-transparent ring-1 ring-[var(--pp-gold)]/35',
+  subtle:
+    'bg-[var(--color-surface-muted)] text-[var(--color-text)] border border-[var(--color-border)] ring-1 ring-[var(--pp-gold)]/20',
 };
 
 /**
@@ -49,6 +53,7 @@ export const VipBadge: React.FC<VipBadgeProps> = ({ size = 'md', variant = 'defa
 
   return (
     <span
+      data-testid="vip-badge"
       className={clsx(
         'inline-flex items-center font-medium rounded-full',
         sizeClasses[size],

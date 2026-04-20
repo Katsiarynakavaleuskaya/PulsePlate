@@ -1,0 +1,5 @@
+# Pages-only frontend config.
+# The root-level wrangler.toml remains the separate config for worker.js.
+name = "pulseplate-frontend"
+compatibility_date = "2024-10-01"
+pages_build_output_dir = "./dist"

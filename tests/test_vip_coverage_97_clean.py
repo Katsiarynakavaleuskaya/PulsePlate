@@ -42,7 +42,10 @@ class TestVIPCoverage97Clean:
         )
 
         # Test _is_production_environment
-        with patch.dict(os.environ, {"APP_ENV": "production"}):
+        with patch.dict(
+            os.environ,
+            {"APP_ENV": "production", "ENVIRONMENT": "", "DEBUG": "false"},
+        ):
             is_production, app_env = _is_production_environment()
             assert is_production is True
             assert app_env == "production"

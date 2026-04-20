@@ -9,28 +9,33 @@ Feature-gated via FEATURE_CBT_AGENT environment variable.
 
 from __future__ import annotations
 
-import asyncio
 import logging
 import os
+from typing import Literal, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Security, status
-from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field
 
 from app.middleware.api_tiers import require_pro_tier
 from app.routers.api_key import api_key_header
+from app.schemas.fitchef import FitChefCoachInsightInput, FitChefCoachInsightTaskEnvelope
+from app.security.agent_control_plane import normalize_execution_mode, require_execution_mode
+from app.security.agent_input_guard import require_safe_ai_agent_input
 from app.security.rate_limit import (
     RATE_LIMIT_429_RESPONSES,
     RATE_LIMIT_INSIGHT,
     limit_if_available,
 )
+from app.services import fitchef_runtime
+from app.telemetry.genai import agent_span
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/pro/cbt", tags=["CBT", "pro"])
 
-# LLM provider call timeout (seconds) - prevents unbounded requests
-LLM_TIMEOUT_SECONDS: float = 60.0
+CBT_EXECUTION_MODE_ENV = "CBT_AGENT_EXECUTION_MODE"
+CBTExecutionMode = Literal["auto-safe", "review-required", "blocked"]
+CBTQuotaState = Literal["not_consumed", "consumed"]
 
 
 # ---------------------------------------------------------------------------
@@ -41,6 +46,17 @@ LLM_TIMEOUT_SECONDS: float = 60.0
 def _is_cbt_agent_enabled() -> bool:
     """Check if CBT agent feature is enabled via environment variable."""
     return os.getenv("FEATURE_CBT_AGENT", "false").lower() in {"1", "true", "yes", "on"}
+
+
+def _cbt_feature_flag_state() -> dict[str, bool]:
+    """Return deterministic feature-flag snapshot for CBT tracing."""
+
+    return {
+        "cbt_agent": _is_cbt_agent_enabled(),
+        "rag": os.getenv("FEATURE_RAG", "false").lower() in {"1", "true", "yes", "on"},
+        "rag_vector": os.getenv("FEATURE_RAG_VECTOR", "false").lower()
+        in {"1", "true", "yes", "on"},
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -72,67 +88,49 @@ class CBTInsightResponse(BaseModel):
     """Response schema for CBT insight endpoint."""
 
     insight: str = Field(..., description="CBT-informed response from LLM")
-    rag_used: bool = Field(default=False, description="Whether RAG context was used")
+    rag_used: bool = Field(..., description="Whether RAG context was used")
     sources: list[CBTSourceItem] = Field(
-        default_factory=list,
+        ...,
         description="CBT corpus sources used for context",
     )
-    confidence: float = Field(default=0.0, description="RAG retrieval confidence score")
-
-
-# ---------------------------------------------------------------------------
-# CBT prompt builder
-# ---------------------------------------------------------------------------
-
-
-def _build_cbt_prompt(query: str, rag_context: str) -> str:
-    """Build CBT-informed prompt for LLM with RAG context.
-
-    The system prompt establishes the CBT coaching role and boundaries.
-    """
-    system_prompt = """You are a supportive wellness coach using evidence-based CBT (Cognitive Behavioral Therapy) principles. Your role is to:
-
-1. Help users identify and challenge unhelpful thought patterns
-2. Suggest practical CBT techniques (thought records, cognitive restructuring)
-3. Encourage self-compassion and gradual progress
-4. Focus on nutrition and wellness goals
-
-IMPORTANT BOUNDARIES:
-- You are NOT a therapist and cannot provide therapy or diagnose conditions
-- Avoid medical advice; suggest consulting professionals for health concerns
-- If someone expresses crisis/self-harm thoughts, encourage them to seek professional help
-- Use non-judgmental, supportive language
-
-Respond with practical, actionable suggestions based on CBT principles."""
-
-    if rag_context:
-        return f"""{system_prompt}
-
-RELEVANT CBT KNOWLEDGE:
-{rag_context}
-
-USER QUESTION:
-{query}
-
-Provide a helpful, CBT-informed response:"""
-    else:
-        return f"""{system_prompt}
-
-USER QUESTION:
-{query}
-
-Provide a helpful, CBT-informed response:"""
-
-
-# ---------------------------------------------------------------------------
-# Endpoint
-# ---------------------------------------------------------------------------
+    confidence: float = Field(..., description="RAG retrieval confidence score")
+    uncertainty: float = Field(
+        ...,
+        ge=0.0,
+        le=1.0,
+        description="Uncertainty score derived from confidence",
+    )
+    warnings: list[str] = Field(
+        ...,
+        description="Operational or retrieval warnings",
+    )
+    mode: CBTExecutionMode = Field(
+        ...,
+        description="Resolved agent execution mode",
+    )
+    quota_state: CBTQuotaState = Field(
+        ...,
+        description="Monthly quota state before provider call",
+    )
+    automated_analysis: bool = Field(
+        default=True,
+        description="Whether the response was generated through automated wellness analysis",
+    )
+    transparency_notice_id: str = Field(
+        default="ai_generated_insight",
+        description="Canonical transparency registry id for this AI surface",
+    )
+    wellness_boundary: str = Field(
+        default="Wellness coaching only; not therapy, diagnosis, or clinical decision support.",
+        description="High-level wellness boundary for this AI surface",
+    )
 
 
 @router.post(
     "/insight",
     response_model=CBTInsightResponse,
     responses={
+        400: {"description": "Unsafe agent input blocked"},
         200: {"description": "CBT insight generated successfully"},
         401: {"description": "API key required for PRO tier access"},
         403: {"description": "API key does not have PRO tier access"},
@@ -164,92 +162,58 @@ async def cbt_insight(
             detail="CBT agent feature is not enabled",
         )
 
-    # Retrieve RAG context with CBT corpus filtering
-    rag_context_str = ""
-    sources: list[CBTSourceItem] = []
-    confidence = 0.0
-    rag_used = False
-
     try:
-        from core.rag.vector_rag import retrieve_context_structured
-
-        rag_ctx = await run_in_threadpool(
-            retrieve_context_structured,
-            request.query,
-            max_chunks=5,
-            agent_id="cbt-agent",
-            user_tier="PRO",
+        execution_mode = cast(
+            CBTExecutionMode,
+            normalize_execution_mode(os.getenv(CBT_EXECUTION_MODE_ENV)),
         )
-
-        if rag_ctx.chunks:
-            rag_used = True
-            confidence = rag_ctx.confidence
-
-            # Build context string from chunks
-            context_parts = []
-            for chunk in rag_ctx.chunks:
-                context_parts.append(f"[{chunk.file}]\n{chunk.content}")
-                sources.append(
-                    CBTSourceItem(
-                        chunk_id=chunk.chunk_id,
-                        file=chunk.file,
-                        preview=(
-                            chunk.content[:200] + "..."
-                            if len(chunk.content) > 200
-                            else chunk.content
-                        ),
-                        score=chunk.score,
-                    )
-                )
-            rag_context_str = "\n\n".join(context_parts)
-
-    except Exception:
-        logger.warning("RAG retrieval failed for CBT insight", exc_info=True)
-        # Continue without RAG context
-
-    # Build prompt with RAG context
-    prompt = _build_cbt_prompt(request.query, rag_context_str)
-
-    # Generate insight via LLM
-    try:
-        from llm import get_provider
-
-        provider = get_provider()
-        insight_text = await asyncio.wait_for(
-            run_in_threadpool(provider.generate, prompt),
-            timeout=LLM_TIMEOUT_SECONDS,
-        )
-
-        if not insight_text:
-            raise HTTPException(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail="LLM provider returned empty response",
-            )
-
-    except ImportError:
-        logger.error("LLM provider not available")
+        require_execution_mode(execution_mode)
+    except RuntimeError as exc:
+        logger.error("CBT execution mode misconfigured", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="LLM provider not available",
-        )
-    except asyncio.TimeoutError:
-        logger.error("LLM provider call timed out after %s seconds", LLM_TIMEOUT_SECONDS)
-        raise HTTPException(
-            status_code=status.HTTP_504_GATEWAY_TIMEOUT,
-            detail="LLM provider call timed out",
-        )
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error("LLM generation failed: %s", e, exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Failed to generate CBT insight",
-        )
+            detail="agent_execution_mode_misconfigured",
+        ) from exc
+    except PermissionError:
+        detail = f"agent_execution_{execution_mode.replace('-', '_')}"
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=detail)
 
-    return CBTInsightResponse(
-        insight=insight_text,
-        rag_used=rag_used,
-        sources=sources,
-        confidence=confidence,
+    safe_query = require_safe_ai_agent_input(request.query)
+    task = FitChefCoachInsightTaskEnvelope(
+        mode=execution_mode,
+        input=FitChefCoachInsightInput(
+            safe_query=safe_query,
+            api_key=_api_key,
+            endpoint=str(raw_request.url.path),
+            method=raw_request.method,
+        ),
     )
+    with agent_span(
+        "cbt insight agent",
+        user_tier="PRO",
+        route=str(raw_request.url.path),
+        feature_flags=_cbt_feature_flag_state(),
+    ):
+        result = await fitchef_runtime.run_coach_insight_task(task)
+    response = CBTInsightResponse(
+        insight=result.insight,
+        rag_used=result.rag_used,
+        sources=[
+            CBTSourceItem(
+                chunk_id=item.chunk_id,
+                file=item.file,
+                preview=item.preview,
+                score=item.score,
+            )
+            for item in result.sources
+        ],
+        confidence=result.confidence,
+        uncertainty=result.uncertainty,
+        warnings=result.warnings,
+        mode=result.mode,
+        quota_state=result.quota_state,
+        automated_analysis=result.automated_analysis,
+        transparency_notice_id=result.transparency_notice_id,
+        wellness_boundary=result.wellness_boundary,
+    )
+    return response

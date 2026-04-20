@@ -195,7 +195,8 @@ class TestAppExceptionHandlersCoverage:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Test connection error handler coverage"""
-        # Test with insight endpoint that makes external LLM calls
+        # RU: В PR-A1 network failure на primary provider уходит в deterministic fallback.
+        # EN: In PR-A1 a primary provider network failure routes into deterministic fallback.
         monkeypatch.setenv("FEATURE_INSIGHT", "true")
         monkeypatch.setenv("LLM_PROVIDER", "ollama")
 
@@ -209,10 +210,12 @@ class TestAppExceptionHandlersCoverage:
                 headers=vip_headers,
             )
             assert mocked_post.called is True
-            # Should handle connection error gracefully
-            assert response.status_code in [500, 503, 502]
-            detail = _assert_json_error_hygiene(response)
-            assert "Connection failed" not in detail
+            assert response.status_code == 200
+            assert response.headers.get("content-type", "").startswith("application/json")
+            payload = response.json()
+            assert payload["provider"] == "stub"
+            assert payload["insight"].startswith("[stub @ ")
+            assert "Connection failed" not in payload["insight"]
 
     def test_timeout_error_handler(
         self,
@@ -221,7 +224,8 @@ class TestAppExceptionHandlersCoverage:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Test timeout error handler coverage"""
-        # Test with insight endpoint that makes external LLM calls
+        # RU: Таймаут primary provider тоже должен уходить в deterministic fallback.
+        # EN: Primary provider timeouts must also route into deterministic fallback.
         monkeypatch.setenv("FEATURE_INSIGHT", "true")
         monkeypatch.setenv("LLM_PROVIDER", "ollama")
 
@@ -235,7 +239,9 @@ class TestAppExceptionHandlersCoverage:
                 headers=vip_headers,
             )
             assert mocked_post.called is True
-            # Should handle timeout error gracefully - expect 503 Service Unavailable
-            assert response.status_code == 503
-            detail = _assert_json_error_hygiene(response)
-            assert "Request timeout" not in detail
+            assert response.status_code == 200
+            assert response.headers.get("content-type", "").startswith("application/json")
+            payload = response.json()
+            assert payload["provider"] == "stub"
+            assert payload["insight"].startswith("[stub @ ")
+            assert "Request timeout" not in payload["insight"]

@@ -1,9 +1,11 @@
 import { createContext, useContext, useState, useEffect, useRef, useCallback, ReactNode } from 'react';
 import { getStoredApiKey, clearStoredApiKey } from '../auth/storage';
 import { checkProSession, clearProSession, exchangeApiKeyForSession } from '../api/client';
+import { dispatchPremiumChangeEvent } from './premiumEvents';
 
 const MIN_API_KEY_LENGTH = 20;
 const AUTH_PROMPT_DELAY_MS = 500;
+const SESSION_BOOTSTRAP_TIMEOUT_MS = 5000;
 const SESSION_AUTH_SENTINEL = '__session_auth__';
 
 export class AuthError extends Error {
@@ -31,6 +33,30 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 interface AuthProviderProps {
   children: ReactNode;
+}
+
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, fallbackValue: T): Promise<T> {
+  let timeoutId: number | null = null;
+  const guardedPromise = (async (): Promise<T> => {
+    try {
+      return await promise;
+    } catch {
+      return fallbackValue;
+    }
+  })();
+  const timeoutPromise = new Promise<T>((resolve) => {
+    timeoutId = window.setTimeout(() => {
+      resolve(fallbackValue);
+    }, timeoutMs);
+  });
+
+  try {
+    return await Promise.race([guardedPromise, timeoutPromise]);
+  } finally {
+    if (timeoutId !== null) {
+      window.clearTimeout(timeoutId);
+    }
+  }
 }
 
 export function AuthProvider({ children }: AuthProviderProps) {
@@ -62,7 +88,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
       const legacyKey = getStoredApiKey();
       if (legacyKey) {
         try {
-          await exchangeApiKeyForSession(legacyKey);
+          await withTimeout(
+            exchangeApiKeyForSession(legacyKey),
+            SESSION_BOOTSTRAP_TIMEOUT_MS,
+            false,
+          );
         } catch {
           // Fail closed: migration best-effort, auth state is derived from session check below.
         } finally {
@@ -71,7 +101,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
         }
       }
 
-      const sessionActive = await checkProSession();
+      const sessionActive = await withTimeout(
+        checkProSession(),
+        SESSION_BOOTSTRAP_TIMEOUT_MS,
+        false,
+      );
       if (cancelled) {
         return;
       }
@@ -79,6 +113,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       setIsAuthenticated(sessionActive);
       setApiKeyState(sessionActive ? SESSION_AUTH_SENTINEL : null);
       setIsLoading(false);
+      dispatchPremiumChangeEvent();
       if (!sessionActive) {
         scheduleAuthPrompt();
       } else {
@@ -119,6 +154,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     setIsAuthenticated(true);
     setApiKeyState(SESSION_AUTH_SENTINEL);
     setShowAuthPrompt(false);
+    dispatchPremiumChangeEvent();
   };
 
   const clearApiKey = async () => {
@@ -131,6 +167,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
     setIsAuthenticated(false);
     setApiKeyState(null);
+    dispatchPremiumChangeEvent();
     scheduleAuthPrompt();
   };
 

@@ -1,9 +1,15 @@
-"""Merge-readiness CI gate: fail when non-draft PR has unresolved threads or unmapped bot comments."""
+"""Review-governance merge gate for unresolved threads and bot-comment mapping.
+
+This script does not classify current-head required checks; the canonical
+required-check truth lives in `check_current_head_pr_checks.py` and the
+`check_merge_ready.py` wrapper bundles both hard gates.
+"""
 
 from __future__ import annotations
 
 import argparse
 import http.client
+import sys
 import json
 import os
 import re
@@ -13,6 +19,17 @@ import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from scripts.orchestration.review_mapping_artifact import (
+    extract_fixed_mapping_section,
+    has_no_actionable_marker,
+    parse_fixed_mapping_entries,
+    read_mapping_artifact,
+)
 
 ACTIONABLE_MARKERS = (
     "Actionable comments posted",
@@ -352,30 +369,43 @@ def main() -> int:
         print(f"ERROR: cannot query bot comments/reviews: HTTP {exc.code}")
         return 1
 
-    mapped_urls, no_actionable_marker = _mapped_urls(pr_body=pr_body)
+    # Canonical SoT: repo artifact (docs/review/PR_<N>_FIXED_MAPPING.md)
+    try:
+        artifact_text = read_mapping_artifact(pr_number)
+        fixed_mapping_section = extract_fixed_mapping_section(artifact_text)
+        mapping_entries = parse_fixed_mapping_entries(fixed_mapping_section)
+        mapped_urls = set(mapping_entries.keys())
+        no_actionable_marker = has_no_actionable_marker(fixed_mapping_section)
+    except FileNotFoundError as exc:
+        print(f"ERROR: {exc}")
+        return 1
 
     if actionable_items:
         if no_actionable_marker:
             errors.append(
-                "PR body claims `No actionable review comments` but actionable bot findings were detected."
+                "Canonical artifact claims `No actionable review comments` but actionable bot findings were detected."
             )
         unmapped = [item for item in actionable_items if item.url not in mapped_urls]
         if unmapped:
             errors.append(
-                "Unmapped actionable bot comments found in `### Fixed in Commit Mapping` "
-                "(add `<review-comment-url> -> <commit-sha>` entries)."
+                "Unmapped actionable bot comments found in canonical artifact "
+                "`docs/review/PR_<N>_FIXED_MAPPING.md` "
+                "(add `<review-comment-url>` entries for NOT-A-BUG/DEFERRED or "
+                "`<review-comment-url> -> <commit-sha>` for FIXED)."
             )
             for item in unmapped:
                 print(f"UNMAPPED: {item.author} [{item.kind}] {item.url} ({item.created_at})")
 
     if errors:
-        print("ERROR: merge-readiness gate failed:")
+        print("ERROR: review-governance merge gate failed:")
         for line in errors:
             print(f"- {line}")
         return 1
 
-    print("merge-readiness-gate: passed.")
-    print("Zero comments: 0 unresolved threads, all actionable bot comments mapped in PR body.")
+    print("merge-readiness-gate: passed (review governance only).")
+    print(
+        "Zero comments: 0 unresolved threads, all actionable bot comments mapped in canonical artifact."
+    )
     return 0
 
 

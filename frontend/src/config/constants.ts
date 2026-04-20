@@ -6,6 +6,7 @@
  */
 export const PREMIUM_GATE_SOURCES = {
   PLATE_PAGE: 'plate_page',
+  PRO_DAILY_PLATE: 'pro_daily_plate',
   // Add other premium gate sources here as needed
   // PROGRESS_PAGE: 'progress_page',
   // PROFILE_PAGE: 'profile_page',

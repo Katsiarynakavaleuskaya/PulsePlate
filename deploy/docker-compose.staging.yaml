@@ -5,6 +5,24 @@ networks:
     external: false
 
 services:
+  postgres:
+    image: postgres:15-alpine
+    env_file:
+      - /srv/pulseplate-staging/.env
+    restart: always
+    networks: [web]
+    environment:
+      - POSTGRES_DB=${POSTGRES_DB:?POSTGRES_DB is required}
+      - POSTGRES_USER=${POSTGRES_USER:?POSTGRES_USER is required}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
   app:
     image: ghcr.io/katsiarynakavaleuskaya/pulseplate:${TAG:-latest}
     env_file:
@@ -13,10 +31,14 @@ services:
     networks: [web]
     expose:
       - "8000"
-    volumes:
-      - app_data:/app/cache
+    environment:
+      - ENVIRONMENT=staging
+      - DATABASE_URL=${DATABASE_URL:?DATABASE_URL is required}
+    depends_on:
+      postgres:
+        condition: service_healthy
     command: >
-      uvicorn app:app --host 0.0.0.0 --port 8000
+      uvicorn app.main:app --host 0.0.0.0 --port 8000
       --proxy-headers --forwarded-allow-ips="caddy"
     deploy:
       resources:
@@ -27,7 +49,7 @@ services:
           cpus: '0.5'
           memory: 512M
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health').read()"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/ready').read()"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -47,9 +69,10 @@ services:
       - caddy_data:/data
       - caddy_config:/config
     depends_on:
-      - app
+      app:
+        condition: service_healthy
 
 volumes:
+  postgres_data:
   caddy_data:
   caddy_config:
-  app_data:

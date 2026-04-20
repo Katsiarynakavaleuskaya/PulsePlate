@@ -14,6 +14,8 @@ from typing import Any, Dict, List, Literal, Optional, Set
 
 from pydantic import BaseModel, Field, model_validator
 
+from app.schemas.intervention import NextBestAction
+
 Sex = Literal["female", "male"]
 Activity = Literal["sedentary", "light", "moderate", "active", "very_active"]
 Goal = Literal["loss", "maintain", "gain"]
@@ -183,3 +185,4 @@ class WHOTargetsResponse(BaseModel):
     calculation_date: str
     warnings: List[Dict[str, str]] = Field(default_factory=list)
     ui_labels: WHOTargetsUiLabels
+    next_best_action: NextBestAction | None = None

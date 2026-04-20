@@ -40,7 +40,9 @@ This map reduces “missing context” failures by making required inputs explic
 
 - `docs/orchestration/AGENT_MESSAGE_PROTOCOL.md` — when outputs must be parseable across models
 - `docs/orchestration/RESEARCH_TRACK_PROTOCOL.md` — when doing web/OSS intake or external research
+- `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md` — when running fixed-budget optimization/eval loops or drafting experiment packets
 - `docs/orchestration/AGENT_REFLECTION_PROTOCOL.md` — when capturing incidents for KPP promotion
+- `docs/orchestration/AGENT_SKILL_ROUTING_POLICY.md` — when installed skills may improve execution or when orchestration-layer docs/scripts are touched
 
 **Secondary (task-dependent):**
 
@@ -150,6 +152,9 @@ This map reduces “missing context” failures by making required inputs explic
 - `frontend/AGENTS.md` — web UI constraints
 - `ios/AGENTS.md` — iOS UI constraints
 - `AGENTS.md` (root) — accessibility + thin-client guardrails (where applicable)
+- `docs/design/UI_COMPONENT_VOCABULARY.md` — canonical component naming and normalization
+- `docs/design/UI_SCREEN_BRIEF_TEMPLATES.md` — canonical screen-brief drafting template
+- `docs/design/CODE_FIRST_UI_PROMPT_COOKBOOK.md` — code-first brief assembly contract
 
 ---
 
@@ -211,11 +216,14 @@ This map reduces “missing context” failures by making required inputs explic
 - `frontend/src/styles/tokens.css`
 - `frontend/src/styles/tokens.ts`
 - `frontend/tailwind.config.ts`
+- `docs/design/UI_COMPONENT_VOCABULARY.md`
+- `docs/design/CODE_FIRST_UI_PROMPT_COOKBOOK.md`
 
 **Must know:**
 
 - Thin-client adapter policy (`frontend/src/api/client.ts` as network boundary)
 - UI style SoT is token-driven; avoid ad-hoc literals
+- UI naming/spec flow is vocabulary-driven before component or page generation
 
 ---
 
@@ -233,6 +241,108 @@ This map reduces “missing context” failures by making required inputs explic
 
 - Allowlist command execution only (terminal-first, no GUI/RPA in MVP)
 - Evidence contract: raw failing lines + `file:line:error` + rerun commands
+
+---
+
+### QA Engineer (`qa-engineer-agent`)
+
+**Primary:**
+
+- `AGENTS.md:31-40` (merge/readiness policy)
+- `RUNBOOK_AGENT.md:105-162` (quality-gate procedure)
+- `tests/AGENTS.md:8-27` (test isolation and deterministic command contract)
+- nearest touched module `AGENTS.md` (`AGENTS.md:265-269`, `.cursor/agents/qa-engineer-agent.md:16-20`)
+
+**Must know:**
+
+- Acceptance criteria must map to deterministic commands and artifacts (`.cursor/agents/qa-engineer-agent.md:22-40`)
+- Regression plans must cover both success and fail-closed paths (`.cursor/agents/qa-engineer-agent.md:22-40`)
+
+---
+
+### App Store Release Agent (`app-store-release-agent`)
+
+**Primary:**
+
+- `AGENTS.md:31-40` (merge/readiness policy)
+- `ios/AGENTS.md:15-24` (iOS coordination and release-facing visual guidance)
+- `frontend/AGENTS.md:15-18` (frontend schema-sync contract for release packaging)
+- `docs/orchestration/IOS_FRONTEND_MULTIAGENT_PLAYBOOK.md:1-54` (canonical iOS + frontend coordination playbook for release work)
+- `.cursor/agents/app-store-release-agent.md:16-39` (canonical release-packet index for metadata, screenshots, and checklist outputs)
+
+**Must know:**
+
+- Asset packages must be checklist-driven, not ad-hoc (`.cursor/agents/app-store-release-agent.md:21-39`)
+- Release metadata must stay aligned with wellness-only positioning (`.cursor/agents/app-store-release-agent.md:21-39`)
+
+---
+
+### Wellness Analyst (`wellness-analyst-agent`)
+
+**Primary:**
+
+- `AGENTS.md:265-269` (required reading + nearest scoped AGENTS)
+- `docs/orchestration/RESEARCH_TRACK_PROTOCOL.md:1-48` (bounded research intake and promotion rules)
+- `docs/roadmap/BACKLOG_LEDGER.md:1-40` (current roadmap constraints)
+- `.cursor/agents/wellness-analyst-agent.md:16-40` (role-specific context and output contract)
+
+**Must know:**
+
+- No-license / low-capex ideas must include ethics and regulation notes (`.cursor/agents/wellness-analyst-agent.md:23-40`)
+- Product framing must stay wellness-first, not medical (`.cursor/agents/wellness-analyst-agent.md:23-40`)
+
+---
+
+### Business Strategist (`business-strategist-agent`)
+
+**Primary:**
+
+- `AGENTS.md:265-269` (required reading + nearest scoped AGENTS)
+- `docs/roadmap/BACKLOG_LEDGER.md:1-40` (roadmap constraints and target PR planning)
+- `docs/analytics/README.md:14-29` (canonical analytics/growth index)
+- `docs/audience_pack/README.md:1-44` (canonical audience-pack map)
+- `docs/audience_pack/FACTS_CANONICAL.md:1-103` (repo fact SoT for external business framing)
+- `docs/audience_pack/INVESTOR_PUBLIC_OVERVIEW.md:1-117` (public/investor narrative baseline)
+- `docs/audience_pack/MARKETING_DESIGN_OVERVIEW.md:1-100` (growth hypothesis and KPI framing)
+- `.cursor/agents/business-strategist-agent.md:16-57` (canonical business-context index for portfolio, pricing, B2B packaging, and KPI ownership)
+
+**Must know:**
+
+- Recommendations must include sequencing and tradeoffs, not only ideas (`.cursor/agents/business-strategist-agent.md:23-57`)
+- Business advice must connect back to current roadmap constraints (`.cursor/agents/business-strategist-agent.md:23-57`)
+- Director-level outputs must govern partner/investor narrative framing without creating a second fact source (`.cursor/agents/business-strategist-agent.md:23-57`)
+
+---
+
+### Cursor Specialist (`cursor-specialist-agent`)
+
+**Primary:**
+
+- `AGENTS.md:265-269` (required reading + nearest scoped AGENTS)
+- `.cursor/agents/AGENTS.md:17-23` (scoped pre-flight invariant)
+- `docs/orchestration/workflow.md:68-115` (canonical pre-flight checklist)
+- `docs/orchestration/AGENT_CONTEXT_MAP.md:1-24` (context-pack SoT)
+- `.cursor/agents/cursor-specialist-agent.md:16-40` (role-specific workflow contract)
+
+**Must know:**
+
+- Coordinator-first behavior is command-driven via task bootstrap and preflight (`.cursor/agents/cursor-specialist-agent.md:23-40`, `.cursor/agents/AGENTS.md:69-81`)
+- Context packs must remain deterministic and scope-aware (`.cursor/agents/cursor-specialist-agent.md:23-40`)
+
+---
+
+### Tutor / Mentor (`tutor-mentor-agent`)
+
+**Primary:**
+
+- `AGENTS.md:265-269` (required reading + nearest scoped AGENTS)
+- `RUNBOOK_AGENT.md:9-15` (canonical policy links and quality gates)
+- `.cursor/agents/tutor-mentor-agent.md:16-21` (role-specific pre-flight)
+
+**Must know:**
+
+- Explanations must never redefine Source of Truth (`.cursor/agents/tutor-mentor-agent.md:23-41`)
+- Training artifacts must separate policy, examples, and open questions (`.cursor/agents/tutor-mentor-agent.md:23-41`)
 
 ---
 
@@ -285,11 +395,19 @@ This map reduces “missing context” failures by making required inputs explic
 
 - `AGENTS.md` (root)
 - `core/AGENTS.md` (if proposing domain-facing uncertainty contracts)
+- `docs/orchestration/CV_EXPERIMENTATION_PROTOCOL.md` when the task is offline
+  `photo -> food` evaluation
+- `docs/orchestration/contracts/CV_PHOTO_FOOD_EVAL_CONTRACT.md` when defining
+  confidence semantics or degrade behavior for CV outputs
 
 **Must know:**
 
 - Determinism and testability requirements (future PRs must have deterministic tests)
 - “High uncertainty → degrade” policy (safety-first)
+- When future CV degrade UX wording is being specified, also load:
+  - `frontend/AGENTS.md`
+  - `ios/AGENTS.md`
+  - `docs/orchestration/IOS_FRONTEND_MULTIAGENT_PLAYBOOK.md`
 
 ---
 
@@ -337,11 +455,20 @@ This map reduces “missing context” failures by making required inputs explic
 
 - `AGENTS.md` (root) — privacy and safety boundaries
 - `core/AGENTS.md` (domain logic boundaries; no client-side business logic)
+- `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md` — when planning CV eval packets or bounded experiment lanes
+- `docs/orchestration/CV_EXPERIMENTATION_PROTOCOL.md` — canonical CV packet fields, privacy packet, and degrade-state semantics
 
 **Must know:**
 
 - Uncertainty/confidence must be explicit for recognition outputs
 - Privacy/logging constraints for user images (policy-only here)
+- Generic coordinator routing resolves CV-first tasks to `domain=cv` inside the
+  `ml` cluster; governed experimentation packets stay `ml`-scoped until that
+  packet contract is migrated explicitly.
+- When specifying future degrade UX states, also load:
+  - `frontend/AGENTS.md`
+  - `ios/AGENTS.md`
+  - `docs/orchestration/IOS_FRONTEND_MULTIAGENT_PLAYBOOK.md`
 
 ---
 
@@ -365,11 +492,19 @@ This map reduces “missing context” failures by making required inputs explic
 
 - `AGENTS.md` (root)
 - `docs/roadmap/BACKLOG_LEDGER.md` (if proposing deferred experiment tracks)
+- `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md` (for experiment charters, metrics, and negative controls)
+- `docs/orchestration/CV_EXPERIMENTATION_PROTOCOL.md` when CV datasets, privacy packets, or degrade-state evaluation are in scope
+- `docs/orchestration/CV_EXPERIMENT_PACKET_TEMPLATE.md` when drafting CV packet fields
+- `docs/orchestration/contracts/CV_PHOTO_FOOD_EVAL_CONTRACT.md` when defining CV eval outputs, uncertainty buckets, or negative controls
 
 **Must know:**
 
 - Metrics definitions must be testable/auditable (avoid vague claims)
 - Privacy: anonymization/retention policy must be explicit before telemetry work
+- When future degrade UX semantics are being defined, also load:
+  - `frontend/AGENTS.md`
+  - `ios/AGENTS.md`
+  - `docs/orchestration/IOS_FRONTEND_MULTIAGENT_PLAYBOOK.md`
 
 ---
 
@@ -379,6 +514,7 @@ This map reduces “missing context” failures by making required inputs explic
 
 - `AGENTS.md` (root) — determinism + performance expectations
 - `providers/AGENTS.md` (if packaging model/provider calls)
+- `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md` — when defining bounded candidate loops and cost/latency budgets
 
 **Must know:**
 
@@ -421,7 +557,7 @@ This map reduces “missing context” failures by making required inputs explic
 
 - `AGENTS.md` (root) — SoT/evidence rules + safety boundaries
 - `docs/orchestration/workflow.md` — Pre-flight / post-flight / DoD
-- `docs/audit/PR_TBD_SCIENTIFIC_DISCOVERY_LAYER_AUDIT.md` — SDL contract (dev-only)
+- `docs/audit/SCIENTIFIC_DISCOVERY_LAYER_AUDIT.md` — SDL contract (dev-only)
 
 **Must know:**
 
@@ -435,7 +571,7 @@ This map reduces “missing context” failures by making required inputs explic
 **Primary (task-dependent):**
 
 - `AGENTS.md` (root) — safety + privacy boundaries
-- `docs/audit/PR_TBD_SCIENTIFIC_DISCOVERY_LAYER_AUDIT.md` — SDL contract (dev-only)
+- `docs/audit/SCIENTIFIC_DISCOVERY_LAYER_AUDIT.md` — SDL contract (dev-only)
 - `docs/insights/*` — only if task is multimodal (CV/voice) and needs robustness planning
 
 **Must know:**
@@ -477,5 +613,5 @@ This map reduces “missing context” failures by making required inputs explic
 
 ---
 
-**Last updated:** 2026-02-20 (PR `#822`)
+**Last updated:** 2026-03-07 (PR `#1000`)
 **Status:** Canonical

@@ -1,7 +1,7 @@
 # 📊 PulsePlate — Canonical Product Tier Map (v1)
 
 **Status:** Canonical (audit-driven, based on actual codebase)
-**Last updated:** 2026-01-11
+**Last updated:** 2026-03-13
 **Canonical reference (derived from code):** `app/middleware/api_tiers.py`, `app/routers/*.py`, `legacy_app.py`
 
 ---
@@ -25,9 +25,9 @@
 
 ### Бизнес-смысл
 
-* Бесплатный вход
-* Диагностика / скрининг
-* Основа всей системы
+- Бесплатный вход
+- Диагностика / скрининг
+- Основа всей системы
 
 ### Канонический домен
 
@@ -39,16 +39,15 @@
 | -------------- | ----------------------- | ----------- | ------------------------------------------- |
 | BMI calculate  | `/api/v1/bmi/calculate` | ✅ canonical | `app/routers/bmi_pro.py` (но FREE, не PRO)  |
 | BMI legacy     | `/bmi`, `/api/v1/bmi`   | ⚠️ shim     | `legacy_app.py:2097, 2316`                  |
-| Insight (free) | `/api/v1/insight`       | ⚠️ flag     | `legacy_app.py:2443` (FEATURE_INSIGHT)      |
 | Foods          | `/api/v1/foods/*`       | ✅ canonical | `app/routers/foods.py`                      |
 | Recipes        | `/api/v1/recipes/*`     | ✅ canonical | `app/routers/recipes.py`                     |
 | Users          | `/api/v1/users/*`       | ✅ canonical | `app/routers/users.py`                      |
 
 ### Правила
 
-* ❌ никакой логики вне `core/bmi`
-* ❌ никаких premium/vip зависимостей
-* ✅ legacy endpoints = thin proxy
+- ❌ никакой логики вне `core/bmi`
+- ❌ никаких premium/vip зависимостей
+- ✅ legacy endpoints = thin proxy
 
 ---
 
@@ -58,10 +57,10 @@
 
 ### Бизнес-смысл
 
-* Питание
-* Калории / нутриенты
-* Day-level планы
-* Без микро-ремонта и shoplist
+- Питание
+- Калории / нутриенты
+- Day-level планы
+- Без микро-ремонта и shoplist
 
 ### Канонический домен
 
@@ -76,7 +75,7 @@
 | Функция             | Endpoint                      | Статус      | Требует tier | Код-доказательство                    |
 | -------------------- | ----------------------------- | ----------- | ------------ | ------------------------------------- |
 | Weekly plan          | `/api/v1/pro/meal/weekly`     | ✅ canonical | PRO          | `app/routers/pro.py:245`              |
-| Targets (WHO)       | `/api/v1/pro/nutrition/targets` | 📋 planned   | PRO          | `app/routers/pro.py` (planned)        |
+| Targets (WHO)       | `/api/v1/pro/nutrition/targets` | ✅ canonical | PRO          | `frontend/src/api/openapi.json:8158`  |
 | Daily plate          | `/api/v1/pro/nutrition/daily` | ✅ canonical | PRO          | `app/routers/pro.py:369`              |
 | Shopping list (PRO)  | `/api/v1/pro/meal/shopping-list` | ✅ canonical | PRO          | `app/routers/shopping_list_pro.py:19` |
 | Shoplist day        | `/api/v1/pro/shoplist/*`      | ✅ canonical | PRO          | `app/routers/shoplist_day.py:22`      |
@@ -100,15 +99,25 @@
 
 ### Что НЕ входит
 
-* ❌ weekly plan с авто-ремонтом (это VIP)
-* ❌ shoplist с региональной логикой (это VIP)
-* ❌ микро-constraints (это VIP)
+- ❌ weekly plan с авто-ремонтом (это VIP)
+- ❌ shoplist с региональной логикой (это VIP)
+- ❌ микро-constraints (это VIP)
 
 ### Правила
 
-* PRO endpoints используют `require_pro_tier()` middleware
-* `pro_registration.py` = **технический модуль регистрации**, не бизнес-уровень
-* `premium_week.py` = **deprecated**, мигрирует на `pro.py`
+- PRO endpoints используют `require_pro_tier()` middleware
+- `pro_registration.py` = **технический модуль регистрации**, не бизнес-уровень
+- `premium_week.py` = **deprecated**, мигрирует на `pro.py`
+
+### FitChef structured coach follow-up
+
+| Функция | Endpoint | Статус | Требует tier | Canonical reference |
+| --- | --- | --- | --- | --- |
+| FitChef explain | `/api/v1/pro/fitchef/explain` | 🧭 contract-frozen | PRO | `docs/contracts/FITCHEF_STRUCTURED_COACH_CONTRACT.md` |
+| FitChef recommend | `/api/v1/pro/fitchef/recommend` | 🧭 contract-frozen | PRO | `docs/contracts/FITCHEF_STRUCTURED_COACH_CONTRACT.md` |
+
+> `POST /api/v1/pro/fitchef/explain` remains the first bounded structured rollout target for the CBT Coaching Wave: `Distortion Simulator`.
+> `POST /api/v1/pro/fitchef/recommend` remains a contract-frozen follow-up for the structured next-step recommendation lane.
 
 ---
 
@@ -118,11 +127,11 @@
 
 ### Бизнес-смысл
 
-* Weekly plan с микро-constraints
-* Auto-repair
-* Shoplist / region
-* Recipe synthesis
-* Exports
+- Weekly plan с микро-constraints
+- Auto-repair
+- Shoplist / region
+- Recipe synthesis
+- Exports
 
 ### Канонический домен
 
@@ -134,6 +143,10 @@
 | -------------------- | ---------------------------------- | ----------- | ------------ | ----------------------------------------- |
 | Weekly plan          | `/api/v1/vip/menu/weekly/plan`     | ✅ canonical | VIP          | `app/routers/vip.py` (main endpoint)      |
 | Weekly plan (legacy) | `/api/v1/vip/weekly-plan`         | ⚠️ deprecated | VIP        | `app/routers/vip.py:733` (deprecated)     |
+| Insight              | `/api/v1/insight`                 | ⚠️ flag     | VIP          | `legacy_app.py:2443` (`FEATURE_INSIGHT`, VIP guard) |
+| FitChef mascot insight | `/api/v1/insight/fitchef`       | ⚠️ flag     | VIP          | `app/routers/fitchef_insight.py` (`FEATURE_FITCHEF_MASCOT`) |
+| FitChef weekly reflection | `/api/v1/insight/fitchef/weekly-reflection` | ⚠️ flag | VIP | `app/routers/fitchef_insight.py` (`FEATURE_FITCHEF_MASCOT`) |
+| FitChef slip support | `/api/v1/insight/fitchef/slip-support` | ⚠️ flag | VIP | `app/routers/fitchef_insight.py` (`FEATURE_FITCHEF_MASCOT`) |
 | Shoplist generate    | `/api/v1/vip/shoplist/generate`   | ✅ canonical | VIP          | `app/routers/vip_shoplist.py:364`          |
 | Shoplist preview     | `/api/v1/vip/shoplist/preview`     | ✅ canonical | VIP          | `app/routers/vip_shoplist.py:299`          |
 | Shoplist daily       | `/api/v1/vip/shoplist/daily`      | ✅ canonical | VIP          | `app/routers/vip_shoplist.py:402`          |
@@ -154,10 +167,21 @@
 
 ### Правила
 
-* VIP ≠ PRO
-* VIP может зависеть от PRO данных
-* ❌ PRO не может реализовывать VIP-логику
-* VIP endpoints используют `require_vip_tier()` middleware
+- VIP ≠ PRO
+- VIP может зависеть от PRO данных
+- ❌ PRO не может реализовывать VIP-логику
+- VIP endpoints используют `require_vip_tier()` middleware
+
+### FitChef structured coach follow-up
+
+| Функция | Endpoint | Статус | Требует tier | Canonical reference |
+| --- | --- | --- | --- | --- |
+| FitChef insight | `/api/v1/vip/fitchef/insight` | 🧭 contract-frozen | VIP | `docs/contracts/FITCHEF_STRUCTURED_COACH_CONTRACT.md` |
+| FitChef chat | `/api/v1/vip/fitchef/chat` | 🧭 contract-frozen | VIP | `docs/contracts/FITCHEF_STRUCTURED_COACH_CONTRACT.md` |
+| FitChef week repair | `/api/v1/vip/fitchef/week-repair` | 🧭 contract-frozen | VIP | `docs/contracts/FITCHEF_STRUCTURED_COACH_CONTRACT.md` |
+
+> `POST /api/v1/vip/fitchef/insight` remains the first bounded VIP structured rollout target for the CBT Coaching Wave: `Identity Loop Mapper`.
+> `chat` and `week-repair` remain additive contract-frozen follow-ups; live `/api/v1/insight/fitchef*` family remains canonical and unmigrated.
 
 ---
 
@@ -165,15 +189,15 @@
 
 ### Что сюда относится
 
-* `legacy_app.py` endpoints
-* `/premium_*` (без `/api/v1/`)
-* `/plan`, `/api/nutrition/{date}`
-* `/bmi`, `/premium_bmr`
+- `legacy_app.py` endpoints
+- `/premium_*` (без `/api/v1/`)
+- `/plan`, `/api/nutrition/{date}`
+- `/bmi`, `/premium_bmr`
 
 ### Назначение
 
-* Совместимость
-* Переходный слой
+- Совместимость
+- Переходный слой
 
 ### Жёсткое правило
 
@@ -301,7 +325,7 @@ For action items, PR sequencing, and remediation steps, see:
 
 ## 🔟 Связь с другими документами
 
-* `docs/audit/PR_510_AUDIT_EVIDENCE_PACK.md` — детальный анализ legacy_app.py
-* `docs/audit/API_ALIGNMENT_CHECKLIST.md` — checklist для alignment
-* `docs/contracts/API_CANONICAL_MAP.md` — текущий mapping (требует обновления)
-* `app/middleware/api_tiers.py` — source of truth для уровней подписки
+- `docs/audit/PR_510_AUDIT_EVIDENCE_PACK.md` — детальный анализ legacy_app.py
+- `docs/audit/API_ALIGNMENT_CHECKLIST.md` — checklist для alignment
+- `docs/contracts/API_CANONICAL_MAP.md` — текущий операторский mapping
+- `app/middleware/api_tiers.py` — source of truth для уровней подписки

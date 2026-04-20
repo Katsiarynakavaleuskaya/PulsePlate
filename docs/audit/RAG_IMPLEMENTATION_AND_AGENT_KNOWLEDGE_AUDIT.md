@@ -202,7 +202,7 @@ RAG — **не замена агенту**, а вход в его pipeline:
 - Агент может запросить `retrieve_context(refined_query)` на промежуточном шаге (multi-hop).
 - Результат RAG логируется в `sources[]` и передаётся координатору.
 
-Референс: `docs/orchestration/AGENT_CONTEXT_MAP.md`, `docs/audit/PR_TBD_UNIVERSAL_AGENT_ORCHESTRATION_LAYER_AUDIT.md`.
+Референс: `docs/orchestration/AGENT_CONTEXT_MAP.md`, `docs/audit/UNIVERSAL_AGENT_ORCHESTRATION_LAYER_AUDIT.md`.
 
 ---
 

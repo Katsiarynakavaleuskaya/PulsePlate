@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from '@storybook/react';
 import { DesignSystemOverview } from './DesignSystemOverview';
 
 const meta: Meta<typeof DesignSystemOverview> = {
-  title: 'PulsePlate/Patterns/DesignSystemOverview',
+  title: 'PulsePlate/Patterns/Figma Canon/Overview',
   component: DesignSystemOverview,
 };
 

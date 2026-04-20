@@ -207,19 +207,26 @@ def test_search_foods_with_terms(monkeypatch: pytest.MonkeyPatch) -> None:
     """Cover FTS path with dynamic SQL placeholders."""
 
     class FakeCursor:
-        def __init__(self, rows: list[dict[str, Any]]) -> None:
+        def __init__(self, rows: list[Any]) -> None:
             self._rows = rows
 
-        def fetchall(self) -> list[dict[str, Any]]:
+        def fetchall(self) -> list[Any]:
             return self._rows
 
     class FakeConnection:
         def __init__(self, rows: list[dict[str, Any]]) -> None:
             self.rows = rows
-            self.executions: list[tuple[str, list[Any]]] = []
+            self.executions: list[tuple[str, Any]] = []
 
-        def execute(self, sql: str, params: list[Any]) -> FakeCursor:
+        def execute(self, sql: str, params: Any = None) -> FakeCursor:
             self.executions.append((sql, params))
+            if "PRAGMA table_info(foods)" in sql:
+                pragma_rows: list[Any] = [
+                    (0, "id", "TEXT", 0, None, 0),
+                    (1, "nutrition_confidence", "REAL", 0, None, 0),
+                ]
+                return FakeCursor(pragma_rows)
+            assert params is not None
             return FakeCursor(self.rows)
 
         def __enter__(self) -> "FakeConnection":
@@ -250,8 +257,10 @@ def test_search_foods_with_terms(monkeypatch: pytest.MonkeyPatch) -> None:
 
     result = fs.search_foods("kiwi", limit="10", offset="1")
     assert result == rows
-    sql, params = created["conn"].executions[0]
-    assert "MATCH" in sql
+    fts_execs = [(s, p) for s, p in created["conn"].executions if "MATCH" in s]
+    assert fts_execs, "expected FTS SQL after schema probe"
+    sql, params = fts_execs[0]
+    assert params is not None
     assert params[-2:] == [10, 1]
 
 
@@ -259,23 +268,33 @@ def test_search_foods_without_terms(monkeypatch: pytest.MonkeyPatch) -> None:
     """Cover fallback path when query is empty."""
 
     class FakeCursor:
-        def __init__(self) -> None:
-            self._rows = [
-                {
-                    "id": "f1",
-                    "canonical_name": "Kiwi",
-                    "kcal": 60,
-                    "protein_g": 1.0,
-                    "fat_g": 0.4,
-                    "carbs_g": 14,
-                }
-            ]
+        def __init__(self, rows: list[Any] | None = None) -> None:
+            self._rows: list[Any] = (
+                rows
+                if rows is not None
+                else [
+                    {
+                        "id": "f1",
+                        "canonical_name": "Kiwi",
+                        "kcal": 60,
+                        "protein_g": 1.0,
+                        "fat_g": 0.4,
+                        "carbs_g": 14,
+                    }
+                ]
+            )
 
-        def fetchall(self) -> list[dict[str, Any]]:
+        def fetchall(self) -> list[Any]:
             return self._rows
 
     class FakeConnection:
-        def execute(self, sql: str, params: list[Any]) -> FakeCursor:
+        def execute(self, sql: str, params: Any = None) -> FakeCursor:
+            if "PRAGMA table_info(foods)" in sql:
+                pragma_rows: list[Any] = [
+                    (0, "id", "TEXT", 0, None, 0),
+                    (1, "nutrition_confidence", "REAL", 0, None, 0),
+                ]
+                return FakeCursor(pragma_rows)
             assert "MATCH" not in sql
             assert params == [5, 0]
             return FakeCursor()
@@ -319,7 +338,13 @@ def test_get_food_uses_connection(monkeypatch: pytest.MonkeyPatch) -> None:
             return None
 
     monkeypatch.setattr(fs, "_connect", lambda: FakeConnection("f1", {"id": "f1"}))
-    assert fs.get_food("f1") == {"id": "f1"}
+    assert fs.get_food("f1") == {
+        "id": "f1",
+        "nutrition_inputs": [],
+        "nutrition_provenance": {},
+        "nutrition_nutrient_confidence": {},
+        "nutrition_confidence": 0.0,
+    }
     monkeypatch.setattr(fs, "_connect", lambda: FakeConnection("f2", None))
     assert fs.get_food("f2") is None
 

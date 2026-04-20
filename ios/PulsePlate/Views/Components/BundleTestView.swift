@@ -65,7 +65,7 @@ struct BundleTestView: View {
             Spacer()
         }
         .padding()
-        .background(.navy)
+        .background(Color.navy)
         .navigationTitle("Bundle Test")
         .navigationBarTitleDisplayMode(.inline)
     }

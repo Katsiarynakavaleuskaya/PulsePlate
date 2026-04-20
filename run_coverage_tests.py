@@ -4,7 +4,7 @@
 """
 
 import os
-import subprocess
+import subprocess  # nosec B404: required for fixed local pytest subprocesses (remove-by: 2026-06-30, ref: PR-1113)
 import sys
 
 
@@ -14,7 +14,12 @@ def run_command(cmd, description):
     print(f"Команда: {' '.join(cmd)}")
     print("=" * 60)
 
-    result = subprocess.run(cmd, capture_output=True, text=True, cwd=os.getcwd())
+    result = subprocess.run(  # nosec B603: argv uses sys.executable + fixed local pytest args only (remove-by: 2026-06-30, ref: PR-1113)
+        cmd,
+        capture_output=True,
+        text=True,
+        cwd=os.getcwd(),
+    )
 
     print("STDOUT:")
     print(result.stdout)

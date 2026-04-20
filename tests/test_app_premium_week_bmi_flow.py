@@ -39,6 +39,44 @@ def _make_profile_payload(extra: Dict[str, object] | None = None) -> Dict[str, o
     return payload
 
 
+def _make_week_payload(
+    *,
+    day_kcal: float,
+    weekly_coverage: Dict[str, float],
+    shopping_list: Dict[str, float],
+    total_cost: float,
+    adherence_score: float,
+) -> Dict[str, object]:
+    """Return a canonical weekly-plan payload for build_week test doubles."""
+    return {
+        "daily_menus": [
+            {
+                "meals": [
+                    {
+                        "title": "Protein bowl",
+                        "title_translated": "Protein bowl",
+                        "grams": {"serving_g": 420.0},
+                        "kcal": day_kcal,
+                        "macros": {"protein_g": 42.0},
+                        "micros": {"iron_mg": 4.2},
+                        "price_est": 8.5,
+                    }
+                ],
+                "kcal": day_kcal,
+                "macros": {"protein_g": 42.0},
+                "micros": {"iron_mg": 4.2},
+                "coverage": {"protein": 0.9},
+                "tips": ["Stay hydrated"],
+                "total_cost": total_cost,
+            }
+        ],
+        "weekly_coverage": weekly_coverage,
+        "shopping_list": shopping_list,
+        "total_cost": total_cost,
+        "adherence_score": adherence_score,
+    }
+
+
 class TestPremiumWeekPlanEndToEnd:
     """Интеграционные тесты премиального недельного плана."""
 
@@ -71,13 +109,13 @@ class TestPremiumWeekPlanEndToEnd:
 
         def fake_build_week(targets, diet_flags, lang, fooddb, recipedb):
             captured.update({"targets": targets, "diet_flags": diet_flags, "lang": lang})
-            return {
-                "daily_menus": [{"kcal": 2200}],
-                "weekly_coverage": {"protein": 0.9},
-                "shopping_list": {"eggs": 12},
-                "total_cost": 37.5,
-                "adherence_score": 0.8,
-            }
+            return _make_week_payload(
+                day_kcal=2200,
+                weekly_coverage={"protein": 0.9},
+                shopping_list={"eggs": 12},
+                total_cost=37.5,
+                adherence_score=0.8,
+            )
 
         monkeypatch.setattr(premium_week, "build_week", fake_build_week)
         monkeypatch.setattr(premium_week, "FoodDB", lambda *_args, **_kwargs: object())
@@ -106,13 +144,13 @@ class TestPremiumWeekPlanEndToEnd:
                     "lang": lang,
                 }
             )
-            return {
-                "daily_menus": [{"kcal": 2500}],
-                "weekly_coverage": {"fiber": 1.1},
-                "shopping_list": {"avocado": 4},
-                "total_cost": 44.0,
-                "adherence_score": 0.82,
-            }
+            return _make_week_payload(
+                day_kcal=2500,
+                weekly_coverage={"fiber": 1.1},
+                shopping_list={"avocado": 4},
+                total_cost=44.0,
+                adherence_score=0.82,
+            )
 
         monkeypatch.setattr(premium_week, "build_week", fake_build_week)
         monkeypatch.setattr(premium_week, "FoodDB", lambda *_args, **_kwargs: object())

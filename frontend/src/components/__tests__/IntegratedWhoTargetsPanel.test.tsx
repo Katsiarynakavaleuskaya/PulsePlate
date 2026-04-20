@@ -3,6 +3,7 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { IntegratedWhoTargetsPanel } from '../WhoTargetsPanel/IntegratedWhoTargetsPanel';
 import type { TargetsRequest } from '../../api/premium/types';
+import type { WeekPlanVM } from '../../features/weekly-plan/model/types';
 
 // Mock the hook
 vi.mock('../../hooks/useWhoTargetsWithWeeklyPlan', () => ({
@@ -53,14 +54,8 @@ describe('IntegratedWhoTargetsPanel', () => {
     warnings: [],
   };
 
-  const mockWeeklyPlanData = {
-    week_summary: {
-      total_calories: 14000,
-      total_protein: 1050,
-      total_carbs: 1750,
-      total_fat: 469,
-    },
-    daily_menus: [],
+  const mockWeeklyPlanData: WeekPlanVM = {
+    days: [],
     weekly_coverage: {
       protein: 95,
       carbs: 98,
@@ -72,9 +67,15 @@ describe('IntegratedWhoTargetsPanel', () => {
       'brown rice': 1000,
       'broccoli': 300,
     },
-    total_cost: 45.50,
-    adherence_score: 87,
-  } as any;
+    metrics: {
+      total_cost: 45.5,
+      adherence_score: 87,
+    },
+    meta: {
+      total_days: 0,
+      has_incomplete_data: false,
+    },
+  };
 
   const mockHook = vi.mocked(useWhoTargetsWithWeeklyPlan);
 
@@ -305,18 +306,22 @@ describe('IntegratedWhoTargetsPanel', () => {
     it('should call onWeeklyPlanGenerated when weekly plan is generated', () => {
       const mockOnWeeklyPlanGenerated = vi.fn();
       const mockOnError = vi.fn();
+      let capturedOnSuccess: ((targets: typeof mockTargetsData, weeklyPlan: WeekPlanVM) => void) | undefined;
 
-      mockHook.mockReturnValue({
-        targetsData: mockTargetsData,
-        targetsLoading: false,
-        targetsError: null,
-        weeklyPlanData: mockWeeklyPlanData,
-        weeklyPlanLoading: false,
-        weeklyPlanError: null,
-        fetchTargets: vi.fn(),
-        saveAndGetWeeklyPlan: vi.fn(),
-        retry: vi.fn(),
-        clearData: vi.fn(),
+      mockHook.mockImplementation((options = {}) => {
+        capturedOnSuccess = options.onSuccess as typeof capturedOnSuccess;
+        return {
+          targetsData: mockTargetsData,
+          targetsLoading: false,
+          targetsError: null,
+          weeklyPlanData: mockWeeklyPlanData,
+          weeklyPlanLoading: false,
+          weeklyPlanError: null,
+          fetchTargets: vi.fn(),
+          saveAndGetWeeklyPlan: vi.fn(),
+          retry: vi.fn(),
+          clearData: vi.fn(),
+        };
       });
 
       render(
@@ -327,9 +332,39 @@ describe('IntegratedWhoTargetsPanel', () => {
         />
       );
 
-      // The callback would be called by the hook when weekly plan is generated
-      // This is tested indirectly through the hook's behavior
       expect(screen.getByTestId('who-targets-panel')).toHaveClass('who-targets-panel--loaded');
+      expect(capturedOnSuccess).toBeTypeOf('function');
+      capturedOnSuccess?.(mockTargetsData, mockWeeklyPlanData);
+      expect(mockOnWeeklyPlanGenerated).toHaveBeenCalledWith(mockWeeklyPlanData);
+      expect(mockOnError).not.toHaveBeenCalled();
+    });
+
+    it('should pass onError through the hook options', () => {
+      const mockOnError = vi.fn();
+      let capturedOnError: ((error: Error) => void) | undefined;
+
+      mockHook.mockImplementation((options = {}) => {
+        capturedOnError = options.onError as typeof capturedOnError;
+        return {
+          targetsData: mockTargetsData,
+          targetsLoading: false,
+          targetsError: null,
+          weeklyPlanData: null,
+          weeklyPlanLoading: false,
+          weeklyPlanError: null,
+          fetchTargets: vi.fn(),
+          saveAndGetWeeklyPlan: vi.fn(),
+          retry: vi.fn(),
+          clearData: vi.fn(),
+        };
+      });
+
+      render(<IntegratedWhoTargetsPanel request={mockRequest} onError={mockOnError} />);
+
+      const error = new Error('weekly-plan-failed');
+      expect(capturedOnError).toBeTypeOf('function');
+      capturedOnError?.(error);
+      expect(mockOnError).toHaveBeenCalledWith(error);
     });
   });
 

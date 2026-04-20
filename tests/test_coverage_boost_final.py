@@ -71,33 +71,38 @@ class TestCoverageFinalBoost:
         self, test_client: TestClient, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """Cover business router edge cases."""
+        from app.routers.api_key import require_app_api_key
+
         monkeypatch.setattr("app.routers.business.BUSINESS_MODULE_ENABLED", True)
+        test_client.app.dependency_overrides[require_app_api_key] = lambda: "test-api-key"
+        try:
+            with patch("app.routers.business.BusinessBayesianAnalyzer") as MockAnalyzer:
+                # Test with None error_type
+                mock_instance = MockAnalyzer.return_value
+                mock_result = MagicMock()
+                mock_result.test_name = "test"
+                mock_result.success = True
+                mock_result.business_category = MagicMock(value="optimization")
+                mock_result.error_type = None  # None case
+                mock_result.error_message = None
+                mock_result.revenue_impact = "low"
+                mock_result.cost_impact = "low"
+                mock_result.customer_impact = "neutral"
+                mock_result.optimization_potential = None
+                mock_instance.analyze.return_value = [mock_result]
 
-        with patch("app.routers.business.BusinessBayesianAnalyzer") as MockAnalyzer:
-            # Test with None error_type
-            mock_instance = MockAnalyzer.return_value
-            mock_result = MagicMock()
-            mock_result.test_name = "test"
-            mock_result.success = True
-            mock_result.business_category = MagicMock(value="optimization")
-            mock_result.error_type = None  # None case
-            mock_result.error_message = None
-            mock_result.revenue_impact = "low"
-            mock_result.cost_impact = "low"
-            mock_result.customer_impact = "neutral"
-            mock_result.optimization_potential = None
-            mock_instance.analyze.return_value = [mock_result]
+                response = test_client.post(
+                    "/api/v1/business/analyze",
+                    json={"code": "def test(): pass", "test_name": "test"},
+                    headers={"X-API-Key": "test-api-key"},
+                )
 
-            response = test_client.post(
-                "/api/v1/business/analyze",
-                json={"code": "def test(): pass", "test_name": "test"},
-                headers={"X-API-Key": "test-key"},
-            )
-
-            assert response.status_code == 200
-            data = response.json()[0]
-            # When error_type is None, should default to "unknown"
-            assert data["error_type"] == "unknown"
+                assert response.status_code == 200
+                data = response.json()[0]
+                # When error_type is None, should default to "unknown"
+                assert data["error_type"] == "unknown"
+        finally:
+            test_client.app.dependency_overrides.pop(require_app_api_key, None)
 
     def test_users_retry_edge_cases(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test users router retry edge cases."""

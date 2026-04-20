@@ -1,6 +1,16 @@
 # Safety policy file for ignoring known vulnerabilities
-# Format: YAML (required by Safety 3.6.2)
+# Format: YAML (required by Safety 3.6.2+)
 # Documentation: https://docs.safetycli.com/
+#
+# PyUp ID 88739 (fonttools TTX eval): approved private CI/Docker package index
+# currently exposes only fonttools 4.61.1 while public PyPI has >=4.62.0.
+# Remove this ignore when requirements pin fonttools>=4.62.0 and the mirror syncs.
+# Advisory: docs/security/FONTTOOLS_TTX_EVAL_ADVISORY.md
 
 security:
-  ignore-vulnerabilities: []
+  ignore-vulnerabilities:
+    "88739":
+      reason: >-
+        Private PULSEPLATE_PYTHON_INDEX_URL mirrors fonttools 4.61.1 only (pip:
+        "from versions: 4.61.1"). Bump pin to >=4.62.0 when the index publishes
+        it; then drop this ignore. See docs/security/FONTTOOLS_TTX_EVAL_ADVISORY.md.

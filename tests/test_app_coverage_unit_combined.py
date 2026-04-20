@@ -56,7 +56,7 @@ class TestAppCoverage:
         ), f"Missing required environment keys: {missing_keys}. Available keys: {list(data.keys())}"
 
         # Check for optional but expected keys
-        optional_keys = ["GROK_MODEL", "GROK_ENDPOINT"]
+        optional_keys = ["PERPLEXITY_MODEL", "PERPLEXITY_ENDPOINT"]
         found_optional = [key for key in optional_keys if key in data]
         assert (
             found_optional

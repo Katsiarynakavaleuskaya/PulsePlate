@@ -13,10 +13,13 @@ from __future__ import annotations
 import logging
 import os
 import re
+import threading
 import time
 from pathlib import Path
 from typing import Iterable, List, Tuple
 
+from core.data_sanitizer import sanitize_rag_markdown
+from core.pii_redaction import redact_pii_from_text
 from core.rag.contracts import AGENT_CORPUS_MAP, RAGChunk, RAGContext
 from core.rag.rag_constants import (
     MAX_CHUNK_SIZE_CHARS,
@@ -28,6 +31,7 @@ ROOT = Path(os.getenv("PROJECT_ROOT", ".")).resolve()
 DOC_GLOBS = ["*.md"]
 MAX_FILE_SIZE = 256 * 1024  # bytes, skip very large files
 _INDEX: List[Tuple[str, str]] | None = None  # list of (source, chunk)
+_INDEX_LOCK = threading.RLock()
 logger = logging.getLogger(__name__)
 
 
@@ -78,11 +82,12 @@ def _build_index() -> List[Tuple[str, str]]:
             if path.stat().st_size > MAX_FILE_SIZE:
                 continue
             text = path.read_text(encoding="utf-8", errors="ignore")
+            sanitized_text = sanitize_rag_markdown(text)
         except Exception as read_err:
             # Handle any read errors (OSError, UnicodeDecodeError, RuntimeError, etc.)
             logger.debug("Skipping %s during index build: %s", path, read_err)
             continue
-        for ch in _chunk(text):
+        for ch in _chunk(sanitized_text):
             if ch:
                 items.append((str(path), ch))
     return items
@@ -91,13 +96,22 @@ def _build_index() -> List[Tuple[str, str]]:
 def _get_index() -> List[Tuple[str, str]]:
     global _INDEX
     if _INDEX is None:
-        _INDEX = _build_index()
+        with _INDEX_LOCK:
+            if _INDEX is None:
+                _INDEX = _build_index()
     return _INDEX
 
 
 def invalidate_index() -> None:
     global _INDEX
-    _INDEX = None
+    with _INDEX_LOCK:
+        _INDEX = None
+
+
+def redact_chunk_content(text: str) -> str:
+    """Redact simple PII patterns before prompt/preview exposure."""
+
+    return redact_pii_from_text(text) or ""
 
 
 def _score(query: str, text: str) -> float:
@@ -127,7 +141,7 @@ def retrieve_context(query: str, max_chunks: int = 3) -> str:
         return ""
     parts = []
     for src, ch, sc in top:
-        parts.append(f"# Source: {Path(src).name} (score={sc:.2f})\n{ch}")
+        parts.append(f"# Source: {Path(src).name} (score={sc:.2f})\n{redact_chunk_content(ch)}")
     return "\n\n".join(parts)
 
 
@@ -183,21 +197,33 @@ def retrieve_context_structured(
         ((src, ch, _score(query, ch)) for src, ch in items), key=lambda x: x[2], reverse=True
     )
     limit = max(1, min(max_chunks, MAX_SOURCES_IN_RESPONSE))
-    top = [x for x in scored[:limit] if x[2] >= MIN_CHUNK_SCORE]
-    chunks = [
-        RAGChunk(
-            chunk_id=f"{Path(src).relative_to(ROOT) if Path(src).is_relative_to(ROOT) else Path(src).name}:{i}",
-            file=(
-                str(Path(src).relative_to(ROOT))
-                if Path(src).is_relative_to(ROOT)
-                else Path(src).name
-            ),
-            content=ch[:MAX_CHUNK_SIZE_CHARS],
-            score=sc,
-            hop=1,
+    chunks: list[RAGChunk] = []
+    # RU: Дозаполняем выдачу следующими валидными chunk'ами после редактирования.
+    # EN: Backfill with the next valid chunks after redaction removes earlier hits.
+    for src, ch, sc in scored:
+        if sc < MIN_CHUNK_SCORE:
+            continue
+        redacted_content = redact_chunk_content(ch[:MAX_CHUNK_SIZE_CHARS]).strip()
+        if not redacted_content:
+            continue
+        chunk_position = len(chunks) + 1
+        chunks.append(
+            RAGChunk(
+                chunk_id=(
+                    f"{Path(src).relative_to(ROOT) if Path(src).is_relative_to(ROOT) else Path(src).name}:{chunk_position}"
+                ),
+                file=(
+                    str(Path(src).relative_to(ROOT))
+                    if Path(src).is_relative_to(ROOT)
+                    else Path(src).name
+                ),
+                content=redacted_content,
+                score=sc,
+                hop=1,
+            )
         )
-        for i, (src, ch, sc) in enumerate(top, 1)
-    ]
+        if len(chunks) >= limit:
+            break
     confidence = sum(c.score for c in chunks) / len(chunks) if chunks else 0.0
     latency_ms = int((time.perf_counter() - start) * 1000)
     return RAGContext(

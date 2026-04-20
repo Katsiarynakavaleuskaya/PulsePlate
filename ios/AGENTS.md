@@ -26,6 +26,10 @@
   `docs/design/LUXURY_UI_REVIEW_CHECKLIST.md`.
 - For button-level visual execution and prompt references, use the canonical root section in
   `AGENTS.md` (matrix + prompt playbook links are maintained there to avoid duplicated scoped text).
+- App Store and mascot packaging for FitChef follows the initiative foundation contract:
+  `docs/contracts/FITCHEF_INITIATIVE_FOUNDATION.md`.
+- Canonical FitChef mascot/icon taxonomy for asset-focused PRs lives in:
+  `docs/contracts/FITCHEF_MASCOT_ASSET_TAXONOMY.md`.
 
 ## CI: Greenlight iOS preflight (P0 report-only)
 
@@ -70,6 +74,22 @@
 - ✅ Map backend token to UI label (e.g., `category` → "Normal" for display), **without computing from bmi**
 
 **Contract note:** `category` is treated as display string (may be localized or token). iOS does not infer thresholds.
+
+## FitChef thin client policy
+
+- iOS must treat FitChef as a thin presentation layer over backend contracts; no local coaching logic, nutrition math, or entitlement inference in Swift.
+- Current live FitChef mascot routes remain `/api/v1/insight/fitchef*`; future structured-coach routes must be additive and schema-driven.
+- FitChef screens/cards must render structured DTO fields or approved response envelopes; do not parse raw prose to decide navigation, state transitions, or action visibility.
+- FREE-tier iOS surfaces may show bounded/static FitChef guidance, but must not expose open-ended coach runtime.
+- Mascot or App Store asset changes must land through dedicated asset-focused PRs; docs/policy PRs must not mix in binary asset promotion.
+
+## iOS billing runtime thin-client policy
+
+- `SubscriptionManager` is orchestration-only; entitlement truth remains backend-owned.
+- StoreKit purchase success must not unlock paid UI until backend verification, activation, and refresh confirm entitlement.
+- Missing, stale, or malformed activation payload or activation context must keep UI locked (fail-closed).
+- All billing-runtime calls must go through `APIClient` / `HTTPClient`; direct `URLSession` networking is forbidden on this seam.
+- App relaunch or foreground refresh with stored activation context must re-check entitlement with the backend instead of inferring tier locally.
 
 ## Enforced CI Rules (Anti-Duplication)
 
@@ -123,15 +143,16 @@
 
 **Xcode selection:**
 
-- Preferred: Xcode 16.4 (`/Applications/Xcode_16.4.app`)
-- Fallback: Xcode 16.3 (`/Applications/Xcode_16.3.app`)
-- Fallback: Xcode 16.2 (`/Applications/Xcode_16.2.app`)
-- CI fails if no suitable Xcode 16.x is found (see `.github/workflows/ci.yml` `select-xcode` step).
+- Preferred: Xcode 26.2 (`/Applications/Xcode_26.2.app`)
+- Fallback: Xcode 26.1 (`/Applications/Xcode_26.1.app`)
+- Fallback: Xcode 26.0 (`/Applications/Xcode_26.0.app`)
+- Final fallback: `/Applications/Xcode.app`, but only if `xcodebuild -version` resolves to Xcode 26.x
+- CI fails if no suitable Xcode 26.x is found (see `.github/workflows/ci.yml` `select-xcode` step).
 
 **Simulator (CI):**
 
 - **Auto-selected** from available simulators at runtime (no hard-coded device)
-- **Runtime policy:** prefer iOS 18.6 → fallback to iOS 18.x → fallback to any iOS runtime (if needed)
+- **Runtime policy:** prefer iOS 26.x → fallback to the highest available iOS runtime (if needed)
 - **Device preference:** `iPhone 16e` → `iPhone 16` → `iPhone 16 Pro` → `iPhone 15` → `iPhone 14`
   - If none of the preferred devices exist on the runner, CI falls back to **any available iPhone**, then to **any iOS simulator** (deterministic sort)
 - **Destination:** **UDID-only** `platform=iOS Simulator,id=<UDID>`
@@ -159,20 +180,18 @@
   ```
 - **Step 2: Run tests** (timeout: 15 minutes):
   ```bash
+  # Canonical test list: scripts/ios_test_targets.sh (run from ios/)
   xcodebuild test-without-building \
     -project PulsePlate.xcodeproj \
     -scheme PulsePlate \
     -skip-testing:PulsePlateUITests \
-    -only-testing:PulsePlateTests/ThinClientGuardsTests \
-    -only-testing:PulsePlateTests/BMIServiceTests \
-    -only-testing:PulsePlateTests/BMIResponseDecodingTests \
-    -only-testing:PulsePlateTests/BMIRequestEncodingTests \
-    -only-testing:PulsePlateTests/LocaleParsingTests \
+    $(../scripts/ios_test_targets.sh | tr ',' '\n' | while read t; do [ -n "$t" ] && echo "-only-testing:$t"; done) \
     -destination "$DESTINATION" \
     -derivedDataPath ../.derivedData \
     -enableCodeCoverage NO \
     -parallel-testing-enabled NO
   ```
+- **Canonical test list:** `scripts/ios_test_targets.sh` (single source for Makefile, ci.yml, AGENTS.md)
 - **Do not use `-workspace` for tests unless scheme has explicit TestAction** (confirmed via separate PR)
 - Workspace (`PulsePlate.xcworkspace`) is used for building/running app (SPM dependencies), but tests run via project
 - Project-based approach avoids exit code 66 when app scheme lacks TestAction in workspace context
@@ -187,8 +206,9 @@
 
 **Test scope policy (PR-559):**
 
-- **Unit tests (Guards + BMI)** — mandatory, block merge if failing
+- **Unit tests (Guards + BMI + Keychain)** — mandatory, block merge if failing
   - `ThinClientGuardsTests` (anti-duplication guard)
+  - `ProKeyProviderTests`, `KeychainStoreTests` (Keychain conformance)
   - `BMIServiceTests`, `BMIResponseDecodingTests`, `BMIRequestEncodingTests`, `LocaleParsingTests`
 - **UI tests** — excluded from CI (do not block PR-559)
   - `PulsePlateUITests` skipped via `-skip-testing:PulsePlateUITests`
@@ -198,10 +218,10 @@
 **Destination policy (CI):**
 
 - CI **auto-selects** destination from available simulators dynamically
-- Prefers **iOS 18.x runtime** (avoids `OS=latest` resolving to iOS 26.x betas)
+- Prefers **iOS 26.x runtime** and falls back to the highest available iOS runtime
 - Preferred devices: `iPhone 16e` → `iPhone 16` → `iPhone 16 Pro` → `iPhone 15` → `iPhone 14`
 - **Hard rule:** never pin a simulator that may not exist; CI must discover availability first
-- Never uses `OS=latest` for named devices (to avoid iOS 26.x beta runtimes)
+- Never uses `OS=latest` for named devices (to avoid nondeterministic runtime resolution)
 
 **Destination policy (Local):**
 
@@ -221,6 +241,12 @@
 - This runs all unit tests including guard tests
 - Catches issues before CI
 
+## Secret storage conformance (iOS)
+
+- Sensitive values on iOS (`PRO_API_KEY`, auth/session tokens, passwords, secrets) must use Keychain-backed storage only.
+- `UserDefaults` / `@AppStorage` are allowed for non-sensitive UX state and profile inputs, but forbidden for secret-like keys.
+- Guard coverage for this rule lives in `ios/PulsePlateTests/Guards/ThinClientGuardsTests.swift`.
+
 **Local iOS test targeting (Makefile):**
 
 - `make ios-test IOS_ONLY_TESTING="PulsePlateTests/PlateViewTests"`
@@ -233,7 +259,7 @@
 - **Local:** Default `iPhone 16e` (can be overridden via `IOS_SIM_NAME`/`IOS_SIM_OS`)
 - **CI:** Auto-selects destination using **UDID-only** format (`platform=iOS Simulator,id=<UDID>`)
   - Prefers `iPhone 16e` → `iPhone 16` → `iPhone 16 Pro` → `iPhone 15` from available simulators
-  - Pins iOS 18.6 runtime (fallback to iOS 18.x if 18.6 unavailable)
+  - Prefers iOS 26.x runtime (fallback to the highest available iOS runtime)
   - **Never uses `OS=latest`** (guard fails job if `latest` detected)
 - Both use `-project PulsePlate.xcodeproj` (canonical: app scheme tests = project-based)
 - Both use explicit `-only-testing:PulsePlateTests/ClassName` entries + `-parallel-testing-enabled NO` (canonical pattern)
@@ -319,15 +345,12 @@
   ```
 - **Step 2: Run tests** (timeout: 15 minutes):
   ```bash
+  # Canonical list: scripts/ios_test_targets.sh (run from ios/)
   xcodebuild test-without-building \
     -project PulsePlate.xcodeproj \
     -scheme PulsePlate \
     -skip-testing:PulsePlateUITests \
-    -only-testing:PulsePlateTests/ThinClientGuardsTests \
-    -only-testing:PulsePlateTests/BMIServiceTests \
-    -only-testing:PulsePlateTests/BMIResponseDecodingTests \
-    -only-testing:PulsePlateTests/BMIRequestEncodingTests \
-    -only-testing:PulsePlateTests/LocaleParsingTests \
+    $(../scripts/ios_test_targets.sh | tr ',' '\n' | while read t; do [ -n "$t" ] && echo "-only-testing:$t"; done) \
     -destination "$DESTINATION" \
     -derivedDataPath ../.derivedData \
     -enableCodeCoverage NO \
@@ -376,17 +399,14 @@ xcrun simctl list devices
 
 # Run CI test suite (locally can use name, but UDID preferred)
 # Run `xcrun simctl list devices` to find a valid simulator name (e.g., "iPhone 14").
+# Canonical test list: scripts/ios_test_targets.sh
 xcodebuild test \
   -project PulsePlate.xcodeproj \
   -scheme PulsePlate \
   -destination "platform=iOS Simulator,name=<SIMULATOR_NAME>" \
   -configuration Debug \
   -skip-testing:PulsePlateUITests \
-  -only-testing:PulsePlateTests/ThinClientGuardsTests \
-  -only-testing:PulsePlateTests/BMIServiceTests \
-  -only-testing:PulsePlateTests/BMIResponseDecodingTests \
-  -only-testing:PulsePlateTests/BMIRequestEncodingTests \
-  -only-testing:PulsePlateTests/LocaleParsingTests
+  $(../scripts/ios_test_targets.sh | tr ',' '\n' | while read t; do [ -n "$t" ] && echo "-only-testing:$t"; done)
 ```
 
 ### Simulator troubleshooting (runtime state issues)

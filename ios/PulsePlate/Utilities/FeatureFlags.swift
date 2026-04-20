@@ -11,6 +11,25 @@ import Foundation
 /// - Future: Replace with remote config (Firebase, LaunchDarkly, etc.)
 public enum FeatureFlags {
 
+    // MARK: - AI Insight
+
+    /// Controls visibility of the PRO-only AI Insight surface from Home.
+    ///
+    /// **Status**: Wave-1 additive surface for reliability parity validation
+    /// **Current behavior**:
+    /// - `AI_INSIGHT_ENABLED`: Enabled explicitly for controlled rollout
+    /// - `DEBUG`: Enabled for development and QA
+    /// - `RELEASE`: Disabled until rollout approval
+    public static var aiInsightEnabled: Bool {
+        #if AI_INSIGHT_ENABLED
+        return true
+        #elseif DEBUG
+        return true
+        #else
+        return false
+        #endif
+    }
+
     // MARK: - Weekly Plan Reader
 
     /// Controls visibility of Weekly Plan Reader feature

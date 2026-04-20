@@ -62,10 +62,18 @@ class TestAppOpenAPICoverage:
         openapi_schema = response.json()
         paths = openapi_schema["paths"]
 
-        # Проверяем канонические пути (bmi/pro/vip)
+        # Проверяем канонические публичные пути (bmi/billing/pro/vip)
         assert "/api/v1/bmi" in paths
+        assert "/api/v1/billing/apple/verify-receipt" in paths
+        assert "/api/v1/pro/meal/weekly" in paths
         assert "/api/v1/pro/nutrition/daily" in paths
+        assert "/api/v1/vip/menu/weekly/plan" in paths
         assert "/api/v1/vip/weekly-plan" in paths
+        assert "/api/v1/premium/plan/week" not in paths
+        assert "/api/v1/premium/plan/week-flexible" not in paths
+        assert "/api/v1/pro/payments/apple/verify-receipt" not in paths
+        # /api/v1/pro/nutrition/targets is validated in generated-schema checks.
+        # Runtime /openapi.json coverage here anchors the currently exposed public paths.
         # /docs и /openapi.json не являются путями в схеме
         # assert "/docs" in paths
         # assert "/openapi.json" in paths
@@ -97,8 +105,10 @@ class TestAppOpenAPICoverage:
         # Проверяем основные схемы
         assert "HTTPValidationError" in schemas
         assert "ValidationError" in schemas
-        assert "BMIRequest" in schemas
         assert "BMIRequestV1" in schemas
+        assert "WeeklyMealPlanResponse" in schemas
+        assert "WeeklyMealPlanDayMenu" in schemas
+        assert "WeeklyMealPlanItem" in schemas
         # BMIResponse может называться по-другому
         # assert "BMIResponse" in schemas
 
@@ -125,10 +135,23 @@ class TestAppOpenAPICoverage:
         openapi_schema = response.json()
         paths = openapi_schema["paths"]
 
-        # Проверяем операции для канонических endpoints
+        # Проверяем операции для канонических public endpoints
         assert "post" in paths["/api/v1/bmi"]
+        assert "post" in paths["/api/v1/billing/apple/verify-receipt"]
+        assert "post" in paths["/api/v1/pro/meal/weekly"]
         assert "get" in paths["/api/v1/pro/nutrition/daily"]
+        assert "post" in paths["/api/v1/vip/menu/weekly/plan"]
         assert "post" in paths["/api/v1/vip/weekly-plan"]
+
+    def test_app_openapi_exposes_additive_runtime_surface(self, client) -> None:
+        """Runtime `/openapi.json` must include additive routes registered in app.main."""
+        response = client.get("/openapi.json")
+        assert response.status_code == 200
+        _assert_json_content_type(response)
+
+        paths = response.json()["paths"]
+        assert "/api/v1/billing/apple/verify-receipt" in paths
+        assert "/api/v1/pro/cbt/insight" in paths
 
     def test_app_openapi_parameters_coverage(self, client):
         """Тест покрытия app.py OpenAPI parameters"""

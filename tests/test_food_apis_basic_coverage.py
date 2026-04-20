@@ -10,6 +10,12 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 
+@pytest.fixture(autouse=True)
+def disable_default_off_client(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Disable live OFF client by default; tests may override with explicit mocks."""
+    monkeypatch.setattr("core.food_apis.unified_db.OFFClient", None)
+
+
 # Test unified_db module
 class TestUnifiedFoodDatabase:
     """Basic tests for UnifiedFoodDatabase to improve coverage."""
@@ -73,6 +79,7 @@ class TestUnifiedFoodDatabase:
 
         with tempfile.TemporaryDirectory() as temp_dir:
             db = UnifiedFoodDatabase(cache_dir=temp_dir)
+            db.off_client = None
             results = await db.search_food("chicken")
 
             # Should return some results (fallback data or cached)
