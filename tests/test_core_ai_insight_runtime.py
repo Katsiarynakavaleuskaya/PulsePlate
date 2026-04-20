@@ -11,12 +11,14 @@ import pytest
 from core.ai.insight_runtime import (
     DirectInsightProviderStub,
     InsightProviderLoadError,
+    KnowledgePolicy,
     InsightTransparencyNotice,
     InsightTransparencyUnavailableError,
     load_insight_provider,
     prepare_insight_runtime,
     require_ai_generated_insight_notice,
 )
+from core.rag.contracts import RAGDegradedReason
 
 
 class _FakeProvider:
@@ -156,6 +158,8 @@ def test_prepare_insight_runtime_uses_direct_stub_for_local_answer(
 
     assert isinstance(prepared.provider, DirectInsightProviderStub)
     assert prepared.transparency_notice.surface_id == "ai_generated_insight"
+    assert prepared.knowledge_policy.allow_promotion is False
+    assert prepared.knowledge_policy.allow_reads is False
 
 
 def test_prepare_insight_runtime_uses_provider_loader_for_generation(
@@ -196,6 +200,52 @@ def test_prepare_insight_runtime_uses_provider_loader_for_generation(
     assert prepared.provider is provider
     assert prepared.decision.route_type.value == "deep_reasoning"
     assert prepared.transparency_notice.wellness_boundary == "Wellness only."
+    assert prepared.knowledge_policy == KnowledgePolicy(
+        enabled=False,
+        allow_reads=False,
+        allow_promotion=False,
+        min_confidence=0.7,
+        require_rag_factual_route=True,
+        deny_degraded_reasons=tuple(reason.value for reason in RAGDegradedReason),
+        subject_scope_required=True,
+        rail="product_ai_runtime",
+    )
+
+
+def test_prepare_insight_runtime_enables_knowledge_promotion_for_rag_factual_route(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """RAG factual route must enable bounded knowledge reads and promotion."""
+
+    @dataclass
+    class _FakeDecision:
+        needs_generation: bool
+        route_type: object
+
+    class _FakeRuntime:
+        def preview_route(
+            self, *, text: str, lang: str | None, router_enabled: bool, use_rag: bool
+        ) -> _FakeDecision:
+            del text, lang, router_enabled, use_rag
+            return _FakeDecision(
+                needs_generation=True,
+                route_type=SimpleNamespace(value="RAG_FACTUAL"),
+            )
+
+    monkeypatch.setattr("core.ai.insight_runtime.PhilosophicalRuntime", _FakeRuntime, raising=True)
+
+    prepared = prepare_insight_runtime(
+        text="hello",
+        use_rag=True,
+        philosophy_router_enabled=True,
+        philosophy_linguistic_enabled=False,
+        provider_loader=lambda: _FakeProvider(),
+        transparency_loader=lambda: ("ai_generated_insight", "Wellness only."),
+    )
+
+    assert prepared.knowledge_policy.enabled is True
+    assert prepared.knowledge_policy.allow_reads is True
+    assert prepared.knowledge_policy.allow_promotion is True
 
 
 def test_prepare_insight_runtime_uses_direct_transparency_notice(

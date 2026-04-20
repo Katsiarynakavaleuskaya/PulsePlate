@@ -7,6 +7,7 @@ EN: Canonical facade for the AI bounded context.
 from core.ai.insight_runtime import (
     DirectInsightProviderStub,
     InsightProviderLoadError,
+    KnowledgePolicy,
     InsightTransparencyNotice,
     InsightTransparencyUnavailableError,
     PreparedInsightRuntime,
@@ -18,6 +19,7 @@ from core.ai.insight_runtime import (
 __all__ = [
     "DirectInsightProviderStub",
     "InsightProviderLoadError",
+    "KnowledgePolicy",
     "InsightTransparencyNotice",
     "InsightTransparencyUnavailableError",
     "PreparedInsightRuntime",

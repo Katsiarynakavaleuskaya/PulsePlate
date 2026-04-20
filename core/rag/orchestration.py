@@ -17,6 +17,8 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Optional, SupportsFloat, cast
 
 if TYPE_CHECKING:
+    from core.knowledge.contracts import KnowledgeFactCandidate
+    from core.knowledge.policy import KnowledgePolicy
     from core.rag.contracts import RAGChunk
 
 from core.rag.contracts import RAGContext, RAGDegradedReason
@@ -60,6 +62,12 @@ class RAGOrchestrationResult:
 
     degraded_reason: RAGDegradedReason | None = None
     """Deterministic internal degraded-path reason (not part of public API)."""
+
+    knowledge_candidates: list["KnowledgeFactCandidate"] = field(default_factory=list)
+    """Internal-only promotion candidates derived from validated evidence."""
+
+    knowledge_candidates_canonical: bool = False
+    """True only when candidates come from the canonical validated orchestration path."""
 
 
 def _empty_result(
@@ -167,6 +175,7 @@ async def retrieve_and_validate_rag(
     recursive_rag_enabled: bool = False,
     optimization_enabled: bool = False,
     subject_id: int | None = None,
+    knowledge_policy: "KnowledgePolicy | None" = None,
 ) -> RAGOrchestrationResult:
     """Orchestrate RAG retrieval + philosophy validation.
 
@@ -211,6 +220,7 @@ async def retrieve_and_validate_rag(
         recursive_rag_enabled,
         optimization_enabled,
         subject_id,
+        knowledge_policy,
     )
 
 
@@ -221,6 +231,7 @@ async def _run_orchestration(
     recursive_enabled: bool,
     optimization_enabled: bool,
     subject_id: int | None,
+    knowledge_policy: "KnowledgePolicy | None",
 ) -> RAGOrchestrationResult:
     """Execute RAG retrieval + validation pipeline."""
     recursive_executed = False
@@ -278,6 +289,8 @@ async def _run_orchestration(
             )
 
         chunks_to_use = rag_ctx.chunks
+        knowledge_candidates: list["KnowledgeFactCandidate"] = []
+        knowledge_candidates_canonical = False
 
         if philo_enabled:
             from core.rag.philosophy_pipeline import run_pipeline
@@ -286,6 +299,7 @@ async def _run_orchestration(
             chunks_to_use = pipeline_result.filtered_chunks
             chunks_filtered = len(rag_ctx.chunks) - len(pipeline_result.filtered_chunks)
             warnings = pipeline_result.warnings
+            knowledge_candidates_canonical = True
 
             for w in warnings:
                 logger.debug("rag_pipeline: %s", w)
@@ -306,6 +320,14 @@ async def _run_orchestration(
         confidence = _resolve_confidence(
             chunks_to_use=chunks_to_use,
         )
+        if knowledge_candidates_canonical:
+            knowledge_candidates = _build_knowledge_candidates(
+                chunks_to_use=chunks_to_use,
+                confidence=confidence,
+                degraded_reason=getattr(rag_ctx, "degraded_reason", None),
+                subject_id=subject_id,
+                knowledge_policy=knowledge_policy,
+            )
 
         # Build formatted prompt with RAG context
         from core.insight.safety import redact_rag_context_for_insight
@@ -370,6 +392,8 @@ async def _run_orchestration(
             chunks_filtered=chunks_filtered,
             recursive_executed=recursive_executed,
             degraded_reason=getattr(rag_ctx, "degraded_reason", None),
+            knowledge_candidates=knowledge_candidates,
+            knowledge_candidates_canonical=knowledge_candidates_canonical,
         )
     except Exception:
         logger.warning(
@@ -403,3 +427,27 @@ def _build_prompt_with_context(text: str, context: Optional[str]) -> str:
     if not context:
         return text
     return f"Context:\n{context}\n\nQuestion: {text}\nAnswer:"
+
+
+def _build_knowledge_candidates(
+    *,
+    chunks_to_use: list["RAGChunk"],
+    confidence: float | None,
+    degraded_reason: RAGDegradedReason | None,
+    subject_id: int | None,
+    knowledge_policy: "KnowledgePolicy | None",
+) -> list["KnowledgeFactCandidate"]:
+    """Build internal knowledge candidates from validated evidence or fail closed."""
+
+    if knowledge_policy is None:
+        return []
+
+    from core.knowledge.promotion import build_knowledge_promotion_candidates
+
+    return build_knowledge_promotion_candidates(
+        chunks=chunks_to_use,
+        confidence=confidence,
+        degraded_reason=None if degraded_reason is None else degraded_reason.value,
+        subject_id=subject_id,
+        knowledge_policy=knowledge_policy,
+    )

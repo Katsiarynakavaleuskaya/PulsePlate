@@ -6,12 +6,15 @@ EN: Runtime chooses a cheaper/faster/more reliable answer path before LLM calls.
 
 from __future__ import annotations
 
+import inspect
 import re
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Protocol, cast
 
+from core.knowledge.contracts import KnowledgeFactCandidate
+from core.knowledge.policy import KnowledgePolicy
 from core.bmi.query import extract_bmi_inputs, render_bmi_query_answer
 from core.insight.analytical import (
     AnalyticalSyntheticClassifier,
@@ -165,6 +168,7 @@ class RuntimeResult:
     hops: int = 0
     latency_ms: int = 0
     metadata: RuntimeMetadata = field(default_factory=RuntimeMetadata)
+    knowledge_candidates: list[KnowledgeFactCandidate] = field(default_factory=list)
 
 
 class PhilosophicalQueryRouter:
@@ -346,6 +350,7 @@ class PhilosophicalRuntime:
         philosophy_phase12_enabled: bool,
         philosophy_linguistic_enabled: bool,
         philosophy_pragmatic_enabled: bool,
+        knowledge_policy: KnowledgePolicy | None = None,
         rag_retriever: _RagRetriever | None = None,
     ) -> RuntimeResult:
         """Generate an insight with deterministic routing and validation."""
@@ -401,12 +406,13 @@ class PhilosophicalRuntime:
 
         if use_rag and decision.needs_rag:
             retrieve_rag = rag_retriever or rag_orchestration.retrieve_and_validate_rag
-            rag_result = await retrieve_rag(
-                prompt_input,
-                max_chunks=3,
+            rag_result = await self._retrieve_rag_result(
+                retrieve_rag=retrieve_rag,
+                prompt_input=prompt_input,
                 philo_validation_enabled=philo_validation_enabled,
                 recursive_rag_enabled=recursive_rag_enabled,
                 subject_id=subject_id,
+                knowledge_policy=knowledge_policy,
             )
             prompt_input = rag_result.formatted_prompt
             confidence = rag_result.confidence
@@ -522,7 +528,66 @@ class PhilosophicalRuntime:
                 if public_metadata_enabled
                 else RuntimeMetadata()
             ),
+            knowledge_candidates=(
+                self._resolve_runtime_knowledge_candidates(
+                    decision=decision,
+                    rag_result=rag_result,
+                    philo_validation_enabled=philo_validation_enabled,
+                    knowledge_policy=knowledge_policy,
+                )
+                if use_rag and decision.needs_rag
+                else []
+            ),
         )
+
+    async def _retrieve_rag_result(
+        self,
+        *,
+        retrieve_rag: _RagRetriever,
+        prompt_input: str,
+        philo_validation_enabled: bool,
+        recursive_rag_enabled: bool,
+        subject_id: int | None,
+        knowledge_policy: KnowledgePolicy | None,
+    ) -> RAGOrchestrationResult:
+        """Call the retriever while keeping backward compatibility for test seams."""
+
+        kwargs: dict[str, object] = {
+            "max_chunks": 3,
+            "philo_validation_enabled": philo_validation_enabled,
+            "recursive_rag_enabled": recursive_rag_enabled,
+            "subject_id": subject_id,
+        }
+        if "knowledge_policy" in inspect.signature(retrieve_rag).parameters:
+            kwargs["knowledge_policy"] = knowledge_policy
+        return await retrieve_rag(prompt_input, **kwargs)
+
+    def _resolve_runtime_knowledge_candidates(
+        self,
+        *,
+        decision: RouteDecision,
+        rag_result: RAGOrchestrationResult,
+        philo_validation_enabled: bool,
+        knowledge_policy: KnowledgePolicy | None,
+    ) -> list[KnowledgeFactCandidate]:
+        """Trust promotion candidates only from the canonical validated RAG path."""
+
+        if decision.route_type != RouteType.RAG_FACTUAL:
+            return []
+        if not philo_validation_enabled:
+            return []
+        if knowledge_policy is None or not knowledge_policy.enabled:
+            return []
+        if not knowledge_policy.allow_promotion:
+            return []
+        if not getattr(rag_result, "rag_actually_used", False):
+            return []
+        if getattr(rag_result, "degraded_reason", None) is not None:
+            return []
+        if not getattr(rag_result, "knowledge_candidates_canonical", False):
+            return []
+
+        return list(getattr(rag_result, "knowledge_candidates", []))
 
     def _build_prompt(
         self,

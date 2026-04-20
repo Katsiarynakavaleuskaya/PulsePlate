@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from dataclasses import dataclass
 from types import SimpleNamespace
 
 import pytest
 
+from core.knowledge.contracts import KnowledgeEvidenceRef, KnowledgeFactCandidate
+from core.knowledge.policy import KnowledgePolicy
 from core.insight.analytical import (
     AnalyticalSyntheticClassifier,
     FalsificationChecker,
@@ -29,6 +32,7 @@ from core.insight.philosophical_runtime import (
 from core.insight import philosophical_runtime as runtime_mod
 from core.insight.analytical import FalsificationReport, VerificationReport
 from core.bmi import extract_bmi_inputs
+from core.rag.orchestration import RAGOrchestrationResult
 
 
 @dataclass
@@ -338,6 +342,141 @@ class TestPhilosophicalRuntime:
         assert result.metadata.route_type == RouteType.RAG_FACTUAL.value
         assert result.provider_name == "philosophical_runtime"
         assert result.metadata.verification_rate is None
+
+    async def test_runtime_preserves_canonical_candidates_from_validated_retriever(self) -> None:
+        """Canonical validated retriever candidates may flow through the runtime."""
+
+        runtime = PhilosophicalRuntime()
+        provider = _StaticProvider(response="validated answer")
+        policy = KnowledgePolicy(
+            enabled=True,
+            allow_reads=True,
+            allow_promotion=True,
+            min_confidence=0.7,
+            require_rag_factual_route=True,
+            deny_degraded_reasons=("retrieval_empty", "all_chunks_filtered"),
+            subject_scope_required=True,
+            rail="product_ai_runtime",
+        )
+        candidate = KnowledgeFactCandidate(
+            fact_key="fact-1",
+            subject="subject:42",
+            predicate="validated_rag_evidence:docs/keep.md:keep",
+            value="chunk=keep;source=docs/keep.md;digest=abc123;hop=1",
+            observed_at=datetime(2026, 4, 20, 12, 0, tzinfo=timezone.utc),
+            confidence=0.9,
+            access_scope="subject:42",
+            rail="product_ai_runtime",
+            provenance=(KnowledgeEvidenceRef("keep", "docs/keep.md", 0.9, 1),),
+        )
+        observed: dict[str, object] = {}
+
+        async def _canonical_retriever(
+            prompt_input: str,
+            *,
+            max_chunks: int,
+            philo_validation_enabled: bool,
+            recursive_rag_enabled: bool,
+            subject_id: int | None,
+            knowledge_policy: KnowledgePolicy | None,
+        ) -> RAGOrchestrationResult:
+            observed["prompt_input"] = prompt_input
+            observed["knowledge_policy"] = knowledge_policy
+            del max_chunks, philo_validation_enabled, recursive_rag_enabled, subject_id
+            return RAGOrchestrationResult(
+                chunks=[],
+                formatted_prompt=prompt_input,
+                rag_actually_used=True,
+                confidence=0.9,
+                hops=1,
+                latency_ms=5,
+                knowledge_candidates=[candidate],
+                knowledge_candidates_canonical=True,
+            )
+
+        result = await runtime.generate_insight(
+            text="How much protein should I eat for recovery?",
+            lang="en",
+            provider=provider,
+            use_rag=True,
+            philo_validation_enabled=True,
+            recursive_rag_enabled=False,
+            subject_id=42,
+            philosophy_router_enabled=True,
+            philosophy_phase12_enabled=False,
+            philosophy_linguistic_enabled=True,
+            philosophy_pragmatic_enabled=False,
+            knowledge_policy=policy,
+            rag_retriever=_canonical_retriever,
+        )
+
+        assert observed["knowledge_policy"] == policy
+        assert result.knowledge_candidates == [candidate]
+
+    async def test_runtime_keeps_legacy_retriever_compatible_without_candidate_trust(self) -> None:
+        """Legacy retrievers without knowledge_policy kwarg must stay compatible and fail closed."""
+
+        runtime = PhilosophicalRuntime()
+        provider = _StaticProvider(response="legacy answer")
+        candidate = KnowledgeFactCandidate(
+            fact_key="fact-legacy",
+            subject="subject:42",
+            predicate="validated_rag_evidence:docs/keep.md:keep",
+            value="chunk=keep;source=docs/keep.md;digest=abc123;hop=1",
+            observed_at=datetime(2026, 4, 20, 12, 5, tzinfo=timezone.utc),
+            confidence=0.9,
+            access_scope="subject:42",
+            rail="product_ai_runtime",
+            provenance=(KnowledgeEvidenceRef("keep", "docs/keep.md", 0.9, 1),),
+        )
+
+        async def _legacy_retriever(
+            prompt_input: str,
+            *,
+            max_chunks: int,
+            philo_validation_enabled: bool,
+            recursive_rag_enabled: bool,
+            subject_id: int | None,
+        ) -> RAGOrchestrationResult:
+            del max_chunks, philo_validation_enabled, recursive_rag_enabled, subject_id
+            return RAGOrchestrationResult(
+                chunks=[],
+                formatted_prompt=prompt_input,
+                rag_actually_used=True,
+                confidence=0.9,
+                hops=1,
+                latency_ms=5,
+                knowledge_candidates=[candidate],
+                knowledge_candidates_canonical=False,
+            )
+
+        result = await runtime.generate_insight(
+            text="How much protein should I eat for recovery?",
+            lang="en",
+            provider=provider,
+            use_rag=True,
+            philo_validation_enabled=True,
+            recursive_rag_enabled=False,
+            subject_id=42,
+            philosophy_router_enabled=True,
+            philosophy_phase12_enabled=False,
+            philosophy_linguistic_enabled=True,
+            philosophy_pragmatic_enabled=False,
+            knowledge_policy=KnowledgePolicy(
+                enabled=True,
+                allow_reads=True,
+                allow_promotion=True,
+                min_confidence=0.7,
+                require_rag_factual_route=True,
+                deny_degraded_reasons=("retrieval_empty", "all_chunks_filtered"),
+                subject_scope_required=True,
+                rail="product_ai_runtime",
+            ),
+            rag_retriever=_legacy_retriever,
+        )
+
+        assert provider.calls == 1
+        assert result.knowledge_candidates == []
         assert result.metadata.falsifiability_rate is None
         assert result.metadata.contradiction_count == 0
 
