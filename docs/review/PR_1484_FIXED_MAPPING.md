@@ -179,6 +179,16 @@ repo contract. Each inline item is dispositioned separately above, so no
 additional shell-only action remains.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1484#pullrequestreview-4140028748
 
+Disposition: FIXED
+Commit: 3351acc44
+Evidence: `docs/review/PR_1484_FIXED_MAPPING.md:125-180`
+Reason: The canonical artifact no longer maps the same review-shell URL to two
+different FIXED commits. The conflicting `4139739953` shell mapping was reduced
+to a single NOT-A-BUG aggregate entry, while the actual inline findings remain
+dispositioned under their concrete FIXED comment URLs.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1484#pullrequestreview-4140064287 -> 3351acc44
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1484#discussion_r3110720531 -> 3351acc44
+
 ## Merge Readiness
 
 Merge-readiness contract:
