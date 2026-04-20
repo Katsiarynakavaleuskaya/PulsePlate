@@ -96,6 +96,11 @@ class InMemoryKnowledgeStore:
             promoted.append(record)
         return promoted
 
+    def all_records(self) -> list[KnowledgeRecord]:
+        """Return a snapshot for tests without exposing the live internal list."""
+
+        return list(self._records)
+
     def read(
         self,
         *,

@@ -11,6 +11,7 @@ import re
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from enum import Enum
+from functools import lru_cache
 from typing import Protocol, cast
 
 from core.knowledge.contracts import KnowledgeFactCandidate
@@ -80,6 +81,22 @@ _SAFE_WELLNESS_DISCLAIMER = {
         "Si tienes síntomas o preocupación por alguna condición, consulta con un profesional sanitario autorizado."
     ),
 }
+
+
+@lru_cache(maxsize=None)
+def _retriever_accepts_knowledge_policy(retrieve_rag: Callable[..., object]) -> bool:
+    """Cache whether the retriever accepts the canonical knowledge-policy kwarg."""
+
+    try:
+        parameters = inspect.signature(retrieve_rag).parameters.values()
+    except (TypeError, ValueError):
+        return True
+
+    return any(
+        parameter.name == "knowledge_policy" or parameter.kind is inspect.Parameter.VAR_KEYWORD
+        for parameter in parameters
+    )
+
 
 _CONSERVATIVE_FALLBACK_MESSAGES = {
     "en": (
@@ -558,7 +575,7 @@ class PhilosophicalRuntime:
             "recursive_rag_enabled": recursive_rag_enabled,
             "subject_id": subject_id,
         }
-        if "knowledge_policy" in inspect.signature(retrieve_rag).parameters:
+        if _retriever_accepts_knowledge_policy(retrieve_rag):
             kwargs["knowledge_policy"] = knowledge_policy
         return await retrieve_rag(prompt_input, **kwargs)
 
@@ -572,11 +589,14 @@ class PhilosophicalRuntime:
     ) -> list[KnowledgeFactCandidate]:
         """Trust promotion candidates only from the canonical validated RAG path."""
 
-        if decision.route_type != RouteType.RAG_FACTUAL:
-            return []
         if not philo_validation_enabled:
             return []
         if knowledge_policy is None or not knowledge_policy.enabled:
+            return []
+        if (
+            knowledge_policy.require_rag_factual_route
+            and decision.route_type != RouteType.RAG_FACTUAL
+        ):
             return []
         if not knowledge_policy.allow_promotion:
             return []

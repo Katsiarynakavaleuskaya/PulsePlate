@@ -127,8 +127,8 @@ def test_in_memory_store_only_supersedes_when_explicitly_declared() -> None:
     assert len(promoted) == 1
     assert len(active) == 1
     assert active[0].fact_key == "fact-2"
-    assert len(store._records) == 2
-    superseded = [record for record in store._records if record.status == "superseded"]
+    assert len(store.all_records()) == 2
+    superseded = [record for record in store.all_records() if record.status == "superseded"]
     assert len(superseded) == 1
     assert superseded[0].fact_key == "fact-1"
     assert superseded[0].superseded_by == "fact-2"

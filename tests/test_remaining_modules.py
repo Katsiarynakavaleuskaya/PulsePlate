@@ -11,6 +11,8 @@ from datetime import datetime, timezone
 from types import SimpleNamespace
 from unittest.mock import patch
 
+import asyncio
+
 import pytest
 
 from tests.test_root_npm_dependency_guards import _load_json
@@ -528,7 +530,7 @@ class TestKnowledgeStoreFastLane:
 
         assert [record.fact_key for record in active] == ["fact-3"]
         assert wrong_scope == []
-        assert len([record for record in store._records if record.status == "superseded"]) == 1
+        assert len([record for record in store.all_records() if record.status == "superseded"]) == 1
 
 
 class TestInsightApplicationServiceFastLane:
@@ -584,6 +586,46 @@ class TestInsightApplicationServiceFastLane:
 
         assert warnings
         assert "Knowledge promotion failed" in str(warnings[0][0][0])
+        assert warnings[0][1]["exc_info"] is True
+
+    @pytest.mark.asyncio
+    async def test_maybe_promote_knowledge_candidates_times_out_async_store(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Timed-out promotion must degrade to logging instead of request latency."""
+
+        from app.services.insight_application_service import _maybe_promote_knowledge_candidates
+
+        warnings: list[tuple[tuple[object, ...], dict[str, object]]] = []
+
+        class _SlowStore:
+            def promote(self, candidates: list[object]) -> object:
+                del candidates
+
+                async def _stall() -> list[object]:
+                    await asyncio.Future()
+
+                return _stall()
+
+        monkeypatch.setattr(
+            "app.services.insight_application_service.KNOWLEDGE_PROMOTION_TIMEOUT_SECONDS",
+            0.01,
+            raising=True,
+        )
+        monkeypatch.setattr(
+            "app.services.insight_application_service.logger.warning",
+            lambda *args, **kwargs: warnings.append((args, kwargs)),
+            raising=True,
+        )
+
+        await _maybe_promote_knowledge_candidates(
+            knowledge_store=_SlowStore(),
+            candidates=[SimpleNamespace(fact_key="fact-1")],
+        )
+
+        assert warnings
+        assert "Knowledge promotion timed out" in str(warnings[0][0][0])
         assert warnings[0][1]["exc_info"] is True
 
 

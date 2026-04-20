@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from dataclasses import dataclass
 from types import SimpleNamespace
+from unittest.mock import patch
 
 import pytest
 
@@ -479,6 +480,154 @@ class TestPhilosophicalRuntime:
         assert result.knowledge_candidates == []
         assert result.metadata.falsifiability_rate is None
         assert result.metadata.contradiction_count == 0
+
+    async def test_runtime_forwards_knowledge_policy_to_kwargs_retriever(self) -> None:
+        """Forward-compatible retrievers using **kwargs must still receive policy."""
+
+        runtime = PhilosophicalRuntime()
+        provider = _StaticProvider(response="kwargs answer")
+        observed: dict[str, object] = {}
+        candidate = KnowledgeFactCandidate(
+            fact_key="fact-kwargs",
+            subject="subject:42",
+            predicate="validated_rag_evidence:docs/keep.md:keep",
+            value="chunk=keep;source=docs/keep.md;digest=kwargs;hop=1",
+            observed_at=datetime(2026, 4, 20, 12, 10, tzinfo=timezone.utc),
+            confidence=0.9,
+            access_scope="subject:42",
+            rail="product_ai_runtime",
+            provenance=(KnowledgeEvidenceRef("keep", "docs/keep.md", 0.9, 1),),
+        )
+        policy = KnowledgePolicy(
+            enabled=True,
+            allow_reads=True,
+            allow_promotion=True,
+            min_confidence=0.7,
+            require_rag_factual_route=True,
+            deny_degraded_reasons=("retrieval_empty", "all_chunks_filtered"),
+            subject_scope_required=True,
+            rail="product_ai_runtime",
+        )
+
+        async def _kwargs_retriever(
+            prompt_input: str,
+            *,
+            max_chunks: int,
+            philo_validation_enabled: bool,
+            recursive_rag_enabled: bool,
+            subject_id: int | None,
+            **kwargs: object,
+        ) -> RAGOrchestrationResult:
+            del max_chunks, philo_validation_enabled, recursive_rag_enabled, subject_id
+            observed["prompt_input"] = prompt_input
+            observed["knowledge_policy"] = kwargs["knowledge_policy"]
+            return RAGOrchestrationResult(
+                chunks=[],
+                formatted_prompt=prompt_input,
+                rag_actually_used=True,
+                confidence=0.9,
+                hops=1,
+                latency_ms=5,
+                knowledge_candidates=[candidate],
+                knowledge_candidates_canonical=True,
+            )
+
+        result = await runtime.generate_insight(
+            text="How much protein should I eat for recovery?",
+            lang="en",
+            provider=provider,
+            use_rag=True,
+            philo_validation_enabled=True,
+            recursive_rag_enabled=False,
+            subject_id=42,
+            philosophy_router_enabled=True,
+            philosophy_phase12_enabled=False,
+            philosophy_linguistic_enabled=True,
+            philosophy_pragmatic_enabled=False,
+            knowledge_policy=policy,
+            rag_retriever=_kwargs_retriever,
+        )
+
+        assert observed["knowledge_policy"] == policy
+        assert result.knowledge_candidates == [candidate]
+
+    async def test_runtime_forwards_policy_when_signature_introspection_fails(self) -> None:
+        """Opaque retrievers must fail closed toward forward-compatible policy passing."""
+
+        runtime = PhilosophicalRuntime()
+        provider = _StaticProvider(response="opaque answer")
+        observed: dict[str, object] = {}
+        candidate = KnowledgeFactCandidate(
+            fact_key="fact-opaque",
+            subject="subject:42",
+            predicate="validated_rag_evidence:docs/keep.md:keep",
+            value="chunk=keep;source=docs/keep.md;digest=opaque;hop=1",
+            observed_at=datetime(2026, 4, 20, 12, 15, tzinfo=timezone.utc),
+            confidence=0.9,
+            access_scope="subject:42",
+            rail="product_ai_runtime",
+            provenance=(KnowledgeEvidenceRef("keep", "docs/keep.md", 0.9, 1),),
+        )
+        policy = KnowledgePolicy(
+            enabled=True,
+            allow_reads=True,
+            allow_promotion=True,
+            min_confidence=0.7,
+            require_rag_factual_route=True,
+            deny_degraded_reasons=("retrieval_empty", "all_chunks_filtered"),
+            subject_scope_required=True,
+            rail="product_ai_runtime",
+        )
+
+        class _OpaqueRetriever:
+            async def __call__(
+                self,
+                prompt_input: str,
+                *,
+                max_chunks: int,
+                philo_validation_enabled: bool,
+                recursive_rag_enabled: bool,
+                subject_id: int | None,
+                **kwargs: object,
+            ) -> RAGOrchestrationResult:
+                del max_chunks, philo_validation_enabled, recursive_rag_enabled, subject_id
+                observed["prompt_input"] = prompt_input
+                observed["knowledge_policy"] = kwargs["knowledge_policy"]
+                return RAGOrchestrationResult(
+                    chunks=[],
+                    formatted_prompt=prompt_input,
+                    rag_actually_used=True,
+                    confidence=0.9,
+                    hops=1,
+                    latency_ms=5,
+                    knowledge_candidates=[candidate],
+                    knowledge_candidates_canonical=True,
+                )
+
+        opaque_retriever = _OpaqueRetriever()
+        runtime_mod._retriever_accepts_knowledge_policy.cache_clear()
+        try:
+            with patch.object(runtime_mod.inspect, "signature", side_effect=ValueError("opaque")):
+                result = await runtime.generate_insight(
+                    text="How much protein should I eat for recovery?",
+                    lang="en",
+                    provider=provider,
+                    use_rag=True,
+                    philo_validation_enabled=True,
+                    recursive_rag_enabled=False,
+                    subject_id=42,
+                    philosophy_router_enabled=True,
+                    philosophy_phase12_enabled=False,
+                    philosophy_linguistic_enabled=True,
+                    philosophy_pragmatic_enabled=False,
+                    knowledge_policy=policy,
+                    rag_retriever=opaque_retriever,
+                )
+        finally:
+            runtime_mod._retriever_accepts_knowledge_policy.cache_clear()
+
+        assert observed["knowledge_policy"] == policy
+        assert result.knowledge_candidates == [candidate]
 
     async def test_metadata_hidden_when_new_flags_are_off(self) -> None:
         runtime = PhilosophicalRuntime()

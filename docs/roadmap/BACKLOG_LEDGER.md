@@ -1640,7 +1640,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
   - Target PR: PR-K1
-  - Status: 📋 Planned (post-A5 runtime follow-up only)
+  - Status: 🟡 In progress in PR `#1483` (PR-K1 runtime seam); close via docs-only follow-up after merge per ledger policy.
   - Area: AI runtime / knowledge / retrieval orchestration
   - Finding Type: bounded knowledge-promotion contract gap
   - Reason (EN): The current AI runtime already has deterministic retrieval diagnostics, bounded `core/ai/*` ownership, and request-local recursive optimization caches, but it does not yet expose a first-class internal fact-promotion contract separated from retrieval artifacts. Without that seam, later runtime work risks promoting raw provider output, route-layer behavior, or request-local caches into canonical knowledge. `PR-K1` closes that gap as a bounded post-A5 follow-up without widening into semantic cache or DB/storage rollout.

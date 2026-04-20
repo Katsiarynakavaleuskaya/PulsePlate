@@ -6,6 +6,7 @@ EN: Application service for the /insight execution path.
 
 from __future__ import annotations
 
+import asyncio
 import inspect
 import logging
 import os
@@ -29,6 +30,7 @@ from core.insight.llm_provider_loader import LLMProvider
 from core.ai import prepare_insight_runtime
 
 INSIGHT_TEXT_MAX_LENGTH = 2000
+KNOWLEDGE_PROMOTION_TIMEOUT_SECONDS = 0.25
 logger = logging.getLogger(__name__)
 
 
@@ -73,7 +75,15 @@ async def _maybe_promote_knowledge_candidates(
     try:
         promote_result = knowledge_store.promote(candidates)
         if inspect.isawaitable(promote_result):
-            await promote_result
+            await asyncio.wait_for(
+                promote_result,
+                timeout=KNOWLEDGE_PROMOTION_TIMEOUT_SECONDS,
+            )
+    except asyncio.TimeoutError:
+        logger.warning(
+            "Knowledge promotion timed out; response path continues without persistence",
+            exc_info=True,
+        )
     except Exception:
         logger.warning(
             "Knowledge promotion failed; response path continues without persistence",

@@ -1428,6 +1428,38 @@ async def test_rag_orchestration_denies_candidates_on_degraded_and_empty_context
 
 
 @pytest.mark.asyncio
+async def test_rag_orchestration_denies_canonical_candidates_when_retrieval_is_degraded() -> None:
+    """Validated pipelines must not mark degraded retrieval as canonical evidence."""
+
+    chunk = _make_chunk(chunk_id="keep", file="docs/keep.md", score=0.9)
+    rag_ctx = _make_rag_context(chunks=[chunk], confidence=0.9)
+    rag_ctx.degraded_reason = RAGDegradedReason.RETRIEVAL_EMPTY
+    pipeline_result = PipelineResult(
+        filtered_chunks=[chunk],
+        stage_results=[],
+        warnings=[],
+        total_latency_ms=1.0,
+    )
+
+    with (
+        patch("asyncio.to_thread", new_callable=AsyncMock, return_value=rag_ctx),
+        patch("core.rag.vector_rag.retrieve_context_structured"),
+        patch("core.rag.philosophy_pipeline.run_pipeline", return_value=pipeline_result),
+        patch("core.rag.formatting.format_rag_chunks_for_prompt", return_value="Keep chunk"),
+        patch("core.insight.safety.redact_rag_context_for_insight", return_value="Keep chunk"),
+    ):
+        result = await retrieve_and_validate_rag(
+            "test prompt",
+            philo_validation_enabled=True,
+            subject_id=42,
+            knowledge_policy=_knowledge_policy(),
+        )
+
+    assert result.knowledge_candidates == []
+    assert result.knowledge_candidates_canonical is False
+
+
+@pytest.mark.asyncio
 async def test_rag_orchestration_confidence_threshold_gates_candidates() -> None:
     """Sub-threshold confidence must keep usable RAG output but deny promotion."""
 

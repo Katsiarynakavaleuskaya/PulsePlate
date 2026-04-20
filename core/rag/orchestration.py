@@ -299,7 +299,9 @@ async def _run_orchestration(
             chunks_to_use = pipeline_result.filtered_chunks
             chunks_filtered = len(rag_ctx.chunks) - len(pipeline_result.filtered_chunks)
             warnings = pipeline_result.warnings
-            knowledge_candidates_canonical = True
+            knowledge_candidates_canonical = (
+                not recursive_executed and getattr(rag_ctx, "degraded_reason", None) is None
+            )
 
             for w in warnings:
                 logger.debug("rag_pipeline: %s", w)
