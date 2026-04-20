@@ -6,8 +6,8 @@ Canonical review-governance artifact and PR-body mirror requirements:
 `AGENTS.md:42-52`; `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md:41-90`;
 `docs/orchestration/AGENTS.md:58-60`.
 
-- [x] Discussion-thread pass completed
-- [x] Fixed in commit mapping completed
+- [ ] Discussion-thread pass completed
+- [ ] Fixed in commit mapping completed
 
 This artifact is created immediately after replacement-PR creation.
 Record every new review or bot disposition here before resolving threads on
@@ -50,6 +50,9 @@ Merge-readiness contract:
   - the intended dependency delta is `transformers 5.5.3 -> 5.5.4` on the optional RAG vector profile only
   - the source Dependabot head introduces unrelated `cuda-*`, `nvidia-*`, and `triton` churn in `requirements-rag-vector.txt`
   - the active emergency wheel manifest still points at `transformers==5.5.3`
-  - governance-only failures remain expected until this artifact and the PR body mirror are synchronized
+- governance-only failures remain expected until this artifact and the PR body mirror are synchronized
+- current-head `build-and-test` is failing on an ambient locked-install blocker
+  for `ruff==0.15.11` from `requirements-dev.txt`, inherited from
+  `origin/main` and currently out of scope for this narrow transformers lane
 - Canonical lane packet:
   `docs/orchestration/DEPENDABOT_PR_1474_TRANSFORMERS_REMEDIATION_PACKET_2026-04-20.md`

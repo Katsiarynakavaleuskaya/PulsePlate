@@ -38,6 +38,13 @@ profile.
   - Runtime / validation checks on the live Dependabot head are green; the
     remaining red checks are governance-only and must stay red until the
     canonical artifact + PR body mirror exist on the replacement lane.
+  - Post-open current-head CI for replacement PR `#1485` exposed an additional
+    ambient blocker outside the narrow transformers lane: `build-and-test`
+    fails during locked backend dependency install because
+    `requirements-dev.txt` pins `ruff==0.15.11` while the approved index lacks
+    a matching distribution for the CI environment. This is inherited from
+    `origin/main` and must be escalated instead of widened silently into this
+    remediation slice.
 
 ## Mandatory Role Order
 
