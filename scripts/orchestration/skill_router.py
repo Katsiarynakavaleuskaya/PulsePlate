@@ -1548,7 +1548,7 @@ def _conditional_when_for_skill(*, skill: str, task_classification_label: str) -
         )
     if skill in LAUNCH_GOVERNANCE_CONDITIONAL_SKILLS:
         return (
-            "Enable when launch-asset work includes execution-ready design packet metadata, "
+            "Enable when launch-asset work includes explicit design packet metadata, "
             "concrete source anchors, and token/brand governance intent."
         )
     if skill in RESEARCH_CONDITIONAL_SKILLS and task_classification_label != "creative_research":
@@ -1582,7 +1582,7 @@ def _conditional_when_for_skill_with_design_state(
         if explicit_design_metadata:
             return None
         return (
-            "Enable when launch-asset governance work becomes execution-ready with "
+            "Enable when launch-asset governance work includes "
             "design packet metadata, source anchors, and explicit token/brand scope."
         )
     return _conditional_when_for_skill(
