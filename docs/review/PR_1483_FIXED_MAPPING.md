@@ -109,6 +109,11 @@ Evidence: `core/insight/philosophical_runtime.py:85-96`, `tests/test_philosophic
 Reason: The latest cubic wrapper is fully covered by the same current-head cache-removal fix mapped above; no separate unresolved defect remains beyond those inline comments.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1483#pullrequestreview-4139408489 -> 7eec5d903
 
+Disposition: DEFERRED
+Backlog: `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-knowledge-promotion-from-validated-rag`
+Reason: The latest CodeRabbit wrapper only asks for explicit return annotations on two test helper methods in `tests/test_remaining_modules.py`. That change is low-risk and test-only, but landing it in PR-K1 would widen this merge lane into a whole-file `black` reformat of an already-touched test module, so it is intentionally deferred to the documented PR-K1 closeout follow-up after merge.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1483#pullrequestreview-4139572722
+
 ## Merge Readiness
 
 Merge-readiness contract:

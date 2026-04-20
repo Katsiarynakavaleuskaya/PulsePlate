@@ -1644,6 +1644,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Area: AI runtime / knowledge / retrieval orchestration
   - Finding Type: bounded knowledge-promotion contract gap
   - Reason (EN): The current AI runtime already has deterministic retrieval diagnostics, bounded `core/ai/*` ownership, and request-local recursive optimization caches, but it does not yet expose a first-class internal fact-promotion contract separated from retrieval artifacts. Without that seam, later runtime work risks promoting raw provider output, route-layer behavior, or request-local caches into canonical knowledge. `PR-K1` closes that gap as a bounded post-A5 follow-up without widening into semantic cache or DB/storage rollout.
+  - Deferred follow-up (PR #1483 merge closeout): add explicit return annotations to `TestPhilosophicalRuntimeFastLane._runtime_policy` and `_runtime_candidate` in `tests/test_remaining_modules.py`; keep it out of PR-K1 because touching that file here would pull a full-file `black` reformat into the merge lane for a low-risk test-only nitpick.
   - Links:
     - `docs/orchestration/WAVE6_K1_KNOWLEDGE_PROMOTION_PACKET_2026-04-19.md`
     - `docs/orchestration/contracts/AI_RUNTIME_GATE_CONTRACT.md`
