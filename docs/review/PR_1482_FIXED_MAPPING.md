@@ -68,6 +68,17 @@ Commit: 6a49af12
 Evidence: `docs/roadmap/BACKLOG_LEDGER.md:5033`
 Reason: The "implemented" status claim now includes explicit evidence anchors for the delivered skill surface and packet.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1482#pullrequestreview-4139574552
+Disposition: NOT-A-BUG
+Evidence: `scripts/orchestration/skill_router.py:1549`, `scripts/orchestration/skill_router.py:1581`
+Reason: This follow-up CodeRabbit parent review contains no separate blocker beyond the inline wording-alignment thread mapped below.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1482#discussion_r3110331267
+Disposition: FIXED
+Commit: 25b35f2f
+Evidence: `scripts/orchestration/skill_router.py:1551`, `scripts/orchestration/skill_router.py:1585`
+Reason: The launch-governance conditional guidance now matches the actual activation gate by referring to explicit design packet metadata instead of overstating an execution-ready threshold.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1482#pullrequestreview-4139180364
 Disposition: NOT-A-BUG
 Evidence: `scripts/orchestration/skill_router.py:66`, `scripts/orchestration/skill_router.py:1157`, `tests/test_skill_router.py:750`
