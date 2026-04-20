@@ -67,6 +67,7 @@ DESIGN_CONDITIONAL_SKILLS: frozenset[str] = frozenset(
     {
         "figma",
         "figma-implement-design",
+        "pulseplate-design-launch-system",
     }
 )
 RESEARCH_CONDITIONAL_SKILLS: frozenset[str] = frozenset(
@@ -146,6 +147,7 @@ DOCS_ONLY_EXCLUDED_ROUTING_SKILLS: frozenset[str] = frozenset(
         "pulseplate-playwright-e2e",
         "playwright",
         "figma-implement-design",
+        "pulseplate-design-launch-system",
         "notion-spec-to-implementation",
     }
 )
@@ -1147,6 +1149,34 @@ SKILL_RULES: tuple[SkillRule, ...] = (
         min_score=6,
         domain_weights={"design": 2, "frontend": 1},
         keywords=("implement design", "design fidelity", "figma", "node-id"),
+    ),
+    SkillRule(
+        skill="pulseplate-design-launch-system",
+        category="repo-tracked",
+        rationale=(
+            "PulsePlate launch-asset governance, token/brand consistency, and "
+            "design-system readiness work should use the dedicated passive "
+            "design launch system skill."
+        ),
+        min_score=6,
+        domain_weights={"design": 2, "frontend": 1, "docs": 1},
+        path_prefixes=(
+            "docs/runbooks/DESIGN_TOOLING_OPERATING_MODEL.md",
+            "docs/design/",
+            "tokens/",
+        ),
+        keywords=(
+            "launch asset",
+            "launch assets",
+            "launch readiness",
+            "launch kit",
+            "asset bundle",
+            "asset bundles",
+            "brand consistency",
+            "brand alignment",
+            "token consistency",
+            "design system readiness",
+        ),
     ),
     SkillRule(
         skill="linear",

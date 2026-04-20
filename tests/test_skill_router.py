@@ -747,6 +747,28 @@ def test_skill_router_selects_design_figma_brand_stack() -> None:
     assert "build-web-apps:web-design-guidelines" in skills
 
 
+def test_skill_router_selects_design_launch_system_for_explicit_launch_asset_metadata() -> None:
+    """Explicit launch-asset design packets should route the dedicated governance skill."""
+
+    skills = select_recommended_skills(
+        goal="Prepare Figma launch asset bundle with token consistency and brand alignment",
+        task_class="Frontend",
+        candidate_paths=["tokens/10_semantic/color.json", "docs/design/UI_COMPONENT_VOCABULARY.md"],
+        domain="frontend",
+        design_source="figma_design",
+        source_url="https://figma.com/design/FILEKEY/LaunchAssets?node-id=7-4",
+        file_key_or_workspace="FILEKEY",
+        node_id_or_frame_id="7:4",
+        target_surface="launch-assets.hero-pack",
+        task_mode="implement",
+        figma_lane_tool="figma_native",
+        code_native_design_brief_path="docs/design/LAUNCH_ASSET_BRIEF.md",
+    )
+
+    assert "pulseplate-design-launch-system" in skills
+    assert "figma" in skills
+
+
 def test_skill_router_selects_monetization_and_gtm_stack() -> None:
     """Monetization, subscriptions, and GTM tasks should route billing + report helpers."""
 
@@ -959,6 +981,22 @@ def test_skill_router_keeps_design_classified_tasks_conditional_without_explicit
         conditional_by_skill["figma"]["when"]
         == "Enable when a concrete Figma/design node-id or fidelity requirement becomes explicit."
     )
+
+
+def test_skill_router_keeps_design_launch_system_conditional_for_partial_launch_signals() -> None:
+    """Launch-asset governance language should stay conditional until design metadata is execution-ready."""
+
+    decision = route_skills(
+        goal="Review launch asset bundle for brand consistency and token alignment",
+        task_class="Frontend",
+        candidate_paths=["frontend/src/components/Hero.tsx"],
+        domain="frontend",
+    )
+
+    recommended = {item["skill"] for item in decision["recommended"]}
+    conditional_by_skill = {item["skill"]: item for item in decision["conditional"]}
+    assert "pulseplate-design-launch-system" not in recommended
+    assert "pulseplate-design-launch-system" in conditional_by_skill
 
 
 def test_skill_router_promotes_design_lane_for_explicit_design_metadata() -> None:

@@ -5030,17 +5030,21 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2
   - Target PR: PR-TBD-CODEX-SKILL-WAVE2A
-  - Status: Planned
+  - Status: 🛠 Implemented in worktree `pulseplate-design-launch-system`; pending PR open/merge
   - Area: design / launch assets / orchestration
   - Finding Type: capability expansion
   - Reason: PulsePlate needs a project-specific design launch system skill that links Figma/design tokens/brand assets with launch-readiness constraints while keeping design tooling passive with respect to coordinator-first routing.
   - Links:
     - `docs/orchestration/CODEX_SKILLS_ALIGNMENT_MATRIX.md`
     - `docs/runbooks/DESIGN_TOOLING_OPERATING_MODEL.md`
+    - `docs/orchestration/CODEX_SKILL_PULSEPLATE_DESIGN_LAUNCH_SYSTEM_PACKET_2026-04-20.md`
+    - `tools/codex_skills/pulseplate-design-launch-system/SKILL.md`
+    - `docs/dev/CODEX_SKILLS.md`
+    - `tools/codex_skills/README.md`
   - DoD:
     - Skill exists under `tools/codex_skills/pulseplate-design-launch-system/`
     - Skill covers design system readiness, launch asset bundles, and token/brand consistency
-    - Skill docs explicitly preserve passive discovery-only boundaries
+    - Skill docs explicitly preserve fail-closed packet metadata expectations and passive discovery-only boundaries
 
 <a id="ledger-p2-codex-skill-pulseplate-web-launch-site"></a>
 - [ ] P2: Add custom Codex skill `pulseplate-web-launch-site` (Wave 2)

@@ -115,6 +115,7 @@ approved research-only connector contract. Evidence:
 - Produce AI trend reports: `pulseplate-ai-reports`
 - Prepare App Store metadata, screenshot packs, and release evidence: `pulseplate-app-store-release`
 - Guide monetization, paywall, pricing, and wellness-safe GTM work: `pulseplate-monetization-gtm`
+- Govern design-system readiness, launch-asset boundaries, and token/brand consistency: `pulseplate-design-launch-system`
 - Build/update architecture graph artifact: `pulseplate-graphmap`
 - Run browser E2E flows (step 3 extension): `pulseplate-playwright-e2e`
 
@@ -125,6 +126,7 @@ Recommended now for PulsePlate:
 - `pulseplate-ai-reports` for founder/wellness/AI reporting
 - `pulseplate-app-store-release` for App Store metadata, screenshot packs, and release evidence
 - `pulseplate-monetization-gtm` for monetization, paywall, pricing, and wellness-safe GTM work
+- `pulseplate-design-launch-system` for passive design-launch governance, launch asset bundles, token/brand consistency, and fail-closed packet metadata review
 - `docs-sync` for orchestration, runbooks, and PR support docs
 - `bug-triage` and `pulseplate-gates` for remediation and gate closure
 - `figma` as the first design-system and prototype lane
@@ -148,6 +150,8 @@ Design-tooling precedence for this repo:
 4. `Penpot`
 
 See `docs/runbooks/DESIGN_TOOLING_OPERATING_MODEL.md`.
+`pulseplate-design-launch-system` is a governance-only helper and must follow
+that source precedence rather than override it.
 
 Not approved as default:
 

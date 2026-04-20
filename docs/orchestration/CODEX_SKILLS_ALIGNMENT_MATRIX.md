@@ -94,7 +94,7 @@ Interpretation:
 
 ### Wave 2 — Planned
 
-- `pulseplate-design-launch-system`
+- `pulseplate-design-launch-system` — governance-only skill bundle for design-system readiness, token/brand consistency, and launch-asset boundaries
 - `pulseplate-web-launch-site`
 
 ### Wave 3 — Planned
