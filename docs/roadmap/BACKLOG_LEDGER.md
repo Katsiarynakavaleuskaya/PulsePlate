@@ -388,7 +388,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Target PR: `PR-TBD` (follow-up after `PR #1418`)
   - Status: Active as of `13 April 2026`
   - Area: security / CI / dependencies
-  - Reason (EN): The repo must stay on patched exact releases while the approved private index catches up, and the current emergency wheel manifest still covers multiple active bootstrap/runtime dependency surfaces (including `cryptography 46.0.7`, `pillow 12.2.0`, `pytest 9.0.3`, `faker 40.13.0`, `hypothesis 6.151.12`, `ruff 0.15.10`, `types-pyyaml 6.0.12.20260408`, `sentence-transformers 5.4.1`, and `transformers 5.5.3`). `PR #1378` and `PR #1418` extend that time-boxed exact-wheel fallback with pinned `sha256` digests instead of a vulnerable repin or a broad public-index bypass. Retire the manifest only after the approved mirror serves every still-active fallback entry natively. (RU: Репозиторий должен оставаться на исправленных точных релизах, пока одобренное приватное зеркало догоняет апстрим, и текущий emergency wheel manifest всё ещё покрывает несколько активных bootstrap/runtime dependency surfaces (включая `cryptography 46.0.7`, `pillow 12.2.0`, `pytest 9.0.3`, `faker 40.13.0`, `hypothesis 6.151.12`, `ruff 0.15.10`, `types-pyyaml 6.0.12.20260408`, `sentence-transformers 5.4.1` и `transformers 5.5.3`). `PR #1378` и `PR #1418` расширяют этот временный exact-wheel fallback с pinned `sha256`, а не уязвимым репином и не широким bypass на публичный индекс. Удалять manifest можно только после того, как одобренное зеркало начнёт отдавать всё ещё активные fallback-entry нативно.)
+  - Reason (EN): The repo must stay on patched exact releases while the approved private index catches up, and the current emergency wheel manifest still covers multiple active bootstrap/runtime dependency surfaces (including `cryptography 46.0.7`, `pillow 12.2.0`, `pytest 9.0.3`, `faker 40.15.0`, `hypothesis 6.152.1`, `ruff 0.15.11`, `types-pyyaml 6.0.12.20260408`, `sentence-transformers 5.4.1`, and `transformers 5.5.4`). `PR #1378` and `PR #1418` extend that time-boxed exact-wheel fallback with pinned `sha256` digests instead of a vulnerable repin or a broad public-index bypass. Retire the manifest only after the approved mirror serves every still-active fallback entry natively. (RU: Репозиторий должен оставаться на исправленных точных релизах, пока одобренное приватное зеркало догоняет апстрим, и текущий emergency wheel manifest всё ещё покрывает несколько активных bootstrap/runtime dependency surfaces (включая `cryptography 46.0.7`, `pillow 12.2.0`, `pytest 9.0.3`, `faker 40.15.0`, `hypothesis 6.152.1`, `ruff 0.15.11`, `types-pyyaml 6.0.12.20260408`, `sentence-transformers 5.4.1` и `transformers 5.5.4`). `PR #1378` и `PR #1418` расширяют этот временный exact-wheel fallback с pinned `sha256`, а не уязвимым репином и не широким bypass на публичный индекс. Удалять manifest можно только после того, как одобренное зеркало начнёт отдавать всё ещё активные fallback-entry нативно.)
   - Links:
     - `docs/security/CRYPTOGRAPHY_46_0_7_PRIVATE_INDEX_ADVISORY.md:1`
     - `docs/security/GHSA-whj4-6x5x-4v2j-pillow.md:1`
@@ -401,15 +401,15 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
       `scripts/ci/emergency_python_wheels.json:8-19` (`cryptography 46.0.7`),
       `scripts/ci/emergency_python_wheels.json:22-61` (`pillow 12.2.0`),
       `scripts/ci/emergency_python_wheels.json:64-69` (`pytest 9.0.3`),
-      `scripts/ci/emergency_python_wheels.json:71-76` (`faker 40.13.0`),
-      `scripts/ci/emergency_python_wheels.json:78-83` (`hypothesis 6.151.12`),
-      `scripts/ci/emergency_python_wheels.json:93-98`
+      `scripts/ci/emergency_python_wheels.json:71-76` (`faker 40.15.0`),
+      `scripts/ci/emergency_python_wheels.json:78-83` (`hypothesis 6.152.1`),
+      `scripts/ci/emergency_python_wheels.json:100-105`
       (`sentence-transformers 5.4.1`),
-      `scripts/ci/emergency_python_wheels.json:100-105` (`ruff 0.15.10`),
-      `scripts/ci/emergency_python_wheels.json:107-112`
-      (`types-pyyaml 6.0.12.20260408`), and
+      `scripts/ci/emergency_python_wheels.json:107-112` (`ruff 0.15.11`),
       `scripts/ci/emergency_python_wheels.json:114-119`
-      (`transformers 5.5.3`).
+      (`types-pyyaml 6.0.12.20260408`), and
+      `scripts/ci/emergency_python_wheels.json:121-126`
+      (`transformers 5.5.4`).
     - Installer/bootstrap fallback logic is implemented in
       `scripts/ci/install_locked_python_requirements.py:275-359`
       (manifest load/validation), `scripts/ci/install_locked_python_requirements.py:401-420`
@@ -3647,6 +3647,24 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 
 
 ### P2
+
+<a id="ledger-p2-dependency-fallback-artifact-dedup"></a>
+- [ ] P2: Deduplicate dependency fallback version references across packet / ledger / tests
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2 (dependency-governance follow-up)
+  - Target PR: `PR-TBD-DEPENDENCY-FALLBACK-DEDUP`
+  - Status: Planned
+  - Area: docs / CI / dependency governance
+  - Reason (EN): Narrow dependency remediation lanes currently repeat the same fallback package/version tuples across `scripts/ci/emergency_python_wheels.json`, backlog evidence, orchestration packets, and narrow tests. That duplication increases drift risk and makes line-range evidence brittle as the manifest evolves. A follow-up lane should introduce a more stable single-source-of-truth pattern or generator and replace line-range references with package/key-based evidence anchors. (RU: узкие dependency remediation lane сейчас дублируют одни и те же fallback package/version tuple в `scripts/ci/emergency_python_wheels.json`, ledger evidence, orchestration packet и узких тестах. Такое дублирование повышает риск дрейфа и делает line-range evidence хрупким при эволюции manifest. Нужен отдельный follow-up lane с более устойчивым single-source-of-truth/generator pattern и package/key-based ссылками вместо диапазонов строк.)
+  - Links:
+    - `scripts/ci/emergency_python_wheels.json`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-cryptography-private-index-sync`
+    - `docs/orchestration/DEPENDABOT_PR_1474_TRANSFORMERS_REMEDIATION_PACKET_2026-04-20.md`
+    - `tests/test_install_locked_python_requirements.py`
+  - DoD:
+    - A canonical source exists for dependency fallback package/version tuples used by narrow remediation artifacts
+    - Ledger/package evidence points to package keys or stable anchors rather than fragile line ranges
+    - Narrow dependency remediation packets/tests consume the canonical source without manual tuple drift
 
 <a id="ledger-p2-dagger-pilot-after-docker-baseline"></a>
 - [ ] P2: Re-evaluate Dagger pilot only after Docker baseline stabilizes

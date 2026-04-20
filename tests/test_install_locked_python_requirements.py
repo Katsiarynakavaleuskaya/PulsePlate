@@ -918,7 +918,7 @@ def test_stage_emergency_wheels_downloads_requested_artifacts_across_multiple_pa
 ) -> None:
     requirements = tmp_path / "requirements-dev.txt"
     requirements.write_text(
-        "cryptography==46.0.7\nruff==0.15.10\ntypes-pyyaml==6.0.12.20260408\nopenai==2.29.0\n",
+        "cryptography==46.0.7\nruff==0.15.11\ntypes-pyyaml==6.0.12.20260408\nopenai==2.29.0\n",
         encoding="utf-8",
     )
     manifest = tmp_path / "emergency.json"
@@ -937,9 +937,9 @@ def test_stage_emergency_wheels_downloads_requested_artifacts_across_multiple_pa
                     },
                     {
                         "package": "ruff",
-                        "version": "0.15.10",
-                        "filename": "ruff-0.15.10-manylinux.whl",
-                        "url": "https://files.pythonhosted.org/packages/example/ruff-0.15.10-manylinux.whl",
+                        "version": "0.15.11",
+                        "filename": "ruff-0.15.11-manylinux.whl",
+                        "url": "https://files.pythonhosted.org/packages/example/ruff-0.15.11-manylinux.whl",
                         "sha256": "c" * 64,
                     },
                     {
@@ -971,7 +971,7 @@ def test_stage_emergency_wheels_downloads_requested_artifacts_across_multiple_pa
 
     assert [path.name for path in staged] == [
         "cryptography-46.0.7.whl",
-        "ruff-0.15.10-manylinux.whl",
+        "ruff-0.15.11-manylinux.whl",
         "types_pyyaml-6.0.12.20260408-py3-none-any.whl",
     ]
     assert observed_downloads == [
@@ -981,8 +981,8 @@ def test_stage_emergency_wheels_downloads_requested_artifacts_across_multiple_pa
             "b" * 64,
         ),
         (
-            "https://files.pythonhosted.org/packages/example/ruff-0.15.10-manylinux.whl",
-            tmp_path / "wheelhouse" / "ruff-0.15.10-manylinux.whl",
+            "https://files.pythonhosted.org/packages/example/ruff-0.15.11-manylinux.whl",
+            tmp_path / "wheelhouse" / "ruff-0.15.11-manylinux.whl",
             "c" * 64,
         ),
         (
@@ -1053,7 +1053,7 @@ def test_stage_emergency_wheels_reads_constraints_surface_once_for_multiple_arti
     requirements.write_text("openai==2.29.0\n", encoding="utf-8")
     constraints = tmp_path / "constraints.txt"
     constraints.write_text(
-        "ruff==0.15.10\ntypes-pyyaml==6.0.12.20260408\n",
+        "ruff==0.15.11\ntypes-pyyaml==6.0.12.20260408\n",
         encoding="utf-8",
     )
     manifest = tmp_path / "emergency.json"
@@ -1065,9 +1065,9 @@ def test_stage_emergency_wheels_reads_constraints_surface_once_for_multiple_arti
                 "artifacts": [
                     {
                         "package": "ruff",
-                        "version": "0.15.10",
-                        "filename": "ruff-0.15.10-manylinux.whl",
-                        "url": "https://files.pythonhosted.org/packages/example/ruff-0.15.10-manylinux.whl",
+                        "version": "0.15.11",
+                        "filename": "ruff-0.15.11-manylinux.whl",
+                        "url": "https://files.pythonhosted.org/packages/example/ruff-0.15.11-manylinux.whl",
                         "sha256": "c" * 64,
                     },
                     {
@@ -1107,7 +1107,7 @@ def test_stage_emergency_wheels_reads_constraints_surface_once_for_multiple_arti
     )
 
     assert [path.name for path in staged] == [
-        "ruff-0.15.10-manylinux.whl",
+        "ruff-0.15.11-manylinux.whl",
         "types_pyyaml-6.0.12.20260408-py3-none-any.whl",
     ]
     assert constraint_reads == 1
