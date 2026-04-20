@@ -446,10 +446,11 @@ def _build_knowledge_candidates(
 
     from core.knowledge.promotion import build_knowledge_promotion_candidates
 
-    return build_knowledge_promotion_candidates(
+    candidates: list["KnowledgeFactCandidate"] = build_knowledge_promotion_candidates(
         chunks=chunks_to_use,
         confidence=confidence,
         degraded_reason=None if degraded_reason is None else degraded_reason.value,
         subject_id=subject_id,
         knowledge_policy=knowledge_policy,
     )
+    return candidates
