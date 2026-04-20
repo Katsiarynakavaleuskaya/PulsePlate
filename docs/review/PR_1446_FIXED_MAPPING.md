@@ -46,6 +46,21 @@ Disposition: FIXED
 Evidence: `app/security/web_session.py:236-244`; `tests/test_web_session_security.py:303-316`
 Reason: Inline cubic comment matches the same signing-path logging fix in `3f0195bae6a45b0ec4e23098befa8714504c1adf`.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1446#discussion_r3109979251 -> f9fc18626052c0ce2fe135e20dcc84a42bbf6f7b
+Disposition: FIXED
+Evidence: `app/security/web_session.py:236-243`
+Reason: CodeRabbit follow-up: avoid embedding `RuntimeError` text in the warning message; use a stable operator string plus `exc_info=True` (commit f9fc18626052c0ce2fe135e20dcc84a42bbf6f7b).
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1446#discussion_r3109979256
+Disposition: NOT-A-BUG
+Evidence: `app/security/web_session.py:256-263`
+Reason: `iat`/`exp` are validated with `isinstance(..., int)` after JSON parse; the bot’s type analysis does not indicate a contract bug.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1446#pullrequestreview-4139197839 -> f9fc18626052c0ce2fe135e20dcc84a42bbf6f7b
+Disposition: FIXED
+Evidence: `app/security/web_session.py:236-243`
+Reason: Batch review reiterates the signing-path logging hardening; addressed alongside `discussion_r3109979251` in f9fc18626052c0ce2fe135e20dcc84a42bbf6f7b.
+
 ## Merge Readiness
 - [x] Scope tied to PR objective
 - [x] Docs/runtime changes applied
