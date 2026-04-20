@@ -62,6 +62,17 @@ Evidence: `core/insight/philosophical_runtime.py:86-98`, `core/insight/philosoph
 Reason: Current head already supports retrievers that accept `**kwargs` and falls back safely when signature introspection is opaque, so the strict-forwarding concern is stale on this head.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1483#discussion_r3110038254
 
+Disposition: FIXED
+Commit: a7acaff6d
+Evidence: `tests/test_remaining_modules.py:303-341`, `tests/test_remaining_modules.py:459-479`, `tests/test_remaining_modules.py:769-780`
+Reason: The current CodeRabbit review wrapper is fully covered by the two actionable current-head findings fixed in `a7acaff6d`: helper type hints were tightened and the forbidden `builtins.__import__` patch was replaced with a `monkeypatch`-based module-missing simulation.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1483#pullrequestreview-4139245059 -> a7acaff6d
+
+Disposition: NOT-A-BUG
+Evidence: `core/rag/orchestration.py:295-304`, `core/insight/philosophical_runtime.py:86-98`, `core/insight/philosophical_runtime.py:572-580`
+Reason: The Cubic wrapper review only aggregates the two inline findings already dispositioned above; on current head the promotion-canonical guard and `**kwargs` retriever forwarding are already correct, so the wrapper itself does not represent a separate unresolved defect.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1483#pullrequestreview-4139263200
+
 ## Merge Readiness
 
 Merge-readiness contract:
