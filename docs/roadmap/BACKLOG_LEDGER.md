@@ -1635,6 +1635,36 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - LLM outputs used for product copy/coaching pass `philosophy_validator` (BLOCKER = rewrite)
     - AI runtime/runbook docs link to the same gate source instead of ad-hoc evaluation notes
 
+<a id="ledger-p1-rag-release-gates-lane"></a>
+- [ ] P1: PulsePlate RAG release-gates lane and artifact contract
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR #1484
+  - Status: In progress on the isolated release-gates lane (`PR #1484`)
+  - Canonical contract note: Until a dedicated seam ADR exists, the authoritative contract for artifact-pack scope, CI behavior, and persistence boundaries lives in `docs/orchestration/PULSEPLATE_RAG_RELEASE_GATES_TASK_PACKET_2026-04-20.md` and `docs/evals/PULSEPLATE_RAG_RELEASE_GATES.md`; follow-on work must cite those files instead of inventing a parallel storage or dashboard truth.
+  - Area: AI / RAG / Insight / evaluation
+  - Finding Type: internal release-gate lane
+  - Reason (EN): PulsePlate now has real RAG orchestration, runtime tracing, input safety, and philosophy validation hooks, but it still lacked one canonical internal lane that evaluates retrieval quality, grounding, calibration, and fail-closed safety before merge/release. This item tracks the repo-owned notebook + deterministic runner baseline and freezes the artifact/schema contract before any persistent dashboard work starts.
+  - Links:
+    - `notebooks/pulseplate_rag_release_gates.ipynb`
+    - `scripts/evals/run_rag_release_gates.py`
+    - `docs/evals/PULSEPLATE_RAG_RELEASE_GATES.md`
+    - `docs/orchestration/PULSEPLATE_RAG_RELEASE_GATES_TASK_PACKET_2026-04-20.md`
+    - `core/rag/orchestration.py`
+    - `core/ai/insight_runtime.py`
+    - `app/services/insight_runtime.py`
+    - `app/security/agent_input_guard.py`
+    - `core/insight/philosophy_validator.py`
+  - DoD:
+    - Notebook, sample fixture, deterministic runner, and canonical docs are committed
+    - v1 source of truth is the gitignored artifact pack under `artifacts/rag_eval/<experiment_id>/`
+    - CI exposes `gate_report.md` and a compact markdown summary without introducing a new database
+    - Trace/run schema is explicit enough to mirror later into PostgreSQL without reworking evaluation logic
+    - Persistence guidance is explicit: PostgreSQL is the future canonical store, Cloudflare may be access-only, and D1 is not introduced for this lane
+    - Strict weekly/manual execution can inject a curated dataset via workflow input or repo variable without relying on an untracked file in the checkout
+  - Blockers / Exit criteria:
+    - Any PostgreSQL-backed history or dashboard promotion requires a separate ADR-backed follow-up lane; this PR intentionally keeps history artifact-only
+    - Weekly curated datasets remain operational inputs and must stay outside git until a governed dataset-management contract is approved
 <a id="ledger-p1-knowledge-promotion-from-validated-rag"></a>
 - [ ] P1: Knowledge contracts and promotion from validated RAG evidence
   - Owner: @katsiaryna_kavaleuskaya
