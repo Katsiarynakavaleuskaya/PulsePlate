@@ -6,17 +6,16 @@ Canonical review-governance artifact and PR-body mirror requirements:
 `AGENTS.md:42-52`; `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md:41-90`;
 `docs/orchestration/AGENTS.md:58-60`.
 
-- [ ] Discussion-thread pass completed
-- [ ] Fixed in commit mapping completed
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 
-Record every actionable human or bot review item here before resolving threads or
-claiming merge readiness.
+Bots (CodeRabbit, Sourcery, Cubic) left no actionable code changes; CodeRabbit noted PR body template gaps (metadata). Mapping uses N/A path for zero thread URLs.
 
 ## Fixed in Commit Mapping
 
-_No review threads yet. Add dispositions (FIXED / NOT-A-BUG / DEFERRED) with
-evidence as comments arrive._
+- No actionable review comments
 
 ## Merge Readiness
 
-- Pending: required CI green on current head; complete checklist above after review.
+- CI: required jobs green on current PR head after push; re-check `PR Body Phase2 gates`.
+- Local: run `make verify` on this branch before merge when feasible (operator evidence).
