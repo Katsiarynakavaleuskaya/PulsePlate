@@ -279,9 +279,9 @@ jobs:
           # mode=min to match build job and keep cache export/import fast (mode=max can hang 30+ min on export).
           # ignore-error=true prevents publish failure when cache exporter returns transient BlobNotFound.
           cache-to: type=gha,scope=build-production-${{ github.ref_name }},mode=min,ignore-error=true
-          # Disable provenance to prevent GHA cache export errors ("cache entry no longer exists").
-          # Trade-off: SLSA attestations disabled; cosign verify-attestation will fail. Re-enable when buildx/GHA fix is available.
-          provenance: false
+          # PR #1448: re-enable SLSA provenance attestations for GHCR publish.
+          # Keep scoped cache + mode=min + ignore-error=true to reduce export flakes.
+          provenance: mode=max
           target: production
 
       - name: Set image ref for SBOM and image scan
