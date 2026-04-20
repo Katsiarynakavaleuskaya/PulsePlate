@@ -42,6 +42,30 @@ Commit: e1ad74fec
 Evidence: `docs/orchestration/DEPENDABOT_PR_1474_TRANSFORMERS_REMEDIATION_PACKET_2026-04-20.md:15-18`
 Reason: cubic found the actionable inline review comment for the same packet portability issue; fixed in the same docs-only follow-up commit as the review summary above.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1485#pullrequestreview-4140030022
+Disposition: FIXED
+Commit: ff6bdcb81
+Evidence: `docs/roadmap/BACKLOG_LEDGER.md:3649-3667`
+Reason: CodeRabbit identified a valid governance issue: the new dependency follow-up remained in the `### P1` section despite `Priority: P2`. The backlog item now lives under the canonical `### P2` section.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1485#discussion_r3110693031
+Disposition: FIXED
+Commit: ff6bdcb81
+Evidence: `docs/roadmap/BACKLOG_LEDGER.md:3649-3667`
+Reason: CodeRabbit identified the actionable inline version of the same placement issue; fixed by moving the backlog item into the `### P2` section.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1485#pullrequestreview-4140058144
+Disposition: FIXED
+Commit: ff6bdcb81
+Evidence: `docs/roadmap/BACKLOG_LEDGER.md:3649-3667`
+Reason: cubic found the same priority-ordering defect in the backlog ledger. The new follow-up item is now placed under `### P2`, matching its declared priority.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1485#discussion_r3110715555
+Disposition: FIXED
+Commit: ff6bdcb81
+Evidence: `docs/roadmap/BACKLOG_LEDGER.md:3649-3667`
+Reason: cubic identified the actionable inline version of the same ledger ordering issue; fixed in the same commit that moved the entry into the `### P2` section.
+
 ## Merge Readiness
 
 Merge-readiness contract:
