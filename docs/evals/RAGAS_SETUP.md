@@ -55,6 +55,7 @@ Accepted reference keys:
 Notes:
 - `answer` is the candidate answer being scored offline.
 - `reference` or `ground_truth` is the expected grounded answer.
+- If both `reference` and `ground_truth` are present in one row, they must match.
 - `contexts` must stay a non-empty `list[str]`.
 - Only synthetic or curated content is allowed in the committed dataset.
 

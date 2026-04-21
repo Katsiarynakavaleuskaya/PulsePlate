@@ -250,6 +250,23 @@ class TestOfflineEvalBootstrapSmoke:
         with pytest.raises(ValueError, match="one of 'reference' or 'ground_truth'"):
             runner.load_dataset_rows(missing_reference_path)
 
+        conflicting_reference_path = tmp_path / "conflicting_reference.jsonl"
+        conflicting_reference_path.write_text(
+            json.dumps(
+                {
+                    "question": "How do I restart after one snack?",
+                    "answer": "Return to the next meal.",
+                    "contexts": ["A planned next meal reduces rebound restriction."],
+                    "reference": "Return to the next meal.",
+                    "ground_truth": "Skip the next meal.",
+                }
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        with pytest.raises(ValueError, match="'reference' and 'ground_truth' must match"):
+            runner.load_dataset_rows(conflicting_reference_path)
+
         with pytest.raises(ValueError, match="'question' must be a string"):
             runner._normalize_string(7, field_name="question", row_number=1)
         with pytest.raises(ValueError, match="'question' must be non-empty"):
@@ -291,29 +308,20 @@ class TestOfflineEvalBootstrapSmoke:
 
         metric_map = {name: object() for name in runner.REQUIRED_METRIC_NAMES}
 
-        class _EvaluateWithFallback:
-            def __init__(self) -> None:
-                self.calls = 0
-
-            def __call__(
-                self, *, dataset: object, metrics: list[object], show_progress: bool | None = None
-            ):
+        class _EvaluateWithoutShowProgress:
+            def __call__(self, *, dataset: object, metrics: list[object]):
                 assert isinstance(dataset, _FakeDataset)
                 assert len(metrics) == 3
-                self.calls += 1
-                if self.calls == 1:
-                    raise TypeError("show_progress not supported")
                 return {
                     "faithfulness": 0.91,
                     "answer_relevancy": 0.82,
                     "context_precision": 0.88,
                 }
 
-        evaluator = _EvaluateWithFallback()
         monkeypatch.setattr(
             runner,
             "_load_ragas_dependencies",
-            lambda: (_FakeDataset, evaluator, metric_map),
+            lambda: (_FakeDataset, _EvaluateWithoutShowProgress(), metric_map),
         )
 
         scores = runner.evaluate_records(rows, runner.REQUIRED_METRIC_NAMES)
@@ -388,6 +396,31 @@ class TestOfflineEvalBootstrapSmoke:
         with pytest.raises(RuntimeError, match="Could not extract metric scores"):
             runner.evaluate_records(rows, runner.REQUIRED_METRIC_NAMES)
 
+        monkeypatch.setattr(
+            runner,
+            "_load_ragas_dependencies",
+            lambda: (
+                _FakeDataset,
+                lambda *, dataset, metrics, show_progress=False: (_ for _ in ()).throw(
+                    TypeError("broken evaluator")
+                ),
+                metric_map,
+            ),
+        )
+        with pytest.raises(TypeError, match="broken evaluator"):
+            runner.evaluate_records(rows, runner.REQUIRED_METRIC_NAMES)
+
+        with pytest.raises(RuntimeError, match="invalid score for faithfulness"):
+            runner._validate_metric_scores(
+                {
+                    "faithfulness": object(),
+                    "answer_relevancy": 0.82,
+                    "context_precision": 0.88,
+                },
+                runner.REQUIRED_METRIC_NAMES,
+                source="score rows",
+            )
+
     def test_ragas_dependency_and_cli_output_paths(
         self,
         monkeypatch: pytest.MonkeyPatch,
@@ -421,6 +454,7 @@ class TestOfflineEvalBootstrapSmoke:
         assert md_output.read_text(encoding="utf-8").strip() == markdown_summary
         assert runner._display_path(json_output).endswith("report.json")
         assert runner.format_score(1.0) == "1"
+        assert runner._display_path(runner.DEFAULT_DATASET_PATH).startswith("evals/ragas/")
 
         monkeypatch.setitem(sys.modules, "datasets", None)
         monkeypatch.setitem(sys.modules, "ragas", None)

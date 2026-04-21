@@ -1,6 +1,6 @@
 # Evals lane instructions
 
-Scope: `evals/` and `tests/evals/`
+Scope: `evals/` and subdirectories
 
 ## Purpose
 This directory is for offline evaluation only.
@@ -16,8 +16,5 @@ It must never become part of request-path runtime.
 - First evaluation surface is `/api/v1/pro/cbt/insight` unless a later packet explicitly expands scope
 - Do not create a second canonical evaluation source of truth beside `docs/evals/PULSEPLATE_RAG_RELEASE_GATES.md`
 
-## Test policy
-- Dataset schema must be tested
-- Runner import must succeed even when `ragas` is not installed
-- Config must be deterministic
-- Bootstrap PRs must not add CI fail thresholds
+## Companion test note
+- Eval-lane test-specific rules live in `tests/evals/AGENTS.md`

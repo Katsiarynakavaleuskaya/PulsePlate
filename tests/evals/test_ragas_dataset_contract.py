@@ -27,10 +27,13 @@ def test_dataset_rows_match_bootstrap_contract() -> None:
         payload = json.loads(line)
 
         assert isinstance(payload, dict)
+        assert "question" in payload
         assert isinstance(payload["question"], str)
         assert payload["question"].strip()
+        assert "answer" in payload
         assert isinstance(payload["answer"], str)
         assert payload["answer"].strip()
+        assert "contexts" in payload
         assert isinstance(payload["contexts"], list)
         assert payload["contexts"]
         assert all(isinstance(item, str) and item.strip() for item in payload["contexts"])

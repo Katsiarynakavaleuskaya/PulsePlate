@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import importlib
 import json
+import sys
 from pathlib import Path
 
 import pytest
@@ -38,8 +39,15 @@ def _write_dataset(path: Path) -> None:
     )
 
 
-def test_runner_module_imports_without_ragas() -> None:
+def test_runner_module_imports_without_ragas(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Importing the runner must not require ragas to be installed."""
+
+    monkeypatch.setitem(sys.modules, "ragas", None)
+    monkeypatch.setitem(sys.modules, "datasets", None)
+    monkeypatch.setitem(sys.modules, "ragas.metrics", None)
+    sys.modules.pop("evals.ragas.run_ragas_eval", None)
 
     module = importlib.import_module("evals.ragas.run_ragas_eval")
 
@@ -119,6 +127,59 @@ def test_run_report_is_deterministic_and_lazy(
     assert "NO-GO" not in summary
 
 
+def test_run_report_uses_repo_relative_dataset_path(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The default in-repo dataset path must be rendered repo-relative."""
+
+    runner = importlib.import_module("evals.ragas.run_ragas_eval")
+
+    def _fake_evaluator(
+        rows: list[dict[str, object]],
+        metric_names: tuple[str, ...],
+    ) -> dict[str, float]:
+        assert rows
+        assert metric_names == runner.DEFAULT_RAGAS_METRICS
+        return {
+            "faithfulness": 0.84,
+            "answer_relevancy": 0.79,
+            "context_precision": 0.88,
+        }
+
+    monkeypatch.setattr(
+        runner,
+        "_load_ragas_dependencies",
+        lambda: (_ for _ in ()).throw(AssertionError("ragas import path should stay lazy")),
+    )
+
+    report = runner.run_report(runner.DEFAULT_DATASET_PATH, evaluator=_fake_evaluator)
+
+    assert report["dataset_path"].startswith("evals/ragas/")
+
+
+def test_run_report_rejects_conflicting_reference_fields(tmp_path: Path) -> None:
+    """Conflicting reference and ground_truth fields must fail validation."""
+
+    runner = importlib.import_module("evals.ragas.run_ragas_eval")
+    dataset_path = tmp_path / "conflict.jsonl"
+    dataset_path.write_text(
+        json.dumps(
+            {
+                "question": "How do I recover after an unplanned snack?",
+                "answer": "Return to the next planned meal.",
+                "contexts": ["A planned next meal reduces rebound restriction."],
+                "reference": "Return to the next planned meal.",
+                "ground_truth": "Skip the next meal entirely.",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="'reference' and 'ground_truth' must match"):
+        runner.load_dataset_rows(dataset_path)
+
+
 def test_run_report_fails_cleanly_on_partial_metric_payload(tmp_path: Path) -> None:
     """A partial metric payload must raise a controlled runner error."""
 
@@ -178,4 +239,21 @@ def test_extract_metric_scores_fails_cleanly_on_empty_score_rows() -> None:
         runner._extract_metric_scores(
             _Result(),
             ("faithfulness", "answer_relevancy", "context_precision"),
+        )
+
+
+def test_extract_metric_scores_fails_cleanly_on_invalid_metric_value() -> None:
+    """Invalid metric values must preserve the runner RuntimeError contract."""
+
+    runner = importlib.import_module("evals.ragas.run_ragas_eval")
+
+    with pytest.raises(RuntimeError, match="invalid score for faithfulness"):
+        runner._validate_metric_scores(
+            {
+                "faithfulness": object(),
+                "answer_relevancy": 0.79,
+                "context_precision": 0.88,
+            },
+            runner.DEFAULT_RAGAS_METRICS,
+            source="custom evaluator",
         )

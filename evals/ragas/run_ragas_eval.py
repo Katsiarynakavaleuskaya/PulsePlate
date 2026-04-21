@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import inspect
 import json
 import math
 import sys
@@ -15,11 +16,7 @@ from evals.ragas.metrics_config import DEFAULT_RAGAS_METRICS, REPORT_ONLY_MODE
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_DATASET_PATH = REPO_ROOT / "evals" / "ragas" / "testset.jsonl"
 
-REQUIRED_METRIC_NAMES: tuple[str, ...] = (
-    "faithfulness",
-    "answer_relevancy",
-    "context_precision",
-)
+REQUIRED_METRIC_NAMES: tuple[str, ...] = DEFAULT_RAGAS_METRICS
 
 
 MetricEvaluator = Callable[[list[dict[str, Any]], tuple[str, ...]], Mapping[str, float]]
@@ -122,19 +119,43 @@ def _normalize_row(raw_row: dict[str, Any], row_number: int) -> dict[str, Any]:
             f"Row {row_number}: one of 'reference' or 'ground_truth' is required.",
         )
 
-    reference_text = _normalize_string(
-        reference_value if reference_value is not None else ground_truth_value,
-        field_name="reference" if reference_value is not None else "ground_truth",
-        row_number=row_number,
+    reference_text = (
+        _normalize_string(
+            reference_value,
+            field_name="reference",
+            row_number=row_number,
+        )
+        if reference_value is not None
+        else None
     )
+    ground_truth_text = (
+        _normalize_string(
+            ground_truth_value,
+            field_name="ground_truth",
+            row_number=row_number,
+        )
+        if ground_truth_value is not None
+        else None
+    )
+    if reference_text is not None and ground_truth_text is not None:
+        if reference_text != ground_truth_text:
+            raise ValueError(
+                f"Row {row_number}: 'reference' and 'ground_truth' must match when both are provided.",
+            )
+
+    canonical_reference = reference_text if reference_text is not None else ground_truth_text
+    if canonical_reference is None:
+        raise ValueError(
+            f"Row {row_number}: one of 'reference' or 'ground_truth' is required.",
+        )
 
     return {
         "question": question,
         "answer": answer,
         "contexts": contexts,
-        "reference_text": reference_text,
-        "reference": reference_text,
-        "ground_truth": reference_text,
+        "reference_text": canonical_reference,
+        "reference": canonical_reference,
+        "ground_truth": canonical_reference,
     }
 
 
@@ -210,7 +231,11 @@ def _extract_metric_scores(
 
     if hasattr(result, "to_pandas"):
         frame = result.to_pandas()
-        aggregated = {name: float(frame[name].mean()) for name in metric_names if name in frame}
+        aggregated = {
+            name: _coerce_metric_score(frame[name].mean(), metric_name=name, source="pandas result")
+            for name in metric_names
+            if name in frame
+        }
         return _validate_metric_scores(aggregated, metric_names, source="pandas result")
 
     scores = getattr(result, "scores", None)
@@ -219,13 +244,27 @@ def _extract_metric_scores(
         if not rows:
             raise RuntimeError("Metric result from score rows is empty.")
         aggregated = {
-            name: float(mean(float(row[name]) for row in rows))
+            name: mean(
+                _coerce_metric_score(row[name], metric_name=name, source="score rows")
+                for row in rows
+            )
             for name in metric_names
             if all(name in row for row in rows)
         }
         return _validate_metric_scores(aggregated, metric_names, source="score rows")
 
     raise RuntimeError("Could not extract metric scores from the RAGAS result.")
+
+
+def _coerce_metric_score(value: Any, *, metric_name: str, source: str) -> float:
+    """RU: Безопасно привести metric score к float. EN: Coerce a metric score safely."""
+
+    try:
+        return float(value)
+    except (TypeError, ValueError) as exc:
+        raise RuntimeError(
+            f"Metric result from {source} contains an invalid score for {metric_name}.",
+        ) from exc
 
 
 def _validate_metric_scores(
@@ -245,7 +284,7 @@ def _validate_metric_scores(
 
     validated: dict[str, float] = {}
     for name in metric_names:
-        value = float(scores[name])
+        value = _coerce_metric_score(scores[name], metric_name=name, source=source)
         if not math.isfinite(value):
             raise RuntimeError(
                 f"Metric result from {source} contains a non-finite score for {name}.",
@@ -280,10 +319,14 @@ def evaluate_records(
     dataset = dataset_cls.from_list(ragas_rows)
     metrics = [metric_map[name] for name in metric_names]
 
+    evaluate_kwargs: dict[str, Any] = {"dataset": dataset, "metrics": metrics}
     try:
-        result = evaluate(dataset=dataset, metrics=metrics, show_progress=False)
-    except TypeError:
-        result = evaluate(dataset=dataset, metrics=metrics)
+        supports_show_progress = "show_progress" in inspect.signature(evaluate).parameters
+    except (TypeError, ValueError):
+        supports_show_progress = False
+    if supports_show_progress:
+        evaluate_kwargs["show_progress"] = False
+    result = evaluate(**evaluate_kwargs)
 
     return _extract_metric_scores(result, metric_names)
 
