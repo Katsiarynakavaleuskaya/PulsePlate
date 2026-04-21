@@ -6,6 +6,9 @@
 - It is intentionally subordinate to the canonical release-gates lane in
   `docs/evals/PULSEPLATE_RAG_RELEASE_GATES.md`.
 - It does not change runtime behavior, request-path logic, provider selection, or CI gate policy.
+- Explicit local judge wiring for RAGAS-native metrics is deferred. The current
+  bootstrap runner keeps the dataset local and report-only, but judge-provider
+  hardening stays under the existing release-gates follow-up umbrella.
 
 ## Boundary From Release-Gates
 - `scripts/evals/run_rag_release_gates.py` remains the canonical CI-friendly release-gates runner.

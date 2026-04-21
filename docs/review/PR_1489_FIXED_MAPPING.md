@@ -42,6 +42,28 @@ Evidence: `tests/evals/test_ragas_runner_contract.py:130-157`; `tests/test_remai
 Reason: The runner contract now explicitly covers repo-relative dataset-path rendering for the in-repo bootstrap fixture, and the smoke suite keeps `_display_path(...)` on the default dataset under coverage.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1489#discussion_r3120117339 -> b2e5d5c0a
 
+Disposition: DEFERRED
+Backlog: `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-rag-release-gates-lane`
+Reason: Explicit local judge wiring for RAGAS-native metrics is valid follow-up hardening, but adding a governed local judge stack or new dependency/config surface would widen this companion bootstrap lane beyond the approved scope. The setup doc now records that this hardening remains under the existing release-gates follow-up umbrella.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1489#discussion_r3120123611
+
+Disposition: NOT-A-BUG
+Evidence: `requirements-evals.txt:1-2`; `docs/evals/RAGAS_SETUP.md:65-80`
+Reason: This bootstrap lane intentionally keeps `requirements-evals.txt` as a minimal manual-install surface (`ragas`, `datasets`) and does not introduce a compiled or lockfile-backed eval dependency lane in this PR. Pinning/compiling eval extras would widen scope beyond the approved companion bootstrap contract.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1489#discussion_r3120123614
+
+Disposition: FIXED
+Commit: b2e5d5c0a
+Evidence: `evals/AGENTS.md:1-20`; `tests/evals/AGENTS.md:1-11`
+Reason: Scoped AGENTS authority is now correct: `evals/AGENTS.md` only governs the `evals/` subtree, and eval-test-specific rules moved into a dedicated descendant file under `tests/evals/`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1489#discussion_r3120142369 -> b2e5d5c0a
+
+Disposition: FIXED
+Commit: b2e5d5c0a
+Evidence: `evals/ragas/run_ragas_eval.py:232-293`; `tests/evals/test_ragas_runner_contract.py:245-259`; `tests/test_remaining_modules.py:372-383`
+Reason: Metric-score coercion now re-raises malformed values as controlled `RuntimeError` with metric/source context instead of leaking raw `TypeError` from `float(...)`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1489#discussion_r3120142373 -> b2e5d5c0a
+
 Disposition: FIXED
 Commit: b2e5d5c0a
 Evidence: `evals/ragas/run_ragas_eval.py:322-329`; `tests/test_remaining_modules.py:321-371`
@@ -49,7 +71,7 @@ Reason: `evaluate_records(...)` now uses an `inspect.signature(...)` capability 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1489#discussion_r3120142378 -> b2e5d5c0a
 
 Disposition: NOT-A-BUG
-Evidence: `requirements-evals.txt:1-2`; `docs/evals/RAGAS_SETUP.md:62-77`
+Evidence: `requirements-evals.txt:1-2`; `docs/evals/RAGAS_SETUP.md:65-80`
 Reason: This bootstrap lane intentionally keeps `requirements-evals.txt` as a minimal manual-install surface (`ragas`, `datasets`) and does not introduce a compiled or lockfile-backed eval dependency lane in this PR. Pinning/compiling eval extras would widen scope beyond the approved companion bootstrap contract.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1489#discussion_r3120142386
 
