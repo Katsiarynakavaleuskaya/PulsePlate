@@ -42,6 +42,12 @@ Reason: The follow-up CodeRabbit review shell is fully addressed: the dataset-pa
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1489#pullrequestreview-4150781157 -> ab540cd91
 
 Disposition: FIXED
+Commit: 29b1a61d0
+Evidence: `tests/evals/test_ragas_runner_contract.py:245-258`
+Reason: The runner-contract test name now matches the function under test, so the suite no longer advertises `_extract_metric_scores` while actually exercising `_validate_metric_scores`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1489#pullrequestreview-4150797713 -> 29b1a61d0
+
+Disposition: FIXED
 Commit: b2e5d5c0a
 Evidence: `evals/ragas/run_ragas_eval.py:115-159`; `tests/evals/test_ragas_runner_contract.py:160-180`; `docs/evals/RAGAS_SETUP.md:51-60`
 Reason: Dataset-row normalization now rejects conflicting `reference` / `ground_truth` values instead of silently preferring one field, and the companion setup doc now makes the same contract explicit.
