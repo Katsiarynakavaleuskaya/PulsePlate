@@ -114,7 +114,7 @@ Merge-readiness contract:
 - [ ] Required checks complete (no pending jobs)
 - [ ] All review threads resolved on GitHub after disposition updates
 - [ ] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
-- [x] Pre-commit green on latest pushed head
+- [ ] Pre-commit green on latest pushed head
   Evidence: local `pre-commit run --all-files` passed on the current remediation head, and the `git commit` hook passed for `b2e5d5c0a`
 - [ ] `make verify` green on latest pushed head
   Evidence: `verify-env`, `lint`, `typecheck`, and `test-fast` passed in the final local run; fresh `coverage.xml` plus manual `diff-cover` confirmed the diff gate after the long `diff-cov` coverage pass ended with external `Terminated: 15`, so a clean uninterrupted `make verify` rerun remains outstanding before any merge-ready claim

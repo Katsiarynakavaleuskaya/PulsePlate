@@ -108,9 +108,10 @@ def test_run_report_is_deterministic_and_lazy(
 
     report = runner.run_report(dataset_path, evaluator=_fake_evaluator)
     summary = runner.render_markdown_summary(report)
+    expected_dataset_path = dataset_path.resolve().as_posix()
 
     assert report == {
-        "dataset_path": str(dataset_path.resolve()),
+        "dataset_path": expected_dataset_path,
         "sample_count": 2,
         "report_only": True,
         "metrics": {
