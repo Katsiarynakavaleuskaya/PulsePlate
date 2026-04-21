@@ -5,24 +5,22 @@ from collections.abc import Callable
 from pathlib import Path
 
 import pytest
+import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-PRODUCTION_SHELL_COMPOSE_SNIPPET = """services:
-  app:
-    image: ${IMAGE_REF:?IMAGE_REF is required}
-  caddy:
-    build:
-      context: ../frontend
-      dockerfile: Dockerfile.caddy-spa
-      args:
-        VITE_API_BASE: ${VITE_API_BASE:-/api/v1}
-"""
+PRODUCTION_COMPOSE_PATH = REPO_ROOT / "deploy" / "docker-compose.production.yaml"
+PRODUCTION_COMPOSE_TEXT = PRODUCTION_COMPOSE_PATH.read_text(encoding="utf-8")
 
 
-def test_production_shell_bundle_fixture_matches_split_contract() -> None:
-    assert "image: ${IMAGE_REF:?IMAGE_REF is required}" in PRODUCTION_SHELL_COMPOSE_SNIPPET
-    assert "dockerfile: Dockerfile.caddy-spa" in PRODUCTION_SHELL_COMPOSE_SNIPPET
-    assert "postgres:" not in PRODUCTION_SHELL_COMPOSE_SNIPPET
+def test_production_compose_source_of_truth_matches_split_contract() -> None:
+    compose = yaml.safe_load(PRODUCTION_COMPOSE_TEXT)
+    services = compose["services"]
+
+    assert "postgres" not in services
+    assert services["app"]["image"] == "${IMAGE_REF:?IMAGE_REF is required}"
+    assert services["caddy"]["build"]["context"] == "../frontend"
+    assert services["caddy"]["build"]["dockerfile"] == "Dockerfile.caddy-spa"
+    assert services["caddy"]["build"]["args"]["VITE_API_BASE"] == "${VITE_API_BASE:-/api/v1}"
 
 
 def _write_executable(path: Path, content: str) -> None:
@@ -439,7 +437,7 @@ def test_deploy_production_syncs_shell_bundle_and_prunes_stale_shell_files(tmp_p
         encoding="utf-8",
     )
     (shell_bundle_dir / "deploy" / "docker-compose.production.yaml").write_text(
-        PRODUCTION_SHELL_COMPOSE_SNIPPET, encoding="utf-8"
+        PRODUCTION_COMPOSE_TEXT, encoding="utf-8"
     )
     (shell_bundle_dir / "scripts").mkdir()
     (shell_bundle_dir / "scripts" / "diagnose_web.sh").write_text(
@@ -504,7 +502,7 @@ printf 'curl %s\\n' "$*" >> "{log_file}"
     )
     assert (project_dir / "docker-compose.production.yaml").read_text(
         encoding="utf-8"
-    ) == PRODUCTION_SHELL_COMPOSE_SNIPPET
+    ) == PRODUCTION_COMPOSE_TEXT
     assert not (shell_root / "frontend" / "stale.txt").exists()
     assert (shell_root / "scripts" / "diagnose_web.sh").read_text(
         encoding="utf-8"
@@ -537,7 +535,7 @@ def test_deploy_production_syncs_shell_bundle_with_autodetected_compose_file(
         encoding="utf-8",
     )
     (shell_bundle_dir / "deploy" / "docker-compose.production.yaml").write_text(
-        PRODUCTION_SHELL_COMPOSE_SNIPPET, encoding="utf-8"
+        PRODUCTION_COMPOSE_TEXT, encoding="utf-8"
     )
     (shell_bundle_dir / "scripts").mkdir()
     (shell_bundle_dir / "scripts" / "diagnose_web.sh").write_text(
@@ -591,7 +589,7 @@ printf 'curl %s\\n' "$*" >> "{log_file}"
 
     assert (project_dir / "docker-compose.production.yaml").read_text(
         encoding="utf-8"
-    ) == PRODUCTION_SHELL_COMPOSE_SNIPPET
+    ) == PRODUCTION_COMPOSE_TEXT
     assert (shell_root / "scripts" / "diagnose_web.sh").read_text(
         encoding="utf-8"
     ) == "#!/usr/bin/env bash\nprintf 'bundle-diagnose\\n'\n"
@@ -1031,7 +1029,7 @@ def test_deploy_production_keeps_shell_bundle_untouched_when_migrations_fail(
         encoding="utf-8",
     )
     (shell_bundle_dir / "deploy" / "docker-compose.production.yaml").write_text(
-        PRODUCTION_SHELL_COMPOSE_SNIPPET, encoding="utf-8"
+        PRODUCTION_COMPOSE_TEXT, encoding="utf-8"
     )
     (shell_bundle_dir / "scripts").mkdir()
     (shell_bundle_dir / "scripts" / "diagnose_web.sh").write_text(

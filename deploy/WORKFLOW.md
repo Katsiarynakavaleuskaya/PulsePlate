@@ -316,13 +316,16 @@ bash scripts/diagnose_web.sh
    docker compose up -d --force-recreate app
    ```
 
-3. **Изменить `Caddyfile.production` в merged truth и пересинхронизировать shell bundle:**
+3. **Изменить `Caddyfile.production` через PR, затем пересинхронизировать весь shell bundle из merged truth:**
    ```bash
    # ✅ ПРАВИЛЬНО
+   # Сначала: merge PR с нужным изменением в deploy/Caddyfile.production
    git fetch origin main
    git switch --detach origin/main
-   $EDITOR deploy/Caddyfile.production
    scp deploy/Caddyfile.production ubuntu@64.226.117.163:/srv/pulseplate-production/Caddyfile.production
+   scp deploy/docker-compose.production.yaml ubuntu@64.226.117.163:/srv/pulseplate-production/docker-compose.production.yaml
+   rsync -az --delete frontend/ ubuntu@64.226.117.163:/srv/frontend/
+   scp scripts/diagnose_web.sh ubuntu@64.226.117.163:/srv/pulseplate-production/scripts/diagnose_web.sh
    scp scripts/redeploy_caddy.sh ubuntu@64.226.117.163:/srv/pulseplate-production/scripts/redeploy_caddy.sh
    ssh ubuntu@64.226.117.163 'cd /srv/pulseplate-production && bash scripts/redeploy_caddy.sh'
    ```
