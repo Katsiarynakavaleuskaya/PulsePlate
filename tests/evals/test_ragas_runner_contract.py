@@ -136,3 +136,46 @@ def test_run_report_fails_cleanly_on_partial_metric_payload(tmp_path: Path) -> N
 
     with pytest.raises(RuntimeError, match="missing required scores"):
         runner.run_report(dataset_path, evaluator=_partial_evaluator)
+
+
+def test_run_report_fails_cleanly_on_non_finite_metric_payload(tmp_path: Path) -> None:
+    """A non-finite metric payload must raise a controlled runner error."""
+
+    runner = importlib.import_module("evals.ragas.run_ragas_eval")
+    dataset_path = tmp_path / "testset.jsonl"
+    _write_dataset(dataset_path)
+
+    def _non_finite_evaluator(
+        rows: list[dict[str, object]],
+        metric_names: tuple[str, ...],
+    ) -> dict[str, float]:
+        assert rows
+        assert metric_names
+        return {
+            "faithfulness": float("nan"),
+            "answer_relevancy": 0.79,
+            "context_precision": 0.88,
+        }
+
+    with pytest.raises(RuntimeError, match="non-finite score"):
+        runner.run_report(dataset_path, evaluator=_non_finite_evaluator)
+
+
+def test_extract_metric_scores_fails_cleanly_on_empty_score_rows() -> None:
+    """An empty score table must raise a controlled runner error."""
+
+    runner = importlib.import_module("evals.ragas.run_ragas_eval")
+
+    class _EmptyScores:
+        @staticmethod
+        def to_list() -> list[dict[str, float]]:
+            return []
+
+    class _Result:
+        scores = _EmptyScores()
+
+    with pytest.raises(RuntimeError, match="score rows is empty"):
+        runner._extract_metric_scores(
+            _Result(),
+            ("faithfulness", "answer_relevancy", "context_precision"),
+        )

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import sys
 from pathlib import Path
 from statistics import mean
@@ -215,6 +216,8 @@ def _extract_metric_scores(
     scores = getattr(result, "scores", None)
     if scores is not None and hasattr(scores, "to_list"):
         rows = scores.to_list()
+        if not rows:
+            raise RuntimeError("Metric result from score rows is empty.")
         aggregated = {
             name: float(mean(float(row[name]) for row in rows))
             for name in metric_names
@@ -239,7 +242,16 @@ def _validate_metric_scores(
         raise RuntimeError(
             f"Metric result from {source} is missing required scores: {missing_text}.",
         )
-    return {name: float(scores[name]) for name in metric_names}
+
+    validated: dict[str, float] = {}
+    for name in metric_names:
+        value = float(scores[name])
+        if not math.isfinite(value):
+            raise RuntimeError(
+                f"Metric result from {source} contains a non-finite score for {name}.",
+            )
+        validated[name] = value
+    return validated
 
 
 def evaluate_records(
