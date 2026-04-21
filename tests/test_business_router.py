@@ -200,6 +200,122 @@ class TestBusinessRouterIsolated:
         assert exc_info.value.status_code == 403
         assert exc_info.value.detail == "Missing API Key"
 
+    def test_get_runtime_env_name_falls_back_to_app_env_and_local(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from app.routers import api_key as api_key_mod
+
+        monkeypatch.delenv("ENVIRONMENT", raising=False)
+        monkeypatch.setenv("APP_ENV", "qa")
+        assert api_key_mod._get_runtime_env_name() == "qa"
+
+        monkeypatch.delenv("APP_ENV", raising=False)
+        assert api_key_mod._get_runtime_env_name() == "local"
+
+    def test_get_runtime_env_name_prefers_environment_override(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from app.routers import api_key as api_key_mod
+
+        monkeypatch.setenv("APP_ENV", "qa")
+        monkeypatch.setenv("ENVIRONMENT", "review")
+
+        assert api_key_mod._get_runtime_env_name() == "review"
+
+    def test_validate_app_api_key_accepts_exact_configured_key(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from app.routers import api_key as api_key_mod
+
+        monkeypatch.setenv("API_KEY", "exact-key")
+        monkeypatch.setenv("APP_ENV", "production")
+        monkeypatch.delenv("ENVIRONMENT", raising=False)
+
+        assert api_key_mod.validate_app_api_key("exact-key") == "exact-key"
+
+    def test_validate_app_api_key_normalizes_dev_key(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from app.routers import api_key as api_key_mod
+
+        monkeypatch.setenv("APP_ENV", "development")
+        monkeypatch.delenv("ENVIRONMENT", raising=False)
+        monkeypatch.setenv("ALLOW_DEV_API_KEY", "true")
+        monkeypatch.setenv("ALLOW_DEV_API_KEY_NORMALIZE", "true")
+        monkeypatch.setenv("API_KEY", "test_key")
+
+        assert api_key_mod.validate_app_api_key("test-key") == "test_key"
+
+    def test_validate_app_api_key_rejects_required_but_unconfigured(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from app.routers import api_key as api_key_mod
+
+        monkeypatch.delenv("API_KEY", raising=False)
+        monkeypatch.setenv("API_KEY_REQUIRED", "true")
+        monkeypatch.setenv("APP_ENV", "development")
+        monkeypatch.delenv("ENVIRONMENT", raising=False)
+
+        with pytest.raises(HTTPException) as exc_info:
+            api_key_mod.validate_app_api_key("dev-key")
+
+        assert exc_info.value.status_code == 403
+        assert exc_info.value.detail == "API key required but not configured"
+
+    def test_validate_app_api_key_rejects_without_dev_mode_when_unconfigured(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from app.routers import api_key as api_key_mod
+
+        monkeypatch.delenv("API_KEY", raising=False)
+        monkeypatch.delenv("API_KEY_REQUIRED", raising=False)
+        monkeypatch.setenv("APP_ENV", "production")
+        monkeypatch.delenv("ENVIRONMENT", raising=False)
+
+        with pytest.raises(HTTPException) as exc_info:
+            api_key_mod.validate_app_api_key("prod-key")
+
+        assert exc_info.value.status_code == 403
+        assert exc_info.value.detail == "API key required but not configured"
+
+    def test_validate_app_api_key_rejects_wrong_configured_key(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from app.routers import api_key as api_key_mod
+
+        monkeypatch.setenv("API_KEY", "expected-key")
+        monkeypatch.setenv("APP_ENV", "production")
+        monkeypatch.delenv("ENVIRONMENT", raising=False)
+        monkeypatch.delenv("ALLOW_DEV_API_KEY_NORMALIZE", raising=False)
+
+        with pytest.raises(HTTPException) as exc_info:
+            api_key_mod.validate_app_api_key("wrong-key")
+
+        assert exc_info.value.status_code == 403
+        assert exc_info.value.detail == "Invalid API Key"
+
+    def test_validate_app_api_key_dev_fallback_token_rules(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from app.routers import api_key as api_key_mod
+
+        monkeypatch.delenv("API_KEY", raising=False)
+        monkeypatch.delenv("API_KEY_REQUIRED", raising=False)
+        monkeypatch.setenv("APP_ENV", "development")
+        monkeypatch.delenv("ENVIRONMENT", raising=False)
+        monkeypatch.setenv("ALLOW_DEV_API_KEY", "true")
+
+        with pytest.raises(HTTPException) as missing_exc:
+            api_key_mod.validate_app_api_key(None)
+
+        assert missing_exc.value.status_code == 403
+        assert missing_exc.value.detail == "Missing API Key"
+
+        with pytest.raises(HTTPException) as invalid_exc:
+            api_key_mod.validate_app_api_key("bad")
+
+        assert invalid_exc.value.status_code == 403
+        assert invalid_exc.value.detail == "Invalid API Key"
+        assert api_key_mod.validate_app_api_key("dev_key") == "dev_key"
+
     def test_analyze_503_when_module_disabled(self, monkeypatch: pytest.MonkeyPatch) -> None:
         self._auth_ok()
         monkeypatch.setattr(self.mod, "BUSINESS_MODULE_ENABLED", False)
