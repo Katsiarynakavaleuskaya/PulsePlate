@@ -44,25 +44,27 @@ Merge-readiness contract:
 `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md:153-216`.
 
 - [ ] Current-head CI is green for PR branch head
-  Evidence: pending branch-head workflow results after draft PR open and manual
-  nightly dispatch.
+  Evidence: current-head `CI` run `24726549478` is still in progress on branch
+  head `4897c1fe4`; `security` and `OpenAPI sync` are now green, while
+  `lint` and `test-pr (3.13)` remain in flight.
 - [ ] Required checks complete (no pending jobs)
-  Evidence: pending `check_merge_ready.py --require-auth` pass after branch-head
-  CI completes.
+  Evidence: required current-head jobs are still pending, so the final
+  `check_merge_ready.py --require-auth` pass cannot be claimed yet.
 - [ ] All review threads resolved on GitHub after disposition updates
-  Evidence: the remaining unresolved CodeRabbit packet thread
-  `#discussion_r3117790513` is now dispositioned in this artifact and can be
-  resolved on GitHub after the follow-up docs commit is pushed.
+  Evidence: the earlier packet thread `#discussion_r3117790513` has already
+  been resolved, but the latest CodeRabbit artifact comment
+  `#discussion_r3117975560` still needs final disposition handling on the next
+  follow-up head.
 - [ ] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
-  Evidence: the latest actionable `sourcery-ai` review
-  `#pullrequestreview-4148025010` is mapped to `661e88b2b`, but external bot
-  runs (`CodeRabbit`, `cubic`) are still pending on the current head and can
-  still emit new actionables before the final merge cycle.
-- [x] Pre-commit green on validated remediation head
+  Evidence: `sourcery-ai` and the earlier CodeRabbit findings are mapped, but
+  the newest CodeRabbit review `#pullrequestreview-4148257999` /
+  `#discussion_r3117975560` is still actionable on this head, and `cubic`
+  remains `action_required` until its status is classified.
+- [ ] Pre-commit green on validated remediation head
   Evidence: local `pre-commit run --all-files` passed before pushing the
   code-bearing remediation head `2b6e65b77`; later heads are governance-only
   follow-through.
-- [x] `make verify` green on validated remediation head
+- [ ] `make verify` green on validated remediation head
   Evidence: local `make verify` passed end-to-end on code-bearing remediation
   head `2b6e65b77`; later heads are governance-only follow-through.
 
