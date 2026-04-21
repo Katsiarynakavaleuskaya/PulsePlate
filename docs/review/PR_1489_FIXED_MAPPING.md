@@ -36,6 +36,12 @@ Reason: This follow-up CodeRabbit review shell contains a single minor inline fi
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1489#pullrequestreview-4150726499
 
 Disposition: FIXED
+Commit: ab540cd91
+Evidence: `tests/test_remaining_modules.py:152-169`; `tests/test_remaining_modules.py:301-334`; `tests/test_remaining_modules.py:726-729`
+Reason: The follow-up CodeRabbit review shell is fully addressed: the dataset-path assertion now uses a normalized POSIX path, the fake dataset capture uses closure-local state instead of a mutable class attribute, and the helper variable name is now `id_val` to match PEP 8.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1489#pullrequestreview-4150781157 -> ab540cd91
+
+Disposition: FIXED
 Commit: b2e5d5c0a
 Evidence: `evals/ragas/run_ragas_eval.py:115-159`; `tests/evals/test_ragas_runner_contract.py:160-180`; `docs/evals/RAGAS_SETUP.md:51-60`
 Reason: Dataset-row normalization now rejects conflicting `reference` / `ground_truth` values instead of silently preferring one field, and the companion setup doc now makes the same contract explicit.
