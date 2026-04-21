@@ -6,15 +6,15 @@ Canonical review-governance artifact and PR-body mirror requirements:
 `AGENTS.md:42-52`; `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md:41-90`;
 `docs/orchestration/AGENTS.md:79-82`.
 
-- [x] Discussion-thread pass initialized
-- [x] Fixed in commit mapping initialized
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 
 This artifact is created immediately after the PR is opened per repo governance.
 Record every actionable human/bot disposition here before resolving threads on GitHub.
 
 ## Fixed in Commit Mapping
 
-No actionable review threads yet.
+- No actionable review comments
 
 ## Merge Readiness
 
