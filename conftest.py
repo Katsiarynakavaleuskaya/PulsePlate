@@ -52,7 +52,6 @@ def pytest_configure(config: pytest.Config) -> None:
     os.environ.setdefault("APP_ENV", "test")
     os.environ.setdefault("ENVIRONMENT", "test")
     os.environ.setdefault("TESTING", "true")  # Enable export endpoints
-    os.environ.setdefault("METRICS_TEST_BYPASS", "true")
     os.environ.setdefault("FEATURE_PREMIUM_NUTRITION", "true")
     os.environ.setdefault("VIP_MODULE_ENABLED", "true")
     os.environ.setdefault("ALLOW_DEV_API_KEY", "true")

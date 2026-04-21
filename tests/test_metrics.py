@@ -19,9 +19,24 @@ from app.bootstrap.metrics import register_metrics
 
 
 @pytest.fixture(autouse=True)
-def _enable_metrics_test_bypass(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Keep the historic `/metrics` happy path available in pytest by default."""
-    monkeypatch.setenv("METRICS_TEST_BYPASS", "true")
+def _enable_metrics_client_auth(
+    request: pytest.FixtureRequest,
+) -> None:
+    """Exercise `/metrics` happy paths through the real auth dependency."""
+    if "client" not in request.fixturenames:
+        return
+    client = request.getfixturevalue("client")
+    client.headers["X-API-Key"] = "test_key"
+
+
+def _configure_metrics_auth_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Set deterministic auth env for guarded `/metrics` route tests."""
+    monkeypatch.setenv("TESTING", "false")
+    monkeypatch.setenv("METRICS_TEST_BYPASS", "false")
+    monkeypatch.setenv("APP_ENV", "production")
+    monkeypatch.setenv("ALLOW_DEV_API_KEY", "false")
+    monkeypatch.setenv("API_KEY", "test_key")
+    monkeypatch.setenv("API_KEY_REQUIRED", "true")
 
 
 def _get_metrics_get_routes(app_instance: FastAPI) -> list[object]:
@@ -253,6 +268,7 @@ def test_metrics_json_fallback_when_exporter_raises(
 
 def test_register_metrics_adds_route_after_stack_is_built() -> None:
     """Late bootstrap must still restore /metrics without mutating middleware."""
+    from starlette.testclient import TestClient as RawTestClient
 
     app_instance = FastAPI()
 
@@ -260,7 +276,7 @@ def test_register_metrics_adds_route_after_stack_is_built() -> None:
     def root() -> dict[str, str]:
         return {"status": "ok"}
 
-    with TestClient(app_instance) as client:
+    with RawTestClient(app_instance) as client:
         response = client.get("/")
         assert response.status_code == 200
 
@@ -274,7 +290,8 @@ def test_register_metrics_adds_route_after_stack_is_built() -> None:
     assert len(_get_metrics_get_routes(app_instance)) == 1
     assert len(getattr(app_instance, "user_middleware", [])) == before_user_middleware
 
-    with TestClient(app_instance) as client:
+    with RawTestClient(app_instance) as client:
+        client.headers["X-API-Key"] = "test_key"
         metrics_response = client.get("/metrics")
 
     assert metrics_response.status_code == 200
@@ -293,11 +310,13 @@ def test_register_metrics_is_idempotent_for_route_registration() -> None:
 
 def test_register_metrics_is_idempotent_after_stack_is_built() -> None:
     """Repeated late bootstrap must not duplicate the /metrics route."""
+    from starlette.testclient import TestClient as RawTestClient
 
     app_instance = FastAPI()
     register_metrics(app_instance)
 
-    with TestClient(app_instance) as client:
+    with RawTestClient(app_instance) as client:
+        client.headers["X-API-Key"] = "test_key"
         metrics_response = client.get("/metrics")
         assert metrics_response.status_code == 200
 
@@ -737,12 +756,9 @@ def test_metrics_guard_requires_api_key_outside_testing(
     """/metrics guard delegates to the shared API key guard outside test bypass."""
     from app.bootstrap import metrics as metrics_bootstrap
 
-    monkeypatch.setenv("METRICS_TEST_BYPASS", "false")
-    monkeypatch.setattr(
-        "legacy_app._get_api_key_dynamic", lambda raw_api_key: f"prod:{raw_api_key}"
-    )
+    _configure_metrics_auth_env(monkeypatch)
 
-    assert metrics_bootstrap._metrics_api_key_guard("raw-prod-key") == "prod:raw-prod-key"
+    assert metrics_bootstrap._metrics_api_key_guard("test_key") == "test_key"
 
 
 def test_metrics_guard_bypasses_in_testing(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -750,6 +766,8 @@ def test_metrics_guard_bypasses_in_testing(monkeypatch: pytest.MonkeyPatch) -> N
     from app.bootstrap import metrics as metrics_bootstrap
 
     monkeypatch.setenv("METRICS_TEST_BYPASS", "true")
+    monkeypatch.setenv("TESTING", "true")
+    monkeypatch.setenv("APP_ENV", "test")
 
     assert metrics_bootstrap._metrics_api_key_guard(None) == "testing-bypass"
 
@@ -761,17 +779,32 @@ def test_metrics_guard_ignores_bypass_outside_pytest(
     """/metrics guard ignores leaked bypass env outside pytest-scoped execution."""
     from app.bootstrap import metrics as metrics_bootstrap
 
+    _configure_metrics_auth_env(monkeypatch)
     monkeypatch.setenv("METRICS_TEST_BYPASS", "true")
     monkeypatch.delenv("PYTEST_CURRENT_TEST", raising=False)
-    monkeypatch.setattr(
-        "legacy_app._get_api_key_dynamic", lambda raw_api_key: f"prod:{raw_api_key}"
-    )
 
-    with caplog.at_level("WARNING"):
-        result = metrics_bootstrap._metrics_api_key_guard("raw-prod-key")
+    with caplog.at_level("WARNING", logger="app.bootstrap.metrics"):
+        result = metrics_bootstrap._metrics_api_key_guard("test_key")
 
-    assert result == "prod:raw-prod-key"
-    assert "METRICS_TEST_BYPASS ignored outside pytest-scoped execution" in caplog.text
+    assert result == "test_key"
+    assert "METRICS_TEST_BYPASS ignored outside explicit pytest test env" in caplog.text
+
+
+def test_metrics_guard_ignores_bypass_outside_test_env(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """/metrics bypass must not activate in production-like envs even under pytest."""
+    from app.bootstrap import metrics as metrics_bootstrap
+
+    _configure_metrics_auth_env(monkeypatch)
+    monkeypatch.setenv("METRICS_TEST_BYPASS", "true")
+
+    with caplog.at_level("WARNING", logger="app.bootstrap.metrics"):
+        result = metrics_bootstrap._metrics_api_key_guard("test_key")
+
+    assert result == "test_key"
+    assert "METRICS_TEST_BYPASS ignored outside explicit pytest test env" in caplog.text
 
 
 def test_metrics_http_guard_rejects_missing_api_key_when_bypass_disabled(
@@ -779,12 +812,8 @@ def test_metrics_http_guard_rejects_missing_api_key_when_bypass_disabled(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """/metrics must reject requests without an API key when bypass is disabled."""
-    monkeypatch.setenv("TESTING", "false")
-    monkeypatch.setenv("METRICS_TEST_BYPASS", "false")
-    monkeypatch.setenv("APP_ENV", "production")
-    monkeypatch.setenv("ALLOW_DEV_API_KEY", "false")
-    monkeypatch.setenv("API_KEY", "test_key")
-    monkeypatch.setenv("API_KEY_REQUIRED", "true")
+    _configure_metrics_auth_env(monkeypatch)
+    client.headers.pop("X-API-Key", None)
 
     response = client.get("/metrics")
 
@@ -797,12 +826,7 @@ def test_metrics_http_guard_allows_valid_api_key_when_bypass_disabled(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """/metrics must keep Prometheus happy path with a valid API key."""
-    monkeypatch.setenv("TESTING", "false")
-    monkeypatch.setenv("METRICS_TEST_BYPASS", "false")
-    monkeypatch.setenv("APP_ENV", "production")
-    monkeypatch.setenv("ALLOW_DEV_API_KEY", "false")
-    monkeypatch.setenv("API_KEY", "test_key")
-    monkeypatch.setenv("API_KEY_REQUIRED", "true")
+    _configure_metrics_auth_env(monkeypatch)
 
     response = client.get("/metrics", headers={"X-API-Key": "test_key"})
 
@@ -815,12 +839,7 @@ def test_metrics_http_guard_rejects_wrong_api_key_when_bypass_disabled(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """/metrics must reject an incorrect API key when bypass is disabled."""
-    monkeypatch.setenv("TESTING", "false")
-    monkeypatch.setenv("METRICS_TEST_BYPASS", "false")
-    monkeypatch.setenv("APP_ENV", "production")
-    monkeypatch.setenv("ALLOW_DEV_API_KEY", "false")
-    monkeypatch.setenv("API_KEY", "test_key")
-    monkeypatch.setenv("API_KEY_REQUIRED", "true")
+    _configure_metrics_auth_env(monkeypatch)
 
     response = client.get("/metrics", headers={"X-API-Key": "wrong"})
 

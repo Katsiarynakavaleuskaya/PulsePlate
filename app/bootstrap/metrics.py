@@ -20,7 +20,7 @@ from fastapi.responses import JSONResponse, Response
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.middleware.metrics import metrics_middleware
-from app.routers.api_key import api_key_header
+from app.routers.api_key import api_key_header, validate_app_api_key
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +28,7 @@ _Importer = Callable[[str], ModuleType]
 _STATE_REGISTRATION_KEY = "pulseplate_metrics_registered"
 _METRICS_TEST_BYPASS_ENV = "METRICS_TEST_BYPASS"
 _PYTEST_CURRENT_TEST_ENV = "PYTEST_CURRENT_TEST"
+_TEST_ENV_NAMES = frozenset({"test", "testing", "ci"})
 
 
 def _import_prometheus_client(importer: _Importer = import_module) -> ModuleType:
@@ -56,15 +57,18 @@ def _metrics_api_key_guard(raw_api_key: str | None = Security(api_key_header)) -
     """
     bypass_enabled = os.getenv(_METRICS_TEST_BYPASS_ENV, "").lower() == "true"
     in_pytest = os.getenv(_PYTEST_CURRENT_TEST_ENV) is not None
+    runtime_env = (os.getenv("APP_ENV") or os.getenv("ENVIRONMENT") or "").strip().lower()
+    in_test_env = os.getenv("TESTING", "").lower() == "true" or runtime_env in _TEST_ENV_NAMES
 
-    if bypass_enabled and in_pytest:
+    if bypass_enabled and in_pytest and in_test_env:
         return "testing-bypass"
-    if bypass_enabled and not in_pytest:
-        logger.warning("%s ignored outside pytest-scoped execution", _METRICS_TEST_BYPASS_ENV)
+    if bypass_enabled and (not in_pytest or not in_test_env):
+        logger.warning(
+            "%s ignored outside explicit pytest test env",
+            _METRICS_TEST_BYPASS_ENV,
+        )
 
-    from legacy_app import _get_api_key_dynamic
-
-    validated_api_key: str = _get_api_key_dynamic(raw_api_key or "")
+    validated_api_key = validate_app_api_key(raw_api_key)
     return validated_api_key
 
 
