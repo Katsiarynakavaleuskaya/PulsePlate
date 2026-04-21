@@ -47,7 +47,7 @@ def test_runner_module_imports_without_ragas(
     monkeypatch.setitem(sys.modules, "ragas", None)
     monkeypatch.setitem(sys.modules, "datasets", None)
     monkeypatch.setitem(sys.modules, "ragas.metrics", None)
-    sys.modules.pop("evals.ragas.run_ragas_eval", None)
+    monkeypatch.delitem(sys.modules, "evals.ragas.run_ragas_eval", raising=False)
 
     module = importlib.import_module("evals.ragas.run_ragas_eval")
 
