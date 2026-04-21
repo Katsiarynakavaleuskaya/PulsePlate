@@ -292,7 +292,7 @@ class TestBusinessRouterIsolated:
         assert exc_info.value.status_code == 403
         assert exc_info.value.detail == "Invalid API Key"
 
-    def test_validate_app_api_key_dev_fallback_token_rules(
+    def test_validate_app_api_key_dev_mode_still_fails_closed_without_configured_key(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         from app.routers import api_key as api_key_mod
@@ -307,14 +307,19 @@ class TestBusinessRouterIsolated:
             api_key_mod.validate_app_api_key(None)
 
         assert missing_exc.value.status_code == 403
-        assert missing_exc.value.detail == "Missing API Key"
+        assert missing_exc.value.detail == "API key required but not configured"
 
         with pytest.raises(HTTPException) as invalid_exc:
             api_key_mod.validate_app_api_key("bad")
 
         assert invalid_exc.value.status_code == 403
-        assert invalid_exc.value.detail == "Invalid API Key"
-        assert api_key_mod.validate_app_api_key("dev_key") == "dev_key"
+        assert invalid_exc.value.detail == "API key required but not configured"
+
+        with pytest.raises(HTTPException) as present_but_unconfigured_exc:
+            api_key_mod.validate_app_api_key("dev_key")
+
+        assert present_but_unconfigured_exc.value.status_code == 403
+        assert present_but_unconfigured_exc.value.detail == "API key required but not configured"
 
     def test_analyze_503_when_module_disabled(self, monkeypatch: pytest.MonkeyPatch) -> None:
         self._auth_ok()

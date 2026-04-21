@@ -63,16 +63,7 @@ def validate_app_api_key(api_key: str | None) -> str:
     if _is_truthy(os.getenv("API_KEY_REQUIRED")):
         raise HTTPException(status_code=403, detail="API key required but not configured")
 
-    if not dev_mode:
-        raise HTTPException(status_code=403, detail="API key required but not configured")
-
-    if not api_key_value:
-        raise HTTPException(status_code=403, detail="Missing API Key")
-    token = api_key_value.strip()
-    forbidden_tokens = {"invalid", "invalid_key", "wrong", "bad", "null"}
-    if len(token) < 4 or token.lower() in forbidden_tokens:
-        raise HTTPException(status_code=403, detail="Invalid API Key")
-    return token
+    raise HTTPException(status_code=403, detail="API key required but not configured")
 
 
 def require_app_api_key(api_key: str | None = Depends(api_key_header)) -> str:
