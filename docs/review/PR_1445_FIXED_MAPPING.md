@@ -74,6 +74,11 @@ Commit: be2c68076
 Evidence: `app/routers/api_key.py:51-66`; `tests/test_business_router.py:247-322`
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1445#discussion_r3120330101 -> be2c68076
 
+Disposition: FIXED
+Commit: be2c68076
+Evidence: `app/bootstrap/metrics.py:151-156`; `app/routers/api_key.py:51-66`; `tests/test_business_router.py:247-322`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1445#pullrequestreview-4150798034 -> be2c68076
+
 ## Merge Readiness
 
 Merge-readiness contract:
