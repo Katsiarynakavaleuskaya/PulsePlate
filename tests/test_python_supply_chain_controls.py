@@ -455,6 +455,9 @@ def test_rag_vector_dependency_profile_contains_extracted_vector_ml_stack() -> N
 
 
 def test_production_target_docker_workflows_use_runtime_requirements_profile() -> None:
+    cd_workflow = yaml.safe_load(
+        (REPO_ROOT / ".github" / "workflows" / "cd.yml").read_text(encoding="utf-8")
+    )
     docker_image_workflow = yaml.safe_load(
         (REPO_ROOT / ".github" / "workflows" / "docker-image.yml").read_text(encoding="utf-8")
     )
@@ -489,6 +492,12 @@ def test_production_target_docker_workflows_use_runtime_requirements_profile() -
     publish_build_args = _build_args_for_step(
         build_workflow, "publish", "Build and push Docker image"
     )
+    cd_staging_build_args = _build_args_for_step(
+        cd_workflow, "build", "Build & Push image (staging)"
+    )
+    cd_production_build_args = _build_args_for_step(
+        cd_workflow, "build-production", "Build & Push image (production)"
+    )
     trivy_build_args = _build_args_for_step(
         trivy_workflow, "build", "Build Docker image (production target)"
     )
@@ -498,6 +507,8 @@ def test_production_target_docker_workflows_use_runtime_requirements_profile() -
     assert expected_arg in docker_smoke_build_args
     assert expected_arg in local_build_args
     assert expected_arg in publish_build_args
+    assert expected_arg in cd_staging_build_args
+    assert expected_arg in cd_production_build_args
     assert expected_arg in trivy_build_args
 
 

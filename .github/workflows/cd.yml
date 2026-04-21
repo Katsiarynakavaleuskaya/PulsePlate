@@ -91,6 +91,7 @@ jobs:
           build-args: |
             PULSEPLATE_PYTHON_INDEX_URL=${{ env.PULSEPLATE_PYTHON_INDEX_URL }}
             PULSEPLATE_PYTHON_TRUSTED_HOST=${{ env.PULSEPLATE_PYTHON_TRUSTED_HOST }}
+            PULSEPLATE_REQUIREMENTS_FILE=requirements-docker-runtime.txt
           # Single-arch for cache/push stability. Restore linux/arm64 when
           # buildx + GHA cache/provenance path is stable again.
           platforms: linux/amd64
@@ -289,6 +290,7 @@ jobs:
           build-args: |
             PULSEPLATE_PYTHON_INDEX_URL=${{ env.PULSEPLATE_PYTHON_INDEX_URL }}
             PULSEPLATE_PYTHON_TRUSTED_HOST=${{ env.PULSEPLATE_PYTHON_TRUSTED_HOST }}
+            PULSEPLATE_REQUIREMENTS_FILE=requirements-docker-runtime.txt
           # Single-arch for cache/push stability. Restore linux/arm64 when
           # buildx + GHA cache/provenance path is stable again.
           platforms: linux/amd64
