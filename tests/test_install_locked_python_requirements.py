@@ -29,8 +29,9 @@ def _exact_requirement_pairs(contents: str) -> set[tuple[str, str]]:
         line = raw_line.split("#", 1)[0].strip()
         if not line or "==" not in line:
             continue
-        package, version = line.split("==", 1)
-        pairs.add((package.strip(), version.strip()))
+        package, version_and_markers = line.split("==", 1)
+        version = version_and_markers.split(";", 1)[0].strip()
+        pairs.add((package.strip(), version))
     return pairs
 
 
@@ -113,6 +114,12 @@ def test_compatible_release_version_accepts_environment_markers() -> None:
     contents = 'ruff~=0.15.11 ; python_version >= "3.13"\n'
 
     assert _compatible_release_version(contents, "ruff") == "0.15.11"
+
+
+def test_exact_requirement_pairs_ignores_environment_markers() -> None:
+    contents = 'ruff==0.15.11 ; python_version >= "3.13"\n'
+
+    assert ("ruff", "0.15.11") in _exact_requirement_pairs(contents)
 
 
 @pytest.fixture(autouse=True)
