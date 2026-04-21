@@ -17,6 +17,9 @@ drops the stale dependency/docs carryover drift from the old branch head.
 Follow-up test-harness commit `dea9de69a` keeps legacy pytest `/metrics` probes
 on the real auth path by auto-injecting the deterministic test API key instead
 of relying on a global bypass.
+Follow-up security-hardening commit `be2c68076` removes the weak developer-mode
+fallback in `validate_app_api_key(...)` so `/metrics` fails closed when
+`API_KEY` is unset outside the explicit pytest-scoped bypass path.
 
 ## Fixed in Commit Mapping
 
@@ -65,6 +68,11 @@ Evidence: `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1445#discus
 Reason: These bot review bodies are summary wrappers for the stale-artifact and stale-audit-anchor issues dispositioned immediately above.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1445#pullrequestreview-4136491644
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1445#pullrequestreview-4141527107
+
+Disposition: FIXED
+Commit: be2c68076
+Evidence: `app/routers/api_key.py:51-66`; `tests/test_business_router.py:247-322`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1445#discussion_r3120330101 -> be2c68076
 
 ## Merge Readiness
 
