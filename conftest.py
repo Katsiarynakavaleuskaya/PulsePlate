@@ -58,6 +58,13 @@ def pytest_configure(config: pytest.Config) -> None:
     os.environ.setdefault("PYTHONPATH", ".:core:app:tests")
     os.environ.setdefault("CLIENT_FINGERPRINT_SALT", "test-salt-for-ci-only-not-for-production")
 
+    # Ensure all pytest-imported FastAPI TestClient instances inherit the canonical
+    # /metrics test-auth behavior before test modules import TestClient symbols.
+    import fastapi.testclient as fastapi_testclient
+    from tests._client import MetricsAwareTestClient
+
+    fastapi_testclient.TestClient = MetricsAwareTestClient
+
     # Configure test database path BEFORE core.db is imported
     # This ensures DATABASE_URL is set before any SQLAlchemy initialization
     db_path_env = os.environ.get("TEST_DB_PATH", "cache/test_app.sqlite")

@@ -9,6 +9,7 @@ from __future__ import annotations
 import inspect
 import os
 from typing import Any
+from urllib.parse import urlparse
 
 from fastapi import FastAPI
 from fastapi.routing import APIRoute
@@ -127,6 +128,31 @@ def override_rate_limit_identity_for_test_app(
             )
 
 
+class MetricsAwareTestClient(TestClient):
+    """TestClient that auto-adds the test API key for implicit `/metrics` probes."""
+
+    auto_metrics_api_key = True
+
+    def request(self, method: str, url: str | object, *args: Any, **kwargs: Any):  # type: ignore[override]
+        headers = dict(kwargs.get("headers") or {})
+        path = urlparse(str(url)).path or str(url)
+        has_explicit_api_key = any(key.lower() == "x-api-key" for key in headers)
+        if (
+            getattr(self, "auto_metrics_api_key", True)
+            and path == "/metrics"
+            and not has_explicit_api_key
+        ):
+            headers["X-API-Key"] = os.getenv("API_KEY", "test_key")
+            kwargs["headers"] = headers
+        return super().request(method, url, *args, **kwargs)
+
+
+def make_test_client(app_instance: FastAPI, **kwargs: Any) -> MetricsAwareTestClient:
+    """Create the canonical metrics-aware test client."""
+
+    return MetricsAwareTestClient(app_instance, **kwargs)
+
+
 def get_client(**kwargs: Any) -> TestClient:
     """Create TestClient with canonical entrypoint (app.main:app).
 
@@ -154,4 +180,4 @@ def get_client(**kwargs: Any) -> TestClient:
     import app.main
 
     disable_rate_limiting_for_test_app(app.main.app)
-    return TestClient(app.main.app, **kwargs)
+    return make_test_client(app.main.app, **kwargs)

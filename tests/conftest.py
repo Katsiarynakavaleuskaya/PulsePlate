@@ -23,6 +23,7 @@ from sqlalchemy.exc import OperationalError, ProgrammingError, UnboundExecutionE
 
 import core.recipe_synth as recipe_synth
 from core.test_guards import EXTERNAL_HTTP_BLOCKED_IN_TESTS_MESSAGE
+from tests._client import make_test_client
 from tests._client import disable_rate_limiting_for_test_app
 
 # ============================================================================
@@ -512,7 +513,7 @@ def client(app: FastAPI) -> Generator[TestClient, None, None]:
     Using TestClient as a context manager ensures lifespan startup/shutdown runs
     deterministically and prevents leaking background threads across tests.
     """
-    with TestClient(app) as test_client:
+    with make_test_client(app) as test_client:
         yield test_client
 
 

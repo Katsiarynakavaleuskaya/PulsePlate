@@ -813,6 +813,7 @@ def test_metrics_http_guard_rejects_missing_api_key_when_bypass_disabled(
 ) -> None:
     """/metrics must reject requests without an API key when bypass is disabled."""
     _configure_metrics_auth_env(monkeypatch)
+    client.auto_metrics_api_key = False
     client.headers.pop("X-API-Key", None)
 
     response = client.get("/metrics")
@@ -840,6 +841,7 @@ def test_metrics_http_guard_rejects_wrong_api_key_when_bypass_disabled(
 ) -> None:
     """/metrics must reject an incorrect API key when bypass is disabled."""
     _configure_metrics_auth_env(monkeypatch)
+    client.auto_metrics_api_key = False
 
     response = client.get("/metrics", headers={"X-API-Key": "wrong"})
 

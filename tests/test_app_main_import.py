@@ -35,6 +35,7 @@ def test_app_main_late_import_restores_metrics_route() -> None:
         main_module = importlib.import_module("app.main")
 
         with TestClient(main_module.app) as client:
+            client.headers["X-API-Key"] = "test_key"
             metrics_response = client.get("/metrics")
             assert metrics_response.status_code == 200
         """)
