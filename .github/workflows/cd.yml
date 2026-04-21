@@ -463,7 +463,12 @@ jobs:
           bundle_dir="$(mktemp -d)"
           bundle_name="pulseplate-shell-bundle-${{ github.run_id }}-${{ github.run_attempt }}"
           archive_path="$bundle_dir/${bundle_name}.tgz"
-          tar -czf "$archive_path" frontend deploy/Caddyfile.production scripts/diagnose_web.sh
+          tar -czf "$archive_path" \
+            frontend \
+            deploy/Caddyfile.production \
+            deploy/docker-compose.production.yaml \
+            scripts/diagnose_web.sh \
+            scripts/redeploy_caddy.sh
 
           scp -i "$key_path" \
             "$archive_path" \
@@ -535,6 +540,7 @@ jobs:
           set -euo pipefail
           export DEPLOY_DIR='${{ vars.DEPLOY_DIR }}'
           export PRODUCTION_DOMAIN='${{ secrets.PRODUCTION_DOMAIN }}'
+          export SHELL_BUNDLE_DIR="${GITHUB_WORKSPACE}"
           bash scripts/deploy_production.sh --preflight-only
 
       - name: Deploy on self-hosted runner (pinned digest)

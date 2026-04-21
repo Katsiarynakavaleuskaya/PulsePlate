@@ -1,3 +1,10 @@
+# Optional staging runtime only. The canonical split deploy contract lives in
+# `deploy/docker-compose.production.yaml` and
+# `deploy/docker-compose.production.selfhosted.yaml`.
+# This file remains a temporary staging seam while the fallback-vhost / staging
+# deploy-enablement work tracked in
+# `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-remove-staging-tls-fallback-seam-after-full-staging-readiness`
+# is still open.
 version: "3.9"
 
 networks:
