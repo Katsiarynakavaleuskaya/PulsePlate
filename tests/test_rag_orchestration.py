@@ -19,12 +19,14 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from core.knowledge.policy import KnowledgePolicy
-from core.rag.contracts import RAGChunk, RAGContext, RAGDegradedReason
+from core.rag.contracts import OptimizationStats, RAGChunk, RAGContext, RAGDegradedReason
 from core.insight.safety import redact_rag_context_for_insight
 from core.rag.formatting import build_rag_source_dicts, format_rag_chunks_for_prompt
 from core.rag.orchestration import (
     RAGOrchestrationResult,
     _build_prompt_with_context,
+    _extract_recursive_verification_calls,
+    _has_context_text,
     _empty_result,
     _normalize_confidence_value,
     retrieve_and_validate_rag,
@@ -108,6 +110,15 @@ class TestBuildPromptWithContext:
         assert "Answer:" in result
 
 
+class TestHasContextText:
+    """Tests for context payload normalization helper."""
+
+    def test_context_text_requires_non_empty_string(self) -> None:
+        assert _has_context_text("Useful context") is True
+        assert _has_context_text("   ") is False
+        assert _has_context_text(None) is False
+
+
 class _FloatLike:
     """Helper object exposing ``__float__`` for branch coverage."""
 
@@ -126,6 +137,19 @@ class TestNormalizeConfidenceValue:
 
     def test_non_finite_value_returns_none(self) -> None:
         assert _normalize_confidence_value(float("inf")) is None
+
+
+class TestExtractRecursiveVerificationCalls:
+    """Tests for recursive verification diagnostics extraction."""
+
+    def test_non_integer_value_falls_back_to_zero(self) -> None:
+        rag_ctx = _make_rag_context()
+        rag_ctx.optimization_stats = cast(
+            OptimizationStats,
+            {"verification_calls": "2"},
+        )
+
+        assert _extract_recursive_verification_calls(rag_ctx) == 0
 
 
 class TestRetrieveAndValidateRag:
