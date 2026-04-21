@@ -11,6 +11,8 @@ import time
 from collections.abc import Sequence
 from pathlib import Path
 from datetime import datetime, timezone
+import importlib
+import json
 from types import ModuleType, SimpleNamespace
 from typing import TYPE_CHECKING, cast
 from unittest.mock import patch
@@ -46,6 +48,411 @@ def test_root_npm_security_override_smoke() -> None:
         isinstance(package_path, str) and package_path.endswith("/brace-expansion")
         for package_path in packages
     )
+
+
+def _write_ragas_bootstrap_dataset(path: Path) -> None:
+    """Keep eval runner smoke fixtures deterministic in the fast lane."""
+
+    rows = [
+        {
+            "question": "How can I recover from all-or-nothing thinking after dessert?",
+            "answer": "Treat dessert as one event and return to the next planned meal.",
+            "contexts": [
+                "All-or-nothing thinking often escalates one food choice into a global failure.",
+                "Returning to the next planned meal supports recovery without punishment.",
+            ],
+            "reference": "Reframe the dessert as one event and continue with the next planned meal.",
+        },
+        {
+            "question": "What helps when I skip lunch and overeat later?",
+            "answer": "Use a predictable lunch anchor to reduce long hunger gaps.",
+            "contexts": [
+                "Long gaps without food can increase hunger intensity later in the day.",
+                "A predictable meal anchor can reduce rebound overeating pressure.",
+            ],
+            "ground_truth": "Add a lunch anchor to reduce long hunger gaps and late overeating.",
+        },
+    ]
+    path.write_text(
+        "\n".join(json.dumps(row, ensure_ascii=False) for row in rows) + "\n",
+        encoding="utf-8",
+    )
+
+
+class TestOfflineEvalBootstrapSmoke:
+    """Exercise the eval bootstrap lane in the always-on smoke suite."""
+
+    def test_ragas_metrics_config_contract(self) -> None:
+        """The bootstrap metric config stays deterministic and threshold-free."""
+
+        from evals.ragas import metrics_config
+
+        assert metrics_config.DEFAULT_RAGAS_METRICS == (
+            "faithfulness",
+            "answer_relevancy",
+            "context_precision",
+        )
+        assert metrics_config.REPORT_ONLY_MODE is True
+        assert not hasattr(metrics_config, "FAIL_THRESHOLDS")
+        assert not hasattr(metrics_config, "GATE_THRESHOLDS")
+
+    def test_ragas_runner_import_and_cli_contract(self) -> None:
+        """Importing the runner must stay lazy and the CLI must parse bootstrap flags."""
+
+        runner = importlib.import_module("evals.ragas.run_ragas_eval")
+
+        assert runner.REPORT_ONLY_MODE is True
+        args = runner.parse_args(
+            [
+                "--dataset",
+                "evals/ragas/testset.jsonl",
+                "--output-json",
+                "/tmp/ragas_report.json",
+                "--output-md",
+                "/tmp/ragas_report.md",
+            ]
+        )
+
+        assert args.dataset == Path("evals/ragas/testset.jsonl")
+        assert args.output_json == Path("/tmp/ragas_report.json")
+        assert args.output_md == Path("/tmp/ragas_report.md")
+
+    def test_ragas_runner_report_contract(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+    ) -> None:
+        """The smoke lane must cover deterministic report rendering and error hygiene."""
+
+        runner = importlib.import_module("evals.ragas.run_ragas_eval")
+        dataset_path = tmp_path / "testset.jsonl"
+        _write_ragas_bootstrap_dataset(dataset_path)
+
+        def _boom() -> tuple[object, object, object]:
+            raise AssertionError("ragas import path should stay lazy in this test")
+
+        def _fake_evaluator(
+            rows: list[dict[str, object]],
+            metric_names: tuple[str, ...],
+        ) -> dict[str, float]:
+            assert len(rows) == 2
+            assert metric_names == (
+                "faithfulness",
+                "answer_relevancy",
+                "context_precision",
+            )
+            return {
+                "faithfulness": 0.84,
+                "answer_relevancy": 0.79,
+                "context_precision": 0.88,
+            }
+
+        monkeypatch.setattr(runner, "_load_ragas_dependencies", _boom)
+
+        report = runner.run_report(dataset_path, evaluator=_fake_evaluator)
+        summary = runner.render_markdown_summary(report)
+
+        assert report == {
+            "dataset_path": str(dataset_path.resolve()),
+            "sample_count": 2,
+            "report_only": True,
+            "metrics": {
+                "faithfulness": 0.84,
+                "answer_relevancy": 0.79,
+                "context_precision": 0.88,
+            },
+        }
+        assert "Metric | Score" in summary
+        assert "faithfulness | 0.84" in summary
+        assert "answer_relevancy | 0.79" in summary
+        assert "context_precision | 0.88" in summary
+
+        def _partial_evaluator(
+            rows: list[dict[str, object]],
+            metric_names: tuple[str, ...],
+        ) -> dict[str, float]:
+            assert rows
+            assert metric_names
+            return {"faithfulness": 0.84}
+
+        with pytest.raises(RuntimeError, match="missing required scores"):
+            runner.run_report(dataset_path, evaluator=_partial_evaluator)
+
+        def _non_finite_evaluator(
+            rows: list[dict[str, object]],
+            metric_names: tuple[str, ...],
+        ) -> dict[str, float]:
+            assert rows
+            assert metric_names
+            return {
+                "faithfulness": float("nan"),
+                "answer_relevancy": 0.79,
+                "context_precision": 0.88,
+            }
+
+        with pytest.raises(RuntimeError, match="non-finite score"):
+            runner.run_report(dataset_path, evaluator=_non_finite_evaluator)
+
+        class _EmptyScores:
+            @staticmethod
+            def to_list() -> list[dict[str, float]]:
+                return []
+
+        class _Result:
+            scores = _EmptyScores()
+
+        with pytest.raises(RuntimeError, match="score rows is empty"):
+            runner._extract_metric_scores(
+                _Result(),
+                ("faithfulness", "answer_relevancy", "context_precision"),
+            )
+
+    def test_ragas_dataset_validation_paths(self, tmp_path: Path) -> None:
+        """Dataset parsing must fail closed on malformed bootstrap inputs."""
+
+        runner = importlib.import_module("evals.ragas.run_ragas_eval")
+
+        txt_path = tmp_path / "testset.txt"
+        txt_path.write_text("", encoding="utf-8")
+        with pytest.raises(ValueError, match=r"\.jsonl"):
+            runner.load_dataset_rows(txt_path)
+
+        with pytest.raises(FileNotFoundError, match="Dataset not found"):
+            runner.load_dataset_rows(tmp_path / "missing.jsonl")
+
+        empty_path = tmp_path / "empty.jsonl"
+        empty_path.write_text("\n", encoding="utf-8")
+        with pytest.raises(ValueError, match="Dataset is empty"):
+            runner.load_dataset_rows(empty_path)
+
+        invalid_json_path = tmp_path / "invalid.jsonl"
+        invalid_json_path.write_text("{bad json}\n", encoding="utf-8")
+        with pytest.raises(ValueError, match="invalid JSON"):
+            runner.load_dataset_rows(invalid_json_path)
+
+        non_object_path = tmp_path / "non_object.jsonl"
+        non_object_path.write_text('["not", "an", "object"]\n', encoding="utf-8")
+        with pytest.raises(ValueError, match="must be an object"):
+            runner.load_dataset_rows(non_object_path)
+
+        missing_reference_path = tmp_path / "missing_reference.jsonl"
+        missing_reference_path.write_text(
+            json.dumps(
+                {
+                    "question": "How do I restart after one snack?",
+                    "answer": "Return to the next meal.",
+                    "contexts": ["A planned next meal reduces rebound restriction."],
+                }
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        with pytest.raises(ValueError, match="one of 'reference' or 'ground_truth'"):
+            runner.load_dataset_rows(missing_reference_path)
+
+        with pytest.raises(ValueError, match="'question' must be a string"):
+            runner._normalize_string(7, field_name="question", row_number=1)
+        with pytest.raises(ValueError, match="'question' must be non-empty"):
+            runner._normalize_string("   ", field_name="question", row_number=1)
+        with pytest.raises(ValueError, match="'contexts' must be a non-empty list"):
+            runner._normalize_contexts([], row_number=1)
+        with pytest.raises(ValueError, match="'contexts\\[1\\]' must be a string"):
+            runner._normalize_contexts([7], row_number=1)
+        with pytest.raises(ValueError, match="'contexts\\[1\\]' must be non-empty"):
+            runner._normalize_contexts(["   "], row_number=1)
+
+    def test_ragas_default_evaluator_and_score_extractors(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+    ) -> None:
+        """Default evaluator branches must stay covered in the deterministic smoke suite."""
+
+        runner = importlib.import_module("evals.ragas.run_ragas_eval")
+        dataset_path = tmp_path / "testset.jsonl"
+        _write_ragas_bootstrap_dataset(dataset_path)
+        rows = runner.load_dataset_rows(dataset_path)
+
+        with pytest.raises(ValueError, match="Bootstrap metric contract drift detected"):
+            runner._validate_metric_names(("faithfulness",))
+
+        monkeypatch.setattr(runner, "REPORT_ONLY_MODE", False)
+        with pytest.raises(ValueError, match="report-only"):
+            runner._validate_metric_names(runner.REQUIRED_METRIC_NAMES)
+        monkeypatch.setattr(runner, "REPORT_ONLY_MODE", True)
+
+        class _FakeDataset:
+            captured_rows: list[dict[str, object]] = []
+
+            @classmethod
+            def from_list(cls, values: list[dict[str, object]]) -> "_FakeDataset":
+                cls.captured_rows = values
+                return cls()
+
+        metric_map = {name: object() for name in runner.REQUIRED_METRIC_NAMES}
+
+        class _EvaluateWithFallback:
+            def __init__(self) -> None:
+                self.calls = 0
+
+            def __call__(
+                self, *, dataset: object, metrics: list[object], show_progress: bool | None = None
+            ):
+                assert isinstance(dataset, _FakeDataset)
+                assert len(metrics) == 3
+                self.calls += 1
+                if self.calls == 1:
+                    raise TypeError("show_progress not supported")
+                return {
+                    "faithfulness": 0.91,
+                    "answer_relevancy": 0.82,
+                    "context_precision": 0.88,
+                }
+
+        evaluator = _EvaluateWithFallback()
+        monkeypatch.setattr(
+            runner,
+            "_load_ragas_dependencies",
+            lambda: (_FakeDataset, evaluator, metric_map),
+        )
+
+        scores = runner.evaluate_records(rows, runner.REQUIRED_METRIC_NAMES)
+        assert scores == {
+            "faithfulness": 0.91,
+            "answer_relevancy": 0.82,
+            "context_precision": 0.88,
+        }
+        assert (
+            _FakeDataset.captured_rows[0]["reference"]
+            == _FakeDataset.captured_rows[0]["ground_truth"]
+        )
+
+        class _Series:
+            def __init__(self, value: float) -> None:
+                self._value = value
+
+            def mean(self) -> float:
+                return self._value
+
+        class _Frame:
+            def __contains__(self, item: str) -> bool:
+                return item in runner.REQUIRED_METRIC_NAMES
+
+            def __getitem__(self, item: str) -> _Series:
+                return _Series(
+                    {
+                        "faithfulness": 0.83,
+                        "answer_relevancy": 0.81,
+                        "context_precision": 0.8,
+                    }[item]
+                )
+
+        class _PandasResult:
+            @staticmethod
+            def to_pandas() -> _Frame:
+                return _Frame()
+
+        pandas_scores = runner._extract_metric_scores(_PandasResult(), runner.REQUIRED_METRIC_NAMES)
+        assert pandas_scores["faithfulness"] == pytest.approx(0.83)
+
+        class _ScoreRows:
+            @staticmethod
+            def to_list() -> list[dict[str, float]]:
+                return [
+                    {
+                        "faithfulness": 0.8,
+                        "answer_relevancy": 0.7,
+                        "context_precision": 0.9,
+                    },
+                    {
+                        "faithfulness": 0.9,
+                        "answer_relevancy": 0.8,
+                        "context_precision": 0.7,
+                    },
+                ]
+
+        class _ScoreResult:
+            scores = _ScoreRows()
+
+        score_rows = runner._extract_metric_scores(_ScoreResult(), runner.REQUIRED_METRIC_NAMES)
+        assert score_rows["answer_relevancy"] == pytest.approx(0.75)
+
+        with pytest.raises(RuntimeError, match="Could not extract metric scores"):
+            runner._extract_metric_scores(object(), runner.REQUIRED_METRIC_NAMES)
+
+        monkeypatch.setattr(
+            runner,
+            "_load_ragas_dependencies",
+            lambda: (_FakeDataset, lambda **_: None, metric_map),
+        )
+        with pytest.raises(RuntimeError, match="Could not extract metric scores"):
+            runner.evaluate_records(rows, runner.REQUIRED_METRIC_NAMES)
+
+    def test_ragas_dependency_and_cli_output_paths(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """Output writers and main() must stay deterministic in success and error paths."""
+
+        runner = importlib.import_module("evals.ragas.run_ragas_eval")
+        report = {
+            "dataset_path": "evals/ragas/testset.jsonl",
+            "sample_count": 2,
+            "report_only": True,
+            "metrics": {
+                "faithfulness": 0.84,
+                "answer_relevancy": 0.79,
+                "context_precision": 0.88,
+            },
+        }
+        markdown_summary = runner.render_markdown_summary(report)
+
+        json_output = tmp_path / "artifacts" / "rag_eval" / "bootstrap" / "report.json"
+        md_output = tmp_path / "artifacts" / "rag_eval" / "bootstrap" / "report.md"
+        runner.write_outputs(
+            report,
+            markdown_summary,
+            output_json=json_output,
+            output_md=md_output,
+        )
+        assert json.loads(json_output.read_text(encoding="utf-8"))["sample_count"] == 2
+        assert md_output.read_text(encoding="utf-8").strip() == markdown_summary
+        assert runner._display_path(json_output).endswith("report.json")
+        assert runner.format_score(1.0) == "1"
+
+        monkeypatch.setitem(sys.modules, "datasets", None)
+        monkeypatch.setitem(sys.modules, "ragas", None)
+        monkeypatch.setitem(sys.modules, "ragas.metrics", None)
+        with pytest.raises(RuntimeError, match="requirements-evals.txt"):
+            runner._load_ragas_dependencies()
+
+        args = SimpleNamespace(
+            dataset=Path("evals/ragas/testset.jsonl"),
+            output_json=tmp_path / "main.json",
+            output_md=tmp_path / "main.md",
+        )
+        monkeypatch.setattr(runner, "parse_args", lambda _argv=None: args)
+        monkeypatch.setattr(runner, "run_report", lambda _dataset: report)
+
+        assert runner.main([]) == 0
+        stdout = capsys.readouterr().out
+        assert "Metric | Score" in stdout
+        assert args.output_json.is_file()
+        assert args.output_md.is_file()
+
+        error_args = SimpleNamespace(dataset=Path("broken.jsonl"), output_json=None, output_md=None)
+        monkeypatch.setattr(runner, "parse_args", lambda _argv=None: error_args)
+        monkeypatch.setattr(
+            runner,
+            "run_report",
+            lambda _dataset: (_ for _ in ()).throw(ValueError("broken dataset")),
+        )
+
+        assert runner.main([]) == 1
+        stderr = capsys.readouterr().err
+        assert "Error: broken dataset" in stderr
 
 
 class TestShoplistModule:
