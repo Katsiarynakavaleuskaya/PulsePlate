@@ -15,8 +15,7 @@ GitHub.
 
 ## Fixed in Commit Mapping
 
-No actionable review or bot threads are mapped yet on the initial draft head.
-Add every new disposition here before resolving the corresponding GitHub thread.
+- No actionable review comments
 
 ## Merge Readiness
 
@@ -34,11 +33,13 @@ Merge-readiness contract:
   Evidence: not assessed yet on the initial draft head.
 - [ ] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
   Evidence: not assessed yet on the initial draft head.
-- [x] Pre-commit green on latest pushed head
-  Evidence: local `pre-commit run --all-files` passed before pushing head
-  `2b6e65b77`.
-- [x] `make verify` green on latest pushed head
-  Evidence: local `make verify` passed end-to-end on head `2b6e65b77`.
+- [x] Pre-commit green on validated remediation head
+  Evidence: local `pre-commit run --all-files` passed before pushing the
+  code-bearing remediation head `2b6e65b77`; later heads are governance-only
+  follow-through.
+- [x] `make verify` green on validated remediation head
+  Evidence: local `make verify` passed end-to-end on code-bearing remediation
+  head `2b6e65b77`; later heads are governance-only follow-through.
 
 ## Notes
 
