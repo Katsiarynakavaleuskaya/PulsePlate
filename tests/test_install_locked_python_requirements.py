@@ -34,12 +34,36 @@ def _exact_requirement_pairs(contents: str) -> set[tuple[str, str]]:
     return pairs
 
 
+def _manifest_artifact_version(manifest: dict[str, Any], package: str) -> str:
+    versions = [
+        str(item["version"]).strip() for item in manifest["artifacts"] if item["package"] == package
+    ]
+    assert versions, f"Emergency wheel manifest must include {package!r}."
+    assert (
+        len(set(versions)) == 1
+    ), f"Emergency wheel manifest must expose a single {package!r} version, found {versions!r}."
+    return versions[0]
+
+
 def _compatible_release_version(contents: str, package: str) -> str | None:
-    pattern = re.compile(rf"^{re.escape(package)}~=([^\s#]+)", re.MULTILINE)
-    match = pattern.search(contents)
-    if match is None:
+    pattern = re.compile(rf"^{re.escape(package)}(?:\[[^]]+\])?\s*~=\s*([^\s;#]+)(?:\s*;.*)?$")
+    matched_versions: list[str] = []
+    for raw_line in contents.splitlines():
+        line = raw_line.split("#", 1)[0].strip()
+        if not line:
+            continue
+        match = pattern.match(line)
+        if match is None:
+            continue
+        matched_versions.append(match.group(1).strip())
+
+    if not matched_versions:
         return None
-    return match.group(1).strip()
+
+    assert (
+        len(set(matched_versions)) == 1
+    ), f"Expected a single compatible-release pin for {package!r}, found {matched_versions!r}."
+    return matched_versions[0]
 
 
 def _resolver_miss_runtimeerror_like_run_command(package: str, version: str) -> RuntimeError:
@@ -74,8 +98,7 @@ def test_repo_emergency_manifest_tracks_current_active_fallback_set() -> None:
 
 def test_repo_ruff_emergency_fallback_matches_dev_requirement_surfaces() -> None:
     manifest = _repo_emergency_manifest()
-    ruff_artifact = next(item for item in manifest["artifacts"] if item["package"] == "ruff")
-    expected_version = ruff_artifact["version"]
+    expected_version = _manifest_artifact_version(manifest, "ruff")
 
     requirements_dev_in = (REPO_ROOT / "requirements-dev.in").read_text(encoding="utf-8")
     requirements_dev_txt = (REPO_ROOT / "requirements-dev.txt").read_text(encoding="utf-8")
@@ -84,6 +107,12 @@ def test_repo_ruff_emergency_fallback_matches_dev_requirement_surfaces() -> None
     assert _compatible_release_version(requirements_dev_in, "ruff") == expected_version
     assert ("ruff", expected_version) in _exact_requirement_pairs(requirements_dev_txt)
     assert ("ruff", expected_version) in _exact_requirement_pairs(requirements_lock_txt)
+
+
+def test_compatible_release_version_accepts_environment_markers() -> None:
+    contents = 'ruff~=0.15.11 ; python_version >= "3.13"\n'
+
+    assert _compatible_release_version(contents, "ruff") == "0.15.11"
 
 
 @pytest.fixture(autouse=True)
