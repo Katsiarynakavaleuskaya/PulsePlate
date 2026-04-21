@@ -415,7 +415,7 @@ def _normalize_degraded_reason(degraded_reason: str | RAGDegradedReason | None) 
     if degraded_reason is None:
         return None
     if isinstance(degraded_reason, RAGDegradedReason):
-        return degraded_reason.value
+        return str(degraded_reason.value)
     return degraded_reason
 
 

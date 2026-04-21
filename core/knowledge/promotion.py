@@ -163,7 +163,7 @@ def _shares_supersession_scope(
 ) -> bool:
     """Return whether record and candidate belong to the same logical fact scope."""
 
-    return (
+    return bool(
         existing.subject == candidate.subject
         and existing.predicate == candidate.predicate
         and existing.access_scope == candidate.access_scope
