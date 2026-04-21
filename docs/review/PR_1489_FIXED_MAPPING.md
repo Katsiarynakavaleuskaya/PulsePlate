@@ -6,8 +6,8 @@ Canonical review-governance artifact and PR-body mirror requirements:
 `AGENTS.md:42-52`; `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md:41-90`;
 `docs/orchestration/AGENTS.md:79-82`.
 
-- [ ] Discussion-thread pass completed
-- [ ] Fixed in commit mapping completed
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 
 This artifact is the source of truth for review dispositions on PR #1489.
 Record every actionable human or bot review item here before resolving threads or
@@ -15,8 +15,7 @@ claiming merge readiness.
 
 ## Fixed in Commit Mapping
 
-No actionable review threads are recorded yet at PR open.
-Populate this section during the review cycle before resolving any thread.
+- No actionable review comments
 
 ## Merge Readiness
 
