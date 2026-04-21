@@ -14,6 +14,9 @@ restart of PR #1445. The canonical current code-fix commit is `b97d4c15e`,
 which preserves the `/metrics` auth lane on top of current `main`, restores the
 late-bootstrap route contract without `legacy_app` request-path imports, and
 drops the stale dependency/docs carryover drift from the old branch head.
+Follow-up test-harness commit `dea9de69a` keeps legacy pytest `/metrics` probes
+on the real auth path by auto-injecting the deterministic test API key instead
+of relying on a global bypass.
 
 ## Fixed in Commit Mapping
 
@@ -51,11 +54,11 @@ Reason: This review shell only summarizes the pytest-scoped bypass hardening thr
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1445#pullrequestreview-4136489304
 
 Disposition: FIXED
-Commit: b97d4c15e
-Evidence: `git diff --name-only origin/main...b97d4c15e` now limits the rebuilt PR delta to `.secrets.baseline`, `app/AGENTS.md`, `app/bootstrap/metrics.py`, `app/routers/api_key.py`, `tests/test_metrics.py`, and this canonical mapping artifact, removing the prior stale mapping/audit/dependency carryover from scope.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1445#discussion_r3107442735 -> b97d4c15e
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1445#pullrequestreview-4136502221 -> b97d4c15e
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1445#discussion_r3111979921 -> b97d4c15e
+Commit: dea9de69a
+Evidence: `git diff --name-only origin/main...dea9de69a` now limits the rebuilt PR delta to `.secrets.baseline`, `app/AGENTS.md`, `app/bootstrap/metrics.py`, `app/routers/api_key.py`, `conftest.py`, `tests/_client.py`, `tests/conftest.py`, `tests/test_app_main_import.py`, `tests/test_metrics.py`, and this canonical mapping artifact, removing the prior stale mapping/audit/dependency carryover from scope.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1445#discussion_r3107442735 -> dea9de69a
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1445#pullrequestreview-4136502221 -> dea9de69a
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1445#discussion_r3111979921 -> dea9de69a
 
 Disposition: NOT-A-BUG
 Evidence: `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1445#discussion_r3107442735`; `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1445#discussion_r3111979921`
