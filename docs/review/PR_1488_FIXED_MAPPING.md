@@ -14,12 +14,21 @@ Record every actionable human/bot disposition here before resolving threads on G
 
 ## Fixed in Commit Mapping
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1488#pullrequestreview-4148229640 -> 02b06b8d5
-  Disposition: FIXED
-  Evidence: [scripts/deploy_production.sh](/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/worktrees/fix-docker-deploy-contract-reconciliation/scripts/deploy_production.sh:294), [tests/test_deploy_contract_scripts.py](/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/worktrees/fix-docker-deploy-contract-reconciliation/tests/test_deploy_contract_scripts.py:15), [tests/test_cd_workflow_production_deploy_gate.py](/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/worktrees/fix-docker-deploy-contract-reconciliation/tests/test_cd_workflow_production_deploy_gate.py:64)
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1488#pullrequestreview-4148251408 -> 02b06b8d5
-  Disposition: FIXED
-  Evidence: [deploy/PRODUCTION.md](/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/worktrees/fix-docker-deploy-contract-reconciliation/deploy/PRODUCTION.md:204), [deploy/WORKFLOW.md](/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/worktrees/fix-docker-deploy-contract-reconciliation/deploy/WORKFLOW.md:217), [deploy/WORKFLOW.md](/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/worktrees/fix-docker-deploy-contract-reconciliation/deploy/WORKFLOW.md:325), [scripts/deploy_production.sh](/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/worktrees/fix-docker-deploy-contract-reconciliation/scripts/deploy_production.sh:294)
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1488#discussion_r3117952073
+Disposition: FIXED
+Commit: 02b06b8d5
+Evidence: [scripts/deploy_production.sh](/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/worktrees/fix-docker-deploy-contract-reconciliation/scripts/deploy_production.sh:294), [tests/test_deploy_contract_scripts.py](/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/worktrees/fix-docker-deploy-contract-reconciliation/tests/test_deploy_contract_scripts.py:29)
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1488#discussion_r3117970414
+Disposition: FIXED
+Commit: 02b06b8d5
+Evidence: [deploy/PRODUCTION.md](/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/worktrees/fix-docker-deploy-contract-reconciliation/deploy/PRODUCTION.md:204), [deploy/WORKFLOW.md](/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/worktrees/fix-docker-deploy-contract-reconciliation/deploy/WORKFLOW.md:217), [deploy/WORKFLOW.md](/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/worktrees/fix-docker-deploy-contract-reconciliation/deploy/WORKFLOW.md:325)
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1488#discussion_r3117970442
+Disposition: FIXED
+Commit: 6943052e6
+Evidence: [docs/review/PR_1488_FIXED_MAPPING.md](/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/worktrees/fix-docker-deploy-contract-reconciliation/docs/review/PR_1488_FIXED_MAPPING.md:17)
+
 - Ready-state bot review pass completed on `2026-04-21`; no unmapped actionable review comments should remain after the remediation rerun on the latest head.
 
 ## Merge Readiness
