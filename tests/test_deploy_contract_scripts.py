@@ -24,6 +24,8 @@ def test_production_compose_source_of_truth_matches_split_contract() -> None:
     assert isinstance(app_service, dict), "production compose must define an app service"
     assert app_service["image"] == "${IMAGE_REF:?IMAGE_REF is required}"
     assert "build" not in app_service
+    app_env_file = app_service.get("env_file")
+    assert app_env_file in (".env", [".env"]), "app service must reference deploy/.env"
 
     caddy_service = services.get("caddy")
     assert isinstance(caddy_service, dict), "production compose must define a caddy service"
@@ -45,6 +47,7 @@ def test_deploy_production_rejects_shell_bundle_without_redeploy_helper(
     project_dir = tmp_path / "production"
     shell_bundle_dir = tmp_path / "shell-bundle"
     bin_dir = tmp_path / "bin"
+    log_file = tmp_path / "docker.log"
     project_dir.mkdir()
     shell_bundle_dir.mkdir()
     bin_dir.mkdir()
@@ -67,8 +70,9 @@ def test_deploy_production_rejects_shell_bundle_without_redeploy_helper(
         "#!/usr/bin/env bash\nprintf 'bundle-diagnose\\n'\n", encoding="utf-8"
     )
 
-    docker_stub = """#!/usr/bin/env bash
+    docker_stub = f"""#!/usr/bin/env bash
 set -euo pipefail
+printf 'docker %s\\n' "$*" >> "{log_file}"
 """
     curl_stub = """#!/usr/bin/env bash
 set -euo pipefail
@@ -98,6 +102,7 @@ set -euo pipefail
 
     assert completed.returncode == 1
     assert "SHELL_BUNDLE_DIR is missing scripts/redeploy_caddy.sh" in completed.stderr
+    assert not log_file.exists()
 
 
 def _write_executable(path: Path, content: str) -> None:
@@ -972,7 +977,9 @@ def test_deploy_production_rejects_compose_file_outside_deploy_dir_during_shell_
     (shell_bundle_dir / "scripts" / "diagnose_web.sh").write_text(
         "#!/usr/bin/env bash\nprintf 'bundle-diagnose\\n'\n", encoding="utf-8"
     )
-    (shell_root / "scripts").mkdir()
+    (shell_bundle_dir / "scripts" / "redeploy_caddy.sh").write_text(
+        "#!/usr/bin/env bash\nprintf 'bundle-redeploy\\n'\n", encoding="utf-8"
+    )
 
     docker_stub = f"""#!/usr/bin/env bash
 set -euo pipefail

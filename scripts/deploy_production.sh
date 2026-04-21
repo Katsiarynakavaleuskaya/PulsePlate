@@ -366,9 +366,24 @@ validate_managed_postgres_contract() {
   fi
 }
 
+validate_shell_bundle_contract() {
+  local required_redeploy=""
+
+  if [ -z "$SHELL_BUNDLE_DIR" ]; then
+    return 0
+  fi
+
+  required_redeploy="$SHELL_BUNDLE_DIR/scripts/redeploy_caddy.sh"
+  if [ ! -f "$required_redeploy" ]; then
+    echo "❌ SHELL_BUNDLE_DIR is missing scripts/redeploy_caddy.sh: $required_redeploy" >&2
+    exit 1
+  fi
+}
+
 run_preflight() {
   echo "Validating managed PostgreSQL production contract..."
   validate_managed_postgres_contract
+  validate_shell_bundle_contract
   echo "✅ Production deploy preflight passed"
 }
 
