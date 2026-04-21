@@ -5,6 +5,7 @@ from __future__ import annotations
 from contextlib import contextmanager
 import json
 from pathlib import Path
+import re
 import subprocess
 from typing import Any
 
@@ -31,6 +32,14 @@ def _exact_requirement_pairs(contents: str) -> set[tuple[str, str]]:
         package, version = line.split("==", 1)
         pairs.add((package.strip(), version.strip()))
     return pairs
+
+
+def _compatible_release_version(contents: str, package: str) -> str | None:
+    pattern = re.compile(rf"^{re.escape(package)}~=([^\s#]+)", re.MULTILINE)
+    match = pattern.search(contents)
+    if match is None:
+        return None
+    return match.group(1).strip()
 
 
 def _resolver_miss_runtimeerror_like_run_command(package: str, version: str) -> RuntimeError:
@@ -61,6 +70,20 @@ def test_repo_emergency_manifest_tracks_current_active_fallback_set() -> None:
     }
     assert ci_lite_emergency_pairs <= requirements_ci_lite_pins
     assert ("python-multipart", "0.0.26") in requirements_ci_lite_pins
+
+
+def test_repo_ruff_emergency_fallback_matches_dev_requirement_surfaces() -> None:
+    manifest = _repo_emergency_manifest()
+    ruff_artifact = next(item for item in manifest["artifacts"] if item["package"] == "ruff")
+    expected_version = ruff_artifact["version"]
+
+    requirements_dev_in = (REPO_ROOT / "requirements-dev.in").read_text(encoding="utf-8")
+    requirements_dev_txt = (REPO_ROOT / "requirements-dev.txt").read_text(encoding="utf-8")
+    requirements_lock_txt = (REPO_ROOT / "requirements-lock.txt").read_text(encoding="utf-8")
+
+    assert _compatible_release_version(requirements_dev_in, "ruff") == expected_version
+    assert ("ruff", expected_version) in _exact_requirement_pairs(requirements_dev_txt)
+    assert ("ruff", expected_version) in _exact_requirement_pairs(requirements_lock_txt)
 
 
 @pytest.fixture(autouse=True)
