@@ -29,10 +29,13 @@ Merge-readiness contract:
 - [ ] Required checks complete (no pending jobs)
   Evidence: pending `check_merge_ready.py --require-auth` pass after branch-head
   CI completes.
-- [ ] All review threads resolved on GitHub after disposition updates
-  Evidence: not assessed yet on the initial draft head.
-- [ ] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
-  Evidence: not assessed yet on the initial draft head.
+- [x] All review threads resolved on GitHub after disposition updates
+  Evidence: GraphQL review-thread query on 21 April 2026 returned zero review
+  threads for PR `#1487`.
+- [x] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
+  Evidence: only non-actionable bot surface remains on 21 April 2026
+  (`CodeRabbit review skipped`, `Sourcery` reviewer guide, and informational
+  Codecov coverage report); no actionable bot thread is open or unmapped.
 - [x] Pre-commit green on validated remediation head
   Evidence: local `pre-commit run --all-files` passed before pushing the
   code-bearing remediation head `2b6e65b77`; later heads are governance-only
