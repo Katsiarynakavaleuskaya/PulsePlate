@@ -100,5 +100,4 @@ Merge-readiness contract:
 
 ## Deferred / Follow-ups
 
-- post-push mandatory `qa-engineer-agent -> bug-hunter` review cycle still required before any merge-ready claim
 - stale PR body metadata and current-head SHA references must be rewritten to match the rebuilt branch before merge readiness is re-checked

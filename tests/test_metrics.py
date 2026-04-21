@@ -9,7 +9,7 @@ from __future__ import annotations
 import re
 
 import pytest
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
 
 import app
@@ -847,3 +847,112 @@ def test_metrics_http_guard_rejects_wrong_api_key_when_bypass_disabled(
 
     assert response.status_code == 403
     assert response.headers["content-type"].startswith("application/json")
+
+
+def test_metrics_shared_api_key_runtime_env_falls_back_to_app_env(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Shared API key helper must honor APP_ENV when ENVIRONMENT is unset."""
+    from app.routers import api_key as api_key_mod
+
+    monkeypatch.setenv("APP_ENV", "qa")
+    monkeypatch.delenv("ENVIRONMENT", raising=False)
+
+    assert api_key_mod._get_runtime_env_name() == "qa"
+
+
+def test_metrics_shared_api_key_runtime_env_prefers_environment(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Shared API key helper must prefer ENVIRONMENT over non-prod APP_ENV."""
+    from app.routers import api_key as api_key_mod
+
+    monkeypatch.setenv("APP_ENV", "qa")
+    monkeypatch.setenv("ENVIRONMENT", "review")
+
+    assert api_key_mod._get_runtime_env_name() == "review"
+
+
+def test_metrics_shared_api_key_runtime_env_defaults_to_local(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Shared API key helper must default to local when env labels are absent."""
+    from app.routers import api_key as api_key_mod
+
+    monkeypatch.delenv("APP_ENV", raising=False)
+    monkeypatch.delenv("ENVIRONMENT", raising=False)
+
+    assert api_key_mod._get_runtime_env_name() == "local"
+
+
+def test_metrics_shared_api_key_normalizes_dev_token(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Shared API key helper must preserve normalize-only dev matching."""
+    from app.routers import api_key as api_key_mod
+
+    monkeypatch.setenv("APP_ENV", "development")
+    monkeypatch.delenv("ENVIRONMENT", raising=False)
+    monkeypatch.setenv("ALLOW_DEV_API_KEY", "true")
+    monkeypatch.setenv("ALLOW_DEV_API_KEY_NORMALIZE", "true")
+    monkeypatch.setenv("API_KEY", "test_key")
+
+    assert api_key_mod.validate_app_api_key("test-key") == "test_key"
+
+
+def test_metrics_shared_api_key_fails_closed_without_configured_key(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Shared API key helper must reject unconfigured access in all branches."""
+    from app.routers import api_key as api_key_mod
+
+    monkeypatch.delenv("API_KEY", raising=False)
+    monkeypatch.setenv("API_KEY_REQUIRED", "true")
+    monkeypatch.setenv("APP_ENV", "development")
+    monkeypatch.delenv("ENVIRONMENT", raising=False)
+
+    with pytest.raises(HTTPException) as required_exc:
+        api_key_mod.validate_app_api_key("dev-key")
+
+    assert required_exc.value.status_code == 403
+    assert required_exc.value.detail == "API key required but not configured"
+
+    monkeypatch.delenv("API_KEY_REQUIRED", raising=False)
+
+    with pytest.raises(HTTPException) as default_exc:
+        api_key_mod.validate_app_api_key("dev-key")
+
+    assert default_exc.value.status_code == 403
+    assert default_exc.value.detail == "API key required but not configured"
+
+
+def test_metrics_guard_bypasses_with_environment_test_label(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """/metrics bypass must activate for explicit pytest-scoped ENVIRONMENT=test."""
+    from app.bootstrap import metrics as metrics_bootstrap
+
+    monkeypatch.setenv("METRICS_TEST_BYPASS", "true")
+    monkeypatch.delenv("TESTING", raising=False)
+    monkeypatch.delenv("APP_ENV", raising=False)
+    monkeypatch.setenv("ENVIRONMENT", "test")
+
+    assert metrics_bootstrap._metrics_api_key_guard(None) == "testing-bypass"
+
+
+def test_metrics_guard_warns_when_bypass_leaks_in_non_test_environment(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """/metrics bypass must warn and fall back to auth outside test environments."""
+    from app.bootstrap import metrics as metrics_bootstrap
+
+    _configure_metrics_auth_env(monkeypatch)
+    monkeypatch.setenv("METRICS_TEST_BYPASS", "true")
+    monkeypatch.setenv("ENVIRONMENT", "production")
+
+    with caplog.at_level("WARNING", logger="app.bootstrap.metrics"):
+        result = metrics_bootstrap._metrics_api_key_guard("test_key")
+
+    assert result == "test_key"
+    assert "METRICS_TEST_BYPASS ignored outside explicit pytest test env" in caplog.text
