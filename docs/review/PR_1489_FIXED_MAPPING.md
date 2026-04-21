@@ -30,6 +30,11 @@ Evidence: `docs/review/PR_1489_FIXED_MAPPING.md`
 Reason: This CodeRabbit review shell aggregates inline findings that are dispositioned individually below; once those comment URLs are mapped, the shell entry adds no separate unresolved obligation.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1489#pullrequestreview-4150602793
 
+Disposition: NOT-A-BUG
+Evidence: `docs/review/PR_1489_FIXED_MAPPING.md`
+Reason: This follow-up CodeRabbit review shell contains a single minor inline finding that is fixed immediately below; the shell entry itself adds no separate unresolved obligation after the inline comment is dispositioned.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1489#pullrequestreview-4150726499
+
 Disposition: FIXED
 Commit: b2e5d5c0a
 Evidence: `evals/ragas/run_ragas_eval.py:115-159`; `tests/evals/test_ragas_runner_contract.py:160-180`; `docs/evals/RAGAS_SETUP.md:51-60`
@@ -80,6 +85,12 @@ Commit: b2e5d5c0a
 Evidence: `tests/evals/test_ragas_runner_contract.py:42-55`
 Reason: The import-laziness test now forces `ragas` / `datasets` unavailable in `sys.modules` before a cold import, so the contract no longer depends on whether optional eval extras happen to be installed in CI.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1489#discussion_r3120142392 -> b2e5d5c0a
+
+Disposition: FIXED
+Commit: 39025418f
+Evidence: `tests/evals/test_ragas_runner_contract.py:42-50`
+Reason: The cold-import test now removes the cached runner module via `monkeypatch.delitem(...)`, so teardown is consistent with the rest of the forced optional-dependency stubs and no direct `sys.modules.pop(...)` mutation remains.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1489#discussion_r3120262364 -> 39025418f
 
 ## Merge Readiness
 
