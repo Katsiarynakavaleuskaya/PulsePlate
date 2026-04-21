@@ -11,6 +11,7 @@ from core.knowledge.promotion import (
     candidate_should_supersede,
 )
 from core.rag.contracts import RAGChunk
+from core.verification.contracts import VerificationArtifact, VerificationBundle
 
 
 def _policy() -> KnowledgePolicy:
@@ -23,6 +24,27 @@ def _policy() -> KnowledgePolicy:
         deny_degraded_reasons=("retrieval_empty", "all_chunks_filtered"),
         subject_scope_required=True,
         rail="product_ai_runtime",
+    )
+
+
+def _verification_bundle(*, admission_allowed: bool = True) -> VerificationBundle:
+    status = "pass" if admission_allowed else "fail"
+    return VerificationBundle(
+        artifacts=(
+            VerificationArtifact(
+                artifact_id=f"verification-{status}",
+                verifier_id="test_verifier",
+                status=status,
+                reason_codes=(
+                    ("verification_checks_pass",) if admission_allowed else ("verification_failed",)
+                ),
+            ),
+        ),
+        overall_status=status,
+        admission_allowed=admission_allowed,
+        reason_codes=(
+            ("verification_checks_pass",) if admission_allowed else ("verification_failed",)
+        ),
     )
 
 
@@ -52,6 +74,7 @@ def test_build_knowledge_promotion_candidates_uses_validated_chunks_only() -> No
         degraded_reason=None,
         subject_id=42,
         knowledge_policy=_policy(),
+        verification_bundle=_verification_bundle(),
     )
 
     assert [candidate.predicate for candidate in candidates] == [
@@ -85,6 +108,7 @@ def test_build_knowledge_promotion_candidates_fails_closed_on_degraded_confidenc
         degraded_reason="retrieval_empty",
         subject_id=42,
         knowledge_policy=_policy(),
+        verification_bundle=_verification_bundle(),
     )
     low_confidence = build_knowledge_promotion_candidates(
         chunks=chunks,
@@ -92,6 +116,7 @@ def test_build_knowledge_promotion_candidates_fails_closed_on_degraded_confidenc
         degraded_reason=None,
         subject_id=42,
         knowledge_policy=_policy(),
+        verification_bundle=_verification_bundle(),
     )
     missing_scope = build_knowledge_promotion_candidates(
         chunks=chunks,
@@ -99,6 +124,7 @@ def test_build_knowledge_promotion_candidates_fails_closed_on_degraded_confidenc
         degraded_reason=None,
         subject_id=None,
         knowledge_policy=_policy(),
+        verification_bundle=_verification_bundle(),
     )
     disabled_policy = build_knowledge_promotion_candidates(
         chunks=chunks,
@@ -115,6 +141,7 @@ def test_build_knowledge_promotion_candidates_fails_closed_on_degraded_confidenc
             subject_scope_required=True,
             rail="product_ai_runtime",
         ),
+        verification_bundle=_verification_bundle(),
     )
     denied_policy = build_knowledge_promotion_candidates(
         chunks=chunks,
@@ -131,6 +158,22 @@ def test_build_knowledge_promotion_candidates_fails_closed_on_degraded_confidenc
             subject_scope_required=True,
             rail="product_ai_runtime",
         ),
+        verification_bundle=_verification_bundle(),
+    )
+    missing_bundle = build_knowledge_promotion_candidates(
+        chunks=chunks,
+        confidence=0.82,
+        degraded_reason=None,
+        subject_id=42,
+        knowledge_policy=_policy(),
+    )
+    denied_bundle = build_knowledge_promotion_candidates(
+        chunks=chunks,
+        confidence=0.82,
+        degraded_reason=None,
+        subject_id=42,
+        knowledge_policy=_policy(),
+        verification_bundle=_verification_bundle(admission_allowed=False),
     )
 
     assert degraded == []
@@ -138,6 +181,8 @@ def test_build_knowledge_promotion_candidates_fails_closed_on_degraded_confidenc
     assert missing_scope == []
     assert disabled_policy == []
     assert denied_policy == []
+    assert missing_bundle == []
+    assert denied_bundle == []
 
 
 def test_candidate_should_supersede_only_when_scope_matches_and_evidence_is_stronger() -> None:
@@ -170,6 +215,7 @@ def test_candidate_should_supersede_only_when_scope_matches_and_evidence_is_stro
         degraded_reason=None,
         subject_id=42,
         knowledge_policy=_policy(),
+        verification_bundle=_verification_bundle(),
     )[0]
     stronger = KnowledgeRecord(
         fact_key=stronger.fact_key,
@@ -197,6 +243,7 @@ def test_candidate_should_supersede_only_when_scope_matches_and_evidence_is_stro
         degraded_reason=None,
         subject_id=42,
         knowledge_policy=_policy(),
+        verification_bundle=_verification_bundle(),
     )[0]
     explicit_superseding_candidate = explicit_superseding_candidate.__class__(
         fact_key=explicit_superseding_candidate.fact_key,
@@ -224,6 +271,7 @@ def test_candidate_should_supersede_only_when_scope_matches_and_evidence_is_stro
         degraded_reason=None,
         subject_id=99,
         knowledge_policy=_policy(),
+        verification_bundle=_verification_bundle(),
     )[0]
 
     assert (
@@ -243,6 +291,7 @@ def test_candidate_should_supersede_only_when_scope_matches_and_evidence_is_stro
                 degraded_reason=None,
                 subject_id=42,
                 knowledge_policy=_policy(),
+                verification_bundle=_verification_bundle(),
             )[0],
         )
         is False

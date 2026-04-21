@@ -1364,6 +1364,8 @@ async def test_rag_orchestration_builds_candidates_only_from_validated_chunks() 
     assert len(result.knowledge_candidates) == 1
     assert result.knowledge_candidates_canonical is True
     assert result.knowledge_candidates[0].predicate == "validated_rag_evidence:docs/keep.md:keep"
+    assert result.verification_bundle is not None
+    assert result.verification_bundle.admission_allowed is True
 
 
 @pytest.mark.asyncio
@@ -1425,6 +1427,8 @@ async def test_rag_orchestration_denies_candidates_on_degraded_and_empty_context
     assert degraded_result.knowledge_candidates == []
     assert filtered_result.knowledge_candidates == []
     assert redacted_empty_result.knowledge_candidates == []
+    assert degraded_result.verification_bundle is not None
+    assert degraded_result.verification_bundle.admission_allowed is False
 
 
 @pytest.mark.asyncio
@@ -1457,6 +1461,8 @@ async def test_rag_orchestration_denies_canonical_candidates_when_retrieval_is_d
 
     assert result.knowledge_candidates == []
     assert result.knowledge_candidates_canonical is False
+    assert result.verification_bundle is not None
+    assert result.verification_bundle.admission_allowed is False
 
 
 @pytest.mark.asyncio

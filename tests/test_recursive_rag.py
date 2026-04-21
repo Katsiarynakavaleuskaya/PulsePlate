@@ -1059,3 +1059,5 @@ async def test_recursive_nonvalidated_path_never_emits_knowledge_candidates(
     assert result.rag_actually_used is True
     assert result.knowledge_candidates == []
     assert result.knowledge_candidates_canonical is False
+    assert result.verification_bundle is not None
+    assert result.verification_bundle.admission_allowed is False

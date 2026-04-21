@@ -359,8 +359,22 @@ class TestKnowledgePromotionFastLane:
         """Promotion must reject missing inputs and empty validated content deterministically."""
 
         from core.knowledge.promotion import build_knowledge_promotion_candidates
+        from core.verification.contracts import VerificationArtifact, VerificationBundle
 
         policy = self._knowledge_policy()
+        bundle = VerificationBundle(
+            artifacts=(
+                VerificationArtifact(
+                    artifact_id="fast-lane-pass",
+                    verifier_id="fast_lane_verifier",
+                    status="pass",
+                    reason_codes=("verification_checks_pass",),
+                ),
+            ),
+            overall_status="pass",
+            admission_allowed=True,
+            reason_codes=("verification_checks_pass",),
+        )
 
         assert (
             build_knowledge_promotion_candidates(
@@ -369,6 +383,7 @@ class TestKnowledgePromotionFastLane:
                 degraded_reason=None,
                 subject_id=42,
                 knowledge_policy=policy,
+                verification_bundle=bundle,
             )
             == []
         )
@@ -379,6 +394,7 @@ class TestKnowledgePromotionFastLane:
                 degraded_reason="retrieval_empty",
                 subject_id=42,
                 knowledge_policy=policy,
+                verification_bundle=bundle,
             )
             == []
         )
@@ -389,6 +405,7 @@ class TestKnowledgePromotionFastLane:
                 degraded_reason=None,
                 subject_id=42,
                 knowledge_policy=policy,
+                verification_bundle=bundle,
             )
             == []
         )
@@ -399,12 +416,24 @@ class TestKnowledgePromotionFastLane:
                 degraded_reason=None,
                 subject_id=None,
                 knowledge_policy=policy,
+                verification_bundle=bundle,
             )
             == []
         )
         assert (
             build_knowledge_promotion_candidates(
                 chunks=[self._chunk(content="   ")],
+                confidence=0.9,
+                degraded_reason=None,
+                subject_id=42,
+                knowledge_policy=policy,
+                verification_bundle=bundle,
+            )
+            == []
+        )
+        assert (
+            build_knowledge_promotion_candidates(
+                chunks=[self._chunk()],
                 confidence=0.9,
                 degraded_reason=None,
                 subject_id=42,
@@ -557,6 +586,31 @@ class TestKnowledgeStoreFastLane:
 class TestInsightApplicationServiceFastLane:
     """Keep async knowledge-promotion seam covered by test-fast."""
 
+    @staticmethod
+    def _verification_bundle(*, admission_allowed: bool = True):
+        from core.verification.contracts import VerificationArtifact, VerificationBundle
+
+        status = "pass" if admission_allowed else "fail"
+        return VerificationBundle(
+            artifacts=(
+                VerificationArtifact(
+                    artifact_id=f"service-{status}",
+                    verifier_id="service_test_verifier",
+                    status=status,
+                    reason_codes=(
+                        ("verification_checks_pass",)
+                        if admission_allowed
+                        else ("verification_failed",)
+                    ),
+                ),
+            ),
+            overall_status=status,
+            admission_allowed=admission_allowed,
+            reason_codes=(
+                ("verification_checks_pass",) if admission_allowed else ("verification_failed",)
+            ),
+        )
+
     @pytest.mark.asyncio
     async def test_maybe_promote_knowledge_candidates_awaits_async_store(self) -> None:
         """Async stores must be awaited before the response path continues."""
@@ -575,6 +629,7 @@ class TestInsightApplicationServiceFastLane:
         await _maybe_promote_knowledge_candidates(
             knowledge_store=_AsyncStore(),
             candidates=[candidate],
+            verification_bundle=self._verification_bundle(),
         )
 
         assert observed["candidates"] == [candidate]
@@ -605,6 +660,7 @@ class TestInsightApplicationServiceFastLane:
         await _maybe_promote_knowledge_candidates(
             knowledge_store=_BrokenStore(),
             candidates=[cast(KnowledgeFactCandidate, SimpleNamespace(fact_key="fact-1"))],
+            verification_bundle=self._verification_bundle(),
         )
 
         assert warnings
@@ -646,6 +702,7 @@ class TestInsightApplicationServiceFastLane:
         await _maybe_promote_knowledge_candidates(
             knowledge_store=_SlowStore(),
             candidates=[cast(KnowledgeFactCandidate, SimpleNamespace(fact_key="fact-1"))],
+            verification_bundle=self._verification_bundle(),
         )
 
         assert warnings
@@ -684,6 +741,7 @@ class TestInsightApplicationServiceFastLane:
         await _maybe_promote_knowledge_candidates(
             knowledge_store=_SlowSyncStore(),
             candidates=[cast(KnowledgeFactCandidate, SimpleNamespace(fact_key="fact-1"))],
+            verification_bundle=self._verification_bundle(),
         )
 
         assert warnings
@@ -723,6 +781,31 @@ class TestPhilosophicalRuntimeFastLane:
             access_scope="subject:42",
             rail="product_ai_runtime",
             provenance=(KnowledgeEvidenceRef("chunk-1", "docs/test.md", 0.9, 1),),
+        )
+
+    @staticmethod
+    def _verification_bundle(*, admission_allowed: bool = True):
+        from core.verification.contracts import VerificationArtifact, VerificationBundle
+
+        status = "pass" if admission_allowed else "fail"
+        return VerificationBundle(
+            artifacts=(
+                VerificationArtifact(
+                    artifact_id=f"fast-lane-{status}",
+                    verifier_id="fast_lane_verifier",
+                    status=status,
+                    reason_codes=(
+                        ("verification_checks_pass",)
+                        if admission_allowed
+                        else ("verification_failed",)
+                    ),
+                ),
+            ),
+            overall_status=status,
+            admission_allowed=admission_allowed,
+            reason_codes=(
+                ("verification_checks_pass",) if admission_allowed else ("verification_failed",)
+            ),
         )
 
     @pytest.mark.parametrize(
@@ -800,9 +883,54 @@ class TestPhilosophicalRuntimeFastLane:
             ),
             philo_validation_enabled=philo_validation_enabled,
             knowledge_policy=knowledge_policy,
+            verification_bundle=(
+                self._verification_bundle()
+                if canonical and degraded_reason is None and rag_actually_used
+                else None
+            ),
         )
 
         assert len(result) == expected_count
+
+    def test_resolve_runtime_knowledge_candidates_requires_admissible_bundle(self) -> None:
+        """Promotion must fail closed when the canonical RAG path lacks a passed bundle."""
+
+        from core.insight.philosophical_runtime import (
+            PhilosophicalRuntime,
+            RiskLevel,
+            RouteDecision,
+            RouteType,
+        )
+        from core.rag.orchestration import RAGOrchestrationResult
+
+        runtime = PhilosophicalRuntime()
+        decision = RouteDecision(
+            route_type=RouteType.RAG_FACTUAL,
+            target_depth=1,
+            needs_rag=True,
+            needs_generation=True,
+            risk_level=RiskLevel.LOW,
+        )
+
+        result = runtime._resolve_runtime_knowledge_candidates(
+            decision=decision,
+            rag_result=RAGOrchestrationResult(
+                chunks=[],
+                formatted_prompt="prompt",
+                rag_actually_used=True,
+                confidence=0.9,
+                hops=1,
+                latency_ms=1,
+                degraded_reason=None,
+                knowledge_candidates=[self._runtime_candidate()],
+                knowledge_candidates_canonical=True,
+            ),
+            philo_validation_enabled=True,
+            knowledge_policy=self._runtime_policy(),
+            verification_bundle=None,
+        )
+
+        assert result == []
 
 
 class TestVectorTypeFastLane:

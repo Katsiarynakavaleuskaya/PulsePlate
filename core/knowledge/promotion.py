@@ -17,6 +17,7 @@ from core.knowledge.contracts import (
 )
 from core.knowledge.policy import KnowledgePolicy
 from core.rag.contracts import RAGChunk
+from core.verification.contracts import VerificationBundle
 
 
 def build_knowledge_promotion_candidates(
@@ -26,9 +27,12 @@ def build_knowledge_promotion_candidates(
     degraded_reason: str | None,
     subject_id: int | None,
     knowledge_policy: KnowledgePolicy,
+    verification_bundle: VerificationBundle | None = None,
 ) -> list[KnowledgeFactCandidate]:
     """Return deterministic candidates from validated chunks or fail closed."""
 
+    if verification_bundle is None or not verification_bundle.admission_allowed:
+        return []
     if not knowledge_policy.enabled or not knowledge_policy.allow_promotion:
         return []
     if not chunks:

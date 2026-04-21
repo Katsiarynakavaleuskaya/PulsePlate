@@ -14,12 +14,13 @@ import asyncio
 import logging
 import math
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Optional, SupportsFloat, cast
+from typing import TYPE_CHECKING, Optional, Sequence, SupportsFloat, cast
 
 if TYPE_CHECKING:
     from core.knowledge.contracts import KnowledgeFactCandidate
     from core.knowledge.policy import KnowledgePolicy
     from core.rag.contracts import RAGChunk
+    from core.verification.contracts import VerificationBundle
 
 from core.rag.contracts import RAGContext, RAGDegradedReason
 
@@ -69,12 +70,16 @@ class RAGOrchestrationResult:
     knowledge_candidates_canonical: bool = False
     """True only when candidates come from the canonical validated orchestration path."""
 
+    verification_bundle: "VerificationBundle | None" = None
+    """Canonical pre-generation verification bundle for internal write admission."""
+
 
 def _empty_result(
     prompt_input: str,
     *,
     recursive_executed: bool = False,
     degraded_reason: RAGDegradedReason | None = None,
+    verification_bundle: "VerificationBundle | None" = None,
 ) -> RAGOrchestrationResult:
     """Return empty orchestration result (fail-safe fallback)."""
     return RAGOrchestrationResult(
@@ -89,6 +94,7 @@ def _empty_result(
         chunks_filtered=0,
         recursive_executed=recursive_executed,
         degraded_reason=degraded_reason,
+        verification_bundle=verification_bundle,
     )
 
 
@@ -149,6 +155,7 @@ def _non_rag_result(
     chunks_filtered: int,
     recursive_executed: bool,
     degraded_reason: RAGDegradedReason,
+    verification_bundle: "VerificationBundle | None" = None,
 ) -> RAGOrchestrationResult:
     """Return a non-RAG result when no usable context survives to output."""
 
@@ -164,6 +171,7 @@ def _non_rag_result(
         chunks_filtered=chunks_filtered,
         recursive_executed=recursive_executed,
         degraded_reason=degraded_reason,
+        verification_bundle=verification_bundle,
     )
 
 
@@ -238,6 +246,7 @@ async def _run_orchestration(
     rag_ctx: RAGContext | None = None
     warnings: list[str] = []
     chunks_filtered = 0
+    verification_calls = 0
     try:
         # Lazy imports to preserve fail-safe behavior (missing modules don't crash)
         from core.rag.formatting import format_rag_chunks_for_prompt
@@ -274,6 +283,8 @@ async def _run_orchestration(
                 degraded_reason=RAGDegradedReason.ORCHESTRATION_EXCEPTION,
             )
 
+        verification_calls = _extract_recursive_verification_calls(rag_ctx)
+
         if not rag_ctx.chunks:
             return _non_rag_result(
                 prompt_input,
@@ -285,6 +296,19 @@ async def _run_orchestration(
                 recursive_executed=recursive_executed,
                 degraded_reason=(
                     getattr(rag_ctx, "degraded_reason", None) or RAGDegradedReason.RETRIEVAL_EMPTY
+                ),
+                verification_bundle=_build_orchestration_verification_bundle(
+                    knowledge_policy=knowledge_policy,
+                    confidence=None,
+                    degraded_reason=(
+                        getattr(rag_ctx, "degraded_reason", None)
+                        or RAGDegradedReason.RETRIEVAL_EMPTY
+                    ),
+                    rag_actually_used=False,
+                    philo_validation_enabled=philo_enabled,
+                    recursive_executed=recursive_executed,
+                    verification_calls=verification_calls,
+                    chunks=(),
                 ),
             )
 
@@ -317,10 +341,30 @@ async def _run_orchestration(
                 chunks_filtered=chunks_filtered,
                 recursive_executed=recursive_executed,
                 degraded_reason=RAGDegradedReason.ALL_CHUNKS_FILTERED,
+                verification_bundle=_build_orchestration_verification_bundle(
+                    knowledge_policy=knowledge_policy,
+                    confidence=None,
+                    degraded_reason=RAGDegradedReason.ALL_CHUNKS_FILTERED,
+                    rag_actually_used=False,
+                    philo_validation_enabled=philo_enabled,
+                    recursive_executed=recursive_executed,
+                    verification_calls=verification_calls,
+                    chunks=(),
+                ),
             )
 
         confidence = _resolve_confidence(
             chunks_to_use=chunks_to_use,
+        )
+        verification_bundle = _build_orchestration_verification_bundle(
+            knowledge_policy=knowledge_policy,
+            confidence=confidence,
+            degraded_reason=getattr(rag_ctx, "degraded_reason", None),
+            rag_actually_used=True,
+            philo_validation_enabled=philo_enabled,
+            recursive_executed=recursive_executed,
+            verification_calls=verification_calls,
+            chunks=chunks_to_use,
         )
         if knowledge_candidates_canonical:
             knowledge_candidates = _build_knowledge_candidates(
@@ -329,6 +373,7 @@ async def _run_orchestration(
                 degraded_reason=getattr(rag_ctx, "degraded_reason", None),
                 subject_id=subject_id,
                 knowledge_policy=knowledge_policy,
+                verification_bundle=verification_bundle,
             )
 
         # Build formatted prompt with RAG context
@@ -345,6 +390,7 @@ async def _run_orchestration(
                 chunks_filtered=chunks_filtered,
                 recursive_executed=recursive_executed,
                 degraded_reason=RAGDegradedReason.FORMATTED_CONTEXT_MALFORMED,
+                verification_bundle=verification_bundle,
             )
         if not raw_context.strip():
             return _non_rag_result(
@@ -356,6 +402,7 @@ async def _run_orchestration(
                 chunks_filtered=chunks_filtered,
                 recursive_executed=recursive_executed,
                 degraded_reason=RAGDegradedReason.FORMATTED_CONTEXT_EMPTY,
+                verification_bundle=verification_bundle,
             )
         redacted_context = redact_rag_context_for_insight(raw_context)
         if not isinstance(redacted_context, str):
@@ -368,6 +415,7 @@ async def _run_orchestration(
                 chunks_filtered=chunks_filtered,
                 recursive_executed=recursive_executed,
                 degraded_reason=RAGDegradedReason.REDACTED_CONTEXT_MALFORMED,
+                verification_bundle=verification_bundle,
             )
         if not redacted_context.strip():
             return _non_rag_result(
@@ -379,6 +427,7 @@ async def _run_orchestration(
                 chunks_filtered=chunks_filtered,
                 recursive_executed=recursive_executed,
                 degraded_reason=RAGDegradedReason.REDACTED_CONTEXT_EMPTY,
+                verification_bundle=verification_bundle,
             )
         formatted_prompt = _build_prompt_with_context(prompt_input, redacted_context)
 
@@ -396,6 +445,7 @@ async def _run_orchestration(
             degraded_reason=getattr(rag_ctx, "degraded_reason", None),
             knowledge_candidates=knowledge_candidates,
             knowledge_candidates_canonical=knowledge_candidates_canonical,
+            verification_bundle=verification_bundle,
         )
     except Exception:
         logger.warning(
@@ -412,6 +462,16 @@ async def _run_orchestration(
                 chunks_filtered=chunks_filtered,
                 recursive_executed=recursive_executed,
                 degraded_reason=RAGDegradedReason.POST_RETRIEVAL_ORCHESTRATION_EXCEPTION,
+                verification_bundle=_build_orchestration_verification_bundle(
+                    knowledge_policy=knowledge_policy,
+                    confidence=None,
+                    degraded_reason=RAGDegradedReason.POST_RETRIEVAL_ORCHESTRATION_EXCEPTION,
+                    rag_actually_used=False,
+                    philo_validation_enabled=philo_enabled,
+                    recursive_executed=recursive_executed,
+                    verification_calls=verification_calls,
+                    chunks=(),
+                ),
             )
         return _empty_result(
             prompt_input,
@@ -438,6 +498,7 @@ def _build_knowledge_candidates(
     degraded_reason: RAGDegradedReason | None,
     subject_id: int | None,
     knowledge_policy: "KnowledgePolicy | None",
+    verification_bundle: "VerificationBundle | None",
 ) -> list["KnowledgeFactCandidate"]:
     """Build internal knowledge candidates from validated evidence or fail closed."""
 
@@ -452,5 +513,44 @@ def _build_knowledge_candidates(
         degraded_reason=None if degraded_reason is None else degraded_reason.value,
         subject_id=subject_id,
         knowledge_policy=knowledge_policy,
+        verification_bundle=verification_bundle,
     )
     return candidates
+
+
+def _extract_recursive_verification_calls(rag_ctx: RAGContext) -> int:
+    """Return recursive verification call count from optimization diagnostics."""
+
+    optimization_stats = getattr(rag_ctx, "optimization_stats", None)
+    if not isinstance(optimization_stats, dict):
+        return 0
+    value = optimization_stats.get("verification_calls", 0)
+    return value if isinstance(value, int) else 0
+
+
+def _build_orchestration_verification_bundle(
+    *,
+    knowledge_policy: "KnowledgePolicy | None",
+    confidence: float | None,
+    degraded_reason: RAGDegradedReason | None,
+    rag_actually_used: bool,
+    philo_validation_enabled: bool,
+    recursive_executed: bool,
+    verification_calls: int,
+    chunks: Sequence["RAGChunk"],
+) -> "VerificationBundle":
+    """Materialize the canonical pre-generation verification bundle."""
+
+    from core.verification.registry import build_rag_verification_bundle
+
+    evidence_refs = tuple(f"{chunk.file}:{chunk.chunk_id}" for chunk in chunks)
+    return build_rag_verification_bundle(
+        knowledge_policy=knowledge_policy,
+        confidence=confidence,
+        degraded_reason=degraded_reason,
+        rag_actually_used=rag_actually_used,
+        philo_validation_enabled=philo_validation_enabled,
+        recursive_executed=recursive_executed,
+        verification_calls=verification_calls,
+        evidence_refs=evidence_refs,
+    )

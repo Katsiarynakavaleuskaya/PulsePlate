@@ -34,6 +34,7 @@ from core.insight import philosophical_runtime as runtime_mod
 from core.insight.analytical import FalsificationReport, VerificationReport
 from core.bmi import extract_bmi_inputs
 from core.rag.orchestration import RAGOrchestrationResult
+from core.verification.contracts import VerificationArtifact, VerificationBundle
 
 
 @dataclass
@@ -61,6 +62,27 @@ class _SequenceProvider:
         index = min(self.calls, len(self.responses) - 1)
         self.calls += 1
         return self.responses[index]
+
+
+def _verification_bundle(*, admission_allowed: bool = True) -> VerificationBundle:
+    status = "pass" if admission_allowed else "fail"
+    return VerificationBundle(
+        artifacts=(
+            VerificationArtifact(
+                artifact_id=f"runtime-{status}",
+                verifier_id="runtime_test_verifier",
+                status=status,
+                reason_codes=(
+                    ("verification_checks_pass",) if admission_allowed else ("verification_failed",)
+                ),
+            ),
+        ),
+        overall_status=status,
+        admission_allowed=admission_allowed,
+        reason_codes=(
+            ("verification_checks_pass",) if admission_allowed else ("verification_failed",)
+        ),
+    )
 
 
 class TestPhilosophicalQueryRouter:
@@ -393,6 +415,7 @@ class TestPhilosophicalRuntime:
                 latency_ms=5,
                 knowledge_candidates=[candidate],
                 knowledge_candidates_canonical=True,
+                verification_bundle=_verification_bundle(),
             )
 
         result = await runtime.generate_insight(
@@ -449,6 +472,7 @@ class TestPhilosophicalRuntime:
                 latency_ms=5,
                 knowledge_candidates=[candidate],
                 knowledge_candidates_canonical=False,
+                verification_bundle=None,
             )
 
         result = await runtime.generate_insight(
@@ -530,6 +554,7 @@ class TestPhilosophicalRuntime:
                 latency_ms=5,
                 knowledge_candidates=[candidate],
                 knowledge_candidates_canonical=True,
+                verification_bundle=_verification_bundle(),
             )
 
         result = await runtime.generate_insight(
@@ -602,6 +627,7 @@ class TestPhilosophicalRuntime:
                     latency_ms=5,
                     knowledge_candidates=[candidate],
                     knowledge_candidates_canonical=True,
+                    verification_bundle=_verification_bundle(),
                 )
 
         opaque_retriever = _OpaqueRetriever()

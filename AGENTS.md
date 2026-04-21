@@ -318,10 +318,15 @@ If adding rate-limit to endpoints, use thin **route wrappers**; do not change ca
 
 - RAG chunks are evidence artifacts, not canonical facts.
 - Knowledge promotion is allowed only from validated RAG evidence.
+- Knowledge writes require a passed canonical verification bundle.
+- Future semantic-cache admission and side-effectful cache/action execution must reuse the same canonical verification-bundle contract when their dedicated gates open.
 - `prepare_insight_runtime(...)` is the canonical seam for runtime knowledge policy.
+- Recursive retrieval verification and philosophical runtime verification must converge into one canonical registry/bundle path.
 - Route layer and `legacy_app.py` must never write or mutate knowledge records.
+- Route layer, service adapters, and `legacy_app.py` must never author verification truth.
 - Request-local recursive caches are optimization helpers only and must never be treated as persistent knowledge.
 - Promotion must fail closed on degraded retrieval/orchestration reasons.
+- Failed verification must degrade safely and must not break the response path.
 - Semantic cache must not be widened or implied by knowledge-promotion work unless the dedicated semantic-cache gate explicitly opens.
 
 ---
