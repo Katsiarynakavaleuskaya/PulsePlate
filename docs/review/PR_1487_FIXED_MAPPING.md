@@ -15,7 +15,11 @@ GitHub.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1487#pullrequestreview-4148025010
+Disposition: FIXED
+Commit: 661e88b2b
+Evidence: `tests/test_install_locked_python_requirements.py:37`, `tests/test_install_locked_python_requirements.py:48`, `tests/test_install_locked_python_requirements.py:107`
+Reason: Follow-up commit replaces the `StopIteration`-style manifest lookup with an explicit assertion helper and tightens the compatible-release parser so `ruff~=...` checks remain stable when requirement lines carry environment markers.
 
 ## Merge Readiness
 
@@ -32,10 +36,11 @@ Merge-readiness contract:
 - [x] All review threads resolved on GitHub after disposition updates
   Evidence: GraphQL review-thread query on 21 April 2026 returned zero review
   threads for PR `#1487`.
-- [x] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
-  Evidence: only non-actionable bot surface remains on 21 April 2026
-  (`CodeRabbit review skipped`, `Sourcery` reviewer guide, and informational
-  Codecov coverage report); no actionable bot thread is open or unmapped.
+- [ ] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
+  Evidence: the latest actionable `sourcery-ai` review
+  `#pullrequestreview-4148025010` is mapped to `661e88b2b`, but external bot
+  runs (`CodeRabbit`, `cubic`) are still pending on the current head and can
+  still emit new actionables before the final merge cycle.
 - [x] Pre-commit green on validated remediation head
   Evidence: local `pre-commit run --all-files` passed before pushing the
   code-bearing remediation head `2b6e65b77`; later heads are governance-only
