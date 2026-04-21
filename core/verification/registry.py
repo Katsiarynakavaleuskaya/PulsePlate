@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Sequence
 from hashlib import sha256
+import math
 
 from core.insight.analytical import FalsificationReport, VerificationReport
 from core.knowledge.policy import KnowledgePolicy
@@ -305,7 +306,10 @@ def _philosophical_verification_artifact(
             failure_reason="verification_report_missing",
             scope=policy.scope,
         )
-    if verification_report.verification_rate < policy.required_rate:
+    if not _rate_meets_threshold(
+        rate=verification_report.verification_rate,
+        threshold=policy.required_rate,
+    ):
         return _artifact(
             verifier_id="analytical_verifier",
             status=_FAIL,
@@ -343,7 +347,10 @@ def _philosophical_falsification_artifact(
             failure_reason="contradictions_detected",
             scope=policy.scope,
         )
-    if falsification_report.falsifiability_rate < policy.required_rate:
+    if not _rate_meets_threshold(
+        rate=falsification_report.falsifiability_rate,
+        threshold=policy.required_rate,
+    ):
         return _artifact(
             verifier_id="falsification_verifier",
             status=_FAIL,
@@ -387,6 +394,12 @@ def _artifact(
         reason_codes=normalized_reason_codes,
         failure_reason=failure_reason,
     )
+
+
+def _rate_meets_threshold(*, rate: float, threshold: float) -> bool:
+    """Return whether a verification rate is finite, normalized, and sufficient."""
+
+    return math.isfinite(rate) and 0.0 <= rate <= 1.0 and rate >= threshold
 
 
 def _artifact_id(

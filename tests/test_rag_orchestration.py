@@ -1429,6 +1429,10 @@ async def test_rag_orchestration_denies_candidates_on_degraded_and_empty_context
     assert redacted_empty_result.knowledge_candidates == []
     assert degraded_result.verification_bundle is not None
     assert degraded_result.verification_bundle.admission_allowed is False
+    assert filtered_result.verification_bundle is not None
+    assert filtered_result.verification_bundle.admission_allowed is False
+    assert redacted_empty_result.verification_bundle is not None
+    assert redacted_empty_result.verification_bundle.admission_allowed is False
 
 
 @pytest.mark.asyncio

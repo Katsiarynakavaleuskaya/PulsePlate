@@ -7,7 +7,7 @@ EN: Canonical internal-only contracts for verification artifact/bundle.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Literal
 
 VerificationStatus = Literal["pass", "warn", "fail"]
@@ -20,7 +20,7 @@ class VerificationArtifact:
     artifact_id: str
     verifier_id: str
     status: VerificationStatus
-    checked_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    checked_at: datetime | None = field(default=None, compare=False)
     scope: str = "knowledge_write"
     evidence_refs: tuple[str, ...] = ()
     reason_codes: tuple[str, ...] = ()

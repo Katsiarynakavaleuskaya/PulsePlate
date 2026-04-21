@@ -662,6 +662,7 @@ Build the PulsePlate RAG/LLM/Karpathy line as three separate but coordinated rai
    - PR-A3 AI bounded-context packet
    - PR-A4 AI bounded-context extraction
    - PR-A5 LLM reliability/security gates
+   - PR-V1 verification registry and verify-before-write admission
    - PR-A6 philosophical rollout W1
    - PR-A7 recursive methods W1
    - PR-A8 speed optimization for recursive stack

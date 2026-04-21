@@ -366,6 +366,23 @@ async def _run_orchestration(
             verification_calls=verification_calls,
             chunks=chunks_to_use,
         )
+
+        def _degraded_verification_bundle(
+            degraded_reason: RAGDegradedReason,
+        ) -> VerificationBundle:
+            """Recompute admission truth for post-retrieval degradation branches."""
+
+            return _build_orchestration_verification_bundle(
+                knowledge_policy=knowledge_policy,
+                confidence=confidence,
+                degraded_reason=degraded_reason,
+                rag_actually_used=False,
+                philo_validation_enabled=philo_enabled,
+                recursive_executed=recursive_executed,
+                verification_calls=verification_calls,
+                chunks=chunks_to_use,
+            )
+
         if knowledge_candidates_canonical:
             knowledge_candidates = _build_knowledge_candidates(
                 chunks_to_use=chunks_to_use,
@@ -390,7 +407,9 @@ async def _run_orchestration(
                 chunks_filtered=chunks_filtered,
                 recursive_executed=recursive_executed,
                 degraded_reason=RAGDegradedReason.FORMATTED_CONTEXT_MALFORMED,
-                verification_bundle=verification_bundle,
+                verification_bundle=_degraded_verification_bundle(
+                    RAGDegradedReason.FORMATTED_CONTEXT_MALFORMED
+                ),
             )
         if not raw_context.strip():
             return _non_rag_result(
@@ -402,7 +421,9 @@ async def _run_orchestration(
                 chunks_filtered=chunks_filtered,
                 recursive_executed=recursive_executed,
                 degraded_reason=RAGDegradedReason.FORMATTED_CONTEXT_EMPTY,
-                verification_bundle=verification_bundle,
+                verification_bundle=_degraded_verification_bundle(
+                    RAGDegradedReason.FORMATTED_CONTEXT_EMPTY
+                ),
             )
         redacted_context = redact_rag_context_for_insight(raw_context)
         if not isinstance(redacted_context, str):
@@ -415,7 +436,9 @@ async def _run_orchestration(
                 chunks_filtered=chunks_filtered,
                 recursive_executed=recursive_executed,
                 degraded_reason=RAGDegradedReason.REDACTED_CONTEXT_MALFORMED,
-                verification_bundle=verification_bundle,
+                verification_bundle=_degraded_verification_bundle(
+                    RAGDegradedReason.REDACTED_CONTEXT_MALFORMED
+                ),
             )
         if not redacted_context.strip():
             return _non_rag_result(
@@ -427,7 +450,9 @@ async def _run_orchestration(
                 chunks_filtered=chunks_filtered,
                 recursive_executed=recursive_executed,
                 degraded_reason=RAGDegradedReason.REDACTED_CONTEXT_EMPTY,
-                verification_bundle=verification_bundle,
+                verification_bundle=_degraded_verification_bundle(
+                    RAGDegradedReason.REDACTED_CONTEXT_EMPTY
+                ),
             )
         formatted_prompt = _build_prompt_with_context(prompt_input, redacted_context)
 

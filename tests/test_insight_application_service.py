@@ -633,3 +633,88 @@ async def test_execute_insight_request_skips_store_when_bundle_denies_admission(
 
     assert observed["promote_called"] is False
     assert response["provider"] == "stub"
+
+
+@pytest.mark.asyncio
+async def test_execute_insight_request_skips_store_when_bundle_is_missing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Missing admission bundle must fail closed before persistence."""
+
+    observed: dict[str, Any] = {"promote_called": False}
+
+    @dataclass
+    class _Request:
+        text: str
+
+    candidate = SimpleNamespace(fact_key="fact-1")
+    prepared_runtime = SimpleNamespace(
+        runtime=object(),
+        provider=SimpleNamespace(active_provider_name="stub"),
+        decision=SimpleNamespace(route_type=SimpleNamespace(value="rag_factual")),
+        transparency_notice=InsightTransparencyNotice(
+            surface_id="ai_generated_insight",
+            wellness_boundary="Wellness only.",
+        ),
+        knowledge_policy=_knowledge_policy(),
+    )
+
+    async def _fake_generate_traced_insight(**kwargs: object) -> object:
+        return SimpleNamespace(
+            insight="generated insight",
+            provider_name="stub",
+            source_dicts=[],
+            confidence=0.92,
+            rag_used=True,
+            hops=1,
+            latency_ms=8,
+            knowledge_candidates=[candidate],
+            verification_bundle=None,
+            metadata=SimpleNamespace(
+                route_type="rag_factual",
+                depth_used=1,
+                verification_rate=1.0,
+                falsifiability_rate=1.0,
+                contradiction_count=0,
+                reason_codes=["rag_factual"],
+                optimization_applied=False,
+            ),
+        )
+
+    class _Store:
+        def promote(self, candidates: list[object]) -> list[object]:
+            observed["promote_called"] = True
+            return candidates
+
+        def read(
+            self, *, subject: str, predicate: str, access_scope: str, rail: str
+        ) -> list[object]:
+            del subject, predicate, access_scope, rail
+            return []
+
+    monkeypatch.setattr(
+        "app.services.insight_application_service.prepare_insight_runtime",
+        lambda **kwargs: prepared_runtime,
+        raising=True,
+    )
+    monkeypatch.setattr(
+        "app.services.insight_application_service.generate_traced_insight",
+        _fake_generate_traced_insight,
+        raising=True,
+    )
+
+    response = await execute_insight_request(
+        _Request(text="hello"),
+        route_path="/api/v1/insight",
+        user_tier="VIP",
+        subject_id=42,
+        input_guard=lambda text: None,
+        provider_loader=lambda: _FakeProvider(),
+        transparency_loader=lambda: ("ai_generated_insight", "Wellness only."),
+        knowledge_store=_Store(),
+        response_factory=lambda **payload: dict(payload),
+        source_item_factory=lambda **payload: dict(payload),
+    )
+
+    assert observed["promote_called"] is False
+    assert response["provider"] == "stub"
