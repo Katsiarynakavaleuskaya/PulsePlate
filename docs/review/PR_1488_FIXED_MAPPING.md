@@ -41,6 +41,11 @@ Evidence: [scripts/deploy_production.sh](/Users/katsiaryna_kavaleuskaya/Develope
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1488#pullrequestreview-4149616401 -> ebed66e71
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1488#discussion_r3119216490 -> ebed66e71
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1488#pullrequestreview-4150072953
+Disposition: NOT-A-BUG
+Evidence: [scripts/deploy_production.sh](/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/worktrees/fix-docker-deploy-contract-reconciliation/scripts/deploy_production.sh:232), [scripts/deploy_production.sh](/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/worktrees/fix-docker-deploy-contract-reconciliation/scripts/deploy_production.sh:369), [tests/test_deploy_contract_scripts.py](/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/worktrees/fix-docker-deploy-contract-reconciliation/tests/test_deploy_contract_scripts.py:104)
+Reason: The duplicated compose-path normalization is confined to two fail-closed call sites with identical guarded behavior and test coverage; widening this docs/deploy lane into a refactor would increase scope without changing the deploy contract or fixing a correctness bug.
+
 ## Merge Readiness
 
 Merge-readiness contract:
