@@ -17,37 +17,29 @@ Record every actionable human/bot disposition here before resolving threads on G
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1488#pullrequestreview-4148229640
 Disposition: FIXED
 Commit: see mapping entries below
-Evidence: review covered by `#discussion_r3117952073` and the split-contract test hardening in [tests/test_cd_workflow_production_deploy_gate.py](/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/worktrees/fix-docker-deploy-contract-reconciliation/tests/test_cd_workflow_production_deploy_gate.py:64).
+Evidence: [tests/test_deploy_contract_scripts.py](/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/worktrees/fix-docker-deploy-contract-reconciliation/tests/test_deploy_contract_scripts.py:20), [tests/test_cd_workflow_production_deploy_gate.py](/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/worktrees/fix-docker-deploy-contract-reconciliation/tests/test_cd_workflow_production_deploy_gate.py:64)
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1488#discussion_r3117952073
-Disposition: FIXED
-Commit: 02b06b8d5
-Evidence: [scripts/deploy_production.sh](/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/worktrees/fix-docker-deploy-contract-reconciliation/scripts/deploy_production.sh:294), [tests/test_deploy_contract_scripts.py](/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/worktrees/fix-docker-deploy-contract-reconciliation/tests/test_deploy_contract_scripts.py:29)
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1488#pullrequestreview-4148229640 -> 02b06b8d5
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1488#discussion_r3117952073 -> 02b06b8d5
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1488#discussion_r3117952077 -> 02b06b8d5
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1488#discussion_r3117952082 -> 02b06b8d5
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1488#pullrequestreview-4148251408
 Disposition: FIXED
 Commit: see mapping entries below
-Evidence: review covered by `#discussion_r3117970414` and `#discussion_r3117970442`, both fixed and mapped below.
+Evidence: [deploy/PRODUCTION.md](/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/worktrees/fix-docker-deploy-contract-reconciliation/deploy/PRODUCTION.md:204), [deploy/WORKFLOW.md](/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/worktrees/fix-docker-deploy-contract-reconciliation/deploy/WORKFLOW.md:217), [docs/review/PR_1488_FIXED_MAPPING.md](/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/worktrees/fix-docker-deploy-contract-reconciliation/docs/review/PR_1488_FIXED_MAPPING.md:1)
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1488#discussion_r3117970414
-Disposition: FIXED
-Commit: 02b06b8d5
-Evidence: [deploy/PRODUCTION.md](/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/worktrees/fix-docker-deploy-contract-reconciliation/deploy/PRODUCTION.md:204), [deploy/WORKFLOW.md](/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/worktrees/fix-docker-deploy-contract-reconciliation/deploy/WORKFLOW.md:217), [deploy/WORKFLOW.md](/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/worktrees/fix-docker-deploy-contract-reconciliation/deploy/WORKFLOW.md:325)
-
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1488#discussion_r3117970442
-Disposition: FIXED
-Commit: 6943052e6
-Evidence: [docs/review/PR_1488_FIXED_MAPPING.md](/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/worktrees/fix-docker-deploy-contract-reconciliation/docs/review/PR_1488_FIXED_MAPPING.md:17)
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1488#pullrequestreview-4148251408 -> 6943052e6
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1488#discussion_r3117970414 -> 02b06b8d5
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1488#discussion_r3117970442 -> 6943052e6
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1488#pullrequestreview-4149616401
 Disposition: FIXED
 Commit: see mapping entries below
-Evidence: review covered by `#discussion_r3119216490` and the `app.env_file` contract assertion in [tests/test_deploy_contract_scripts.py](/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/worktrees/fix-docker-deploy-contract-reconciliation/tests/test_deploy_contract_scripts.py:27).
+Evidence: [scripts/deploy_production.sh](/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/worktrees/fix-docker-deploy-contract-reconciliation/scripts/deploy_production.sh:369), [tests/test_deploy_contract_scripts.py](/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/worktrees/fix-docker-deploy-contract-reconciliation/tests/test_deploy_contract_scripts.py:25)
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1488#discussion_r3119216490
-Disposition: FIXED
-Commit: ebed66e71
-Evidence: [scripts/deploy_production.sh](/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/worktrees/fix-docker-deploy-contract-reconciliation/scripts/deploy_production.sh:369), [tests/test_deploy_contract_scripts.py](/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/worktrees/fix-docker-deploy-contract-reconciliation/tests/test_deploy_contract_scripts.py:27)
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1488#pullrequestreview-4149616401 -> ebed66e71
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1488#discussion_r3119216490 -> ebed66e71
 
 ## Merge Readiness
 

@@ -152,7 +152,11 @@ def test_production_deploy_jobs_run_preflight_before_live_deploy() -> None:
     )
 
     assert "Preflight production deploy on self-hosted runner" in self_hosted_section
+    assert 'export SHELL_BUNDLE_DIR="${GITHUB_WORKSPACE}"' in self_hosted_section
     assert "bash scripts/deploy_production.sh --preflight-only" in self_hosted_section
+    assert self_hosted_lines.index('          export SHELL_BUNDLE_DIR="${GITHUB_WORKSPACE}"') < (
+        self_hosted_lines.index("          bash scripts/deploy_production.sh --preflight-only")
+    )
     assert self_hosted_lines.index(
         "          bash scripts/deploy_production.sh --preflight-only"
     ) < self_hosted_lines.index("          bash scripts/deploy_production.sh")

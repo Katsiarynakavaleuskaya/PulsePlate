@@ -367,10 +367,68 @@ validate_managed_postgres_contract() {
 }
 
 validate_shell_bundle_contract() {
+  local source_frontend=""
+  local source_caddyfile=""
+  local source_compose=""
+  local compose_relative_path=""
   local required_redeploy=""
 
   if [ -z "$SHELL_BUNDLE_DIR" ]; then
     return 0
+  fi
+
+  if [ -z "$DEPLOY_DIR" ]; then
+    echo "❌ DEPLOY_DIR is required when SHELL_BUNDLE_DIR is set" >&2
+    exit 1
+  fi
+
+  if [ -z "$RESOLVED_COMPOSE_FILE" ]; then
+    echo "❌ Could not resolve a compose filename for shell bundle validation" >&2
+    exit 1
+  fi
+
+  source_frontend="$SHELL_BUNDLE_DIR/frontend"
+  source_caddyfile="$SHELL_BUNDLE_DIR/deploy/Caddyfile.production"
+
+  if [[ "$RESOLVED_COMPOSE_FILE" = /* ]]; then
+    case "$RESOLVED_COMPOSE_FILE" in
+      "$DEPLOY_DIR"/*)
+        compose_relative_path="${RESOLVED_COMPOSE_FILE#"$DEPLOY_DIR"/}"
+        ;;
+      *)
+        echo "❌ COMPOSE_FILE must stay within DEPLOY_DIR: $RESOLVED_COMPOSE_FILE" >&2
+        exit 1
+        ;;
+    esac
+  else
+    compose_relative_path="${RESOLVED_COMPOSE_FILE#./}"
+    case "$compose_relative_path" in
+      ""|"."|..|../*|*/../*|*/..)
+        echo "❌ COMPOSE_FILE must stay within DEPLOY_DIR: $RESOLVED_COMPOSE_FILE" >&2
+        exit 1
+        ;;
+    esac
+  fi
+
+  if [[ "$compose_relative_path" = deploy/* ]]; then
+    source_compose="$SHELL_BUNDLE_DIR/$compose_relative_path"
+  else
+    source_compose="$SHELL_BUNDLE_DIR/deploy/$compose_relative_path"
+  fi
+
+  if [ ! -d "$source_frontend" ]; then
+    echo "❌ SHELL_BUNDLE_DIR is missing frontend/: $source_frontend" >&2
+    exit 1
+  fi
+
+  if [ ! -f "$source_caddyfile" ]; then
+    echo "❌ SHELL_BUNDLE_DIR is missing deploy/Caddyfile.production: $source_caddyfile" >&2
+    exit 1
+  fi
+
+  if [ ! -f "$source_compose" ]; then
+    echo "❌ SHELL_BUNDLE_DIR is missing $compose_relative_path: $source_compose" >&2
+    exit 1
   fi
 
   required_redeploy="$SHELL_BUNDLE_DIR/scripts/redeploy_caddy.sh"

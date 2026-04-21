@@ -540,6 +540,7 @@ jobs:
           set -euo pipefail
           export DEPLOY_DIR='${{ vars.DEPLOY_DIR }}'
           export PRODUCTION_DOMAIN='${{ secrets.PRODUCTION_DOMAIN }}'
+          export SHELL_BUNDLE_DIR="${GITHUB_WORKSPACE}"
           bash scripts/deploy_production.sh --preflight-only
 
       - name: Deploy on self-hosted runner (pinned digest)
