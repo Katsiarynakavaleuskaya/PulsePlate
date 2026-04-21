@@ -47,6 +47,11 @@ Evidence: `tests/evals/test_ragas_runner_contract.py:245-258`
 Reason: The runner-contract test name now matches the function under test, so the suite no longer advertises `_extract_metric_scores` while actually exercising `_validate_metric_scores`.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1489#pullrequestreview-4150797713 -> 29b1a61d0
 
+Disposition: NOT-A-BUG
+Evidence: `tests/test_remaining_modules.py:82-525`; `tests/test_remaining_modules.py:416-514`; `tests/test_remaining_modules.py:547-559`
+Reason: The omnibus smoke class intentionally retains branch-oriented runner assertions as a coverage bridge for `tests/test_remaining_modules.py` and `make test-fast`/`diff-cover`; the canonical contract suite remains under `tests/evals/`, but removing these smoke branches would reopen the branch-scoped coverage gap fixed earlier in this lane.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1489#pullrequestreview-4150846663
+
 Disposition: FIXED
 Commit: b2e5d5c0a
 Evidence: `evals/ragas/run_ragas_eval.py:115-159`; `tests/evals/test_ragas_runner_contract.py:160-180`; `docs/evals/RAGAS_SETUP.md:51-60`
@@ -103,6 +108,12 @@ Commit: 39025418f
 Evidence: `tests/evals/test_ragas_runner_contract.py:42-50`
 Reason: The cold-import test now removes the cached runner module via `monkeypatch.delitem(...)`, so teardown is consistent with the rest of the forced optional-dependency stubs and no direct `sys.modules.pop(...)` mutation remains.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1489#discussion_r3120262364 -> 39025418f
+
+Disposition: FIXED
+Commit: bb5bba224
+Evidence: `docs/review/PR_1489_FIXED_MAPPING.md:113-119`; `tests/evals/test_ragas_runner_contract.py:111-119`
+Reason: The merge-readiness checklist now keeps the pre-commit gate unchecked until the real final merge cycle, and the runner-contract fixture path assertion now uses POSIX normalization to stay deterministic across platforms.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1489#discussion_r3120376048 -> bb5bba224
 
 ## Merge Readiness
 
