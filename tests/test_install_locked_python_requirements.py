@@ -5,6 +5,7 @@ from __future__ import annotations
 from contextlib import contextmanager
 import json
 from pathlib import Path
+import re
 import subprocess
 from typing import Any
 
@@ -28,9 +29,42 @@ def _exact_requirement_pairs(contents: str) -> set[tuple[str, str]]:
         line = raw_line.split("#", 1)[0].strip()
         if not line or "==" not in line:
             continue
-        package, version = line.split("==", 1)
-        pairs.add((package.strip(), version.strip()))
+        package, version_and_markers = line.split("==", 1)
+        version = version_and_markers.split(";", 1)[0].strip()
+        pairs.add((package.strip(), version))
     return pairs
+
+
+def _manifest_artifact_version(manifest: dict[str, Any], package: str) -> str:
+    versions = [
+        str(item["version"]).strip() for item in manifest["artifacts"] if item["package"] == package
+    ]
+    assert versions, f"Emergency wheel manifest must include {package!r}."
+    assert (
+        len(set(versions)) == 1
+    ), f"Emergency wheel manifest must expose a single {package!r} version, found {versions!r}."
+    return versions[0]
+
+
+def _compatible_release_version(contents: str, package: str) -> str | None:
+    pattern = re.compile(rf"^{re.escape(package)}(?:\[[^]]+\])?\s*~=\s*([^\s;#]+)(?:\s*;.*)?$")
+    matched_versions: list[str] = []
+    for raw_line in contents.splitlines():
+        line = raw_line.split("#", 1)[0].strip()
+        if not line:
+            continue
+        match = pattern.match(line)
+        if match is None:
+            continue
+        matched_versions.append(match.group(1).strip())
+
+    if not matched_versions:
+        return None
+
+    assert (
+        len(set(matched_versions)) == 1
+    ), f"Expected a single compatible-release pin for {package!r}, found {matched_versions!r}."
+    return matched_versions[0]
 
 
 def _resolver_miss_runtimeerror_like_run_command(package: str, version: str) -> RuntimeError:
@@ -61,6 +95,31 @@ def test_repo_emergency_manifest_tracks_current_active_fallback_set() -> None:
     }
     assert ci_lite_emergency_pairs <= requirements_ci_lite_pins
     assert ("python-multipart", "0.0.26") in requirements_ci_lite_pins
+
+
+def test_repo_ruff_emergency_fallback_matches_dev_requirement_surfaces() -> None:
+    manifest = _repo_emergency_manifest()
+    expected_version = _manifest_artifact_version(manifest, "ruff")
+
+    requirements_dev_in = (REPO_ROOT / "requirements-dev.in").read_text(encoding="utf-8")
+    requirements_dev_txt = (REPO_ROOT / "requirements-dev.txt").read_text(encoding="utf-8")
+    requirements_lock_txt = (REPO_ROOT / "requirements-lock.txt").read_text(encoding="utf-8")
+
+    assert _compatible_release_version(requirements_dev_in, "ruff") == expected_version
+    assert ("ruff", expected_version) in _exact_requirement_pairs(requirements_dev_txt)
+    assert ("ruff", expected_version) in _exact_requirement_pairs(requirements_lock_txt)
+
+
+def test_compatible_release_version_accepts_environment_markers() -> None:
+    contents = 'ruff~=0.15.11 ; python_version >= "3.13"\n'
+
+    assert _compatible_release_version(contents, "ruff") == "0.15.11"
+
+
+def test_exact_requirement_pairs_ignores_environment_markers() -> None:
+    contents = 'ruff==0.15.11 ; python_version >= "3.13"\n'
+
+    assert ("ruff", "0.15.11") in _exact_requirement_pairs(contents)
 
 
 @pytest.fixture(autouse=True)
