@@ -24,6 +24,15 @@ Record every actionable human/bot disposition here before resolving threads on G
 Disposition: FIXED (CodeRabbit degraded-bundle recomputation, deterministic artifact contract, finite/range rate guard, missing fail-closed regression coverage, and roadmap sequence sync)
 Evidence: `core/rag/orchestration.py:370-446` now rebuilds admission bundles for post-format/redaction degradation paths; `core/verification/contracts.py:16-27` and `core/verification/registry.py:309-360` keep artifacts deterministic and reject non-finite/out-of-range analytical rates; `tests/test_insight_application_service.py:553-720`, `tests/test_philosophical_runtime.py:440-560`, and `tests/test_rag_orchestration.py:1427-1435` cover denied/missing bundle fail-closed paths; `docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md:661-666` inserts `PR-V1` into the condensed runtime sequence.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1491#discussion_r3120248974 -> 71e5910ee
+Disposition: FIXED (Sourcery `RAGContext | None` typing alignment for recursive verification-call helper)
+Evidence: `core/rag/orchestration.py:520-527` now types `_extract_recursive_verification_calls` to accept `RAGContext | None`, matching the live call site and helper semantics.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1491#pullrequestreview-4150713266
+Disposition: NOT-A-BUG
+Evidence: `AGENTS.md:317-323` and `docs/orchestration/WAVE6_V1_VERIFICATION_REGISTRY_PACKET_2026-04-21.md:21-32` define this lane as fail-closed knowledge admission from validated RAG evidence only; `core/verification/registry.py:248-255` intentionally marks recursive execution as non-canonical for `write` admission in PR-V1, so the review's recursive hard-deny concern is expected behavior, not a regression. The duplicated test helper note is advisory cleanup, not a correctness blocker for this bounded lane.
+Reason: PR-V1 deliberately keeps recursive paths non-canonical and does not widen the lane into cross-suite test-helper refactors.
+
 ## Merge Readiness
 
 Merge-readiness contract:
@@ -35,9 +44,9 @@ Merge-readiness contract:
 - [ ] Required checks complete (no pending jobs)
   Evidence: current-head rerun required after remediation commit `bc3f17550`.
 - [ ] All review threads resolved on GitHub after disposition updates
-  Evidence: CodeRabbit actionable review is mapped here and awaits push plus GitHub thread resolution.
+  Evidence: CodeRabbit and Sourcery findings are mapped here; GitHub thread resolution still needs to happen after the latest push/review refresh.
 - [ ] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
-  Evidence: current actionable CodeRabbit review URLs are mapped above to `bc3f17550`; re-check after bot re-review for any new findings.
+  Evidence: current actionable CodeRabbit and Sourcery review URLs are mapped above; re-check after bot re-review for any newly posted findings.
 - [ ] Pre-commit green on latest pushed head
   Evidence: `pre-commit run --all-files` passed on the remediation head before this mapping update.
 - [ ] `make verify` green on latest pushed head
