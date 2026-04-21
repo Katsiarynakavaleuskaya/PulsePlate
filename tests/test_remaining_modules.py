@@ -410,6 +410,20 @@ class TestOfflineEvalBootstrapSmoke:
         with pytest.raises(TypeError, match="broken evaluator"):
             runner.evaluate_records(rows, runner.REQUIRED_METRIC_NAMES)
 
+        signature_error_evaluator = _EvaluateWithoutShowProgress()
+        monkeypatch.setattr(
+            runner,
+            "_load_ragas_dependencies",
+            lambda: (_FakeDataset, signature_error_evaluator, metric_map),
+        )
+        monkeypatch.setattr(
+            runner.inspect,
+            "signature",
+            lambda _callable: (_ for _ in ()).throw(ValueError("missing signature")),
+        )
+        signature_scores = runner.evaluate_records(rows, runner.REQUIRED_METRIC_NAMES)
+        assert signature_scores["context_precision"] == pytest.approx(0.88)
+
         with pytest.raises(RuntimeError, match="invalid score for faithfulness"):
             runner._validate_metric_scores(
                 {
@@ -461,6 +475,29 @@ class TestOfflineEvalBootstrapSmoke:
         monkeypatch.setitem(sys.modules, "ragas.metrics", None)
         with pytest.raises(RuntimeError, match="requirements-evals.txt"):
             runner._load_ragas_dependencies()
+
+        fake_datasets = ModuleType("datasets")
+
+        class _ImportDataset:
+            @staticmethod
+            def from_list(values: list[dict[str, object]]) -> list[dict[str, object]]:
+                return values
+
+        fake_ragas = ModuleType("ragas")
+        fake_metrics = ModuleType("ragas.metrics")
+        setattr(fake_datasets, "Dataset", _ImportDataset)
+        setattr(fake_ragas, "evaluate", lambda **_: report["metrics"])
+        setattr(fake_metrics, "faithfulness", object())
+        setattr(fake_metrics, "answer_relevancy", object())
+        setattr(fake_metrics, "context_precision", object())
+        monkeypatch.setitem(sys.modules, "datasets", fake_datasets)
+        monkeypatch.setitem(sys.modules, "ragas", fake_ragas)
+        monkeypatch.setitem(sys.modules, "ragas.metrics", fake_metrics)
+
+        dataset_cls, evaluate, metric_map = runner._load_ragas_dependencies()
+        assert dataset_cls is _ImportDataset
+        assert evaluate() == report["metrics"]
+        assert set(metric_map) == set(runner.REQUIRED_METRIC_NAMES)
 
         args = SimpleNamespace(
             dataset=Path("evals/ragas/testset.jsonl"),

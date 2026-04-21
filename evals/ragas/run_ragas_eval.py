@@ -144,10 +144,6 @@ def _normalize_row(raw_row: dict[str, Any], row_number: int) -> dict[str, Any]:
             )
 
     canonical_reference = reference_text if reference_text is not None else ground_truth_text
-    if canonical_reference is None:
-        raise ValueError(
-            f"Row {row_number}: one of 'reference' or 'ground_truth' is required.",
-        )
 
     return {
         "question": question,
