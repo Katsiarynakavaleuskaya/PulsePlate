@@ -110,6 +110,35 @@ def test_positive_int_rejects_non_positive_values(raw_value: str) -> None:
         docker_image_telemetry._positive_int(raw_value)
 
 
+def test_read_history_rows_redacts_created_by(monkeypatch: pytest.MonkeyPatch) -> None:
+    import subprocess
+
+    stdout = "\n".join(
+        [
+            '{"CreatedBy":"RUN --mount=type=secret,id=pip_index_url sh -c \\"pip install --index-url ${PULSEPLATE_PRIVATE_INDEX_URL}\\"","Size":"10MB"}',
+            '{"CreatedBy":"RUN echo SAFE","Size":"5MB"}',
+        ]
+    )
+
+    monkeypatch.setattr(
+        docker_image_telemetry,
+        "_run_docker",
+        lambda _args: subprocess.CompletedProcess(
+            args=["docker", "history"],
+            returncode=0,
+            stdout=stdout,
+            stderr="",
+        ),
+    )
+
+    rows = docker_image_telemetry._read_history_rows("pulseplate:test")
+
+    assert len(rows) == 2
+    assert all(row.created_by == docker_image_telemetry.REDACTED_CREATED_BY for row in rows)
+    assert rows[0].size_bytes == 10_000_000
+    assert rows[1].size_bytes == 5_000_000
+
+
 def test_collect_telemetry_without_baseline_is_warning_only(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
