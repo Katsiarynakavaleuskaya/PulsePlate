@@ -543,7 +543,7 @@ def _build_knowledge_candidates(
     return candidates
 
 
-def _extract_recursive_verification_calls(rag_ctx: RAGContext) -> int:
+def _extract_recursive_verification_calls(rag_ctx: RAGContext | None) -> int:
     """Return recursive verification call count from optimization diagnostics."""
 
     optimization_stats = getattr(rag_ctx, "optimization_stats", None)
