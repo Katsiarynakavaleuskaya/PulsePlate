@@ -210,10 +210,6 @@ psycopg-binary==3.3.3
     # via
     #   -c requirements.txt
     #   psycopg
-pyarrow==23.0.1
-    # via
-    #   -c requirements.txt
-    #   -r requirements-docker-runtime.in
 pycparser==2.23
     # via
     #   -c requirements.txt

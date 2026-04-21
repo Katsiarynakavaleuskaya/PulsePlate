@@ -62,6 +62,13 @@ jobs:
           provenance: false
           target: production
 
+      - name: Check Docker runtime dependency surface
+        run: |
+          set -euo pipefail
+          python3 scripts/ci/check_docker_runtime_dependency_surface.py \
+            --image pulseplate:trivy-scan-${{ github.sha }} \
+            --output-json docker-runtime-dependency-surface.json
+
       - name: Collect Docker image telemetry
         run: |
           set -euo pipefail
@@ -85,6 +92,7 @@ jobs:
         with:
           name: docker-image-telemetry-trivy
           path: |
+            docker-runtime-dependency-surface.json
             docker-image-telemetry.json
             docker-image-telemetry.md
           if-no-files-found: warn

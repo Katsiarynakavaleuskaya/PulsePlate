@@ -434,6 +434,7 @@ def test_docker_runtime_dependency_profile_excludes_ci_and_vector_stack() -> Non
     assert "sqlalchemy==" in requirements_runtime
     assert "bandit==" not in requirements_runtime
     assert "diff-cover==" not in requirements_runtime
+    assert "pyarrow==" not in requirements_runtime
     assert "pre-commit==" not in requirements_runtime
     assert "pytest==" not in requirements_runtime
     assert "sentence-transformers==" not in requirements_runtime
@@ -500,6 +501,20 @@ def test_production_target_docker_workflows_use_runtime_requirements_profile() -
     assert expected_arg in trivy_build_args
 
 
+def test_production_target_docker_workflows_run_runtime_surface_guard() -> None:
+    workflow_paths = (
+        ".github/workflows/build.yml",
+        ".github/workflows/docker-image.yml",
+        ".github/workflows/docker-openapi-smoke.yml",
+        ".github/workflows/trivy.yml",
+    )
+
+    for workflow_path in workflow_paths:
+        workflow_text = (REPO_ROOT / workflow_path).read_text(encoding="utf-8")
+        assert "scripts/ci/check_docker_runtime_dependency_surface.py" in workflow_text
+        assert "--output-json docker-runtime-dependency-surface.json" in workflow_text
+
+
 def test_dependency_submission_workflow_tracks_runtime_and_optional_manifests() -> None:
     workflow_text = (
         REPO_ROOT / ".github" / "workflows" / "python-dependency-submission.yml"
@@ -562,6 +577,7 @@ def test_docker_workflows_emit_image_telemetry_artifacts() -> None:
         docker_image_workflow_text,
         trivy_workflow_text,
     ):
+        assert "docker-runtime-dependency-surface.json" in workflow_text
         assert "scripts/ci/docker_image_telemetry.py" in workflow_text
         assert "docker-image-telemetry.json" in workflow_text
         assert "docker-image-telemetry.md" in workflow_text

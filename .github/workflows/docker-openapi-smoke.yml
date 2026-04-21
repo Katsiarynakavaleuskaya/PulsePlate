@@ -79,6 +79,13 @@ jobs:
           provenance: false
           target: production
 
+      - name: Check Docker runtime dependency surface
+        run: |
+          set -euo pipefail
+          python3 scripts/ci/check_docker_runtime_dependency_surface.py \
+            --image pulseplate-smoke:${{ github.sha }} \
+            --output-json docker-runtime-dependency-surface.json
+
       - name: Run container
         run: |
           # detect-secrets can flag hardcoded credential-like env var names in workflows.
