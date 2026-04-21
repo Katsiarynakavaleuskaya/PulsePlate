@@ -294,6 +294,11 @@ sync_shell_bundle() {
     exit 1
   fi
 
+  if [ ! -f "$source_redeploy" ]; then
+    echo "❌ SHELL_BUNDLE_DIR is missing scripts/redeploy_caddy.sh: $source_redeploy" >&2
+    exit 1
+  fi
+
   echo "Syncing production shell bundle from: $SHELL_BUNDLE_DIR"
   rm -rf "$shell_root/frontend"
   mkdir -p "$shell_root/frontend" "$target_scripts_dir"
@@ -308,10 +313,8 @@ sync_shell_bundle() {
     chmod +x "$target_scripts_dir/diagnose_web.sh"
   fi
 
-  if [ -f "$source_redeploy" ]; then
-    cp "$source_redeploy" "$target_scripts_dir/redeploy_caddy.sh"
-    chmod +x "$target_scripts_dir/redeploy_caddy.sh"
-  fi
+  cp "$source_redeploy" "$target_scripts_dir/redeploy_caddy.sh"
+  chmod +x "$target_scripts_dir/redeploy_caddy.sh"
 }
 
 wait_for_app_ready() {

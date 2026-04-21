@@ -214,6 +214,7 @@ git switch --detach origin/main
 scp deploy/Caddyfile.production ubuntu@64.226.117.163:/srv/pulseplate-production/Caddyfile.production
 scp deploy/docker-compose.production.yaml ubuntu@64.226.117.163:/srv/pulseplate-production/docker-compose.production.yaml
 rsync -az --delete frontend/ ubuntu@64.226.117.163:/srv/frontend/
+ssh ubuntu@64.226.117.163 'mkdir -p /srv/pulseplate-production/scripts'
 scp scripts/diagnose_web.sh ubuntu@64.226.117.163:/srv/pulseplate-production/scripts/diagnose_web.sh
 scp scripts/redeploy_caddy.sh ubuntu@64.226.117.163:/srv/pulseplate-production/scripts/redeploy_caddy.sh
 
@@ -322,6 +323,7 @@ bash scripts/diagnose_web.sh
    # Сначала: merge PR с нужным изменением в deploy/Caddyfile.production
    git fetch origin main
    git switch --detach origin/main
+   ssh ubuntu@64.226.117.163 'mkdir -p /srv/pulseplate-production/scripts'
    scp deploy/Caddyfile.production ubuntu@64.226.117.163:/srv/pulseplate-production/Caddyfile.production
    scp deploy/docker-compose.production.yaml ubuntu@64.226.117.163:/srv/pulseplate-production/docker-compose.production.yaml
    rsync -az --delete frontend/ ubuntu@64.226.117.163:/srv/frontend/

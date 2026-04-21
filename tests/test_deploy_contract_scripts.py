@@ -14,13 +14,90 @@ PRODUCTION_COMPOSE_TEXT = PRODUCTION_COMPOSE_PATH.read_text(encoding="utf-8")
 
 def test_production_compose_source_of_truth_matches_split_contract() -> None:
     compose = yaml.safe_load(PRODUCTION_COMPOSE_TEXT)
-    services = compose["services"]
+    assert isinstance(compose, dict), "production compose must deserialize to a mapping"
+
+    services = compose.get("services")
+    assert isinstance(services, dict), "production compose must define a services mapping"
 
     assert "postgres" not in services
-    assert services["app"]["image"] == "${IMAGE_REF:?IMAGE_REF is required}"
-    assert services["caddy"]["build"]["context"] == "../frontend"
-    assert services["caddy"]["build"]["dockerfile"] == "Dockerfile.caddy-spa"
-    assert services["caddy"]["build"]["args"]["VITE_API_BASE"] == "${VITE_API_BASE:-/api/v1}"
+    app_service = services.get("app")
+    assert isinstance(app_service, dict), "production compose must define an app service"
+    assert app_service["image"] == "${IMAGE_REF:?IMAGE_REF is required}"
+    assert "build" not in app_service
+
+    caddy_service = services.get("caddy")
+    assert isinstance(caddy_service, dict), "production compose must define a caddy service"
+    assert "image" not in caddy_service
+
+    caddy_build = caddy_service.get("build")
+    assert isinstance(caddy_build, dict), "caddy service must use a build-based shell contract"
+    assert caddy_build["context"] == "../frontend"
+    assert caddy_build["dockerfile"] == "Dockerfile.caddy-spa"
+
+    caddy_build_args = caddy_build.get("args")
+    assert isinstance(caddy_build_args, dict), "caddy build must define build args"
+    assert caddy_build_args["VITE_API_BASE"] == "${VITE_API_BASE:-/api/v1}"
+
+
+def test_deploy_production_rejects_shell_bundle_without_redeploy_helper(
+    tmp_path: Path,
+) -> None:
+    project_dir = tmp_path / "production"
+    shell_bundle_dir = tmp_path / "shell-bundle"
+    bin_dir = tmp_path / "bin"
+    project_dir.mkdir()
+    shell_bundle_dir.mkdir()
+    bin_dir.mkdir()
+    (project_dir / "docker-compose.production.yaml").write_text("services: {}\n", encoding="utf-8")
+    (project_dir / ".env").write_text(
+        "DATABASE_URL=postgresql+psycopg://pulseplate:secret@db.example.com:25060/pulseplate\n",  # pragma: allowlist secret
+        encoding="utf-8",
+    )
+    (shell_bundle_dir / "frontend").mkdir()
+    (shell_bundle_dir / "deploy").mkdir()
+    (shell_bundle_dir / "deploy" / "Caddyfile.production").write_text(
+        'pulseplate.test {\n    respond "ok"\n}\n',
+        encoding="utf-8",
+    )
+    (shell_bundle_dir / "deploy" / "docker-compose.production.yaml").write_text(
+        PRODUCTION_COMPOSE_TEXT, encoding="utf-8"
+    )
+    (shell_bundle_dir / "scripts").mkdir()
+    (shell_bundle_dir / "scripts" / "diagnose_web.sh").write_text(
+        "#!/usr/bin/env bash\nprintf 'bundle-diagnose\\n'\n", encoding="utf-8"
+    )
+
+    docker_stub = """#!/usr/bin/env bash
+set -euo pipefail
+"""
+    curl_stub = """#!/usr/bin/env bash
+set -euo pipefail
+"""
+    _write_executable(bin_dir / "docker", docker_stub)
+    _write_executable(bin_dir / "curl", curl_stub)
+
+    env = os.environ.copy()
+    env["PATH"] = f"{bin_dir}:{env['PATH']}"
+    env["DOCKER_BIN"] = str(bin_dir / "docker")
+    env["DEPLOY_DIR"] = str(project_dir)
+    env["ENV_FILE"] = str(project_dir / ".env")
+    env["COMPOSE_FILE"] = "docker-compose.production.yaml"
+    env["IMAGE_REF"] = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:test"
+    env["TAG"] = "prod-vtest"
+    env["PRODUCTION_DOMAIN"] = "pulseplate.test"
+    env["SHELL_BUNDLE_DIR"] = str(shell_bundle_dir)
+
+    completed = subprocess.run(
+        [str(REPO_ROOT / "scripts/deploy_production.sh")],
+        cwd=str(REPO_ROOT),
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert completed.returncode == 1
+    assert "SHELL_BUNDLE_DIR is missing scripts/redeploy_caddy.sh" in completed.stderr
 
 
 def _write_executable(path: Path, content: str) -> None:
