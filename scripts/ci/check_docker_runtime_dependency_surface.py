@@ -84,7 +84,10 @@ def _run_docker(args: list[str]) -> subprocess.CompletedProcess[str]:
     """Run Docker with a resolved binary path and fixed argv."""
 
     if DOCKER_BINARY is None:
-        raise RuntimeError("docker binary is not available on PATH")
+        raise RuntimeError(
+            "docker binary is not available on PATH; run this check in a Docker-enabled "
+            "environment."
+        )
     try:
         return subprocess.run(  # nosec B603: argv uses resolved docker path with fixed run subcommand only (remove-by: 2026-09-30, ref: PR-docker-runtime-slimming)
             [DOCKER_BINARY, *args],
@@ -96,6 +99,13 @@ def _run_docker(args: list[str]) -> subprocess.CompletedProcess[str]:
     except subprocess.TimeoutExpired as exc:
         raise RuntimeError(
             f"docker command timed out after {DOCKER_TIMEOUT_SECONDS}s: {' '.join(args)}"
+        ) from exc
+    except subprocess.CalledProcessError as exc:
+        stderr = (exc.stderr or "").strip()
+        stderr_suffix = f", stderr={stderr}" if stderr else ""
+        raise RuntimeError(
+            "docker command failed "
+            f"(returncode={exc.returncode}, args={' '.join(args)}{stderr_suffix})"
         ) from exc
 
 
@@ -147,7 +157,7 @@ def main(argv: list[str] | None = None) -> int:
     """CLI entrypoint."""
 
     args = parse_args(argv)
-    blocked_prefixes = tuple(args.blocked_prefixes or DEFAULT_BLOCKED_PREFIXES)
+    blocked_prefixes = DEFAULT_BLOCKED_PREFIXES + tuple(args.blocked_prefixes or ())
     result = build_result(args.image, blocked_prefixes)
     payload = json.dumps(asdict(result), indent=2)
 

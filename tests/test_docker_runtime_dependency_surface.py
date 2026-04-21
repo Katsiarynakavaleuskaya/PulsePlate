@@ -25,7 +25,35 @@ def test_run_docker_uses_timeout_and_absolute_binary(monkeypatch: pytest.MonkeyP
     assert captured["args"] == (
         ["/usr/bin/docker", "run", "--rm", "pulseplate:test", "python", "-V"],
     )
+    assert captured["kwargs"]["check"] is True
+    assert captured["kwargs"]["capture_output"] is True
+    assert captured["kwargs"]["text"] is True
     assert captured["kwargs"]["timeout"] == runtime_surface.DOCKER_TIMEOUT_SECONDS
+
+
+def test_run_docker_raises_when_docker_binary_is_missing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(runtime_surface, "DOCKER_BINARY", None)
+
+    with pytest.raises(RuntimeError, match="Docker-enabled environment"):
+        runtime_surface._run_docker(["run", "--rm", "pulseplate:test", "python", "-V"])
+
+
+def test_run_docker_wraps_called_process_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(runtime_surface, "DOCKER_BINARY", "/usr/bin/docker")
+
+    def _fake_run(*_args: object, **_kwargs: object) -> subprocess.CompletedProcess[str]:
+        raise subprocess.CalledProcessError(
+            returncode=125,
+            cmd=["/usr/bin/docker", "run", "--rm", "pulseplate:test"],
+            stderr="image not found",
+        )
+
+    monkeypatch.setattr(runtime_surface.subprocess, "run", _fake_run)
+
+    with pytest.raises(RuntimeError, match="returncode=125"):
+        runtime_surface._run_docker(["run", "--rm", "pulseplate:test", "python", "-V"])
 
 
 def test_parse_installed_packages_normalizes_names() -> None:
@@ -102,7 +130,38 @@ def test_main_writes_json_and_returns_failure_for_blocked_packages(
     assert exit_code == 1
     payload = json.loads(output_path.read_text(encoding="utf-8"))
     assert payload["blocked"] == ["pytest"]
-    assert "pytest" in capsys.readouterr().err
+    assert payload["passed"] is False
+    captured = capsys.readouterr()
+    assert "pytest" in captured.err
+    assert captured.out == ""
+
+
+def test_main_extends_default_blocked_prefixes(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: dict[str, object] = {}
+
+    def _fake_build_result(
+        image: str, blocked_prefixes: tuple[str, ...]
+    ) -> runtime_surface.DependencySurfaceResult:
+        captured["image"] = image
+        captured["blocked_prefixes"] = blocked_prefixes
+        return runtime_surface.DependencySurfaceResult(
+            image=image,
+            installed_count=0,
+            blocked=(),
+            passed=True,
+        )
+
+    monkeypatch.setattr(runtime_surface, "build_result", _fake_build_result)
+
+    exit_code = runtime_surface.main(
+        ["--image", "pulseplate:test", "--blocked-prefix", "custom-guard"]
+    )
+
+    assert exit_code == 0
+    assert captured["image"] == "pulseplate:test"
+    assert captured["blocked_prefixes"] == runtime_surface.DEFAULT_BLOCKED_PREFIXES + (
+        "custom-guard",
+    )
 
 
 def test_main_returns_success_for_clean_runtime(
