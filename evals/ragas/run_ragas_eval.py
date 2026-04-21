@@ -205,18 +205,41 @@ def _extract_metric_scores(
     """RU: Вытащить агрегированные metric scores. EN: Extract aggregate metric scores."""
 
     if isinstance(result, Mapping):
-        return {name: float(result[name]) for name in metric_names}
+        return _validate_metric_scores(result, metric_names, source="mapping result")
 
     if hasattr(result, "to_pandas"):
         frame = result.to_pandas()
-        return {name: float(frame[name].mean()) for name in metric_names}
+        aggregated = {name: float(frame[name].mean()) for name in metric_names if name in frame}
+        return _validate_metric_scores(aggregated, metric_names, source="pandas result")
 
     scores = getattr(result, "scores", None)
     if scores is not None and hasattr(scores, "to_list"):
         rows = scores.to_list()
-        return {name: float(mean(float(row[name]) for row in rows)) for name in metric_names}
+        aggregated = {
+            name: float(mean(float(row[name]) for row in rows))
+            for name in metric_names
+            if all(name in row for row in rows)
+        }
+        return _validate_metric_scores(aggregated, metric_names, source="score rows")
 
     raise RuntimeError("Could not extract metric scores from the RAGAS result.")
+
+
+def _validate_metric_scores(
+    scores: Mapping[str, Any],
+    metric_names: tuple[str, ...],
+    *,
+    source: str,
+) -> dict[str, float]:
+    """RU: Проверить полноту metric payload. EN: Validate metric payload completeness."""
+
+    missing = [name for name in metric_names if name not in scores]
+    if missing:
+        missing_text = ", ".join(missing)
+        raise RuntimeError(
+            f"Metric result from {source} is missing required scores: {missing_text}.",
+        )
+    return {name: float(scores[name]) for name in metric_names}
 
 
 def evaluate_records(
@@ -229,7 +252,7 @@ def evaluate_records(
 
     if evaluator is not None:
         scores = evaluator(rows, metric_names)
-        return {name: float(scores[name]) for name in metric_names}
+        return _validate_metric_scores(scores, metric_names, source="custom evaluator")
 
     dataset_cls, evaluate, metric_map = _load_ragas_dependencies()
     ragas_rows = [

@@ -117,3 +117,22 @@ def test_run_report_is_deterministic_and_lazy(
     assert "context_precision | 0.88" in summary
     assert "PASS" not in summary
     assert "NO-GO" not in summary
+
+
+def test_run_report_fails_cleanly_on_partial_metric_payload(tmp_path: Path) -> None:
+    """A partial metric payload must raise a controlled runner error."""
+
+    runner = importlib.import_module("evals.ragas.run_ragas_eval")
+    dataset_path = tmp_path / "testset.jsonl"
+    _write_dataset(dataset_path)
+
+    def _partial_evaluator(
+        rows: list[dict[str, object]],
+        metric_names: tuple[str, ...],
+    ) -> dict[str, float]:
+        assert rows
+        assert metric_names
+        return {"faithfulness": 0.84}
+
+    with pytest.raises(RuntimeError, match="missing required scores"):
+        runner.run_report(dataset_path, evaluator=_partial_evaluator)
