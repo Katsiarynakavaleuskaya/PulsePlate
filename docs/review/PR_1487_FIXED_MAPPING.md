@@ -37,6 +37,18 @@ Commit: aaac4f037
 Evidence: `tests/test_install_locked_python_requirements.py:26`, `tests/test_install_locked_python_requirements.py:109`, `tests/test_install_locked_python_requirements.py:119`
 Reason: `_exact_requirement_pairs(...)` now strips environment markers from exact pins, and the new regression test proves `ruff==... ; marker` lines still satisfy the exact-version alignment guard.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1487#pullrequestreview-4148257999
+Disposition: FIXED
+Commit: 5e105df75
+Evidence: `docs/review/PR_1487_FIXED_MAPPING.md:46`, `docs/review/PR_1487_FIXED_MAPPING.md:63`, `docs/review/PR_1487_FIXED_MAPPING.md:67`
+Reason: The follow-up docs commit restores the merge-readiness checklist to the canonical pre-final-cycle state by clearing the prematurely checked `Pre-commit` and ``make verify`` boxes and updating the surrounding evidence text to match the live follow-up head.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1487#discussion_r3117975560
+Disposition: FIXED
+Commit: 5e105df75
+Evidence: `docs/review/PR_1487_FIXED_MAPPING.md:46`, `docs/review/PR_1487_FIXED_MAPPING.md:63`, `docs/review/PR_1487_FIXED_MAPPING.md:67`
+Reason: The inline CodeRabbit artifact comment is addressed by the same follow-up docs commit that unchecks the premature merge-readiness boxes and leaves them pending until the true final merge cycle.
+
 ## Merge Readiness
 
 Merge-readiness contract:
@@ -44,22 +56,24 @@ Merge-readiness contract:
 `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md:153-216`.
 
 - [ ] Current-head CI is green for PR branch head
-  Evidence: current-head `CI` run `24726549478` is still in progress on branch
-  head `4897c1fe4`; `security` and `OpenAPI sync` are now green, while
-  `lint` and `test-pr (3.13)` remain in flight.
+  Evidence: the next post-comment branch head will need a fresh `CI` run after
+  the follow-up governance push; the prior head `4897c1fe4` already proved the
+  original `ruff` bootstrap failure is gone because `Setup Python environment`,
+  `security`, and `OpenAPI sync` all completed successfully.
 - [ ] Required checks complete (no pending jobs)
-  Evidence: required current-head jobs are still pending, so the final
-  `check_merge_ready.py --require-auth` pass cannot be claimed yet.
+  Evidence: required checks must be re-evaluated on the post-comment head after
+  the new follow-up push and bot cycle complete.
 - [ ] All review threads resolved on GitHub after disposition updates
-  Evidence: the earlier packet thread `#discussion_r3117790513` has already
-  been resolved, but the latest CodeRabbit artifact comment
-  `#discussion_r3117975560` still needs final disposition handling on the next
-  follow-up head.
+  Evidence: the earlier packet thread `#discussion_r3117790513` is already
+  resolved, and the latest CodeRabbit artifact thread
+  `#discussion_r3117975560` is now mapped to `5e105df75` and can be resolved on
+  GitHub after this mapping update is pushed.
 - [ ] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
-  Evidence: `sourcery-ai` and the earlier CodeRabbit findings are mapped, but
-  the newest CodeRabbit review `#pullrequestreview-4148257999` /
-  `#discussion_r3117975560` is still actionable on this head, and `cubic`
-  remains `action_required` until its status is classified.
+  Evidence: the newest CodeRabbit review shell `#pullrequestreview-4148257999`
+  and inline thread `#discussion_r3117975560` are now mapped to `5e105df75`;
+  `cubic` currently shows a status-only rate-limit result with no PR comments,
+  no reviews, and zero annotations, so it does not add a separate review
+  disposition entry.
 - [ ] Pre-commit green on validated remediation head
   Evidence: local `pre-commit run --all-files` passed before pushing the
   code-bearing remediation head `2b6e65b77`; later heads are governance-only
