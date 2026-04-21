@@ -1,165 +1,98 @@
-# 🐳 Docker Best Practices for PulsePlate
+# Docker Runtime Contract
 
-## 📋 **Quality Checklist**
+This document is the operator-facing source of truth for the PulsePlate backend
+Docker runtime contract.
 
-### Before Every Push
+## Current production contract
 
-- [ ] Test Docker build locally: `make docker-build`
-- [ ] Verify health check from host: `curl http://localhost:8000/health`
-- [ ] Check image size: `docker images pulseplate`
-- [ ] Clean old images: `make docker-clean-images`
+- Backend runtime image uses `PULSEPLATE_REQUIREMENTS_FILE=requirements-docker-runtime.txt`.
+- CI-only tooling stays in `requirements-ci-lite.txt`.
+- Optional vector / ML dependencies stay in `requirements-rag-vector.txt`.
+- Production target remains the split backend image that serves `app.main:app`.
+- Frontend / Caddy topology remains separate and out of scope for this slice.
 
-> **Note**: Health check validation uses `curl` from the **host machine**, not inside the container. The container itself uses Python's `urllib` for internal health checks (no curl installed in slim image).
+## Why this slice exists
 
-### Weekly Maintenance
+The install-profile split removed heavy ML / GPU packages from the generic CI
+surface, but some production-target Docker workflows were still building the
+backend image with `requirements-ci-lite.txt`.
 
-- [ ] Review Docker images: `docker images pulseplate`
-- [ ] Clean dangling images: `docker image prune -f`
-- [ ] Update base images if needed
-- [ ] Check for security vulnerabilities: `docker scan pulseplate:latest`
+That left CI-only tooling inside the runtime image:
 
-## 🚀 **Commands Reference**
+- `pre-commit`
+- `bandit`
+- `diff-cover`
+- `pytest`
 
-### Build & Test
+This PR standardizes production-target Docker builds on a dedicated runtime
+manifest so the backend image does not carry CI-only tooling.
 
-```bash
-# Build with versioning
-make docker-build  # Creates :latest and :<commit-hash>
+## Runtime manifest policy
 
-# Test locally (curl from host to test exposed port)
-docker run -d --name pulseplate-test -p 8000:8000 pulseplate:latest
-# Execute this curl command from your host machine, not inside the container:
-curl http://localhost:8000/health
-docker stop pulseplate-test && docker rm pulseplate-test
+`requirements-docker-runtime.txt` is the Docker production dependency surface.
 
-# Build development version
-make docker-build-dev
-```
+Rules:
 
-### Image Management
+- keep only dependencies required for `app.main` imports and current production
+  backend endpoints
+- do not add CI-only tooling
+- do not add the optional vector / ML stack
+- keep the install path on the approved private proxy + constraints +
+  emergency-wheel manifest contract
 
-```bash
-# List all PulsePlate images
-docker images pulseplate
+Blocked package classes for the default backend runtime:
 
-# Clean old images (keeps latest 3)
-make docker-clean-images
+- CI / dev tooling: `pytest`, `pre-commit`, `bandit`, `diff-cover`
+- optional vector / ML stack: `sentence-transformers`, `transformers`, `torch`,
+  `pgvector`
+- GPU / CUDA packages: `nvidia-*`, `cuda-*`, `triton`
 
-# Tag for production
-docker tag pulseplate:latest pulseplate:v1.0.0
+## Validation commands
 
-# Remove specific image
-docker rmi pulseplate:old-tag
-```
-
-### Troubleshooting
+Build the production target:
 
 ```bash
-# Check container logs
-docker logs <container-name>
-
-# Inspect image layers
-docker history pulseplate:latest
-
-# Check image size breakdown
-docker system df
+docker build \
+  --target production \
+  --build-arg PULSEPLATE_PYTHON_INDEX_URL="$PULSEPLATE_PYTHON_INDEX_URL" \
+  --build-arg PULSEPLATE_PYTHON_TRUSTED_HOST="${PULSEPLATE_PYTHON_TRUSTED_HOST:-}" \
+  --build-arg PULSEPLATE_REQUIREMENTS_FILE=requirements-docker-runtime.txt \
+  -t pulseplate:runtime-slim .
 ```
 
-## 🔧 **CI/CD Integration**
-
-### GitHub Actions
-
-- ✅ All GitHub Actions pinned to specific commit SHAs
-- ✅ Tag validation prevents workflow failures
-- ✅ SBOM and Trivy security scanning enabled
-- ✅ Multi-platform builds (linux/amd64, linux/arm64)
-
-### Local Testing
+Validate runtime dependency surface:
 
 ```bash
-# Test the same way CI does
-make docker-build
-docker run -d --name test -p 8000:8000 pulseplate:latest
-
-# Wait for application to be ready with retry (using curl from HOST)
-max_attempts=30
-attempt=0
-echo "Waiting for application to be ready..."
-until curl -f http://localhost:8000/health > /dev/null 2>&1 || [ $attempt -eq $max_attempts ]; do
-  attempt=$((attempt + 1))
-  echo "Attempt $attempt/$max_attempts - waiting for health endpoint..."
-  sleep 1
-done
-
-if [ $attempt -eq $max_attempts ]; then
-  echo "❌ Health check failed after ${max_attempts} attempts"
-  docker logs test
-  docker stop test && docker rm test
-  exit 1
-fi
-
-echo "✅ Application is ready"
-docker stop test && docker rm test
+python3 scripts/ci/check_docker_runtime_dependency_surface.py \
+  --image pulseplate:runtime-slim \
+  --output-json artifacts/docker/runtime_dependency_surface.json
 ```
 
-> **Note**: The above script uses `curl` from your **host machine** to test the exposed port. Inside the container, the Dockerfile HEALTHCHECK uses Python's `urllib.request.urlopen()` instead, as `curl` is not installed in the slim Python image to minimize attack surface.
+Basic import smoke:
 
-## 📊 **Performance Tips**
+```bash
+docker run --rm pulseplate:runtime-slim \
+  python -c "import app.main; print('app.main import ok')"
+```
 
-### Build Optimization
+## Rollback
 
-- Use `.dockerignore` to exclude unnecessary files
-- Leverage Docker layer caching
-- Use multi-stage builds (already implemented)
-- Pin base image versions
+If the runtime image fails to build or boot after this slice:
 
-### Runtime Optimization
+1. restore the previous Docker build arg usage in production-target workflows
+2. switch `PULSEPLATE_REQUIREMENTS_FILE` back to the prior manifest for the
+   affected workflow
+3. keep the runtime-surface findings as evidence in the PR and record the
+   follow-up in `docs/roadmap/BACKLOG_LEDGER.md`
 
-- Use non-root user (already implemented)
-- Set proper environment variables
-- Configure health checks (Python-based, no curl dependency)
-- Use appropriate base images (python:3.13.6-slim-bookworm - pinned stable version)
+Do not widen this rollback into image-budget telemetry, provenance, or
+frontend/Caddy changes.
 
-> **Health Check Details**: The Dockerfile uses Python's `urllib.request.urlopen()` for health checks instead of `curl` to avoid installing unnecessary packages. Example:
->
-> ```dockerfile
-> HEALTHCHECK CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=5)" || exit 1
-> ```
+## Deferred follow-ups
 
-## 🛡️ **Security Best Practices**
+Explicitly deferred from this PR:
 
-### Image Security
-
-- ✅ Non-root user (pulseplate)
-- ✅ Minimal base image (python:3.13.6-slim-bookworm - pinned to Debian Bookworm stable)
-- ✅ No unnecessary tools installed (curl, wget removed to reduce attack surface)
-- ✅ Python-based health checks (no external dependencies)
-- ✅ No secrets in image layers
-- ✅ Regular security scanning with Trivy
-
-### Runtime Security
-
-- ✅ Read-only filesystem where possible
-- ✅ Proper file permissions
-- ✅ Health checks for monitoring
-- ✅ Resource limits in `docker compose`
-
-## 📈 **Monitoring & Maintenance**
-
-### Regular Tasks
-
-1. **Daily**: Test builds before pushing
-2. **Weekly**: Clean old images
-3. **Monthly**: Review and update base images
-4. **Quarterly**: Security audit and dependency updates
-
-### Metrics to Track
-
-- Image size trends
-- Build time performance
-- Security vulnerability count
-- Layer cache hit rate
-
----
-
-**Remember**: Docker is a powerful tool, but with great power comes great responsibility! 🕷️
+- `P1: Docker image budget and telemetry baseline`
+- `P1: Shared Safety audit script after install-profile split`
+- provenance / attestation recovery
+- Dagger or any alternate control-plane work

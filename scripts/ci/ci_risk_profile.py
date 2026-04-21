@@ -47,6 +47,8 @@ BACKEND_SHARED_EXACT: tuple[str, ...] = (
     "pytest.ini",
     "requirements-ci-lite.in",
     "requirements-ci-lite.txt",
+    "requirements-docker-runtime.in",
+    "requirements-docker-runtime.txt",
     "requirements-dev.txt",
     "requirements-rag-vector.in",
     "requirements-rag-vector.txt",

@@ -190,10 +190,13 @@ def test_canonical_ci_and_docker_use_supply_chain_guardrails() -> None:
     assert "install_locked_python_requirements.py" in docker_text
     assert "ARG PULSEPLATE_PYTHON_INDEX_URL" in docker_text
     assert "constraints.txt" in docker_text
+    assert "requirements-docker-runtime.txt" in docker_text
     assert "requirements-ci-lite.txt" in docker_text
     assert '--index-url "${PULSEPLATE_PYTHON_INDEX_URL}"' in docker_text
-    assert 'ARG PULSEPLATE_REQUIREMENTS_FILE="requirements.txt"' in docker_text
-    assert "requirements.txt|requirements-ci-lite.txt" in docker_text
+    assert 'ARG PULSEPLATE_REQUIREMENTS_FILE="requirements-docker-runtime.txt"' in docker_text
+    assert (
+        "requirements.txt|requirements-ci-lite.txt|requirements-docker-runtime.txt" in docker_text
+    )
     assert '--requirements-file "${PULSEPLATE_REQUIREMENTS_FILE}"' in docker_text
     assert APPROVED_PROXY_ENV_EXPRESSION in ci_text
     assert APPROVED_TRUSTED_HOST_EXPRESSION in ci_text
@@ -202,12 +205,17 @@ def test_canonical_ci_and_docker_use_supply_chain_guardrails() -> None:
     assert "PULSEPLATE_PYTHON_INDEX_URL: ${PULSEPLATE_PYTHON_INDEX_URL:?" in compose_text
     assert "PULSEPLATE_PYTHON_TRUSTED_HOST: ${PULSEPLATE_PYTHON_TRUSTED_HOST:-}" in compose_text
     assert "--build-arg PULSEPLATE_PYTHON_INDEX_URL" in makefile_text
+    assert "!requirements-docker-runtime.in" in dockerignore_text
+    assert "!requirements-docker-runtime.txt" in dockerignore_text
     assert "!requirements-ci-lite.txt" in dockerignore_text
     assert "!constraints.txt" in dockerignore_text
     assert "!scripts/ci/check_python_startup_hooks.py" in dockerignore_text
     assert "!scripts/ci/emergency_python_wheels.json" in dockerignore_text
     assert "!scripts/ci/install_locked_python_requirements.py" in dockerignore_text
-    assert "COPY requirements.txt requirements-ci-lite.txt constraints.txt ./" in docker_text
+    assert (
+        "COPY requirements.txt requirements-ci-lite.txt requirements-docker-runtime.txt constraints.txt ./"
+        in docker_text
+    )
     assert "COPY requirements.txt requirements-dev.txt constraints.txt ./" in docker_text
     production_root_index = docker_text.index("FROM runtime-base AS production")
     switch_to_root_index = docker_text.index("USER root", production_root_index)
@@ -417,6 +425,23 @@ def test_base_runtime_dependency_profile_excludes_vector_ml_stack() -> None:
     assert "pgvector==" not in requirements_runtime
 
 
+def test_docker_runtime_dependency_profile_excludes_ci_and_vector_stack() -> None:
+    requirements_runtime = (REPO_ROOT / "requirements-docker-runtime.txt").read_text(
+        encoding="utf-8"
+    )
+
+    assert "fastapi==" in requirements_runtime
+    assert "sqlalchemy==" in requirements_runtime
+    assert "bandit==" not in requirements_runtime
+    assert "diff-cover==" not in requirements_runtime
+    assert "pre-commit==" not in requirements_runtime
+    assert "pytest==" not in requirements_runtime
+    assert "sentence-transformers==" not in requirements_runtime
+    assert "transformers==" not in requirements_runtime
+    assert "torch==" not in requirements_runtime
+    assert "pgvector==" not in requirements_runtime
+
+
 def test_rag_vector_dependency_profile_contains_extracted_vector_ml_stack() -> None:
     requirements_rag_vector = (REPO_ROOT / "requirements-rag-vector.txt").read_text(
         encoding="utf-8"
@@ -428,7 +453,7 @@ def test_rag_vector_dependency_profile_contains_extracted_vector_ml_stack() -> N
     assert "pgvector==" in requirements_rag_vector
 
 
-def test_docker_ci_build_jobs_use_ci_lite_requirements_profile() -> None:
+def test_production_target_docker_workflows_use_runtime_requirements_profile() -> None:
     docker_image_workflow = yaml.safe_load(
         (REPO_ROOT / ".github" / "workflows" / "docker-image.yml").read_text(encoding="utf-8")
     )
@@ -439,6 +464,9 @@ def test_docker_ci_build_jobs_use_ci_lite_requirements_profile() -> None:
     )
     build_workflow = yaml.safe_load(
         (REPO_ROOT / ".github" / "workflows" / "build.yml").read_text(encoding="utf-8")
+    )
+    trivy_workflow = yaml.safe_load(
+        (REPO_ROOT / ".github" / "workflows" / "trivy.yml").read_text(encoding="utf-8")
     )
 
     def _build_args_for_step(workflow: dict[str, object], job_name: str, step_name: str) -> str:
@@ -460,29 +488,39 @@ def test_docker_ci_build_jobs_use_ci_lite_requirements_profile() -> None:
     publish_build_args = _build_args_for_step(
         build_workflow, "publish", "Build and push Docker image"
     )
+    trivy_build_args = _build_args_for_step(
+        trivy_workflow, "build", "Build Docker image (production target)"
+    )
 
-    assert "PULSEPLATE_REQUIREMENTS_FILE=requirements-ci-lite.txt" in docker_image_build_args
-    assert "PULSEPLATE_REQUIREMENTS_FILE=requirements-ci-lite.txt" in docker_smoke_build_args
-    assert "PULSEPLATE_REQUIREMENTS_FILE" not in local_build_args
-    assert "PULSEPLATE_REQUIREMENTS_FILE" not in publish_build_args
+    expected_arg = "PULSEPLATE_REQUIREMENTS_FILE=requirements-docker-runtime.txt"
+    assert expected_arg in docker_image_build_args
+    assert expected_arg in docker_smoke_build_args
+    assert expected_arg in local_build_args
+    assert expected_arg in publish_build_args
+    assert expected_arg in trivy_build_args
 
 
-def test_dependency_submission_workflow_tracks_optional_rag_vector_manifest() -> None:
+def test_dependency_submission_workflow_tracks_runtime_and_optional_manifests() -> None:
     workflow_text = (
         REPO_ROOT / ".github" / "workflows" / "python-dependency-submission.yml"
     ).read_text(encoding="utf-8")
 
+    assert '"requirements-docker-runtime.in"' in workflow_text
+    assert '"requirements-docker-runtime.txt"' in workflow_text
     assert '"requirements-rag-vector.in"' in workflow_text
     assert '"requirements-rag-vector.txt"' in workflow_text
 
 
-def test_security_scan_workflow_audits_optional_rag_vector_manifest() -> None:
+def test_security_scan_workflow_audits_runtime_and_optional_manifests() -> None:
     ci_text = (REPO_ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
     security_text = (REPO_ROOT / ".github" / "workflows" / "security.yml").read_text(
         encoding="utf-8"
     )
     ci_pip_audit_text = (REPO_ROOT / "scripts" / "ci_pip_audit.sh").read_text(encoding="utf-8")
 
+    assert "requirements-docker-runtime.txt" in ci_text
+    assert "requirements-docker-runtime.txt" in security_text
+    assert "requirements-docker-runtime.txt" in ci_pip_audit_text
     assert "requirements-rag-vector.txt" in ci_text
     assert "requirements-rag-vector.txt" in security_text
     assert "requirements-rag-vector.txt" in ci_pip_audit_text
@@ -497,11 +535,13 @@ def test_requirements_lock_excludes_optional_rag_vector_stack() -> None:
     assert "torch==" not in requirements_lock
 
 
-def test_ci_risk_profile_tracks_optional_rag_vector_manifest() -> None:
+def test_ci_risk_profile_tracks_runtime_and_optional_manifests() -> None:
     risk_profile_text = (REPO_ROOT / "scripts" / "ci" / "ci_risk_profile.py").read_text(
         encoding="utf-8"
     )
 
+    assert '"requirements-docker-runtime.in"' in risk_profile_text
+    assert '"requirements-docker-runtime.txt"' in risk_profile_text
     assert '"requirements-rag-vector.in"' in risk_profile_text
     assert '"requirements-rag-vector.txt"' in risk_profile_text
 

@@ -7,14 +7,17 @@ This project uses `pip-tools` to manage dependencies with deterministic builds.
 - `requirements.in` - Production dependencies (high-level)
 - `requirements-dev.in` - Development dependencies (high-level)
 - `requirements-test.in` - Test-only dependencies (high-level)
+- `requirements-docker-runtime.in` - Docker production runtime dependencies (high-level)
 - `requirements-rag-vector.in` - Optional vector/ML runtime dependencies (high-level)
 - `requirements.txt` - Compiled production dependencies with exact versions (auto-generated)
+- `requirements-docker-runtime.txt` - Compiled Docker production runtime dependencies with exact versions (auto-generated)
 - `requirements-dev.txt` - Compiled development dependencies with exact versions (auto-generated)
 - `requirements-test.txt` - Compiled test-only dependencies with exact versions (auto-generated)
 - `requirements-rag-vector.txt` - Compiled optional vector/ML runtime dependencies (auto-generated)
 - `constraints.txt` - Additional version constraints for deterministic CI/CD builds
 
 `requirements-test.txt` keeps `pgvector` only for postgres-vector test coverage; the heavy vector/ML runtime packages remain isolated in `requirements-rag-vector.txt`.
+`requirements-docker-runtime.txt` is the backend image contract for production-target Docker builds and excludes CI-only tooling.
 
 ### About constraints.txt
 
@@ -77,6 +80,8 @@ Canonical contract for shared CI/Docker/bootstrap paths:
   repo-approved fallback set (including `cryptography 46.0.7`, `pillow 12.2.0`,
   and other active bootstrap/runtime wheels) with pinned `sha256` digests until the
   approved proxy catches up.
+- Production-target Docker workflows pass `PULSEPLATE_REQUIREMENTS_FILE=requirements-docker-runtime.txt`
+  so the backend image stays on the Docker runtime surface instead of `requirements-ci-lite.txt`.
 
 **Note**: The temporary wheelhouse is no longer the final control. The repo now fails closed unless dependency resolution goes through the approved private proxy. Artifact quarantine and promotion review still live outside the repo as infrastructure controls.
 
@@ -118,6 +123,9 @@ interpreter.
 ```bash
 # Update production dependencies
 pip-compile requirements.in --upgrade -o requirements.txt
+
+# Update Docker runtime dependencies
+pip-compile requirements-docker-runtime.in --upgrade -o requirements-docker-runtime.txt
 
 # Update development dependencies
 pip-compile requirements-dev.in --upgrade -o requirements-dev.txt

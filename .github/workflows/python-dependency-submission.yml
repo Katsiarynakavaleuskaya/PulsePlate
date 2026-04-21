@@ -10,6 +10,8 @@ on:
     branches: [main]
     paths:
       - "requirements.in"
+      - "requirements-docker-runtime.in"
+      - "requirements-docker-runtime.txt"
       - "requirements-rag-vector.in"
       - "requirements-rag-vector.txt"
       - "requirements.txt"
@@ -26,6 +28,8 @@ on:
     branches: [main]
     paths:
       - "requirements.in"
+      - "requirements-docker-runtime.in"
+      - "requirements-docker-runtime.txt"
       - "requirements-rag-vector.in"
       - "requirements-rag-vector.txt"
       - "requirements.txt"

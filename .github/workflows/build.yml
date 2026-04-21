@@ -53,6 +53,7 @@ jobs:
           build-args: |
             PULSEPLATE_PYTHON_INDEX_URL=${{ secrets.PULSEPLATE_PYTHON_INDEX_URL || vars.PULSEPLATE_PYTHON_INDEX_URL }}
             PULSEPLATE_PYTHON_TRUSTED_HOST=${{ secrets.PULSEPLATE_PYTHON_TRUSTED_HOST || vars.PULSEPLATE_PYTHON_TRUSTED_HOST }}
+            PULSEPLATE_REQUIREMENTS_FILE=requirements-docker-runtime.txt
           platforms: linux/amd64
           push: false
           load: true
@@ -270,6 +271,7 @@ jobs:
           build-args: |
             PULSEPLATE_PYTHON_INDEX_URL=${{ secrets.PULSEPLATE_PYTHON_INDEX_URL || vars.PULSEPLATE_PYTHON_INDEX_URL }}
             PULSEPLATE_PYTHON_TRUSTED_HOST=${{ secrets.PULSEPLATE_PYTHON_TRUSTED_HOST || vars.PULSEPLATE_PYTHON_TRUSTED_HOST }}
+            PULSEPLATE_REQUIREMENTS_FILE=requirements-docker-runtime.txt
           # Single-arch for cache/push stability (CodeRabbit discussion_r2869743452). Restore linux/arm64 when GHA cache/provenance is stable.
           platforms: linux/amd64
           push: true

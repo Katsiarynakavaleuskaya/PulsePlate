@@ -13,7 +13,7 @@ ARG BUILDPLATFORM
 ARG TARGETPLATFORM
 ARG PULSEPLATE_PYTHON_INDEX_URL
 ARG PULSEPLATE_PYTHON_TRUSTED_HOST=""
-ARG PULSEPLATE_REQUIREMENTS_FILE="requirements.txt"
+ARG PULSEPLATE_REQUIREMENTS_FILE="requirements-docker-runtime.txt"
 
 # Install system dependencies for building (curl removed - not needed)
 RUN apt-get update && apt-get install -y \
@@ -50,7 +50,7 @@ RUN --mount=type=cache,target=/root/.cache/pip \
     fi
 
 # Copy requirements and install Python dependencies
-COPY requirements.txt requirements-ci-lite.txt constraints.txt ./
+COPY requirements.txt requirements-ci-lite.txt requirements-docker-runtime.txt constraints.txt ./
 COPY scripts/ci/check_python_startup_hooks.py scripts/ci/install_locked_python_requirements.py scripts/ci/emergency_python_wheels.json /tmp/pulseplate-ci/
 RUN --mount=type=cache,target=/root/.cache/pip \
     if [ -z "${PULSEPLATE_PYTHON_INDEX_URL:-}" ]; then \
@@ -58,7 +58,7 @@ RUN --mount=type=cache,target=/root/.cache/pip \
       exit 1; \
     fi; \
     case "${PULSEPLATE_REQUIREMENTS_FILE}" in \
-      requirements.txt|requirements-ci-lite.txt) ;; \
+      requirements.txt|requirements-ci-lite.txt|requirements-docker-runtime.txt) ;; \
       *) \
         echo "Unsupported Docker requirements profile: ${PULSEPLATE_REQUIREMENTS_FILE}" >&2; \
         exit 1; \

@@ -13,6 +13,8 @@
 # Dependency manifests used during build
 !requirements.txt
 !requirements-ci-lite.txt
+!requirements-docker-runtime.in
+!requirements-docker-runtime.txt
 !requirements-dev.txt
 !constraints.txt
 
