@@ -338,9 +338,10 @@ def isolated_test_client():
     Instead, create a fresh TestClient and clear dependency_overrides in teardown.
     """
     from app.main import app as main_app
+    from tests._client import make_test_client
 
-    # Create TestClient with current app state (no reload to avoid dual-Base)
-    client = TestClient(cast(ASGIApp, main_app))
+    # Create canonical metrics-aware client with current app state.
+    client = make_test_client(main_app)
 
     try:
         yield client
