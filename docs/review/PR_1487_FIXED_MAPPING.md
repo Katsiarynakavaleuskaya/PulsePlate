@@ -26,6 +26,17 @@ Disposition: NOT-A-BUG
 Evidence: `docs/orchestration/MAINLINE_NIGHTLY_RUFF_BOOTSTRAP_REMEDIATION_PACKET_2026-04-21.md:33`, `docs/orchestration/MAINLINE_NIGHTLY_RUFF_BOOTSTRAP_REMEDIATION_PACKET_2026-04-21.md:47`, `docs/orchestration/MAINLINE_NIGHTLY_RUFF_BOOTSTRAP_REMEDIATION_PACKET_2026-04-21.md:51`
 Reason: The packet intentionally follows the coordinator-approved role order for this nightly remediation lane: `architecture-specialist` stays escalation-only, while `dev-operator` may assist with evidence gathering but does not replace any reviewer in the mandatory order.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1487#discussion_r3117790513
+Disposition: NOT-A-BUG
+Evidence: `docs/orchestration/MAINLINE_NIGHTLY_RUFF_BOOTSTRAP_REMEDIATION_PACKET_2026-04-21.md:33`, `docs/orchestration/MAINLINE_NIGHTLY_RUFF_BOOTSTRAP_REMEDIATION_PACKET_2026-04-21.md:47`, `docs/orchestration/MAINLINE_NIGHTLY_RUFF_BOOTSTRAP_REMEDIATION_PACKET_2026-04-21.md:51`
+Reason: The inline CodeRabbit packet comment asks to replace the lane-specific coordinator order with the generic Docker/CI sequence, but this remediation packet deliberately keeps `architecture-specialist` escalation-only and keeps `dev-operator` outside the mandatory reviewer order.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1487#pullrequestreview-4148140221
+Disposition: FIXED
+Commit: aaac4f037
+Evidence: `tests/test_install_locked_python_requirements.py:26`, `tests/test_install_locked_python_requirements.py:109`, `tests/test_install_locked_python_requirements.py:119`
+Reason: `_exact_requirement_pairs(...)` now strips environment markers from exact pins, and the new regression test proves `ruff==... ; marker` lines still satisfy the exact-version alignment guard.
+
 ## Merge Readiness
 
 Merge-readiness contract:
@@ -38,9 +49,10 @@ Merge-readiness contract:
 - [ ] Required checks complete (no pending jobs)
   Evidence: pending `check_merge_ready.py --require-auth` pass after branch-head
   CI completes.
-- [x] All review threads resolved on GitHub after disposition updates
-  Evidence: GraphQL review-thread query on 21 April 2026 returned zero review
-  threads for PR `#1487`.
+- [ ] All review threads resolved on GitHub after disposition updates
+  Evidence: the remaining unresolved CodeRabbit packet thread
+  `#discussion_r3117790513` is now dispositioned in this artifact and can be
+  resolved on GitHub after the follow-up docs commit is pushed.
 - [ ] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
   Evidence: the latest actionable `sourcery-ai` review
   `#pullrequestreview-4148025010` is mapped to `661e88b2b`, but external bot
