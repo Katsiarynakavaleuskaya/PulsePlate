@@ -66,10 +66,12 @@ def test_production_deploy_syncs_shell_bundle_for_caddy_rebuild() -> None:
     workflow_text = CD_WORKFLOW_PATH.read_text(encoding="utf-8")
 
     assert "Stage production shell bundle for SSH deploy" in workflow_text
-    assert (
-        'tar -czf "$archive_path" frontend deploy/Caddyfile.production scripts/diagnose_web.sh'
-        in workflow_text
-    )
+    assert 'tar -czf "$archive_path" \\' in workflow_text
+    assert "frontend \\" in workflow_text
+    assert "deploy/Caddyfile.production \\" in workflow_text
+    assert "deploy/docker-compose.production.yaml \\" in workflow_text
+    assert "scripts/diagnose_web.sh \\" in workflow_text
+    assert "scripts/redeploy_caddy.sh" in workflow_text
     assert (
         'bundle_name="pulseplate-shell-bundle-${{ github.run_id }}-${{ github.run_attempt }}"'
         in workflow_text

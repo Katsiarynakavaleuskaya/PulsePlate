@@ -239,9 +239,11 @@ sync_shell_bundle() {
   local source_caddyfile="$SHELL_BUNDLE_DIR/deploy/Caddyfile.production"
   local source_compose=""
   local source_diagnose="$SHELL_BUNDLE_DIR/scripts/diagnose_web.sh"
+  local source_redeploy="$SHELL_BUNDLE_DIR/scripts/redeploy_caddy.sh"
   local target_compose=""
   local compose_relative_path=""
   local shell_root
+  local target_scripts_dir="$DEPLOY_DIR/scripts"
   shell_root="$(cd "$DEPLOY_DIR/.." && pwd)"
 
   if [ -z "$RESOLVED_COMPOSE_FILE" ]; then
@@ -294,16 +296,21 @@ sync_shell_bundle() {
 
   echo "Syncing production shell bundle from: $SHELL_BUNDLE_DIR"
   rm -rf "$shell_root/frontend"
-  mkdir -p "$shell_root/frontend" "$shell_root/scripts"
+  mkdir -p "$shell_root/frontend" "$target_scripts_dir"
   mkdir -p "$(dirname "$target_compose")"
   cp -R "$source_frontend/." "$shell_root/frontend/"
   cp "$source_caddyfile" "$DEPLOY_DIR/Caddyfile.production"
   cp "$source_compose" "$target_compose"
-  rm -f "$shell_root/scripts/diagnose_web.sh"
+  rm -f "$target_scripts_dir/diagnose_web.sh" "$target_scripts_dir/redeploy_caddy.sh"
 
   if [ -f "$source_diagnose" ]; then
-    cp "$source_diagnose" "$shell_root/scripts/diagnose_web.sh"
-    chmod +x "$shell_root/scripts/diagnose_web.sh"
+    cp "$source_diagnose" "$target_scripts_dir/diagnose_web.sh"
+    chmod +x "$target_scripts_dir/diagnose_web.sh"
+  fi
+
+  if [ -f "$source_redeploy" ]; then
+    cp "$source_redeploy" "$target_scripts_dir/redeploy_caddy.sh"
+    chmod +x "$target_scripts_dir/redeploy_caddy.sh"
   fi
 }
 

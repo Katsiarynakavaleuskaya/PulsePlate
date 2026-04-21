@@ -201,6 +201,8 @@ It now also terminates `www.<domain>` and permanently redirects it to the apex p
    git switch --detach origin/main
    scp deploy/Caddyfile.production ubuntu@your-host:/srv/pulseplate-production/
    scp deploy/docker-compose.production.yaml ubuntu@your-host:/srv/pulseplate-production/
+   scp scripts/diagnose_web.sh ubuntu@your-host:/srv/pulseplate-production/scripts/diagnose_web.sh
+   scp scripts/redeploy_caddy.sh ubuntu@your-host:/srv/pulseplate-production/scripts/redeploy_caddy.sh
    rsync -az --delete frontend/ ubuntu@your-host:/srv/frontend/
    ```
 

@@ -375,7 +375,9 @@ curl -fsS https://pulseplate.app/health | jq .
 ### Release shell parity
 
 - Tag-based production deploy must ship the public shell inputs together:
-  `frontend/`, `deploy/Caddyfile.production`, and `scripts/diagnose_web.sh`.
+  `frontend/`, `deploy/Caddyfile.production`,
+  `deploy/docker-compose.production.yaml`, `scripts/diagnose_web.sh`, and
+  `scripts/redeploy_caddy.sh`.
 - `scripts/deploy_production.sh` now rebuilds `caddy` during production deploy, so the
   public SPA shell stays aligned with the same release tree as the backend `IMAGE_REF`.
 - SSH production deploys use run-scoped `/tmp` bundle paths and the production deploy

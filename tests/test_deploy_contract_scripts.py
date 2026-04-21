@@ -443,10 +443,14 @@ def test_deploy_production_syncs_shell_bundle_and_prunes_stale_shell_files(tmp_p
     (shell_bundle_dir / "scripts" / "diagnose_web.sh").write_text(
         "#!/usr/bin/env bash\nprintf 'bundle-diagnose\\n'\n", encoding="utf-8"
     )
+    (shell_bundle_dir / "scripts" / "redeploy_caddy.sh").write_text(
+        "#!/usr/bin/env bash\nprintf 'bundle-redeploy\\n'\n", encoding="utf-8"
+    )
     (shell_root / "frontend").mkdir()
     (shell_root / "frontend" / "stale.txt").write_text("old-shell\n", encoding="utf-8")
-    (shell_root / "scripts").mkdir()
-    (shell_root / "scripts" / "diagnose_web.sh").write_text("stale-diagnose\n", encoding="utf-8")
+    (project_dir / "scripts").mkdir()
+    (project_dir / "scripts" / "diagnose_web.sh").write_text("stale-diagnose\n", encoding="utf-8")
+    (project_dir / "scripts" / "redeploy_caddy.sh").write_text("stale-redeploy\n", encoding="utf-8")
 
     docker_stub = f"""#!/usr/bin/env bash
 set -euo pipefail
@@ -504,9 +508,12 @@ printf 'curl %s\\n' "$*" >> "{log_file}"
         encoding="utf-8"
     ) == PRODUCTION_COMPOSE_TEXT
     assert not (shell_root / "frontend" / "stale.txt").exists()
-    assert (shell_root / "scripts" / "diagnose_web.sh").read_text(
+    assert (project_dir / "scripts" / "diagnose_web.sh").read_text(
         encoding="utf-8"
     ) == "#!/usr/bin/env bash\nprintf 'bundle-diagnose\\n'\n"
+    assert (project_dir / "scripts" / "redeploy_caddy.sh").read_text(
+        encoding="utf-8"
+    ) == "#!/usr/bin/env bash\nprintf 'bundle-redeploy\\n'\n"
 
 
 def test_deploy_production_syncs_shell_bundle_with_autodetected_compose_file(
@@ -541,7 +548,9 @@ def test_deploy_production_syncs_shell_bundle_with_autodetected_compose_file(
     (shell_bundle_dir / "scripts" / "diagnose_web.sh").write_text(
         "#!/usr/bin/env bash\nprintf 'bundle-diagnose\\n'\n", encoding="utf-8"
     )
-    (shell_root / "scripts").mkdir()
+    (shell_bundle_dir / "scripts" / "redeploy_caddy.sh").write_text(
+        "#!/usr/bin/env bash\nprintf 'bundle-redeploy\\n'\n", encoding="utf-8"
+    )
 
     docker_stub = f"""#!/usr/bin/env bash
 set -euo pipefail
@@ -590,9 +599,12 @@ printf 'curl %s\\n' "$*" >> "{log_file}"
     assert (project_dir / "docker-compose.production.yaml").read_text(
         encoding="utf-8"
     ) == PRODUCTION_COMPOSE_TEXT
-    assert (shell_root / "scripts" / "diagnose_web.sh").read_text(
+    assert (project_dir / "scripts" / "diagnose_web.sh").read_text(
         encoding="utf-8"
     ) == "#!/usr/bin/env bash\nprintf 'bundle-diagnose\\n'\n"
+    assert (project_dir / "scripts" / "redeploy_caddy.sh").read_text(
+        encoding="utf-8"
+    ) == "#!/usr/bin/env bash\nprintf 'bundle-redeploy\\n'\n"
 
 
 def test_deploy_production_syncs_shell_bundle_with_relative_compose_subpath(
@@ -632,7 +644,9 @@ def test_deploy_production_syncs_shell_bundle_with_relative_compose_subpath(
     (shell_bundle_dir / "scripts" / "diagnose_web.sh").write_text(
         "#!/usr/bin/env bash\nprintf 'bundle-diagnose\\n'\n", encoding="utf-8"
     )
-    (shell_root / "scripts").mkdir()
+    (shell_bundle_dir / "scripts" / "redeploy_caddy.sh").write_text(
+        "#!/usr/bin/env bash\nprintf 'bundle-redeploy\\n'\n", encoding="utf-8"
+    )
 
     docker_stub = f"""#!/usr/bin/env bash
 set -euo pipefail
@@ -681,9 +695,12 @@ printf 'curl %s\\n' "$*" >> "{log_file}"
     assert (project_dir / "deploy" / "docker-compose.production.yaml").read_text(
         encoding="utf-8"
     ) == "services:\n  app:\n    image: ghcr.io/example/pulseplate:test\n"
-    assert (shell_root / "scripts" / "diagnose_web.sh").read_text(
+    assert (project_dir / "scripts" / "diagnose_web.sh").read_text(
         encoding="utf-8"
     ) == "#!/usr/bin/env bash\nprintf 'bundle-diagnose\\n'\n"
+    assert (project_dir / "scripts" / "redeploy_caddy.sh").read_text(
+        encoding="utf-8"
+    ) == "#!/usr/bin/env bash\nprintf 'bundle-redeploy\\n'\n"
 
 
 def test_deploy_production_autodetects_deploy_subdir_compose_and_env_file(
@@ -1035,10 +1052,14 @@ def test_deploy_production_keeps_shell_bundle_untouched_when_migrations_fail(
     (shell_bundle_dir / "scripts" / "diagnose_web.sh").write_text(
         "#!/usr/bin/env bash\nprintf 'bundle-diagnose\\n'\n", encoding="utf-8"
     )
+    (shell_bundle_dir / "scripts" / "redeploy_caddy.sh").write_text(
+        "#!/usr/bin/env bash\nprintf 'bundle-redeploy\\n'\n", encoding="utf-8"
+    )
     (shell_root / "frontend").mkdir()
     (shell_root / "frontend" / "stale.txt").write_text("old-shell\n", encoding="utf-8")
-    (shell_root / "scripts").mkdir()
-    (shell_root / "scripts" / "diagnose_web.sh").write_text("stale-diagnose\n", encoding="utf-8")
+    (project_dir / "scripts").mkdir()
+    (project_dir / "scripts" / "diagnose_web.sh").write_text("stale-diagnose\n", encoding="utf-8")
+    (project_dir / "scripts" / "redeploy_caddy.sh").write_text("stale-redeploy\n", encoding="utf-8")
 
     docker_stub = f"""#!/usr/bin/env bash
 set -euo pipefail
@@ -1080,9 +1101,12 @@ printf 'curl %s\\n' "$*" >> "{log_file}"
     assert completed.returncode == 1
     assert (shell_root / "frontend" / "stale.txt").read_text(encoding="utf-8") == "old-shell\n"
     assert not (shell_root / "frontend" / "bundle-marker.txt").exists()
-    assert (shell_root / "scripts" / "diagnose_web.sh").read_text(
+    assert (project_dir / "scripts" / "diagnose_web.sh").read_text(
         encoding="utf-8"
     ) == "stale-diagnose\n"
+    assert (project_dir / "scripts" / "redeploy_caddy.sh").read_text(
+        encoding="utf-8"
+    ) == "stale-redeploy\n"
 
 
 @pytest.mark.parametrize(
