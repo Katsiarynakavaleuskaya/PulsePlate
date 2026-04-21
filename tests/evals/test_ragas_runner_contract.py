@@ -242,7 +242,7 @@ def test_extract_metric_scores_fails_cleanly_on_empty_score_rows() -> None:
         )
 
 
-def test_extract_metric_scores_fails_cleanly_on_invalid_metric_value() -> None:
+def test_validate_metric_scores_fails_cleanly_on_invalid_metric_value() -> None:
     """Invalid metric values must preserve the runner RuntimeError contract."""
 
     runner = importlib.import_module("evals.ragas.run_ragas_eval")
