@@ -21,6 +21,11 @@ Commit: 661e88b2b
 Evidence: `tests/test_install_locked_python_requirements.py:37`, `tests/test_install_locked_python_requirements.py:48`, `tests/test_install_locked_python_requirements.py:107`
 Reason: Follow-up commit replaces the `StopIteration`-style manifest lookup with an explicit assertion helper and tightens the compatible-release parser so `ruff~=...` checks remain stable when requirement lines carry environment markers.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1487#pullrequestreview-4148047226
+Disposition: NOT-A-BUG
+Evidence: `docs/orchestration/MAINLINE_NIGHTLY_RUFF_BOOTSTRAP_REMEDIATION_PACKET_2026-04-21.md:33`, `docs/orchestration/MAINLINE_NIGHTLY_RUFF_BOOTSTRAP_REMEDIATION_PACKET_2026-04-21.md:47`, `docs/orchestration/MAINLINE_NIGHTLY_RUFF_BOOTSTRAP_REMEDIATION_PACKET_2026-04-21.md:51`
+Reason: The packet intentionally follows the coordinator-approved role order for this nightly remediation lane: `architecture-specialist` stays escalation-only, while `dev-operator` may assist with evidence gathering but does not replace any reviewer in the mandatory order.
+
 ## Merge Readiness
 
 Merge-readiness contract:
