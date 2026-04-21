@@ -23,9 +23,9 @@ Merge-readiness contract:
 `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md:153-216`.
 
 - [ ] Current-head CI is green for PR branch head
-  Evidence: current-head rerun pending after Phase2 body remediation.
+  Evidence: current-head rerun pending after Phase2 body and split-justification remediation.
 - [ ] Required checks complete (no pending jobs)
-  Evidence: current-head rerun pending after Phase2 body remediation.
+  Evidence: current-head rerun pending after Phase2 body and split-justification remediation.
 - [ ] All review threads resolved on GitHub after disposition updates
   Evidence: no actionable review threads are present yet; re-check after the first post-open review cycle.
 - [ ] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
