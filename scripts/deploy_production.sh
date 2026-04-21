@@ -239,9 +239,11 @@ sync_shell_bundle() {
   local source_caddyfile="$SHELL_BUNDLE_DIR/deploy/Caddyfile.production"
   local source_compose=""
   local source_diagnose="$SHELL_BUNDLE_DIR/scripts/diagnose_web.sh"
+  local source_redeploy="$SHELL_BUNDLE_DIR/scripts/redeploy_caddy.sh"
   local target_compose=""
   local compose_relative_path=""
   local shell_root
+  local target_scripts_dir="$DEPLOY_DIR/scripts"
   shell_root="$(cd "$DEPLOY_DIR/.." && pwd)"
 
   if [ -z "$RESOLVED_COMPOSE_FILE" ]; then
@@ -292,19 +294,27 @@ sync_shell_bundle() {
     exit 1
   fi
 
+  if [ ! -f "$source_redeploy" ]; then
+    echo "❌ SHELL_BUNDLE_DIR is missing scripts/redeploy_caddy.sh: $source_redeploy" >&2
+    exit 1
+  fi
+
   echo "Syncing production shell bundle from: $SHELL_BUNDLE_DIR"
   rm -rf "$shell_root/frontend"
-  mkdir -p "$shell_root/frontend" "$shell_root/scripts"
+  mkdir -p "$shell_root/frontend" "$target_scripts_dir"
   mkdir -p "$(dirname "$target_compose")"
   cp -R "$source_frontend/." "$shell_root/frontend/"
   cp "$source_caddyfile" "$DEPLOY_DIR/Caddyfile.production"
   cp "$source_compose" "$target_compose"
-  rm -f "$shell_root/scripts/diagnose_web.sh"
+  rm -f "$target_scripts_dir/diagnose_web.sh" "$target_scripts_dir/redeploy_caddy.sh"
 
   if [ -f "$source_diagnose" ]; then
-    cp "$source_diagnose" "$shell_root/scripts/diagnose_web.sh"
-    chmod +x "$shell_root/scripts/diagnose_web.sh"
+    cp "$source_diagnose" "$target_scripts_dir/diagnose_web.sh"
+    chmod +x "$target_scripts_dir/diagnose_web.sh"
   fi
+
+  cp "$source_redeploy" "$target_scripts_dir/redeploy_caddy.sh"
+  chmod +x "$target_scripts_dir/redeploy_caddy.sh"
 }
 
 wait_for_app_ready() {
@@ -356,9 +366,82 @@ validate_managed_postgres_contract() {
   fi
 }
 
+validate_shell_bundle_contract() {
+  local source_frontend=""
+  local source_caddyfile=""
+  local source_compose=""
+  local compose_relative_path=""
+  local required_redeploy=""
+
+  if [ -z "$SHELL_BUNDLE_DIR" ]; then
+    return 0
+  fi
+
+  if [ -z "$DEPLOY_DIR" ]; then
+    echo "❌ DEPLOY_DIR is required when SHELL_BUNDLE_DIR is set" >&2
+    exit 1
+  fi
+
+  if [ -z "$RESOLVED_COMPOSE_FILE" ]; then
+    echo "❌ Could not resolve a compose filename for shell bundle validation" >&2
+    exit 1
+  fi
+
+  source_frontend="$SHELL_BUNDLE_DIR/frontend"
+  source_caddyfile="$SHELL_BUNDLE_DIR/deploy/Caddyfile.production"
+
+  if [[ "$RESOLVED_COMPOSE_FILE" = /* ]]; then
+    case "$RESOLVED_COMPOSE_FILE" in
+      "$DEPLOY_DIR"/*)
+        compose_relative_path="${RESOLVED_COMPOSE_FILE#"$DEPLOY_DIR"/}"
+        ;;
+      *)
+        echo "❌ COMPOSE_FILE must stay within DEPLOY_DIR: $RESOLVED_COMPOSE_FILE" >&2
+        exit 1
+        ;;
+    esac
+  else
+    compose_relative_path="${RESOLVED_COMPOSE_FILE#./}"
+    case "$compose_relative_path" in
+      ""|"."|..|../*|*/../*|*/..)
+        echo "❌ COMPOSE_FILE must stay within DEPLOY_DIR: $RESOLVED_COMPOSE_FILE" >&2
+        exit 1
+        ;;
+    esac
+  fi
+
+  if [[ "$compose_relative_path" = deploy/* ]]; then
+    source_compose="$SHELL_BUNDLE_DIR/$compose_relative_path"
+  else
+    source_compose="$SHELL_BUNDLE_DIR/deploy/$compose_relative_path"
+  fi
+
+  if [ ! -d "$source_frontend" ]; then
+    echo "❌ SHELL_BUNDLE_DIR is missing frontend/: $source_frontend" >&2
+    exit 1
+  fi
+
+  if [ ! -f "$source_caddyfile" ]; then
+    echo "❌ SHELL_BUNDLE_DIR is missing deploy/Caddyfile.production: $source_caddyfile" >&2
+    exit 1
+  fi
+
+  if [ ! -f "$source_compose" ]; then
+    echo "❌ SHELL_BUNDLE_DIR is missing $compose_relative_path: $source_compose" >&2
+    exit 1
+  fi
+
+  required_redeploy="$SHELL_BUNDLE_DIR/scripts/redeploy_caddy.sh"
+  if [ ! -f "$required_redeploy" ]; then
+    echo "❌ SHELL_BUNDLE_DIR is missing scripts/redeploy_caddy.sh: $required_redeploy" >&2
+    exit 1
+  fi
+}
+
 run_preflight() {
   echo "Validating managed PostgreSQL production contract..."
   validate_managed_postgres_contract
+  validate_shell_bundle_contract
   echo "✅ Production deploy preflight passed"
 }
 

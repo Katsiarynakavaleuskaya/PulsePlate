@@ -123,10 +123,14 @@ On the production server:
       missing `.env` (default path: `$DEPLOY_DIR/.env`, typically
       `/srv/pulseplate-production/.env`).
   - `Caddyfile.production` (Caddy reverse proxy config; see Caddyfile Configuration below)
-- A managed PostgreSQL instance reachable from the production host via `DATABASE_URL`
-- Managed database backup / PITR handled by the provider; the production deploy script no longer runs local `pg_dump`
-- Compose must reference `IMAGE_REF` (recommended) or `TAG` (backwards-compatible):
-- **Firewall configured**: Ports 80 (HTTP) and 443 (HTTPS) must be open (see Firewall Setup below)
+  - a sibling `frontend/` shell bundle adjacent to the deploy directory (typically
+    `/srv/frontend`) so the `caddy` image can be rebuilt from
+    `frontend/Dockerfile.caddy-spa`
+  - A managed PostgreSQL instance reachable from the production host via `DATABASE_URL`
+  - Managed database backup / PITR handled by the provider; the production deploy script no longer runs local `pg_dump`
+  - The canonical production compose contract pins `app` via `IMAGE_REF`; `TAG`
+    remains deploy-helper compatibility input, not the primary compose contract
+  - **Firewall configured**: Ports 80 (HTTP) and 443 (HTTPS) must be open (see Firewall Setup below)
 
 Example `docker-compose.production.yaml`:
 
@@ -157,7 +161,11 @@ services:
       --forwarded-allow-ips="172.30.100.0/24"
 
   caddy:
-    image: caddy:2.10.2
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile.caddy-spa
+      args:
+        VITE_API_BASE: ${VITE_API_BASE:-/api/v1}
     restart: unless-stopped
     networks: [web]
     ports:
@@ -183,17 +191,27 @@ It already contains a complete and secure reverse proxy setup using the `{$PRODU
 It also contains a staging TLS fallback vhost for `STAGING_FALLBACK_DOMAIN` (default: `pulseplate-staging.duckdns.org`) used during build-only phases.
 It now also terminates `www.<domain>` and permanently redirects it to the apex production host so Cloudflare can issue/validate TLS consistently for both names.
 
-**To use it on the production server:**
+**To stage it manually from merged release truth:**
 
-1. Copy the file to your deploy directory:
+1. On a local merged checkout or from an unpacked CI-produced release bundle,
+   sync the release shell bundle to the production host:
 
    ```bash
-   cp deploy/Caddyfile.production /srv/pulseplate-production/
-   # or
-   cp deploy/Caddyfile.production /opt/pulseplate/
+   git fetch origin main
+   git switch --detach origin/main
+   scp deploy/Caddyfile.production ubuntu@your-host:/srv/pulseplate-production/
+   scp deploy/docker-compose.production.yaml ubuntu@your-host:/srv/pulseplate-production/
+   ssh ubuntu@your-host 'mkdir -p /srv/pulseplate-production/scripts'
+   scp scripts/diagnose_web.sh ubuntu@your-host:/srv/pulseplate-production/scripts/diagnose_web.sh
+   scp scripts/redeploy_caddy.sh ubuntu@your-host:/srv/pulseplate-production/scripts/redeploy_caddy.sh
+   rsync -az --delete frontend/ ubuntu@your-host:/srv/frontend/
    ```
 
-2. Ensure the file is readable by Docker (mode 644 or similar):
+   GitHub Actions production deploy already stages this bundle before
+   `scripts/deploy_production.sh` runs. Manual copy is for bootstrap or
+   emergency recovery from merged release truth.
+
+2. On the production server, ensure the file is readable by Docker (mode 644 or similar):
 
    ```bash
    chmod 644 ./Caddyfile.production
@@ -481,11 +499,19 @@ High-level steps (run on the production server):
      - This file is a server-local bootstrap artifact. GitHub Actions does not
        provision it for you.
    - `Caddyfile.production` (copied from `deploy/Caddyfile.production`)
+   - sibling `frontend/` shell bundle (typically `/srv/frontend`)
    - managed PostgreSQL credentials in `DATABASE_URL`
-3. Ensure the compose file uses `IMAGE_REF` (preferred) or `TAG` (backwards-compatible).
-   - Production CD now also stages the current `frontend/`, `deploy/Caddyfile.production`,
-     and `scripts/diagnose_web.sh` bundle before `scripts/deploy_production.sh` runs so the
-     public shell can be rebuilt from the same release tree as the backend image.
+3. Ensure the compose file keeps `app` on `IMAGE_REF` and `caddy` on the
+   separate `frontend/Dockerfile.caddy-spa` shell build.
+   - Production CD stages the current `frontend/`, `deploy/Caddyfile.production`,
+     `deploy/docker-compose.production.yaml`, `scripts/diagnose_web.sh`, and
+     `scripts/redeploy_caddy.sh` bundle before `scripts/deploy_production.sh`
+     runs so the public shell can be rebuilt from the same release tree as the
+     backend image.
+   - Do not rebuild `caddy` from `/srv/frontend` unless that shell bundle came
+     from the same production CD run, a CI-produced release bundle, or a merged
+     detached checkout like the one above. If shell provenance is unclear, stop
+     and re-stage it first.
 4. Wait for a successful Nightly run on `main`, then set `PRODUCTION_ENV_READY=true`
    only after the host bootstrap is complete.
 5. Create and push a new semver tag (e.g. `v0.2.2`).

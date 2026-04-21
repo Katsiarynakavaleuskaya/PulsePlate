@@ -92,19 +92,23 @@ git push origin main
 ssh root@pulseplate.app
 cd /srv/pulseplate-production
 
-# 1. Подтянуть новый образ
-docker compose -f docker-compose.production.yaml pull
+# 1. Подтянуть backend image
+docker compose -f docker-compose.production.yaml pull app
 
 # 2. Прогнать миграции через release image
 docker compose --env-file .env -f docker-compose.production.yaml run --rm --no-deps app alembic upgrade head
 
-# 3. Перезапустить сервисы
+# 3. Убедиться, что `/srv/frontend` и deploy inputs пришли из того же production CD run,
+#    CI-produced release bundle или merged detached checkout. Если provenance неясен,
+#    сначала пересинхронизировать shell bundle из merged truth и только потом rebuild.
+# 4. Пересобрать edge shell из уже синхронизированного release shell bundle и перезапустить стек
+docker compose -f docker-compose.production.yaml build caddy
 docker compose -f docker-compose.production.yaml up -d --force-recreate
 
-# 4. Проверить статус
+# 5. Проверить статус
 docker compose -f docker-compose.production.yaml ps
 
-# 5. Проверить health
+# 6. Проверить health
 curl -fsS https://pulseplate.app/health | jq .
 ```
 
@@ -161,6 +165,8 @@ ssh root@pulseplate.app
 cd /srv/pulseplate-production
 
 # Canonical production contract: managed PostgreSQL lives outside compose and is reached via DATABASE_URL
+# Normal production deploy assumes the release shell bundle was already staged
+# from CI or another merged release artifact. Do not rsync from a dirty local checkout.
 
 # Обновить образ app из registry (IMAGE_REF)
 docker compose -f docker-compose.production.yaml pull app
@@ -191,8 +197,9 @@ curl -fsS https://pulseplate.app/health | jq .
 ### Emergency apex shell recovery (DigitalOcean + Cloudflare drift)
 
 Если production apex внезапно уходит в белый экран, JSON probe или пустой shell,
-не чини это руками только в Cloudflare. Сначала восстанови repo-owned shell
-bundle на origin.
+не чини это руками только в Cloudflare. Нормальный deploy path уже должен идти
+через CI-staged release shell bundle; этот раздел только про emergency recovery,
+когда edge drift уже произошёл и bundle надо пересинхронизировать из merged truth.
 
 **Жёсткое правило:** emergency shell sync разрешён только из **merged canonical
 tree** (`origin/main` / release commit) или из CI-produced release bundle.
@@ -207,7 +214,9 @@ git switch --detach origin/main
 scp deploy/Caddyfile.production ubuntu@64.226.117.163:/srv/pulseplate-production/Caddyfile.production
 scp deploy/docker-compose.production.yaml ubuntu@64.226.117.163:/srv/pulseplate-production/docker-compose.production.yaml
 rsync -az --delete frontend/ ubuntu@64.226.117.163:/srv/frontend/
+ssh ubuntu@64.226.117.163 'mkdir -p /srv/pulseplate-production/scripts'
 scp scripts/diagnose_web.sh ubuntu@64.226.117.163:/srv/pulseplate-production/scripts/diagnose_web.sh
+scp scripts/redeploy_caddy.sh ubuntu@64.226.117.163:/srv/pulseplate-production/scripts/redeploy_caddy.sh
 
 # На сервере: rebuild/restart только edge shell
 ssh ubuntu@64.226.117.163 '
@@ -308,12 +317,19 @@ bash scripts/diagnose_web.sh
    docker compose up -d --force-recreate app
    ```
 
-3. **Изменить `Caddyfile.production` на сервере (это конфиг):**
+3. **Изменить `Caddyfile.production` через PR, затем пересинхронизировать весь shell bundle из merged truth:**
    ```bash
    # ✅ ПРАВИЛЬНО
-   cd /srv/pulseplate-production
-   nano Caddyfile.production
-   docker compose up -d --force-recreate caddy
+   # Сначала: merge PR с нужным изменением в deploy/Caddyfile.production
+   git fetch origin main
+   git switch --detach origin/main
+   ssh ubuntu@64.226.117.163 'mkdir -p /srv/pulseplate-production/scripts'
+   scp deploy/Caddyfile.production ubuntu@64.226.117.163:/srv/pulseplate-production/Caddyfile.production
+   scp deploy/docker-compose.production.yaml ubuntu@64.226.117.163:/srv/pulseplate-production/docker-compose.production.yaml
+   rsync -az --delete frontend/ ubuntu@64.226.117.163:/srv/frontend/
+   scp scripts/diagnose_web.sh ubuntu@64.226.117.163:/srv/pulseplate-production/scripts/diagnose_web.sh
+   scp scripts/redeploy_caddy.sh ubuntu@64.226.117.163:/srv/pulseplate-production/scripts/redeploy_caddy.sh
+   ssh ubuntu@64.226.117.163 'cd /srv/pulseplate-production && bash scripts/redeploy_caddy.sh'
    ```
 
 ---
@@ -361,7 +377,9 @@ curl -fsS https://pulseplate.app/health | jq .
 ### Release shell parity
 
 - Tag-based production deploy must ship the public shell inputs together:
-  `frontend/`, `deploy/Caddyfile.production`, and `scripts/diagnose_web.sh`.
+  `frontend/`, `deploy/Caddyfile.production`,
+  `deploy/docker-compose.production.yaml`, `scripts/diagnose_web.sh`, and
+  `scripts/redeploy_caddy.sh`.
 - `scripts/deploy_production.sh` now rebuilds `caddy` during production deploy, so the
   public SPA shell stays aligned with the same release tree as the backend `IMAGE_REF`.
 - SSH production deploys use run-scoped `/tmp` bundle paths and the production deploy

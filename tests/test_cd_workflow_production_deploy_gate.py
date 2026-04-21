@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -64,12 +65,18 @@ def test_production_deploy_syncs_shell_bundle_for_caddy_rebuild() -> None:
     """Guard against shipping only the app image while leaving the web shell stale."""
 
     workflow_text = CD_WORKFLOW_PATH.read_text(encoding="utf-8")
+    tar_bundle_pattern = re.compile(
+        r'tar -czf "\$archive_path" \\\n'
+        r"\s+frontend \\\n"
+        r"\s+deploy/Caddyfile\.production \\\n"
+        r"\s+deploy/docker-compose\.production\.yaml \\\n"
+        r"\s+scripts/diagnose_web\.sh \\\n"
+        r"\s+scripts/redeploy_caddy\.sh",
+        re.MULTILINE,
+    )
 
     assert "Stage production shell bundle for SSH deploy" in workflow_text
-    assert (
-        'tar -czf "$archive_path" frontend deploy/Caddyfile.production scripts/diagnose_web.sh'
-        in workflow_text
-    )
+    assert tar_bundle_pattern.search(workflow_text)
     assert (
         'bundle_name="pulseplate-shell-bundle-${{ github.run_id }}-${{ github.run_attempt }}"'
         in workflow_text
@@ -145,7 +152,11 @@ def test_production_deploy_jobs_run_preflight_before_live_deploy() -> None:
     )
 
     assert "Preflight production deploy on self-hosted runner" in self_hosted_section
+    assert 'export SHELL_BUNDLE_DIR="${GITHUB_WORKSPACE}"' in self_hosted_section
     assert "bash scripts/deploy_production.sh --preflight-only" in self_hosted_section
+    assert self_hosted_lines.index('          export SHELL_BUNDLE_DIR="${GITHUB_WORKSPACE}"') < (
+        self_hosted_lines.index("          bash scripts/deploy_production.sh --preflight-only")
+    )
     assert self_hosted_lines.index(
         "          bash scripts/deploy_production.sh --preflight-only"
     ) < self_hosted_lines.index("          bash scripts/deploy_production.sh")
