@@ -151,9 +151,10 @@ class TestOfflineEvalBootstrapSmoke:
 
         report = runner.run_report(dataset_path, evaluator=_fake_evaluator)
         summary = runner.render_markdown_summary(report)
+        expected_dataset_path = dataset_path.resolve().as_posix()
 
         assert report == {
-            "dataset_path": str(dataset_path.resolve()),
+            "dataset_path": expected_dataset_path,
             "sample_count": 2,
             "report_only": True,
             "metrics": {
@@ -297,13 +298,13 @@ class TestOfflineEvalBootstrapSmoke:
         with pytest.raises(ValueError, match="report-only"):
             runner._validate_metric_names(runner.REQUIRED_METRIC_NAMES)
         monkeypatch.setattr(runner, "REPORT_ONLY_MODE", True)
+        captured_rows: list[dict[str, object]] = []
 
         class _FakeDataset:
-            captured_rows: list[dict[str, object]] = []
-
             @classmethod
             def from_list(cls, values: list[dict[str, object]]) -> "_FakeDataset":
-                cls.captured_rows = values
+                captured_rows.clear()
+                captured_rows.extend(values)
                 return cls()
 
         metric_map = {name: object() for name in runner.REQUIRED_METRIC_NAMES}
@@ -330,10 +331,7 @@ class TestOfflineEvalBootstrapSmoke:
             "answer_relevancy": 0.82,
             "context_precision": 0.88,
         }
-        assert (
-            _FakeDataset.captured_rows[0]["reference"]
-            == _FakeDataset.captured_rows[0]["ground_truth"]
-        )
+        assert captured_rows[0]["reference"] == captured_rows[0]["ground_truth"]
 
         class _Series:
             def __init__(self, value: float) -> None:
@@ -726,9 +724,9 @@ class TestUtilsModule:
         assert isinstance(sanitized, str)
 
         # Test ID generation
-        idVal = generate_id()
-        assert isinstance(idVal, str)
-        assert len(idVal) == 32  # UUID hex without hyphens
+        id_val = generate_id()
+        assert isinstance(id_val, str)
+        assert len(id_val) == 32  # UUID hex without hyphens
 
         # Test number formatting
         formatted = format_number(1234.567)
