@@ -125,7 +125,7 @@ interpreter.
 pip-compile requirements.in --upgrade -o requirements.txt
 
 # Update Docker runtime dependencies
-pip-compile requirements-docker-runtime.in --upgrade -o requirements-docker-runtime.txt
+pip-compile --allow-unsafe --output-file=requirements-docker-runtime.txt requirements-docker-runtime.in
 
 # Update development dependencies
 pip-compile requirements-dev.in --upgrade -o requirements-dev.txt

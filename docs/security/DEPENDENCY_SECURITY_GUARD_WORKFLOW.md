@@ -52,19 +52,23 @@ Choose the appropriate schema section:
 | Ban package entirely | `blocked_packages` | `["unsafe-pkg"]` |
 | Block specific versions | `blocked_versions` | `{"pkg": [">=1.0,<1.5"]}` |
 
-**Important:** Packages in `min_versions` must exist in ALL 5 shared requirement surfaces:
+**Important:** Packages in `min_versions` must exist in all tracked requirement surfaces:
 - `requirements.in`
+- `requirements-docker-runtime.in`
+- `requirements-ci-lite.in`
+- `requirements-dev.in`
 - `requirements.txt`
+- `requirements-docker-runtime.txt`
 - `requirements-dev.txt`
 - `requirements-lock.txt`
+- `requirements-ci-lite.txt`
 - `constraints.txt`
 
 Dev-only dependencies (like `marshmallow`) cannot currently be tracked in `min_versions` because they don't exist in runtime surfaces. This is a known limitation.
 Optional manifests such as `requirements-rag-vector.in` / `requirements-rag-vector.txt`
-and Docker-specific manifests such as `requirements-docker-runtime.in` /
-`requirements-docker-runtime.txt` must be covered by explicit contract/audit
-checks, but they are not part of the `min_versions` all-surfaces requirement
-until the guard supports per-surface targeting.
+must be covered by explicit contract/audit checks, but they are not part of the
+`min_versions` all-surfaces requirement until the guard supports per-surface
+targeting.
 
 ### 2a. Preflight source availability before install
 

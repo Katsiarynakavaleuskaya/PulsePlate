@@ -157,7 +157,8 @@ def main(argv: list[str] | None = None) -> int:
     """CLI entrypoint."""
 
     args = parse_args(argv)
-    blocked_prefixes = DEFAULT_BLOCKED_PREFIXES + tuple(args.blocked_prefixes or ())
+    extra_blocked_prefixes = tuple(args.blocked_prefixes or ())
+    blocked_prefixes = DEFAULT_BLOCKED_PREFIXES + extra_blocked_prefixes
     result = build_result(args.image, blocked_prefixes)
     payload = json.dumps(asdict(result), indent=2)
 
