@@ -65,6 +65,12 @@ The earlier diagnosis packet mixed three different concerns:
 After PR-1, item 3 is already resolved in its own lane and must not be re-opened
 in PR-2.
 
+Staging runtime posture also remains a separate seam. Production keeps staging
+HTTPS alive via the fallback vhost while full staging readiness is tracked in
+`docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-remove-staging-tls-fallback-seam-after-full-staging-readiness`.
+PR-2 may acknowledge that seam, but must not broaden into staging release-policy
+work.
+
 For PR-2, the remaining deploy-shell problem is best framed as **contract drift**:
 
 - runtime config already encodes the correct SPA and API split
@@ -82,6 +88,9 @@ PR-2 must do the following:
 3. Add/formalize `scripts/diagnose_web.sh`
 4. Update deploy/operator docs so they point to the real baked-shell model
 5. Add deterministic repo-side verification for the diagnosis and redeploy flow
+6. Keep production/self-hosted split-contract docs aligned while treating staging
+   runtime enablement as a documented temporary seam, not as the canonical
+   production contract
 
 ## Explicitly Out Of Scope For PR-2
 
