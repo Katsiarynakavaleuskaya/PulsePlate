@@ -344,9 +344,7 @@ def render_markdown(report: ImageTelemetryReport) -> str:
         lines.extend(["", "## Warnings", ""])
         lines.extend(f"- {warning}" for warning in report.warnings)
 
-    lines.extend(
-        ["", "## Largest Layers", "", "| Size | Command (redacted) |", "| --- | --- |"]
-    )
+    lines.extend(["", "## Largest Layers", "", "| Size | Command (redacted) |", "| --- | --- |"])
     for layer in report.largest_layers:
         command = layer.created_by.replace("|", "\\|")
         lines.append(f"| `{layer.size_human}` | `{command}` |")

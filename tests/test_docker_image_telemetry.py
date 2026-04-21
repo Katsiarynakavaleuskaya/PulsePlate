@@ -113,9 +113,9 @@ def test_positive_int_rejects_non_positive_values(raw_value: str) -> None:
 def test_read_history_rows_redacts_created_by(monkeypatch: pytest.MonkeyPatch) -> None:
     import subprocess
 
-    stdout = '\n'.join(
+    stdout = "\n".join(
         [
-            '{"CreatedBy":"RUN pip install --index-url https://user:pass@example.com/simple","Size":"10MB"}',
+            '{"CreatedBy":"RUN --mount=type=secret,id=pip_index_url sh -c \\"pip install --index-url ${PULSEPLATE_PRIVATE_INDEX_URL}\\"","Size":"10MB"}',
             '{"CreatedBy":"RUN echo SAFE","Size":"5MB"}',
         ]
     )
@@ -134,9 +134,7 @@ def test_read_history_rows_redacts_created_by(monkeypatch: pytest.MonkeyPatch) -
     rows = docker_image_telemetry._read_history_rows("pulseplate:test")
 
     assert len(rows) == 2
-    assert all(
-        row.created_by == docker_image_telemetry.REDACTED_CREATED_BY for row in rows
-    )
+    assert all(row.created_by == docker_image_telemetry.REDACTED_CREATED_BY for row in rows)
     assert rows[0].size_bytes == 10_000_000
     assert rows[1].size_bytes == 5_000_000
 
