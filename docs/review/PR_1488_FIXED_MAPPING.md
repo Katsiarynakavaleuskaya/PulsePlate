@@ -14,7 +14,13 @@ Record every actionable human/bot disposition here before resolving threads on G
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1488#pullrequestreview-4148229640 -> 02b06b8d5
+  Disposition: FIXED
+  Evidence: [scripts/deploy_production.sh](/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/worktrees/fix-docker-deploy-contract-reconciliation/scripts/deploy_production.sh:294), [tests/test_deploy_contract_scripts.py](/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/worktrees/fix-docker-deploy-contract-reconciliation/tests/test_deploy_contract_scripts.py:15), [tests/test_cd_workflow_production_deploy_gate.py](/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/worktrees/fix-docker-deploy-contract-reconciliation/tests/test_cd_workflow_production_deploy_gate.py:64)
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1488#pullrequestreview-4148251408 -> 02b06b8d5
+  Disposition: FIXED
+  Evidence: [deploy/PRODUCTION.md](/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/worktrees/fix-docker-deploy-contract-reconciliation/deploy/PRODUCTION.md:204), [deploy/WORKFLOW.md](/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/worktrees/fix-docker-deploy-contract-reconciliation/deploy/WORKFLOW.md:217), [deploy/WORKFLOW.md](/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/worktrees/fix-docker-deploy-contract-reconciliation/deploy/WORKFLOW.md:325), [scripts/deploy_production.sh](/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/worktrees/fix-docker-deploy-contract-reconciliation/scripts/deploy_production.sh:294)
+- Ready-state bot review pass completed on `2026-04-21`; no unmapped actionable review comments should remain after the remediation rerun on the latest head.
 
 ## Merge Readiness
 
@@ -23,17 +29,17 @@ Merge-readiness contract:
 `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md:153-216`.
 
 - [ ] Current-head CI is green for PR branch head
-  Evidence: pending current-head PR checks for branch `fix/docker-deploy-contract-reconciliation`.
+  Evidence: rerun required after ready-state remediation commits.
 - [ ] Required checks complete (no pending jobs)
-  Evidence: pending current-head PR checks for branch `fix/docker-deploy-contract-reconciliation`.
+  Evidence: rerun required after ready-state remediation commits.
 - [ ] All review threads resolved on GitHub after disposition updates
-  Evidence: no post-open review pass completed yet.
+  Evidence: `check_review_threads_disposition.py --pr-number 1488 --require-auth` reported no resolved review threads before the ready-state remediation rerun.
 - [ ] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
-  Evidence: post-open bot review lane not finished yet.
+  Evidence: this artifact now records the ready-state Sourcery and CodeRabbit review URLs; latest-head bot rerun still pending.
 - [ ] Pre-commit green on latest pushed head
-  Evidence: local rerun passed before adding this artifact; re-run on final pushed head pending.
+  Evidence: local rerun passed before this artifact update; re-run on final pushed head pending.
 - [ ] `make verify` green on latest pushed head
-  Evidence: final local `make verify` rerun still in progress at artifact creation time.
+  Evidence: final rerun required after ready-state remediation commits.
 
 ## Deferred / Follow-ups
 
