@@ -34,6 +34,11 @@ Evidence: `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1447#discus
 Reason: The Codex review shell is an aggregate wrapper around the single actionable inline quota-migration thread dispositioned immediately above and does not add a separate unresolved obligation.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1447#pullrequestreview-4131513701
 
+Disposition: NOT-A-BUG
+Evidence: `app/security/llm_monthly_quota.py:165-177`; `tests/test_insight_vip_monthly_quota_api.py:201-247`
+Reason: The CodeRabbit review suggests an optional explanatory comment about the idempotent UPSERT, not a correctness or merge-safety defect. The concurrency-safe behavior is already enforced by the monotonic `CASE` update and covered by the dual-row fail-closed regression test.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1447#pullrequestreview-4154143839
+
 ## Merge Readiness
 
 Merge-readiness contract:
