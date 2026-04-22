@@ -15,11 +15,13 @@ from core.ai.insight_runtime import (
     prepare_insight_runtime,
     require_ai_generated_insight_notice,
 )
+from core.insight.philosophical_runtime import PhilosophyRolloutPolicy
 
 __all__ = [
     "DirectInsightProviderStub",
     "InsightProviderLoadError",
     "KnowledgePolicy",
+    "PhilosophyRolloutPolicy",
     "InsightTransparencyNotice",
     "InsightTransparencyUnavailableError",
     "PreparedInsightRuntime",

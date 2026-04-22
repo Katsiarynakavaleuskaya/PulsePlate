@@ -29,6 +29,7 @@ from app.utils.feature_flags import (
     is_recursive_rag_enabled,
     is_recursive_rag_optimization_enabled,
 )
+from core.insight.philosophical_runtime import PhilosophyRolloutPolicy
 
 
 class TracedInsightProvider:
@@ -129,14 +130,15 @@ async def generate_traced_insight(
     philo_validation_enabled: bool,
     recursive_rag_enabled: bool,
     subject_id: int | None,
-    philosophy_router_enabled: bool,
-    philosophy_phase12_enabled: bool,
-    philosophy_linguistic_enabled: bool,
-    philosophy_pragmatic_enabled: bool,
     knowledge_policy: Any,
     route_path: str,
     route_type: str,
     user_tier: str,
+    rollout_policy: PhilosophyRolloutPolicy | None = None,
+    philosophy_router_enabled: bool = False,
+    philosophy_phase12_enabled: bool = False,
+    philosophy_linguistic_enabled: bool = False,
+    philosophy_pragmatic_enabled: bool = False,
 ) -> Any:
     """Run philosophical insight generation with app-layer tracing only."""
 
@@ -181,6 +183,7 @@ async def generate_traced_insight(
             philo_validation_enabled=philo_validation_enabled,
             recursive_rag_enabled=recursive_rag_enabled,
             subject_id=subject_id,
+            rollout_policy=rollout_policy,
             philosophy_router_enabled=philosophy_router_enabled,
             philosophy_phase12_enabled=philosophy_phase12_enabled,
             philosophy_linguistic_enabled=philosophy_linguistic_enabled,

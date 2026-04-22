@@ -2033,8 +2033,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Philosophical logic principles for LLM reliability (Aristotelian, Analytical, Post-Analytical, Linguistic)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (high impact on reliability)
-  - Target PR: PR #1024 (`feat: add philosophical runtime foundation for insight`) -> PR-TBD-LLM-PHILOSOPHY-ROLLOUT
-  - Status: 🟡 In progress (foundation merged in PR #1024; rollout follow-ups remain)
+  - Target PR: PR #1024 (`feat: add philosophical runtime foundation for insight`) -> PR-A6 (`feat(ai-quality): rollout philosophical validation phases on bounded surfaces`)
+  - Status: 🟡 In progress (foundation merged in PR #1024; bounded W1 rollout lane active on `codex/ai-philosophical-rollout-w1`)
   - Dependencies:
     - [P0 Master checklist phase-fit triage](#ledger-p0-master-checklist-triage)
     - [P0 Payment rails RU/BY + iOS baseline](#ledger-p0-payments-ruby-ios)

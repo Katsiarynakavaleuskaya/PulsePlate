@@ -18,6 +18,7 @@ from core.ai.insight_runtime import (
     prepare_insight_runtime,
     require_ai_generated_insight_notice,
 )
+from core.insight.philosophical_runtime import PhilosophyRolloutPolicy
 from core.rag.contracts import RAGDegradedReason
 
 
@@ -160,6 +161,7 @@ def test_prepare_insight_runtime_uses_direct_stub_for_local_answer(
     assert prepared.transparency_notice.surface_id == "ai_generated_insight"
     assert prepared.knowledge_policy.allow_promotion is False
     assert prepared.knowledge_policy.allow_reads is False
+    assert prepared.rollout_policy == PhilosophyRolloutPolicy()
 
 
 def test_prepare_insight_runtime_uses_provider_loader_for_generation(
@@ -200,6 +202,12 @@ def test_prepare_insight_runtime_uses_provider_loader_for_generation(
     assert prepared.provider is provider
     assert prepared.decision.route_type.value == "deep_reasoning"
     assert prepared.transparency_notice.wellness_boundary == "Wellness only."
+    assert prepared.rollout_policy == PhilosophyRolloutPolicy(
+        router_enabled=True,
+        phase12_enabled=False,
+        linguistic_enabled=False,
+        pragmatic_enabled=False,
+    )
     assert prepared.knowledge_policy == KnowledgePolicy(
         enabled=False,
         allow_reads=False,
@@ -246,6 +254,50 @@ def test_prepare_insight_runtime_enables_knowledge_promotion_for_rag_factual_rou
     assert prepared.knowledge_policy.enabled is True
     assert prepared.knowledge_policy.allow_reads is True
     assert prepared.knowledge_policy.allow_promotion is True
+
+
+def test_prepare_insight_runtime_returns_rollout_policy_and_preserves_router_linguistic_parity(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Prepared runtime must own rollout truth and preserve router-or-linguistic preview routing."""
+
+    @dataclass
+    class _FakeDecision:
+        needs_generation: bool
+        route_type: object
+
+    class _FakeRuntime:
+        def preview_route(
+            self, *, text: str, lang: str | None, router_enabled: bool, use_rag: bool
+        ) -> _FakeDecision:
+            assert text == "hello"
+            assert lang is None
+            assert router_enabled is True
+            assert use_rag is False
+            return _FakeDecision(
+                needs_generation=True,
+                route_type=SimpleNamespace(value="deep_reasoning"),
+            )
+
+    monkeypatch.setattr("core.ai.insight_runtime.PhilosophicalRuntime", _FakeRuntime, raising=True)
+
+    prepared = prepare_insight_runtime(
+        text="hello",
+        use_rag=False,
+        philosophy_router_enabled=False,
+        philosophy_linguistic_enabled=True,
+        philosophy_phase12_enabled=True,
+        philosophy_pragmatic_enabled=True,
+        provider_loader=lambda: _FakeProvider(),
+        transparency_loader=lambda: ("ai_generated_insight", "Wellness only."),
+    )
+
+    assert prepared.rollout_policy == PhilosophyRolloutPolicy(
+        router_enabled=False,
+        phase12_enabled=True,
+        linguistic_enabled=True,
+        pragmatic_enabled=True,
+    )
 
 
 def test_prepare_insight_runtime_uses_direct_transparency_notice(

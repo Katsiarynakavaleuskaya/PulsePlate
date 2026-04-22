@@ -26,6 +26,7 @@ from core.insight.linguistic import LanguageGameType, SpeechActType
 from core.insight.philosophical_runtime import (
     PhilosophicalQueryRouter,
     PhilosophicalRuntime,
+    PhilosophyRolloutPolicy,
     RiskLevel,
     RouteDecision,
     RouteType,
@@ -365,6 +366,47 @@ class TestPhilosophicalRuntime:
         assert result.metadata.route_type == RouteType.RAG_FACTUAL.value
         assert result.provider_name == "philosophical_runtime"
         assert result.metadata.verification_rate is None
+
+    async def test_rollout_policy_matches_legacy_bool_path_for_deterministic_input(self) -> None:
+        """Prepared rollout policy must preserve legacy behavior for the same deterministic call."""
+
+        legacy_runtime = PhilosophicalRuntime()
+        policy_runtime = PhilosophicalRuntime()
+        legacy_provider = _StaticProvider(response="Balanced nutrition supports steady energy.")
+        policy_provider = _StaticProvider(response="Balanced nutrition supports steady energy.")
+
+        legacy_result = await legacy_runtime.generate_insight(
+            text="Tell me about balanced nutrition.",
+            lang="en",
+            provider=legacy_provider,
+            use_rag=False,
+            philo_validation_enabled=False,
+            recursive_rag_enabled=False,
+            philosophy_router_enabled=True,
+            philosophy_phase12_enabled=False,
+            philosophy_linguistic_enabled=True,
+            philosophy_pragmatic_enabled=False,
+        )
+        policy_result = await policy_runtime.generate_insight(
+            text="Tell me about balanced nutrition.",
+            lang="en",
+            provider=policy_provider,
+            use_rag=False,
+            philo_validation_enabled=False,
+            recursive_rag_enabled=False,
+            rollout_policy=PhilosophyRolloutPolicy(
+                router_enabled=True,
+                phase12_enabled=False,
+                linguistic_enabled=True,
+                pragmatic_enabled=False,
+            ),
+        )
+
+        assert legacy_result.insight == policy_result.insight
+        assert legacy_result.provider_name == policy_result.provider_name
+        assert legacy_result.metadata.route_type == policy_result.metadata.route_type
+        assert legacy_result.metadata.depth_used == policy_result.metadata.depth_used
+        assert legacy_result.metadata.reason_codes == policy_result.metadata.reason_codes
 
     async def test_runtime_preserves_canonical_candidates_from_validated_retriever(self) -> None:
         """Canonical validated retriever candidates may flow through the runtime."""
@@ -751,6 +793,31 @@ class TestPhilosophicalRuntime:
         assert result.metadata.route_type is None
         assert result.metadata.depth_used == 0
         assert result.metadata.reason_codes == []
+
+    async def test_build_direct_result_requires_public_metadata_access(self) -> None:
+        runtime = PhilosophicalRuntime()
+
+        with pytest.raises(
+            ValueError, match="direct-result metadata requires public metadata access"
+        ):
+            runtime._build_direct_result(
+                answer="BMI stands for body mass index.",
+                provider_name="philosophical_runtime",
+                decision=RouteDecision(
+                    route_type=RouteType.DIRECT_DEFINITION,
+                    target_depth=1,
+                    needs_rag=False,
+                    needs_generation=False,
+                    risk_level=RiskLevel.LOW,
+                    reason_codes=["cached_definition"],
+                ),
+                public_metadata_enabled=False,
+                verification_report=None,
+                falsification_report=None,
+                contradiction_count=0,
+                fallback_reason="",
+                rewrite_count=0,
+            )
 
     async def test_build_prompt_covers_all_route_variants(self) -> None:
         runtime = PhilosophicalRuntime()

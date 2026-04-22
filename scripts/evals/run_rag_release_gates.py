@@ -1009,6 +1009,12 @@ async def pulseplate_runtime_generate(
         philosophy_linguistic_enabled=_truthy_env(
             os.getenv("FEATURE_PHILOSOPHY_LINGUISTIC"),
         ),
+        philosophy_phase12_enabled=_truthy_env(
+            os.getenv("FEATURE_PHILOSOPHY_PHASE12"),
+        ),
+        philosophy_pragmatic_enabled=_truthy_env(
+            os.getenv("FEATURE_PHILOSOPHY_PRAGMATIC"),
+        ),
         provider_loader=lambda: provider,
         transparency_loader=lambda: (
             "ai_generated_insight",
@@ -1025,13 +1031,11 @@ async def pulseplate_runtime_generate(
         philo_validation_enabled=True,
         recursive_rag_enabled=False,
         subject_id=subject_id,
-        philosophy_router_enabled=False,
-        philosophy_phase12_enabled=False,
-        philosophy_linguistic_enabled=False,
-        philosophy_pragmatic_enabled=False,
+        knowledge_policy=prepared.knowledge_policy,
         route_path="/api/v1/insight",
         route_type=prepared.decision.route_type.value,
         user_tier=user_tier,
+        rollout_policy=prepared.rollout_policy,
     )
     answer = str(getattr(result, "insight", ""))
     confidence = _safe_float(

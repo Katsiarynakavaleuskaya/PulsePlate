@@ -466,6 +466,7 @@ class TestPhilosophicalRuntimeIntegration:
         assert data["falsifiability_rate"] is not None
         assert data["contradiction_count"] == 0
         assert isinstance(data["reason_codes"], list)
+        assert "rollout_policy" not in data
 
 
 class TestPhilosophicalRuntimeFlagUnit:

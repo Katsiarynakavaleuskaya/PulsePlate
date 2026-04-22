@@ -1409,6 +1409,42 @@ class TestPhilosophicalRuntimeFastLane:
 
         assert result == []
 
+    def test_build_direct_result_requires_public_metadata_access(self) -> None:
+        """Direct-result helper must fail closed when metadata exposure is disabled."""
+
+        from core.insight.philosophical_runtime import (
+            PhilosophicalRuntime,
+            RiskLevel,
+            RouteDecision,
+            RouteType,
+        )
+
+        runtime = PhilosophicalRuntime()
+        decision = RouteDecision(
+            route_type=RouteType.DIRECT_DEFINITION,
+            target_depth=0,
+            needs_rag=False,
+            needs_generation=False,
+            risk_level=RiskLevel.LOW,
+            simplified_query="simple query",
+        )
+
+        with pytest.raises(
+            ValueError,
+            match="direct-result metadata requires public metadata access",
+        ):
+            runtime._build_direct_result(
+                answer="local answer",
+                provider_name="local",
+                decision=decision,
+                public_metadata_enabled=False,
+                verification_report=None,
+                falsification_report=None,
+                contradiction_count=0,
+                fallback_reason="",
+                rewrite_count=0,
+            )
+
 
 class TestVectorTypeFastLane:
     """Keep pgvector SQLAlchemy fallback covered inside test-fast."""

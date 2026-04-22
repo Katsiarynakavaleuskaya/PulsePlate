@@ -15,6 +15,7 @@ from app.services.insight_application_service import (
     execute_insight_request,
 )
 from core.ai.insight_runtime import InsightTransparencyNotice
+from core.insight.philosophical_runtime import PhilosophyRolloutPolicy
 from core.knowledge.policy import KnowledgePolicy
 from core.insight.llm_provider_loader import LLMProvider
 from core.verification.contracts import VerificationArtifact, VerificationBundle
@@ -43,6 +44,21 @@ def _knowledge_policy() -> KnowledgePolicy:
         deny_degraded_reasons=("retrieval_empty",),
         subject_scope_required=True,
         rail="product_ai_runtime",
+    )
+
+
+def _rollout_policy(
+    *,
+    router_enabled: bool = False,
+    phase12_enabled: bool = False,
+    linguistic_enabled: bool = False,
+    pragmatic_enabled: bool = False,
+) -> PhilosophyRolloutPolicy:
+    return PhilosophyRolloutPolicy(
+        router_enabled=router_enabled,
+        phase12_enabled=phase12_enabled,
+        linguistic_enabled=linguistic_enabled,
+        pragmatic_enabled=pragmatic_enabled,
     )
 
 
@@ -105,6 +121,10 @@ async def test_execute_insight_request_uses_injected_dependencies(
         runtime=object(),
         provider=object(),
         decision=SimpleNamespace(route_type=SimpleNamespace(value="deep_reasoning")),
+        rollout_policy=_rollout_policy(
+            phase12_enabled=True,
+            linguistic_enabled=True,
+        ),
         transparency_notice=InsightTransparencyNotice(
             surface_id="ai_generated_insight",
             wellness_boundary="Wellness only.",
@@ -148,6 +168,26 @@ async def test_execute_insight_request_uses_injected_dependencies(
         _fake_generate_traced_insight,
         raising=True,
     )
+    monkeypatch.setattr(
+        "app.services.insight_application_service.is_philosophy_router_enabled",
+        lambda: False,
+        raising=True,
+    )
+    monkeypatch.setattr(
+        "app.services.insight_application_service.is_philosophy_phase12_enabled",
+        lambda: False,
+        raising=True,
+    )
+    monkeypatch.setattr(
+        "app.services.insight_application_service.is_philosophy_linguistic_enabled",
+        lambda: False,
+        raising=True,
+    )
+    monkeypatch.setattr(
+        "app.services.insight_application_service.is_philosophy_pragmatic_enabled",
+        lambda: False,
+        raising=True,
+    )
 
     response = await execute_insight_request(
         _Request(text="hello"),
@@ -167,7 +207,9 @@ async def test_execute_insight_request_uses_injected_dependencies(
         "text": "hello",
         "use_rag": False,
         "philosophy_router_enabled": False,
+        "philosophy_phase12_enabled": False,
         "philosophy_linguistic_enabled": False,
+        "philosophy_pragmatic_enabled": False,
         "provider_loader": _provider_loader,
         "transparency_loader": _transparency_loader,
         "direct_provider_factory": _direct_provider_factory,
@@ -175,9 +217,11 @@ async def test_execute_insight_request_uses_injected_dependencies(
     assert observed["generate_kwargs"]["subject_id"] == 123
     assert observed["generate_kwargs"]["route_path"] == "/api/v1/insight"
     assert observed["generate_kwargs"]["knowledge_policy"] == prepared_runtime.knowledge_policy
+    assert observed["generate_kwargs"]["rollout_policy"] is prepared_runtime.rollout_policy
     assert response["provider"] == "fake-provider"
     assert response["transparency_notice_id"] == "ai_generated_insight"
     assert response["sources"][0]["chunk_id"] == "c1"
+    assert "rollout_policy" not in response
 
 
 @pytest.mark.asyncio
@@ -232,6 +276,104 @@ async def test_execute_insight_request_rejects_oversized_prompt(
 
 
 @pytest.mark.asyncio
+async def test_execute_insight_request_uses_prepared_rollout_policy_as_execution_authority(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Prepared rollout truth must flow downstream even if env-backed rollout readers disagree."""
+
+    observed: dict[str, Any] = {}
+
+    @dataclass
+    class _Request:
+        text: str
+
+    prepared_runtime = SimpleNamespace(
+        runtime=object(),
+        provider=object(),
+        decision=SimpleNamespace(route_type=SimpleNamespace(value="deep_reasoning")),
+        rollout_policy=_rollout_policy(
+            router_enabled=True,
+            phase12_enabled=True,
+            linguistic_enabled=False,
+            pragmatic_enabled=True,
+        ),
+        transparency_notice=InsightTransparencyNotice(
+            surface_id="ai_generated_insight",
+            wellness_boundary="Wellness only.",
+        ),
+        knowledge_policy=_knowledge_policy(),
+    )
+
+    async def _fake_generate_traced_insight(**kwargs: object) -> object:
+        observed["generate_kwargs"] = kwargs
+        return SimpleNamespace(
+            insight="generated insight",
+            provider_name="fake-provider",
+            source_dicts=[],
+            confidence=0.9,
+            rag_used=False,
+            hops=0,
+            latency_ms=12,
+            knowledge_candidates=[],
+            metadata=SimpleNamespace(
+                route_type="deep_reasoning",
+                depth_used=2,
+                verification_rate=0.8,
+                falsifiability_rate=0.7,
+                contradiction_count=0,
+                reason_codes=["legacy_path"],
+                optimization_applied=False,
+            ),
+        )
+
+    monkeypatch.setattr(
+        "app.services.insight_application_service.is_philosophy_router_enabled",
+        lambda: False,
+        raising=True,
+    )
+    monkeypatch.setattr(
+        "app.services.insight_application_service.is_philosophy_phase12_enabled",
+        lambda: False,
+        raising=True,
+    )
+    monkeypatch.setattr(
+        "app.services.insight_application_service.is_philosophy_linguistic_enabled",
+        lambda: False,
+        raising=True,
+    )
+    monkeypatch.setattr(
+        "app.services.insight_application_service.is_philosophy_pragmatic_enabled",
+        lambda: False,
+        raising=True,
+    )
+    monkeypatch.setattr(
+        "app.services.insight_application_service.prepare_insight_runtime",
+        lambda **kwargs: prepared_runtime,
+        raising=True,
+    )
+    monkeypatch.setattr(
+        "app.services.insight_application_service.generate_traced_insight",
+        _fake_generate_traced_insight,
+        raising=True,
+    )
+
+    response = await execute_insight_request(
+        _Request(text="hello"),
+        route_path="/api/v1/insight",
+        user_tier="VIP",
+        input_guard=lambda text: None,
+        provider_loader=lambda: _FakeProvider(),
+        transparency_loader=lambda: ("ai_generated_insight", "Wellness only."),
+        response_factory=lambda **payload: dict(payload),
+        source_item_factory=lambda **payload: dict(payload),
+    )
+
+    assert observed["generate_kwargs"]["rollout_policy"] is prepared_runtime.rollout_policy
+    assert response["route_type"] == "deep_reasoning"
+    assert "rollout_policy" not in response
+
+
+@pytest.mark.asyncio
 async def test_execute_insight_request_prefers_active_fallback_provider_name(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -245,6 +387,7 @@ async def test_execute_insight_request_prefers_active_fallback_provider_name(
         runtime=object(),
         provider=SimpleNamespace(active_provider_name="stub"),
         decision=SimpleNamespace(route_type=SimpleNamespace(value="deep_reasoning")),
+        rollout_policy=_rollout_policy(),
         transparency_notice=InsightTransparencyNotice(
             surface_id="ai_generated_insight",
             wellness_boundary="Wellness only.",
@@ -315,6 +458,11 @@ async def test_execute_insight_request_hands_internal_candidates_to_store_withou
         runtime=object(),
         provider=SimpleNamespace(active_provider_name="stub"),
         decision=SimpleNamespace(route_type=SimpleNamespace(value="rag_factual")),
+        rollout_policy=_rollout_policy(
+            router_enabled=True,
+            phase12_enabled=True,
+            linguistic_enabled=True,
+        ),
         transparency_notice=InsightTransparencyNotice(
             surface_id="ai_generated_insight",
             wellness_boundary="Wellness only.",
@@ -401,6 +549,11 @@ async def test_execute_insight_request_skips_store_when_no_candidates(
         runtime=object(),
         provider=SimpleNamespace(active_provider_name="stub"),
         decision=SimpleNamespace(route_type=SimpleNamespace(value="rag_factual")),
+        rollout_policy=_rollout_policy(
+            router_enabled=True,
+            phase12_enabled=True,
+            linguistic_enabled=True,
+        ),
         transparency_notice=InsightTransparencyNotice(
             surface_id="ai_generated_insight",
             wellness_boundary="Wellness only.",
@@ -483,6 +636,11 @@ async def test_execute_insight_request_survives_store_promotion_failure(
         runtime=object(),
         provider=SimpleNamespace(active_provider_name="stub"),
         decision=SimpleNamespace(route_type=SimpleNamespace(value="rag_factual")),
+        rollout_policy=_rollout_policy(
+            router_enabled=True,
+            phase12_enabled=True,
+            linguistic_enabled=True,
+        ),
         transparency_notice=InsightTransparencyNotice(
             surface_id="ai_generated_insight",
             wellness_boundary="Wellness only.",
@@ -567,6 +725,11 @@ async def test_execute_insight_request_skips_store_when_bundle_denies_admission(
         runtime=object(),
         provider=SimpleNamespace(active_provider_name="stub"),
         decision=SimpleNamespace(route_type=SimpleNamespace(value="rag_factual")),
+        rollout_policy=_rollout_policy(
+            router_enabled=True,
+            phase12_enabled=True,
+            linguistic_enabled=True,
+        ),
         transparency_notice=InsightTransparencyNotice(
             surface_id="ai_generated_insight",
             wellness_boundary="Wellness only.",
@@ -652,6 +815,11 @@ async def test_execute_insight_request_skips_store_when_bundle_is_missing(
         runtime=object(),
         provider=SimpleNamespace(active_provider_name="stub"),
         decision=SimpleNamespace(route_type=SimpleNamespace(value="rag_factual")),
+        rollout_policy=_rollout_policy(
+            router_enabled=True,
+            phase12_enabled=True,
+            linguistic_enabled=True,
+        ),
         transparency_notice=InsightTransparencyNotice(
             surface_id="ai_generated_insight",
             wellness_boundary="Wellness only.",
