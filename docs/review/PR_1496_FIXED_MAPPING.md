@@ -26,6 +26,7 @@ Commit: c5651e75e
 Evidence: `docs/review/PR_1496_FIXED_MAPPING.md:16`
 Reason: The canonical mapping artifact now uses the required `### Fixed in Commit Mapping` heading level, aligning the file with the repo's phase2/governance structure.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1496#pullrequestreview-4157726492 -> c5651e75e
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1496#discussion_r3126712360 -> c5651e75e
 
 ## Merge Readiness
 
