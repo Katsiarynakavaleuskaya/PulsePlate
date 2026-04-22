@@ -28,16 +28,22 @@ Disposition: FIXED
 Commit: 2b9b969b95dcfb3a3ffce692ac29f37ba2247a51
 Evidence: `docs/review/PR_1492_FIXED_MAPPING.md:23`.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1492#discussion_r3123568932 -> 4bab743e4c3cab9ad57ebcb3ea7f747db6fda24c
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1492#discussion_r3123568939 -> 4bab743e4c3cab9ad57ebcb3ea7f747db6fda24c
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1492#discussion_r3123568932 -> 4bab743e47fbe4c925c47a9ba659751d48ca06dd
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1492#discussion_r3123568939 -> 4bab743e47fbe4c925c47a9ba659751d48ca06dd
 Disposition: FIXED
-Commit: 4bab743e4c3cab9ad57ebcb3ea7f747db6fda24c
+Commit: 4bab743e47fbe4c925c47a9ba659751d48ca06dd
 Evidence: `docs/roadmap/BACKLOG_LEDGER.md:645`, `scripts/ci/docker_image_telemetry.py:265`, `tests/test_docker_image_telemetry.py:109`.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1492#discussion_r3123568960 -> 9517af233c8b560619b0871182266993bd35311d
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1492#discussion_r3123568960 -> 9517af233299d1dc415e2f01a62236331042ff57
 Disposition: FIXED
-Commit: 9517af233c8b560619b0871182266993bd35311d
+Commit: 9517af233299d1dc415e2f01a62236331042ff57
 Evidence: `scripts/ci/fetch_docker_image_baseline.py:281`, `tests/test_fetch_docker_image_baseline.py:1`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1492#discussion_r3123671377 -> 43b7d1e204abbbe40734eba3fbf203445bfea0e4
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1492#discussion_r3123671380 -> 43b7d1e204abbbe40734eba3fbf203445bfea0e4
+Disposition: FIXED
+Commit: 43b7d1e204abbbe40734eba3fbf203445bfea0e4
+Evidence: `scripts/ci/docker_image_telemetry.py:249`, `scripts/ci/fetch_docker_image_baseline.py:136`, `tests/test_docker_image_telemetry.py:108`, `tests/test_fetch_docker_image_baseline.py:31`.
 
 ## Merge Readiness
 
