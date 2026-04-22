@@ -20,6 +20,12 @@ Reason: The reported “parameter reordering” breakage cannot occur on the liv
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1495#discussion_r3123746307
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1495#pullrequestreview-4154439968
 
+Disposition: DEFERRED
+Backlog: `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-philosophical-logic`
+Reason: `PR-A6 W1` intentionally preserves legacy `philosophy_*` bool compatibility while making `PhilosophyRolloutPolicy` the prepared-runtime authority. The canonical in-repo app path passes only `rollout_policy`, so there is no live dual-authority bug on the shipped W1 path. A correct mixed-input conflict guard or deprecation wrapper requires a follow-up compatibility slice that can distinguish omitted legacy bools from explicitly conflicting values without widening W1.
+Evidence: `docs/orchestration/WAVE6_A6_PHILOSOPHICAL_ROLLOUT_W1_PACKET_2026-04-22.md:133-139`; `app/services/insight_application_service.py:143-157`; `app/services/insight_runtime.py:123-142`; `core/insight/philosophical_runtime.py:386-415`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1495#pullrequestreview-4154591459
+
 ## Merge Readiness
 
 Merge-readiness contract:
