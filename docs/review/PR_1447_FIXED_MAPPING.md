@@ -10,7 +10,7 @@ Canonical review-governance artifact and PR-body mirror requirements:
 - [x] Fixed in commit mapping completed
 
 This artifact tracks the fresh-worktree merge-ready recovery for PR #1447.
-Code/test remediation landed first in commit `3291a8db6`, which reconciles
+Code/test remediation landed first in commit `e89c8db56`, which reconciles
 dual-row VIP quota migration state into the canonical counter before consume,
 centralizes tier constants, and adds deterministic regression coverage for both
 legacy-only and dual-row migration scenarios.
@@ -18,16 +18,16 @@ legacy-only and dual-row migration scenarios.
 ## Fixed in Commit Mapping
 
 Disposition: FIXED
-Commit: 3291a8db6
+Commit: e89c8db56
 Evidence: `app/security/llm_monthly_quota.py:27-29`; `app/security/llm_monthly_quota.py:122-184`; `tests/test_insight_vip_monthly_quota_api.py:20-25`; `tests/test_insight_vip_monthly_quota_api.py:149-247`
-Reason: The Sourcery review body asked for centralized VIP tier constants and for the legacy fingerprint test path to reuse shared helpers instead of duplicating the hashing logic inline. Commit `3291a8db6` implements both changes while also tightening the quota migration logic that those comments discussed.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1447#pullrequestreview-4131511568 -> 3291a8db6
+Reason: The Sourcery review body asked for centralized VIP tier constants and for the legacy fingerprint test path to reuse shared helpers instead of duplicating the hashing logic inline. Commit `e89c8db56` implements both changes while also tightening the quota migration logic that those comments discussed.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1447#pullrequestreview-4131511568 -> e89c8db56
 
 Disposition: FIXED
-Commit: 3291a8db6
+Commit: e89c8db56
 Evidence: `app/security/llm_monthly_quota.py:122-184`; `app/security/llm_monthly_quota.py:224-236`; `tests/test_insight_vip_monthly_quota_api.py:201-247`
-Reason: The Codex inline finding identified a real bypass when legacy and canonical rows both existed. Commit `3291a8db6` reconciles both counters into the canonical row before consumption and the dual-row regression test proves the fail-closed behavior.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1447#discussion_r3102743446 -> 3291a8db6
+Reason: The Codex inline finding identified a real bypass when legacy and canonical rows both existed. Commit `e89c8db56` reconciles both counters into the canonical row before consumption and the dual-row regression test proves the fail-closed behavior.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1447#discussion_r3102743446 -> e89c8db56
 
 Disposition: NOT-A-BUG
 Evidence: `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1447#discussion_r3102743446`
