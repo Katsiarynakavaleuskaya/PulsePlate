@@ -15,6 +15,21 @@ claiming merge readiness.
 
 ## Fixed in Commit Mapping
 
+Disposition: NOT-A-BUG
+Evidence: `docs/review/PR_1493_FIXED_MAPPING.md`
+Reason: The Sourcery review shell only aggregates the inline CLI/env-precedence suggestion that is fixed and mapped below; after that inline URL is dispositioned, the review shell adds no separate unresolved obligation.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1493#pullrequestreview-4154419522
+
+Disposition: NOT-A-BUG
+Evidence: `docs/review/PR_1493_FIXED_MAPPING.md`
+Reason: This CodeRabbit review shell summarizes the two inline runner findings mapped below for stable companion-path emission and canonical metric ordering; it does not add a separate unresolved action once those inline URLs are dispositioned.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1493#pullrequestreview-4154460774
+
+Disposition: NOT-A-BUG
+Evidence: `docs/review/PR_1493_FIXED_MAPPING.md`
+Reason: This follow-up CodeRabbit review shell only contains the already-mapped fail-fast companion validation finding plus the already-mapped repo-relative path/ordering follow-up, so the shell itself is advisory once those inline comments are covered.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1493#pullrequestreview-4154990039
+
 Disposition: FIXED
 Commit: 2aca6ef76
 Evidence: `tests/test_rag_release_gates_runner.py:493-579`
