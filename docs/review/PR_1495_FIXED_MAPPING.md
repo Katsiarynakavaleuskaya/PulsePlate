@@ -37,15 +37,15 @@ Merge-readiness contract:
 `AGENTS.md:42-52`; `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md:93-112`;
 `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md:153-216`.
 
-- [ ] Current-head CI is green for PR branch head
-  Evidence: current-head CI is still in progress / needs the post-governance rerun on the latest branch head.
-- [ ] Required checks complete (no pending jobs)
-  Evidence: latest current-head required jobs are not complete yet.
-- [ ] All review threads resolved on GitHub after disposition updates
-  Evidence: Sourcery review shell and inline thread are dispositioned here; GitHub thread resolution still needs to be performed after this artifact is pushed.
-- [ ] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
-  Evidence: current actionable Sourcery URLs are mapped above; re-check after any new bot activity remains mandatory.
-- [ ] Pre-commit green on latest pushed head
-  Evidence: `pre-commit run --all-files` passed on the latest local branch head before governance update.
-- [ ] `make verify` green on latest pushed head
-  Evidence: this lane follows the user-approved narrow local gate bundle plus GitHub current-head CI as the heavyweight signal; no fresh full `make verify` claim is made here.
+- [x] Current-head CI is green for PR branch head
+  Evidence: `gh pr checks 1495` is fully green on head `99710dfd035f7cc182ba62ffde15f92e83ab89cb`, including `Merge readiness gate`, `coverage-pr`, `diff-coverage`, `lint`, `security`, and `test-pr (3.13)`.
+- [x] Required checks complete (no pending jobs)
+  Evidence: current-head required jobs are complete; the remaining entries are non-blocking `skipping` lanes only.
+- [x] All review threads resolved on GitHub after disposition updates
+  Evidence: `gh api graphql ... reviewThreads` returns only resolved threads for `PR #1495`, including the Sourcery inline thread `#discussion_r3123746307`.
+- [x] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
+  Evidence: the actionable Sourcery and CodeRabbit review shells are mapped above, and `gh pr view 1495 --json latestReviews` shows no newer unmapped review after `#pullrequestreview-4154609821`.
+- [x] Pre-commit green on latest pushed head
+  Evidence: `pre-commit run --all-files` passed on the merge-ready branch state before this artifact refresh commit.
+- [x] `make verify` green on latest pushed head
+  Evidence: `make verify` passed on the merge-ready branch state before this artifact refresh commit.
