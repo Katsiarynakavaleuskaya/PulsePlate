@@ -31,6 +31,12 @@ Evidence: `AGENTS.md:371-382`; `docs/orchestration/MAINLINE_CI_XDIST_WORKER_STAB
 Reason: Coordinator-owned lane packets define the mandatory executable role order for that lane. This packet intentionally preserves the user-approved `dev-operator` evidence pass before the architecture/backend/security sequence, and the canonical post-open `qa-engineer-agent -> bug-hunter` review pass remains intact.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1494#discussion_r3123721937
 
+Disposition: FIXED
+Commit: b2b8c90c7
+Evidence: `docs/review/PR_1494_FIXED_MAPPING.md:34-49`
+Reason: The merge-readiness section now carries an explicit mandatory wait-window checkbox plus auditable evidence text, matching the repo governance contract and closing the remaining actionable CodeRabbit nitpick.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1494#pullrequestreview-4154411428 -> b2b8c90c7
+
 ## Merge Readiness
 
 Merge-readiness contract:
@@ -45,12 +51,12 @@ Merge-readiness contract:
   Evidence: pending first branch-head `CI` cycle for PR `#1494`.
 - [x] All review threads resolved on GitHub after disposition updates
   Evidence: `discussion_r3123721053`, `discussion_r3123721058`, and `discussion_r3123721937` are resolved on GitHub.
-- [ ] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
-  Evidence: CodeRabbit review body `pullrequestreview-4154411428` still needs an explicit disposition entry after the wait-window checklist fix is committed.
+- [x] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
+  Evidence: CodeRabbit review body `pullrequestreview-4154411428` is mapped above to `b2b8c90c7`, and Sourcery actionables are already mapped to `4ac7cc218`.
 - [x] Pre-commit green on validated remediation head
   Evidence: `pre-commit run --all-files` passed before opening PR `#1494`.
 - [ ] `make verify` green on validated remediation head
-  Evidence: not run yet on this draft remediation head.
+  Evidence: pending final rerun after the wait-window governance sync commits.
 
 ## Notes
 
