@@ -378,7 +378,16 @@ def _require_finite_metric(value: Any, *, label: str) -> float:
     return numeric
 
 
-def _load_companion_metrics(path: Path | None) -> dict[str, Any] | None:
+def _repo_relative_display_path(path: Path, *, project_root: Path) -> str:
+    """Return a stable repo-relative artifact path for emitted metadata."""
+
+    try:
+        return path.resolve().relative_to(project_root.resolve()).as_posix()
+    except ValueError:
+        return path.as_posix()
+
+
+def _load_companion_metrics(path: Path | None, *, project_root: Path) -> dict[str, Any] | None:
     """Load an optional companion RAGAS artifact for informational reporting."""
 
     if path is None:
@@ -423,12 +432,9 @@ def _load_companion_metrics(path: Path | None) -> dict[str, Any] | None:
         )
 
     normalized_metrics: dict[str, float] = {}
-    for raw_name, raw_value in metrics.items():
-        metric_name = str(raw_name).strip()
-        if not metric_name:
-            raise RuntimeError("Companion metrics JSON metric names must be non-empty")
+    for metric_name in ("faithfulness", "answer_relevancy", "context_precision"):
         metric_value = _require_finite_metric(
-            raw_value,
+            metrics[metric_name],
             label=f"companion metric '{metric_name}'",
         )
         if not 0.0 <= metric_value <= 1.0:
@@ -437,7 +443,7 @@ def _load_companion_metrics(path: Path | None) -> dict[str, Any] | None:
 
     return {
         "ragas": {
-            "source_path": str(path.resolve()),
+            "source_path": _repo_relative_display_path(path, project_root=project_root),
             "dataset_path": dataset_path,
             "sample_count": sample_count,
             "report_only": True,
@@ -2419,6 +2425,10 @@ async def async_main(args: argparse.Namespace) -> int:
     """Execute the release-gates run."""
 
     config = build_config(args)
+    companion_metrics = _load_companion_metrics(
+        config.companion_metrics_json,
+        project_root=config.project_root,
+    )
     imports = load_pulseplate_imports()
     state = EvalRuntimeState(config=config, pulseplate_imports=imports)
     rows, dataset_fallback_used, dataset_path_used = load_eval_input(
@@ -2429,7 +2439,6 @@ async def async_main(args: argparse.Namespace) -> int:
     )
     traces = await run_evaluation(state, rows)
     calibration_metrics = apply_calibration(traces)
-    companion_metrics = _load_companion_metrics(config.companion_metrics_json)
     metrics_summary, _, release_decision = build_metrics_summary(
         state,
         traces,

@@ -490,6 +490,95 @@ def test_build_config_uses_companion_metrics_env_fallback(
     assert config.companion_metrics_json == companion_path.resolve()
 
 
+def test_build_config_accepts_companion_metrics_cli_path(tmp_path: Path) -> None:
+    """CLI wiring must propagate an explicit companion metrics artifact path."""
+
+    project_root = tmp_path / "repo"
+    artifact_root = project_root / "artifacts" / "rag_eval"
+    notebook_path = project_root / "notebooks" / "pulseplate_rag_release_gates.ipynb"
+    input_path = project_root / "input.jsonl"
+    companion_path = artifact_root / "manual" / "metrics_summary.json"
+
+    artifact_root.mkdir(parents=True)
+    notebook_path.parent.mkdir(parents=True)
+    input_path.write_text("", encoding="utf-8")
+    companion_path.parent.mkdir(parents=True, exist_ok=True)
+    companion_path.write_text("{}", encoding="utf-8")
+
+    args = argparse.Namespace(
+        project_root=str(project_root),
+        input_path=str(input_path),
+        artifact_root=str(artifact_root),
+        experiment_id="safe_run",
+        sample_size="5",
+        top_k="5",
+        random_seed="42",
+        retriever_mode="local_tfidf",
+        generator_mode="extractive_stub",
+        enable_nli_model=False,
+        nli_model_name="roberta-large-mnli",
+        notebook_path=str(notebook_path),
+        require_pass=False,
+        disallow_dataset_fallback=False,
+        disallow_runtime_fallbacks=False,
+        companion_metrics_json=str(companion_path),
+    )
+
+    config = build_config(args)
+
+    assert config.companion_metrics_json == companion_path.resolve()
+
+
+def test_build_config_prefers_cli_companion_metrics_over_env_fallback(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Explicit CLI companion metrics input must win over the env fallback."""
+
+    project_root = tmp_path / "repo"
+    artifact_root = project_root / "artifacts" / "rag_eval"
+    notebook_path = project_root / "notebooks" / "pulseplate_rag_release_gates.ipynb"
+    input_path = project_root / "input.jsonl"
+    env_companion_path = artifact_root / "env" / "metrics_summary.json"
+    cli_companion_path = artifact_root / "cli" / "metrics_summary.json"
+
+    artifact_root.mkdir(parents=True)
+    notebook_path.parent.mkdir(parents=True)
+    input_path.write_text("", encoding="utf-8")
+    env_companion_path.parent.mkdir(parents=True, exist_ok=True)
+    cli_companion_path.parent.mkdir(parents=True, exist_ok=True)
+    env_companion_path.write_text("{}", encoding="utf-8")
+    cli_companion_path.write_text("{}", encoding="utf-8")
+
+    monkeypatch.setenv(
+        "PULSEPLATE_RAG_COMPANION_METRICS_JSON",
+        str(env_companion_path),
+    )
+
+    args = argparse.Namespace(
+        project_root=str(project_root),
+        input_path=str(input_path),
+        artifact_root=str(artifact_root),
+        experiment_id="safe_run",
+        sample_size="5",
+        top_k="5",
+        random_seed="42",
+        retriever_mode="local_tfidf",
+        generator_mode="extractive_stub",
+        enable_nli_model=False,
+        nli_model_name="roberta-large-mnli",
+        notebook_path=str(notebook_path),
+        require_pass=False,
+        disallow_dataset_fallback=False,
+        disallow_runtime_fallbacks=False,
+        companion_metrics_json=str(cli_companion_path),
+    )
+
+    config = build_config(args)
+
+    assert config.companion_metrics_json == cli_companion_path.resolve()
+
+
 def test_build_config_rejects_off_family_companion_metrics_path(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -1018,7 +1107,7 @@ def test_valid_companion_json_adds_informational_metrics_without_affecting_relea
         dataset_path_used=dataset_path,
     )
     companion_path = _write_companion_metrics(tmp_path)
-    companion_metrics = runner._load_companion_metrics(companion_path)
+    companion_metrics = runner._load_companion_metrics(companion_path, project_root=tmp_path)
 
     metrics_summary, gate_checks, release_decision = runner.build_metrics_summary(
         state,
@@ -1035,7 +1124,7 @@ def test_valid_companion_json_adds_informational_metrics_without_affecting_relea
     assert gate_checks == baseline_summary["gate_checks"]
     assert metrics_summary["companion_metrics"] == {
         "ragas": {
-            "source_path": str(companion_path.resolve()),
+            "source_path": "artifacts/rag_eval/manual/metrics_summary.json",
             "dataset_path": "evals/ragas/testset.jsonl",
             "sample_count": 16,
             "report_only": True,
@@ -1092,7 +1181,67 @@ def test_malformed_companion_metrics_fail_closed(
         companion_path.write_text(json.dumps(payload), encoding="utf-8")
 
     with pytest.raises((FileNotFoundError, RuntimeError), match=error_pattern):
-        runner._load_companion_metrics(companion_path)
+        runner._load_companion_metrics(companion_path, project_root=tmp_path)
+
+
+def test_companion_metrics_are_emitted_with_canonical_metric_order(tmp_path: Path) -> None:
+    """Companion metrics output must keep canonical metric ordering."""
+
+    payload = {
+        "dataset_path": "evals/ragas/testset.jsonl",
+        "sample_count": 16,
+        "report_only": True,
+        "metrics": {
+            "context_precision": 0.88,
+            "faithfulness": 0.84,
+            "answer_relevancy": 0.79,
+        },
+    }
+    companion_path = _write_companion_metrics(tmp_path, payload=payload)
+
+    companion_metrics = runner._load_companion_metrics(companion_path, project_root=tmp_path)
+
+    assert list(companion_metrics["ragas"]["metrics"]) == [
+        "faithfulness",
+        "answer_relevancy",
+        "context_precision",
+    ]
+
+
+def test_async_main_fails_fast_on_malformed_companion_metrics_before_evaluation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Broken companion artifacts must abort before the expensive evaluation loop starts."""
+
+    project_root = tmp_path / "repo"
+    artifact_root = project_root / "artifacts" / "rag_eval"
+    companion_path = artifact_root / "manual" / "metrics_summary.json"
+    project_root.mkdir()
+    artifact_root.mkdir(parents=True)
+    companion_path.parent.mkdir(parents=True, exist_ok=True)
+    companion_path.write_text("{not-json", encoding="utf-8")
+
+    run_evaluation_mock = AsyncMock()
+    monkeypatch.setattr(runner, "run_evaluation", run_evaluation_mock)
+
+    with pytest.raises(RuntimeError, match="Companion metrics JSON is invalid"):
+        runner.main(
+            [
+                "--project-root",
+                str(project_root),
+                "--input-path",
+                str(project_root / "input.jsonl"),
+                "--artifact-root",
+                str(artifact_root),
+                "--experiment-id",
+                "invalid_companion",
+                "--companion-metrics-json",
+                str(companion_path),
+            ]
+        )
+
+    run_evaluation_mock.assert_not_awaited()
 
 
 def test_threshold_results_ordering_and_escalation_corridor_are_deterministic(
@@ -1142,7 +1291,10 @@ def test_step_summary_includes_threshold_results_and_optional_companion_metrics(
     summary_path = tmp_path / "github_step_summary.md"
     monkeypatch.setenv("GITHUB_STEP_SUMMARY", str(summary_path))
     state = _make_release_gate_state(tmp_path, experiment_id="step_summary")
-    companion_metrics = runner._load_companion_metrics(_write_companion_metrics(tmp_path))
+    companion_metrics = runner._load_companion_metrics(
+        _write_companion_metrics(tmp_path),
+        project_root=tmp_path,
+    )
     metrics_summary, _, _ = runner.build_metrics_summary(
         state,
         _passing_release_gate_traces(),
