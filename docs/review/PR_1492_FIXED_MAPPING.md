@@ -30,10 +30,14 @@ Evidence: `docs/review/PR_1492_FIXED_MAPPING.md:23`.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1492#discussion_r3123568932 -> 4bab743e4c3cab9ad57ebcb3ea7f747db6fda24c
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1492#discussion_r3123568939 -> 4bab743e4c3cab9ad57ebcb3ea7f747db6fda24c
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1492#discussion_r3123568960 -> 4bab743e4c3cab9ad57ebcb3ea7f747db6fda24c
 Disposition: FIXED
 Commit: 4bab743e4c3cab9ad57ebcb3ea7f747db6fda24c
-Evidence: `docs/roadmap/BACKLOG_LEDGER.md:645`, `scripts/ci/docker_image_telemetry.py:265`, `scripts/ci/fetch_docker_image_baseline.py:281`, `tests/test_docker_image_telemetry.py:109`.
+Evidence: `docs/roadmap/BACKLOG_LEDGER.md:645`, `scripts/ci/docker_image_telemetry.py:265`, `tests/test_docker_image_telemetry.py:109`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1492#discussion_r3123568960 -> 9517af233c8b560619b0871182266993bd35311d
+Disposition: FIXED
+Commit: 9517af233c8b560619b0871182266993bd35311d
+Evidence: `scripts/ci/fetch_docker_image_baseline.py:281`, `tests/test_fetch_docker_image_baseline.py:1`.
 
 ## Merge Readiness
 
