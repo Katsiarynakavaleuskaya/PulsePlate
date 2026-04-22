@@ -669,13 +669,17 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Priority: P1
   - Target PR: PR-TBD-DOCKER-HARD-BUDGET-GATE
   - Area: CI / docker / telemetry
+  - Status note: Active PR-6 slice after `PR #1492` merged on April 22, 2026. This lane promotes the production backend image from warning-only telemetry to a deterministic hybrid hard gate with an absolute cap and a maximum positive delta vs baseline.
   - Depends on:
     - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-docker-image-budget-telemetry`
   - Reason: The repo should not enforce a hard image-size failure threshold until the warning-only baseline has stabilized on `main` and the canonical telemetry evidence is trustworthy enough to gate merges deterministically.
   - Links:
     - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-docker-image-budget-telemetry`
+    - `docs/orchestration/DOCKER_IMAGE_HARD_BUDGET_GATE_TASK_PACKET_2026-04-22.md`
     - `.github/workflows/build.yml`
     - `.github/workflows/docker-image.yml`
+    - `.github/workflows/trivy.yml`
+    - `docs/telemetry/docker_image_budget.production.json`
   - DoD:
     - A canonical hard-fail threshold exists for the production backend image
     - Docker lanes fail deterministically when the threshold regresses beyond policy

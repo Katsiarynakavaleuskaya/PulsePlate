@@ -11,8 +11,9 @@ Docker runtime contract.
 - Production target remains the split backend image that serves `app.main:app`.
 - Frontend / Caddy topology remains separate and out of scope for this slice.
 - Runtime slimming merged via `PR #1490` on April 22, 2026.
-- The current Docker/CI slice establishes the first canonical backend-image
-  telemetry baseline for warning-only regression reporting.
+- Telemetry baseline landed via `PR #1492` on April 22, 2026.
+- The current Docker/CI slice promotes that telemetry baseline into a
+  deterministic hard budget gate for the production backend image.
 
 ## Runtime manifest policy
 
@@ -34,17 +35,21 @@ Blocked package classes for the default backend runtime:
   `pgvector`
 - GPU / CUDA packages: `nvidia-*`, `cuda-*`, `triton`
 
-## Why the telemetry slice exists
+## Why the hard-budget slice exists
 
 Runtime slimming removed CI-only tooling from the production backend image, but
 the project still needs one canonical baseline so PR authors can see image-size
 drift, largest layers, and build-context evidence before merge.
 
-This wave keeps that signal warning-only:
+Telemetry baseline established deterministic image-size evidence, but PR authors
+still need merge-blocking enforcement once the baseline is stable on `main`.
 
-- no absolute image-size cap
-- no hard failure threshold for positive delta vs baseline
-- no provenance / Dagger reopening until the baseline exists
+This wave promotes the production backend image to a hard gate:
+
+- absolute image-size cap: `470000000` bytes
+- max positive delta vs baseline: `20000000` bytes
+- same canonical baseline source rule as the telemetry wave
+- provenance / Dagger and Shared Safety remain deferred
 
 ## Baseline source rule
 
@@ -67,6 +72,8 @@ Each Docker lane publishes:
 
 - `docker-image-telemetry.json`
 - `docker-image-telemetry.md`
+- `docker-image-budget-check.json`
+- `docker-image-budget-check.md`
 - `GITHUB_STEP_SUMMARY` entry
 
 Evidence must include:
@@ -74,9 +81,14 @@ Evidence must include:
 - image size
 - baseline source: `main-artifact` or `repo-seed-fallback`
 - baseline reference metadata when available
-- delta vs baseline in warning-only mode
+- delta vs baseline against the blocking hard-budget policy
 - largest layers
 - build-context evidence
+
+Hard budget enforcement must fail when either of these are true:
+
+- `image_size_bytes > 470000000`
+- `baseline.size_delta_bytes > 20000000`
 
 ## Validation commands
 
@@ -106,7 +118,7 @@ docker run --rm pulseplate:runtime-slim \
   python -c "import app.main; print('app.main import ok')"
 ```
 
-Resolve the canonical baseline and generate advisory telemetry:
+Resolve the canonical baseline and generate telemetry evidence:
 
 ```bash
 python3 scripts/ci/fetch_docker_image_baseline.py \
@@ -119,6 +131,12 @@ python3 scripts/ci/docker_image_telemetry.py \
   --baseline-json artifacts/docker/docker-image-baseline.json \
   --json-out artifacts/docker/docker-image-telemetry.json \
   --markdown-out artifacts/docker/docker-image-telemetry.md
+
+python3 scripts/ci/check_docker_image_budget.py \
+  --telemetry-json artifacts/docker/docker-image-telemetry.json \
+  --budget-json docs/telemetry/docker_image_budget.production.json \
+  --json-out artifacts/docker/docker-image-budget-check.json \
+  --markdown-out artifacts/docker/docker-image-budget-check.md
 ```
 
 ## Rollback
@@ -131,18 +149,12 @@ If the runtime image fails to build or boot after this slice:
 3. keep the runtime-surface findings as evidence in the PR and record the
    follow-up in `docs/roadmap/BACKLOG_LEDGER.md`
 
-Do not widen this rollback into hard image-budget enforcement, provenance, or
-frontend/Caddy changes.
+Do not widen this rollback into provenance or frontend/Caddy changes.
 
 ## Deferred follow-ups
 
 Explicitly deferred after this PR:
 
-- hard image-budget cap / failure threshold
-  Backlog: `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-docker-image-hard-budget-gate`
-  Remove-by: 2026-05-31
-  Rollback: keep telemetry advisory-only and remove any premature hard-stop threshold from Docker lanes.
-  Exit criteria: a dedicated follow-up PR lands a deterministic hard-fail threshold for the production backend image after the warning-only baseline stabilizes on `main`.
 - `P1: Shared Safety audit script after install-profile split`
   Backlog: `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-safety-audit-shared-script-after-pr1479`
   Remove-by: 2026-06-15
