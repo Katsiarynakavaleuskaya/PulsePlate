@@ -31,6 +31,11 @@ Commit: dd1035347
 Evidence: `tests/test_insight_application_service.py` now pins the philosophy feature-flag readers in the prepare-kwargs assertion path, `core/insight/philosophical_runtime.py` exports `PhilosophyRolloutPolicy` via `__all__`, and `docs/orchestration/WAVE6_A6_TASK_ANALYSIS_2026-04-22.md` applies the requested wording cleanup without changing scope.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1495#pullrequestreview-4154609821
 
+Disposition: NOT-A-BUG
+Evidence: `PhilosophyRolloutPolicy.preview_router_enabled` is `router_enabled || linguistic_enabled`, while `public_metadata_enabled` is `any(router_enabled, phase12_enabled, linguistic_enabled, pragmatic_enabled)`, so every live path that can reach `_build_direct_result(...)` already implies public metadata is enabled. When metadata is disabled, `preview_route(...)` falls back to `DEEP_REASONING` and never reaches the direct SAFE_WELLNESS_DISCLAIMER / local direct-answer helper path. The helper docstring now states this invariant explicitly.
+Reason: The reported metadata-bypass scenario is unreachable on the live W1 contract; direct-result paths do not bypass rollout metadata policy because they require preview-router activation first.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1495#pullrequestreview-4155227251
+
 ## Merge Readiness
 
 Merge-readiness contract:

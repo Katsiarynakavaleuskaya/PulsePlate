@@ -831,7 +831,13 @@ class PhilosophicalRuntime:
         fallback_reason: str,
         rewrite_count: int,
     ) -> RuntimeResult:
-        """Build a result for fully local/direct answers."""
+        """Build a result for fully local/direct answers.
+
+        Direct results are reachable only from preview-router paths. The rollout
+        contract guarantees `preview_router_enabled` implies
+        `public_metadata_enabled`, so direct answers do not bypass metadata
+        exposure policy.
+        """
         tokens_saved_estimate = _estimate_tokens_saved(
             prompt_text=decision.simplified_query,
             target_depth=decision.target_depth,
