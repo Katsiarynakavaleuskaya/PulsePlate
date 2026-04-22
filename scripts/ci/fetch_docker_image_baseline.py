@@ -278,6 +278,7 @@ def fetch_main_artifact_baseline(
             "No valid Docker telemetry payload was found in the latest successful "
             f"{workflow} runs on {branch}: {last_error}"
         ) from last_error
+    raise AssertionError("Unreachable: candidate loop invariant violated.")
 
 
 def _write_payload(output_path: Path, payload: dict[str, object]) -> None:
