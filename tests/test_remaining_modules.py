@@ -25,6 +25,7 @@ if TYPE_CHECKING:
     from core.knowledge.contracts import KnowledgeFactCandidate
     from core.knowledge.policy import KnowledgePolicy
     from core.rag.contracts import RAGChunk
+    from core.verification.contracts import VerificationBundle
 
 
 def test_root_npm_security_override_smoke() -> None:
@@ -587,7 +588,7 @@ class TestInsightApplicationServiceFastLane:
     """Keep async knowledge-promotion seam covered by test-fast."""
 
     @staticmethod
-    def _verification_bundle(*, admission_allowed: bool = True):
+    def _verification_bundle(*, admission_allowed: bool = True) -> "VerificationBundle":
         from core.verification.contracts import VerificationArtifact, VerificationBundle
 
         status = "pass" if admission_allowed else "fail"
@@ -784,7 +785,7 @@ class TestPhilosophicalRuntimeFastLane:
         )
 
     @staticmethod
-    def _verification_bundle(*, admission_allowed: bool = True):
+    def _verification_bundle(*, admission_allowed: bool = True) -> "VerificationBundle":
         from core.verification.contracts import VerificationArtifact, VerificationBundle
 
         status = "pass" if admission_allowed else "fail"
