@@ -31,10 +31,12 @@ Evidence: `core/rag/orchestration.py:520-527` now types `_extract_recursive_veri
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1491#discussion_r3122909859 -> ce47d77cb
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1491#discussion_r3122909875 -> ce47d77cb
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1491#discussion_r3122909887 -> ce47d77cb
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1491#pullrequestreview-4153538455 -> ce47d77cb
 Disposition: FIXED (CodeRabbit strict recursive verification-call extraction, fail-closed non-finite confidence guard, and canonical denied-bundle runtime test coverage)
 Evidence: `core/rag/orchestration.py:546-553` now rejects boolean and negative `verification_calls` values; `core/verification/registry.py:199-223` fails closed on non-finite confidence input with `confidence_non_finite`; `tests/test_philosophical_runtime.py:534-544` now uses `knowledge_candidates_canonical=True`, so the denied verification-bundle gate is actually exercised.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1491#discussion_r3123053697 -> f4f9df610
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1491#pullrequestreview-4153688054 -> f4f9df610
 Disposition: FIXED (CodeRabbit explicit return annotations for new verification-bundle test helpers)
 Evidence: `tests/test_remaining_modules.py:22-25` now imports `VerificationBundle` for type-checking, and `tests/test_remaining_modules.py:591-613` plus `:786-810` declare explicit `-> "VerificationBundle"` return types on the new `_verification_bundle(...)` helpers without triggering runtime annotation evaluation.
 
@@ -54,7 +56,7 @@ Merge-readiness contract:
 - [ ] Required checks complete (no pending jobs)
   Evidence: current head is still waiting on the post-fix CI rerun and review refresh.
 - [ ] All review threads resolved on GitHub after disposition updates
-  Evidence: the latest three CodeRabbit threads are mapped above and must be resolved after the remediation push lands.
+  Evidence: latest CodeRabbit threads were resolved on GitHub after the remediation pushes; re-check on current head remains mandatory before merge.
 - [ ] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
   Evidence: current actionable CodeRabbit and Sourcery review URLs are mapped above; re-check after bot re-review for any newly posted findings.
 - [ ] Pre-commit green on latest pushed head
