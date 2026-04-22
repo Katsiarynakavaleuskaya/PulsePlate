@@ -22,16 +22,16 @@ Merge-readiness contract:
 `AGENTS.md:42-52`; `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md:93-112`;
 `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md:153-216`.
 
-- [x] Current-head CI is green for PR branch head
-  Evidence: current head `15ededfbf`; GitHub `CI` run `24774044773` completed `success`.
-- [x] Required checks complete (no pending jobs)
-  Evidence: `gh pr checks 1492` shows current-head required checks complete on `15ededfbf`.
-- [x] All review threads resolved on GitHub after disposition updates
-  Evidence: GraphQL review-thread query returned no review threads on PR `#1492`.
-- [x] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
-  Evidence: `CodeRabbit` is a draft-skip shell, `Sourcery` is a reviewer-guide shell, and `Codecov` is advisory coverage reporting only.
-- [x] Pre-commit green on latest pushed head
-  Evidence: `pre-commit run --all-files` passed locally on current head `15ededfbf`.
+- [ ] Current-head CI is green for PR branch head
+  Evidence: pending after remediation head and current review-cycle reruns.
+- [ ] Required checks complete (no pending jobs)
+  Evidence: pending after remediation head and current review-cycle reruns.
+- [ ] All review threads resolved on GitHub after disposition updates
+  Evidence: pending current remediation for open review threads.
+- [ ] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
+  Evidence: pending current remediation for open CodeRabbit/Sourcery/Codex findings.
+- [ ] Pre-commit green on latest pushed head
+  Evidence: pending after remediation head is committed.
 - [ ] `make verify` green on latest pushed head
   Evidence: not run for this lane; GitHub current-head checks remain the heavy signal.
 
