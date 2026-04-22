@@ -14,7 +14,10 @@ Record every actionable human/bot disposition here before resolving threads on G
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+Disposition: FIXED
+Commit: 1067c5acd
+Evidence: `app/services/insight_application_service.py:166-171` now resolves `recursive_rollout_policy` via a lazy `getattr(..., None)` fallback instead of eagerly constructing `_legacy_recursive_rollout_policy(...)`, and `tests/test_insight_application_service.py:519-590` adds a regression anchor that fails if the legacy helper runs while `prepared_runtime.recursive_rollout_policy` is already present.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1499#pullrequestreview-4158197463
 
 ## Merge Readiness
 
