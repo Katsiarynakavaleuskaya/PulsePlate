@@ -37,14 +37,16 @@ Merge-readiness contract:
 `AGENTS.md:42-52`; `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md:93-112`;
 `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md:153-216`.
 
+- [ ] Mandatory wait-window satisfied (final check pass completed, then waited >=1 review cycle after latest bot/review activity)
+  Evidence: pending final review/bot activity timestamp and post-wait verification.
 - [ ] Current-head CI is green for PR branch head
   Evidence: pending first branch-head `CI` cycle for PR `#1494`.
 - [ ] Required checks complete (no pending jobs)
   Evidence: pending first branch-head `CI` cycle for PR `#1494`.
-- [ ] All review threads resolved on GitHub after disposition updates
-  Evidence: no review threads yet; re-evaluate after first review/bot cycle.
+- [x] All review threads resolved on GitHub after disposition updates
+  Evidence: `discussion_r3123721053`, `discussion_r3123721058`, and `discussion_r3123721937` are resolved on GitHub.
 - [ ] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
-  Evidence: no actionable bot comments are mapped yet.
+  Evidence: CodeRabbit review body `pullrequestreview-4154411428` still needs an explicit disposition entry after the wait-window checklist fix is committed.
 - [x] Pre-commit green on validated remediation head
   Evidence: `pre-commit run --all-files` passed before opening PR `#1494`.
 - [ ] `make verify` green on validated remediation head
