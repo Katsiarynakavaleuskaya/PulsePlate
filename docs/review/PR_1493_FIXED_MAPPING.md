@@ -34,5 +34,7 @@ Merge-readiness contract:
 
 - This PR is a canonical release-gates follow-up, not a second eval rail.
 - Companion RAGAS metrics remain informational only in this lane.
+- Post-open reviewer lane completed on head `f9c9de14c`:
+  `qa-engineer-agent` and `bug-hunter` reported no remaining delta findings.
 - Continuity remains under
   `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-rag-release-gates-lane`.
