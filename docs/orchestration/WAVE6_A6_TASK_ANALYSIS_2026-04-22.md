@@ -13,8 +13,8 @@ philosophical phase rollout on the existing product-AI insight surfaces.
 
 - **Priority track (P0-A / P0-B / P1):** P1
 
-**Expected Outcome:** A narrow `phase12-first reconciliation` lane lands on the
-existing bounded runtime seams without foundation rewrite, semantic-cache
+**Expected Outcome:** A narrow `phase12-first reconciliation` lane targets the
+existing bounded runtime seams without foundation rewrites, semantic-cache
 expansion, public/API contract drift, or unproven quality-uplift claims.
 
 **Invariants Affected:**

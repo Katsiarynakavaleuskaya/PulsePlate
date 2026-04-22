@@ -892,6 +892,7 @@ def _normalize_runtime_lang(lang: str | None) -> str:
 __all__ = [
     "PhilosophicalQueryRouter",
     "PhilosophicalRuntime",
+    "PhilosophyRolloutPolicy",
     "RiskLevel",
     "RouteDecision",
     "RouteType",

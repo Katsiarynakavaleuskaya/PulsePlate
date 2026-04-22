@@ -168,6 +168,26 @@ async def test_execute_insight_request_uses_injected_dependencies(
         _fake_generate_traced_insight,
         raising=True,
     )
+    monkeypatch.setattr(
+        "app.services.insight_application_service.is_philosophy_router_enabled",
+        lambda: False,
+        raising=True,
+    )
+    monkeypatch.setattr(
+        "app.services.insight_application_service.is_philosophy_phase12_enabled",
+        lambda: False,
+        raising=True,
+    )
+    monkeypatch.setattr(
+        "app.services.insight_application_service.is_philosophy_linguistic_enabled",
+        lambda: False,
+        raising=True,
+    )
+    monkeypatch.setattr(
+        "app.services.insight_application_service.is_philosophy_pragmatic_enabled",
+        lambda: False,
+        raising=True,
+    )
 
     response = await execute_insight_request(
         _Request(text="hello"),
