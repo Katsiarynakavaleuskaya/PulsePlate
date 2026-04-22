@@ -72,6 +72,12 @@ def _workflow_step_by_name(path: str, job_name: str, step_name: str) -> dict[str
     raise AssertionError(f"Missing step {step_name!r} for {path}:{job_name}")
 
 
+def _workflow_step_names(path: str, job_name: str) -> list[str]:
+    """Return display names for a workflow job's steps."""
+
+    return [str(step["name"]) for step in _workflow_steps(path, job_name)]
+
+
 def test_dependency_security_schema_blocks_known_bad_litellm_versions() -> None:
     schema = json.loads(
         (REPO_ROOT / "tests" / "fixtures" / "dependency_security_schema.json").read_text(
@@ -681,8 +687,9 @@ def test_docker_workflows_emit_image_telemetry_artifacts() -> None:
         "build",
         "Fail trivy job when Docker budget check failed",
     )
-    build_steps = build_workflow["jobs"]["build"]["steps"]
-    trivy_steps = trivy_workflow["jobs"]["build"]["steps"]
+    build_step_names = _workflow_step_names(".github/workflows/build.yml", "build")
+    docker_image_step_names = _workflow_step_names(".github/workflows/docker-image.yml", "build")
+    trivy_step_names = _workflow_step_names(".github/workflows/trivy.yml", "build")
 
     assert build_job_permissions["actions"] == "read"
     assert build_job_permissions["contents"] == "read"
@@ -725,18 +732,21 @@ def test_docker_workflows_emit_image_telemetry_artifacts() -> None:
         == "${{ steps.docker_image_budget.outcome == 'failure' }}"
     )
     assert trivy_fail_budget_step["if"] == "${{ steps.docker_image_budget.outcome == 'failure' }}"
-    assert [step["name"] for step in build_steps].index("Enforce Docker image budget") < [
-        step["name"] for step in build_steps
-    ].index("Test Docker image")
-    assert [step["name"] for step in build_steps].index("Test Docker image") < [
-        step["name"] for step in build_steps
-    ].index("Fail build job when Docker budget check failed")
-    assert [step["name"] for step in trivy_steps].index("Enforce Docker image budget") < [
-        step["name"] for step in trivy_steps
-    ].index("Run Trivy vulnerability scanner")
-    assert [step["name"] for step in trivy_steps].index("Run Trivy vulnerability scanner") < [
-        step["name"] for step in trivy_steps
-    ].index("Fail trivy job when Docker budget check failed")
+    assert build_step_names.index("Enforce Docker image budget") < build_step_names.index(
+        "Test Docker image"
+    )
+    assert build_step_names.index("Test Docker image") < build_step_names.index(
+        "Fail build job when Docker budget check failed"
+    )
+    assert docker_image_step_names.index("Enforce Docker image budget") < (
+        docker_image_step_names.index("Fail docker-image job when Docker budget check failed")
+    )
+    assert trivy_step_names.index("Enforce Docker image budget") < trivy_step_names.index(
+        "Run Trivy vulnerability scanner"
+    )
+    assert trivy_step_names.index("Run Trivy vulnerability scanner") < trivy_step_names.index(
+        "Fail trivy job when Docker budget check failed"
+    )
 
 
 def test_checked_in_docker_image_baseline_seed_has_expected_schema() -> None:

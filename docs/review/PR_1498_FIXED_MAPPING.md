@@ -40,4 +40,7 @@ Merge-readiness contract:
 ## Deferred / Follow-ups
 
 - `docs/roadmap/BACKLOG_LEDGER.md` line 540 (`P1: Shared Safety audit script after install-profile split`)
-- provenance / Dagger follow-up after the hard budget gate stabilizes
+- provenance recovery follow-up
+  Backlog: `docs/roadmap/BACKLOG_LEDGER.md#backlog-restore-signed-build-provenance`
+- Dagger follow-up after the hard budget gate stabilizes
+  Backlog: `docs/roadmap/BACKLOG_LEDGER.md#ledger-p2-dagger-pilot-after-docker-baseline`
