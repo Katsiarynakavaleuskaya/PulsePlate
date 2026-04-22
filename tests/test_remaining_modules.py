@@ -1135,3 +1135,297 @@ class TestDbGuardAndFallbackSmokeCoverage:
             ("initialize", ("sqlite:///:memory:", "dev failure")),
             ("configure", ("engine-sentinel", False, "sqlite:///:memory:", "dev")),
         ]
+
+
+class TestVerificationRegistryCoverageTail:
+    """Keep verification-registry diff coverage inside the canonical CI fast bundle."""
+
+    @staticmethod
+    def _knowledge_policy() -> "KnowledgePolicy":
+        from core.knowledge.policy import KnowledgePolicy
+
+        return KnowledgePolicy(
+            enabled=True,
+            allow_reads=True,
+            allow_promotion=True,
+            min_confidence=0.7,
+            require_rag_factual_route=True,
+            deny_degraded_reasons=("retrieval_empty", "all_chunks_filtered"),
+            subject_scope_required=True,
+            rail="product_ai_runtime",
+        )
+
+    def test_runtime_bundle_fails_closed_without_rag_bundle(self) -> None:
+        from core.verification.registry import build_runtime_verification_bundle
+
+        merged = build_runtime_verification_bundle(
+            rag_bundle=None,
+            verification_report=None,
+            falsification_report=None,
+            contradiction_count=0,
+            verification_first_path=True,
+        )
+
+        assert merged is not None
+        assert merged.admission_allowed is False
+        assert [artifact.verifier_id for artifact in merged.artifacts] == [
+            "runtime_preconditions_verifier",
+            "analytical_verifier",
+            "falsification_verifier",
+        ]
+
+    def test_runtime_bundle_returns_none_without_verification_first_path(self) -> None:
+        from core.verification.registry import build_runtime_verification_bundle
+
+        merged = build_runtime_verification_bundle(
+            rag_bundle=None,
+            verification_report=None,
+            falsification_report=None,
+            contradiction_count=0,
+            verification_first_path=False,
+        )
+
+        assert merged is None
+
+    def test_runtime_bundle_passthrough_when_runtime_verification_is_disabled(self) -> None:
+        from core.verification.registry import (
+            build_rag_verification_bundle,
+            build_runtime_verification_bundle,
+        )
+
+        rag_bundle = build_rag_verification_bundle(
+            knowledge_policy=self._knowledge_policy(),
+            confidence=0.92,
+            degraded_reason=None,
+            rag_actually_used=True,
+            philo_validation_enabled=True,
+            recursive_executed=False,
+            verification_calls=0,
+            evidence_refs=("docs/keep.md:keep",),
+        )
+
+        merged = build_runtime_verification_bundle(
+            rag_bundle=rag_bundle,
+            verification_report=None,
+            falsification_report=None,
+            contradiction_count=0,
+            verification_first_path=True,
+            runtime_verification_enabled=False,
+        )
+
+        assert merged == rag_bundle
+
+    def test_runtime_bundle_reuses_rag_bundle_without_philosophical_pass(self) -> None:
+        from core.verification.registry import (
+            build_rag_verification_bundle,
+            build_runtime_verification_bundle,
+        )
+
+        rag_bundle = build_rag_verification_bundle(
+            knowledge_policy=self._knowledge_policy(),
+            confidence=0.92,
+            degraded_reason=None,
+            rag_actually_used=True,
+            philo_validation_enabled=True,
+            recursive_executed=False,
+            verification_calls=0,
+            evidence_refs=("docs/keep.md:keep",),
+        )
+
+        merged = build_runtime_verification_bundle(
+            rag_bundle=rag_bundle,
+            verification_report=None,
+            falsification_report=None,
+            contradiction_count=0,
+            verification_first_path=False,
+        )
+
+        assert merged == rag_bundle
+
+    def test_rag_bundle_denies_disabled_policy_and_string_degraded_reason(self) -> None:
+        from dataclasses import replace
+
+        from core.verification.registry import build_rag_verification_bundle
+
+        bundle = build_rag_verification_bundle(
+            knowledge_policy=replace(self._knowledge_policy(), allow_promotion=False),
+            confidence=0.92,
+            degraded_reason="manual_degraded_reason",
+            rag_actually_used=True,
+            philo_validation_enabled=True,
+            recursive_executed=False,
+            verification_calls=0,
+            evidence_refs=("docs/keep.md:keep",),
+        )
+        disabled_bundle = build_rag_verification_bundle(
+            knowledge_policy=replace(self._knowledge_policy(), enabled=False),
+            confidence=0.92,
+            degraded_reason=None,
+            rag_actually_used=True,
+            philo_validation_enabled=True,
+            recursive_executed=False,
+            verification_calls=0,
+            evidence_refs=("docs/keep.md:keep",),
+        )
+
+        assert bundle.admission_allowed is False
+        assert bundle.reason_codes == (
+            "knowledge_promotion_disabled",
+            "manual_degraded_reason",
+            "rag_degraded",
+        )
+        assert "knowledge_policy_disabled" in disabled_bundle.reason_codes
+
+    def test_rag_bundle_records_recursive_execution_verification_calls(self) -> None:
+        from core.verification.registry import build_rag_verification_bundle
+
+        bundle = build_rag_verification_bundle(
+            knowledge_policy=self._knowledge_policy(),
+            confidence=0.92,
+            degraded_reason=None,
+            rag_actually_used=True,
+            philo_validation_enabled=True,
+            recursive_executed=True,
+            verification_calls=2,
+            evidence_refs=("docs/keep.md:keep",),
+        )
+
+        assert bundle.admission_allowed is False
+        assert "recursive_verification_calls_observed" in bundle.reason_codes
+
+    def test_runtime_bundle_denies_non_finite_and_out_of_range_rates(self) -> None:
+        from core.insight.analytical import FalsificationReport, VerificationReport
+        from core.verification.registry import (
+            build_rag_verification_bundle,
+            build_runtime_verification_bundle,
+        )
+
+        rag_bundle = build_rag_verification_bundle(
+            knowledge_policy=self._knowledge_policy(),
+            confidence=0.92,
+            degraded_reason=None,
+            rag_actually_used=True,
+            philo_validation_enabled=True,
+            recursive_executed=False,
+            verification_calls=0,
+            evidence_refs=("docs/keep.md:keep",),
+        )
+
+        non_finite = build_runtime_verification_bundle(
+            rag_bundle=rag_bundle,
+            verification_report=VerificationReport(
+                verification_rate=float("nan"),
+                verified_claims=[],
+                unverified_claims=["Synthetic claim."],
+                classifications={
+                    "analytical": 0,
+                    "synthetic": 1,
+                    "metaphysical": 0,
+                    "unknown": 0,
+                },
+            ),
+            falsification_report=FalsificationReport(
+                falsifiability_rate=1.0,
+                falsifiable_claims=["Synthetic claim."],
+                unfalsifiable_claims=[],
+            ),
+            contradiction_count=0,
+            verification_first_path=True,
+        )
+        out_of_range = build_runtime_verification_bundle(
+            rag_bundle=rag_bundle,
+            verification_report=VerificationReport(
+                verification_rate=1.0,
+                verified_claims=["Claim A."],
+                unverified_claims=[],
+                classifications={
+                    "analytical": 0,
+                    "synthetic": 1,
+                    "metaphysical": 0,
+                    "unknown": 0,
+                },
+            ),
+            falsification_report=FalsificationReport(
+                falsifiability_rate=1.1,
+                falsifiable_claims=["Claim A."],
+                unfalsifiable_claims=[],
+            ),
+            contradiction_count=0,
+            verification_first_path=True,
+        )
+
+        assert non_finite is not None
+        assert non_finite.admission_allowed is False
+        assert "verification_below_threshold" in non_finite.reason_codes
+        assert out_of_range is not None
+        assert out_of_range.admission_allowed is False
+        assert "falsification_below_threshold" in out_of_range.reason_codes
+
+    def test_runtime_bundle_denies_contradictions(self) -> None:
+        from core.insight.analytical import FalsificationReport, VerificationReport
+        from core.verification.registry import (
+            build_rag_verification_bundle,
+            build_runtime_verification_bundle,
+        )
+
+        rag_bundle = build_rag_verification_bundle(
+            knowledge_policy=self._knowledge_policy(),
+            confidence=0.92,
+            degraded_reason=None,
+            rag_actually_used=True,
+            philo_validation_enabled=True,
+            recursive_executed=False,
+            verification_calls=0,
+            evidence_refs=("docs/keep.md:keep",),
+        )
+
+        merged = build_runtime_verification_bundle(
+            rag_bundle=rag_bundle,
+            verification_report=VerificationReport(
+                verification_rate=1.0,
+                verified_claims=["Claim A."],
+                unverified_claims=[],
+                classifications={
+                    "analytical": 0,
+                    "synthetic": 1,
+                    "metaphysical": 0,
+                    "unknown": 0,
+                },
+            ),
+            falsification_report=FalsificationReport(
+                falsifiability_rate=1.0,
+                falsifiable_claims=["Claim A."],
+                unfalsifiable_claims=[],
+            ),
+            contradiction_count=1,
+            verification_first_path=True,
+        )
+
+        assert merged is not None
+        assert merged.admission_allowed is False
+        assert "contradictions_detected" in merged.reason_codes
+
+    def test_build_bundle_falls_back_to_registry_failure_and_warn_status(self) -> None:
+        from core.verification.contracts import VerificationArtifact
+        from core.verification.policy import VerificationPolicy
+        from core.verification.registry import build_bundle
+
+        missing_bundle = build_bundle(artifacts=())
+        warn_bundle = build_bundle(
+            artifacts=(
+                VerificationArtifact(
+                    artifact_id="warn-artifact",
+                    verifier_id="execution_verifier",
+                    status="warn",
+                    checked_at=datetime.now(timezone.utc),
+                    reason_codes=("recursive_verification_calls_missing",),
+                ),
+            ),
+            policy=VerificationPolicy(scope="knowledge_write", allow_warn=True),
+        )
+
+        assert missing_bundle.overall_status == "fail"
+        assert missing_bundle.admission_allowed is False
+        assert missing_bundle.reason_codes == ("verification_artifacts_missing",)
+        assert warn_bundle.overall_status == "warn"
+        assert warn_bundle.admission_allowed is True
