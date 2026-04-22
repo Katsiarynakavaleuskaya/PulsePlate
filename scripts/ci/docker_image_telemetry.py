@@ -56,6 +56,8 @@ class BaselineComparison:
     """Advisory baseline comparison; never fails the lane in this wave."""
 
     baseline_path: str | None
+    baseline_source: str | None
+    baseline_reference: dict[str, object] | None
     baseline_size_bytes: int | None
     size_delta_bytes: int | None
     regression_warning: bool
@@ -232,19 +234,63 @@ def _parse_dockerignore_allowlist(dockerignore_path: Path) -> tuple[str, ...]:
     return tuple(allowlist)
 
 
-def _load_baseline_size_bytes(baseline_path: Path | None) -> int | None:
+@dataclass(frozen=True)
+class LoadedBaseline:
+    """Normalized baseline metadata extracted from a prior telemetry payload."""
+
+    source: str | None
+    reference: dict[str, object] | None
+    size_bytes: int
+
+
+def _load_baseline(baseline_path: Path | None) -> LoadedBaseline | None:
     """Load a prior telemetry baseline if one is supplied."""
 
     if baseline_path is None or not baseline_path.exists():
         return None
-    payload = json.loads(baseline_path.read_text(encoding="utf-8"))
+    if not baseline_path.is_file():
+        raise RuntimeError(f"Unsupported baseline payload shape: {baseline_path}")
+    try:
+        payload = json.loads(baseline_path.read_text(encoding="utf-8"))
+    except (OSError, PermissionError) as exc:
+        raise RuntimeError(f"Unable to read baseline payload: {baseline_path}") from exc
     if not isinstance(payload, dict):
         raise RuntimeError(f"Unsupported baseline payload shape: {baseline_path}")
-    if isinstance(payload.get("image_size_bytes"), int):
-        return int(payload["image_size_bytes"])
+    baseline_source = payload.get("baseline_source")
+    if baseline_source is not None and not isinstance(baseline_source, str):
+        raise RuntimeError(f"Unsupported baseline payload shape: {baseline_path}")
+    baseline_reference = payload.get("baseline_reference")
+    if baseline_reference is not None and not isinstance(baseline_reference, dict):
+        raise RuntimeError(f"Unsupported baseline payload shape: {baseline_path}")
+    normalized_source = None
+    if baseline_source is not None:
+        stripped_source = baseline_source.strip()
+        if stripped_source:
+            normalized_source = stripped_source
+    image_size_bytes = payload.get("image_size_bytes")
+    if (
+        isinstance(image_size_bytes, int)
+        and not isinstance(image_size_bytes, bool)
+        and image_size_bytes >= 0
+    ):
+        return LoadedBaseline(
+            source=normalized_source,
+            reference=baseline_reference,
+            size_bytes=image_size_bytes,
+        )
     image_payload = payload.get("image")
-    if isinstance(image_payload, dict) and isinstance(image_payload.get("size_bytes"), int):
-        return int(image_payload["size_bytes"])
+    nested_size_bytes = image_payload.get("size_bytes") if isinstance(image_payload, dict) else None
+    if (
+        isinstance(image_payload, dict)
+        and isinstance(nested_size_bytes, int)
+        and not isinstance(nested_size_bytes, bool)
+        and nested_size_bytes >= 0
+    ):
+        return LoadedBaseline(
+            source=normalized_source,
+            reference=baseline_reference,
+            size_bytes=nested_size_bytes,
+        )
     raise RuntimeError(f"Unsupported baseline payload shape: {baseline_path}")
 
 
@@ -277,17 +323,25 @@ def collect_telemetry(
     dockerignore_allowlist = _parse_dockerignore_allowlist(dockerignore_path)
 
     warnings: list[str] = []
-    baseline_size_bytes = _load_baseline_size_bytes(baseline_path)
+    loaded_baseline = _load_baseline(baseline_path)
+    baseline_size_bytes = loaded_baseline.size_bytes if loaded_baseline is not None else None
+    baseline_source = loaded_baseline.source if loaded_baseline is not None else None
+    baseline_reference = loaded_baseline.reference if loaded_baseline is not None else None
     size_delta_bytes: int | None = None
     regression_warning = False
     if baseline_path is None:
         warnings.append("No baseline JSON was provided; telemetry remains advisory-only.")
-    elif baseline_size_bytes is None:
+    elif loaded_baseline is None:
         warnings.append(
             f"Baseline JSON is missing or absent at {baseline_path}; telemetry remains advisory-only."
         )
     else:
-        size_delta_bytes = image_size_bytes - baseline_size_bytes
+        size_delta_bytes = image_size_bytes - loaded_baseline.size_bytes
+        if baseline_source == "repo-seed-fallback":
+            warnings.append(
+                "Using the checked-in repo seed fallback baseline; refresh against the latest "
+                "successful main artifact when GitHub artifact lookup recovers."
+            )
         if size_delta_bytes > 0:
             regression_warning = True
             warnings.append(
@@ -309,6 +363,8 @@ def collect_telemetry(
         ),
         baseline=BaselineComparison(
             baseline_path=str(baseline_path) if baseline_path is not None else None,
+            baseline_source=baseline_source,
+            baseline_reference=baseline_reference,
             baseline_size_bytes=baseline_size_bytes,
             size_delta_bytes=size_delta_bytes,
             regression_warning=regression_warning,
@@ -333,6 +389,14 @@ def render_markdown(report: ImageTelemetryReport) -> str:
         baseline_human = _bytes_to_human(report.baseline.baseline_size_bytes)
         lines.append(
             f"- Baseline: `{baseline_human}` (`{report.baseline.baseline_size_bytes}` bytes)"
+        )
+    if report.baseline.baseline_source is not None:
+        lines.append(f"- Baseline source: `{report.baseline.baseline_source}`")
+    if report.baseline.baseline_reference:
+        lines.append(
+            "- Baseline reference: `"
+            + _format_baseline_reference(report.baseline.baseline_reference)
+            + "`"
         )
     if report.baseline.size_delta_bytes is not None:
         delta = report.baseline.size_delta_bytes
@@ -364,6 +428,33 @@ def render_markdown(report: ImageTelemetryReport) -> str:
         ]
     )
     return "\n".join(lines)
+
+
+def _format_baseline_reference(reference: dict[str, object]) -> str:
+    """Render compact baseline reference metadata for Markdown summaries."""
+
+    if {"workflow", "run_number", "artifact_name"} <= reference.keys():
+        parts = [
+            f"workflow={reference['workflow']}",
+            f"branch={reference.get('branch', 'unknown')}",
+            f"run={reference['run_number']}",
+        ]
+        if reference.get("run_attempt") is not None:
+            parts.append(f"attempt={reference['run_attempt']}")
+        parts.append(f"artifact={reference['artifact_name']}")
+        if reference.get("artifact_id") is not None:
+            parts.append(f"artifact_id={reference['artifact_id']}")
+        return ", ".join(parts)
+    if {"workflow", "seeded_from_run_number", "artifact_name"} <= reference.keys():
+        parts = [
+            f"workflow={reference['workflow']}",
+            f"seeded_from_run={reference['seeded_from_run_number']}",
+            f"artifact={reference['artifact_name']}",
+        ]
+        if reference.get("seeded_at") is not None:
+            parts.append(f"seeded_at={reference['seeded_at']}")
+        return ", ".join(parts)
+    return json.dumps(reference, sort_keys=True)
 
 
 def _build_parser() -> argparse.ArgumentParser:

@@ -22,7 +22,7 @@ permissions:
 jobs:
   build:
     permissions:
-      actions: write
+      actions: read
       contents: read # for actions/checkout to fetch code
       packages: read # for ghcr.io/aquasecurity/trivy-db pulls (AGENTS.md GHCR policy)
       security-events: write # for github/codeql-action/upload-sarif to upload SARIF results
@@ -69,11 +69,25 @@ jobs:
             --image pulseplate:trivy-scan-${{ github.sha }} \
             --output-json docker-runtime-dependency-surface.json
 
+      - name: Resolve Docker image telemetry baseline
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          python3 scripts/ci/fetch_docker_image_baseline.py \
+            --repo "${{ github.repository }}" \
+            --workflow build.yml \
+            --artifact-name docker-image-telemetry-build \
+            --fallback-json docs/telemetry/docker_image_baseline.production.json \
+            --output docker-image-baseline.json
+
       - name: Collect Docker image telemetry
         run: |
           set -euo pipefail
           if ! python3 scripts/ci/docker_image_telemetry.py \
             --image-ref pulseplate:trivy-scan-${{ github.sha }} \
+            --baseline-json docker-image-baseline.json \
             --json-out docker-image-telemetry.json \
             --markdown-out docker-image-telemetry.md
           then

@@ -612,12 +612,12 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Deterministic tests cover the hook fix and the promoted validation contract
 
 <a id="ledger-p1-docker-runtime-slimming-after-profile-split"></a>
-- [ ] P1: Docker runtime slimming after CI install-profile split
+- [x] P1: Docker runtime slimming after CI install-profile split
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-TBD-DOCKER-RUNTIME-SLIMMING
+  - Target PR: PR #1490 (`fix(docker): slim runtime after profile split`)
   - Area: docker / runtime / supply-chain
-  - Status note: Active after `PR #1488` merged on April 21, 2026 and reconciled the split deploy contract. This slice now standardizes production-target Docker builds on a dedicated runtime manifest and keeps image-budget telemetry plus shared Safety audit extraction deferred to later PRs.
+  - Status note: Merged on April 22, 2026 via `PR #1490`. Production-target Docker builds now use `requirements-docker-runtime.txt`; the next main Docker/CI slice is the warning-only image-budget and telemetry baseline, while Shared Safety audit extraction remains deferred.
   - Depends on:
     - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-ci-install-profile-split-after-disk-unblock`
     - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-docker-deploy-contract-reconciliation`
@@ -641,23 +641,45 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Docker image budget and telemetry baseline
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-TBD-DOCKER-IMAGE-BUDGET
+  - Target PR: PR #1492
   - Area: CI / docker / telemetry
+  - Status note: Active PR-5 slice after `PR #1490` merged on April 22, 2026. This lane establishes one canonical backend-image baseline, prefers the latest successful `main` artifact, falls back to a checked-in seed baseline, and keeps delta reporting warning-only.
   - Depends on:
     - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-ci-install-profile-split-after-disk-unblock`
     - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-docker-deploy-contract-reconciliation`
-  - Reason: The project needs deterministic PR-facing evidence for image size regressions, largest layers, and build-context drift before discussing provenance recovery sequencing or any Dagger pilot. Start with warning/regression-only reporting, not an absolute hard stop.
+  - Reason: The project needs deterministic PR-facing evidence for image size regressions, largest layers, build-context drift, and baseline provenance before discussing provenance recovery sequencing or any Dagger pilot. Start with warning/regression-only reporting, not an absolute hard stop.
   - Links:
     - `docs/orchestration/DOCKER_CI_DISCIPLINE_PR_SERIES_PACKET_2026-04-16.md`
+    - `docs/orchestration/DOCKER_IMAGE_BUDGET_TELEMETRY_TASK_PACKET_2026-04-22.md`
     - `.github/workflows/build.yml`
     - `.github/workflows/docker-image.yml`
     - `.github/workflows/trivy.yml`
+    - `docs/telemetry/docker_image_baseline.production.json`
     - `docs/architecture/ADR_DOCKER_BUILD_PROVENANCE_WORKAROUND_2026-03-01.md`
   - DoD:
     - CI emits deterministic image-size evidence for touched Docker lanes
     - Largest-layer and build-context summaries are visible to PR authors before merge
+    - Baseline source is explicit (`main-artifact` or `repo-seed-fallback`)
     - The first gate is warning/regression-only, not an absolute size cap
     - Follow-up provenance or Dagger decisions can cite this baseline explicitly
+
+<a id="ledger-p1-docker-image-hard-budget-gate"></a>
+- [ ] P1: Docker image hard budget gate after telemetry baseline
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-DOCKER-HARD-BUDGET-GATE
+  - Area: CI / docker / telemetry
+  - Depends on:
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-docker-image-budget-telemetry`
+  - Reason: The repo should not enforce a hard image-size failure threshold until the warning-only baseline has stabilized on `main` and the canonical telemetry evidence is trustworthy enough to gate merges deterministically.
+  - Links:
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-docker-image-budget-telemetry`
+    - `.github/workflows/build.yml`
+    - `.github/workflows/docker-image.yml`
+  - DoD:
+    - A canonical hard-fail threshold exists for the production backend image
+    - Docker lanes fail deterministically when the threshold regresses beyond policy
+    - The gate uses the same canonical telemetry artifact contract introduced by PR `#1492`
 
 <a id="ledger-p1-business-wave-runtime-follow-through"></a>
 - [ ] P1: Business wave runtime follow-through after governance/docs foundation
