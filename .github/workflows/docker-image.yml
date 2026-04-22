@@ -73,23 +73,22 @@ jobs:
     - name: Collect Docker image telemetry
       run: |
         set -euo pipefail
-        if ! python3 scripts/ci/docker_image_telemetry.py \
+        python3 scripts/ci/docker_image_telemetry.py \
           --image-ref my-image-name:${{ github.run_id }}-${{ github.run_attempt }} \
           --baseline-json docker-image-baseline.json \
           --json-out docker-image-telemetry.json \
           --markdown-out docker-image-telemetry.md
-        then
-          echo "::warning::Docker image telemetry collection failed; reporting remains advisory-only."
-          printf '{"advisory_only": true, "warning": "telemetry collection failed"}\n' > docker-image-telemetry.json
-          printf '# Docker Image Telemetry\n\n- Warning: telemetry collection failed; workflow remains advisory-only.\n' > docker-image-telemetry.md
-        fi
 
     - name: Publish Docker telemetry to step summary
+      if: ${{ always() }}
       run: |
         set -euo pipefail
-        cat docker-image-telemetry.md >> "${GITHUB_STEP_SUMMARY}"
+        if [ -f docker-image-telemetry.md ]; then
+          cat docker-image-telemetry.md >> "${GITHUB_STEP_SUMMARY}"
+        fi
 
     - name: Upload Docker telemetry artifact
+      if: ${{ always() }}
       uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
       with:
         name: docker-image-telemetry-docker-image
@@ -97,5 +96,33 @@ jobs:
           docker-runtime-dependency-surface.json
           docker-image-telemetry.json
           docker-image-telemetry.md
+        if-no-files-found: warn
+        retention-days: 14
+
+    - name: Enforce Docker image budget
+      run: |
+        set -euo pipefail
+        python3 scripts/ci/check_docker_image_budget.py \
+          --telemetry-json docker-image-telemetry.json \
+          --budget-json docs/telemetry/docker_image_budget.production.json \
+          --json-out docker-image-budget-check.json \
+          --markdown-out docker-image-budget-check.md
+
+    - name: Publish Docker budget check to step summary
+      if: ${{ always() }}
+      run: |
+        set -euo pipefail
+        if [ -f docker-image-budget-check.md ]; then
+          cat docker-image-budget-check.md >> "${GITHUB_STEP_SUMMARY}"
+        fi
+
+    - name: Upload Docker budget check artifact
+      if: ${{ always() }}
+      uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+      with:
+        name: docker-image-budget-check-docker-image
+        path: |
+          docker-image-budget-check.json
+          docker-image-budget-check.md
         if-no-files-found: warn
         retention-days: 14

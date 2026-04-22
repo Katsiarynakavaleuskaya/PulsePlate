@@ -1,0 +1,15 @@
+{
+  "budget_name": "production-backend-image",
+  "budget_version": 1,
+  "budget_scope": "production-backend-image",
+  "max_image_size_bytes": 470000000,
+  "max_positive_delta_bytes": 20000000,
+  "baseline_reference": {
+    "baseline_file": "docs/telemetry/docker_image_baseline.production.json",
+    "baseline_source": "repo-seed-fallback",
+    "seeded_from_run_id": 24771474567,
+    "seeded_from_run_number": 6987,
+    "workflow": "build.yml"
+  },
+  "policy_note": "Hybrid hard gate: enforce an absolute cap and a max positive delta against the canonical telemetry baseline for the production backend image."
+}
