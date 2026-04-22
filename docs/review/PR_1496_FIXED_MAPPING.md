@@ -13,7 +13,7 @@ This artifact is the source of truth for review dispositions on PR #1496.
 Record every actionable human or bot review item here before resolving threads
 or claiming merge readiness.
 
-## Fixed in Commit Mapping
+### Fixed in Commit Mapping
 
 Disposition: FIXED
 Commit: 88b92e02a
