@@ -443,6 +443,53 @@ def test_build_config_rejects_paths_outside_project_root(tmp_path: Path) -> None
         build_config(args)
 
 
+def test_build_config_uses_companion_metrics_env_fallback(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Companion artifact path may come from the canonical env fallback."""
+
+    project_root = tmp_path / "repo"
+    artifact_root = project_root / "artifacts" / "rag_eval"
+    notebook_path = project_root / "notebooks" / "pulseplate_rag_release_gates.ipynb"
+    input_path = project_root / "input.jsonl"
+    companion_path = artifact_root / "manual" / "metrics_summary.json"
+
+    artifact_root.mkdir(parents=True)
+    notebook_path.parent.mkdir(parents=True)
+    input_path.write_text("", encoding="utf-8")
+    companion_path.parent.mkdir(parents=True, exist_ok=True)
+    companion_path.write_text("{}", encoding="utf-8")
+
+    monkeypatch.setenv(
+        "PULSEPLATE_RAG_COMPANION_METRICS_JSON",
+        str(companion_path),
+    )
+
+    args = argparse.Namespace(
+        project_root=str(project_root),
+        input_path=str(input_path),
+        artifact_root=str(artifact_root),
+        experiment_id="safe_run",
+        sample_size="5",
+        top_k="5",
+        random_seed="42",
+        retriever_mode="local_tfidf",
+        generator_mode="extractive_stub",
+        enable_nli_model=False,
+        nli_model_name="roberta-large-mnli",
+        notebook_path=str(notebook_path),
+        require_pass=False,
+        disallow_dataset_fallback=False,
+        disallow_runtime_fallbacks=False,
+        companion_metrics_json=None,
+    )
+
+    config = build_config(args)
+
+    assert config.companion_metrics_json == companion_path.resolve()
+
+
 @pytest.mark.parametrize(
     ("field_name", "field_value"),
     [
