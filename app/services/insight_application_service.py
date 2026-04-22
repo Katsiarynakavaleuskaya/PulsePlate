@@ -29,6 +29,7 @@ from core.knowledge.contracts import KnowledgeFactCandidate
 from core.knowledge.store import KnowledgeStore
 from core.insight.llm_provider_loader import LLMProvider
 from core.ai import prepare_insight_runtime
+from core.verification.contracts import VerificationBundle
 
 INSIGHT_TEXT_MAX_LENGTH = 2000
 KNOWLEDGE_PROMOTION_TIMEOUT_SECONDS = 0.25
@@ -67,10 +68,16 @@ async def _maybe_promote_knowledge_candidates(
     *,
     knowledge_store: KnowledgeStore | None,
     candidates: list[KnowledgeFactCandidate],
+    verification_bundle: VerificationBundle | None,
 ) -> None:
     """Best-effort promotion must never break the user response path."""
 
-    if knowledge_store is None or not candidates:
+    if (
+        knowledge_store is None
+        or not candidates
+        or verification_bundle is None
+        or not verification_bundle.admission_allowed
+    ):
         return
 
     try:
@@ -150,6 +157,7 @@ async def execute_insight_request(
     await _maybe_promote_knowledge_candidates(
         knowledge_store=knowledge_store,
         candidates=list(runtime_result.knowledge_candidates),
+        verification_bundle=getattr(runtime_result, "verification_bundle", None),
     )
     insight_text = runtime_result.insight[:INSIGHT_TEXT_MAX_LENGTH]
     source_items = [source_item_factory(**item) for item in runtime_result.source_dicts]

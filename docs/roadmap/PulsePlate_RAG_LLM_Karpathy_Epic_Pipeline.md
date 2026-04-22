@@ -392,6 +392,41 @@ output, or request-local recursive caches as canonical facts.
 
 ---
 
+## PR-V1 — verification registry and verify-before-write admission
+#### Title
+`feat(ai-quality): add verification registry and verify-before-write admission invariant`
+
+#### Backlog target
+`ledger-p1-verification-registry-admission`
+
+#### Goal
+Strengthen the landed K1 knowledge seam with one first-class verification
+registry/bundle so knowledge writes require canonical admission truth rather
+than policy/confidence/degraded-path checks alone.
+
+#### In scope
+- `core/verification/*` internal contracts, policy, and registry assembly
+- reuse of existing recursive verification diagnostics and philosophical runtime
+  verification/falsification signals
+- internal-only verification bundle threading through RAG/runtime/application
+  seams
+- verify-before-write admission for knowledge promotion only
+
+#### Out of scope
+- semantic cache implementation or gate opening
+- cache/action runtime enablement
+- DB persistence for verification artifacts
+- route / OpenAPI / public response shape changes
+- GraphRAG, Redis/GPTCache, or ContextManifest work
+
+#### DoD
+- write admission requires a passed canonical verification bundle
+- recursive and philosophical verification signals converge into one registry
+- route/app layers stay thin and do not author verification truth
+- degraded response paths remain safe and do not break user-visible answers
+
+---
+
 ## PR-A6 — philosophical rollout W1
 #### Title
 `feat(ai-quality): rollout philosophical validation phases on bounded surfaces`
@@ -627,6 +662,7 @@ Build the PulsePlate RAG/LLM/Karpathy line as three separate but coordinated rai
    - PR-A3 AI bounded-context packet
    - PR-A4 AI bounded-context extraction
    - PR-A5 LLM reliability/security gates
+   - PR-V1 verification registry and verify-before-write admission
    - PR-A6 philosophical rollout W1
    - PR-A7 recursive methods W1
    - PR-A8 speed optimization for recursive stack

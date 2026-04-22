@@ -1674,7 +1674,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
   - Target PR: PR-K1
-  - Status: 🟡 In progress in PR `#1483` (PR-K1 runtime seam); close via docs-only follow-up after merge per ledger policy.
+  - Status: ✅ Runtime seam merged via PR `#1483` on `2026-04-20`; keep the checkbox open only until the docs-only closeout lands per ledger policy.
   - Area: AI runtime / knowledge / retrieval orchestration
   - Finding Type: bounded knowledge-promotion contract gap
   - Reason (EN): The current AI runtime already has deterministic retrieval diagnostics, bounded `core/ai/*` ownership, and request-local recursive optimization caches, but it does not yet expose a first-class internal fact-promotion contract separated from retrieval artifacts. Without that seam, later runtime work risks promoting raw provider output, route-layer behavior, or request-local caches into canonical knowledge. `PR-K1` closes that gap as a bounded post-A5 follow-up without widening into semantic cache or DB/storage rollout.
@@ -1697,6 +1697,34 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `legacy_app.py`, `app/routers/*`, OpenAPI, and public response DTOs remain unchanged
     - No DB migration, Redis/GPTCache, or semantic-cache rollout is introduced in this slice
     - Deterministic tests cover promotion allow/deny behavior, supersession rules, and the invariant that request-local recursive caches never become persistent knowledge
+
+<a id="ledger-p1-verification-registry-admission"></a>
+- [ ] P1: Verification registry and verify-before-write admission invariant
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-V1
+  - Status: Active execution packet on branch `codex/ai-verification-registry-v1`
+  - Area: AI runtime / verification / knowledge admission
+  - Finding Type: verification-bundle admission gap
+  - Reason (EN): `main` now has the bounded K1 knowledge seam, deterministic recursive verification diagnostics, and philosophical runtime verification/falsification logic, but write admission still lacks one first-class verification bundle. Without that bundle, knowledge promotion remains fail-closed by policy/confidence/degraded-path only and later cache/action gates would have to reinvent admission truth. `PR-V1` adds a canonical registry and enables verify-before-write without widening into semantic cache, DB persistence, or public contract changes.
+  - Links:
+    - `docs/orchestration/WAVE6_V1_VERIFICATION_REGISTRY_PACKET_2026-04-21.md`
+    - `docs/orchestration/WAVE6_K1_KNOWLEDGE_PROMOTION_PACKET_2026-04-19.md`
+    - `docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md`
+    - `docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md`
+    - `core/verification/`
+    - `core/knowledge/promotion.py`
+    - `core/rag/orchestration.py`
+    - `core/insight/philosophical_runtime.py`
+    - `app/services/insight_application_service.py`
+    - `AGENTS.md`
+  - DoD:
+    - `core/verification/*` exists as the canonical internal artifact/bundle registry
+    - Existing recursive and philosophical verification signals are reused, not reimplemented as a parallel validation system
+    - Knowledge writes require an admissible verification bundle
+    - Public routes, OpenAPI, response DTOs, and storage rollout remain unchanged
+    - Semantic cache, Redis/GPTCache, GraphRAG, and ContextManifest remain out of scope
+    - Deterministic tests cover bundle materialization and denied/allowed write admission paths
 
 <a id="ledger-p1-apple-server-api-migration"></a>
 - [ ] P1: Apple receipt verification migration to App Store Server API

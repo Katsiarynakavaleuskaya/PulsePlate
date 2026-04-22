@@ -37,6 +37,8 @@ from core.insight.telemetry import record_runtime_metrics
 from core.i18n import normalize_lang
 import core.rag.orchestration as rag_orchestration
 from core.rag.orchestration import RAGOrchestrationResult
+from core.verification.contracts import VerificationBundle
+from core.verification.registry import build_runtime_verification_bundle
 from core.rag.formatting import RAGSourceDict, build_rag_source_dicts
 
 _APPROX_CHARS_PER_TOKEN = 4
@@ -184,6 +186,7 @@ class RuntimeResult:
     latency_ms: int = 0
     metadata: RuntimeMetadata = field(default_factory=RuntimeMetadata)
     knowledge_candidates: list[KnowledgeFactCandidate] = field(default_factory=list)
+    verification_bundle: VerificationBundle | None = None
 
 
 class PhilosophicalQueryRouter:
@@ -418,6 +421,7 @@ class PhilosophicalRuntime:
         hops = 0
         latency_ms = 0
         prompt_input = decision.simplified_query or text
+        rag_result: RAGOrchestrationResult | None = None
 
         if use_rag and decision.needs_rag:
             retrieve_rag = rag_retriever or rag_orchestration.retrieve_and_validate_rag
@@ -501,6 +505,19 @@ class PhilosophicalRuntime:
             rewrite_count=rewrite_count,
             fallback_reason=fallback_reason,
         )
+        verification_bundle = build_runtime_verification_bundle(
+            rag_bundle=(
+                None if rag_result is None else getattr(rag_result, "verification_bundle", None)
+            ),
+            verification_report=verification_report,
+            falsification_report=falsification_report,
+            contradiction_count=contradiction_count,
+            verification_first_path=self._is_verification_first_path(
+                decision=decision,
+                rag_used=rag_used,
+            ),
+            runtime_verification_enabled=philosophy_phase12_enabled,
+        )
 
         tokens_saved_estimate = _estimate_tokens_saved(
             prompt_text=prompt_text,
@@ -549,10 +566,12 @@ class PhilosophicalRuntime:
                     rag_result=rag_result,
                     philo_validation_enabled=philo_validation_enabled,
                     knowledge_policy=knowledge_policy,
+                    verification_bundle=verification_bundle,
                 )
-                if use_rag and decision.needs_rag
+                if use_rag and decision.needs_rag and rag_result is not None
                 else []
             ),
+            verification_bundle=verification_bundle,
         )
 
     async def _retrieve_rag_result(
@@ -584,6 +603,7 @@ class PhilosophicalRuntime:
         rag_result: RAGOrchestrationResult,
         philo_validation_enabled: bool,
         knowledge_policy: KnowledgePolicy | None,
+        verification_bundle: VerificationBundle | None,
     ) -> list[KnowledgeFactCandidate]:
         """Trust promotion candidates only from the canonical validated RAG path."""
 
@@ -603,6 +623,8 @@ class PhilosophicalRuntime:
         if getattr(rag_result, "degraded_reason", None) is not None:
             return []
         if not getattr(rag_result, "knowledge_candidates_canonical", False):
+            return []
+        if verification_bundle is None or not verification_bundle.admission_allowed:
             return []
 
         return list(getattr(rag_result, "knowledge_candidates", []))
