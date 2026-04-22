@@ -5,6 +5,7 @@
 **Canonical notebook:** [`notebooks/pulseplate_rag_release_gates.ipynb`](../../notebooks/pulseplate_rag_release_gates.ipynb)
 **Canonical runner:** [`scripts/evals/run_rag_release_gates.py`](../../scripts/evals/run_rag_release_gates.py)
 **Lane packet:** [`docs/orchestration/PULSEPLATE_RAG_RELEASE_GATES_TASK_PACKET_2026-04-20.md`](../orchestration/PULSEPLATE_RAG_RELEASE_GATES_TASK_PACKET_2026-04-20.md)
+**Follow-up packet:** [`docs/orchestration/PULSEPLATE_RAG_RELEASE_GATES_THRESHOLD_REPORTING_TASK_PACKET_2026-04-22.md`](../orchestration/PULSEPLATE_RAG_RELEASE_GATES_THRESHOLD_REPORTING_TASK_PACKET_2026-04-22.md)
 **Ledger anchor:** [`ledger-p1-rag-release-gates-lane`](../roadmap/BACKLOG_LEDGER.md#ledger-p1-rag-release-gates-lane)
 
 ## Purpose
@@ -157,7 +158,7 @@ Initial thresholds:
 GATE_THRESHOLDS = {
     "evidence_exact_match_rate": 0.70,
     "mean_nli_entailment": 0.85,
-    "support_precision": 0.70,
+    "support_precision": 0.80,
     "ece": 0.08,
     "escalation_min": 0.10,
     "escalation_max": 0.25,
@@ -187,8 +188,10 @@ Canonical fields:
 - `generator_mode`
 - `sample_size`
 - `thresholds`
+- `threshold_results`
 - `gate_checks`
 - `release_decision`
+- optional `companion_metrics`
 
 ### Trace-level schema
 
@@ -218,6 +221,24 @@ This schema contract is the intended bridge between:
 
 The goal is to avoid a future dashboard migration that re-implements evaluation logic.
 
+## Companion Artifact Bridge
+
+The release-gates lane remains the canonical owner of threshold vocabulary,
+gate checks, and `PASS` / `NO-GO` release decisions.
+
+Optional companion RAGAS artifacts are informational only and must not change:
+
+- `thresholds`
+- `threshold_results`
+- `gate_checks`
+- `release_decision`
+- `--require-pass`
+
+When provided, the companion artifact must already exist as a local JSON artifact
+under the gitignored `artifacts/rag_eval/<experiment_id>/...` family. The
+canonical runner may ingest it for reporting, but it does not execute `ragas`
+itself and it does not become a second eval source of truth.
+
 ## Storage Model
 
 ### v1 source of truth
@@ -233,6 +254,8 @@ PR / CI visibility:
   - `metrics_summary.json`
   - `latest_executed.ipynb`
 - write a compact markdown summary to the CI check summary / PR check output
+- surface deterministic threshold rows in both the markdown report and the CI summary
+- include companion RAGAS metrics only as an informational block when explicitly provided
 
 ### v2 persistence
 
@@ -261,6 +284,16 @@ python3 scripts/evals/run_rag_release_gates.py \
   --input-path data/evals/pulseplate_rag_eval_sample.jsonl \
   --retriever-mode local_tfidf \
   --generator-mode extractive_stub
+```
+
+Optional local composition with a precomputed companion RAGAS artifact:
+
+```bash
+python3 scripts/evals/run_rag_release_gates.py \
+  --input-path data/evals/pulseplate_rag_eval_sample.jsonl \
+  --retriever-mode local_tfidf \
+  --generator-mode extractive_stub \
+  --companion-metrics-json artifacts/rag_eval/ragas_bootstrap_manual/metrics_summary.json
 ```
 
 Stricter local lane:
@@ -307,8 +340,13 @@ The sample smoke proves:
 - runner completes
 - artifact pack is emitted
 - no paid provider path is required
+- threshold reporting is surfaced deterministically
 
 It does **not** claim release readiness by itself.
+
+The PR smoke lane remains advisory/reporting-only. The weekly/manual lane remains
+the canonical strict execution path and is the only GitHub path that should pair
+this runner with `--require-pass`.
 
 ## Security Notes
 

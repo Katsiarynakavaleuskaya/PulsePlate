@@ -229,6 +229,7 @@ class EvalConfig:
     nli_model_name: str
     notebook_path: Path
     require_pass: bool
+    companion_metrics_json: Path | None = None
     allow_dataset_fallback: bool = True
     allow_runtime_fallbacks: bool = True
 
@@ -357,6 +358,197 @@ def _record_strict_violation(state: EvalRuntimeState, message: str) -> None:
     state.warnings.append(message)
     if not state.config.allow_runtime_fallbacks and message not in state.strict_violations:
         state.strict_violations.append(message)
+
+
+def _json_safe_float(value: float) -> float | None:
+    """Return a JSON-safe float, preserving NaN as null."""
+
+    return None if math.isnan(value) else float(value)
+
+
+def _require_finite_metric(value: Any, *, label: str) -> float:
+    """Parse a metric value and fail closed when it is not finite."""
+
+    try:
+        numeric = float(value)
+    except (TypeError, ValueError) as exc:
+        raise RuntimeError(f"{label} must be numeric") from exc
+    if not math.isfinite(numeric):
+        raise RuntimeError(f"{label} must be finite")
+    return numeric
+
+
+def _repo_relative_display_path(path: Path, *, project_root: Path) -> str:
+    """Return a stable repo-relative artifact path for emitted metadata."""
+
+    try:
+        return path.resolve().relative_to(project_root.resolve()).as_posix()
+    except ValueError:
+        return path.as_posix()
+
+
+def _load_companion_metrics(path: Path | None, *, project_root: Path) -> dict[str, Any] | None:
+    """Load an optional companion RAGAS artifact for informational reporting."""
+
+    if path is None:
+        return None
+    if not path.exists():
+        raise FileNotFoundError(f"Companion metrics JSON not found: {path}")
+
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(f"Companion metrics JSON is invalid: {path}") from exc
+
+    if not isinstance(payload, dict):
+        raise RuntimeError("Companion metrics JSON root must be an object")
+    expected_payload_keys = {"dataset_path", "sample_count", "report_only", "metrics"}
+    if set(payload) != expected_payload_keys:
+        raise RuntimeError(
+            "Companion metrics JSON must contain exactly: "
+            "dataset_path, sample_count, report_only, metrics"
+        )
+
+    dataset_path = str(payload.get("dataset_path") or "").strip()
+    if not dataset_path:
+        raise RuntimeError("Companion metrics JSON must contain a non-empty dataset_path")
+
+    sample_count = _safe_int(payload.get("sample_count"), default=-1)
+    if sample_count <= 0:
+        raise RuntimeError("Companion metrics JSON must contain a positive sample_count")
+
+    report_only = payload.get("report_only")
+    if report_only is not True:
+        raise RuntimeError("Companion metrics JSON must declare report_only=true")
+
+    metrics = payload.get("metrics")
+    if not isinstance(metrics, dict) or not metrics:
+        raise RuntimeError("Companion metrics JSON must contain a non-empty metrics object")
+    expected_metric_keys = {"faithfulness", "answer_relevancy", "context_precision"}
+    if set(metrics) != expected_metric_keys:
+        raise RuntimeError(
+            "Companion metrics JSON must contain exactly: "
+            "faithfulness, answer_relevancy, context_precision"
+        )
+
+    normalized_metrics: dict[str, float] = {}
+    for metric_name in ("faithfulness", "answer_relevancy", "context_precision"):
+        metric_value = _require_finite_metric(
+            metrics[metric_name],
+            label=f"companion metric '{metric_name}'",
+        )
+        if not 0.0 <= metric_value <= 1.0:
+            raise RuntimeError(f"companion metric '{metric_name}' must stay within [0, 1]")
+        normalized_metrics[metric_name] = metric_value
+
+    return {
+        "ragas": {
+            "source_path": _repo_relative_display_path(path, project_root=project_root),
+            "dataset_path": dataset_path,
+            "sample_count": sample_count,
+            "report_only": True,
+            "metrics": normalized_metrics,
+        }
+    }
+
+
+def _build_threshold_results(
+    retrieval_summary: dict[str, float],
+    faithfulness_summary: dict[str, float],
+    calibration_metrics: dict[str, float],
+    routing_summary: dict[str, float],
+    gate_checks: dict[str, bool],
+    *,
+    strict_violation_count: int,
+) -> list[dict[str, Any]]:
+    """Return deterministic threshold rows for reports and artifact summaries."""
+
+    return [
+        {
+            "gate_id": "gate_a_recall_at_effective_k",
+            "metric_key": "recall_at_effective_k",
+            "threshold_key": "recall_at_50",
+            "value": _json_safe_float(retrieval_summary["recall_at_effective_k"]),
+            "target": GATE_THRESHOLDS["recall_at_50"],
+            "comparison": "gte",
+            "passed": gate_checks["gate_a_recall_at_effective_k"],
+        },
+        {
+            "gate_id": "gate_b1_evidence_exact_match",
+            "metric_key": "evidence_exact_match_rate",
+            "threshold_key": "evidence_exact_match_rate",
+            "value": _json_safe_float(faithfulness_summary["evidence_exact_match_rate"]),
+            "target": GATE_THRESHOLDS["evidence_exact_match_rate"],
+            "comparison": "gte",
+            "passed": gate_checks["gate_b1_evidence_exact_match"],
+        },
+        {
+            "gate_id": "gate_b2_mean_nli_entailment",
+            "metric_key": "mean_nli_entailment",
+            "threshold_key": "mean_nli_entailment",
+            "value": _json_safe_float(faithfulness_summary["mean_nli_entailment"]),
+            "target": GATE_THRESHOLDS["mean_nli_entailment"],
+            "comparison": "gte",
+            "passed": gate_checks["gate_b2_mean_nli_entailment"],
+        },
+        {
+            "gate_id": "gate_b3_support_precision",
+            "metric_key": "support_precision",
+            "threshold_key": "support_precision",
+            "value": _json_safe_float(faithfulness_summary["support_precision"]),
+            "target": GATE_THRESHOLDS["support_precision"],
+            "comparison": "gte",
+            "passed": gate_checks["gate_b3_support_precision"],
+        },
+        {
+            "gate_id": "gate_c1_ece",
+            "metric_key": "ece",
+            "threshold_key": "ece",
+            "value": _json_safe_float(calibration_metrics["ece"]),
+            "target": GATE_THRESHOLDS["ece"],
+            "comparison": "lte",
+            "passed": gate_checks["gate_c1_ece"],
+        },
+        {
+            "gate_id": "gate_c2_escalation_corridor",
+            "metric_key": "escalation_rate",
+            "threshold_key": "escalation_corridor",
+            "value": _json_safe_float(routing_summary["escalation_rate"]),
+            "target": {
+                "min": GATE_THRESHOLDS["escalation_min"],
+                "max": GATE_THRESHOLDS["escalation_max"],
+            },
+            "comparison": "between_inclusive",
+            "passed": gate_checks["gate_c2_escalation_corridor"],
+        },
+        {
+            "gate_id": "gate_d1_no_runtime_mode_fallbacks",
+            "metric_key": "strict_violation_count",
+            "threshold_key": "strict_violation_count",
+            "value": strict_violation_count,
+            "target": 0,
+            "comparison": "eq",
+            "passed": gate_checks["gate_d1_no_runtime_mode_fallbacks"],
+        },
+    ]
+
+
+def _format_threshold_target(target: Any) -> str:
+    """Render threshold targets for Markdown tables."""
+
+    if isinstance(target, dict):
+        lower = target.get("min")
+        upper = target.get("max")
+        return f"{lower}..{upper}"
+    return str(target)
+
+
+def _format_threshold_value(value: Any) -> str:
+    """Render threshold values for Markdown tables."""
+
+    if value is None:
+        return "null"
+    return str(value)
 
 
 def _record_runtime_fallback(state: EvalRuntimeState, warning: str) -> None:
@@ -1534,6 +1726,7 @@ def build_metrics_summary(
     *,
     dataset_fallback_used: bool,
     dataset_path_used: str,
+    companion_metrics: dict[str, Any] | None = None,
 ) -> tuple[dict[str, Any], dict[str, bool], str]:
     """Build summary metrics, gate checks, and the release decision."""
 
@@ -1643,6 +1836,14 @@ def build_metrics_summary(
             not state.strict_violations if not state.config.allow_runtime_fallbacks else True
         ),
     }
+    threshold_results = _build_threshold_results(
+        retrieval_summary,
+        faithfulness_summary,
+        calibration_metrics,
+        routing_summary,
+        gate_checks,
+        strict_violation_count=len(state.strict_violations),
+    )
     release_decision = "PASS" if all(gate_checks.values()) else "NO-GO"
     metrics_summary = {
         "experiment_id": state.config.experiment_id,
@@ -1662,9 +1863,12 @@ def build_metrics_summary(
         "calibration": calibration_metrics,
         "routing": routing_summary,
         "thresholds": GATE_THRESHOLDS,
+        "threshold_results": threshold_results,
         "gate_checks": gate_checks,
         "release_decision": release_decision,
     }
+    if companion_metrics is not None:
+        metrics_summary["companion_metrics"] = companion_metrics
     return metrics_summary, gate_checks, release_decision
 
 
@@ -1676,6 +1880,7 @@ def build_gate_report_markdown(metrics_summary: dict[str, Any]) -> str:
     calibration = metrics_summary["calibration"]
     routing = metrics_summary["routing"]
     gate_checks = metrics_summary["gate_checks"]
+    threshold_results = metrics_summary.get("threshold_results", [])
     lines = [
         f"# PulsePlate RAG Release Gate Report — {metrics_summary['experiment_id']}",
         "",
@@ -1693,6 +1898,26 @@ def build_gate_report_markdown(metrics_summary: dict[str, Any]) -> str:
     lines.extend(
         f"- [{'x' if passed else ' '}] `{gate_name}`" for gate_name, passed in gate_checks.items()
     )
+    if threshold_results:
+        lines.extend(
+            [
+                "",
+                "## Threshold results",
+                "",
+                "Gate | Metric | Value | Target | Comparison | Passed",
+                "--- | --- | --- | --- | --- | ---",
+                *[
+                    (
+                        f"`{row['gate_id']}` | `{row['metric_key']}` | "
+                        f"`{_format_threshold_value(row['value'])}` | "
+                        f"`{_format_threshold_target(row['target'])}` | "
+                        f"`{row['comparison']}` | "
+                        f"`{row['passed']}`"
+                    )
+                    for row in threshold_results
+                ],
+            ],
+        )
     lines.extend(
         [
             "",
@@ -1709,6 +1934,26 @@ def build_gate_report_markdown(metrics_summary: dict[str, Any]) -> str:
             *[f"- `{key}`: `{value}`" for key, value in routing.items()],
         ],
     )
+    companion_metrics = metrics_summary.get("companion_metrics", {})
+    ragas_metrics = companion_metrics.get("ragas") if isinstance(companion_metrics, dict) else None
+    if isinstance(ragas_metrics, dict):
+        lines.extend(
+            [
+                "",
+                "## Companion RAGAS metrics",
+                f"- Source path: `{ragas_metrics['source_path']}`",
+                f"- Dataset path: `{ragas_metrics['dataset_path']}`",
+                f"- Sample count: `{ragas_metrics['sample_count']}`",
+                f"- Report only: `{ragas_metrics['report_only']}`",
+                "",
+                "Metric | Score",
+                "--- | ---:",
+                *[
+                    f"`{metric_name}` | `{metric_value}`"
+                    for metric_name, metric_value in ragas_metrics["metrics"].items()
+                ],
+            ],
+        )
     if metrics_summary["runtime_warnings"]:
         lines.extend(
             [
@@ -1929,21 +2174,46 @@ def _write_github_step_summary(metrics_summary: dict[str, Any], artifacts: dict[
         f"- Retriever mode: `{metrics_summary['retriever_mode']}`",
         f"- Generator mode: `{metrics_summary['generator_mode']}`",
         "",
-        "### Metrics",
-        f"- `recall_at_50`: `{metrics_summary['retrieval']['recall_at_50']}`",
-        (
-            "- `evidence_exact_match_rate`: "
-            f"`{metrics_summary['faithfulness']['evidence_exact_match_rate']}`"
-        ),
-        ("- `mean_nli_entailment`: " f"`{metrics_summary['faithfulness']['mean_nli_entailment']}`"),
-        ("- `support_precision`: " f"`{metrics_summary['faithfulness']['support_precision']}`"),
-        f"- `ece`: `{metrics_summary['calibration']['ece']}`",
-        "",
         "### Artifacts",
         f"- Gate report: `{artifacts['gate_report']}`",
         f"- Metrics summary: `{artifacts['metrics_summary']}`",
         f"- Traces: `{artifacts['traces_jsonl']}`",
     ]
+    threshold_results = metrics_summary.get("threshold_results", [])
+    if threshold_results:
+        summary_lines[6:6] = [
+            "### Threshold results",
+            "",
+            "Gate | Value | Target | Comparison | Passed",
+            "--- | --- | --- | --- | ---",
+            *[
+                (
+                    f"`{row['gate_id']}` | "
+                    f"`{_format_threshold_value(row['value'])}` | "
+                    f"`{_format_threshold_target(row['target'])}` | "
+                    f"`{row['comparison']}` | "
+                    f"`{row['passed']}`"
+                )
+                for row in threshold_results
+            ],
+            "",
+        ]
+    companion_metrics = metrics_summary.get("companion_metrics", {})
+    ragas_metrics = companion_metrics.get("ragas") if isinstance(companion_metrics, dict) else None
+    if isinstance(ragas_metrics, dict):
+        summary_lines.extend(
+            [
+                "",
+                "### Companion RAGAS metrics",
+                f"- Source path: `{ragas_metrics['source_path']}`",
+                f"- Sample count: `{ragas_metrics['sample_count']}`",
+                f"- Report only: `{ragas_metrics['report_only']}`",
+                *[
+                    f"- `{metric_name}`: `{metric_value}`"
+                    for metric_name, metric_value in ragas_metrics["metrics"].items()
+                ],
+            ],
+        )
     with Path(summary_path).open("a", encoding="utf-8") as handle:
         handle.write("\n".join(summary_lines) + "\n")
 
@@ -2041,6 +2311,12 @@ def build_config(args: argparse.Namespace) -> EvalConfig:
         args.artifact_root or os.getenv("PULSEPLATE_RAG_EVAL_ARTIFACT_ROOT", DEFAULT_ARTIFACT_ROOT),
     )
     notebook_path = _resolve_path(args.notebook_path or DEFAULT_NOTEBOOK_PATH)
+    companion_metrics_json_raw = getattr(args, "companion_metrics_json", None) or os.getenv(
+        "PULSEPLATE_RAG_COMPANION_METRICS_JSON"
+    )
+    companion_metrics_json = (
+        _resolve_path(companion_metrics_json_raw) if companion_metrics_json_raw else None
+    )
     experiment_id = sanitize_experiment_id(
         args.experiment_id
         or os.getenv(
@@ -2050,6 +2326,12 @@ def build_config(args: argparse.Namespace) -> EvalConfig:
     )
     _ensure_within(input_path, project_root, label="input_path")
     _ensure_within(artifact_root, project_root / "artifacts", label="artifact_root")
+    if companion_metrics_json is not None:
+        _ensure_within(
+            companion_metrics_json,
+            project_root / "artifacts" / "rag_eval",
+            label="companion_metrics_json",
+        )
     sample_size = _require_positive_int(
         _safe_int(
             args.sample_size or os.getenv("PULSEPLATE_RAG_EVAL_SAMPLE_SIZE", "500"),
@@ -2086,6 +2368,7 @@ def build_config(args: argparse.Namespace) -> EvalConfig:
             args.nli_model_name or os.getenv("NLI_MODEL_NAME", "roberta-large-mnli")
         ).strip(),
         notebook_path=notebook_path,
+        companion_metrics_json=companion_metrics_json,
         require_pass=bool(args.require_pass),
         allow_dataset_fallback=not bool(args.disallow_dataset_fallback),
         allow_runtime_fallbacks=not bool(args.disallow_runtime_fallbacks),
@@ -2117,6 +2400,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--nli-model-name")
     parser.add_argument("--notebook-path")
     parser.add_argument(
+        "--companion-metrics-json",
+        help="Optional informational companion metrics JSON emitted by evals/ragas.",
+    )
+    parser.add_argument(
         "--require-pass",
         action="store_true",
         help="Exit non-zero when the release decision is NO-GO.",
@@ -2138,6 +2425,10 @@ async def async_main(args: argparse.Namespace) -> int:
     """Execute the release-gates run."""
 
     config = build_config(args)
+    companion_metrics = _load_companion_metrics(
+        config.companion_metrics_json,
+        project_root=config.project_root,
+    )
     imports = load_pulseplate_imports()
     state = EvalRuntimeState(config=config, pulseplate_imports=imports)
     rows, dataset_fallback_used, dataset_path_used = load_eval_input(
@@ -2154,6 +2445,7 @@ async def async_main(args: argparse.Namespace) -> int:
         calibration_metrics,
         dataset_fallback_used=dataset_fallback_used,
         dataset_path_used=dataset_path_used,
+        companion_metrics=companion_metrics,
     )
     run_dir = config.artifact_root / config.experiment_id
     artifacts = write_artifacts(
