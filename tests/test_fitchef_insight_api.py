@@ -18,6 +18,8 @@ from fastapi.testclient import TestClient
 
 from app.middleware.api_tiers import TEST_KEY_VIP
 from app.schemas.fitchef import (
+    FitChefCoachInsightInput,
+    FitChefCoachInsightTaskEnvelope,
     FitChefMascotInsightInput,
     FitChefMascotInsightResult,
     FitChefMascotInsightTaskEnvelope,
@@ -57,6 +59,20 @@ def _make_rag_context(
         confidence=confidence,
         hops=1,
         latency_ms=10,
+    )
+
+
+def _make_coach_insight_task() -> FitChefCoachInsightTaskEnvelope:
+    """Create deterministic CBT coach-insight task envelope for runtime tests."""
+
+    return FitChefCoachInsightTaskEnvelope(
+        mode="auto-safe",
+        input=FitChefCoachInsightInput(
+            safe_query="Need help with spiraling thoughts",
+            api_key=TEST_KEY_VIP,
+            endpoint="/api/v1/pro/cbt/insight",
+            method="POST",
+        ),
     )
 
 
@@ -2284,6 +2300,138 @@ async def test_fitchef_text_tasks_use_task_specific_draft_builder(
 
     assert result.message == expected_message
     assert draft_calls == expected_calls
+
+
+class TestFitChefCoachInsightRuntimeCoverage:
+    """Targeted runtime tests for CBT provider dispatch branches."""
+
+    @staticmethod
+    def _patch_shared_runtime_dependencies(monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(
+            "app.services.fitchef_runtime.get_transparency_registry",
+            lambda: {
+                "ai_generated_insight": {
+                    "surface_id": "ai_generated_insight",
+                    "boundary": "Wellness coaching only.",
+                }
+            },
+        )
+        monkeypatch.setattr(
+            "app.services.fitchef_runtime._persist_privileged_action_audit",
+            lambda **kwargs: None,
+        )
+        monkeypatch.setattr(
+            "core.rag.vector_rag.retrieve_context_structured",
+            lambda *args, **kwargs: _make_rag_context(),
+        )
+        monkeypatch.setattr(
+            "app.services.fitchef_runtime.attempt_consume_llm_monthly_quota",
+            lambda *args, **kwargs: True,
+        )
+
+    @pytest.mark.asyncio
+    async def test_runtime_sync_provider_returns_string(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Sync provider.generate should work through the shared CBT runtime."""
+
+        from app.services import fitchef_runtime
+
+        self._patch_shared_runtime_dependencies(monkeypatch)
+
+        class _SyncProvider:
+            name = "sync-provider"
+
+            def generate(self, prompt: str) -> str:
+                assert "Need help with spiraling thoughts" in prompt
+                return "Steady CBT support"
+
+        monkeypatch.setattr("llm.get_provider", lambda: _SyncProvider())
+
+        result = await fitchef_runtime.run_coach_insight_task(_make_coach_insight_task())
+
+        assert result.insight == "Steady CBT support"
+        assert result.quota_state == "consumed"
+
+    @pytest.mark.asyncio
+    async def test_runtime_async_provider_returns_string(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Async provider.generate should be awaited directly."""
+
+        from app.services import fitchef_runtime
+
+        self._patch_shared_runtime_dependencies(monkeypatch)
+
+        class _AsyncProvider:
+            name = "async-provider"
+
+            async def generate(self, prompt: str) -> str:
+                assert "Need help with spiraling thoughts" in prompt
+                return "Async CBT support"
+
+        monkeypatch.setattr("llm.get_provider", lambda: _AsyncProvider())
+
+        result = await fitchef_runtime.run_coach_insight_task(_make_coach_insight_task())
+
+        assert result.insight == "Async CBT support"
+        assert result.quota_state == "consumed"
+
+    @pytest.mark.asyncio
+    async def test_runtime_sync_provider_returning_coroutine_returns_string(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Sync provider.generate may still return a coroutine object."""
+
+        from app.services import fitchef_runtime
+
+        self._patch_shared_runtime_dependencies(monkeypatch)
+
+        async def _payload() -> str:
+            return "Coroutine CBT support"
+
+        class _CoroutineProvider:
+            name = "coroutine-provider"
+
+            def generate(self, prompt: str) -> object:
+                assert "Need help with spiraling thoughts" in prompt
+                return _payload()
+
+        monkeypatch.setattr("llm.get_provider", lambda: _CoroutineProvider())
+
+        result = await fitchef_runtime.run_coach_insight_task(_make_coach_insight_task())
+
+        assert result.insight == "Coroutine CBT support"
+        assert result.quota_state == "consumed"
+
+    @pytest.mark.asyncio
+    async def test_runtime_non_string_provider_payload_fails_closed(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Non-string payloads must preserve the stable CBT 503 contract."""
+
+        from app.services import fitchef_runtime
+
+        self._patch_shared_runtime_dependencies(monkeypatch)
+
+        class _BadProvider:
+            name = "bad-provider"
+
+            def generate(self, prompt: str) -> object:
+                assert "Need help with spiraling thoughts" in prompt
+                return {"message": "not-a-string"}
+
+        monkeypatch.setattr("llm.get_provider", lambda: _BadProvider())
+
+        with pytest.raises(HTTPException) as exc_info:
+            await fitchef_runtime.run_coach_insight_task(_make_coach_insight_task())
+
+        assert exc_info.value.status_code == 503
+        assert exc_info.value.detail == "Failed to generate CBT insight"
 
 
 def test_prepare_mascot_draft_preserves_bulleted_action_items() -> None:
