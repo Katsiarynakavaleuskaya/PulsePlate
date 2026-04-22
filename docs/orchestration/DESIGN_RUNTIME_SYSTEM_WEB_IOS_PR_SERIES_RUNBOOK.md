@@ -84,7 +84,8 @@ handoff or supersede decision.
 
 ## Design Source Precedence
 
-The full source-precedence ladder for this series is fixed as:
+The full source-precedence ladder for this series is fixed as a general
+governance ladder:
 
 1. `repo/docs/tests/code`
 2. code-native design runtime
@@ -95,6 +96,11 @@ The full source-precedence ladder for this series is fixed as:
 
 Hard rules:
 - `/tokens` remains the canonical authoring source for design tokens.
+- For design-token conflicts, `/tokens` authoring plus
+  `frontend/src/styles/tokens.css` as the web runtime token SoT override
+  code-native design runtime, `Figma Design + Code Connect`, Storybook
+  review-only surfaces, and external/reference tools even though the general
+  governance ladder still lists those lanes separately.
 - `frontend/src/styles/tokens.css` remains the web runtime token SoT.
 - `frontend/src/styles/tokens.ts` is a typed mirror and loses on conflict.
 - `ios/PulsePlate/DesignSystem/DesignTokens.generated.swift` and
@@ -322,7 +328,7 @@ Expected result: empty output.
 Before any merge-ready claim:
 - current-head checks only
 - zero unresolved review threads
-- canonical review artifact up to date
+- canonical review artifact up-to-date
 - PR body mirror aligned after artifact updates
 - strict merge wrapper passes
 
