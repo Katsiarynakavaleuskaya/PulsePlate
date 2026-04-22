@@ -26,7 +26,7 @@ surfaces.
       `10:38:21Z`
     - `test-main (3.13, 90)` job `72483372298` remained inside the same step
       until the run cancellation; that path is already sequential by policy
-  - `Nightly Full Tests` run `24760590280` completed `success`, so nightly is
+  - `Nightly Full Tests` run `24760590280` completed with status `success`, so nightly is
     not the default target for this lane
 - Current-head nuance:
   - exact historical GitHub run URL carrying the retained `gw1 node down`

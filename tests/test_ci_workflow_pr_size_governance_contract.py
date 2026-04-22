@@ -48,6 +48,21 @@ def _assert_contains_all_tokens(expression: str, expected_tokens: tuple[str, ...
         assert token in expression
 
 
+def _extract_shell_conditional_block(
+    script_text: str,
+    branch_marker: str,
+    next_marker: str,
+) -> str:
+    """Return the shell branch body between two explicit workflow markers."""
+
+    start_anchor = f"{branch_marker}\n"
+    end_anchor = f"\n{next_marker}"
+    assert start_anchor in script_text, f"Missing shell branch marker: {branch_marker}"
+    branch_tail = script_text.split(start_anchor, maxsplit=1)[1]
+    assert end_anchor in branch_tail, f"Missing shell branch boundary after {branch_marker}"
+    return branch_tail.split(end_anchor, maxsplit=1)[0]
+
+
 def test_pr_size_governance_uses_pull_request_head_sha() -> None:
     """Guard against merge-SHA inflation in PR-size governance diff calculation."""
 
@@ -204,8 +219,30 @@ def test_main_branch_xdist_fallback_stays_scoped_to_unstable_interpreters() -> N
     workflow_text = CI_WORKFLOW_PATH.read_text(encoding="utf-8")
     test_main_section = _extract_job_section(workflow_text, "  test-main:")
 
-    assert 'if [[ "$PYVER" == 3.13* ]]; then' in test_main_section
-    assert 'elif [[ "$PYVER" == 3.12* ]]; then' in test_main_section
-    assert "PYTEST_XDIST_ARGS=(-p no:xdist)" in test_main_section
-    assert "PYTEST_XDIST_ARGS=(-n 2 --dist=loadscope)" in test_main_section
-    assert "PYTEST_XDIST_ARGS=(-n 4 --dist=loadscope)" in test_main_section
+    py313_block = _extract_shell_conditional_block(
+        test_main_section,
+        'if [[ "$PYVER" == 3.13* ]]; then',
+        '          elif [[ "$PYVER" == 3.12* ]]; then',
+    )
+    py312_block = _extract_shell_conditional_block(
+        test_main_section,
+        '          elif [[ "$PYVER" == 3.12* ]]; then',
+        "          else",
+    )
+    default_block = _extract_shell_conditional_block(
+        test_main_section,
+        "          else",
+        "          fi",
+    )
+
+    assert "PYTEST_XDIST_ARGS=(-p no:xdist)" in py313_block
+    assert "PYTEST_XDIST_ARGS=(-n 2 --dist=loadscope)" not in py313_block
+    assert "PYTEST_XDIST_ARGS=(-n 4 --dist=loadscope)" not in py313_block
+
+    assert "PYTEST_XDIST_ARGS=(-n 2 --dist=loadscope)" in py312_block
+    assert "PYTEST_XDIST_ARGS=(-p no:xdist)" not in py312_block
+    assert "PYTEST_XDIST_ARGS=(-n 4 --dist=loadscope)" not in py312_block
+
+    assert "PYTEST_XDIST_ARGS=(-n 4 --dist=loadscope)" in default_block
+    assert "PYTEST_XDIST_ARGS=(-p no:xdist)" not in default_block
+    assert "PYTEST_XDIST_ARGS=(-n 2 --dist=loadscope)" not in default_block
