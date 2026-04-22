@@ -23,6 +23,7 @@ def _alert(*, first_patched_version: str | None) -> dict[str, object]:
 
 def test_evaluate_guard_state_allows_blocked_upstream_with_exception() -> None:
     pins = {
+        "requirements-docker-runtime.txt": "2.19.2",
         "requirements.txt": "2.19.2",
         "requirements-ci-lite.txt": "2.19.2",
         "requirements-dev.txt": "2.19.2",
@@ -42,6 +43,7 @@ def test_evaluate_guard_state_allows_blocked_upstream_with_exception() -> None:
 
 def test_evaluate_guard_state_fails_when_patch_exists_and_exception_remains() -> None:
     pins = {
+        "requirements-docker-runtime.txt": "2.19.2",
         "requirements.txt": "2.19.2",
         "requirements-ci-lite.txt": "2.19.2",
         "requirements-dev.txt": "2.19.2",
@@ -64,6 +66,7 @@ def test_evaluate_guard_state_fails_when_patch_exists_and_exception_remains() ->
 
 def test_evaluate_guard_state_fails_when_alerts_disappear_but_exception_remains() -> None:
     pins = {
+        "requirements-docker-runtime.txt": "2.19.2",
         "requirements.txt": "2.19.2",
         "requirements-ci-lite.txt": "2.19.2",
         "requirements-dev.txt": "2.19.2",
@@ -86,6 +89,7 @@ def test_evaluate_guard_state_fails_when_alerts_disappear_but_exception_remains(
 
 def test_evaluate_guard_state_ignores_unrelated_alerts() -> None:
     pins = {
+        "requirements-docker-runtime.txt": "2.19.2",
         "requirements.txt": "2.19.2",
         "requirements-ci-lite.txt": "2.19.2",
         "requirements-dev.txt": "2.19.2",
@@ -113,6 +117,7 @@ def test_evaluate_guard_state_ignores_unrelated_alerts() -> None:
 
 def test_evaluate_guard_state_allows_unreadable_alert_endpoint_while_unpatched() -> None:
     pins = {
+        "requirements-docker-runtime.txt": "2.19.2",
         "requirements.txt": "2.19.2",
         "requirements-ci-lite.txt": "2.19.2",
         "requirements-dev.txt": "2.19.2",
@@ -132,6 +137,7 @@ def test_evaluate_guard_state_allows_unreadable_alert_endpoint_while_unpatched()
 
 def test_evaluate_guard_state_fails_when_public_advisory_reports_patch() -> None:
     pins = {
+        "requirements-docker-runtime.txt": "2.19.2",
         "requirements.txt": "2.19.2",
         "requirements-ci-lite.txt": "2.19.2",
         "requirements-dev.txt": "2.19.2",
@@ -154,6 +160,7 @@ def test_evaluate_guard_state_fails_when_public_advisory_reports_patch() -> None
 
 def test_evaluate_guard_state_flags_versions_below_patched_floor() -> None:
     pins = {
+        "requirements-docker-runtime.txt": "2.19.1",
         "requirements.txt": "2.19.1",
         "requirements-ci-lite.txt": "2.19.3",
         "requirements-dev.txt": "2.19.3",
@@ -175,6 +182,7 @@ def test_evaluate_guard_state_flags_versions_below_patched_floor() -> None:
 
 def test_evaluate_guard_state_flags_requirements_test_only_regression() -> None:
     pins = {
+        "requirements-docker-runtime.txt": "2.19.3",
         "requirements.txt": "2.19.3",
         "requirements-ci-lite.txt": "2.19.3",
         "requirements-dev.txt": "2.19.3",
@@ -198,6 +206,7 @@ def test_evaluate_guard_state_flags_requirements_test_only_regression() -> None:
 
 def test_evaluate_guard_state_treats_equivalent_release_tuples_as_equal() -> None:
     pins = {
+        "requirements-docker-runtime.txt": "2.19.0",
         "requirements.txt": "2.19",
         "requirements-ci-lite.txt": "2.19.0",
         "requirements-dev.txt": "2.19.0",

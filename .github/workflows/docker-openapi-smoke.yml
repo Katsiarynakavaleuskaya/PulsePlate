@@ -65,7 +65,7 @@ jobs:
           build-args: |
             PULSEPLATE_PYTHON_INDEX_URL=${{ env.PULSEPLATE_PYTHON_INDEX_URL }}
             PULSEPLATE_PYTHON_TRUSTED_HOST=${{ env.PULSEPLATE_PYTHON_TRUSTED_HOST }}
-            PULSEPLATE_REQUIREMENTS_FILE=requirements-ci-lite.txt
+            PULSEPLATE_REQUIREMENTS_FILE=requirements-docker-runtime.txt
           platforms: linux/amd64
           push: false
           load: true
@@ -78,6 +78,13 @@ jobs:
           # without a separate push-based job — see docs/architecture/ADR_DOCKER_BUILD_PROVENANCE_WORKAROUND_2026-03-01.md.
           provenance: false
           target: production
+
+      - name: Check Docker runtime dependency surface
+        run: |
+          set -euo pipefail
+          python3 scripts/ci/check_docker_runtime_dependency_surface.py \
+            --image pulseplate-smoke:${{ github.sha }} \
+            --output-json docker-runtime-dependency-surface.json
 
       - name: Run container
         run: |

@@ -12,6 +12,9 @@ if ! command -v pip-audit >/dev/null 2>&1; then
 fi
 
 manifests=("requirements.txt")
+if [[ -f "requirements-docker-runtime.txt" ]]; then
+  manifests+=("requirements-docker-runtime.txt")
+fi
 if [[ -f "requirements-rag-vector.txt" ]]; then
   manifests+=("requirements-rag-vector.txt")
 fi

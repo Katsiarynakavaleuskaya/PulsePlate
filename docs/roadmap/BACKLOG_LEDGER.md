@@ -617,6 +617,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Priority: P1
   - Target PR: PR-TBD-DOCKER-RUNTIME-SLIMMING
   - Area: docker / runtime / supply-chain
+  - Status note: Active after `PR #1488` merged on April 21, 2026 and reconciled the split deploy contract. This slice now standardizes production-target Docker builds on a dedicated runtime manifest and keeps image-budget telemetry plus shared Safety audit extraction deferred to later PRs.
   - Depends on:
     - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-ci-install-profile-split-after-disk-unblock`
     - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-docker-deploy-contract-reconciliation`
@@ -624,11 +625,14 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Links:
     - `docs/orchestration/DOCKER_CI_DISCIPLINE_PR_SERIES_PACKET_2026-04-16.md`
     - `Dockerfile`
+    - `requirements-docker-runtime.in`
+    - `requirements-docker-runtime.txt`
     - `frontend/Dockerfile.caddy-spa`
     - `.dockerignore`
     - `frontend/.dockerignore`
   - DoD:
     - No builder-only tooling leaks into runtime images
+    - Production-target Docker workflows use `requirements-docker-runtime.txt` instead of `requirements-ci-lite.txt`
     - Docker `COPY` scope stays narrow and does not widen build context
     - Production backend build still serves `app.main:app`
     - Supply-chain guardrails and proxy install contract remain intact

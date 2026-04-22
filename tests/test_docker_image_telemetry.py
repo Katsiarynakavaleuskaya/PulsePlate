@@ -16,7 +16,7 @@ def _write_context_files(tmp_path: Path) -> tuple[Path, Path]:
         "\n".join(
             [
                 "FROM python:3.13-slim AS builder",
-                "COPY requirements.txt requirements-ci-lite.txt constraints.txt ./",
+                "COPY requirements.txt requirements-ci-lite.txt requirements-docker-runtime.txt constraints.txt ./",
                 "COPY --chown=pulseplate:pulseplate app/ ./app/",
                 "COPY --from=builder /opt/venv /opt/venv",
             ]
@@ -30,6 +30,7 @@ def _write_context_files(tmp_path: Path) -> tuple[Path, Path]:
                 "!Dockerfile",
                 "!requirements.txt",
                 "!requirements-ci-lite.txt",
+                "!requirements-docker-runtime.txt",
                 "!constraints.txt",
                 "!scripts/",
                 "!scripts/ci/",
@@ -173,6 +174,7 @@ def test_collect_telemetry_without_baseline_is_warning_only(
     assert report.build_context.copy_inputs == (
         "requirements.txt",
         "requirements-ci-lite.txt",
+        "requirements-docker-runtime.txt",
         "constraints.txt",
         "app/",
     )

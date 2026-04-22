@@ -25,6 +25,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 ADVISORY_ID = "GHSA-5239-wwwm-4pmq"
 PACKAGE_NAME = "pygments"
 TRACKED_REQUIREMENTS = (
+    "requirements-docker-runtime.txt",
     "requirements.txt",
     "requirements-ci-lite.txt",
     "requirements-dev.txt",
