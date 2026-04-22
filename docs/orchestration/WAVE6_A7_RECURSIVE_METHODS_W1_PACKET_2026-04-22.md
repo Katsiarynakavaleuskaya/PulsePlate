@@ -25,21 +25,28 @@ This packet exists to:
 
 - `core/rag/recursive_retrieval.py` already contains deterministic recursive
   retrieval with bounded hops, refinement passes, verification passes, timeout
-  budget, and request-local optimization diagnostics.
+  budget, and request-local optimization diagnostics
+  (`core/rag/recursive_retrieval.py:74-85`, `core/rag/recursive_retrieval.py:338-510`).
 - `core/rag/orchestration.py` already owns the bounded recursive handoff into
   validated chunks, degraded reasons, recursive execution metadata, and
-  canonical `VerificationBundle` assembly.
+  canonical `VerificationBundle` assembly
+  (`core/rag/orchestration.py:254-380`, `core/rag/orchestration.py:526-572`).
 - `core/insight/philosophical_runtime.py` already consumes recursive execution
   metadata and exposes recursive-path reason codes through existing runtime
-  metadata fields.
+  metadata fields
+  (`core/insight/philosophical_runtime.py:193-202`, `core/insight/philosophical_runtime.py:530-587`, `core/insight/philosophical_runtime.py:774-792`).
 - `app/services/insight_application_service.py` and
   `app/services/insight_runtime.py` already own the thin application handoff
-  and feature-flag seams and must stay that way.
+  and feature-flag seams and must stay that way
+  (`app/services/insight_application_service.py:145-210`, `app/services/insight_runtime.py:74-104`, `app/services/insight_runtime.py:138-218`).
 - `PR-V1` already landed the verification registry and canonical
-  verify-before-write admission contract through the recursive/RAG path.
+  verify-before-write admission contract through the recursive/RAG path
+  (`core/verification/registry.py:232-360`, `core/knowledge/promotion.py:23-45`).
 - `PR-A6` already reconciled the philosophy rollout seam; recursive W1 must
-  build on that merged runtime shape instead of reopening it.
-- Semantic cache remains deferred and must not be widened by this lane.
+  build on that merged runtime shape instead of reopening it
+  (`core/ai/insight_runtime.py:173-231`, `core/insight/philosophical_runtime.py:395-415`).
+- Semantic cache remains deferred and must not be widened by this lane
+  (`docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md:5-27`, `docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md:665-677`).
 
 ## Hard boundaries
 
@@ -72,9 +79,9 @@ This packet exists to:
 
 ### Canonical planning evidence
 
-- `docs/orchestration/WAVE6_A7_TASK_ANALYSIS_2026-04-22.md`
-- `docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md`
-- `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-recursive-methods`
+- `docs/orchestration/WAVE6_A7_TASK_ANALYSIS_2026-04-22.md:5-93`
+- `docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md:665-677`
+- `docs/roadmap/BACKLOG_LEDGER.md:2097-2115`
 
 ## Required invariants
 

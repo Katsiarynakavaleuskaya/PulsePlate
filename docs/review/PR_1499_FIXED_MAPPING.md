@@ -29,7 +29,8 @@ Merge-readiness contract:
 - [ ] Required checks complete (no pending jobs)
 - [ ] All review threads resolved on GitHub after disposition updates
 - [ ] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
-- [x] Pre-commit green on latest pushed head
-  Evidence: `pre-commit run --all-files` passed locally before opening the PR.
-- [x] `make verify` green on latest pushed head
-  Evidence: `make verify` passed locally on branch head `3aa83b33779863e1c07d896e5398ee2a15388b49` before opening the PR.
+- [ ] After latest bot/review activity, perform a final check and wait at least one review cycle before merging
+- [ ] Pre-commit green on latest pushed head
+  Most recent local proof: `pre-commit run --all-files` passed before pushing head `894dd6e9b8066fb5e8522931cae69233f9f39f8d`; final merge-cycle reconfirmation is still pending.
+- [ ] `make verify` green on latest pushed head
+  Most recent local proof: `make verify` passed earlier on branch head `3aa83b33779863e1c07d896e5398ee2a15388b49`; final merge-cycle reconfirmation is still pending.

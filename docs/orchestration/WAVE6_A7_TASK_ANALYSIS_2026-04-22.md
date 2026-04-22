@@ -54,6 +54,21 @@ provider-side chain-of-thought, or public/API contract drift.
 5. Keep semantic cache, recursive learning, provider-side reasoning expansion,
    and broader experimentation claims out of scope.
 
+**Evidence / Current-head anchors:**
+- Deterministic recursive retrieval and bounded verification path:
+  `core/rag/recursive_retrieval.py:338-510`
+- Orchestration/runtime handoff plus `VerificationBundle` assembly:
+  `core/rag/orchestration.py:254-380`, `core/rag/orchestration.py:526-572`
+- Prepared recursive rollout authority seam:
+  `core/ai/insight_runtime.py:47-75`, `core/ai/insight_runtime.py:173-231`
+- Thin application/runtime feature-flag handoff:
+  `app/services/insight_application_service.py:145-210`,
+  `app/services/insight_runtime.py:74-104`,
+  `app/services/insight_runtime.py:138-218`
+- Deferred semantic-cache boundary:
+  `docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md:5-27`,
+  `docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md:665-677`
+
 **Agent Assignment:**
 - **Primary:** `agent-coordinator` - owns scope, role order, synthesis, and DoD.
 - **Secondary:** `architecture-specialist` - enforces bounded recursive seams and anti-drift review.

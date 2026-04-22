@@ -1337,6 +1337,40 @@ class TestInsightApplicationServiceFastLane:
         assert observed["feature_flags"]["rag_recursive_optimization"] is False
         assert observed["runtime_kwargs"]["recursive_rag_enabled"] is True
 
+    def test_insight_feature_flag_state_prefers_prepared_rag_truth_when_use_rag_omitted(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Prepared recursive policy must also own the base RAG snapshot when injected."""
+
+        from app.services.insight_runtime import insight_feature_flag_state
+        from core.ai.insight_runtime import RecursiveRolloutPolicy
+
+        monkeypatch.setenv("FEATURE_RAG", "false")
+        monkeypatch.setattr(
+            "app.services.insight_runtime.is_recursive_rag_enabled",
+            lambda: pytest.fail("recursive env reader must not run"),
+            raising=True,
+        )
+        monkeypatch.setattr(
+            "app.services.insight_runtime.is_recursive_rag_optimization_enabled",
+            lambda: pytest.fail("optimization env reader must not run"),
+            raising=True,
+        )
+
+        feature_flags = insight_feature_flag_state(
+            use_rag=None,
+            recursive_rollout_policy=RecursiveRolloutPolicy(
+                use_rag=True,
+                recursive_rag_enabled=True,
+                recursive_rag_optimization_enabled=False,
+            ),
+        )
+
+        assert feature_flags["rag"] is True
+        assert feature_flags["rag_recursive"] is True
+        assert feature_flags["rag_recursive_optimization"] is False
+
     @pytest.mark.asyncio
     async def test_maybe_promote_knowledge_candidates_times_out_sync_store(
         self,

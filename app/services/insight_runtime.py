@@ -78,7 +78,12 @@ def insight_feature_flag_state(
 ) -> dict[str, bool]:
     """Return deterministic feature-flag snapshot for insight tracing."""
 
-    rag_enabled = _is_truthy(os.getenv("FEATURE_RAG", "false")) if use_rag is None else use_rag
+    if use_rag is not None:
+        rag_enabled = use_rag
+    elif recursive_rollout_policy is not None:
+        rag_enabled = recursive_rollout_policy.use_rag
+    else:
+        rag_enabled = _is_truthy(os.getenv("FEATURE_RAG", "false"))
     recursive_enabled = (
         is_recursive_rag_enabled()
         if recursive_rollout_policy is None
