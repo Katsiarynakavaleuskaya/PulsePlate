@@ -24,6 +24,24 @@ Scope: `docs/orchestration/**`
   - mandatory post-open lane: `qa-engineer-agent -> bug-hunter`
   - canonical packet:
     - [`docs/orchestration/DESIGN_BRIDGE_OPERATIONALIZATION_PACKET_2026-04-11.md`](./DESIGN_BRIDGE_OPERATIONALIZATION_PACKET_2026-04-11.md)
+- For the design runtime system web+iOS PR series:
+  - primary: `agent-coordinator`
+  - execution order:
+    - `creative-designer`
+    - `frontend-engineer`
+  - advisory: `cursor-specialist-agent`
+  - reviewer: `architecture-specialist`
+  - mandatory post-open lane: `qa-engineer-agent -> bug-hunter`
+  - invariants:
+    - `PR-0` is docs-only governance and must not widen runtime/API/UI behavior
+    - the lane stays downstream of merged design-runtime, design-bridge, and
+      UI-epic baselines
+    - overlapping `Home`, `Plate`, `Progress`, `Weekly Plan`, `Profile`, and
+      `Paywall` ownership requires an explicit handoff or supersede record
+      before later slices claim those surfaces
+  - canonical packet/runbook:
+    - [`docs/orchestration/DESIGN_RUNTIME_SYSTEM_WEB_IOS_PR0_BOOTSTRAP_PACKET_2026-04-22.md`](./DESIGN_RUNTIME_SYSTEM_WEB_IOS_PR0_BOOTSTRAP_PACKET_2026-04-22.md)
+    - [`docs/orchestration/DESIGN_RUNTIME_SYSTEM_WEB_IOS_PR_SERIES_RUNBOOK.md`](./DESIGN_RUNTIME_SYSTEM_WEB_IOS_PR_SERIES_RUNBOOK.md)
 - For the Tier 1 CI/CD consolidation wave:
   - primary: `agent-coordinator`
   - secondary: `backend-engineer`

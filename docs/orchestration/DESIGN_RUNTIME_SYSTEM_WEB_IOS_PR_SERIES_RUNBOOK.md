@@ -21,6 +21,10 @@ design-system productization gaps without creating a second source of truth,
 without widening backend/UI contracts, and without consuming reserved future
 design-agent slots.
 
+Overlapping product surfaces already sequenced by the post-bridge UI epic stay
+owned by that lane unless a later packet or ledger update records an explicit
+handoff or supersede decision.
+
 ## Contract Boundaries
 
 ### IN
@@ -31,8 +35,10 @@ design-agent slots.
 - governed missing primitive completion for web runtime slices
 - normalization of specialized-existing families into shared governed patterns
 - product-token expansion through `/tokens -> generated runtime mirrors`
-- bounded web shell convergence on governed tokens and primitives
-- bounded iOS adoption on generated tokens and shared design grammar
+- bounded web shell convergence on governed tokens and primitives after any
+  overlapping UI-epic ownership is explicitly transferred
+- bounded iOS adoption on generated tokens and shared design grammar after any
+  overlapping UI-epic ownership is explicitly transferred
 - accessibility / state / motion contract work for critical web+iOS flows
 - future export-lock hardening for `docs/design/figma-manifest.json`
 - future Storybook parity expansion as a review surface only
@@ -47,6 +53,9 @@ design-agent slots.
 - Cloudflare preview or deploy as merge truth
 - Liquid Glass migration claims
 - new `/api/v1/ui/state` or any second backend UI rail
+- reopening or overtaking UI-epic-owned `Home`, `Plate`, `Progress`,
+  `Weekly Plan`, `Profile`, or `Paywall` surfaces without an explicit
+  handoff/supersede packet
 - implementation work for later PR slices hidden inside `PR-0`
 
 ## Source Of Truth
@@ -119,6 +128,18 @@ Any future Figma-backed slice must fail closed until its active packet records:
 
 If any required metadata is missing, the lane remains `read_only`.
 
+## Downstream Ownership Rule
+
+- `docs/orchestration/UI_EPIC_PR_SERIES_RUNBOOK.md` retains ownership of the
+  post-bridge UI surfaces and ordering it already sequences.
+- This train may extend design-system governance beneath those surfaces, but it
+  must not reopen or reorder the UI epic's active scope by implication.
+- Any later slice that touches overlapping `Home`, `Plate`, `Progress`,
+  `Weekly Plan`, `Profile`, or `Paywall` surfaces must first record one of:
+  - explicit handoff from the UI epic line
+  - explicit supersede decision in a later packet
+  - carve-out that narrows the slice to non-overlapping shell/token work only
+
 ## PR Series
 
 ### PR-0: Bootstrap governance slice
@@ -165,14 +186,22 @@ If any required metadata is missing, the lane remains `read_only`.
 
 - Branch: `codex/frontend-product-shell-convergence`
 - Scope:
-  - move Home, Nutrition Setup / Plate, Progress, Weekly Plan, Profile /
-    Settings, and Paywall onto governed primitives/tokens
+  - converge shared web shell anatomy onto governed primitives/tokens
+  - stay downstream of the UI epic line for any overlapping `Home`, Nutrition
+    Setup / Plate, Progress, Weekly Plan, Profile / Settings, and Paywall
+    surfaces
+  - require an explicit handoff/supersede record before claiming ownership of
+    those overlapping product screens
 
 ### PR-5: iOS design-system adoption
 
 - Branch: `codex/ios-design-system-adoption-v1`
 - Scope:
   - adopt generated design tokens and shared patterns on bounded core screens
+  - stay downstream of the UI epic's iOS coherence and semantic-surface slices
+    for any overlapping `Home`, `Plate`, and `Progress` ownership
+  - require an explicit handoff/supersede record before claiming those iOS
+    product surfaces
 
 ### PR-6: Accessibility / motion / state contract
 

@@ -20,7 +20,7 @@ Evidence:
 - `docs/design/DESIGN_AGENT_RUNTIME_PR_CHAIN.md`
 - `docs/orchestration/DESIGN_BRIDGE_OPERATIONALIZATION_PACKET_2026-04-11.md`
 - `docs/orchestration/UI_EPIC_PR_SERIES_RUNBOOK.md`
-- `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-token-expansion-activation`
+- `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-design-runtime-system-web-ios-epic`
 
 ## Scope
 
@@ -35,6 +35,8 @@ Evidence:
 ### OUT
 - runtime, API, OpenAPI, or client behavior changes
 - reopening merged design-runtime or bridge-closeout work
+- reopening or overtaking UI-epic-owned product surfaces without an explicit
+  handoff/supersede record
 - Figma writes, pushes, or mutation authority
 - Tokens Studio export automation
 - `figma-manifest` schema unification
@@ -60,6 +62,14 @@ Evidence:
 This order is fixed for the lane unless a later packet explicitly updates it.
 Future iOS-bearing slices may attach `build-ios-apps:*` skills, but those
 skills do not replace the canonical role-agent order.
+
+## Downstream Dependency
+
+`PR-0` records this series as downstream of the existing UI epic line. Any
+future slice that claims overlapping `Home`, `Plate`, `Progress`, `Weekly
+Plan`, `Profile`, or `Paywall` ownership must first record an explicit handoff,
+supersede decision, or narrower carve-out in its active packet and ledger
+state.
 
 ## Source Precedence
 
@@ -110,6 +120,8 @@ Hard rules:
   generic placeholder
 - source precedence, role order, PR order, and cleanup path are all frozen in
   repo-tracked docs
+- downstream ownership with the existing UI epic is explicit, so later packets
+  cannot silently reopen overlapping product surfaces
 - the runbook and packet explicitly keep Storybook review-only, Figma
   fail-closed, token authoring repo-first, and backend/UI rail widening out of
   scope
