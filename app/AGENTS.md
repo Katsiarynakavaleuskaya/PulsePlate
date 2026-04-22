@@ -95,7 +95,7 @@ curl -fsS https://.../metrics | grep http_requests_total
 
 **Implementation:**
 - Middleware: `app/middleware/metrics.py`
-- Endpoint: `legacy_app.py` (hidden from OpenAPI via `include_in_schema=False`)
+- Endpoint: `app/bootstrap/metrics.py` (hidden from OpenAPI via `include_in_schema=False`)
 
 **Limitations:**
 - Multiprocess mode not enabled: `/metrics` returns per-process metrics only.
@@ -108,14 +108,15 @@ curl -fsS https://.../metrics | grep http_requests_total
 - If route template is unavailable → use `"unknown"` (never fallback to `request.url.path`).
 
 **Observability security policy:**
-- `/metrics` MUST NOT enforce application-level authentication (API keys, auth middleware).
-- Protection of `/metrics` is an infrastructure concern:
+- `/metrics` MUST enforce application-level authentication via the shared API key guard.
+- Protection of `/metrics` is defense-in-depth and includes infrastructure controls:
   - ingress ACLs (Cloudflare, Caddy)
   - firewall rules
   - private networks
   - Prometheus scrape configs
-- App-level guards are forbidden for `/metrics` to preserve testability and backward compatibility.
-- If infrastructure-level protection is needed, implement it in a dedicated infra PR (e.g., PR-506).
+- App-level guards are required to reduce reconnaissance surface when infrastructure ACLs drift.
+- Explicit test bypass is allowed only via `METRICS_TEST_BYPASS=true` during pytest-scoped execution.
+- `METRICS_TEST_BYPASS` is test-only and MUST NOT be enabled in staging or production.
 
 **Testing requirements:**
 - Tests MUST assert `/metrics` returns a Prometheus exposition response (`Content-Type` starts with `text/plain`) on happy path.
