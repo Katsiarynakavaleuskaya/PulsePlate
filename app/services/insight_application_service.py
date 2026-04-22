@@ -43,7 +43,11 @@ def _legacy_recursive_rollout_policy(
     recursive_rag_enabled: bool,
     recursive_rag_optimization_enabled: bool,
 ) -> RecursiveRolloutPolicy:
-    """Keep old prepared-runtime test doubles working during the rollout cut."""
+    """Keep old prepared-runtime test doubles working during the rollout cut.
+
+    RU: Временный backfill только для legacy prepared-runtime doubles.
+    EN: Temporary backfill for legacy prepared-runtime doubles only.
+    """
 
     return RecursiveRolloutPolicy(
         use_rag=use_rag,
@@ -159,15 +163,13 @@ async def execute_insight_request(
         transparency_loader=transparency_loader,
         direct_provider_factory=direct_provider_factory,
     )
-    recursive_rollout_policy = getattr(
-        prepared_runtime,
-        "recursive_rollout_policy",
-        _legacy_recursive_rollout_policy(
+    recursive_rollout_policy = getattr(prepared_runtime, "recursive_rollout_policy", None)
+    if recursive_rollout_policy is None:
+        recursive_rollout_policy = _legacy_recursive_rollout_policy(
             use_rag=use_rag,
             recursive_rag_enabled=recursive_rag_enabled,
             recursive_rag_optimization_enabled=recursive_rag_optimization_enabled,
-        ),
-    )
+        )
 
     runtime_result = await generate_traced_insight(
         runtime=prepared_runtime.runtime,

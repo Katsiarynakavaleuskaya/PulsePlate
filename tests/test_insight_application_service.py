@@ -517,6 +517,90 @@ async def test_execute_insight_request_uses_prepared_recursive_rollout_policy_as
 
 
 @pytest.mark.asyncio
+async def test_execute_insight_request_does_not_build_legacy_recursive_policy_when_prepared_policy_exists(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Prepared recursive rollout policy must not trigger the legacy fallback path."""
+
+    observed: dict[str, Any] = {}
+
+    @dataclass
+    class _Request:
+        text: str
+
+    prepared_runtime = SimpleNamespace(
+        runtime=object(),
+        provider=object(),
+        decision=SimpleNamespace(route_type=SimpleNamespace(value="deep_reasoning")),
+        rollout_policy=_rollout_policy(),
+        recursive_rollout_policy=_recursive_rollout_policy(),
+        transparency_notice=InsightTransparencyNotice(
+            surface_id="ai_generated_insight",
+            wellness_boundary="Wellness only.",
+        ),
+        knowledge_policy=_knowledge_policy(),
+    )
+
+    async def _fake_generate_traced_insight(**kwargs: object) -> object:
+        observed["generate_kwargs"] = kwargs
+        return SimpleNamespace(
+            insight="generated insight",
+            provider_name="fake-provider",
+            source_dicts=[],
+            confidence=0.9,
+            rag_used=True,
+            hops=1,
+            latency_ms=12,
+            knowledge_candidates=[],
+            metadata=SimpleNamespace(
+                route_type="deep_reasoning",
+                depth_used=2,
+                verification_rate=0.8,
+                falsifiability_rate=0.7,
+                contradiction_count=0,
+                reason_codes=["prepared_policy"],
+                optimization_applied=True,
+            ),
+        )
+
+    monkeypatch.setattr(
+        "app.services.insight_application_service.prepare_insight_runtime",
+        lambda **kwargs: prepared_runtime,
+        raising=True,
+    )
+    monkeypatch.setattr(
+        "app.services.insight_application_service.generate_traced_insight",
+        _fake_generate_traced_insight,
+        raising=True,
+    )
+
+    def _unexpected_legacy_policy(**kwargs: object) -> RecursiveRolloutPolicy:
+        raise AssertionError("legacy recursive rollout helper should not run")
+
+    monkeypatch.setattr(
+        "app.services.insight_application_service._legacy_recursive_rollout_policy",
+        _unexpected_legacy_policy,
+        raising=True,
+    )
+
+    response = await execute_insight_request(
+        _Request(text="hello"),
+        route_path="/api/v1/insight",
+        user_tier="VIP",
+        input_guard=lambda text: None,
+        provider_loader=lambda: _FakeProvider(),
+        transparency_loader=lambda: ("ai_generated_insight", "Wellness only."),
+        response_factory=lambda **payload: dict(payload),
+        source_item_factory=lambda **payload: dict(payload),
+    )
+
+    assert observed["generate_kwargs"]["recursive_rollout_policy"] is (
+        prepared_runtime.recursive_rollout_policy
+    )
+    assert response["rag_used"] is True
+
+
+@pytest.mark.asyncio
 async def test_execute_insight_request_clamps_legacy_recursive_fallback_when_rag_disabled(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
