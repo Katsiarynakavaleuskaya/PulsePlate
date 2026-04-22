@@ -48,6 +48,21 @@ def _assert_contains_all_tokens(expression: str, expected_tokens: tuple[str, ...
         assert token in expression
 
 
+def _extract_shell_conditional_block(
+    script_text: str,
+    branch_marker: str,
+    next_marker: str,
+) -> str:
+    """Return the shell branch body between two explicit workflow markers."""
+
+    start_anchor = f"{branch_marker}\n"
+    end_anchor = f"\n{next_marker}"
+    assert start_anchor in script_text, f"Missing shell branch marker: {branch_marker}"
+    branch_tail = script_text.split(start_anchor, maxsplit=1)[1]
+    assert end_anchor in branch_tail, f"Missing shell branch boundary after {branch_marker}"
+    return branch_tail.split(end_anchor, maxsplit=1)[0]
+
+
 def test_pr_size_governance_uses_pull_request_head_sha() -> None:
     """Guard against merge-SHA inflation in PR-size governance diff calculation."""
 
@@ -186,3 +201,48 @@ def test_ios_unit_tests_stay_in_blocking_ios_job() -> None:
     assert "no test targets were found" in ios_tests_section
     assert '"xcodebuild", "test-without-building"' in ios_tests_section
     assert 'ONLY_TESTING="$(../scripts/ios_test_targets.sh)"' not in ios_ui_smoke_section
+
+
+def test_main_branch_xdist_fallback_stays_scoped_to_unstable_interpreters() -> None:
+    workflow = _load_ci_workflow()
+    jobs = workflow["jobs"]
+    assert isinstance(jobs, dict)
+
+    test_main = jobs["test-main"]
+    assert isinstance(test_main, dict)
+    matrix = test_main["strategy"]["matrix"]["include"]
+    assert isinstance(matrix, list)
+
+    timeouts = {entry["python-version"]: entry["timeout-minutes"] for entry in matrix}
+    assert timeouts == {"3.11": 60, "3.12": 60, "3.13": 90}
+
+    workflow_text = CI_WORKFLOW_PATH.read_text(encoding="utf-8")
+    test_main_section = _extract_job_section(workflow_text, "  test-main:")
+
+    py313_block = _extract_shell_conditional_block(
+        test_main_section,
+        'if [[ "$PYVER" == 3.13* ]]; then',
+        '          elif [[ "$PYVER" == 3.12* ]]; then',
+    )
+    py312_block = _extract_shell_conditional_block(
+        test_main_section,
+        '          elif [[ "$PYVER" == 3.12* ]]; then',
+        "          else",
+    )
+    default_block = _extract_shell_conditional_block(
+        test_main_section,
+        "          else",
+        "          fi",
+    )
+
+    assert "PYTEST_XDIST_ARGS=(-p no:xdist)" in py313_block
+    assert "PYTEST_XDIST_ARGS=(-n 2 --dist=loadscope)" not in py313_block
+    assert "PYTEST_XDIST_ARGS=(-n 4 --dist=loadscope)" not in py313_block
+
+    assert "PYTEST_XDIST_ARGS=(-n 2 --dist=loadscope)" in py312_block
+    assert "PYTEST_XDIST_ARGS=(-p no:xdist)" not in py312_block
+    assert "PYTEST_XDIST_ARGS=(-n 4 --dist=loadscope)" not in py312_block
+
+    assert "PYTEST_XDIST_ARGS=(-n 4 --dist=loadscope)" in default_block
+    assert "PYTEST_XDIST_ARGS=(-p no:xdist)" not in default_block
+    assert "PYTEST_XDIST_ARGS=(-n 2 --dist=loadscope)" not in default_block
