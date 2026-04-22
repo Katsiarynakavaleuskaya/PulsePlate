@@ -29,7 +29,20 @@ Disposition: FIXED
 Commit: 03c9de050
 Evidence: `docs/orchestration/DESIGN_RUNTIME_SYSTEM_WEB_IOS_PR_SERIES_RUNBOOK.md:87-105`, `docs/orchestration/DESIGN_RUNTIME_SYSTEM_WEB_IOS_PR_SERIES_RUNBOOK.md:322-331`
 Reason: CodeRabbit requested two narrow documentation fixes on the earlier head: hyphenate `canonical review artifact up-to-date` and resolve the token-precedence ambiguity by making the `/tokens` override explicit in the design source-precedence section.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1497#discussion_r3126606316 -> 03c9de050
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1497#discussion_r3126606325 -> 03c9de050
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1497#pullrequestreview-4157599980 -> 03c9de050
+
+Disposition: FIXED
+Commit: ed757029d
+Evidence: `docs/orchestration/DESIGN_RUNTIME_SYSTEM_WEB_IOS_PR_SERIES_RUNBOOK.md:99-103`
+Reason: A follow-up CodeRabbit inline comment on the updated token-override paragraph flagged a sentence fragment; commit `ed757029d` made the override predicate explicit without widening scope.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1497#discussion_r3126788391 -> ed757029d
+
+Disposition: NOT-A-BUG
+Evidence: `docs/review/PR_1497_FIXED_MAPPING.md`
+Reason: This later CodeRabbit review body is an aggregate shell around the single inline wording finding mapped immediately above. Once that inline thread is fixed and recorded here, the review shell adds no separate unresolved obligation.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1497#pullrequestreview-4157810535
 
 ## Merge Readiness
 
@@ -45,5 +58,5 @@ Reason: CodeRabbit requested two narrow documentation fixes on the earlier head:
 - [x] Mandatory post-open `qa-engineer-agent -> bug-hunter` pass completed
   Evidence target: `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md:98-103`
 
-Notes: PR is intentionally draft. Merge-readiness remains blocked until the
-current-head required checks finish green on the latest pushed head.
+Notes: Merge-readiness remains blocked until current-head required checks finish
+green on the latest pushed head.
