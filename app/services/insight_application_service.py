@@ -125,12 +125,16 @@ async def execute_insight_request(
     use_rag = str(os.getenv("FEATURE_RAG", "")).strip().lower() in {"1", "true", "on", "yes"}
 
     philosophy_router_enabled = is_philosophy_router_enabled()
+    philosophy_phase12_enabled = is_philosophy_phase12_enabled()
     philosophy_linguistic_enabled = is_philosophy_linguistic_enabled()
+    philosophy_pragmatic_enabled = is_philosophy_pragmatic_enabled()
     prepared_runtime = prepare_insight_runtime(
         text=prompt_input,
         use_rag=use_rag,
         philosophy_router_enabled=philosophy_router_enabled,
+        philosophy_phase12_enabled=philosophy_phase12_enabled,
         philosophy_linguistic_enabled=philosophy_linguistic_enabled,
+        philosophy_pragmatic_enabled=philosophy_pragmatic_enabled,
         provider_loader=provider_loader,
         transparency_loader=transparency_loader,
         direct_provider_factory=direct_provider_factory,
@@ -145,10 +149,7 @@ async def execute_insight_request(
         philo_validation_enabled=is_philosophy_validation_enabled(),
         recursive_rag_enabled=is_recursive_rag_enabled(),
         subject_id=subject_id,
-        philosophy_router_enabled=philosophy_router_enabled,
-        philosophy_phase12_enabled=is_philosophy_phase12_enabled(),
-        philosophy_linguistic_enabled=philosophy_linguistic_enabled,
-        philosophy_pragmatic_enabled=is_philosophy_pragmatic_enabled(),
+        rollout_policy=prepared_runtime.rollout_policy,
         knowledge_policy=prepared_runtime.knowledge_policy,
         route_path=route_path,
         route_type=prepared_runtime.decision.route_type.value,

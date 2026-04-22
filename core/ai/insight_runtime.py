@@ -18,7 +18,12 @@ from core.insight.llm_provider_loader import (
     LLMProviderFactory,
     load_llm_get_provider,
 )
-from core.insight.philosophical_runtime import PhilosophicalRuntime, RouteDecision, RouteType
+from core.insight.philosophical_runtime import (
+    PhilosophicalRuntime,
+    PhilosophyRolloutPolicy,
+    RouteDecision,
+    RouteType,
+)
 from core.rag.contracts import RAGDegradedReason
 
 
@@ -44,6 +49,7 @@ class PreparedInsightRuntime:
 
     runtime: PhilosophicalRuntime
     decision: RouteDecision
+    rollout_policy: PhilosophyRolloutPolicy
     provider: LLMProvider
     transparency_notice: InsightTransparencyNotice
     knowledge_policy: KnowledgePolicy
@@ -148,6 +154,8 @@ def prepare_insight_runtime(
     use_rag: bool,
     philosophy_router_enabled: bool,
     philosophy_linguistic_enabled: bool,
+    philosophy_phase12_enabled: bool = False,
+    philosophy_pragmatic_enabled: bool = False,
     provider_loader: Callable[[], LLMProvider | None] | None = None,
     transparency_loader: Callable[[], tuple[str, str] | InsightTransparencyNotice] | None = None,
     direct_provider_factory: Callable[[], LLMProvider] | None = None,
@@ -159,11 +167,16 @@ def prepare_insight_runtime(
     """
 
     runtime = PhilosophicalRuntime()
-    router_enabled = philosophy_router_enabled or philosophy_linguistic_enabled
+    rollout_policy = PhilosophyRolloutPolicy(
+        router_enabled=philosophy_router_enabled,
+        phase12_enabled=philosophy_phase12_enabled,
+        linguistic_enabled=philosophy_linguistic_enabled,
+        pragmatic_enabled=philosophy_pragmatic_enabled,
+    )
     decision = runtime.preview_route(
         text=text,
         lang=None,
-        router_enabled=router_enabled,
+        router_enabled=rollout_policy.preview_router_enabled,
         use_rag=use_rag,
     )
 
@@ -185,6 +198,7 @@ def prepare_insight_runtime(
     return PreparedInsightRuntime(
         runtime=runtime,
         decision=decision,
+        rollout_policy=rollout_policy,
         provider=provider,
         transparency_notice=transparency_notice,
         knowledge_policy=knowledge_policy,

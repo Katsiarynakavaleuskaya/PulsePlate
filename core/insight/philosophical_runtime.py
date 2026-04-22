@@ -161,6 +161,35 @@ class RouteDecision:
 
 
 @dataclass(frozen=True)
+class PhilosophyRolloutPolicy:
+    """Canonical internal rollout truth for philosophical runtime behavior."""
+
+    router_enabled: bool = False
+    phase12_enabled: bool = False
+    linguistic_enabled: bool = False
+    pragmatic_enabled: bool = False
+
+    @property
+    def preview_router_enabled(self) -> bool:
+        """Return the preview-routing authority for router-backed paths."""
+
+        return self.router_enabled or self.linguistic_enabled
+
+    @property
+    def public_metadata_enabled(self) -> bool:
+        """Return whether runtime metadata may be exposed publicly."""
+
+        return any(
+            (
+                self.router_enabled,
+                self.phase12_enabled,
+                self.linguistic_enabled,
+                self.pragmatic_enabled,
+            )
+        )
+
+
+@dataclass(frozen=True)
 class RuntimeMetadata:
     """Public runtime metadata exposed via InsightResponse."""
 
@@ -364,27 +393,25 @@ class PhilosophicalRuntime:
         philo_validation_enabled: bool,
         recursive_rag_enabled: bool,
         subject_id: int | None = None,
-        philosophy_router_enabled: bool,
-        philosophy_phase12_enabled: bool,
-        philosophy_linguistic_enabled: bool,
-        philosophy_pragmatic_enabled: bool,
+        philosophy_router_enabled: bool = False,
+        philosophy_phase12_enabled: bool = False,
+        philosophy_linguistic_enabled: bool = False,
+        philosophy_pragmatic_enabled: bool = False,
+        rollout_policy: PhilosophyRolloutPolicy | None = None,
         knowledge_policy: KnowledgePolicy | None = None,
         rag_retriever: _RagRetriever | None = None,
     ) -> RuntimeResult:
         """Generate an insight with deterministic routing and validation."""
-        public_metadata_enabled = any(
-            (
-                philosophy_router_enabled,
-                philosophy_phase12_enabled,
-                philosophy_linguistic_enabled,
-                philosophy_pragmatic_enabled,
-            )
+        policy = rollout_policy or PhilosophyRolloutPolicy(
+            router_enabled=philosophy_router_enabled,
+            phase12_enabled=philosophy_phase12_enabled,
+            linguistic_enabled=philosophy_linguistic_enabled,
+            pragmatic_enabled=philosophy_pragmatic_enabled,
         )
-        router_enabled = philosophy_router_enabled or philosophy_linguistic_enabled
         decision = self.preview_route(
             text=text,
             lang=lang,
-            router_enabled=router_enabled,
+            router_enabled=policy.preview_router_enabled,
             use_rag=use_rag,
         )
 
@@ -445,7 +472,7 @@ class PhilosophicalRuntime:
         prompt_text = self._build_prompt(
             base_prompt=prompt_input,
             decision=decision,
-            phase12_enabled=philosophy_phase12_enabled,
+            phase12_enabled=policy.phase12_enabled,
         )
         prompt_text = _trim_prompt(prompt_text)
 
@@ -457,7 +484,7 @@ class PhilosophicalRuntime:
         contradiction_count = 0
         runtime_reason_codes = list(decision.reason_codes)
 
-        if philosophy_phase12_enabled:
+        if policy.phase12_enabled:
             citations = [item["file"] for item in rag_source_dicts]
             verification_report = self._verification.validate(answer, citations=citations)
             falsification_report = self._falsification.validate(answer)
@@ -469,7 +496,7 @@ class PhilosophicalRuntime:
                 contradiction_count=contradiction_count,
                 answer=answer,
                 query=text,
-                pragmatic_enabled=philosophy_pragmatic_enabled,
+                pragmatic_enabled=policy.pragmatic_enabled,
                 rag_used=rag_used,
             ):
                 rewrite_count = 1
@@ -516,7 +543,7 @@ class PhilosophicalRuntime:
                 decision=decision,
                 rag_used=rag_used,
             ),
-            runtime_verification_enabled=philosophy_phase12_enabled,
+            runtime_verification_enabled=policy.phase12_enabled,
         )
 
         tokens_saved_estimate = _estimate_tokens_saved(
@@ -557,7 +584,7 @@ class PhilosophicalRuntime:
                     reason_codes=runtime_reason_codes,
                     optimization_applied=decision.optimization_applied,
                 )
-                if public_metadata_enabled
+                if policy.public_metadata_enabled
                 else RuntimeMetadata()
             ),
             knowledge_candidates=(
