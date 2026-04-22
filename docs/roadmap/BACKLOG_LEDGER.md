@@ -9499,7 +9499,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Main CI xdist worker stability on Python 3.12 full suite
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (CI stability / merge-signal integrity)
-  - Target PR: PR TBD (`codex/fix-ci-xdist-worker-stability`)
+  - Target PR: PR #1494 (`codex/fix-ci-xdist-worker-stability`)
   - Status: In progress as of April 22, 2026
   - Reason: the `main`-branch `CI` full-suite lane continues to surface
     user-reported `"[gw1] node down: Not properly terminated"` instability in
