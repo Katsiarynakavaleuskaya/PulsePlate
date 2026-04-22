@@ -14,7 +14,22 @@ every new human or bot disposition here before resolving threads on GitHub.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+Disposition: FIXED
+Commit: 4ac7cc218
+Evidence: `tests/test_ci_workflow_pr_size_governance_contract.py:51-63`, `tests/test_ci_workflow_pr_size_governance_contract.py:222-248`
+Reason: The workflow contract test now extracts each `if/elif/else` shell branch and proves the interpreter-specific xdist mapping directly instead of only checking for string presence anywhere in the job.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1494#discussion_r3123721053 -> 4ac7cc218
+
+Disposition: FIXED
+Commit: 4ac7cc218
+Evidence: `docs/orchestration/MAINLINE_CI_XDIST_WORKER_STABILITY_PACKET_2026-04-22.md:29`
+Reason: The packet wording now states that the nightly run completed with status `success`, removing the awkward phrasing without widening lane scope.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1494#discussion_r3123721058 -> 4ac7cc218
+
+Disposition: NOT-A-BUG
+Evidence: `AGENTS.md:371-382`; `docs/orchestration/MAINLINE_CI_XDIST_WORKER_STABILITY_PACKET_2026-04-22.md:38-56`
+Reason: Coordinator-owned lane packets define the mandatory executable role order for that lane. This packet intentionally preserves the user-approved `dev-operator` evidence pass before the architecture/backend/security sequence, and the canonical post-open `qa-engineer-agent -> bug-hunter` review pass remains intact.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1494#discussion_r3123721937
 
 ## Merge Readiness
 
