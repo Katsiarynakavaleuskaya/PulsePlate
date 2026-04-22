@@ -63,6 +63,15 @@ def _python_setup_step(path: str, job_name: str) -> dict[str, object]:
     raise AssertionError(f"Missing python-setup step for {path}:{job_name}")
 
 
+def _workflow_step_by_name(path: str, job_name: str, step_name: str) -> dict[str, object]:
+    """Return a workflow step by its display name."""
+
+    for step in _workflow_steps(path, job_name):
+        if step.get("name") == step_name:
+            return step
+    raise AssertionError(f"Missing step {step_name!r} for {path}:{job_name}")
+
+
 def test_dependency_security_schema_blocks_known_bad_litellm_versions() -> None:
     schema = json.loads(
         (REPO_ROOT / "tests" / "fixtures" / "dependency_security_schema.json").read_text(
@@ -589,8 +598,74 @@ def test_docker_workflows_emit_image_telemetry_artifacts() -> None:
         trivy_workflow_text,
     ):
         assert "docker-runtime-dependency-surface.json" in workflow_text
+        assert "scripts/ci/fetch_docker_image_baseline.py" in workflow_text
         assert "scripts/ci/docker_image_telemetry.py" in workflow_text
+        assert "docs/telemetry/docker_image_baseline.production.json" in workflow_text
+        assert "--baseline-json docker-image-baseline.json" in workflow_text
         assert "docker-image-telemetry.json" in workflow_text
         assert "docker-image-telemetry.md" in workflow_text
         assert "GITHUB_STEP_SUMMARY" in workflow_text
         assert "actions/upload-artifact@" in workflow_text
+
+    build_workflow = _load_workflow(".github/workflows/build.yml")
+    docker_image_workflow = _load_workflow(".github/workflows/docker-image.yml")
+    trivy_workflow = _load_workflow(".github/workflows/trivy.yml")
+
+    build_job_permissions = build_workflow["jobs"]["build"]["permissions"]
+    docker_image_permissions = docker_image_workflow["permissions"]
+    trivy_job_permissions = trivy_workflow["jobs"]["build"]["permissions"]
+    producer_artifact_name = _workflow_step_by_name(
+        ".github/workflows/build.yml",
+        "build",
+        "Upload Docker telemetry artifact",
+    )["with"]["name"]
+    build_resolve_step = _workflow_step_by_name(
+        ".github/workflows/build.yml",
+        "build",
+        "Resolve Docker image telemetry baseline",
+    )["run"]
+    docker_image_resolve_step = _workflow_step_by_name(
+        ".github/workflows/docker-image.yml",
+        "build",
+        "Resolve Docker image telemetry baseline",
+    )["run"]
+    trivy_resolve_step = _workflow_step_by_name(
+        ".github/workflows/trivy.yml",
+        "build",
+        "Resolve Docker image telemetry baseline",
+    )["run"]
+
+    assert build_job_permissions["actions"] == "read"
+    assert build_job_permissions["contents"] == "read"
+    assert docker_image_permissions["actions"] == "read"
+    assert docker_image_permissions["contents"] == "read"
+    assert trivy_job_permissions["actions"] == "read"
+    assert trivy_job_permissions["contents"] == "read"
+    assert "GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}" in build_workflow_text
+    assert "GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}" in build_workflow_text
+    assert "GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}" in docker_image_workflow_text
+    assert "GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}" in docker_image_workflow_text
+    assert "GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}" in trivy_workflow_text
+    assert "GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}" in trivy_workflow_text
+    assert producer_artifact_name == "docker-image-telemetry-build"
+    assert f"--artifact-name {producer_artifact_name}" in build_resolve_step
+    assert f"--artifact-name {producer_artifact_name}" in docker_image_resolve_step
+    assert f"--artifact-name {producer_artifact_name}" in trivy_resolve_step
+    assert "--workflow build.yml" in build_resolve_step
+    assert "--workflow build.yml" in docker_image_resolve_step
+    assert "--workflow build.yml" in trivy_resolve_step
+
+
+def test_checked_in_docker_image_baseline_seed_has_expected_schema() -> None:
+    baseline_payload = json.loads(
+        (REPO_ROOT / "docs" / "telemetry" / "docker_image_baseline.production.json").read_text(
+            encoding="utf-8"
+        )
+    )
+
+    assert baseline_payload["baseline_source"] == "repo-seed-fallback"
+    assert baseline_payload["image_size_bytes"] > 0
+    assert baseline_payload["image_size_human"].endswith("MB")
+    assert baseline_payload["baseline_reference"]["artifact_name"] == "docker-image-telemetry-build"
+    assert baseline_payload["baseline_reference"]["workflow"] == "build.yml"
+    assert baseline_payload["baseline_reference"]["seeded_from_run_id"] == 24771474567

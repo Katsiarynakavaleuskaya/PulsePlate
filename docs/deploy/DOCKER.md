@@ -1,4 +1,4 @@
-# Docker Runtime Contract
+# Docker Runtime And Telemetry Contract
 
 This document is the operator-facing source of truth for the PulsePlate backend
 Docker runtime contract.
@@ -10,22 +10,9 @@ Docker runtime contract.
 - Optional vector / ML dependencies stay in `requirements-rag-vector.txt`.
 - Production target remains the split backend image that serves `app.main:app`.
 - Frontend / Caddy topology remains separate and out of scope for this slice.
-
-## Why this slice exists
-
-The install-profile split removed heavy ML / GPU packages from the generic CI
-surface, but some production-target Docker workflows were still building the
-backend image with `requirements-ci-lite.txt`.
-
-That left CI-only tooling inside the runtime image:
-
-- `pre-commit`
-- `bandit`
-- `diff-cover`
-- `pytest`
-
-This PR standardizes production-target Docker builds on a dedicated runtime
-manifest so the backend image does not carry CI-only tooling.
+- Runtime slimming merged via `PR #1490` on April 22, 2026.
+- The current Docker/CI slice establishes the first canonical backend-image
+  telemetry baseline for warning-only regression reporting.
 
 ## Runtime manifest policy
 
@@ -46,6 +33,50 @@ Blocked package classes for the default backend runtime:
 - optional vector / ML stack: `sentence-transformers`, `transformers`, `torch`,
   `pgvector`
 - GPU / CUDA packages: `nvidia-*`, `cuda-*`, `triton`
+
+## Why the telemetry slice exists
+
+Runtime slimming removed CI-only tooling from the production backend image, but
+the project still needs one canonical baseline so PR authors can see image-size
+drift, largest layers, and build-context evidence before merge.
+
+This wave keeps that signal warning-only:
+
+- no absolute image-size cap
+- no hard failure threshold for positive delta vs baseline
+- no provenance / Dagger reopening until the baseline exists
+
+## Baseline source rule
+
+All three Docker telemetry lanes use one canonical backend baseline:
+
+1. latest successful `main` artifact from `build.yml`
+2. checked-in seed fallback at `docs/telemetry/docker_image_baseline.production.json`
+
+`scripts/ci/fetch_docker_image_baseline.py` resolves the baseline before
+telemetry collection. If GitHub lookup/download fails, the workflow falls back
+to the checked-in seed and still publishes advisory evidence.
+
+## Telemetry evidence contract
+
+`scripts/ci/docker_image_telemetry.py` remains local-image-only. It does not
+talk to GitHub; it only renders PR-visible evidence from the built image and
+the resolved baseline JSON.
+
+Each Docker lane publishes:
+
+- `docker-image-telemetry.json`
+- `docker-image-telemetry.md`
+- `GITHUB_STEP_SUMMARY` entry
+
+Evidence must include:
+
+- image size
+- baseline source: `main-artifact` or `repo-seed-fallback`
+- baseline reference metadata when available
+- delta vs baseline in warning-only mode
+- largest layers
+- build-context evidence
 
 ## Validation commands
 
@@ -75,6 +106,21 @@ docker run --rm pulseplate:runtime-slim \
   python -c "import app.main; print('app.main import ok')"
 ```
 
+Resolve the canonical baseline and generate advisory telemetry:
+
+```bash
+python3 scripts/ci/fetch_docker_image_baseline.py \
+  --repo Katsiarynakavaleuskaya/PulsePlate \
+  --fallback-json docs/telemetry/docker_image_baseline.production.json \
+  --output artifacts/docker/docker-image-baseline.json
+
+python3 scripts/ci/docker_image_telemetry.py \
+  --image-ref pulseplate:runtime-slim \
+  --baseline-json artifacts/docker/docker-image-baseline.json \
+  --json-out artifacts/docker/docker-image-telemetry.json \
+  --markdown-out artifacts/docker/docker-image-telemetry.md
+```
+
 ## Rollback
 
 If the runtime image fails to build or boot after this slice:
@@ -85,14 +131,14 @@ If the runtime image fails to build or boot after this slice:
 3. keep the runtime-surface findings as evidence in the PR and record the
    follow-up in `docs/roadmap/BACKLOG_LEDGER.md`
 
-Do not widen this rollback into image-budget telemetry, provenance, or
+Do not widen this rollback into hard image-budget enforcement, provenance, or
 frontend/Caddy changes.
 
 ## Deferred follow-ups
 
-Explicitly deferred from this PR:
+Explicitly deferred after this PR:
 
-- `P1: Docker image budget and telemetry baseline`
+- hard image-budget cap / failure threshold
 - `P1: Shared Safety audit script after install-profile split`
 - provenance / attestation recovery
 - Dagger or any alternate control-plane work

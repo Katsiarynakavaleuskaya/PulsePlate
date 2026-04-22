@@ -102,7 +102,7 @@ def test_load_baseline_size_bytes_rejects_non_object_payload(tmp_path: Path) -> 
     baseline_path.write_text(json.dumps(["unexpected", "payload"]), encoding="utf-8")
 
     with pytest.raises(RuntimeError, match="Unsupported baseline payload shape"):
-        docker_image_telemetry._load_baseline_size_bytes(baseline_path)
+        docker_image_telemetry._load_baseline(baseline_path)
 
 
 @pytest.mark.parametrize("raw_value", ("0", "-1"))
@@ -180,8 +180,52 @@ def test_collect_telemetry_without_baseline_is_warning_only(
     )
     assert "!scripts/ci/emergency_python_wheels.json" in report.build_context.dockerignore_allowlist
     assert report.baseline.baseline_size_bytes is None
+    assert report.baseline.baseline_source is None
     assert report.baseline.regression_warning is False
     assert "telemetry remains advisory-only" in report.warnings[0]
+
+
+def test_collect_telemetry_reports_repo_seed_fallback_source(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    dockerfile, dockerignore = _write_context_files(tmp_path)
+    baseline_path = tmp_path / "baseline.json"
+    baseline_path.write_text(
+        json.dumps(
+            {
+                "baseline_source": "repo-seed-fallback",
+                "baseline_reference": {
+                    "workflow": "build.yml",
+                    "seeded_from_run_number": 6987,
+                    "artifact_name": "docker-image-telemetry-build",
+                    "seeded_at": "2026-04-22T09:46:43Z",
+                },
+                "image_size_bytes": 80_000_000,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(docker_image_telemetry, "_read_image_size_bytes", lambda _: 75_000_000)
+    monkeypatch.setattr(docker_image_telemetry, "_read_history_rows", lambda _: [])
+
+    report = docker_image_telemetry.collect_telemetry(
+        image_ref="pulseplate:test",
+        dockerfile_path=dockerfile,
+        dockerignore_path=dockerignore,
+        top_layers=5,
+        baseline_path=baseline_path,
+    )
+
+    assert report.baseline.baseline_source == "repo-seed-fallback"
+    assert report.baseline.baseline_reference == {
+        "workflow": "build.yml",
+        "seeded_from_run_number": 6987,
+        "artifact_name": "docker-image-telemetry-build",
+        "seeded_at": "2026-04-22T09:46:43Z",
+    }
+    assert report.baseline.regression_warning is False
+    assert "repo seed fallback baseline" in report.warnings[0]
 
 
 def test_main_writes_warning_only_growth_report(
@@ -189,7 +233,23 @@ def test_main_writes_warning_only_growth_report(
 ) -> None:
     dockerfile, dockerignore = _write_context_files(tmp_path)
     baseline_path = tmp_path / "baseline.json"
-    baseline_path.write_text(json.dumps({"image_size_bytes": 80_000_000}), encoding="utf-8")
+    baseline_path.write_text(
+        json.dumps(
+            {
+                "baseline_source": "main-artifact",
+                "baseline_reference": {
+                    "workflow": "build.yml",
+                    "branch": "main",
+                    "run_number": 6987,
+                    "run_attempt": 1,
+                    "artifact_name": "docker-image-telemetry-build",
+                    "artifact_id": 6575089628,
+                },
+                "image_size_bytes": 80_000_000,
+            }
+        ),
+        encoding="utf-8",
+    )
 
     monkeypatch.setattr(docker_image_telemetry, "REPO_ROOT", tmp_path)
     monkeypatch.setattr(docker_image_telemetry, "_read_image_size_bytes", lambda _: 95_000_000)
@@ -230,10 +290,13 @@ def test_main_writes_warning_only_growth_report(
     assert exit_code == 0
     assert payload["advisory_only"] is True
     assert payload["image_size_bytes"] == 95_000_000
+    assert payload["baseline"]["baseline_source"] == "main-artifact"
     assert payload["baseline"]["baseline_size_bytes"] == 80_000_000
     assert payload["baseline"]["size_delta_bytes"] == 15_000_000
     assert payload["baseline"]["regression_warning"] is True
     assert "warning-only mode keeps the lane non-blocking" in payload["warnings"][0]
     assert "Docker Image Telemetry" in markdown
+    assert "Baseline source" in markdown
+    assert "Baseline reference" in markdown
     assert "Delta vs baseline" in markdown
     assert "Build Context Evidence" in markdown
