@@ -29,6 +29,7 @@ from app.utils.feature_flags import (
     is_recursive_rag_enabled,
     is_recursive_rag_optimization_enabled,
 )
+from core.ai.insight_runtime import RecursiveRolloutPolicy
 from core.insight.philosophical_runtime import PhilosophyRolloutPolicy
 
 
@@ -70,8 +71,24 @@ class TracedInsightProvider:
             return result
 
 
-def insight_feature_flag_state() -> dict[str, bool]:
+def insight_feature_flag_state(
+    *,
+    use_rag: bool | None = None,
+    recursive_rollout_policy: RecursiveRolloutPolicy | None = None,
+) -> dict[str, bool]:
     """Return deterministic feature-flag snapshot for insight tracing."""
+
+    rag_enabled = _is_truthy(os.getenv("FEATURE_RAG", "false")) if use_rag is None else use_rag
+    recursive_enabled = (
+        is_recursive_rag_enabled()
+        if recursive_rollout_policy is None
+        else recursive_rollout_policy.recursive_path_enabled
+    )
+    recursive_optimization_enabled = (
+        is_recursive_rag_optimization_enabled()
+        if recursive_rollout_policy is None
+        else recursive_rollout_policy.optimization_path_enabled
+    )
 
     return {
         "insight": _is_truthy(os.getenv("FEATURE_INSIGHT", "false")),
@@ -80,9 +97,9 @@ def insight_feature_flag_state() -> dict[str, bool]:
         "philosophy_linguistic": is_philosophy_linguistic_enabled(),
         "philosophy_pragmatic": is_philosophy_pragmatic_enabled(),
         "philosophy_validation": is_philosophy_validation_enabled(),
-        "rag": _is_truthy(os.getenv("FEATURE_RAG", "false")),
-        "rag_recursive": is_recursive_rag_enabled(),
-        "rag_recursive_optimization": is_recursive_rag_optimization_enabled(),
+        "rag": rag_enabled,
+        "rag_recursive": recursive_enabled,
+        "rag_recursive_optimization": recursive_optimization_enabled,
         "rag_vector": _is_truthy(os.getenv("FEATURE_RAG_VECTOR", "false")),
     }
 
@@ -92,15 +109,13 @@ async def _traced_retrieve_and_validate_rag(
     *,
     max_chunks: int,
     philo_validation_enabled: bool,
-    recursive_rag_enabled: bool,
+    recursive_rollout_policy: RecursiveRolloutPolicy,
     subject_id: int | None,
     knowledge_policy: Any,
     user_tier: str,
     route_path: str,
 ) -> Any:
     """Wrap RAG retrieval in a deterministic retriever span."""
-
-    optimization_enabled = recursive_rag_enabled and is_recursive_rag_optimization_enabled()
 
     with retrieval_span(
         user_tier=user_tier,
@@ -111,8 +126,8 @@ async def _traced_retrieve_and_validate_rag(
             prompt_input,
             max_chunks=max_chunks,
             philo_validation_enabled=philo_validation_enabled,
-            recursive_rag_enabled=recursive_rag_enabled,
-            optimization_enabled=optimization_enabled,
+            recursive_rag_enabled=recursive_rollout_policy.recursive_path_enabled,
+            optimization_enabled=recursive_rollout_policy.optimization_path_enabled,
             subject_id=subject_id,
             knowledge_policy=knowledge_policy,
         )
@@ -129,12 +144,14 @@ async def generate_traced_insight(
     use_rag: bool,
     philo_validation_enabled: bool,
     recursive_rag_enabled: bool,
-    subject_id: int | None,
-    knowledge_policy: Any,
     route_path: str,
     route_type: str,
     user_tier: str,
+    subject_id: int | None,
+    knowledge_policy: Any,
+    recursive_rag_optimization_enabled: bool = False,
     rollout_policy: PhilosophyRolloutPolicy | None = None,
+    recursive_rollout_policy: RecursiveRolloutPolicy | None = None,
     philosophy_router_enabled: bool = False,
     philosophy_phase12_enabled: bool = False,
     philosophy_linguistic_enabled: bool = False,
@@ -146,6 +163,11 @@ async def generate_traced_insight(
         provider,
         user_tier=user_tier,
         route=route_path,
+    )
+    resolved_recursive_rollout_policy = recursive_rollout_policy or RecursiveRolloutPolicy(
+        use_rag=use_rag,
+        recursive_rag_enabled=recursive_rag_enabled,
+        recursive_rag_optimization_enabled=recursive_rag_optimization_enabled,
     )
 
     async def _rag_retriever(
@@ -161,7 +183,7 @@ async def generate_traced_insight(
             prompt_input,
             max_chunks=max_chunks,
             philo_validation_enabled=philo_validation_enabled,
-            recursive_rag_enabled=recursive_rag_enabled,
+            recursive_rollout_policy=resolved_recursive_rollout_policy,
             subject_id=subject_id,
             knowledge_policy=knowledge_policy,
             user_tier=user_tier,
@@ -173,7 +195,10 @@ async def generate_traced_insight(
         user_tier=user_tier,
         route=route_path,
         route_type=route_type,
-        feature_flags=insight_feature_flag_state(),
+        feature_flags=insight_feature_flag_state(
+            use_rag=use_rag,
+            recursive_rollout_policy=resolved_recursive_rollout_policy,
+        ),
     ):
         return await runtime.generate_insight(
             text=text,
@@ -181,7 +206,7 @@ async def generate_traced_insight(
             provider=traced_provider,
             use_rag=use_rag,
             philo_validation_enabled=philo_validation_enabled,
-            recursive_rag_enabled=recursive_rag_enabled,
+            recursive_rag_enabled=resolved_recursive_rollout_policy.recursive_path_enabled,
             subject_id=subject_id,
             rollout_policy=rollout_policy,
             philosophy_router_enabled=philosophy_router_enabled,

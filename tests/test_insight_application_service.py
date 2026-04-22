@@ -14,7 +14,7 @@ from app.services.insight_application_service import (
     INSIGHT_TEXT_MAX_LENGTH,
     execute_insight_request,
 )
-from core.ai.insight_runtime import InsightTransparencyNotice
+from core.ai.insight_runtime import InsightTransparencyNotice, RecursiveRolloutPolicy
 from core.insight.philosophical_runtime import PhilosophyRolloutPolicy
 from core.knowledge.policy import KnowledgePolicy
 from core.insight.llm_provider_loader import LLMProvider
@@ -83,6 +83,19 @@ def _verification_bundle(*, admission_allowed: bool = True) -> VerificationBundl
     )
 
 
+def _recursive_rollout_policy(
+    *,
+    use_rag: bool = False,
+    recursive_rag_enabled: bool = False,
+    recursive_rag_optimization_enabled: bool = False,
+) -> RecursiveRolloutPolicy:
+    return RecursiveRolloutPolicy(
+        use_rag=use_rag,
+        recursive_rag_enabled=recursive_rag_enabled,
+        recursive_rag_optimization_enabled=recursive_rag_optimization_enabled,
+    )
+
+
 @pytest.mark.asyncio
 async def test_execute_insight_request_uses_injected_dependencies(
     monkeypatch: pytest.MonkeyPatch,
@@ -125,6 +138,7 @@ async def test_execute_insight_request_uses_injected_dependencies(
             phase12_enabled=True,
             linguistic_enabled=True,
         ),
+        recursive_rollout_policy=_recursive_rollout_policy(),
         transparency_notice=InsightTransparencyNotice(
             surface_id="ai_generated_insight",
             wellness_boundary="Wellness only.",
@@ -188,6 +202,16 @@ async def test_execute_insight_request_uses_injected_dependencies(
         lambda: False,
         raising=True,
     )
+    monkeypatch.setattr(
+        "app.services.insight_application_service.is_recursive_rag_enabled",
+        lambda: False,
+        raising=True,
+    )
+    monkeypatch.setattr(
+        "app.services.insight_application_service.is_recursive_rag_optimization_enabled",
+        lambda: False,
+        raising=True,
+    )
 
     response = await execute_insight_request(
         _Request(text="hello"),
@@ -210,6 +234,8 @@ async def test_execute_insight_request_uses_injected_dependencies(
         "philosophy_phase12_enabled": False,
         "philosophy_linguistic_enabled": False,
         "philosophy_pragmatic_enabled": False,
+        "recursive_rag_enabled": False,
+        "recursive_rag_optimization_enabled": False,
         "provider_loader": _provider_loader,
         "transparency_loader": _transparency_loader,
         "direct_provider_factory": _direct_provider_factory,
@@ -218,6 +244,10 @@ async def test_execute_insight_request_uses_injected_dependencies(
     assert observed["generate_kwargs"]["route_path"] == "/api/v1/insight"
     assert observed["generate_kwargs"]["knowledge_policy"] == prepared_runtime.knowledge_policy
     assert observed["generate_kwargs"]["rollout_policy"] is prepared_runtime.rollout_policy
+    assert (
+        observed["generate_kwargs"]["recursive_rollout_policy"]
+        is prepared_runtime.recursive_rollout_policy
+    )
     assert response["provider"] == "fake-provider"
     assert response["transparency_notice_id"] == "ai_generated_insight"
     assert response["sources"][0]["chunk_id"] == "c1"
@@ -297,6 +327,11 @@ async def test_execute_insight_request_uses_prepared_rollout_policy_as_execution
             linguistic_enabled=False,
             pragmatic_enabled=True,
         ),
+        recursive_rollout_policy=_recursive_rollout_policy(
+            use_rag=True,
+            recursive_rag_enabled=True,
+            recursive_rag_optimization_enabled=True,
+        ),
         transparency_notice=InsightTransparencyNotice(
             surface_id="ai_generated_insight",
             wellness_boundary="Wellness only.",
@@ -347,6 +382,16 @@ async def test_execute_insight_request_uses_prepared_rollout_policy_as_execution
         raising=True,
     )
     monkeypatch.setattr(
+        "app.services.insight_application_service.is_recursive_rag_enabled",
+        lambda: False,
+        raising=True,
+    )
+    monkeypatch.setattr(
+        "app.services.insight_application_service.is_recursive_rag_optimization_enabled",
+        lambda: False,
+        raising=True,
+    )
+    monkeypatch.setattr(
         "app.services.insight_application_service.prepare_insight_runtime",
         lambda **kwargs: prepared_runtime,
         raising=True,
@@ -369,8 +414,191 @@ async def test_execute_insight_request_uses_prepared_rollout_policy_as_execution
     )
 
     assert observed["generate_kwargs"]["rollout_policy"] is prepared_runtime.rollout_policy
+    assert (
+        observed["generate_kwargs"]["recursive_rollout_policy"]
+        is prepared_runtime.recursive_rollout_policy
+    )
+    assert observed["generate_kwargs"]["recursive_rag_enabled"] is True
+    assert observed["generate_kwargs"]["recursive_rag_optimization_enabled"] is True
     assert response["route_type"] == "deep_reasoning"
     assert "rollout_policy" not in response
+
+
+@pytest.mark.asyncio
+async def test_execute_insight_request_uses_prepared_recursive_rollout_policy_as_execution_authority(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Prepared recursive rollout truth must win over disagreeing env-backed readers."""
+
+    observed: dict[str, Any] = {}
+
+    @dataclass
+    class _Request:
+        text: str
+
+    prepared_runtime = SimpleNamespace(
+        runtime=object(),
+        provider=object(),
+        decision=SimpleNamespace(route_type=SimpleNamespace(value="deep_reasoning")),
+        rollout_policy=_rollout_policy(),
+        recursive_rollout_policy=_recursive_rollout_policy(
+            use_rag=True,
+            recursive_rag_enabled=True,
+            recursive_rag_optimization_enabled=False,
+        ),
+        transparency_notice=InsightTransparencyNotice(
+            surface_id="ai_generated_insight",
+            wellness_boundary="Wellness only.",
+        ),
+        knowledge_policy=_knowledge_policy(),
+    )
+
+    async def _fake_generate_traced_insight(**kwargs: object) -> object:
+        observed["generate_kwargs"] = kwargs
+        return SimpleNamespace(
+            insight="generated insight",
+            provider_name="fake-provider",
+            source_dicts=[],
+            confidence=0.9,
+            rag_used=True,
+            hops=1,
+            latency_ms=12,
+            knowledge_candidates=[],
+            metadata=SimpleNamespace(
+                route_type="deep_reasoning",
+                depth_used=2,
+                verification_rate=0.8,
+                falsifiability_rate=0.7,
+                contradiction_count=0,
+                reason_codes=["legacy_path"],
+                optimization_applied=False,
+            ),
+        )
+
+    monkeypatch.setattr(
+        "app.services.insight_application_service.is_recursive_rag_enabled",
+        lambda: False,
+        raising=True,
+    )
+    monkeypatch.setattr(
+        "app.services.insight_application_service.is_recursive_rag_optimization_enabled",
+        lambda: True,
+        raising=True,
+    )
+    monkeypatch.setattr(
+        "app.services.insight_application_service.prepare_insight_runtime",
+        lambda **kwargs: prepared_runtime,
+        raising=True,
+    )
+    monkeypatch.setattr(
+        "app.services.insight_application_service.generate_traced_insight",
+        _fake_generate_traced_insight,
+        raising=True,
+    )
+
+    response = await execute_insight_request(
+        _Request(text="hello"),
+        route_path="/api/v1/insight",
+        user_tier="VIP",
+        input_guard=lambda text: None,
+        provider_loader=lambda: _FakeProvider(),
+        transparency_loader=lambda: ("ai_generated_insight", "Wellness only."),
+        response_factory=lambda **payload: dict(payload),
+        source_item_factory=lambda **payload: dict(payload),
+    )
+
+    assert observed["generate_kwargs"]["recursive_rollout_policy"] is (
+        prepared_runtime.recursive_rollout_policy
+    )
+    assert observed["generate_kwargs"]["recursive_rag_enabled"] is True
+    assert observed["generate_kwargs"]["recursive_rag_optimization_enabled"] is False
+    assert response["rag_used"] is True
+    assert "recursive_rollout_policy" not in response
+
+
+@pytest.mark.asyncio
+async def test_execute_insight_request_clamps_legacy_recursive_fallback_when_rag_disabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Legacy prepared-runtime doubles must stay fail-closed when request RAG is off."""
+
+    observed: dict[str, Any] = {}
+
+    @dataclass
+    class _Request:
+        text: str
+
+    prepared_runtime = SimpleNamespace(
+        runtime=object(),
+        provider=object(),
+        decision=SimpleNamespace(route_type=SimpleNamespace(value="deep_reasoning")),
+        rollout_policy=_rollout_policy(),
+        transparency_notice=InsightTransparencyNotice(
+            surface_id="ai_generated_insight",
+            wellness_boundary="Wellness only.",
+        ),
+        knowledge_policy=_knowledge_policy(),
+    )
+
+    async def _fake_generate_traced_insight(**kwargs: object) -> object:
+        observed["generate_kwargs"] = kwargs
+        return SimpleNamespace(
+            insight="generated insight",
+            provider_name="fake-provider",
+            source_dicts=[],
+            confidence=0.9,
+            rag_used=False,
+            hops=0,
+            latency_ms=12,
+            knowledge_candidates=[],
+            metadata=SimpleNamespace(
+                route_type="deep_reasoning",
+                depth_used=2,
+                verification_rate=0.8,
+                falsifiability_rate=0.7,
+                contradiction_count=0,
+                reason_codes=["legacy_path"],
+                optimization_applied=False,
+            ),
+        )
+
+    monkeypatch.setenv("FEATURE_RAG", "false")
+    monkeypatch.setattr(
+        "app.services.insight_application_service.is_recursive_rag_enabled",
+        lambda: True,
+        raising=True,
+    )
+    monkeypatch.setattr(
+        "app.services.insight_application_service.is_recursive_rag_optimization_enabled",
+        lambda: True,
+        raising=True,
+    )
+    monkeypatch.setattr(
+        "app.services.insight_application_service.prepare_insight_runtime",
+        lambda **kwargs: prepared_runtime,
+        raising=True,
+    )
+    monkeypatch.setattr(
+        "app.services.insight_application_service.generate_traced_insight",
+        _fake_generate_traced_insight,
+        raising=True,
+    )
+
+    response = await execute_insight_request(
+        _Request(text="hello"),
+        route_path="/api/v1/insight",
+        user_tier="VIP",
+        input_guard=lambda text: None,
+        provider_loader=lambda: _FakeProvider(),
+        transparency_loader=lambda: ("ai_generated_insight", "Wellness only."),
+        response_factory=lambda **payload: dict(payload),
+        source_item_factory=lambda **payload: dict(payload),
+    )
+
+    assert observed["generate_kwargs"]["recursive_rag_enabled"] is False
+    assert observed["generate_kwargs"]["recursive_rag_optimization_enabled"] is False
+    assert response["rag_used"] is False
+    assert "recursive_rollout_policy" not in response
 
 
 @pytest.mark.asyncio
