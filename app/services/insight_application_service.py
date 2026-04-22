@@ -176,7 +176,7 @@ async def execute_insight_request(
         text=prompt_input,
         lang=None,
         provider=prepared_runtime.provider,
-        use_rag=use_rag,
+        use_rag=recursive_rollout_policy.use_rag,
         philo_validation_enabled=is_philosophy_validation_enabled(),
         recursive_rag_enabled=recursive_rollout_policy.recursive_path_enabled,
         recursive_rag_optimization_enabled=recursive_rollout_policy.optimization_path_enabled,

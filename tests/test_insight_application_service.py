@@ -510,6 +510,7 @@ async def test_execute_insight_request_uses_prepared_recursive_rollout_policy_as
     assert observed["generate_kwargs"]["recursive_rollout_policy"] is (
         prepared_runtime.recursive_rollout_policy
     )
+    assert observed["generate_kwargs"]["use_rag"] is True
     assert observed["generate_kwargs"]["recursive_rag_enabled"] is True
     assert observed["generate_kwargs"]["recursive_rag_optimization_enabled"] is False
     assert response["rag_used"] is True
@@ -597,6 +598,9 @@ async def test_execute_insight_request_does_not_build_legacy_recursive_policy_wh
     assert observed["generate_kwargs"]["recursive_rollout_policy"] is (
         prepared_runtime.recursive_rollout_policy
     )
+    assert (
+        observed["generate_kwargs"]["use_rag"] is prepared_runtime.recursive_rollout_policy.use_rag
+    )
     assert response["rag_used"] is True
 
 
@@ -679,6 +683,7 @@ async def test_execute_insight_request_clamps_legacy_recursive_fallback_when_rag
         source_item_factory=lambda **payload: dict(payload),
     )
 
+    assert observed["generate_kwargs"]["use_rag"] is False
     assert observed["generate_kwargs"]["recursive_rag_enabled"] is False
     assert observed["generate_kwargs"]["recursive_rag_optimization_enabled"] is False
     assert response["rag_used"] is False
