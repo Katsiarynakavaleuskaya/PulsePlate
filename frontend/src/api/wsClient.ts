@@ -23,6 +23,9 @@ const DEFAULT_WS_PATH = "/api/v1/pro/ws";
 
 function toWsBaseUrl(apiBase: string): string {
   const trimmedBase = apiBase.trim();
+  if (!trimmedBase) {
+    throw new Error("VITE_API_BASE must not be empty");
+  }
   const origin =
     typeof window !== "undefined" && window.location?.origin
       ? window.location.origin
