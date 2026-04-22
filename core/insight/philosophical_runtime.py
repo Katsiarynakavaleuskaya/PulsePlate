@@ -420,6 +420,7 @@ class PhilosophicalRuntime:
                 answer=_SAFE_WELLNESS_DISCLAIMER[_normalize_runtime_lang(lang)],
                 provider_name="philosophical_runtime",
                 decision=decision,
+                public_metadata_enabled=policy.public_metadata_enabled,
                 verification_report=None,
                 falsification_report=None,
                 contradiction_count=0,
@@ -433,6 +434,7 @@ class PhilosophicalRuntime:
                 answer=local_direct,
                 provider_name="philosophical_runtime",
                 decision=decision,
+                public_metadata_enabled=policy.public_metadata_enabled,
                 verification_report=None,
                 falsification_report=None,
                 contradiction_count=0,
@@ -825,6 +827,7 @@ class PhilosophicalRuntime:
         answer: str,
         provider_name: str,
         decision: RouteDecision,
+        public_metadata_enabled: bool,
         verification_report: VerificationReport | None,
         falsification_report: FalsificationReport | None,
         contradiction_count: int,
@@ -838,6 +841,8 @@ class PhilosophicalRuntime:
         `public_metadata_enabled`, so direct answers do not bypass metadata
         exposure policy.
         """
+        if not public_metadata_enabled:
+            raise ValueError("direct-result metadata requires public metadata access")
         tokens_saved_estimate = _estimate_tokens_saved(
             prompt_text=decision.simplified_query,
             target_depth=decision.target_depth,

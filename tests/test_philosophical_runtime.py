@@ -794,6 +794,31 @@ class TestPhilosophicalRuntime:
         assert result.metadata.depth_used == 0
         assert result.metadata.reason_codes == []
 
+    async def test_build_direct_result_requires_public_metadata_access(self) -> None:
+        runtime = PhilosophicalRuntime()
+
+        with pytest.raises(
+            ValueError, match="direct-result metadata requires public metadata access"
+        ):
+            runtime._build_direct_result(
+                answer="BMI stands for body mass index.",
+                provider_name="philosophical_runtime",
+                decision=RouteDecision(
+                    route_type=RouteType.DIRECT_DEFINITION,
+                    target_depth=1,
+                    needs_rag=False,
+                    needs_generation=False,
+                    risk_level=RiskLevel.LOW,
+                    reason_codes=["cached_definition"],
+                ),
+                public_metadata_enabled=False,
+                verification_report=None,
+                falsification_report=None,
+                contradiction_count=0,
+                fallback_reason="",
+                rewrite_count=0,
+            )
+
     async def test_build_prompt_covers_all_route_variants(self) -> None:
         runtime = PhilosophicalRuntime()
 
