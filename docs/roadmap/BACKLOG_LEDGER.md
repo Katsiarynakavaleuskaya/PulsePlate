@@ -938,6 +938,48 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - If figma-manifest unification is chosen, the schema/version/validation owner is documented; if not chosen, docs explicitly keep it informational
     - Active design-system docs continue to reference one governance path only
 
+<a id="ledger-p1-design-runtime-system-web-ios-epic"></a>
+- [ ] P1: Coordinator-first design runtime system web+iOS epic bootstrap and PR train
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (design-system productization and governance)
+  - Target PR: PR-TBD-DESIGN-RUNTIME-SYSTEM-PR0 (`codex/design-runtime-system-v1-packet`)
+  - Status: 🛠️ In progress on branch `codex/design-runtime-system-v1-packet`
+  - Area: docs / orchestration / design-system / frontend / ios / storybook
+  - Finding Type: coordinator-owned epic bootstrap and sequencing contract
+  - Reason: PulsePlate already has governed design-runtime, token-pipeline,
+    and bridge baselines on `main`, but it still lacks one coordinator-owned
+    productization train that locks source precedence, role order, PR order,
+    review surfaces, merge/cleanup governance, and the bounded handoff from
+    docs bootstrap into implementation slices. This series must stay repo-first,
+    keep clients thin, and avoid reopening merged design/runtime/bridge lanes.
+  - Links:
+    - `docs/orchestration/DESIGN_RUNTIME_SYSTEM_WEB_IOS_PR_SERIES_RUNBOOK.md`
+    - `docs/orchestration/DESIGN_RUNTIME_SYSTEM_WEB_IOS_PR0_BOOTSTRAP_PACKET_2026-04-22.md`
+    - `docs/design/TOKENS_SOT.md`
+    - `docs/design/TOKEN_PIPELINE_GOVERNANCE.md`
+    - `docs/design/UI_COMPONENT_VOCABULARY.md`
+    - `docs/runbooks/DESIGN_TOOLING_OPERATING_MODEL.md`
+    - `docs/design/DESIGN_AGENT_RUNTIME_PR_CHAIN.md`
+    - `docs/orchestration/DESIGN_BRIDGE_OPERATIONALIZATION_PACKET_2026-04-11.md`
+    - `docs/orchestration/UI_EPIC_PR_SERIES_RUNBOOK.md`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-token-expansion-activation`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-design-token-lock-ci`
+  - DoD:
+    - One coordinator-owned runbook exists for the full `PR-0` through `PR-8`
+      train with fixed source precedence, role order, validation matrix, merge
+      path, and cleanup path
+    - `PR-0` remains docs-only and introduces no runtime, client, or CI
+      behavior changes
+    - The line explicitly stays downstream of merged design-runtime and
+      design-bridge baselines and does not consume reserved design-agent PR
+      slots
+    - Web is locked as renderer-only and Storybook-first review only; iOS
+      remains simulator-first for implementation slices
+    - `/tokens` stays the authoring source and generated web+iOS mirrors remain
+      derived runtime outputs
+    - `figma-manifest` remains bootstrap metadata until the dedicated export
+      lock slice hardens it
+
 <a id="ledger-p1-design-agent-runtime-pr-chain"></a>
 - [ ] P1: Coordinator-led design-agent runtime PR chain (PR1-PR4)
   - Owner: @katsiaryna_kavaleuskaya
