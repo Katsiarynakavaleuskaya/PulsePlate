@@ -16,6 +16,7 @@ import os
 from datetime import date, datetime, timezone
 
 from sqlalchemy import text
+from sqlalchemy.orm import Session
 
 from core.db import session_scope
 
@@ -127,7 +128,7 @@ def _legacy_llm_key_fingerprint(raw_key: str) -> str:
 
 def _reconcile_legacy_vip_quota_row(
     *,
-    session: object,
+    session: Session,
     canonical_fp: str,
     legacy_fp: str,
     month_start: date,
