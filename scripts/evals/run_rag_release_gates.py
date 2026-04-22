@@ -2323,7 +2323,7 @@ def build_config(args: argparse.Namespace) -> EvalConfig:
     if companion_metrics_json is not None:
         _ensure_within(
             companion_metrics_json,
-            project_root / "artifacts",
+            project_root / "artifacts" / "rag_eval",
             label="companion_metrics_json",
         )
     sample_size = _require_positive_int(
