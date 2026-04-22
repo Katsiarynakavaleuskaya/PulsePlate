@@ -14,7 +14,7 @@ Record every actionable human/bot disposition here before resolving threads on G
 
 ## Fixed in Commit Mapping
 
-No actionable review threads yet on `PR #1499`.
+- No actionable review comments
 
 ## Merge Readiness
 
