@@ -5,29 +5,20 @@
 - [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
-- Disposition: FIXED
-  Review lane: post-open `qa-engineer-agent -> bug-hunter`
-  Commit: `af901e4b7`
-  Evidence:
-  - `docs/orchestration/DESIGN_RUNTIME_SYSTEM_WEB_IOS_PR_SERIES_RUNBOOK.md`
-    adds the downstream ownership rule and explicit UI-epic handoff/supersede
-    guard for overlapping `Home`, `Plate`, `Progress`, `Weekly Plan`,
-    `Profile`, and `Paywall` surfaces.
-  - `docs/orchestration/DESIGN_RUNTIME_SYSTEM_WEB_IOS_PR0_BOOTSTRAP_PACKET_2026-04-22.md`
-    now cites
-    `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-design-runtime-system-web-ios-epic`
-    and records the same downstream dependency.
-  - `docs/orchestration/AGENTS.md` now registers the design runtime system
-    web+iOS lane, role order, and downstream invariants in the nearest scoped
-    orchestration instructions.
-- Disposition: NOT-A-BUG
-  Thread: `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1497#issuecomment-4297833328`
-  Evidence: CodeRabbit only reported `Review skipped` because the PR is draft;
-  it did not request code or docs changes.
-- Disposition: NOT-A-BUG
-  Thread: `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1497#issuecomment-4297845180`
-  Evidence: Sourcery generated a reviewer guide only; it contains no requested
-  changes or actionable review comments.
+Disposition: FIXED
+Commit: af901e4b7
+Evidence: `docs/orchestration/DESIGN_RUNTIME_SYSTEM_WEB_IOS_PR_SERIES_RUNBOOK.md:24-26`, `docs/orchestration/DESIGN_RUNTIME_SYSTEM_WEB_IOS_PR_SERIES_RUNBOOK.md:131-141`, `docs/orchestration/DESIGN_RUNTIME_SYSTEM_WEB_IOS_PR_SERIES_RUNBOOK.md:187-204`, `docs/orchestration/DESIGN_RUNTIME_SYSTEM_WEB_IOS_PR0_BOOTSTRAP_PACKET_2026-04-22.md:19-23`, `docs/orchestration/DESIGN_RUNTIME_SYSTEM_WEB_IOS_PR0_BOOTSTRAP_PACKET_2026-04-22.md:35-39`, `docs/orchestration/DESIGN_RUNTIME_SYSTEM_WEB_IOS_PR0_BOOTSTRAP_PACKET_2026-04-22.md:66-72`, `docs/orchestration/DESIGN_RUNTIME_SYSTEM_WEB_IOS_PR0_BOOTSTRAP_PACKET_2026-04-22.md:118-124`, `docs/orchestration/AGENTS.md:27-44`
+Reason: The mandatory post-open `qa-engineer-agent -> bug-hunter` lane surfaced the downstream UI-epic ownership collision, the missing scoped orchestration-lane registration, and the stale packet ledger anchor; commit `af901e4b7` fixed all three in the tracked runbook, packet, and scoped `AGENTS.md`.
+
+Disposition: NOT-A-BUG
+Evidence: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1497#issuecomment-4297833328
+Reason: CodeRabbit only reported `Review skipped` because the PR is draft and did not request code or docs changes.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1497#issuecomment-4297833328
+
+Disposition: NOT-A-BUG
+Evidence: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1497#issuecomment-4297845180
+Reason: Sourcery generated a reviewer guide only; it contains no requested changes or actionable review comments.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1497#issuecomment-4297845180
 
 ## Merge Readiness
 
