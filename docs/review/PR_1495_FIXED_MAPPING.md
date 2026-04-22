@@ -26,6 +26,11 @@ Reason: `PR-A6 W1` intentionally preserves legacy `philosophy_*` bool compatibil
 Evidence: `docs/orchestration/WAVE6_A6_PHILOSOPHICAL_ROLLOUT_W1_PACKET_2026-04-22.md:133-139`; `app/services/insight_application_service.py:143-157`; `app/services/insight_runtime.py:123-142`; `core/insight/philosophical_runtime.py:386-415`
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1495#pullrequestreview-4154591459
 
+Disposition: FIXED
+Commit: dd1035347
+Evidence: `tests/test_insight_application_service.py` now pins the philosophy feature-flag readers in the prepare-kwargs assertion path, `core/insight/philosophical_runtime.py` exports `PhilosophyRolloutPolicy` via `__all__`, and `docs/orchestration/WAVE6_A6_TASK_ANALYSIS_2026-04-22.md` applies the requested wording cleanup without changing scope.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1495#pullrequestreview-4154609821
+
 ## Merge Readiness
 
 Merge-readiness contract:
