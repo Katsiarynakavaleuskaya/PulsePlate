@@ -1361,6 +1361,23 @@ class TestVerificationRegistryCoverageTail:
         assert out_of_range.admission_allowed is False
         assert "falsification_below_threshold" in out_of_range.reason_codes
 
+    def test_rag_bundle_denies_non_finite_confidence(self) -> None:
+        from core.verification.registry import build_rag_verification_bundle
+
+        bundle = build_rag_verification_bundle(
+            knowledge_policy=self._knowledge_policy(),
+            confidence=float("nan"),
+            degraded_reason=None,
+            rag_actually_used=True,
+            philo_validation_enabled=True,
+            recursive_executed=False,
+            verification_calls=0,
+            evidence_refs=("docs/keep.md:keep",),
+        )
+
+        assert bundle.admission_allowed is False
+        assert "confidence_non_finite" in bundle.reason_codes
+
     def test_runtime_bundle_denies_contradictions(self) -> None:
         from core.insight.analytical import FalsificationReport, VerificationReport
         from core.verification.registry import (

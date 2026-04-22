@@ -151,6 +151,20 @@ class TestExtractRecursiveVerificationCalls:
 
         assert _extract_recursive_verification_calls(rag_ctx) == 0
 
+    def test_boolean_and_negative_values_fall_back_to_zero(self) -> None:
+        rag_ctx = _make_rag_context()
+        rag_ctx.optimization_stats = cast(
+            OptimizationStats,
+            {"verification_calls": True},
+        )
+        assert _extract_recursive_verification_calls(rag_ctx) == 0
+
+        rag_ctx.optimization_stats = cast(
+            OptimizationStats,
+            {"verification_calls": -1},
+        )
+        assert _extract_recursive_verification_calls(rag_ctx) == 0
+
 
 class TestRetrieveAndValidateRag:
     """Tests for main orchestration function."""

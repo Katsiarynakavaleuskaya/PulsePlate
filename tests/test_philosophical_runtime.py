@@ -539,7 +539,7 @@ class TestPhilosophicalRuntime:
                 hops=1,
                 latency_ms=5,
                 knowledge_candidates=[candidate],
-                knowledge_candidates_canonical=False,
+                knowledge_candidates_canonical=True,
                 verification_bundle=_verification_bundle(admission_allowed=False),
             )
 

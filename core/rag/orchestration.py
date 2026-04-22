@@ -550,7 +550,7 @@ def _extract_recursive_verification_calls(rag_ctx: RAGContext | None) -> int:
     if not isinstance(optimization_stats, dict):
         return 0
     value = optimization_stats.get("verification_calls", 0)
-    return value if isinstance(value, int) else 0
+    return value if type(value) is int and value >= 0 else 0
 
 
 def _build_orchestration_verification_bundle(

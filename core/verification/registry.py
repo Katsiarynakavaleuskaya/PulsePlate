@@ -204,6 +204,14 @@ def _freshness_artifact(
             failure_reason="confidence_missing",
             scope=policy.scope,
         )
+    if not math.isfinite(confidence):
+        return _artifact(
+            verifier_id="freshness_verifier",
+            status=_FAIL,
+            reason_codes=("confidence_non_finite",),
+            failure_reason="confidence_non_finite",
+            scope=policy.scope,
+        )
     threshold = 0.0 if knowledge_policy is None else knowledge_policy.min_confidence
     if confidence < threshold:
         return _artifact(
