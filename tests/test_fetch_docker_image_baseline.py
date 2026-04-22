@@ -43,19 +43,21 @@ def test_fetch_main_artifact_baseline_normalizes_remote_payload(
     monkeypatch.setattr(fetch_docker_image_baseline, "_ensure_gh_auth", lambda env: None)
     monkeypatch.setattr(
         fetch_docker_image_baseline,
-        "_find_run_and_artifact",
-        lambda **_kwargs: (
-            {
-                "id": 11,
-                "run_attempt": 2,
-                "run_number": 345,
-                "html_url": "https://github.com/example/repo/actions/runs/11",
-            },
-            {
-                "id": 99,
-                "name": "docker-image-telemetry-build",
-            },
-        ),
+        "_iter_run_artifact_candidates",
+        lambda **_kwargs: [
+            (
+                {
+                    "id": 11,
+                    "run_attempt": 2,
+                    "run_number": 345,
+                    "html_url": "https://github.com/example/repo/actions/runs/11",
+                },
+                {
+                    "id": 99,
+                    "name": "docker-image-telemetry-build",
+                },
+            )
+        ],
     )
     monkeypatch.setattr(
         fetch_docker_image_baseline,
@@ -78,6 +80,70 @@ def test_fetch_main_artifact_baseline_normalizes_remote_payload(
     assert payload["image_size_bytes"] == 123456
     assert payload["baseline_reference"]["artifact_id"] == 99
     assert payload["baseline_reference"]["run_number"] == 345
+
+
+def test_fetch_main_artifact_baseline_skips_invalid_latest_artifact(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(fetch_docker_image_baseline, "_auth_env", lambda: {"GH_TOKEN": "token"})
+    monkeypatch.setattr(fetch_docker_image_baseline, "_ensure_gh_auth", lambda env: None)
+    monkeypatch.setattr(
+        fetch_docker_image_baseline,
+        "_iter_run_artifact_candidates",
+        lambda **_kwargs: [
+            (
+                {
+                    "id": 21,
+                    "run_attempt": 1,
+                    "run_number": 500,
+                    "html_url": "https://github.com/example/repo/actions/runs/21",
+                },
+                {
+                    "id": 101,
+                    "name": "docker-image-telemetry-build",
+                },
+            ),
+            (
+                {
+                    "id": 20,
+                    "run_attempt": 1,
+                    "run_number": 499,
+                    "html_url": "https://github.com/example/repo/actions/runs/20",
+                },
+                {
+                    "id": 100,
+                    "name": "docker-image-telemetry-build",
+                },
+            ),
+        ],
+    )
+
+    def _fake_download_artifact_payload(**kwargs: object) -> dict[str, object]:
+        artifact_id = kwargs["artifact_id"]
+        if artifact_id == 101:
+            return {"advisory_only": True, "warning": "telemetry collection failed"}
+        if artifact_id == 100:
+            return {"image_size_bytes": 654321, "image_size_human": "654.32 KB"}
+        raise AssertionError(f"unexpected artifact_id={artifact_id}")
+
+    monkeypatch.setattr(
+        fetch_docker_image_baseline,
+        "_download_artifact_payload",
+        _fake_download_artifact_payload,
+    )
+
+    payload = fetch_docker_image_baseline.fetch_main_artifact_baseline(
+        repo="owner/repo",
+        workflow="build.yml",
+        branch="main",
+        artifact_name="docker-image-telemetry-build",
+        per_page=10,
+    )
+
+    assert payload["baseline_source"] == "main-artifact"
+    assert payload["image_size_bytes"] == 654321
+    assert payload["baseline_reference"]["artifact_id"] == 100
+    assert payload["baseline_reference"]["run_number"] == 499
 
 
 def test_main_falls_back_to_repo_seed_when_remote_lookup_fails(

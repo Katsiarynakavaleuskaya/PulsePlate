@@ -6,16 +6,15 @@ Canonical review-governance artifact and PR-body mirror requirements:
 `AGENTS.md:42-52`; `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md:41-90`;
 `docs/orchestration/AGENTS.md:79-82`.
 
-- [ ] Discussion-thread pass completed
-- [ ] Fixed in commit mapping completed
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 
 This artifact is created immediately after the PR is opened per repo governance.
 Record every actionable human/bot disposition here before resolving threads on GitHub.
 
 ## Fixed in Commit Mapping
 
-No actionable review threads are mapped yet. Add entries here before resolving
-any human or bot thread on GitHub.
+- No actionable review comments
 
 ## Merge Readiness
 
@@ -24,15 +23,15 @@ Merge-readiness contract:
 `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md:153-216`.
 
 - [ ] Current-head CI is green for PR branch head
-  Evidence: pending after draft PR open on `66bb095ec`.
+  Evidence: pending after current head `418ec17c8`.
 - [ ] Required checks complete (no pending jobs)
-  Evidence: pending after draft PR open on `66bb095ec`.
+  Evidence: pending after current head `418ec17c8`.
 - [ ] All review threads resolved on GitHub after disposition updates
   Evidence: pending; no review threads at bootstrap.
 - [x] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
-  Evidence: none yet; draft PR opened and no review comments exist at bootstrap.
+  Evidence: `CodeRabbit` is a draft-skip shell and the `Sourcery` comment is a reviewer guide shell with no inline actionable findings on current head.
 - [x] Pre-commit green on latest pushed head
-  Evidence: `pre-commit run --all-files` passed locally before the `66bb095ec` push.
+  Evidence: `pre-commit run --all-files` passed locally on the current head before and after `418ec17c8`.
 - [ ] `make verify` green on latest pushed head
   Evidence: not run for this lane; GitHub current-head checks remain the heavy signal.
 

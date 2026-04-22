@@ -71,7 +71,7 @@ def _github_api_json(endpoint: str, *, env: dict[str, str]) -> object:
     return json.loads(completed.stdout)
 
 
-def _find_run_and_artifact(
+def _iter_run_artifact_candidates(
     *,
     repo: str,
     workflow: str,
@@ -79,8 +79,8 @@ def _find_run_and_artifact(
     artifact_name: str,
     env: dict[str, str],
     per_page: int,
-) -> tuple[dict[str, object], dict[str, object]]:
-    """Return the first successful workflow run that published the target artifact."""
+) -> list[tuple[dict[str, object], dict[str, object]]]:
+    """Return successful workflow runs that published the target artifact."""
 
     runs_payload = _github_api_json(
         (
@@ -95,6 +95,7 @@ def _find_run_and_artifact(
     if not isinstance(workflow_runs, list):
         raise RuntimeError("GitHub workflow-runs response is missing workflow_runs.")
 
+    candidates: list[tuple[dict[str, object], dict[str, object]]] = []
     for run in workflow_runs:
         if not isinstance(run, dict):
             continue
@@ -114,11 +115,9 @@ def _find_run_and_artifact(
             if not isinstance(artifact, dict):
                 continue
             if artifact.get("name") == artifact_name:
-                return run, artifact
+                candidates.append((run, artifact))
 
-    raise RuntimeError(
-        f"No successful {workflow} run on {branch} published artifact {artifact_name}."
-    )
+    return candidates
 
 
 def _extract_image_size_bytes(payload: object) -> int:
@@ -221,7 +220,7 @@ def fetch_main_artifact_baseline(
 
     env = _auth_env()
     _ensure_gh_auth(env)
-    run, artifact = _find_run_and_artifact(
+    candidates = _iter_run_artifact_candidates(
         repo=repo,
         workflow=workflow,
         branch=branch,
@@ -229,17 +228,38 @@ def fetch_main_artifact_baseline(
         env=env,
         per_page=per_page,
     )
-    artifact_id = artifact.get("id")
-    if not isinstance(artifact_id, int):
-        raise RuntimeError("Artifact payload is missing an integer id.")
-    raw_payload = _download_artifact_payload(repo=repo, artifact_id=artifact_id, env=env)
-    return _normalize_main_artifact_baseline(
-        repo=repo,
-        workflow=workflow,
-        branch=branch,
-        run=run,
-        artifact=artifact,
-        raw_payload=raw_payload,
+    if not candidates:
+        raise RuntimeError(
+            f"No successful {workflow} run on {branch} published artifact {artifact_name}."
+        )
+
+    last_error: RuntimeError | None = None
+    for run, artifact in candidates:
+        artifact_id = artifact.get("id")
+        if not isinstance(artifact_id, int):
+            last_error = RuntimeError("Artifact payload is missing an integer id.")
+            continue
+        try:
+            raw_payload = _download_artifact_payload(repo=repo, artifact_id=artifact_id, env=env)
+            return _normalize_main_artifact_baseline(
+                repo=repo,
+                workflow=workflow,
+                branch=branch,
+                run=run,
+                artifact=artifact,
+                raw_payload=raw_payload,
+            )
+        except RuntimeError as exc:
+            last_error = exc
+
+    if last_error is not None:
+        raise RuntimeError(
+            "No valid Docker telemetry payload was found in the latest successful "
+            f"{workflow} runs on {branch}: {last_error}"
+        ) from last_error
+
+    raise RuntimeError(
+        f"No successful {workflow} run on {branch} published artifact {artifact_name}."
     )
 
 
