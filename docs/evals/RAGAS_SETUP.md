@@ -17,6 +17,9 @@
 - This companion lane does not own threshold vocabulary such as `PASS`, `NO-GO`,
   or canonical gate semantics.
 - If you need canonical runtime-grounded release evidence, use the release-gates lane instead.
+- The companion runner may feed a precomputed JSON artifact into the canonical
+  release-gates runner for informational reporting, but it does not replace the
+  canonical runner or artifact contract.
 
 ## Scope
 - Dataset inspiration surface: `/api/v1/pro/cbt/insight`
@@ -79,6 +82,22 @@ Default output is stdout only. Optional file outputs may reuse the existing
 gitignored `artifacts/rag_eval/<experiment_id>/...` family, but this companion
 lane does not redefine that artifact contract.
 
+Optional local composition with the canonical release-gates runner:
+
+```bash
+python3 scripts/evals/run_rag_release_gates.py \
+  --input-path data/evals/pulseplate_rag_eval_sample.jsonl \
+  --retriever-mode local_tfidf \
+  --generator-mode extractive_stub \
+  --companion-metrics-json artifacts/rag_eval/ragas_bootstrap_manual/metrics_summary.json
+```
+
+This bridge is local and informational only:
+
+- it does not install or execute `ragas` in GitHub CI
+- it does not change canonical gate outcomes
+- it does not create a second canonical evaluation rail
+
 ## Output Contract
 Stdout prints a deterministic Markdown summary:
 
@@ -111,3 +130,9 @@ pytest -q tests/evals/test_ragas_dataset_contract.py
 pytest -q tests/evals/test_ragas_metrics_config.py
 pytest -q tests/evals/test_ragas_runner_contract.py
 ```
+
+## Deferred GraphRAG Note
+
+Selective GraphRAG evaluation remains deferred to a separate docs/ADR lane.
+This companion bootstrap does not introduce GraphRAG runtime behavior,
+graph-specific thresholds, or graph artifact schema.
