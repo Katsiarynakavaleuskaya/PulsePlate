@@ -97,9 +97,9 @@ governance ladder:
 Hard rules:
 - `/tokens` remains the canonical authoring source for design tokens.
 - For design-token conflicts, `/tokens` authoring plus
-  `frontend/src/styles/tokens.css` as the web runtime token SoT override
+  `frontend/src/styles/tokens.css` as the web runtime token SoT overrides
   code-native design runtime, `Figma Design + Code Connect`, Storybook
-  review-only surfaces, and external/reference tools even though the general
+  review-only surfaces, and external/reference tools, even though the general
   governance ladder still lists those lanes separately.
 - `frontend/src/styles/tokens.css` remains the web runtime token SoT.
 - `frontend/src/styles/tokens.ts` is a typed mirror and loses on conflict.
