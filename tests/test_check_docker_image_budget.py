@@ -124,6 +124,56 @@ def test_evaluate_budget_allows_negative_delta_within_cap(tmp_path: Path) -> Non
     assert result.size_delta_bytes == -12000000
 
 
+def test_evaluate_budget_rejects_negative_baseline_size_bytes(tmp_path: Path) -> None:
+    telemetry_path = _write_telemetry_payload(
+        tmp_path,
+        image_size_bytes=430000000,
+        size_delta_bytes=-12000000,
+        baseline_size_bytes=-1,
+    )
+    budget_path = _write_budget_policy(tmp_path)
+
+    with pytest.raises(RuntimeError, match="baseline_size_bytes"):
+        check_docker_image_budget.evaluate_budget(
+            telemetry_path=telemetry_path,
+            budget_path=budget_path,
+        )
+
+
+def test_main_writes_artifacts_on_budget_breach(tmp_path: Path) -> None:
+    telemetry_path = _write_telemetry_payload(
+        tmp_path,
+        image_size_bytes=470000001,
+        size_delta_bytes=1000000,
+    )
+    budget_path = _write_budget_policy(tmp_path)
+    json_out = tmp_path / "budget-check.json"
+    markdown_out = tmp_path / "budget-check.md"
+
+    exit_code = check_docker_image_budget.main(
+        [
+            "--telemetry-json",
+            str(telemetry_path),
+            "--budget-json",
+            str(budget_path),
+            "--json-out",
+            str(json_out),
+            "--markdown-out",
+            str(markdown_out),
+        ]
+    )
+
+    payload = json.loads(json_out.read_text(encoding="utf-8"))
+    markdown = markdown_out.read_text(encoding="utf-8")
+
+    assert exit_code == 1
+    assert payload["passed"] is False
+    assert payload["violations"]
+    assert "absolute hard-budget cap" in payload["violations"][0]
+    assert "## Violations" in markdown
+    assert "Passed: `false`" in markdown
+
+
 def test_main_fails_closed_on_malformed_telemetry_and_writes_evidence(tmp_path: Path) -> None:
     telemetry_path = tmp_path / "telemetry.json"
     telemetry_path.write_text(

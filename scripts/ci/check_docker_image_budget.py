@@ -138,10 +138,16 @@ def evaluate_budget(
     baseline_size_bytes_raw = baseline_payload.get("baseline_size_bytes")
     if baseline_size_bytes_raw is None:
         baseline_size_bytes = None
-    elif isinstance(baseline_size_bytes_raw, int) and not isinstance(baseline_size_bytes_raw, bool):
+    elif (
+        isinstance(baseline_size_bytes_raw, int)
+        and not isinstance(baseline_size_bytes_raw, bool)
+        and baseline_size_bytes_raw >= 0
+    ):
         baseline_size_bytes = baseline_size_bytes_raw
     else:
-        raise RuntimeError("Docker image telemetry baseline_size_bytes must be null or an integer.")
+        raise RuntimeError(
+            "Docker image telemetry baseline_size_bytes must be null or a non-negative integer."
+        )
 
     baseline_source = baseline_payload.get("baseline_source")
     if baseline_source is not None and not isinstance(baseline_source, str):

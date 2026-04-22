@@ -6,15 +6,15 @@ Canonical review-governance artifact and PR-body mirror requirements:
 `AGENTS.md:42-52`; `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md:41-90`;
 `docs/orchestration/AGENTS.md:79-82`.
 
-- [ ] Discussion-thread pass completed
-- [ ] Fixed in commit mapping completed
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 
 This artifact is created immediately after the PR is opened per repo governance.
 Record every actionable human/bot disposition here before resolving threads on GitHub.
 
 ## Fixed in Commit Mapping
 
-Pending initial review threads.
+- No actionable review comments
 
 ## Merge Readiness
 
@@ -22,6 +22,8 @@ Merge-readiness contract:
 `AGENTS.md:42-52`; `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md:93-112`;
 `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md:153-216`.
 
+- [ ] Mandatory wait-window satisfied (final check pass completed, then waited >=1 review cycle after latest bot/review activity)
+  Evidence: pending initial review and current-head CI cycle.
 - [ ] Current-head CI is green for PR branch head
   Evidence: pending current-head GitHub checks after PR open.
 - [ ] Required checks complete (no pending jobs)
