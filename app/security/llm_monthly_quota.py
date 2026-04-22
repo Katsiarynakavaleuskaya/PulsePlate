@@ -24,6 +24,9 @@ from app.security.server_salt import require_server_salt
 
 _VIP_LIMIT_ENV = "VIP_LLM_INSIGHT_REQUESTS_PER_MONTH"
 _PRO_LIMIT_ENV = "PRO_LLM_INSIGHT_REQUESTS_PER_MONTH"
+VIP_LLM_INSIGHT_REQUESTS_PER_MONTH_ENV = _VIP_LIMIT_ENV
+VIP_TIER = "VIP"
+PRO_TIER = "PRO"
 
 # NOTE: Table name must match app/models/llm_quota_usage.py.
 _USAGE_TABLE = "vip_llm_monthly_usage"
@@ -32,12 +35,12 @@ DEFAULT_VIP_LLM_INSIGHT_REQUESTS_PER_MONTH = 30
 DEFAULT_PRO_LLM_INSIGHT_REQUESTS_PER_MONTH = 20
 
 _TIER_LIMIT_ENV = {
-    "VIP": _VIP_LIMIT_ENV,
-    "PRO": _PRO_LIMIT_ENV,
+    VIP_TIER: _VIP_LIMIT_ENV,
+    PRO_TIER: _PRO_LIMIT_ENV,
 }
 _TIER_LIMIT_DEFAULT = {
-    "VIP": DEFAULT_VIP_LLM_INSIGHT_REQUESTS_PER_MONTH,
-    "PRO": DEFAULT_PRO_LLM_INSIGHT_REQUESTS_PER_MONTH,
+    VIP_TIER: DEFAULT_VIP_LLM_INSIGHT_REQUESTS_PER_MONTH,
+    PRO_TIER: DEFAULT_PRO_LLM_INSIGHT_REQUESTS_PER_MONTH,
 }
 
 
@@ -122,10 +125,75 @@ def _legacy_llm_key_fingerprint(raw_key: str) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
+def _reconcile_legacy_vip_quota_row(
+    *,
+    session: object,
+    canonical_fp: str,
+    legacy_fp: str,
+    month_start: date,
+) -> None:
+    """Merge legacy + canonical VIP quota rows before quota consumption.
+
+    RU: При dual-row состоянии суммируем pre/post-migration usage в canonical row.
+    EN: Dual-row migration state must preserve total usage in the canonical row.
+    """
+
+    legacy_row = session.execute(
+        text("""
+            SELECT used_requests
+            FROM vip_llm_monthly_usage
+            WHERE key_fingerprint = :legacy_fp
+              AND month_start_date = :month_start
+            """),
+        {"legacy_fp": legacy_fp, "month_start": month_start},
+    ).first()
+    if legacy_row is None:
+        return
+
+    canonical_row = session.execute(
+        text("""
+            SELECT used_requests
+            FROM vip_llm_monthly_usage
+            WHERE key_fingerprint = :canonical_fp
+              AND month_start_date = :month_start
+            """),
+        {"canonical_fp": canonical_fp, "month_start": month_start},
+    ).first()
+    canonical_used = int(canonical_row[0]) if canonical_row is not None else 0
+    combined_used = int(legacy_row[0]) + canonical_used
+
+    session.execute(
+        text("""
+            INSERT INTO vip_llm_monthly_usage (key_fingerprint, month_start_date, used_requests)
+            VALUES (:canonical_fp, :month_start, :combined_used)
+            ON CONFLICT(key_fingerprint, month_start_date)
+            DO UPDATE
+            SET used_requests = CASE
+                WHEN vip_llm_monthly_usage.used_requests < :combined_used
+                THEN :combined_used
+                ELSE vip_llm_monthly_usage.used_requests
+            END
+            """),
+        {
+            "canonical_fp": canonical_fp,
+            "month_start": month_start,
+            "combined_used": combined_used,
+        },
+    )
+    session.execute(
+        text("""
+            DELETE FROM vip_llm_monthly_usage
+            WHERE key_fingerprint = :legacy_fp
+              AND month_start_date = :month_start
+            """),
+        {"legacy_fp": legacy_fp, "month_start": month_start},
+    )
+
+
 def vip_key_fingerprint(raw_key: str) -> str:
     """Return salted VIP key fingerprint (backward-compatible wrapper)."""
 
-    return llm_key_fingerprint(raw_key, tier="VIP")
+    return llm_key_fingerprint(raw_key, tier=VIP_TIER)
 
 
 def attempt_consume_llm_monthly_quota(
@@ -139,7 +207,7 @@ def attempt_consume_llm_monthly_quota(
 
     normalized_tier = _normalize_tier(tier)
     fp = llm_key_fingerprint(raw_key, tier=normalized_tier)
-    legacy_fp = _legacy_llm_key_fingerprint(raw_key) if normalized_tier == "VIP" else None
+    legacy_fp = _legacy_llm_key_fingerprint(raw_key) if normalized_tier == VIP_TIER else None
     bucket = month_start or month_start_date_utc()
     limit_val = (
         limit_requests
@@ -161,34 +229,12 @@ def attempt_consume_llm_monthly_quota(
 
     with session_scope() as session:
         if legacy_fp is not None:
-            legacy_row = session.execute(
-                text("""
-                UPDATE vip_llm_monthly_usage
-                SET used_requests = used_requests + 1
-                WHERE key_fingerprint = :legacy_fp
-                  AND month_start_date = :month_start
-                  AND used_requests < :limit_val
-                RETURNING used_requests
-                """),
-                {
-                    "legacy_fp": legacy_fp,
-                    "month_start": bucket,
-                    "limit_val": limit_val,
-                },
-            ).first()
-            if legacy_row is not None:
-                return True
-
-            legacy_exists = session.execute(
-                text("""
-                SELECT 1
-                FROM vip_llm_monthly_usage
-                WHERE key_fingerprint = :legacy_fp AND month_start_date = :month_start
-                """),
-                {"legacy_fp": legacy_fp, "month_start": bucket},
-            ).first()
-            if legacy_exists is not None:
-                return False
+            _reconcile_legacy_vip_quota_row(
+                session=session,
+                canonical_fp=fp,
+                legacy_fp=legacy_fp,
+                month_start=bucket,
+            )
 
         row = session.execute(
             sql,
@@ -211,7 +257,7 @@ def attempt_consume_vip_llm_monthly_quota(
 
     return attempt_consume_llm_monthly_quota(
         raw_vip_key,
-        tier="VIP",
+        tier=VIP_TIER,
         month_start=month_start,
         limit_requests=limit_requests,
     )

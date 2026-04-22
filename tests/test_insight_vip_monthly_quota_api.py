@@ -7,7 +7,6 @@ EN: P0 tests: deterministic monthly hard quota for VIP LLM (requests/month).
 from __future__ import annotations
 
 import concurrent.futures
-import hashlib
 import threading
 from collections.abc import Callable
 from datetime import date
@@ -18,6 +17,8 @@ from sqlalchemy import text
 
 from app.middleware.api_tiers import TEST_KEY_VIP
 from app.security.llm_monthly_quota import (
+    VIP_LLM_INSIGHT_REQUESTS_PER_MONTH_ENV,
+    _legacy_llm_key_fingerprint,
     attempt_consume_vip_llm_monthly_quota,
     month_start_date_utc,
     vip_key_fingerprint,
@@ -25,6 +26,8 @@ from app.security.llm_monthly_quota import (
 
 from tests.helpers.fake_llm_provider import FakeLLMProvider
 from tests.helpers.module_resolve import resolve_legacy_app
+
+TEST_SERVER_SALT = "TestServerSaltValue-1234567890!abcd!"
 
 
 def _patch_llm_provider(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -68,6 +71,31 @@ def _seed_usage_row(
         )
 
 
+def _read_usage_row(
+    db_module: object,
+    *,
+    key_fp: str,
+    month_start: date,
+) -> tuple[int] | None:
+    session_scope = getattr(db_module, "session_scope")
+    with session_scope() as session:
+        row = session.execute(
+            text("""
+                SELECT used_requests
+                FROM vip_llm_monthly_usage
+                WHERE key_fingerprint = :fp AND month_start_date = :month_start
+                """),
+            {"fp": key_fp, "month_start": month_start},
+        ).first()
+    return None if row is None else (int(row[0]),)
+
+
+def _set_strong_server_salt(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Ensure the test stays valid under the stronger merge-head salt contract."""
+
+    monkeypatch.setenv("SERVER_SALT", TEST_SERVER_SALT)
+
+
 def test_insight_v1_over_quota_hard_stops_before_provider_call(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
@@ -75,7 +103,7 @@ def test_insight_v1_over_quota_hard_stops_before_provider_call(
     configure_sqlite_database: object,
 ) -> None:
     monkeypatch.setenv("FEATURE_INSIGHT", "true")
-    monkeypatch.setenv("VIP_LLM_INSIGHT_REQUESTS_PER_MONTH", "1")
+    monkeypatch.setenv(VIP_LLM_INSIGHT_REQUESTS_PER_MONTH_ENV, "1")
     _patch_llm_provider(monkeypatch)
 
     month_start = month_start_date_utc()
@@ -100,7 +128,7 @@ def test_insight_legacy_over_quota_hard_stops_before_provider_call(
     configure_sqlite_database: object,
 ) -> None:
     monkeypatch.setenv("FEATURE_INSIGHT", "true")
-    monkeypatch.setenv("VIP_LLM_INSIGHT_REQUESTS_PER_MONTH", "1")
+    monkeypatch.setenv(VIP_LLM_INSIGHT_REQUESTS_PER_MONTH_ENV, "1")
     _patch_llm_provider(monkeypatch)
 
     month_start = month_start_date_utc()
@@ -122,13 +150,15 @@ def test_vip_quota_consumes_legacy_fingerprint_row_after_upgrade(
     monkeypatch: pytest.MonkeyPatch,
     configure_sqlite_database: object,
 ) -> None:
-    """Legacy VIP fingerprint rows must still enforce quota after fingerprint format change."""
+    """Legacy-only VIP usage must migrate into the canonical row without resetting quota."""
 
-    monkeypatch.setenv("SERVER_SALT", "test-server-salt")
+    _set_strong_server_salt(monkeypatch)
+    monkeypatch.setenv(VIP_LLM_INSIGHT_REQUESTS_PER_MONTH_ENV, "2")
 
     month_start = month_start_date_utc()
     legacy_raw_key = "legacy-vip-key"
-    legacy_key_fp = hashlib.sha256(f"{legacy_raw_key}test-server-salt".encode("utf-8")).hexdigest()
+    legacy_key_fp = _legacy_llm_key_fingerprint(legacy_raw_key)
+    canonical_key_fp = vip_key_fingerprint(legacy_raw_key)
     _seed_usage_row(
         configure_sqlite_database,
         key_fp=legacy_key_fp,
@@ -140,9 +170,80 @@ def test_vip_quota_consumes_legacy_fingerprint_row_after_upgrade(
         attempt_consume_vip_llm_monthly_quota(
             legacy_raw_key,
             month_start=month_start,
-            limit_requests=1,
+            limit_requests=2,
+        )
+        is True
+    )
+    assert (
+        attempt_consume_vip_llm_monthly_quota(
+            legacy_raw_key,
+            month_start=month_start,
+            limit_requests=2,
         )
         is False
+    )
+
+    assert _read_usage_row(
+        configure_sqlite_database,
+        key_fp=canonical_key_fp,
+        month_start=month_start,
+    ) == (2,)
+    assert (
+        _read_usage_row(
+            configure_sqlite_database,
+            key_fp=legacy_key_fp,
+            month_start=month_start,
+        )
+        is None
+    )
+
+
+def test_vip_quota_dual_row_state_sums_pre_and_post_migration_usage(
+    monkeypatch: pytest.MonkeyPatch,
+    configure_sqlite_database: object,
+) -> None:
+    """Dual-row migration state must preserve the total monthly counter fail-closed."""
+
+    _set_strong_server_salt(monkeypatch)
+    monkeypatch.setenv(VIP_LLM_INSIGHT_REQUESTS_PER_MONTH_ENV, "3")
+
+    month_start = month_start_date_utc()
+    dual_row_key = "dual-row-vip-key"
+    legacy_key_fp = _legacy_llm_key_fingerprint(dual_row_key)
+    canonical_key_fp = vip_key_fingerprint(dual_row_key)
+    _seed_usage_row(
+        configure_sqlite_database,
+        key_fp=legacy_key_fp,
+        month_start=month_start,
+        used_requests=1,
+    )
+    _seed_usage_row(
+        configure_sqlite_database,
+        key_fp=canonical_key_fp,
+        month_start=month_start,
+        used_requests=2,
+    )
+
+    assert (
+        attempt_consume_vip_llm_monthly_quota(
+            dual_row_key,
+            month_start=month_start,
+            limit_requests=3,
+        )
+        is False
+    )
+    assert _read_usage_row(
+        configure_sqlite_database,
+        key_fp=canonical_key_fp,
+        month_start=month_start,
+    ) == (3,)
+    assert (
+        _read_usage_row(
+            configure_sqlite_database,
+            key_fp=legacy_key_fp,
+            month_start=month_start,
+        )
+        is None
     )
 
 
@@ -150,7 +251,7 @@ def test_vip_llm_monthly_quota_atomicity_limit_1_two_parallel_attempts(
     monkeypatch: pytest.MonkeyPatch,
     configure_sqlite_database: object,
 ) -> None:
-    monkeypatch.setenv("VIP_LLM_INSIGHT_REQUESTS_PER_MONTH", "1")
+    monkeypatch.setenv(VIP_LLM_INSIGHT_REQUESTS_PER_MONTH_ENV, "1")
 
     # Clean bucket for deterministic test.
     month_start = month_start_date_utc()
@@ -180,7 +281,7 @@ def test_vip_llm_monthly_quota_sequential_boundary_limit_2(
     monkeypatch: pytest.MonkeyPatch,
     configure_sqlite_database: object,
 ) -> None:
-    monkeypatch.setenv("VIP_LLM_INSIGHT_REQUESTS_PER_MONTH", "2")
+    monkeypatch.setenv(VIP_LLM_INSIGHT_REQUESTS_PER_MONTH_ENV, "2")
 
     month_start = month_start_date_utc()
     key_fp = vip_key_fingerprint(TEST_KEY_VIP)
