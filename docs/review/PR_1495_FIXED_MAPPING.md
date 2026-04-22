@@ -36,6 +36,11 @@ Evidence: `PhilosophyRolloutPolicy.preview_router_enabled` is `router_enabled ||
 Reason: The reported metadata-bypass scenario is unreachable on the live W1 contract; direct-result paths do not bypass rollout metadata policy because they require preview-router activation first.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1495#pullrequestreview-4155227251
 
+Disposition: FIXED
+Commit: 92c0b8075
+Evidence: `core/insight/philosophical_runtime.py` now threads `public_metadata_enabled` into `_build_direct_result(...)` and raises a loud `ValueError` if a future caller tries to reach the direct-result helper without public metadata access, while `tests/test_philosophical_runtime.py` adds a regression anchor for that invariant.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1495#pullrequestreview-4155379644
+
 ## Merge Readiness
 
 Merge-readiness contract:
