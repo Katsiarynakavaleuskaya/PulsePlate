@@ -26,6 +26,12 @@ Evidence: `docs/orchestration/MAINLINE_CI_XDIST_WORKER_STABILITY_PACKET_2026-04-
 Reason: The packet wording now states that the nightly run completed with status `success`, removing the awkward phrasing without widening lane scope.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1494#discussion_r3123721058 -> 4ac7cc218
 
+Disposition: FIXED
+Commit: 4ac7cc218
+Evidence: `tests/test_ci_workflow_pr_size_governance_contract.py:51-63`, `tests/test_ci_workflow_pr_size_governance_contract.py:222-248`; `docs/orchestration/MAINLINE_CI_XDIST_WORKER_STABILITY_PACKET_2026-04-22.md:29`
+Reason: The Sourcery review body's actionable items were the same workflow-contract and packet-wording issues already fixed in `4ac7cc218`, so the review-body summary must be mapped alongside the resolved inline threads.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1494#pullrequestreview-4154410486 -> 4ac7cc218
+
 Disposition: NOT-A-BUG
 Evidence: `AGENTS.md:371-382`; `docs/orchestration/MAINLINE_CI_XDIST_WORKER_STABILITY_PACKET_2026-04-22.md:38-56`
 Reason: Coordinator-owned lane packets define the mandatory executable role order for that lane. This packet intentionally preserves the user-approved `dev-operator` evidence pass before the architecture/backend/security sequence, and the canonical post-open `qa-engineer-agent -> bug-hunter` review pass remains intact.
@@ -52,7 +58,7 @@ Merge-readiness contract:
 - [x] All review threads resolved on GitHub after disposition updates
   Evidence: `discussion_r3123721053`, `discussion_r3123721058`, and `discussion_r3123721937` are resolved on GitHub.
 - [x] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
-  Evidence: CodeRabbit review body `pullrequestreview-4154411428` is mapped above to `b2b8c90c7`, and Sourcery actionables are already mapped to `4ac7cc218`.
+  Evidence: Sourcery review body `pullrequestreview-4154410486` is mapped above to `4ac7cc218`, and CodeRabbit review body `pullrequestreview-4154411428` is mapped above to `b2b8c90c7`.
 - [x] Pre-commit green on validated remediation head
   Evidence: `pre-commit run --all-files` passed before opening PR `#1494`.
 - [ ] `make verify` green on validated remediation head
