@@ -63,6 +63,108 @@ def _config(tmp_path: Path, *, enable_nli_model: bool = False) -> EvalConfig:
     )
 
 
+def _make_release_gate_state(
+    tmp_path: Path,
+    *,
+    experiment_id: str = "test_run",
+    allow_runtime_fallbacks: bool = True,
+) -> EvalRuntimeState:
+    """Build a minimal runtime state for release-gate summary tests."""
+
+    config = _config(tmp_path)
+    config = EvalConfig(
+        **{
+            **config.__dict__,
+            "experiment_id": experiment_id,
+            "allow_runtime_fallbacks": allow_runtime_fallbacks,
+        }
+    )
+    return EvalRuntimeState(config=config, pulseplate_imports=PulsePlateImports())
+
+
+def _make_trace(
+    query_id: str,
+    *,
+    routing_decision: str = "ship_candidate",
+    recall_at_effective_k: float = 0.9,
+    evidence_exact_match: bool = True,
+    mean_nli_entailment: float = 0.9,
+    support_precision: float = 0.9,
+) -> dict[str, object]:
+    """Build a deterministic trace row for summary-only tests."""
+
+    return {
+        "trace_id": f"trace-{query_id}",
+        "timestamp": "2026-04-22T00:00:00+00:00",
+        "experiment_id": "test_run",
+        "query_id": query_id,
+        "query_text": f"Query {query_id}",
+        "top_k_retrieved": [{"doc_id": "docs/tiers.md", "source_url": "docs/tiers.md"}],
+        "retrieval_metrics": {
+            "recall_at_3": recall_at_effective_k,
+            "recall_at_10": recall_at_effective_k,
+            "recall_at_50": recall_at_effective_k,
+            "recall_at_effective_k": recall_at_effective_k,
+            "mrr_at_10": recall_at_effective_k,
+            "ndcg_at_10": recall_at_effective_k,
+        },
+        "faithfulness_metrics": {
+            "evidence_exact_match": evidence_exact_match,
+            "mean_nli_entailment": mean_nli_entailment,
+            "support_precision": support_precision,
+        },
+        "confidence": 0.9,
+        "post_hoc_calibrated_confidence": 0.9,
+        "routing_decision": routing_decision,
+        "latency": 1,
+        "human_label_if_any": 1,
+        "philosophy_output_validation": {"ok": True},
+    }
+
+
+def _passing_release_gate_traces() -> list[dict[str, object]]:
+    """Return traces that satisfy the current canonical gates."""
+
+    return [
+        _make_trace("q1", routing_decision="ship_candidate"),
+        _make_trace("q2", routing_decision="ship_candidate"),
+        _make_trace("q3", routing_decision="ship_candidate"),
+        _make_trace("q4", routing_decision="escalate"),
+    ]
+
+
+def _companion_metrics_payload() -> dict[str, object]:
+    """Return a valid companion RAGAS metrics payload."""
+
+    return {
+        "dataset_path": "evals/ragas/testset.jsonl",
+        "sample_count": 16,
+        "report_only": True,
+        "metrics": {
+            "faithfulness": 0.84,
+            "answer_relevancy": 0.79,
+            "context_precision": 0.88,
+        },
+    }
+
+
+def _write_companion_metrics(
+    tmp_path: Path,
+    payload: dict[str, object] | None = None,
+    *,
+    relative_path: str = "artifacts/rag_eval/manual/metrics_summary.json",
+) -> Path:
+    """Write a companion metrics JSON artifact under the canonical artifact root."""
+
+    companion_path = tmp_path / relative_path
+    companion_path.parent.mkdir(parents=True, exist_ok=True)
+    companion_path.write_text(
+        json.dumps(payload or _companion_metrics_payload()),
+        encoding="utf-8",
+    )
+    return companion_path
+
+
 def test_runner_contract_imports_are_available() -> None:
     """The runner must point at the real repo hooks, not ad-hoc shims."""
 
@@ -784,3 +886,196 @@ def test_notebook_parity_uses_emitted_artifact_from_template(tmp_path: Path) -> 
     assert "::chunk_" not in emitted_text
     assert "recall@50" not in emitted_text
     assert "mean_entailment" not in emitted_text
+
+
+def test_no_companion_json_keeps_legacy_release_decision_behavior(tmp_path: Path) -> None:
+    """Missing companion input must preserve legacy release-gate behavior."""
+
+    state = _make_release_gate_state(tmp_path, experiment_id="legacy_no_companion")
+    traces = _passing_release_gate_traces()
+
+    baseline_summary, gate_checks, release_decision = runner.build_metrics_summary(
+        state,
+        traces,
+        {"ece": 0.05},
+        dataset_fallback_used=False,
+        dataset_path_used="data/evals/pulseplate_rag_eval_sample.jsonl",
+    )
+
+    assert release_decision == "PASS"
+    assert all(gate_checks.values()) is True
+    assert "companion_metrics" not in baseline_summary
+
+
+def test_valid_companion_json_adds_informational_metrics_without_affecting_release_decision(
+    tmp_path: Path,
+) -> None:
+    """Valid companion metrics must stay informational and keep gate outcomes unchanged."""
+
+    state = _make_release_gate_state(tmp_path, experiment_id="with_companion")
+    traces = _passing_release_gate_traces()
+    dataset_path = "data/evals/pulseplate_rag_eval_sample.jsonl"
+    calibration_metrics = {"ece": 0.05}
+
+    baseline_summary, _, baseline_release_decision = runner.build_metrics_summary(
+        state,
+        traces,
+        calibration_metrics,
+        dataset_fallback_used=False,
+        dataset_path_used=dataset_path,
+    )
+    companion_path = _write_companion_metrics(tmp_path)
+    companion_metrics = runner._load_companion_metrics(companion_path)
+
+    metrics_summary, gate_checks, release_decision = runner.build_metrics_summary(
+        state,
+        traces,
+        calibration_metrics,
+        dataset_fallback_used=False,
+        dataset_path_used=dataset_path,
+        companion_metrics=companion_metrics,
+    )
+    gate_report = runner.build_gate_report_markdown(metrics_summary)
+
+    assert baseline_release_decision == "PASS"
+    assert release_decision == baseline_release_decision
+    assert gate_checks == baseline_summary["gate_checks"]
+    assert metrics_summary["companion_metrics"] == {
+        "ragas": {
+            "source_path": str(companion_path.resolve()),
+            "dataset_path": "evals/ragas/testset.jsonl",
+            "sample_count": 16,
+            "report_only": True,
+            "metrics": {
+                "faithfulness": 0.84,
+                "answer_relevancy": 0.79,
+                "context_precision": 0.88,
+            },
+        }
+    }
+    assert "## Companion RAGAS metrics" in gate_report
+    assert "`faithfulness` | `0.84`" in gate_report
+    assert "`answer_relevancy` | `0.79`" in gate_report
+    assert "`context_precision` | `0.88`" in gate_report
+
+
+@pytest.mark.parametrize(
+    ("payload", "error_pattern"),
+    [
+        (None, "Companion metrics JSON not found"),
+        (
+            {
+                "dataset_path": "evals/ragas/testset.jsonl",
+                "sample_count": 16,
+                "report_only": True,
+            },
+            "must contain exactly: dataset_path, sample_count, report_only, metrics",
+        ),
+        (
+            {
+                "dataset_path": "evals/ragas/testset.jsonl",
+                "sample_count": 16,
+                "report_only": True,
+                "metrics": {
+                    "faithfulness": 0.84,
+                    "answer_relevancy": float("nan"),
+                    "context_precision": 0.88,
+                },
+            },
+            "must be finite",
+        ),
+    ],
+)
+def test_malformed_companion_metrics_fail_closed(
+    tmp_path: Path,
+    payload: dict[str, object] | None,
+    error_pattern: str,
+) -> None:
+    """Malformed companion artifacts must fail closed at the runner boundary."""
+
+    companion_path = tmp_path / "artifacts" / "rag_eval" / "manual" / "metrics_summary.json"
+    if payload is not None:
+        companion_path.parent.mkdir(parents=True, exist_ok=True)
+        companion_path.write_text(json.dumps(payload), encoding="utf-8")
+
+    with pytest.raises((FileNotFoundError, RuntimeError), match=error_pattern):
+        runner._load_companion_metrics(companion_path)
+
+
+def test_threshold_results_ordering_and_escalation_corridor_are_deterministic(
+    tmp_path: Path,
+) -> None:
+    """Threshold rows must keep canonical order and stable corridor serialization."""
+
+    state = _make_release_gate_state(tmp_path, experiment_id="threshold_ordering")
+    metrics_summary, _, release_decision = runner.build_metrics_summary(
+        state,
+        _passing_release_gate_traces(),
+        {"ece": 0.05},
+        dataset_fallback_used=False,
+        dataset_path_used="data/evals/pulseplate_rag_eval_sample.jsonl",
+    )
+    threshold_results = metrics_summary["threshold_results"]
+    gate_report = runner.build_gate_report_markdown(metrics_summary)
+
+    assert release_decision == "PASS"
+    assert [row["gate_id"] for row in threshold_results] == [
+        "gate_a_recall_at_effective_k",
+        "gate_b1_evidence_exact_match",
+        "gate_b2_mean_nli_entailment",
+        "gate_b3_support_precision",
+        "gate_c1_ece",
+        "gate_c2_escalation_corridor",
+        "gate_d1_no_runtime_mode_fallbacks",
+    ]
+    assert threshold_results[5] == {
+        "gate_id": "gate_c2_escalation_corridor",
+        "metric_key": "escalation_rate",
+        "threshold_key": "escalation_corridor",
+        "value": 0.25,
+        "target": {"min": 0.1, "max": 0.25},
+        "comparison": "between_inclusive",
+        "passed": True,
+    }
+    assert "`gate_c2_escalation_corridor` | `escalation_rate` | `0.25` | `0.1..0.25`" in gate_report
+
+
+def test_step_summary_includes_threshold_results_and_optional_companion_metrics(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """GitHub step summary must include threshold rows and optional companion metrics."""
+
+    summary_path = tmp_path / "github_step_summary.md"
+    monkeypatch.setenv("GITHUB_STEP_SUMMARY", str(summary_path))
+    state = _make_release_gate_state(tmp_path, experiment_id="step_summary")
+    companion_metrics = runner._load_companion_metrics(_write_companion_metrics(tmp_path))
+    metrics_summary, _, _ = runner.build_metrics_summary(
+        state,
+        _passing_release_gate_traces(),
+        {"ece": 0.05},
+        dataset_fallback_used=False,
+        dataset_path_used="data/evals/pulseplate_rag_eval_sample.jsonl",
+        companion_metrics=companion_metrics,
+    )
+
+    runner._write_github_step_summary(
+        metrics_summary,
+        {
+            "gate_report": "artifacts/rag_eval/step_summary/gate_report.md",
+            "metrics_summary": "artifacts/rag_eval/step_summary/metrics_summary.json",
+            "traces_jsonl": "artifacts/rag_eval/step_summary/traces.jsonl",
+        },
+    )
+    summary_text = summary_path.read_text(encoding="utf-8")
+
+    assert "## PulsePlate RAG Release Gates" in summary_text
+    assert "### Threshold results" in summary_text
+    assert (
+        "`gate_c2_escalation_corridor` | `0.25` | `0.1..0.25` | `between_inclusive` | `True`"
+        in summary_text
+    )
+    assert "### Companion RAGAS metrics" in summary_text
+    assert "- `faithfulness`: `0.84`" in summary_text
+    assert "- `answer_relevancy`: `0.79`" in summary_text
+    assert "- `context_precision`: `0.88`" in summary_text
