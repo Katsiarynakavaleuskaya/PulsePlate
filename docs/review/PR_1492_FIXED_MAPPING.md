@@ -45,6 +45,26 @@ Disposition: FIXED
 Commit: 43b7d1e204abbbe40734eba3fbf203445bfea0e4
 Evidence: `scripts/ci/docker_image_telemetry.py:249`, `scripts/ci/fetch_docker_image_baseline.py:136`, `tests/test_docker_image_telemetry.py:108`, `tests/test_fetch_docker_image_baseline.py:31`.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1492#pullrequestreview-4154124724 -> 8f0e04ff4a47625e33b06e43cc1672718927ab96
+Disposition: FIXED
+Commit: 8f0e04ff4a47625e33b06e43cc1672718927ab96
+Evidence: `scripts/ci/fetch_docker_image_baseline.py:238`, `scripts/ci/docker_image_telemetry.py:258`, `tests/test_fetch_docker_image_baseline.py:169`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1492#pullrequestreview-4154138455 -> 1d2d93607b831678352a2215d68797a84b4f5d27
+Disposition: FIXED
+Commit: 1d2d93607b831678352a2215d68797a84b4f5d27
+Evidence: `docs/review/PR_1492_FIXED_MAPPING.md:23`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1492#pullrequestreview-4154226985 -> 9517af233299d1dc415e2f01a62236331042ff57
+Disposition: FIXED
+Commit: 9517af233299d1dc415e2f01a62236331042ff57
+Evidence: `docs/roadmap/BACKLOG_LEDGER.md:645`, `scripts/ci/docker_image_telemetry.py:265`, `scripts/ci/fetch_docker_image_baseline.py:289`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1492#pullrequestreview-4154348135 -> 43b7d1e204abbbe40734eba3fbf203445bfea0e4
+Disposition: FIXED
+Commit: 43b7d1e204abbbe40734eba3fbf203445bfea0e4
+Evidence: `scripts/ci/docker_image_telemetry.py:249`, `scripts/ci/fetch_docker_image_baseline.py:136`, `tests/test_docker_image_telemetry.py:108`, `tests/test_fetch_docker_image_baseline.py:31`.
+
 ## Merge Readiness
 
 Merge-readiness contract:
