@@ -36,6 +36,22 @@ def test_extract_artifact_payload_requires_single_telemetry_json(tmp_path: Path)
         fetch_docker_image_baseline._extract_artifact_payload(archive_path)
 
 
+@pytest.mark.parametrize(
+    ("payload",),
+    (
+        ({"image_size_bytes": True},),
+        ({"image_size_bytes": -1},),
+        ({"image": {"size_bytes": False}},),
+        ({"image": {"size_bytes": -5}},),
+    ),
+)
+def test_extract_image_size_bytes_rejects_bool_and_negative_values(
+    payload: dict[str, object],
+) -> None:
+    with pytest.raises(RuntimeError, match="missing image_size_bytes"):
+        fetch_docker_image_baseline._extract_image_size_bytes(payload)
+
+
 def test_fetch_main_artifact_baseline_normalizes_remote_payload(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

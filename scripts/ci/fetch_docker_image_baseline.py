@@ -132,11 +132,22 @@ def _extract_image_size_bytes(payload: object) -> int:
 
     if not isinstance(payload, dict):
         raise RuntimeError("Docker telemetry payload must be a JSON object.")
-    if isinstance(payload.get("image_size_bytes"), int):
-        return int(payload["image_size_bytes"])
+    image_size_bytes = payload.get("image_size_bytes")
+    if (
+        isinstance(image_size_bytes, int)
+        and not isinstance(image_size_bytes, bool)
+        and image_size_bytes >= 0
+    ):
+        return image_size_bytes
     image_payload = payload.get("image")
-    if isinstance(image_payload, dict) and isinstance(image_payload.get("size_bytes"), int):
-        return int(image_payload["size_bytes"])
+    nested_size_bytes = image_payload.get("size_bytes") if isinstance(image_payload, dict) else None
+    if (
+        isinstance(image_payload, dict)
+        and isinstance(nested_size_bytes, int)
+        and not isinstance(nested_size_bytes, bool)
+        and nested_size_bytes >= 0
+    ):
+        return nested_size_bytes
     raise RuntimeError("Docker telemetry payload is missing image_size_bytes.")
 
 

@@ -105,6 +105,14 @@ def test_load_baseline_size_bytes_rejects_non_object_payload(tmp_path: Path) -> 
         docker_image_telemetry._load_baseline(baseline_path)
 
 
+def test_load_baseline_rejects_directory_path(tmp_path: Path) -> None:
+    baseline_path = tmp_path / "baseline-dir"
+    baseline_path.mkdir()
+
+    with pytest.raises(RuntimeError, match="Unsupported baseline payload shape"):
+        docker_image_telemetry._load_baseline(baseline_path)
+
+
 @pytest.mark.parametrize(
     ("payload",),
     (

@@ -248,7 +248,12 @@ def _load_baseline(baseline_path: Path | None) -> LoadedBaseline | None:
 
     if baseline_path is None or not baseline_path.exists():
         return None
-    payload = json.loads(baseline_path.read_text(encoding="utf-8"))
+    if not baseline_path.is_file():
+        raise RuntimeError(f"Unsupported baseline payload shape: {baseline_path}")
+    try:
+        payload = json.loads(baseline_path.read_text(encoding="utf-8"))
+    except (OSError, PermissionError) as exc:
+        raise RuntimeError(f"Unable to read baseline payload: {baseline_path}") from exc
     if not isinstance(payload, dict):
         raise RuntimeError(f"Unsupported baseline payload shape: {baseline_path}")
     baseline_source = payload.get("baseline_source")
