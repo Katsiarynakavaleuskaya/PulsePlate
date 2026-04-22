@@ -22,6 +22,7 @@ DEFAULT_ARTIFACT_NAME = "docker-image-telemetry-build"
 DEFAULT_ARTIFACT_PAYLOAD_NAME = "docker-image-telemetry.json"
 DEFAULT_BRANCH = "main"
 DEFAULT_WORKFLOW = "build.yml"
+GH_TIMEOUT_SECONDS = 30
 MAIN_ARTIFACT_SOURCE = "main-artifact"
 
 
@@ -49,13 +50,19 @@ def _auth_env() -> dict[str, str]:
 def _run_gh(args: list[str], *, env: dict[str, str]) -> subprocess.CompletedProcess[str]:
     """Run gh with a resolved binary path and fixed argv."""
 
-    return subprocess.run(  # nosec B603: argv uses a resolved gh path with fixed GitHub API/auth subcommands only (remove-by: 2026-09-30, ref: PR-docker-image-budget-telemetry)
-        [_gh_path(), *args],
-        check=True,
-        capture_output=True,
-        text=True,
-        env=env,
-    )
+    try:
+        return subprocess.run(  # nosec B603: argv uses a resolved gh path with fixed GitHub API/auth subcommands only (remove-by: 2026-09-30, ref: PR-docker-image-budget-telemetry)
+            [_gh_path(), *args],
+            check=True,
+            capture_output=True,
+            text=True,
+            env=env,
+            timeout=GH_TIMEOUT_SECONDS,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise RuntimeError(
+            f"gh command timed out after {GH_TIMEOUT_SECONDS}s: {' '.join(args)}"
+        ) from exc
 
 
 def _ensure_gh_auth(env: dict[str, str]) -> None:
@@ -161,16 +168,23 @@ def _download_artifact_payload(
 
     with tempfile.TemporaryDirectory(prefix="docker-image-baseline-") as temp_dir:
         archive_path = Path(temp_dir) / "artifact.zip"
-        completed = subprocess.run(  # nosec B603: argv uses resolved gh path with fixed artifact-download subcommand only (remove-by: 2026-09-30, ref: PR-docker-image-budget-telemetry)
-            [
-                _gh_path(),
-                "api",
-                f"repos/{repo}/actions/artifacts/{artifact_id}/zip",
-            ],
-            check=True,
-            capture_output=True,
-            env=env,
-        )
+        try:
+            completed = subprocess.run(  # nosec B603: argv uses resolved gh path with fixed artifact-download subcommand only (remove-by: 2026-09-30, ref: PR-docker-image-budget-telemetry)
+                [
+                    _gh_path(),
+                    "api",
+                    f"repos/{repo}/actions/artifacts/{artifact_id}/zip",
+                ],
+                check=True,
+                capture_output=True,
+                env=env,
+                timeout=GH_TIMEOUT_SECONDS,
+            )
+        except subprocess.TimeoutExpired as exc:
+            raise RuntimeError(
+                "gh artifact download timed out after "
+                f"{GH_TIMEOUT_SECONDS}s for artifact {artifact_id}"
+            ) from exc
         archive_path.write_bytes(completed.stdout)
         return _extract_artifact_payload(archive_path)
 
@@ -249,8 +263,15 @@ def fetch_main_artifact_baseline(
                 artifact=artifact,
                 raw_payload=raw_payload,
             )
-        except RuntimeError as exc:
-            last_error = exc
+        except (
+            RuntimeError,
+            subprocess.CalledProcessError,
+            json.JSONDecodeError,
+            zipfile.BadZipFile,
+        ) as exc:
+            last_error = RuntimeError(
+                f"Artifact {artifact_id} from run {run.get('id')} is unusable: {exc}"
+            )
 
     if last_error is not None:
         raise RuntimeError(

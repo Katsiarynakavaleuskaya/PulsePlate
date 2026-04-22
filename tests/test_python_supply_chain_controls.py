@@ -619,6 +619,13 @@ def test_docker_workflows_emit_image_telemetry_artifacts() -> None:
         "build",
         "Upload Docker telemetry artifact",
     )["with"]["name"]
+    producer_artifact_paths = str(
+        _workflow_step_by_name(
+            ".github/workflows/build.yml",
+            "build",
+            "Upload Docker telemetry artifact",
+        )["with"]["path"]
+    )
     build_resolve_step = _workflow_step_by_name(
         ".github/workflows/build.yml",
         "build",
@@ -648,6 +655,7 @@ def test_docker_workflows_emit_image_telemetry_artifacts() -> None:
     assert "GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}" in trivy_workflow_text
     assert "GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}" in trivy_workflow_text
     assert producer_artifact_name == "docker-image-telemetry-build"
+    assert producer_artifact_paths.splitlines().count("docker-image-telemetry.json") == 1
     assert f"--artifact-name {producer_artifact_name}" in build_resolve_step
     assert f"--artifact-name {producer_artifact_name}" in docker_image_resolve_step
     assert f"--artifact-name {producer_artifact_name}" in trivy_resolve_step

@@ -641,7 +641,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Docker image budget and telemetry baseline
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-TBD-DOCKER-IMAGE-BUDGET-TELEMETRY
+  - Target PR: PR #1492
   - Area: CI / docker / telemetry
   - Status note: Active PR-5 slice after `PR #1490` merged on April 22, 2026. This lane establishes one canonical backend-image baseline, prefers the latest successful `main` artifact, falls back to a checked-in seed baseline, and keeps delta reporting warning-only.
   - Depends on:
@@ -653,6 +653,24 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `docs/orchestration/DOCKER_IMAGE_BUDGET_TELEMETRY_TASK_PACKET_2026-04-22.md`
     - `.github/workflows/build.yml`
     - `.github/workflows/docker-image.yml`
+
+<a id="ledger-p1-docker-image-hard-budget-gate"></a>
+- [ ] P1: Docker image hard budget gate after telemetry baseline
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-DOCKER-HARD-BUDGET-GATE
+  - Area: CI / docker / telemetry
+  - Depends on:
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-docker-image-budget-telemetry`
+  - Reason: The repo should not enforce a hard image-size failure threshold until the warning-only baseline has stabilized on `main` and the canonical telemetry evidence is trustworthy enough to gate merges deterministically.
+  - Links:
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-docker-image-budget-telemetry`
+    - `.github/workflows/build.yml`
+    - `.github/workflows/docker-image.yml`
+  - DoD:
+    - A canonical hard-fail threshold exists for the production backend image
+    - Docker lanes fail deterministically when the threshold regresses beyond policy
+    - The gate uses the same canonical telemetry artifact contract introduced by PR `#1492`
     - `.github/workflows/trivy.yml`
     - `docs/telemetry/docker_image_baseline.production.json`
     - `docs/architecture/ADR_DOCKER_BUILD_PROVENANCE_WORKAROUND_2026-03-01.md`

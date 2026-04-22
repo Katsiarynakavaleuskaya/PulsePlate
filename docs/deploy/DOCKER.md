@@ -139,6 +139,22 @@ frontend/Caddy changes.
 Explicitly deferred after this PR:
 
 - hard image-budget cap / failure threshold
+  Backlog: `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-docker-image-hard-budget-gate`
+  Remove-by: 2026-05-31
+  Rollback: keep telemetry advisory-only and remove any premature hard-stop threshold from Docker lanes.
+  Exit criteria: a dedicated follow-up PR lands a deterministic hard-fail threshold for the production backend image after the warning-only baseline stabilizes on `main`.
 - `P1: Shared Safety audit script after install-profile split`
+  Backlog: `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-safety-audit-shared-script-after-pr1479`
+  Remove-by: 2026-06-15
+  Rollback: keep Safety invocation duplicated in the existing workflows until the shared extraction lands.
+  Exit criteria: a follow-up PR extracts the shared Safety invocation/reporting path without reopening install-profile split scope.
 - provenance / attestation recovery
+  Backlog: `docs/roadmap/BACKLOG_LEDGER.md#backlog-restore-signed-build-provenance`
+  Remove-by: 2026-06-30
+  Rollback: keep signed provenance disabled on the known cache/buildx seam and preserve the documented workaround.
+  Exit criteria: signed provenance and downstream verification return to the canonical image workflow without destabilizing the release path.
 - Dagger or any alternate control-plane work
+  Backlog: `docs/roadmap/BACKLOG_LEDGER.md#ledger-p2-dagger-pilot-after-docker-baseline`
+  Remove-by: 2026-07-15
+  Rollback: keep the current GitHub Actions-based Docker control plane as the only supported path.
+  Exit criteria: telemetry baseline and provenance follow-ups are closed and a separate evaluation packet re-approves any Dagger pilot.

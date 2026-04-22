@@ -195,3 +195,78 @@ def test_run_gh_uses_resolved_absolute_binary(monkeypatch: pytest.MonkeyPatch) -
 
     assert captured["args"] == (["/usr/bin/gh", "api", "repos/owner/repo"],)
     assert captured["kwargs"]["env"] == {"GH_TOKEN": "token"}
+    assert captured["kwargs"]["timeout"] == fetch_docker_image_baseline.GH_TIMEOUT_SECONDS
+
+
+def test_run_gh_wraps_timeout(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(fetch_docker_image_baseline.shutil, "which", lambda _: "/usr/bin/gh")
+
+    def _raise_timeout(*args: object, **kwargs: object) -> subprocess.CompletedProcess[str]:
+        raise subprocess.TimeoutExpired(cmd=args[0], timeout=30)
+
+    monkeypatch.setattr(fetch_docker_image_baseline.subprocess, "run", _raise_timeout)
+
+    with pytest.raises(RuntimeError, match="gh command timed out"):
+        fetch_docker_image_baseline._run_gh(["api", "repos/owner/repo"], env={"GH_TOKEN": "t"})
+
+
+def test_fetch_main_artifact_baseline_skips_called_process_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(fetch_docker_image_baseline, "_auth_env", lambda: {"GH_TOKEN": "token"})
+    monkeypatch.setattr(fetch_docker_image_baseline, "_ensure_gh_auth", lambda env: None)
+    monkeypatch.setattr(
+        fetch_docker_image_baseline,
+        "_iter_run_artifact_candidates",
+        lambda **_kwargs: [
+            (
+                {
+                    "id": 31,
+                    "run_attempt": 1,
+                    "run_number": 601,
+                    "html_url": "https://github.com/example/repo/actions/runs/31",
+                },
+                {
+                    "id": 201,
+                    "name": "docker-image-telemetry-build",
+                },
+            ),
+            (
+                {
+                    "id": 30,
+                    "run_attempt": 1,
+                    "run_number": 600,
+                    "html_url": "https://github.com/example/repo/actions/runs/30",
+                },
+                {
+                    "id": 200,
+                    "name": "docker-image-telemetry-build",
+                },
+            ),
+        ],
+    )
+
+    def _fake_download_artifact_payload(**kwargs: object) -> dict[str, object]:
+        artifact_id = kwargs["artifact_id"]
+        if artifact_id == 201:
+            raise subprocess.CalledProcessError(returncode=1, cmd=["gh", "api"])
+        if artifact_id == 200:
+            return {"image_size_bytes": 777777, "image_size_human": "777.78 KB"}
+        raise AssertionError(f"unexpected artifact_id={artifact_id}")
+
+    monkeypatch.setattr(
+        fetch_docker_image_baseline,
+        "_download_artifact_payload",
+        _fake_download_artifact_payload,
+    )
+
+    payload = fetch_docker_image_baseline.fetch_main_artifact_baseline(
+        repo="owner/repo",
+        workflow="build.yml",
+        branch="main",
+        artifact_name="docker-image-telemetry-build",
+        per_page=10,
+    )
+
+    assert payload["image_size_bytes"] == 777777
+    assert payload["baseline_reference"]["artifact_id"] == 200

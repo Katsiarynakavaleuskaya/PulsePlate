@@ -257,16 +257,21 @@ def _load_baseline(baseline_path: Path | None) -> LoadedBaseline | None:
     baseline_reference = payload.get("baseline_reference")
     if baseline_reference is not None and not isinstance(baseline_reference, dict):
         raise RuntimeError(f"Unsupported baseline payload shape: {baseline_path}")
+    normalized_source = None
+    if baseline_source is not None:
+        stripped_source = baseline_source.strip()
+        if stripped_source:
+            normalized_source = stripped_source
     if isinstance(payload.get("image_size_bytes"), int):
         return LoadedBaseline(
-            source=baseline_source.strip() if isinstance(baseline_source, str) else None,
+            source=normalized_source,
             reference=baseline_reference,
             size_bytes=int(payload["image_size_bytes"]),
         )
     image_payload = payload.get("image")
     if isinstance(image_payload, dict) and isinstance(image_payload.get("size_bytes"), int):
         return LoadedBaseline(
-            source=baseline_source.strip() if isinstance(baseline_source, str) else None,
+            source=normalized_source,
             reference=baseline_reference,
             size_bytes=int(image_payload["size_bytes"]),
         )
