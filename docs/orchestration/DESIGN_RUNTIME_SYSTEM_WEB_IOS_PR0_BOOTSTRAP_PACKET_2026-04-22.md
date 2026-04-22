@@ -2,7 +2,7 @@
 
 **Version:** 2026-04-22 (`America/New_York`)
 **Branch:** `codex/design-runtime-system-v1-packet`
-**PR:** `PR-TBD`
+**PR:** `#1497`
 **Title:** `docs(design): add coordinator-first design runtime system web-ios runbook`
 
 ## Summary
@@ -46,7 +46,7 @@ Evidence:
 - `docs/orchestration/DESIGN_RUNTIME_SYSTEM_WEB_IOS_PR_SERIES_RUNBOOK.md`
 - `docs/orchestration/DESIGN_RUNTIME_SYSTEM_WEB_IOS_PR0_BOOTSTRAP_PACKET_2026-04-22.md`
 - `docs/roadmap/BACKLOG_LEDGER.md`
-- `docs/review/PR_<N>_FIXED_MAPPING.md` after PR open
+- `docs/review/PR_1497_FIXED_MAPPING.md`
 
 ## Role Order
 

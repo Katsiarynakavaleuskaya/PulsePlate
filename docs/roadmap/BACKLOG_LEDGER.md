@@ -942,8 +942,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Coordinator-first design runtime system web+iOS epic bootstrap and PR train
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (design-system productization and governance)
-  - Target PR: PR-TBD-DESIGN-RUNTIME-SYSTEM-PR0 (`codex/design-runtime-system-v1-packet`)
-  - Status: 🛠️ In progress on branch `codex/design-runtime-system-v1-packet`
+  - Target PR: PR #1497 (`docs(design): add coordinator-first design runtime system web-ios runbook`)
+  - Status: 🛠️ In progress in PR #1497
   - Area: docs / orchestration / design-system / frontend / ios / storybook
   - Finding Type: coordinator-owned epic bootstrap and sequencing contract
   - Reason: PulsePlate already has governed design-runtime, token-pipeline,
