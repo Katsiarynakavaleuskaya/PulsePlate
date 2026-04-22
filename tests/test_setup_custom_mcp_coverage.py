@@ -2,13 +2,14 @@
 Test coverage for setup_custom_mcp.py
 """
 
-import pytest
-import tempfile
 import json
-import os
-from unittest.mock import patch, mock_open, MagicMock
 from pathlib import Path
-from contextlib import suppress
+import sys
+import tempfile
+from unittest.mock import mock_open, patch
+
+import pytest
+
 import setup_custom_mcp
 
 
@@ -72,7 +73,7 @@ class TestSetupCustomMcpCoverage:
             mcp_config = json.load(f)
             assert "mcpServers" in mcp_config
             assert "pulseplate-chatgpt" in mcp_config["mcpServers"]
-            assert mcp_config["mcpServers"]["pulseplate-chatgpt"]["command"] == "python"
+            assert mcp_config["mcpServers"]["pulseplate-chatgpt"]["command"] == sys.executable
 
         # Check environment file content
         with open(env_file, "r") as f:
@@ -105,7 +106,7 @@ class TestSetupCustomMcpCoverage:
         assert "pulseplate-chatgpt" in mcp_call["mcpServers"]
 
         server_config = mcp_call["mcpServers"]["pulseplate-chatgpt"]
-        assert server_config["command"] == "python"
+        assert server_config["command"] == sys.executable
         assert "args" in server_config
         assert "env" in server_config
         assert "OPENAI_API_KEY" in server_config["env"]
@@ -230,3 +231,58 @@ class TestSetupCustomMcpCoverage:
                                     if len(call[1]) > 0 and "indent" in call[1]
                                 ]
                                 assert any(call[1]["indent"] == 2 for call in indent_calls)
+
+    def test_setup_custom_mcp_preserves_existing_mcp_servers_and_settings(self):
+        """Existing MCP servers and unrelated settings must survive setup."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            cursor_dir = temp_path / ".cursor"
+            cursor_dir.mkdir(parents=True, exist_ok=True)
+
+            (cursor_dir / "mcp.json").write_text(
+                json.dumps(
+                    {
+                        "mcpServers": {
+                            "figma": {"url": "https://mcp.figma.com/mcp"},
+                        }
+                    }
+                )
+            )
+            (cursor_dir / "settings.json").write_text(
+                json.dumps(
+                    {
+                        "mcp.servers": ["figma"],
+                        "editor.formatOnSave": True,
+                    }
+                )
+            )
+
+            with patch("pathlib.Path.home", return_value=temp_path):
+                with patch("pathlib.Path.cwd", return_value=temp_path):
+                    setup_custom_mcp.setup_custom_mcp(argv=["--force"])
+
+            mcp_config = json.loads((cursor_dir / "mcp.json").read_text())
+            assert "figma" in mcp_config["mcpServers"]
+            assert "pulseplate-chatgpt" in mcp_config["mcpServers"]
+
+            settings = json.loads((cursor_dir / "settings.json").read_text())
+            assert settings["editor.formatOnSave"] is True
+            assert "figma" in settings["mcp.servers"]
+            assert "pulseplate-chatgpt" in settings["mcp.servers"]
+
+    def test_setup_custom_mcp_preserves_existing_env_entries(self):
+        """Existing .env values should survive placeholder insertion."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            cursor_dir = temp_path / ".cursor"
+            cursor_dir.mkdir(parents=True, exist_ok=True)
+            (cursor_dir / ".env").write_text("OTHER=value\nOPENAI_API_KEY=old\n")
+
+            with patch("pathlib.Path.home", return_value=temp_path):
+                with patch("pathlib.Path.cwd", return_value=temp_path):
+                    setup_custom_mcp.setup_custom_mcp(argv=["--force"])
+
+            env_lines = (cursor_dir / ".env").read_text().splitlines()
+            assert "OTHER=value" in env_lines
+            assert "OPENAI_API_KEY=your_openai_api_key_here" in env_lines
+            assert "MCP_ENABLED=true" in env_lines

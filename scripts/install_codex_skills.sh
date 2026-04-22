@@ -6,10 +6,13 @@ usage() {
 Install PulsePlate and cybersecurity Codex skills from this repo into a Codex skills directory.
 
 Usage:
-  scripts/install_codex_skills.sh [--copy] [--unlink] [--list] [--target <official|compat>] [--dest <skills_dir>] [--no-cybersec|--only-cybersec]
+  scripts/install_codex_skills.sh [--copy] [--copy-cybersec] [--unlink] [--list] [--target <official|compat>] [--dest <skills_dir>] [--no-cybersec|--only-cybersec]
 
 Options:
   --copy            Install by copying directories (default is symlink mode).
+  --copy-cybersec   Copy only cybersecurity skills even when other skills stay in symlink mode.
+                    Use this with Codex CLI to avoid long repo-target symlink paths showing up
+                    in skill discovery warnings.
   --unlink          Remove installed skills from destination.
   --list            Print source skills and destination install status.
   --target <name>   Install target: official -> $AGENTS_HOME/skills (or $HOME/.agents/skills
@@ -25,7 +28,9 @@ Examples:
   scripts/install_codex_skills.sh
   scripts/install_codex_skills.sh --target compat
   scripts/install_codex_skills.sh --copy
+  scripts/install_codex_skills.sh --copy-cybersec
   scripts/install_codex_skills.sh --no-cybersec --list
+  scripts/install_codex_skills.sh --only-cybersec --copy-cybersec
   scripts/install_codex_skills.sh --only-cybersec
   scripts/install_codex_skills.sh --list
   scripts/install_codex_skills.sh --unlink
@@ -47,11 +52,16 @@ DEST_EXPLICIT=0
 MODE="link"
 ACTION="install"
 CYBERSEC_MODE="both"
+COPY_CYBERSEC=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --copy)
       MODE="copy"
+      shift
+      ;;
+    --copy-cybersec)
+      COPY_CYBERSEC=1
       shift
       ;;
     --unlink)
@@ -117,20 +127,23 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+PULSEPLATE_SKILLS_ROOT="${REPO_ROOT}/tools/codex_skills"
+CYBERSEC_SKILLS_ROOT="${REPO_ROOT}/tools/cybersecurity_skills/skills"
+
 # Build SKILLS_SRC_ROOTS based on CYBERSEC_MODE
 SKILLS_SRC_ROOTS=()
 case "${CYBERSEC_MODE}" in
   both)
     SKILLS_SRC_ROOTS=(
-      "${REPO_ROOT}/tools/codex_skills"
-      "${REPO_ROOT}/tools/cybersecurity_skills/skills"
+      "${PULSEPLATE_SKILLS_ROOT}"
+      "${CYBERSEC_SKILLS_ROOT}"
     )
     ;;
   exclude)
-    SKILLS_SRC_ROOTS=("${REPO_ROOT}/tools/codex_skills")
+    SKILLS_SRC_ROOTS=("${PULSEPLATE_SKILLS_ROOT}")
     ;;
   only)
-    SKILLS_SRC_ROOTS=("${REPO_ROOT}/tools/cybersecurity_skills/skills")
+    SKILLS_SRC_ROOTS=("${CYBERSEC_SKILLS_ROOT}")
     ;;
   *)
     echo "Error: invalid CYBERSEC_MODE ${CYBERSEC_MODE}" >&2
@@ -198,6 +211,7 @@ install_skills() {
   for src_dir in "${SKILL_DIRS[@]}"; do
     local skill_name
     local dest_dir
+    local install_mode
     skill_name="$(basename "${src_dir}")"
     dest_dir="${DEST_ROOT}/${skill_name}"
 
@@ -224,7 +238,12 @@ install_skills() {
       exit 1
     fi
 
-    if [[ "${MODE}" == "copy" ]]; then
+    install_mode="${MODE}"
+    if [[ "${COPY_CYBERSEC}" -eq 1 && "${src_dir}" == "${CYBERSEC_SKILLS_ROOT}/"* ]]; then
+      install_mode="copy"
+    fi
+
+    if [[ "${install_mode}" == "copy" ]]; then
       cp -R "${src_dir}" "${dest_dir}"
       printf '%s\n' "${src_dir}" > "${dest_dir}/${COPY_MARKER_FILE}"
       echo "Copied: ${skill_name}"

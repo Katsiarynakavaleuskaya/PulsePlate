@@ -31,20 +31,26 @@ Skills remain passive/discovery-only helpers and do not replace coordinator boot
 
 ## Cybersecurity skills (submodule)
 
-734+ skills (approximate; see `tools/cybersecurity_skills/index.json`) from [anthropic-cybersecurity-skills](https://github.com/Katsiarynakavaleuskaya/anthropic-cybersecurity-skills) (agentskills.io format). Installed by default from `tools/cybersecurity_skills/` (git submodule).
+734+ skills (approximate; see `tools/cybersecurity_skills/index.json`) from [anthropic-cybersecurity-skills](https://github.com/Katsiarynakavaleuskaya/anthropic-cybersecurity-skills) (agentskills.io format). Keep this bundle opt-in for day-to-day Codex CLI use: broad symlink installs can surface long repo-target skill paths in Codex discovery warnings even when the underlying skill slug is valid.
 
 **First-time setup:**
 
 ```bash
 git submodule update --init --recursive
-scripts/install_codex_skills.sh
+scripts/install_codex_skills.sh --no-cybersec
+```
+
+If you need the cybersecurity bundle inside Codex CLI, prefer copied installs:
+
+```bash
+scripts/install_codex_skills.sh --only-cybersec --copy-cybersec
 ```
 
 **Update to latest:**
 
 ```bash
 git submodule update --remote tools/cybersecurity_skills
-scripts/install_codex_skills.sh
+scripts/install_codex_skills.sh --only-cybersec --copy-cybersec
 ```
 
 See `docs/dev/CYBERSECURITY_SKILLS.md` for details.
