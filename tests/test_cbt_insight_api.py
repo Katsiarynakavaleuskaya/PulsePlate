@@ -10,6 +10,7 @@ Verifies:
 
 from __future__ import annotations
 
+import asyncio
 from typing import TYPE_CHECKING
 from unittest.mock import MagicMock
 
@@ -892,6 +893,87 @@ class TestCBTInsightLLMIntegration:
         data = _json_body(response)
         assert "failed" in data["detail"].lower()
 
+    def test_async_provider_generate_returns_200(self) -> None:
+        """Async provider implementations must be awaited directly."""
+
+        self.monkeypatch.setattr(
+            "core.rag.vector_rag.retrieve_context_structured",
+            lambda *args, **kwargs: _make_rag_context(),
+        )
+
+        class _AsyncProvider:
+            name = "async-provider"
+
+            async def generate(self, prompt: str) -> str:
+                assert "Test query" in prompt
+                return "Async CBT response"
+
+        self.monkeypatch.setattr("llm.get_provider", lambda: _AsyncProvider())
+
+        response = self.client.post(
+            self.url,
+            json={"query": "Test query"},
+            headers=self.pro_headers,
+        )
+
+        assert response.status_code == 200
+        assert _json_body(response)["insight"] == "Async CBT response"
+
+    def test_sync_provider_generate_returns_200(self) -> None:
+        """Sync provider implementations must keep working via threadpool."""
+
+        self.monkeypatch.setattr(
+            "core.rag.vector_rag.retrieve_context_structured",
+            lambda *args, **kwargs: _make_rag_context(),
+        )
+
+        class _SyncProvider:
+            name = "sync-provider"
+
+            def generate(self, prompt: str) -> str:
+                assert "Test query" in prompt
+                return "Sync CBT response"
+
+        self.monkeypatch.setattr("llm.get_provider", lambda: _SyncProvider())
+
+        response = self.client.post(
+            self.url,
+            json={"query": "Test query"},
+            headers=self.pro_headers,
+        )
+
+        assert response.status_code == 200
+        assert _json_body(response)["insight"] == "Sync CBT response"
+
+    def test_sync_provider_returning_coroutine_returns_200(self) -> None:
+        """Sync provider.generate may return a coroutine object."""
+
+        self.monkeypatch.setattr(
+            "core.rag.vector_rag.retrieve_context_structured",
+            lambda *args, **kwargs: _make_rag_context(),
+        )
+
+        async def _async_payload() -> str:
+            return "Coroutine CBT response"
+
+        class _CoroutineProvider:
+            name = "coroutine-provider"
+
+            def generate(self, prompt: str) -> object:
+                assert "Test query" in prompt
+                return _async_payload()
+
+        self.monkeypatch.setattr("llm.get_provider", lambda: _CoroutineProvider())
+
+        response = self.client.post(
+            self.url,
+            json={"query": "Test query"},
+            headers=self.pro_headers,
+        )
+
+        assert response.status_code == 200
+        assert _json_body(response)["insight"] == "Coroutine CBT response"
+
     def test_execution_mode_blocked_returns_503(self) -> None:
         """Blocked execution mode must fail closed before privileged work."""
         self.monkeypatch.setenv("CBT_AGENT_EXECUTION_MODE", "blocked")
@@ -1096,6 +1178,68 @@ class TestCBTInsightLLMIntegration:
         assert response.status_code == 504
         data = _json_body(response)
         assert "timed out" in data["detail"].lower()
+
+    def test_async_provider_timeout_returns_504(self) -> None:
+        """Async providers must still obey the same outer timeout contract."""
+
+        self.monkeypatch.setattr(
+            "core.rag.vector_rag.retrieve_context_structured",
+            lambda *args, **kwargs: _make_rag_context(),
+        )
+        self.monkeypatch.setattr(
+            "app.services.fitchef_runtime.LLM_TIMEOUT_SECONDS",
+            0.001,
+        )
+
+        class _AsyncTimeoutProvider:
+            name = "async-timeout-provider"
+
+            async def generate(self, prompt: str) -> str:
+                await asyncio.sleep(0.01)
+                return "late"
+
+        self.monkeypatch.setattr("llm.get_provider", lambda: _AsyncTimeoutProvider())
+
+        response = self.client.post(
+            self.url,
+            json={"query": "Test query"},
+            headers=self.pro_headers,
+        )
+
+        assert response.status_code == 504
+        assert "timed out" in _json_body(response)["detail"].lower()
+
+    def test_sync_provider_timeout_returns_504(self) -> None:
+        """Slow sync providers must still be covered by the outer timeout."""
+
+        import time
+
+        self.monkeypatch.setattr(
+            "core.rag.vector_rag.retrieve_context_structured",
+            lambda *args, **kwargs: _make_rag_context(),
+        )
+        self.monkeypatch.setattr(
+            "app.services.fitchef_runtime.LLM_TIMEOUT_SECONDS",
+            0.001,
+        )
+
+        class _SyncTimeoutProvider:
+            name = "sync-timeout-provider"
+
+            def generate(self, prompt: str) -> str:
+                time.sleep(0.01)
+                return "late"
+
+        self.monkeypatch.setattr("llm.get_provider", lambda: _SyncTimeoutProvider())
+
+        response = self.client.post(
+            self.url,
+            json={"query": "Test query"},
+            headers=self.pro_headers,
+        )
+
+        assert response.status_code == 504
+        assert "timed out" in _json_body(response)["detail"].lower()
 
 
 class TestCBTInsightRouteDelegation:

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import inspect
 import logging
 import os
 from dataclasses import dataclass
@@ -107,6 +108,36 @@ def _require_llm_provider() -> Any:
             detail="LLM provider not available",
         )
     return provider
+
+
+async def _await_provider_generate(provider: Any, prompt: str) -> object:
+    """Call provider.generate across sync/async implementations.
+
+    RU: Поддерживает async provider, sync provider и sync provider, который
+    возвращает coroutine object.
+    EN: Supports async providers, sync providers, and sync providers that
+    return a coroutine object.
+    """
+
+    generate = provider.generate
+    raw_payload: object
+    if inspect.iscoroutinefunction(generate):
+        raw_payload = generate(prompt)
+    else:
+        raw_payload = await run_in_threadpool(generate, prompt)
+
+    if asyncio.iscoroutine(raw_payload):
+        raw_payload = await raw_payload
+    return raw_payload
+
+
+async def _generate_with_timeout(provider: Any, prompt: str) -> object:
+    """Apply the canonical outer timeout to provider.generate()."""
+
+    return await asyncio.wait_for(
+        _await_provider_generate(provider, prompt),
+        timeout=LLM_TIMEOUT_SECONDS,
+    )
 
 
 def _build_fitchef_reflection_query(summary: str, goal: str | None) -> str:
@@ -839,11 +870,14 @@ async def run_coach_insight_task(
             route=endpoint,
             prompt_text=prompt,
         ) as span:
-            insight_text = await asyncio.wait_for(
-                run_in_threadpool(provider.generate, prompt),
-                timeout=LLM_TIMEOUT_SECONDS,
+            raw_insight = await _generate_with_timeout(provider, prompt)
+            finalize_llm_span(span, raw_insight if isinstance(raw_insight, str) else "")
+        if not isinstance(raw_insight, str):
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Failed to generate CBT insight",
             )
-            finalize_llm_span(span, insight_text or "")
+        insight_text = raw_insight
         if not insight_text:
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
