@@ -34,6 +34,10 @@ Evidence: `core/rag/orchestration.py:520-527` now types `_extract_recursive_veri
 Disposition: FIXED (CodeRabbit strict recursive verification-call extraction, fail-closed non-finite confidence guard, and canonical denied-bundle runtime test coverage)
 Evidence: `core/rag/orchestration.py:546-553` now rejects boolean and negative `verification_calls` values; `core/verification/registry.py:199-223` fails closed on non-finite confidence input with `confidence_non_finite`; `tests/test_philosophical_runtime.py:534-544` now uses `knowledge_candidates_canonical=True`, so the denied verification-bundle gate is actually exercised.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1491#discussion_r3123053697 -> f4f9df610
+Disposition: FIXED (CodeRabbit explicit return annotations for new verification-bundle test helpers)
+Evidence: `tests/test_remaining_modules.py:22-25` now imports `VerificationBundle` for type-checking, and `tests/test_remaining_modules.py:591-613` plus `:786-810` declare explicit `-> "VerificationBundle"` return types on the new `_verification_bundle(...)` helpers without triggering runtime annotation evaluation.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1491#pullrequestreview-4150713266
 Disposition: NOT-A-BUG
 Evidence: `AGENTS.md:317-323` and `docs/orchestration/WAVE6_V1_VERIFICATION_REGISTRY_PACKET_2026-04-21.md:21-32` define this lane as fail-closed knowledge admission from validated RAG evidence only; `core/verification/registry.py:248-255` intentionally marks recursive execution as non-canonical for `write` admission in PR-V1, so the review's recursive hard-deny concern is expected behavior, not a regression. The duplicated test helper note is advisory cleanup, not a correctness blocker for this bounded lane.
@@ -46,9 +50,9 @@ Merge-readiness contract:
 `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md:153-216`.
 
 - [ ] Current-head CI is green for PR branch head
-  Evidence: current head `ce47d77cb` needs one final current-head CI pass after the latest CodeRabbit follow-up remediation commit.
+  Evidence: current head needs one final current-head CI pass after the latest CodeRabbit follow-up remediation and mapping refresh commits.
 - [ ] Required checks complete (no pending jobs)
-  Evidence: current head `ce47d77cb` is still waiting on the post-fix CI rerun and review refresh.
+  Evidence: current head is still waiting on the post-fix CI rerun and review refresh.
 - [ ] All review threads resolved on GitHub after disposition updates
   Evidence: the latest three CodeRabbit threads are mapped above and must be resolved after the remediation push lands.
 - [ ] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
