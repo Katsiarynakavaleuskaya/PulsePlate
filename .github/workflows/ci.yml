@@ -1089,14 +1089,18 @@ jobs:
           # IMPORTANT: main branch must maintain 97% coverage per project standards
           # See .cursorrules and AGENTS.md
           #
-          # CI stability: Python 3.13 has seen intermittent segfaults under xdist+coverage.
-          # Run sequentially on 3.13; keep parallelism for older versions.
+          # CI stability: Python 3.12 has shown repeated xdist worker termination on the
+          # full main-branch suite, while Python 3.13 has seen intermittent segfaults under
+          # xdist+coverage. Keep the fallback scoped to unstable main-only interpreters.
           # Intentionally removed `--cov-context=test` due to flaky coverage DB corruption under xdist
           # on Python 3.13 ("no such table: context"). Revisit after pytest/hypothesis upgrades.
           PYVER="${MATRIX_PYTHON_VERSION}"
           if [[ "$PYVER" == 3.13* ]]; then
             # Fully disable xdist plugin on 3.13 (more stable than `-n 0`)
             PYTEST_XDIST_ARGS=(-p no:xdist)
+          elif [[ "$PYVER" == 3.12* ]]; then
+            # Keep xdist for 3.12, but reduce worker pressure on the full main-branch suite.
+            PYTEST_XDIST_ARGS=(-n 2 --dist=loadscope)
           else
             PYTEST_XDIST_ARGS=(-n 4 --dist=loadscope)
           fi

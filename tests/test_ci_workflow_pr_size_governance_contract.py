@@ -186,3 +186,26 @@ def test_ios_unit_tests_stay_in_blocking_ios_job() -> None:
     assert "no test targets were found" in ios_tests_section
     assert '"xcodebuild", "test-without-building"' in ios_tests_section
     assert 'ONLY_TESTING="$(../scripts/ios_test_targets.sh)"' not in ios_ui_smoke_section
+
+
+def test_main_branch_xdist_fallback_stays_scoped_to_unstable_interpreters() -> None:
+    workflow = _load_ci_workflow()
+    jobs = workflow["jobs"]
+    assert isinstance(jobs, dict)
+
+    test_main = jobs["test-main"]
+    assert isinstance(test_main, dict)
+    matrix = test_main["strategy"]["matrix"]["include"]
+    assert isinstance(matrix, list)
+
+    timeouts = {entry["python-version"]: entry["timeout-minutes"] for entry in matrix}
+    assert timeouts == {"3.11": 60, "3.12": 60, "3.13": 90}
+
+    workflow_text = CI_WORKFLOW_PATH.read_text(encoding="utf-8")
+    test_main_section = _extract_job_section(workflow_text, "  test-main:")
+
+    assert 'if [[ "$PYVER" == 3.13* ]]; then' in test_main_section
+    assert 'elif [[ "$PYVER" == 3.12* ]]; then' in test_main_section
+    assert "PYTEST_XDIST_ARGS=(-p no:xdist)" in test_main_section
+    assert "PYTEST_XDIST_ARGS=(-n 2 --dist=loadscope)" in test_main_section
+    assert "PYTEST_XDIST_ARGS=(-n 4 --dist=loadscope)" in test_main_section

@@ -9495,6 +9495,38 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
       composite action so `ci.yml` and `nightly-tests.yml` do not drift again.
 
 
+<a id="ledger-p1-main-ci-xdist-worker-stability"></a>
+- [ ] P1: Main CI xdist worker stability on Python 3.12 full suite
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (CI stability / merge-signal integrity)
+  - Target PR: PR TBD (`codex/fix-ci-xdist-worker-stability`)
+  - Status: In progress as of April 22, 2026
+  - Reason: the `main`-branch `CI` full-suite lane continues to surface
+    user-reported `"[gw1] node down: Not properly terminated"` instability in
+    the xdist-backed `test-main` path. Current lane evidence shows
+    `test-main (3.11, 60)` finishing normally while `test-main (3.12, 60)`
+    lingers in `Run tests with coverage` far beyond the healthy 3.11 runtime,
+    making the interpreter-specific xdist policy the narrowest remediation
+    surface. This item is distinct from the older nightly/node22 parity work.
+  - Links:
+    - `docs/orchestration/MAINLINE_CI_XDIST_WORKER_STABILITY_PACKET_2026-04-22.md`
+    - `.github/workflows/ci.yml`
+    - `tests/test_ci_workflow_pr_size_governance_contract.py`
+    - User-reported signature: `[gw1] node down: Not properly terminated`
+    - Current main run: <https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/24771474555>
+    - `test-main (3.12, 60)` job: <https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/24771474555/job/72483372336>
+    - Healthy comparator `test-main (3.11, 60)` job: <https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/24771474555/job/72483386535>
+    - Green nightly reference: <https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/24760590280>
+  - DoD:
+    - `test-main` keeps the same job identity and required-check topology
+    - `3.12` fallback is scoped to the narrowest effective execution policy in
+      `.github/workflows/ci.yml`
+    - A regression test freezes the workflow contract
+    - `pre-commit run --all-files`, `make validate-changed`, and branch/current-head
+      `CI` pass on the remediation branch
+    - Post-open `qa-engineer-agent -> bug-hunter` review pass is complete
+
+
 <a id="ledger-p1-remove-pygments-pip-audit-ignore"></a>
 - [ ] P1: Remove temporary Pygments pip-audit ignore when patched release exists
   - Owner: @katsiaryna_kavaleuskaya
