@@ -15,7 +15,29 @@ claiming merge readiness.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+Disposition: FIXED
+Commit: 2aca6ef76
+Evidence: `tests/test_rag_release_gates_runner.py:493-579`
+Reason: The runner contract now covers explicit CLI wiring for `--companion-metrics-json` and locks the precedence rule so an explicit CLI path wins over the env fallback.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1493#discussion_r3123728964 -> 2aca6ef76
+
+Disposition: FIXED
+Commit: 2aca6ef76
+Evidence: `scripts/evals/run_rag_release_gates.py:2424-2442`; `tests/test_rag_release_gates_runner.py:1211-1244`
+Reason: Companion artifact validation now happens before `run_evaluation(...)`, and the runner test proves malformed companion JSON aborts before the expensive evaluation loop starts.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1493#discussion_r3123731846 -> 2aca6ef76
+
+Disposition: FIXED
+Commit: 2aca6ef76
+Evidence: `scripts/evals/run_rag_release_gates.py:381-446`; `tests/test_rag_release_gates_runner.py:1125-1137`
+Reason: Emitted companion metadata now uses a stable repo-relative artifact path instead of leaking checkout-specific absolute filesystem paths.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1493#discussion_r3123763539 -> 2aca6ef76
+
+Disposition: FIXED
+Commit: 2aca6ef76
+Evidence: `scripts/evals/run_rag_release_gates.py:434-450`; `tests/test_rag_release_gates_runner.py:1187-1208`
+Reason: Companion metrics are normalized in canonical `faithfulness -> answer_relevancy -> context_precision` order, and the dedicated test now protects against noisy diffs from arbitrary JSON key order.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1493#discussion_r3123763553 -> 2aca6ef76
 
 ## Merge Readiness
 
