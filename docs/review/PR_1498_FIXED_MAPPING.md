@@ -14,7 +14,17 @@ Record every actionable human/bot disposition here before resolving threads on G
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+Disposition: FIXED
+Commit: 99157f43a
+Evidence: `tests/test_python_supply_chain_controls.py:75-78`; `tests/test_python_supply_chain_controls.py:690-748`; `docs/review/PR_1498_FIXED_MAPPING.md:42-46`
+Reason: The workflow-contract test now caches step-name lists once, asserts the docker-image hard-budget ordering explicitly, and the deferred provenance/Dagger follow-ups now point to concrete backlog anchors instead of an untracked umbrella note.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1498#pullrequestreview-4157683913 -> 99157f43a
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1498#discussion_r3126676236 -> 99157f43a
+
+Disposition: NOT-A-BUG
+Evidence: `docs/orchestration/DOCKER_IMAGE_HARD_BUDGET_GATE_TASK_PACKET_2026-04-22.md:28-35`; `docs/orchestration/DOCKER_IMAGE_HARD_BUDGET_GATE_TASK_PACKET_2026-04-22.md:36-42`; `.github/workflows/build.yml:103-198`; `.github/workflows/docker-image.yml:90-136`; `.github/workflows/trivy.yml:102-163`
+Reason: The suggestion to extract the three Docker hard-budget lanes into a shared composite action is maintainability advice, not a correctness bug. This slice intentionally keeps the enforcement blocks explicit inside the three canonical workflows named in the task packet so each lane preserves its own artifact naming, summary publication, and terminal fail-step semantics without widening scope into a reusable-actions refactor.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1498#pullrequestreview-4157673112
 
 ## Merge Readiness
 
@@ -30,10 +40,10 @@ Merge-readiness contract:
   Evidence: pending current-head GitHub checks after PR open.
 - [ ] All review threads resolved on GitHub after disposition updates
   Evidence: pending initial review cycle.
-- [ ] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
-  Evidence: pending initial review cycle.
+- [x] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
+  Evidence: `docs/review/PR_1498_FIXED_MAPPING.md:17-28`
 - [x] Pre-commit green on latest pushed head
-  Evidence: `pre-commit run --all-files` passed before commit `89ef1466c`.
+  Evidence: `pre-commit run --all-files` passed before commit `99157f43a`.
 - [ ] `make verify` green on latest pushed head
   Evidence: not run for this lane; current-head GitHub checks remain the heavy signal by operator choice.
 
