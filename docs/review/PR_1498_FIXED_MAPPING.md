@@ -26,6 +26,11 @@ Evidence: `docs/orchestration/DOCKER_IMAGE_HARD_BUDGET_GATE_TASK_PACKET_2026-04-
 Reason: The suggestion to extract the three Docker hard-budget lanes into a shared composite action is maintainability advice, not a correctness bug. This slice intentionally keeps the enforcement blocks explicit inside the three canonical workflows named in the task packet so each lane preserves its own artifact naming, summary publication, and terminal fail-step semantics without widening scope into a reusable-actions refactor.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1498#pullrequestreview-4157673112
 
+Disposition: NOT-A-BUG
+Evidence: `tests/test_python_supply_chain_controls.py:75-78`; `tests/test_python_supply_chain_controls.py:690-748`; `.github/workflows/build.yml:15-198`; `.github/workflows/docker-image.yml:17-136`; `.github/workflows/trivy.yml:22-195`
+Reason: `_workflow_step_names(...)` is a scoped contract helper used only for the three Docker workflow jobs that this test audits, and every step in those jobs is intentionally named. Keeping direct `step["name"]` access fail-closed is desirable here because an unnamed step would represent workflow-contract drift that should surface as a hard test failure instead of being silently normalized behind a fallback label.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1498#pullrequestreview-4157794544
+
 ## Merge Readiness
 
 Merge-readiness contract:
@@ -41,7 +46,7 @@ Merge-readiness contract:
 - [ ] All review threads resolved on GitHub after disposition updates
   Evidence: pending initial review cycle.
 - [x] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
-  Evidence: `docs/review/PR_1498_FIXED_MAPPING.md:17-28`
+  Evidence: `docs/review/PR_1498_FIXED_MAPPING.md:17-33`
 - [x] Pre-commit green on latest pushed head
   Evidence: `pre-commit run --all-files` passed before commit `99157f43a`.
 - [ ] `make verify` green on latest pushed head
