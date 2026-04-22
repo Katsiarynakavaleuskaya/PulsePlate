@@ -14,7 +14,19 @@ Record every actionable human/bot disposition here before resolving threads on G
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1492#discussion_r3123468456 -> 8f0e04ff4a47625e33b06e43cc1672718927ab96
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1492#discussion_r3123470365 -> 8f0e04ff4a47625e33b06e43cc1672718927ab96
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1492#discussion_r3123483703 -> 8f0e04ff4a47625e33b06e43cc1672718927ab96
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1492#discussion_r3123483729 -> 8f0e04ff4a47625e33b06e43cc1672718927ab96
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1492#discussion_r3123483739 -> 8f0e04ff4a47625e33b06e43cc1672718927ab96
+Disposition: FIXED
+Commit: 8f0e04ff4a47625e33b06e43cc1672718927ab96
+Evidence: `scripts/ci/fetch_docker_image_baseline.py:19`, `scripts/ci/fetch_docker_image_baseline.py:47`, `scripts/ci/fetch_docker_image_baseline.py:153`, `scripts/ci/fetch_docker_image_baseline.py:229`, `scripts/ci/docker_image_telemetry.py:258`, `tests/test_fetch_docker_image_baseline.py:169`, `docs/deploy/DOCKER.md:141`, `docs/roadmap/BACKLOG_LEDGER.md:645`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1492#discussion_r3123483705 -> 2b9b969b9d885f38393fdcb82e4463dd61ba3aa5
+Disposition: FIXED
+Commit: 2b9b969b9d885f38393fdcb82e4463dd61ba3aa5
+Evidence: `docs/review/PR_1492_FIXED_MAPPING.md:23`.
 
 ## Merge Readiness
 
