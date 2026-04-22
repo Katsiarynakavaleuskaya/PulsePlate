@@ -20,6 +20,17 @@ Evidence: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1497#issueco
 Reason: Sourcery generated a reviewer guide only; it contains no requested changes or actionable review comments.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1497#issuecomment-4297845180
 
+Disposition: NOT-A-BUG
+Evidence: `docs/orchestration/AGENTS.md:5-6`, `docs/orchestration/DESIGN_RUNTIME_SYSTEM_WEB_IOS_PR0_BOOTSTRAP_PACKET_2026-04-22.md:1-24`, `docs/orchestration/DESIGN_RUNTIME_SYSTEM_WEB_IOS_PR_SERIES_RUNBOOK.md:1-24`
+Reason: Sourcery's high-level review suggests collapsing the runbook and branch-scoped packet into one source and centralizing all branch/PR identifiers, but this lane intentionally keeps a series-level runbook plus a branch-scoped packet per the scoped orchestration contract. The duplication is narrow and intentional: the runbook owns series governance while the packet remains the field-level contract for `PR-0`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1497#pullrequestreview-4157589019
+
+Disposition: FIXED
+Commit: 03c9de050
+Evidence: `docs/orchestration/DESIGN_RUNTIME_SYSTEM_WEB_IOS_PR_SERIES_RUNBOOK.md:87-105`, `docs/orchestration/DESIGN_RUNTIME_SYSTEM_WEB_IOS_PR_SERIES_RUNBOOK.md:322-331`
+Reason: CodeRabbit requested two narrow documentation fixes on the earlier head: hyphenate `canonical review artifact up-to-date` and resolve the token-precedence ambiguity by making the `/tokens` override explicit in the design source-precedence section.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1497#pullrequestreview-4157599980 -> 03c9de050
+
 ## Merge Readiness
 
 - [ ] All required checks pass
