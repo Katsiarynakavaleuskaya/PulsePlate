@@ -15,7 +15,16 @@ or claiming merge readiness.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- Review: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1496#pullrequestreview-4156146773
+  - Disposition: FIXED
+  - Commit: `88b92e02a5bf1383dfb8ab9263ce758cd0cb6d81`
+  - Evidence:
+    - `docs/orchestration/PULSEPLATE_SELECTIVE_GRAPHRAG_CONTRACT_TASK_PACKET_2026-04-22.md`
+      now treats the ADR as the source of truth for selective-use and exclusion
+      lists instead of duplicating them.
+    - `docs/architecture/ADR_SELECTIVE_GRAPHRAG_CONTRACT_2026-04-22.md`
+      now ties the starter graph boundary back to current PulsePlate
+      nutrition/evidence surfaces and provenance requirements.
 
 ## Merge Readiness
 
