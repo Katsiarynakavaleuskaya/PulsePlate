@@ -315,7 +315,7 @@ def collect_telemetry(
             f"Baseline JSON is missing or absent at {baseline_path}; telemetry remains advisory-only."
         )
     else:
-        size_delta_bytes = image_size_bytes - baseline_size_bytes
+        size_delta_bytes = image_size_bytes - loaded_baseline.size_bytes
         if baseline_source == "repo-seed-fallback":
             warnings.append(
                 "Using the checked-in repo seed fallback baseline; refresh against the latest "
