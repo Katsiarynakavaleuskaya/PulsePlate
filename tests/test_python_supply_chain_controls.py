@@ -655,17 +655,34 @@ def test_docker_workflows_emit_image_telemetry_artifacts() -> None:
         ".github/workflows/build.yml",
         "build",
         "Enforce Docker image budget",
-    )["run"]
+    )
     docker_image_budget_step = _workflow_step_by_name(
         ".github/workflows/docker-image.yml",
         "build",
         "Enforce Docker image budget",
-    )["run"]
+    )
     trivy_budget_step = _workflow_step_by_name(
         ".github/workflows/trivy.yml",
         "build",
         "Enforce Docker image budget",
-    )["run"]
+    )
+    build_fail_budget_step = _workflow_step_by_name(
+        ".github/workflows/build.yml",
+        "build",
+        "Fail build job when Docker budget check failed",
+    )
+    docker_image_fail_budget_step = _workflow_step_by_name(
+        ".github/workflows/docker-image.yml",
+        "build",
+        "Fail docker-image job when Docker budget check failed",
+    )
+    trivy_fail_budget_step = _workflow_step_by_name(
+        ".github/workflows/trivy.yml",
+        "build",
+        "Fail trivy job when Docker budget check failed",
+    )
+    build_steps = build_workflow["jobs"]["build"]["steps"]
+    trivy_steps = trivy_workflow["jobs"]["build"]["steps"]
 
     assert build_job_permissions["actions"] == "read"
     assert build_job_permissions["contents"] == "read"
@@ -687,12 +704,39 @@ def test_docker_workflows_emit_image_telemetry_artifacts() -> None:
     assert "--workflow build.yml" in build_resolve_step
     assert "--workflow build.yml" in docker_image_resolve_step
     assert "--workflow build.yml" in trivy_resolve_step
-    assert "--budget-json docs/telemetry/docker_image_budget.production.json" in build_budget_step
     assert (
         "--budget-json docs/telemetry/docker_image_budget.production.json"
-        in docker_image_budget_step
+        in build_budget_step["run"]
     )
-    assert "--budget-json docs/telemetry/docker_image_budget.production.json" in trivy_budget_step
+    assert (
+        "--budget-json docs/telemetry/docker_image_budget.production.json"
+        in docker_image_budget_step["run"]
+    )
+    assert (
+        "--budget-json docs/telemetry/docker_image_budget.production.json"
+        in trivy_budget_step["run"]
+    )
+    assert build_budget_step["continue-on-error"] is True
+    assert docker_image_budget_step["continue-on-error"] is True
+    assert trivy_budget_step["continue-on-error"] is True
+    assert build_fail_budget_step["if"] == "${{ steps.docker_image_budget.outcome == 'failure' }}"
+    assert (
+        docker_image_fail_budget_step["if"]
+        == "${{ steps.docker_image_budget.outcome == 'failure' }}"
+    )
+    assert trivy_fail_budget_step["if"] == "${{ steps.docker_image_budget.outcome == 'failure' }}"
+    assert [step["name"] for step in build_steps].index("Enforce Docker image budget") < [
+        step["name"] for step in build_steps
+    ].index("Test Docker image")
+    assert [step["name"] for step in build_steps].index("Test Docker image") < [
+        step["name"] for step in build_steps
+    ].index("Fail build job when Docker budget check failed")
+    assert [step["name"] for step in trivy_steps].index("Enforce Docker image budget") < [
+        step["name"] for step in trivy_steps
+    ].index("Run Trivy vulnerability scanner")
+    assert [step["name"] for step in trivy_steps].index("Run Trivy vulnerability scanner") < [
+        step["name"] for step in trivy_steps
+    ].index("Fail trivy job when Docker budget check failed")
 
 
 def test_checked_in_docker_image_baseline_seed_has_expected_schema() -> None:

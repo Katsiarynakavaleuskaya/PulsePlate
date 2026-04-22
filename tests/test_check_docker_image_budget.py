@@ -140,6 +140,24 @@ def test_evaluate_budget_rejects_negative_baseline_size_bytes(tmp_path: Path) ->
         )
 
 
+def test_evaluate_budget_rejects_blank_baseline_source(tmp_path: Path) -> None:
+    telemetry_path = _write_telemetry_payload(
+        tmp_path,
+        image_size_bytes=430000000,
+        size_delta_bytes=-12000000,
+    )
+    payload = json.loads(telemetry_path.read_text(encoding="utf-8"))
+    payload["baseline"]["baseline_source"] = ""
+    telemetry_path.write_text(json.dumps(payload), encoding="utf-8")
+    budget_path = _write_budget_policy(tmp_path)
+
+    with pytest.raises(RuntimeError, match="baseline_source"):
+        check_docker_image_budget.evaluate_budget(
+            telemetry_path=telemetry_path,
+            budget_path=budget_path,
+        )
+
+
 def test_main_writes_artifacts_on_budget_breach(tmp_path: Path) -> None:
     telemetry_path = _write_telemetry_payload(
         tmp_path,

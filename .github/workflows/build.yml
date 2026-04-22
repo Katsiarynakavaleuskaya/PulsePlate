@@ -113,6 +113,8 @@ jobs:
           retention-days: 14
 
       - name: Enforce Docker image budget
+        id: docker_image_budget
+        continue-on-error: true
         run: |
           set -euo pipefail
           python3 scripts/ci/check_docker_image_budget.py \
@@ -188,6 +190,12 @@ jobs:
           curl -f http://localhost:8000/health || exit 1
 
           echo "✅ Docker image test completed successfully"
+
+      - name: Fail build job when Docker budget check failed
+        if: ${{ steps.docker_image_budget.outcome == 'failure' }}
+        run: |
+          echo "::error::Docker image hard budget gate failed."
+          exit 1
 
   # Security scan
   security-scan:

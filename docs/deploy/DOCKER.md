@@ -81,7 +81,7 @@ Evidence must include:
 - image size
 - baseline source: `main-artifact` or `repo-seed-fallback`
 - baseline reference metadata when available
-- delta vs baseline in warning-only mode
+- delta vs baseline against the blocking hard-budget policy
 - largest layers
 - build-context evidence
 
@@ -118,7 +118,7 @@ docker run --rm pulseplate:runtime-slim \
   python -c "import app.main; print('app.main import ok')"
 ```
 
-Resolve the canonical baseline and generate advisory telemetry:
+Resolve the canonical baseline and generate telemetry evidence:
 
 ```bash
 python3 scripts/ci/fetch_docker_image_baseline.py \

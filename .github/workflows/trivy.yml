@@ -112,6 +112,8 @@ jobs:
           retention-days: 14
 
       - name: Enforce Docker image budget
+        id: docker_image_budget
+        continue-on-error: true
         run: |
           set -euo pipefail
           python3 scripts/ci/check_docker_image_budget.py \
@@ -201,3 +203,9 @@ jobs:
         if: ${{ always() && hashFiles('trivy-results.sarif') != '' }}
         with:
           sarif_file: 'trivy-results.sarif'
+
+      - name: Fail trivy job when Docker budget check failed
+        if: ${{ steps.docker_image_budget.outcome == 'failure' }}
+        run: |
+          echo "::error::Docker image hard budget gate failed."
+          exit 1

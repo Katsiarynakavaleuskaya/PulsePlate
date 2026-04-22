@@ -150,8 +150,12 @@ def evaluate_budget(
         )
 
     baseline_source = baseline_payload.get("baseline_source")
-    if baseline_source is not None and not isinstance(baseline_source, str):
-        raise RuntimeError("Docker image telemetry baseline_source must be null or a string.")
+    if baseline_source is not None and (
+        not isinstance(baseline_source, str) or not baseline_source.strip()
+    ):
+        raise RuntimeError(
+            "Docker image telemetry baseline_source must be null or a non-empty string."
+        )
 
     size_delta_raw = baseline_payload.get("size_delta_bytes")
     if size_delta_raw is None:
