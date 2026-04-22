@@ -279,10 +279,6 @@ def fetch_main_artifact_baseline(
             f"{workflow} runs on {branch}: {last_error}"
         ) from last_error
 
-    raise RuntimeError(
-        f"No successful {workflow} run on {branch} published artifact {artifact_name}."
-    )
-
 
 def _write_payload(output_path: Path, payload: dict[str, object]) -> None:
     """Write a normalized JSON payload to disk."""

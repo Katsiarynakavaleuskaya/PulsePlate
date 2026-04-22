@@ -653,6 +653,15 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `docs/orchestration/DOCKER_IMAGE_BUDGET_TELEMETRY_TASK_PACKET_2026-04-22.md`
     - `.github/workflows/build.yml`
     - `.github/workflows/docker-image.yml`
+    - `.github/workflows/trivy.yml`
+    - `docs/telemetry/docker_image_baseline.production.json`
+    - `docs/architecture/ADR_DOCKER_BUILD_PROVENANCE_WORKAROUND_2026-03-01.md`
+  - DoD:
+    - CI emits deterministic image-size evidence for touched Docker lanes
+    - Largest-layer and build-context summaries are visible to PR authors before merge
+    - Baseline source is explicit (`main-artifact` or `repo-seed-fallback`)
+    - The first gate is warning/regression-only, not an absolute size cap
+    - Follow-up provenance or Dagger decisions can cite this baseline explicitly
 
 <a id="ledger-p1-docker-image-hard-budget-gate"></a>
 - [ ] P1: Docker image hard budget gate after telemetry baseline
@@ -671,15 +680,6 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - A canonical hard-fail threshold exists for the production backend image
     - Docker lanes fail deterministically when the threshold regresses beyond policy
     - The gate uses the same canonical telemetry artifact contract introduced by PR `#1492`
-    - `.github/workflows/trivy.yml`
-    - `docs/telemetry/docker_image_baseline.production.json`
-    - `docs/architecture/ADR_DOCKER_BUILD_PROVENANCE_WORKAROUND_2026-03-01.md`
-  - DoD:
-    - CI emits deterministic image-size evidence for touched Docker lanes
-    - Largest-layer and build-context summaries are visible to PR authors before merge
-    - Baseline source is explicit (`main-artifact` or `repo-seed-fallback`)
-    - The first gate is warning/regression-only, not an absolute size cap
-    - Follow-up provenance or Dagger decisions can cite this baseline explicitly
 
 <a id="ledger-p1-business-wave-runtime-follow-through"></a>
 - [ ] P1: Business wave runtime follow-through after governance/docs foundation

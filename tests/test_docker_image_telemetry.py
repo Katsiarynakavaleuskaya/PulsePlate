@@ -105,6 +105,25 @@ def test_load_baseline_size_bytes_rejects_non_object_payload(tmp_path: Path) -> 
         docker_image_telemetry._load_baseline(baseline_path)
 
 
+@pytest.mark.parametrize(
+    ("payload",),
+    (
+        ({"image_size_bytes": True},),
+        ({"image_size_bytes": -1},),
+        ({"image": {"size_bytes": False}},),
+        ({"image": {"size_bytes": -5}},),
+    ),
+)
+def test_load_baseline_rejects_bool_and_negative_size_values(
+    tmp_path: Path, payload: dict[str, object]
+) -> None:
+    baseline_path = tmp_path / "baseline.json"
+    baseline_path.write_text(json.dumps(payload), encoding="utf-8")
+
+    with pytest.raises(RuntimeError, match="Unsupported baseline payload shape"):
+        docker_image_telemetry._load_baseline(baseline_path)
+
+
 @pytest.mark.parametrize("raw_value", ("0", "-1"))
 def test_positive_int_rejects_non_positive_values(raw_value: str) -> None:
     with pytest.raises(argparse.ArgumentTypeError, match="greater than 0"):
