@@ -59,6 +59,21 @@ evaluation rail.
 Any future bounded graph lane must stay within the following starter schema
 unless a later ADR explicitly widens it.
 
+The starter graph is a normalized concept layer over the current PulsePlate
+evidence spine, not a new source-of-truth surface. In current repo terms,
+`foods` and `meal_templates` map most directly to the existing nutrition and
+meal-planning domain entities already exercised in `core/food_db.py`,
+`core/recipe_synth.py`, and `core/daily_plate.py`; `nutrients` map to the
+structured nutrient concepts already carried through those same nutrition
+surfaces; and `conditions`, `restrictions`, and `guideline_concepts` map to
+the cited domain concepts already represented across guarded nutrition logic
+and evaluation corpora such as `core/dietary_constraints.py`,
+`core/nutrition_bayesian_analyzer.py`, and the release-gates / companion-eval
+docs datasets. Future edges such as `contains`, `rich_in`, or
+`contraindicated_for` may normalize relationships across those evidence
+surfaces, but every relationship must still be attributable back to cited
+evidence or approved structured inputs.
+
 ### Nodes
 
 - `foods`

@@ -30,11 +30,11 @@ It does not implement graph retrieval, graph evaluation, or semantic cache.
 
 1. A committed ADR defines selective GraphRAG as a bounded future reasoning
    surface, not a default retrieval strategy.
-2. The ADR names the only approved future graph use cases:
-   - corpus-level nutrition summarization
-   - multi-hop contraindication reasoning
-   - explainability for "why this plan, not another"
-3. The ADR freezes starter graph node/edge boundaries.
+2. The ADR is the source of truth for the approved future graph use cases,
+   exclusions, and starter graph boundary so this packet does not become a
+   competing copy of that contract.
+3. The ADR freezes starter graph node/edge boundaries and ties them back to
+   existing PulsePlate evidence surfaces.
 4. The ADR explicitly subordinates graph work to the canonical release-gates
    lane and the companion report-only RAGAS lane.
 5. The lane introduces no runtime/request-path/provider/semantic-cache changes.
@@ -128,20 +128,12 @@ Explicitly out of scope:
 
 ### Selective GraphRAG boundary
 
-GraphRAG is future-eligible only for:
-
-- corpus-level nutrition summarization
-- multi-hop contraindication reasoning
-- explainability for "why this plan, not another"
-
-GraphRAG is not authorized here for:
-
-- default retrieval
-- food lookup
-- barcode lookup
-- simple meal generation
-- semantic cache
-- provider behavior changes
+The canonical selective-use and exclusion lists live in the ADR:
+`docs/architecture/ADR_SELECTIVE_GRAPHRAG_CONTRACT_2026-04-22.md`
+(`Decision` and `Starter Graph Boundary`). This packet adopts that ADR as the
+source of truth instead of restating the full list here. Operationally, that
+means only a narrow future reasoning subset is graph-eligible, while default
+retrieval and ordinary product flows remain explicitly non-graph in this lane.
 
 ### Provenance and fail-closed contract
 
