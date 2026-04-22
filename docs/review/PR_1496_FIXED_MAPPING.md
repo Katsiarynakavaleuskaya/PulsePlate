@@ -21,6 +21,12 @@ Evidence: `docs/architecture/ADR_SELECTIVE_GRAPHRAG_CONTRACT_2026-04-22.md:62-75
 Reason: The ADR now ties the starter graph boundary back to current PulsePlate nutrition/evidence surfaces, and the task packet now treats the ADR as the single source of truth for selective-use and exclusion lists instead of duplicating them.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1496#pullrequestreview-4156146773 -> 88b92e02a
 
+Disposition: FIXED
+Commit: c5651e75e
+Evidence: `docs/review/PR_1496_FIXED_MAPPING.md:16`
+Reason: The canonical mapping artifact now uses the required `### Fixed in Commit Mapping` heading level, aligning the file with the repo's phase2/governance structure.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1496#pullrequestreview-4157726492 -> c5651e75e
+
 ## Merge Readiness
 
 Merge-readiness contract:
