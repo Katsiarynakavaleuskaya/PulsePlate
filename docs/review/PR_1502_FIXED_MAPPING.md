@@ -15,7 +15,7 @@ or claiming merge readiness.
 
 ### Fixed in Commit Mapping
 
-No actionable review comments
+- No actionable review comments
 
 ## Merge Readiness
 
