@@ -7,6 +7,10 @@ import sys
 import time
 from pathlib import Path
 
+PLACEHOLDER_API_KEY = "your_openai_api_key_here"
+REPO_ROOT = Path(__file__).resolve().parent
+MCP_SERVER_PATH = REPO_ROOT / "mcp_pulseplate_server.py"
+
 
 def setup_custom_mcp(argv: list[str] | None = None) -> None:
     """Setup Cursor-local MCP configuration for PulsePlate.
@@ -68,29 +72,37 @@ def setup_custom_mcp(argv: list[str] | None = None) -> None:
             print(f"💾 Backup created: {backup_path}")
 
     mcp_file = cursor_dir / "mcp.json"
+    env_file = cursor_dir / ".env"
+    settings_file = cursor_dir / "settings.json"
+
     mcp_config = _load_json_config(mcp_file)
+    existing_env_content = env_file.read_text() if env_file.exists() else ""
+    cursor_settings = _load_json_config(settings_file)
+    mcp_api_key = _resolve_mcp_api_key(mcp_config=mcp_config)
+    env_api_key = _resolve_env_api_key(existing_env_content=existing_env_content)
+    settings_api_key = _resolve_settings_api_key(cursor_settings=cursor_settings)
+
     mcp_config.setdefault("$schema", "https://modelcontextprotocol.io/schemas/mcp.json")
     mcp_config["_warning"] = (
-        "⚠️ SECURITY WARNING: This file contains API key placeholders. Replace "
-        "'your_openai_api_key_here' with your actual API key and DO NOT commit "
-        "this file to version control!"
+        "⚠️ SECURITY WARNING: This file may contain a real API key or a placeholder. "
+        f"If '{PLACEHOLDER_API_KEY}' is still present, replace it before use and DO NOT "
+        "commit this file to version control!"
     )
     mcp_config.setdefault("mcpServers", {})
     mcp_config["mcpServers"]["pulseplate-chatgpt"] = {
         "command": sys.executable,
-        "args": [str(Path.cwd() / "mcp_pulseplate_server.py")],
-        "env": {"OPENAI_API_KEY": "your_openai_api_key_here"},
+        "args": [str(MCP_SERVER_PATH)],
+        "env": {"OPENAI_API_KEY": mcp_api_key},
     }
 
     _write_json_config(cursor_dir, "mcp.json", mcp_config, "✅ MCP configuration created at ")
 
-    env_file = cursor_dir / ".env"
     env_updates = {
-        "OPENAI_API_KEY": "your_openai_api_key_here",
+        "OPENAI_API_KEY": env_api_key,
         "MCP_ENABLED": "true",
     }
     env_content = _merge_env_content(
-        env_file.read_text() if env_file.exists() else "",
+        existing_env_content,
         env_updates,
     )
     with open(env_file, "w") as f:
@@ -98,17 +110,15 @@ def setup_custom_mcp(argv: list[str] | None = None) -> None:
 
     print(f"✅ Environment file created at {env_file}")
 
-    settings_file = cursor_dir / "settings.json"
-    cursor_settings = _load_json_config(settings_file)
     cursor_settings["_warning"] = (
-        "⚠️ SECURITY WARNING: This file contains API key placeholders. Replace "
-        "'your_openai_api_key_here' with your actual API key and DO NOT commit "
-        "this file to version control!"
+        "⚠️ SECURITY WARNING: This file may contain a real API key or a placeholder. "
+        f"If '{PLACEHOLDER_API_KEY}' is still present, replace it before use and DO NOT "
+        "commit this file to version control!"
     )
     cursor_settings["cursor.ai.enabled"] = True
     cursor_settings["cursor.ai.primaryModel"] = "gpt-4"
     cursor_settings["cursor.ai.secondaryModel"] = "gpt-3.5-turbo"
-    cursor_settings["cursor.ai.openaiApiKey"] = "your_openai_api_key_here"
+    cursor_settings["cursor.ai.openaiApiKey"] = settings_api_key
     cursor_settings["cursor.ai.openaiBaseUrl"] = "https://api.openai.com/v1"
     cursor_settings["mcp.enabled"] = True
     existing_servers = cursor_settings.get("mcp.servers", [])
@@ -122,14 +132,18 @@ def setup_custom_mcp(argv: list[str] | None = None) -> None:
     )
     print("\n🎉 Cursor-local MCP setup complete!")
     print("\n⚠️  SECURITY WARNING:")
-    print("   - All generated files contain PLACEHOLDER API keys")
+    print("   - Cursor-local files may contain placeholder or real API keys")
     print("   - DO NOT commit these files with real API keys to version control")
-    print("   - Add ~/.cursor/.env to your global .gitignore")
+    print(
+        "   - Add ~/.cursor/.env, ~/.cursor/mcp.json, and ~/.cursor/settings.json to your global .gitignore"
+    )
     print("\nNext steps:")
     print(
-        "1. 🔑 Edit ~/.cursor/.env and replace 'your_openai_api_key_here' with your actual API key"
+        f"1. 🔑 If ~/.cursor/.env still contains '{PLACEHOLDER_API_KEY}', replace it with your actual API key"
     )
-    print("2. 🔑 Edit ~/.cursor/mcp.json and update the API key")
+    print(
+        "2. 🔑 If ~/.cursor/mcp.json or ~/.cursor/settings.json still contains the placeholder, update the API key there too"
+    )
     print("3. 🔄 Restart Cursor")
     print("4. ✅ Test MCP integration with Cmd+Shift+P → 'MCP: List Tools'")
 
@@ -169,6 +183,18 @@ def _merge_setting_list(existing_values: object, required_value: str) -> list[st
     return merged
 
 
+def _extract_env_value(env_content: str, key: str) -> str | None:
+    """Read a key from .env content without disturbing unrelated lines."""
+
+    for line in env_content.splitlines():
+        if not line or line.lstrip().startswith("#") or "=" not in line:
+            continue
+        current_key, value = line.split("=", 1)
+        if current_key == key:
+            return value
+    return None
+
+
 def _merge_env_content(existing_content: str, updates: dict[str, str]) -> str:
     """Preserve unrelated .env lines while upserting managed keys."""
 
@@ -206,6 +232,49 @@ def _merge_env_content(existing_content: str, updates: dict[str, str]) -> str:
         merged_lines.append(f"{key}={value}")
 
     return "\n".join(merged_lines).rstrip() + "\n"
+
+
+def _normalize_api_key(value: object) -> str | None:
+    """Treat placeholders, encrypted values, and empty strings as unset for runtime use."""
+
+    if not isinstance(value, str):
+        return None
+    normalized = value.strip()
+    if not normalized or normalized == PLACEHOLDER_API_KEY or normalized.startswith("encrypted:"):
+        return None
+    return normalized
+
+
+def _resolve_env_api_key(*, existing_env_content: str) -> str:
+    """Preserve an existing .env value verbatim; otherwise use the placeholder."""
+
+    existing_env_key = _extract_env_value(existing_env_content, "OPENAI_API_KEY")
+    if isinstance(existing_env_key, str):
+        normalized = existing_env_key.strip()
+        if normalized and normalized != PLACEHOLDER_API_KEY:
+            return normalized
+    return PLACEHOLDER_API_KEY
+
+
+def _resolve_mcp_api_key(*, mcp_config: dict) -> str:
+    """Preserve an existing runtime key already stored in mcp.json only."""
+
+    existing_servers = mcp_config.get("mcpServers", {})
+    if isinstance(existing_servers, dict):
+        pulseplate_server = existing_servers.get("pulseplate-chatgpt", {})
+        if isinstance(pulseplate_server, dict):
+            env_mapping = pulseplate_server.get("env", {})
+            if isinstance(env_mapping, dict):
+                key = _normalize_api_key(env_mapping.get("OPENAI_API_KEY"))
+                if key:
+                    return key
+    return PLACEHOLDER_API_KEY
+
+
+def _resolve_settings_api_key(*, cursor_settings: dict) -> str:
+    """Preserve an existing runtime key already stored in settings.json only."""
+
+    return _normalize_api_key(cursor_settings.get("cursor.ai.openaiApiKey")) or PLACEHOLDER_API_KEY
 
 
 def _write_json_config(cursor_dir: Path, filename: str, data: dict, success_message: str) -> None:
