@@ -7,10 +7,28 @@
  * This is a pure function test (no network, no MSW).
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { normalizeApiUrl } from '../client';
 
 describe('normalizeApiUrl', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  describe('origin-relative API base (same-host Caddy + SPA)', () => {
+    it('resolves /api/v1 against window.location.origin', () => {
+      vi.stubGlobal('window', { location: { origin: 'https://staging.example' } });
+      expect(normalizeApiUrl('/api/v1', '/api/v1/pro/session')).toBe(
+        'https://staging.example/api/v1/pro/session'
+      );
+    });
+
+    it('deduplicates /api/v1 when base is origin-relative', () => {
+      vi.stubGlobal('window', { location: { origin: 'https://app.example' } });
+      expect(normalizeApiUrl('/api/v1/', '/api/v1/health')).toBe('https://app.example/api/v1/health');
+    });
+  });
+
   describe('deduplication when base contains /api/v1', () => {
     it('should deduplicate /api/v1 when base and path both contain it', () => {
       const base = 'http://localhost:8000/api/v1';

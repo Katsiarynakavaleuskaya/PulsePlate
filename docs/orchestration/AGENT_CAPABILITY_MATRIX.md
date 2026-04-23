@@ -19,6 +19,16 @@ This matrix describes **recommended** agent assignments based on:
 **Important:** This is a **routing guide**, not a **permission system**.
 Coordinator may assign agents outside their primary domain if justified.
 
+**Cluster-first contract:** Coordinator resolves the canonical cluster from
+`docs/orchestration/AGENT_ROUTING_GRAPH.md:39` and applies the routing rule in
+`docs/orchestration/AGENT_ROUTING_GRAPH.md:85`; executable enforcement lives in
+`scripts/orchestration/routing_graph_loader.py:205` and
+`scripts/orchestration/route_with_telemetry.py:96`. These evidence anchors are
+part of the contract and should be updated whenever the enforcement entrypoint
+moves. This matrix remains an advisory guide for agent choice inside the routed
+domain and does not define cluster ownership, permissions, or authority
+boundaries.
+
 ---
 
 ## Agent Capabilities
@@ -31,6 +41,7 @@ Slug-first: first column = canonical agent slug (aligns with inventory and routi
 | **backend-engineer** | Backend Engineer | `app/`, `core/` | FastAPI/core implementation, API contracts, policy-safe endpoints | Architecture, Security | Bug Hunter, Architecture |
 | **frontend-engineer** | Frontend Engineer | `frontend/` | Web UI, thin-client rules, contract-safe updates | Architecture | Coordinator |
 | **dev-operator** | Dev Operator | Terminal, CI | `make lint`, `make test-fast`, failure triage, evidence capture | Bug Hunter | Coordinator |
+| **qa-engineer-agent** | QA Engineer | `tests/`, cross-surface | Acceptance gates, regression packs, release confidence, independent review | Backend, Frontend, Orchestration | Bug Hunter, Coordinator |
 | **architecture-specialist** | Architecture | `core/`, `app/`, `frontend/`, `ios/` | Design patterns, invariants, layer boundaries | Bug Hunter, Security | AI Innovation, Bug Hunter |
 | **bug-hunter** | Bug Hunter | `tests/`, CI | Test failures, coverage gaps, guard violations | Coordinator, Architecture | Architecture, Security |
 | **security-auditor** | Security | All (cross-cutting) | Vulnerabilities, threats, hardening | Bug Hunter, Architecture | Architecture (for fixes) |
@@ -41,7 +52,7 @@ Slug-first: first column = canonical agent slug (aligns with inventory and routi
 | **data-scientist-agent** | Data Scientist | `docs/`, experiments (future) | Metrics, eval design, offline benchmarks | — | Coordinator, ML Engineer |
 | **ml-engineer-agent** | ML Engineer | `providers/`, infra seams (future) | Productionization, latency/cost budgets, caching | Architecture | Coordinator |
 | **bayesian-uq-agent** | Bayesian / UQ Agent | `core/`, `providers/` | Uncertainty quantification, calibration, reliability metrics | — | Coordinator, AI Innovation |
-| **cv-agent** | CV Agent | `core/`, `providers/` | Food recognition pipeline, confidence scoring, privacy boundaries | — | Coordinator, Security |
+| **cv-agent** | CV Agent | `core/`, `providers/` | CV routing domain, food recognition pipeline, confidence scoring, privacy boundaries | — | Coordinator, Security |
 | **philosophy-agent** | Philosophy Agent | `docs/` (cross-cutting) | Claim semantics, falsifiability, wellness language boundaries | — | Coordinator |
 | **logic-agent** | Logic Agent | `docs/`, `core/` (cross-cutting) | Contradiction checks, invariants for recommendations | — | Coordinator, Bug Hunter (for testability) |
 | **nutritionist-agent** | Nutritionist Agent | `docs/`, `core/` | Nutrition domain constraints, safe wording, rule definitions | — | Coordinator |
@@ -51,8 +62,13 @@ Slug-first: first column = canonical agent slug (aligns with inventory and routi
 | **creative-designer** | Creative Designer | `frontend/`, `ios/`, marketing | UI/UX, visuals, brand | Marketing | Coordinator |
 | **designer-artist-agent** | Designer / Artist Agent | `frontend/`, assets | Emblem/logo production: SVG geometry, Figma/Sora/Nano Banana packets | Creative Designer | Coordinator |
 | **sora-prompt-engineer** | Sora Prompt Engineer | assets, `docs/sora/` | Sora prompt specs, anti-drift policy, visual QA gates | Creative Designer | Coordinator |
-| **marketing-strategist** | Marketing | `docs/`, marketing materials | ASO/SEO, growth, positioning | Creative Designer | Coordinator |
+| **app-store-release-agent** | App Store Release | `ios/`, `frontend/`, release docs | App Store metadata, screenshots, submission packs, release readiness | QA Engineer, Marketing | Creative Designer, Marketing |
+| **marketing-strategist** | Marketing | `docs/`, marketing materials | ASO/SEO, growth channels, positioning, funnel optimization | Creative Designer | Coordinator |
+| **wellness-analyst-agent** | Wellness Analyst | `docs/`, product strategy | Wellness opportunities, ethics notes, no-license entry ideas | — | Marketing, Business Strategist |
+| **business-strategist-agent** | Business Strategist / Director | `docs/`, roadmap, executive materials | Portfolio framing, B2B packaging, monetization sequencing, investor/partner narrative governance, KPI ownership | Marketing, Wellness Analyst | Marketing, Coordinator |
 | **ai-trend-reporter** | AI Trend Reporter | `docs/` | AI market reports (daily/weekly/monthly/quarterly), wellness GTM | — | Coordinator |
+| **cursor-specialist-agent** | Cursor Specialist | `.cursor/agents/`, `scripts/`, `docs/orchestration/` | Task bootstrap, context-pack hygiene, workflow ergonomics | Orchestration, QA Engineer | Dev Operator, Coordinator |
+| **tutor-mentor-agent** | Tutor / Mentor | `docs/`, onboarding artifacts | Explainability, onboarding, training guidance, role review | — | Coordinator |
 | **generalpurpose** | General Purpose (mcp_task) | — | Research, code search, multi-step tasks | — | — |
 | **explore** | Explore (mcp_task) | — | Fast codebase exploration, file/pattern search | — | — |
 | **shell** | Shell (mcp_task) | — | Git, terminal, CI commands | — | — |
@@ -156,16 +172,20 @@ Coordinator may assign agents outside primary domain if:
 This matrix does not grant “permission” or “rights” to agents.
 It exists to help the coordinator route work efficiently.
 
+Skill selection is a separate step and is governed by
+`docs/orchestration/AGENT_SKILL_ROUTING_POLICY.md`.
+
 ---
 
 ## Related Documentation
 
 - **Routing Graph (SoT):** `docs/orchestration/AGENT_ROUTING_GRAPH.md`
+- **Skill Routing Policy:** `docs/orchestration/AGENT_SKILL_ROUTING_POLICY.md`
 - Coordinator: `.cursor/agents/agent-coordinator.md`
 - Handoff Protocol: `docs/orchestration/AGENT_HANDOFF_PROTOCOL.md`
 - Context Map: `docs/orchestration/AGENT_CONTEXT_MAP.md`
 
 ---
 
-**Last updated:** 2026-02-10 (PR TBD)
+**Last updated:** 2026-03-07 (PR #996)
 **Status:** Advisory

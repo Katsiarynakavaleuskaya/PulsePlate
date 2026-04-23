@@ -1,0 +1,86 @@
+# PR 1268 — Fixed in Commit Mapping
+
+## Discussion Thread Pass
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
+
+## Fixed in Commit Mapping
+Disposition: FIXED
+Commit: 1ae659f3
+Evidence: `scripts/orchestration/design_lane_contract.py:1`; `scripts/orchestration/task_bootstrap.py:194`; `scripts/orchestration/skill_router.py:14`; `tests/test_task_bootstrap.py:170`; `tests/test_skill_router.py:807`; `pre-commit run --all-files`; `make verify`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1268#pullrequestreview-4025677170 -> 1ae659f3
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1268#discussion_r3004956941 -> 1ae659f3
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1268#discussion_r3004956944 -> 1ae659f3
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1268#discussion_r3004962595 -> 1ae659f3
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1268#discussion_r3004963273 -> 1ae659f3
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1268#discussion_r3004963278 -> 1ae659f3
+
+Disposition: FIXED
+Commit: 49f44165
+Evidence: `scripts/orchestration/design_lane_contract.py:42`; `scripts/orchestration/task_bootstrap.py:240`; `scripts/orchestration/skill_router.py:873`; `tests/test_task_bootstrap.py:143`; `tests/test_skill_router.py:787`; `docs/orchestration/RESEARCH_BRAINSTORMING_PROTOCOL.md:25`; `pytest -q tests/test_task_bootstrap.py tests/test_skill_router.py`; `pre-commit run --all-files`; `make verify`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1268#discussion_r3004962593 -> 49f44165
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1268#discussion_r3004963277 -> 49f44165
+
+Disposition: FIXED
+Commit: 19444d3c
+Evidence: `docs/review/PR_1268_FIXED_MAPPING.md:29`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1268#discussion_r3004963270 -> 19444d3c
+
+Disposition: FIXED
+Commit: bbe08814
+Evidence: `scripts/orchestration/design_lane_contract.py:65`; `scripts/orchestration/task_bootstrap.py:132`; `tests/test_task_bootstrap.py:975`; `pytest -q tests/test_task_bootstrap.py`; `pre-commit run --all-files`; `make verify`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1268#discussion_r3004994225 -> bbe08814
+
+Disposition: FIXED
+Commit: acb14b45
+Evidence: `scripts/orchestration/skill_router.py:876`; `scripts/orchestration/task_bootstrap.py:828`; `tests/test_skill_router.py:763`; `tests/test_task_bootstrap.py:1418`; `pytest -q tests/test_skill_router.py tests/test_task_bootstrap.py`; `pre-commit run --all-files`; `make verify`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1268#pullrequestreview-4025733794 -> acb14b45
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1268#pullrequestreview-4025737063 -> acb14b45
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1268#discussion_r3005008675 -> acb14b45
+
+Disposition: FIXED
+Commit: 21118f83
+Evidence: `scripts/orchestration/task_bootstrap.py:824`; `pytest -q tests/test_task_bootstrap.py tests/test_skill_router.py`; `pre-commit run --all-files`; `make verify`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1268#pullrequestreview-4025743718 -> 21118f83
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1268#discussion_r3005013244 -> 21118f83
+
+Disposition: FIXED
+Commit: 0529ddd3
+Evidence: `scripts/orchestration/design_lane_contract.py:86`; `tests/test_skill_router.py:850`; `tests/test_task_bootstrap.py:1012`; `pytest -q tests/test_task_bootstrap.py`; `pytest -q tests/test_skill_router.py`; `pre-commit run --all-files`; `make verify`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1268#pullrequestreview-4025751026 -> 0529ddd3
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1268#pullrequestreview-4025751293 -> 0529ddd3
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1268#discussion_r3005033297 -> 0529ddd3
+
+Disposition: FIXED
+Commit: e130634b
+Evidence: `scripts/orchestration/task_bootstrap.py:241`; `tests/test_task_bootstrap.py:215`; `pytest -q tests/test_task_bootstrap.py`; `pytest -q tests/test_skill_router.py`; `pre-commit run --all-files`; `make verify`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1268#discussion_r3005013243 -> e130634b
+
+Disposition: NOT-A-BUG
+Evidence: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1268#pullrequestreview-4025680383 contains the two mapped inline Codex findings above and no standalone defect beyond them.
+Reason: The review-level wrapper aggregates the actionable inline comments already fixed in commit `1ae659f3`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1268#pullrequestreview-4025680383
+
+Disposition: NOT-A-BUG
+Evidence: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1268#pullrequestreview-4025685128 contains the two mapped cubic findings above and no standalone defect beyond them.
+Reason: The review-level wrapper aggregates the actionable inline comments now fixed in commits `1ae659f3` and `49f44165`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1268#pullrequestreview-4025685128
+
+Disposition: NOT-A-BUG
+Evidence: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1268#pullrequestreview-4025685591 aggregates the mapped inline findings above; the only remaining non-inline note about PR4 ledger closure is advisory process guidance rather than a defect in this PR5 slice.
+Reason: All concrete CodeRabbit actionables are either fixed in commits `1ae659f3`, `49f44165`, and `19444d3c`, or are advisory governance guidance that does not require a code/docs change in this PR.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1268#pullrequestreview-4025685591
+
+Disposition: NOT-A-BUG
+Evidence: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1268#pullrequestreview-4025723129 repeats the already-mapped execution-ready routing issue and adds a stylistic runbook note that does not represent a runtime or contract defect.
+Reason: The duplicate routing concern was fixed in commit `49f44165`; the remaining runbook comment is advisory documentation style guidance, not a blocker for this deterministic PR5 slice.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1268#pullrequestreview-4025723129
+
+## Merge Readiness
+- [ ] All required checks pass
+- [ ] No unresolved review threads (re-check on current head before merge)
+- [ ] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
+- [ ] Pre-commit green
+- [ ] `make verify` green
+- [ ] Mandatory post-open bug-hunter pass completed
+Notes: Draft PR `#1268` was opened on March 28, 2026 for the deterministic PR5 contract slice. The mandatory post-open `qa-engineer-agent -> bug-hunter` pass found two P1 routing defects and one docs-contract drift; those were fixed in commit `23b22a61`. A subsequent Sourcery review plus two Codex inline findings were fixed in commit `1ae659f3`, which also centralized shared design-lane helpers and aligned the code-native brief contract. The remediation slice in commit `49f44165` tightened fail-closed Figma helper routing, corrected node-capture blocker semantics, and added the missing `creative_research` file:line anchor. The follow-up determinism fix in commit `bbe08814` canonicalized design blocker ordering before packet fingerprinting so `task_packet_id` remains stable regardless of CLI blocker order. The router/bootstrap follow-up in commit `acb14b45` threads resolved blocker/mode state into skill routing, keeps design-classified tasks conditional when metadata is absent, and tightens the typed-test surface called out by the latest review wave. The final task-mode threading fix in commit `21118f83` ensures `build_task_packet()` routes the effective downgraded design mode into `route_skills()` instead of the raw requested mode. The latest two follow-ups in commits `0529ddd3` and `e130634b` harden direct blocker canonicalization against unknown review-only inputs, remove the blocker-test false positive where read-only mode could mask execution-lane gating, and restrict explicit Figma creation-mode bypass to the `implement` path so `verify/sync` still require existing URL/file/node metadata. The refreshed targeted suite, `pre-commit run --all-files`, and `make verify` are green on the current branch head, but merge-readiness boxes stay unchecked until the refreshed current-head CI/bot cycle completes and review threads are resolved on GitHub.

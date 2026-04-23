@@ -101,6 +101,18 @@ This is the canonical mapping format for turning backend capability into a **shi
 - **Forbidden:** treat `GET /api/nutrition/{date}` legacy alias as iOS source-of-truth (deprecated; guard/contract drift risk).
 - **Tracking:** `docs/roadmap/BACKLOG_LEDGER.md` (entry marked ✅ merged; follow-ups remain separate), plus P0 security item for alias guard enforcement.
 
+#### Slice P3) App Store offers governance (docs-only prerequisite)
+
+- **Status:** next docs-only Wave 4 lane
+- **Canonical SoT:** `docs/contracts/IOS_STOREKIT_PRODUCTS_CONTRACT.md`
+- **Goal:** keep App Store Connect / StoreKit offer surfaces plus price / trial /
+  eligibility copy under one repository-owned governance source.
+- **Consumer-doc mode:** this roadmap stays pointer-only for App Store pricing /
+  trial / eligibility rules and must not restate a competing canon.
+- **Release follow-through rule:** future iOS / TestFlight / App Store release
+  lanes must reference that StoreKit contract instead of redefining pricing,
+  offer, or eligibility policy in parallel docs.
+
 #### Slice V1) Plan / Weekly plan reader (if backend supports)
 
 - **Goal:** show the plan in a “trustworthy Apple-native” way (loading/error/empty states).

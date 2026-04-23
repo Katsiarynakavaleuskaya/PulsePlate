@@ -37,14 +37,17 @@ struct WelcomeFlowView: View {
             Text(stepA11yText)
                 .font(.footnote)
                 .foregroundStyle(.secondary)
+                .accessibilityIdentifier("appstore.welcome.step")
 
             Text(screenTitleKey)
                 .font(.largeTitle)
                 .fontWeight(.bold)
                 .accessibilityAddTraits(.isHeader)
+                .accessibilityIdentifier("appstore.welcome.title")
 
             Text(screenBodyKey)
                 .font(.body)
+                .accessibilityIdentifier("appstore.welcome.body")
 
             Spacer()
 
@@ -52,6 +55,7 @@ struct WelcomeFlowView: View {
                 if step.back() != nil {
                     Button(backKey) { step = step.back() ?? step }
                         .accessibilityLabel(Text(backKey))
+                        .accessibilityIdentifier("appstore.welcome.back")
                 }
 
                 Spacer()
@@ -62,6 +66,7 @@ struct WelcomeFlowView: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .accessibilityLabel(Text(primaryCtaKey))
+                .accessibilityIdentifier("appstore.welcome.primary_cta")
             }
         }
         .padding()

@@ -80,7 +80,7 @@
 /api/v1/bmi/*        (FREE)
 /api/v1/foods/*      (FREE)
 /api/v1/recipes/*    (FREE)
-/api/v1/users/*      (FREE)
+/api/v1/users/*      (Internal, API key, hidden from public OpenAPI)
 /api/v1/premium/*    (PRO) ✅ Теперь с API key
 /api/v1/vip/*        (VIP) ✅ С API key
 ```

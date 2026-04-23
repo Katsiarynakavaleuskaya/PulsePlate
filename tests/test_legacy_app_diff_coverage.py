@@ -18,16 +18,52 @@ from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 
 import legacy_app
+from app.routers.legal import build_terms_endpoint_payload
 
 
 def test_language_cookie_has_samesite_and_secure_guard() -> None:
     """Security: language cookie must include SameSite and Secure-on-HTTPS guard."""
     client = TestClient(legacy_app.app)
-    resp = client.get("/")
+    resp = client.get("/legacy/bmi-calculator")
     assert resp.status_code == 200
     assert "SameSite=Lax" in resp.text
     assert "window.location.protocol === 'https:'" in resp.text
     assert "; Secure" in resp.text
+
+
+@pytest.mark.asyncio
+async def test_terms_wrapper_matches_canonical_helper() -> None:
+    """Cover legacy /terms wrapper lines used by diff-cover in PR CI."""
+    assert await legacy_app.terms() == build_terms_endpoint_payload().model_dump()
+
+
+@pytest.mark.asyncio
+async def test_readiness_logs_warning_when_insight_runtime_probe_fails(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Cover `/ready` fallback when insight runtime readiness probe raises."""
+
+    async def _database_health_stub(*, session: Any) -> dict[str, Any]:
+        assert session is None
+        return {"status": "ok"}
+
+    def _raise_runtime_probe() -> dict[str, Any]:
+        raise RuntimeError("insight runtime boom")
+
+    import llm
+
+    monkeypatch.setattr(legacy_app, "database_health", _database_health_stub)
+    monkeypatch.setattr(llm, "get_insight_runtime_readiness", _raise_runtime_probe)
+
+    with caplog.at_level(logging.WARNING):
+        payload = await legacy_app.ready(session=None)
+
+    assert payload["status"] == "ok"
+    assert payload["insight_runtime"] == {"status": "unavailable"}
+    assert any(
+        "Insight runtime readiness unavailable" in record.message for record in caplog.records
+    )
 
 
 def test_export_pdf_generic_requires_api_key() -> None:
@@ -252,6 +288,7 @@ def test_insight_prompt_helpers_cover_limits() -> None:
     with pytest.raises(HTTPException) as exc:
         legacy_app._ensure_insight_text_length(too_long)
     assert exc.value.status_code == 413
+    assert legacy_app._ensure_insight_text_length("ok") == "ok"
 
     # Build prompt with context trimming
     text = "hello"
@@ -305,7 +342,7 @@ async def test_insight_v1_rag_path_builds_prompt(monkeypatch: pytest.MonkeyPatch
     # Patch llm.get_provider import inside legacy_app endpoints
     import llm
 
-    monkeypatch.setattr(llm, "get_provider", lambda: _Provider())
+    monkeypatch.setattr(llm, "get_insight_provider", lambda: _Provider())
 
     # Patch retrieve_context_structured to return a context with chunks
     import core.rag.vector_rag as vector_rag
@@ -363,7 +400,7 @@ async def test_insight_v1_trims_prompt_text(monkeypatch: pytest.MonkeyPatch) -> 
 
     import llm
 
-    monkeypatch.setattr(llm, "get_provider", lambda: _Provider())
+    monkeypatch.setattr(llm, "get_insight_provider", lambda: _Provider())
 
     # Mock the orchestration to return a prompt longer than max length
     from core.rag.orchestration import RAGOrchestrationResult
@@ -407,7 +444,7 @@ async def test_legacy_insight_rag_path_trims(monkeypatch: pytest.MonkeyPatch) ->
 
     import llm
 
-    monkeypatch.setattr(llm, "get_provider", lambda: _Provider())
+    monkeypatch.setattr(llm, "get_insight_provider", lambda: _Provider())
     import core.rag.vector_rag as vector_rag
     from dataclasses import dataclass
     from typing import Optional
@@ -466,7 +503,7 @@ async def test_legacy_insight_trims_prompt_text(monkeypatch: pytest.MonkeyPatch)
 
     import llm
 
-    monkeypatch.setattr(llm, "get_provider", lambda: _Provider())
+    monkeypatch.setattr(llm, "get_insight_provider", lambda: _Provider())
 
     # Mock the orchestration to return a prompt longer than max length
     from core.rag.orchestration import RAGOrchestrationResult
@@ -1041,6 +1078,7 @@ def test_exports_flag_warning_outside_tests_is_coverable(
     monkeypatch.delitem(sys.modules, "pytest", raising=False)
     monkeypatch.setenv("FEATURE_EXPORTS", "true")
     monkeypatch.delenv("TESTING", raising=False)
+    monkeypatch.delenv("ENVIRONMENT", raising=False)
     monkeypatch.setenv("APP_ENV", "prod")
     try:
         importlib.reload(legacy_app)
@@ -1048,9 +1086,11 @@ def test_exports_flag_warning_outside_tests_is_coverable(
         assert any("Export endpoints enabled outside tests" in r.message for r in caplog.records)
     finally:
         if saved_pytest is not None:
-            sys.modules["pytest"] = saved_pytest
+            monkeypatch.setitem(sys.modules, "pytest", saved_pytest)
         # Restore a normal testing reload for other tests.
         monkeypatch.setenv("TESTING", "true")
+        monkeypatch.delenv("APP_ENV", raising=False)
+        monkeypatch.delenv("ENVIRONMENT", raising=False)
         importlib.reload(legacy_app)
 
 
@@ -1058,15 +1098,29 @@ def test_exports_testing_flag_is_set_for_ci_env(monkeypatch: pytest.MonkeyPatch)
     """Cover export testing flag detection for APP_ENV=ci (line ~4837)."""
     monkeypatch.setenv("FEATURE_EXPORTS", "true")
     monkeypatch.delenv("TESTING", raising=False)
+    monkeypatch.delenv("ENVIRONMENT", raising=False)
     monkeypatch.setenv("APP_ENV", "ci")
-    importlib.reload(legacy_app)
-    assert getattr(legacy_app, "EXPORTS_ENABLED", False) is True
+    try:
+        importlib.reload(legacy_app)
+        assert getattr(legacy_app, "EXPORTS_ENABLED", False) is True
+    finally:
+        monkeypatch.setenv("TESTING", "true")
+        monkeypatch.delenv("APP_ENV", raising=False)
+        monkeypatch.delenv("ENVIRONMENT", raising=False)
+        importlib.reload(legacy_app)
 
 
 def test_exports_testing_flag_is_set_when_pytest_present(monkeypatch: pytest.MonkeyPatch) -> None:
     """Cover export testing flag detection via pytest heuristic (line ~4839)."""
     monkeypatch.setenv("FEATURE_EXPORTS", "true")
     monkeypatch.delenv("TESTING", raising=False)
+    monkeypatch.delenv("ENVIRONMENT", raising=False)
     monkeypatch.setenv("APP_ENV", "prod")
-    importlib.reload(legacy_app)
-    assert getattr(legacy_app, "EXPORTS_ENABLED", False) is True
+    try:
+        importlib.reload(legacy_app)
+        assert getattr(legacy_app, "EXPORTS_ENABLED", False) is True
+    finally:
+        monkeypatch.setenv("TESTING", "true")
+        monkeypatch.delenv("APP_ENV", raising=False)
+        monkeypatch.delenv("ENVIRONMENT", raising=False)
+        importlib.reload(legacy_app)

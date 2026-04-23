@@ -660,14 +660,14 @@ class TestConfigLoading:
 
     def test_import_yaml_module_success(self) -> None:
         """Test successful YAML module import."""
-        with patch("builtins.__import__", return_value=MagicMock()) as mock_import:
+        with patch("importlib.import_module", return_value=MagicMock()):
             result = BusinessBayesianAnalyzer._import_yaml_module()
 
             assert result is not None
 
     def test_import_yaml_module_not_found(self) -> None:
         """Test YAML module not found returns None."""
-        with patch("builtins.__import__", side_effect=ModuleNotFoundError()):
+        with patch("importlib.import_module", side_effect=ModuleNotFoundError()):
             result = BusinessBayesianAnalyzer._import_yaml_module()
 
             assert result is None

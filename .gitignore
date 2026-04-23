@@ -151,7 +151,8 @@ dmypy.json
 .pyre/
 
 # IDE
-.vscode/
+.vscode/*
+!.vscode/extensions.json
 .idea/
 .claude/
 *.swp
@@ -171,6 +172,14 @@ ehthumbs.db
 Thumbs.db
 
 # Project specific
+data/evals/rag_weekly_*.jsonl
+# Keep the committed smoke fixture while hiding strict weekly/manual datasets.
+!data/evals/pulseplate_rag_eval_sample.jsonl
+# Local raw food dumps (W1); keep snapshots README only
+data/raw/*
+!data/raw/snapshots/
+data/raw/snapshots/*
+!data/raw/snapshots/README.md
 # Generated analysis artifacts
 bayesian_quality_report.json
 bayesian_analysis_results.json
@@ -228,6 +237,8 @@ yarn-error.log*
 # Agent run summaries (local artifacts; never commit)
 artifacts/agent_runs/
 artifacts/orchestration/
+artifacts/rag_eval/
+artifacts/security_lab/
 
 # Build artifacts
 build/
@@ -387,3 +398,10 @@ docs/audit/_local/**
 docs/audit/*.tmp.md
 docs/audit/*.draft.md
 .derivedData/
+ios/.derivedDataSnapshot/
+ios/.bundle/
+ios/fastlane/screenshots/
+ios/fastlane/report.xml
+ios/fastlane/Preview.html
+ios/fastlane/test_output/
+ios/vendor/bundle/

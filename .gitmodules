@@ -1,0 +1,3 @@
+[submodule "tools/cybersecurity_skills"]
+	path = tools/cybersecurity_skills
+	url = https://github.com/Katsiarynakavaleuskaya/anthropic-cybersecurity-skills.git

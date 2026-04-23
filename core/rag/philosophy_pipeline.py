@@ -103,6 +103,85 @@ _SPECULATION_RE = re.compile(
 _NUMERIC_RANGE_RE = re.compile(
     r"(\d+\.?\d*)\s*[-\u2013]\s*(\d+\.?\d*)",
 )
+_TOKEN_RE = re.compile(r"\b[^\W\d_][\w-]*\b", re.UNICODE)
+
+# Audience/cadence words stay non-binding on purpose: they tend to create
+# false contradictions across different metrics that happen to share a cohort.
+_QUERY_STOPWORDS = frozenset(
+    {
+        "a",
+        "an",
+        "and",
+        "are",
+        "adult",
+        "adults",
+        "be",
+        "best",
+        "child",
+        "children",
+        "daily",
+        "female",
+        "for",
+        "good",
+        "healthy",
+        "how",
+        "ideal",
+        "in",
+        "is",
+        "level",
+        "levels",
+        "many",
+        "male",
+        "meal",
+        "meals",
+        "men",
+        "normal",
+        "of",
+        "per",
+        "people",
+        "person",
+        "practical",
+        "range",
+        "ranges",
+        "recommended",
+        "should",
+        "target",
+        "targets",
+        "the",
+        "to",
+        "value",
+        "values",
+        "what",
+        "with",
+        "women",
+    }
+)
+_BROAD_QUERY_MODIFIERS = frozenset({"vitamin"})
+_CONTEXT_DISAMBIGUATION_TERMS = frozenset(
+    {
+        "adult",
+        "adults",
+        "child",
+        "children",
+        "daily",
+        "day",
+        "female",
+        "gram",
+        "grams",
+        "kg",
+        "kilogram",
+        "kilograms",
+        "male",
+        "meal",
+        "meals",
+        "men",
+        "women",
+    }
+)
+_CONTEXT_STOPWORDS = _QUERY_STOPWORDS - _CONTEXT_DISAMBIGUATION_TERMS
+_RANGE_ANCHOR_PREFIX_CHARS = 24
+_RANGE_ANCHOR_SUFFIX_CHARS = 12
+_RANGE_CONTEXT_SUFFIX_CHARS = 36
 
 # Stage 3: Alignment thresholds
 # These thresholds detect score-vs-content quality mismatches.
@@ -339,9 +418,122 @@ def _ranges_contradict(a: tuple[float, float], b: tuple[float, float]) -> bool:
     return a[1] < b[0] or b[1] < a[0]
 
 
+def _extract_query_terms(query: str) -> set[str]:
+    """Return significant query anchors for query-aware contradiction checks."""
+    return {
+        token.lower()
+        for token in _TOKEN_RE.findall(query)
+        if len(token) >= 2 and token.lower() not in _QUERY_STOPWORDS
+    }
+
+
+def _extract_query_anchors(text: str, query_terms: set[str]) -> set[str]:
+    """Return query terms that are explicitly present in chunk-local text."""
+    if not query_terms:
+        return set()
+
+    text_terms = {token.lower() for token in _TOKEN_RE.findall(text)}
+    return text_terms & query_terms
+
+
+def _extract_context_terms(text: str) -> set[str]:
+    """Return disambiguation markers that distinguish closely related range claims."""
+    return {
+        token.lower()
+        for token in _TOKEN_RE.findall(text)
+        if token.lower() not in _CONTEXT_STOPWORDS
+        and (
+            len(token) >= 3
+            or any(char.isdigit() for char in token)
+            or len(token) == 1
+            or token.lower() in _CONTEXT_DISAMBIGUATION_TERMS
+        )
+    }
+
+
+def _is_context_disambiguator(token: str) -> bool:
+    """Return True when a context token can distinguish one metric/topic from another."""
+    return (
+        token in _CONTEXT_DISAMBIGUATION_TERMS
+        or any(char.isdigit() for char in token)
+        or len(token) == 1
+    )
+
+
+def _extract_anchored_numeric_ranges(
+    text: str,
+    query_terms: set[str],
+) -> list[tuple[tuple[float, float], set[str], set[str]]]:
+    """Extract numeric ranges together with query anchors near each range.
+
+    Using range-local context prevents one topic inside a mixed chunk from
+    lending its anchor to unrelated numeric ranges later in the paragraph.
+    """
+    anchored_ranges: list[tuple[tuple[float, float], set[str], set[str]]] = []
+    for match in _NUMERIC_RANGE_RE.finditer(text):
+        try:
+            low = float(match.group(1))
+            high = float(match.group(2))
+        except ValueError:  # pragma: no cover - defensive; regex ensures valid floats
+            continue
+
+        if low >= high:
+            continue
+
+        context_start = max(0, match.start() - _RANGE_ANCHOR_PREFIX_CHARS)
+        anchor_context_end = min(len(text), match.end() + _RANGE_ANCHOR_SUFFIX_CHARS)
+        context_context_end = min(len(text), match.end() + _RANGE_CONTEXT_SUFFIX_CHARS)
+        anchor_context = text[context_start:anchor_context_end]
+        context_context = text[context_start:context_context_end]
+        anchored_ranges.append(
+            (
+                (low, high),
+                _extract_query_anchors(anchor_context, query_terms),
+                _extract_context_terms(context_context),
+            )
+        )
+
+    return anchored_ranges
+
+
+def _query_binding_is_ambiguous(
+    anchors_a: set[str],
+    anchors_b: set[str],
+    context_terms_a: set[str],
+    context_terms_b: set[str],
+    query_terms: set[str],
+) -> bool:
+    """Return True when broad query anchors do not bind both ranges to one topic."""
+    shared_query_anchors = anchors_a & anchors_b
+    if not shared_query_anchors:
+        return True
+
+    extra_query_anchors_a = anchors_a - shared_query_anchors
+    extra_query_anchors_b = anchors_b - shared_query_anchors
+    conflicting_query_anchors = extra_query_anchors_a and extra_query_anchors_b
+    if conflicting_query_anchors:
+        return True
+
+    unexpected_query_anchors_a = extra_query_anchors_a - _BROAD_QUERY_MODIFIERS
+    unexpected_query_anchors_b = extra_query_anchors_b - _BROAD_QUERY_MODIFIERS
+    if unexpected_query_anchors_a or unexpected_query_anchors_b:
+        return True
+
+    extra_context_a = context_terms_a - query_terms
+    extra_context_b = context_terms_b - query_terms
+    shared_context = extra_context_a & extra_context_b
+    unique_context_a = {
+        token for token in (extra_context_a - shared_context) if _is_context_disambiguator(token)
+    }
+    unique_context_b = {
+        token for token in (extra_context_b - shared_context) if _is_context_disambiguator(token)
+    }
+    return bool(unique_context_a and unique_context_b)
+
+
 def _stage4_logical_consistency(
     chunks: list[RAGChunk],
-    query: str,  # noqa: ARG001 - reserved for future semantic contradiction detection
+    query: str,
 ) -> StageResult:
     """Detect contradictory numeric claims and single-source echo.
 
@@ -350,13 +542,12 @@ def _stage4_logical_consistency(
     chunks:
         Filtered chunks to check for consistency.
     query:
-        Original user query (reserved for future query-aware contradiction
-        detection, e.g. flagging when query asks about X but chunks contradict on X).
+        Original user query used to anchor contradiction checks to the active topic.
     """
-    _ = query  # Silence unused-variable linters; see docstring for rationale
     start = time.perf_counter()
     warnings: list[str] = []
     metadata: dict[str, Any] = {}
+    query_terms = _extract_query_terms(query)
 
     # Check 1: Single-source echo
     if len(chunks) > 1:
@@ -368,15 +559,35 @@ def _stage4_logical_consistency(
             )
 
     # Check 2: Contradictory numeric ranges
-    chunk_ranges: list[tuple[str, tuple[float, float]]] = []
+    chunk_ranges: list[tuple[str, tuple[float, float], set[str], set[str]]] = []
     for chunk in chunks:
-        for r in _extract_numeric_ranges(chunk.content):
-            chunk_ranges.append((chunk.chunk_id, r))
+        for r, anchors, context_terms in _extract_anchored_numeric_ranges(
+            chunk.content,
+            query_terms,
+        ):
+            chunk_ranges.append(
+                (
+                    chunk.chunk_id,
+                    r,
+                    anchors,
+                    context_terms,
+                )
+            )
 
     contradictions: list[str] = []
-    for i, (id_a, range_a) in enumerate(chunk_ranges):
-        for id_b, range_b in chunk_ranges[i + 1 :]:
-            if id_a != id_b and _ranges_contradict(range_a, range_b):
+    for i, (id_a, range_a, anchors_a, context_terms_a) in enumerate(chunk_ranges):
+        for id_b, range_b, anchors_b, context_terms_b in chunk_ranges[i + 1 :]:
+            if (
+                id_a != id_b
+                and not _query_binding_is_ambiguous(
+                    anchors_a,
+                    anchors_b,
+                    context_terms_a,
+                    context_terms_b,
+                    query_terms,
+                )
+                and _ranges_contradict(range_a, range_b)
+            ):
                 contradictions.append(
                     f"{id_a}({range_a[0]}-{range_a[1]}) vs {id_b}({range_b[0]}-{range_b[1]})"
                 )

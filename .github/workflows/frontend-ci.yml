@@ -1,5 +1,11 @@
 name: Frontend CI
 
+env:
+  FRONTEND_NODE_VERSION_FILE: ".nvmrc"
+  PYTHON_VERSION: "3.13"
+  PULSEPLATE_PYTHON_INDEX_URL: ${{ secrets.PULSEPLATE_PYTHON_INDEX_URL || vars.PULSEPLATE_PYTHON_INDEX_URL }}
+  PULSEPLATE_PYTHON_TRUSTED_HOST: ${{ secrets.PULSEPLATE_PYTHON_TRUSTED_HOST || vars.PULSEPLATE_PYTHON_TRUSTED_HOST }}
+
 permissions:
   contents: read
 
@@ -9,14 +15,81 @@ concurrency:
 
 on:
   pull_request:
+    types: [opened, synchronize, reopened, edited]
     branches: [main, feat/**, fix/**]
     paths:
       - 'frontend/**'
+      - '.nvmrc'
+      - '.github/actions/npm-ci-with-retry/**'
+      - 'tokens/**'
+      - 'docs/design/TOKENS_SOT.md'
+      - 'docs/design/TOKEN_PIPELINE_GOVERNANCE.md'
+      - 'docs/runbooks/DESIGN_TOOLING_OPERATING_MODEL.md'
+      - 'docs/figma/FIGMA_IMPLEMENTATION_RUNBOOK.md'
+      - 'docs/runbooks/FIGMA_MCP_DESIGN_SYSTEM_RULES.md'
+      - 'docs/orchestration/IOS_FRONTEND_MULTIAGENT_PLAYBOOK.md'
+      - 'docs/roadmap/BACKLOG_LEDGER.md'
+      - 'ios/PulsePlate/DesignSystem/DesignTokens.swift'
+      - 'ios/PulsePlate/DesignSystem/DesignTokens.generated.swift'
+      - 'ios/PulsePlate/Extensions/Color+Assets.swift'
+      - 'ios/PulsePlate/Assets.xcassets/Navy.colorset/**'
+      - 'ios/PulsePlate/Assets.xcassets/AppPrimary.colorset/**'
+      - 'ios/PulsePlate/Assets.xcassets/AccentGreen.colorset/**'
+      - 'ios/PulsePlate/Assets.xcassets/HeartRed.colorset/**'
+      - 'ios/PulsePlate/Assets.xcassets/Gold.colorset/**'
+      - 'docs/design/figma-manifest.json'
+      - 'Makefile'
+      - 'requirements.txt'
+      - 'requirements-ci-lite.in'
+      - 'requirements-ci-lite.txt'
+      - 'constraints.txt'
+      - '.github/actions/python-setup/**'
+      - 'scripts/ci/install_locked_python_requirements.py'
+      - 'scripts/ci/check_python_startup_hooks.py'
+      - 'scripts/ci/emergency_python_wheels.json'
+      - 'scripts/design_guard.py'
+      - 'tests/test_design_token_parity.py'
+      - 'tests/test_design_invariant_guard.py'
+      - 'tests/test_frontend_raw_hex_guard.py'
+      - 'tests/test_python_supply_chain_controls.py'
       - '.github/workflows/frontend-ci.yml'
   push:
     branches: [main, feat/**, fix/**]
     paths:
       - 'frontend/**'
+      - '.nvmrc'
+      - '.github/actions/npm-ci-with-retry/**'
+      - 'tokens/**'
+      - 'docs/design/TOKENS_SOT.md'
+      - 'docs/design/TOKEN_PIPELINE_GOVERNANCE.md'
+      - 'docs/runbooks/DESIGN_TOOLING_OPERATING_MODEL.md'
+      - 'docs/figma/FIGMA_IMPLEMENTATION_RUNBOOK.md'
+      - 'docs/runbooks/FIGMA_MCP_DESIGN_SYSTEM_RULES.md'
+      - 'docs/orchestration/IOS_FRONTEND_MULTIAGENT_PLAYBOOK.md'
+      - 'docs/roadmap/BACKLOG_LEDGER.md'
+      - 'ios/PulsePlate/DesignSystem/DesignTokens.swift'
+      - 'ios/PulsePlate/DesignSystem/DesignTokens.generated.swift'
+      - 'ios/PulsePlate/Extensions/Color+Assets.swift'
+      - 'ios/PulsePlate/Assets.xcassets/Navy.colorset/**'
+      - 'ios/PulsePlate/Assets.xcassets/AppPrimary.colorset/**'
+      - 'ios/PulsePlate/Assets.xcassets/AccentGreen.colorset/**'
+      - 'ios/PulsePlate/Assets.xcassets/HeartRed.colorset/**'
+      - 'ios/PulsePlate/Assets.xcassets/Gold.colorset/**'
+      - 'docs/design/figma-manifest.json'
+      - 'Makefile'
+      - 'requirements.txt'
+      - 'requirements-ci-lite.in'
+      - 'requirements-ci-lite.txt'
+      - 'constraints.txt'
+      - '.github/actions/python-setup/**'
+      - 'scripts/ci/install_locked_python_requirements.py'
+      - 'scripts/ci/check_python_startup_hooks.py'
+      - 'scripts/ci/emergency_python_wheels.json'
+      - 'scripts/design_guard.py'
+      - 'tests/test_design_token_parity.py'
+      - 'tests/test_design_invariant_guard.py'
+      - 'tests/test_frontend_raw_hex_guard.py'
+      - 'tests/test_python_supply_chain_controls.py'
       - '.github/workflows/frontend-ci.yml'
   workflow_dispatch:
 
@@ -35,17 +108,19 @@ jobs:
         working-directory: frontend
     steps:
       - name: Checkout code
-        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Set up Node.js
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
         with:
-          node-version: '20.11.1'
+          node-version-file: ${{ env.FRONTEND_NODE_VERSION_FILE }}
           cache: 'npm'
           cache-dependency-path: frontend/package-lock.json
 
       - name: Install dependencies
-        run: npm ci
+        uses: ./.github/actions/npm-ci-with-retry
+        with:
+          working-directory: frontend
 
       - name: Setup environment variables
         run: |
@@ -56,15 +131,17 @@ jobs:
             echo "VITE_API_BASE=http://localhost:8000/api/v1" >> .env
           fi
 
-      - name: Set up Python
-        uses: actions/setup-python@f677139bbe7f9c59b41e40162b753c062f5d49a3 # v5.2.0
+      - name: Setup Python environment
+        uses: ./.github/actions/python-setup
         with:
-          python-version: '3.13.6'
+          python-version: ${{ env.PYTHON_VERSION }}
+          requirements-profile: ci-lite
+          install-mode: direct-proxy
 
-      - name: Install backend dependencies
+      - name: Run design token pipeline checks
         run: |
           cd ..
-          python -m pip install -r requirements.txt -c constraints.txt
+          make tokens-check
 
       - name: Generate OpenAPI JSON from backend (canonical)
         env:
@@ -92,7 +169,7 @@ jobs:
 
       - name: Upload frontend build artifacts
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: frontend-build
           path: frontend/${{ env.BUILD_OUTPUT_DIR }}
@@ -101,7 +178,7 @@ jobs:
 
       - name: Upload frontend test results
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: frontend-test-results
           path: frontend/coverage

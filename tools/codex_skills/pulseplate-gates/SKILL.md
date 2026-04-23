@@ -40,7 +40,14 @@ description: Run PulsePlate hard quality gates and report failures in the requir
    make diff-cov
    ```
 
-4. For policy sanity in docs/scripts-only changes:
+4. For cheap deterministic local backend feedback before the full gate:
+
+   ```bash
+   make validate-min
+   make validate-changed
+   ```
+
+5. For policy sanity in docs/scripts-only changes:
 
    ```bash
    pytest -q tests/test_repo_policy_guards.py

@@ -1,165 +1,172 @@
-# 🐳 Docker Best Practices for PulsePlate
+# Docker Runtime And Telemetry Contract
 
-## 📋 **Quality Checklist**
+This document is the operator-facing source of truth for the PulsePlate backend
+Docker runtime contract.
 
-### Before Every Push
+## Current production contract
 
-- [ ] Test Docker build locally: `make docker-build`
-- [ ] Verify health check from host: `curl http://localhost:8000/health`
-- [ ] Check image size: `docker images pulseplate`
-- [ ] Clean old images: `make docker-clean-images`
+- Backend runtime image uses `PULSEPLATE_REQUIREMENTS_FILE=requirements-docker-runtime.txt`.
+- CI-only tooling stays in `requirements-ci-lite.txt`.
+- Optional vector / ML dependencies stay in `requirements-rag-vector.txt`.
+- Production target remains the split backend image that serves `app.main:app`.
+- Frontend / Caddy topology remains separate and out of scope for this slice.
+- Runtime slimming merged via `PR #1490` on April 22, 2026.
+- Telemetry baseline landed via `PR #1492` on April 22, 2026.
+- The current Docker/CI slice promotes that telemetry baseline into a
+  deterministic hard budget gate for the production backend image.
 
-> **Note**: Health check validation uses `curl` from the **host machine**, not inside the container. The container itself uses Python's `urllib` for internal health checks (no curl installed in slim image).
+## Runtime manifest policy
 
-### Weekly Maintenance
+`requirements-docker-runtime.txt` is the Docker production dependency surface.
 
-- [ ] Review Docker images: `docker images pulseplate`
-- [ ] Clean dangling images: `docker image prune -f`
-- [ ] Update base images if needed
-- [ ] Check for security vulnerabilities: `docker scan pulseplate:latest`
+Rules:
 
-## 🚀 **Commands Reference**
+- keep only dependencies required for `app.main` imports and current production
+  backend endpoints
+- do not add CI-only tooling
+- do not add the optional vector / ML stack
+- keep the install path on the approved private proxy + constraints +
+  emergency-wheel manifest contract
 
-### Build & Test
+Blocked package classes for the default backend runtime:
+
+- CI / dev tooling: `pytest`, `pre-commit`, `bandit`, `diff-cover`
+- optional vector / ML stack: `sentence-transformers`, `transformers`, `torch`,
+  `pgvector`
+- GPU / CUDA packages: `nvidia-*`, `cuda-*`, `triton`
+
+## Why the hard-budget slice exists
+
+Runtime slimming removed CI-only tooling from the production backend image, but
+the project still needs one canonical baseline so PR authors can see image-size
+drift, largest layers, and build-context evidence before merge.
+
+Telemetry baseline established deterministic image-size evidence, but PR authors
+still need merge-blocking enforcement once the baseline is stable on `main`.
+
+This wave promotes the production backend image to a hard gate:
+
+- absolute image-size cap: `470000000` bytes
+- max positive delta vs baseline: `20000000` bytes
+- same canonical baseline source rule as the telemetry wave
+- provenance / Dagger and Shared Safety remain deferred
+
+## Baseline source rule
+
+All three Docker telemetry lanes use one canonical backend baseline:
+
+1. latest successful `main` artifact from `build.yml`
+2. checked-in seed fallback at `docs/telemetry/docker_image_baseline.production.json`
+
+`scripts/ci/fetch_docker_image_baseline.py` resolves the baseline before
+telemetry collection. If GitHub lookup/download fails, the workflow falls back
+to the checked-in seed and still publishes advisory evidence.
+
+## Telemetry evidence contract
+
+`scripts/ci/docker_image_telemetry.py` remains local-image-only. It does not
+talk to GitHub; it only renders PR-visible evidence from the built image and
+the resolved baseline JSON.
+
+Each Docker lane publishes:
+
+- `docker-image-telemetry.json`
+- `docker-image-telemetry.md`
+- `docker-image-budget-check.json`
+- `docker-image-budget-check.md`
+- `GITHUB_STEP_SUMMARY` entry
+
+Evidence must include:
+
+- image size
+- baseline source: `main-artifact` or `repo-seed-fallback`
+- baseline reference metadata when available
+- delta vs baseline against the blocking hard-budget policy
+- largest layers
+- build-context evidence
+
+Hard budget enforcement must fail when either of these are true:
+
+- `image_size_bytes > 470000000`
+- `baseline.size_delta_bytes > 20000000`
+
+## Validation commands
+
+Build the production target:
 
 ```bash
-# Build with versioning
-make docker-build  # Creates :latest and :<commit-hash>
-
-# Test locally (curl from host to test exposed port)
-docker run -d --name pulseplate-test -p 8000:8000 pulseplate:latest
-# Execute this curl command from your host machine, not inside the container:
-curl http://localhost:8000/health
-docker stop pulseplate-test && docker rm pulseplate-test
-
-# Build development version
-make docker-build-dev
+docker build \
+  --target production \
+  --build-arg PULSEPLATE_PYTHON_INDEX_URL="$PULSEPLATE_PYTHON_INDEX_URL" \
+  --build-arg PULSEPLATE_PYTHON_TRUSTED_HOST="${PULSEPLATE_PYTHON_TRUSTED_HOST:-}" \
+  --build-arg PULSEPLATE_REQUIREMENTS_FILE=requirements-docker-runtime.txt \
+  -t pulseplate:runtime-slim .
 ```
 
-### Image Management
+Validate runtime dependency surface:
 
 ```bash
-# List all PulsePlate images
-docker images pulseplate
-
-# Clean old images (keeps latest 3)
-make docker-clean-images
-
-# Tag for production
-docker tag pulseplate:latest pulseplate:v1.0.0
-
-# Remove specific image
-docker rmi pulseplate:old-tag
+python3 scripts/ci/check_docker_runtime_dependency_surface.py \
+  --image pulseplate:runtime-slim \
+  --output-json artifacts/docker/runtime_dependency_surface.json
 ```
 
-### Troubleshooting
+Basic import smoke:
 
 ```bash
-# Check container logs
-docker logs <container-name>
-
-# Inspect image layers
-docker history pulseplate:latest
-
-# Check image size breakdown
-docker system df
+docker run --rm pulseplate:runtime-slim \
+  python -c "import app.main; print('app.main import ok')"
 ```
 
-## 🔧 **CI/CD Integration**
-
-### GitHub Actions
-
-- ✅ All GitHub Actions pinned to specific commit SHAs
-- ✅ Tag validation prevents workflow failures
-- ✅ SBOM and Trivy security scanning enabled
-- ✅ Multi-platform builds (linux/amd64, linux/arm64)
-
-### Local Testing
+Resolve the canonical baseline and generate telemetry evidence:
 
 ```bash
-# Test the same way CI does
-make docker-build
-docker run -d --name test -p 8000:8000 pulseplate:latest
+python3 scripts/ci/fetch_docker_image_baseline.py \
+  --repo Katsiarynakavaleuskaya/PulsePlate \
+  --fallback-json docs/telemetry/docker_image_baseline.production.json \
+  --output artifacts/docker/docker-image-baseline.json
 
-# Wait for application to be ready with retry (using curl from HOST)
-max_attempts=30
-attempt=0
-echo "Waiting for application to be ready..."
-until curl -f http://localhost:8000/health > /dev/null 2>&1 || [ $attempt -eq $max_attempts ]; do
-  attempt=$((attempt + 1))
-  echo "Attempt $attempt/$max_attempts - waiting for health endpoint..."
-  sleep 1
-done
+python3 scripts/ci/docker_image_telemetry.py \
+  --image-ref pulseplate:runtime-slim \
+  --baseline-json artifacts/docker/docker-image-baseline.json \
+  --json-out artifacts/docker/docker-image-telemetry.json \
+  --markdown-out artifacts/docker/docker-image-telemetry.md
 
-if [ $attempt -eq $max_attempts ]; then
-  echo "❌ Health check failed after ${max_attempts} attempts"
-  docker logs test
-  docker stop test && docker rm test
-  exit 1
-fi
-
-echo "✅ Application is ready"
-docker stop test && docker rm test
+python3 scripts/ci/check_docker_image_budget.py \
+  --telemetry-json artifacts/docker/docker-image-telemetry.json \
+  --budget-json docs/telemetry/docker_image_budget.production.json \
+  --json-out artifacts/docker/docker-image-budget-check.json \
+  --markdown-out artifacts/docker/docker-image-budget-check.md
 ```
 
-> **Note**: The above script uses `curl` from your **host machine** to test the exposed port. Inside the container, the Dockerfile HEALTHCHECK uses Python's `urllib.request.urlopen()` instead, as `curl` is not installed in the slim Python image to minimize attack surface.
+## Rollback
 
-## 📊 **Performance Tips**
+If the runtime image fails to build or boot after this slice:
 
-### Build Optimization
+1. restore the previous Docker build arg usage in production-target workflows
+2. switch `PULSEPLATE_REQUIREMENTS_FILE` back to the prior manifest for the
+   affected workflow
+3. keep the runtime-surface findings as evidence in the PR and record the
+   follow-up in `docs/roadmap/BACKLOG_LEDGER.md`
 
-- Use `.dockerignore` to exclude unnecessary files
-- Leverage Docker layer caching
-- Use multi-stage builds (already implemented)
-- Pin base image versions
+Do not widen this rollback into provenance or frontend/Caddy changes.
 
-### Runtime Optimization
+## Deferred follow-ups
 
-- Use non-root user (already implemented)
-- Set proper environment variables
-- Configure health checks (Python-based, no curl dependency)
-- Use appropriate base images (python:3.13.6-slim-bookworm - pinned stable version)
+Explicitly deferred after this PR:
 
-> **Health Check Details**: The Dockerfile uses Python's `urllib.request.urlopen()` for health checks instead of `curl` to avoid installing unnecessary packages. Example:
->
-> ```dockerfile
-> HEALTHCHECK CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=5)" || exit 1
-> ```
-
-## 🛡️ **Security Best Practices**
-
-### Image Security
-
-- ✅ Non-root user (pulseplate)
-- ✅ Minimal base image (python:3.13.6-slim-bookworm - pinned to Debian Bookworm stable)
-- ✅ No unnecessary tools installed (curl, wget removed to reduce attack surface)
-- ✅ Python-based health checks (no external dependencies)
-- ✅ No secrets in image layers
-- ✅ Regular security scanning with Trivy
-
-### Runtime Security
-
-- ✅ Read-only filesystem where possible
-- ✅ Proper file permissions
-- ✅ Health checks for monitoring
-- ✅ Resource limits in docker-compose
-
-## 📈 **Monitoring & Maintenance**
-
-### Regular Tasks
-
-1. **Daily**: Test builds before pushing
-2. **Weekly**: Clean old images
-3. **Monthly**: Review and update base images
-4. **Quarterly**: Security audit and dependency updates
-
-### Metrics to Track
-
-- Image size trends
-- Build time performance
-- Security vulnerability count
-- Layer cache hit rate
-
----
-
-**Remember**: Docker is a powerful tool, but with great power comes great responsibility! 🕷️
+- `P1: Shared Safety audit script after install-profile split`
+  Backlog: `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-safety-audit-shared-script-after-pr1479`
+  Remove-by: 2026-06-15
+  Rollback: keep Safety invocation duplicated in the existing workflows until the shared extraction lands.
+  Exit criteria: a follow-up PR extracts the shared Safety invocation/reporting path without reopening install-profile split scope.
+- provenance / attestation recovery
+  Backlog: `docs/roadmap/BACKLOG_LEDGER.md#backlog-restore-signed-build-provenance`
+  Remove-by: 2026-06-30
+  Rollback: keep signed provenance disabled on the known cache/buildx seam and preserve the documented workaround.
+  Exit criteria: signed provenance and downstream verification return to the canonical image workflow without destabilizing the release path.
+- Dagger or any alternate control-plane work
+  Backlog: `docs/roadmap/BACKLOG_LEDGER.md#ledger-p2-dagger-pilot-after-docker-baseline`
+  Remove-by: 2026-07-15
+  Rollback: keep the current GitHub Actions-based Docker control plane as the only supported path.
+  Exit criteria: telemetry baseline and provenance follow-ups are closed and a separate evaluation packet re-approves any Dagger pilot.

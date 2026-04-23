@@ -24,11 +24,18 @@
 - CTA hierarchy is clear and consistent (primary > secondary > utility).
 - Accessibility baseline is preserved (contrast, focus, tap/click targets).
 - For each CTA, handoff has `Exists/Missing/Implement Needed` note.
-- Code Connect map status is recorded for each touched CTA:
-  `candidate` / `blocked_by_design_url` / `validated` / `active`.
-- If status is `blocked_by_design_url`, dependency tracking is updated via
+- Each touched CTA has a repo-native design review reference:
+  Storybook story/MDX path and, when used, a Penpot page/frame reference.
+- Optional Code Connect map status is recorded only when Code Connect is
+  explicitly in scope:
+  `candidate` / `blocked_by_design_url` / `blocked_by_node_id_capture` /
+  `blocked_by_plan` / `stale` / `validated` / `active`.
+- If optional status is `blocked_by_design_url` or `blocked_by_node_id_capture`,
+  dependency tracking is updated via
   `docs/figma/FIGMA_DESIGN_URL_NODEID_CAPTURE_HPP.md`.
-- If mapping is marked `active`, verification evidence from
+- If optional status is `blocked_by_plan`, workspace-level blocker is recorded in
+  `docs/figma/FIGMA_CODE_CONNECT_BRIDGE_HPP.md` and `docs/roadmap/BACKLOG_LEDGER.md`.
+- If optional mapping is marked `active`, verification evidence from
   `get_code_connect_map` is attached.
 - If conflicts were found, resolution is recorded in `docs/figma/orchestration/sessions/`.
 
@@ -40,10 +47,14 @@ Canonical schema source:
 - `Button/CTA ID`
 - `Screen + Platform`
 - `Target state(s)`
-- `Figma Node ID` (or `TBD`)
-- `Code Connect Label` (`React` / `SwiftUI`)
-- `Code Connect Map Status`
+- `Design Review Reference`
 - `Prompt Stub ID`
 - `Status` (`Implemented` / `Partial` / `Missing` / `Blocked by flag`)
 - `Implement Needed`
 - `context_version` (date + commit hash)
+
+Optional only when Code Connect is part of the task:
+
+- `Figma Node ID`
+- `Code Connect Label` (`React` / `SwiftUI`)
+- `Code Connect Map Status`

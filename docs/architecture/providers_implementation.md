@@ -1,7 +1,7 @@
 # Providers Implementation — Detailed Analysis
 
 **Originally drafted:** 2026-01-12
-**Purpose:** Document how `providers/` is implemented and how it is wired into runtime (via `llm.py` + `legacy_app.py` insight endpoints).
+**Purpose:** Document how `providers/` is implemented and how it is wired into runtime through the canonical AI bounded-context seam (`core/ai/*`) and the legacy insight adapters.
 
 ---
 
@@ -182,30 +182,36 @@ def get_provider():
 
 ---
 
-## ✅ Current Runtime Usage: WIRED (via `legacy_app.py` insight endpoints)
+## ✅ Current Runtime Usage: WIRED (via `core/ai/*` + legacy insight adapters)
 
-### Evidence: Providers are used via `legacy_app.py → llm.py → providers/*`
+### Evidence: Providers are used via `legacy_app.py → app/services/insight_application_service.py → core/ai/* → llm.py → providers/*`
 
-**1. Insight endpoints live in `legacy_app.py` (not in `app/routers/`)**
+**1. Insight endpoints remain compatibility adapters in `legacy_app.py`**
 
 - Evidence:
   - `legacy_app.py:2168-2187` defines HTTP routes:
     - `POST /api/v1/insight` (API key gated)
     - `POST /insight` (legacy path)
 
-**2. `legacy_app.py` loads `llm.get_provider` lazily and calls `provider.generate()`**
+**2. The shared application service owns endpoint orchestration, not `legacy_app.py`**
 
 - Evidence:
-  - `legacy_app.py:2066-2076` — `_load_llm_get_provider()` imports `llm.get_provider`
-  - `legacy_app.py:2098-2117` — `provider = get_provider()` and `await provider.generate(prompt_text)`
+  - `app/services/insight_application_service.py` executes shared `/insight` orchestration
+  - `app/services/insight_runtime.py` owns traced `provider.generate(...)` execution
 
-**3. `llm.py` imports `providers/*` and selects provider by env var**
+**3. `core/ai/*` is the canonical provider/runtime preparation seam**
+
+- Evidence:
+  - `core/ai/insight_runtime.py` prepares `PhilosophicalRuntime`, route decision, transparency notice, and provider selection
+  - `legacy_app.py` keeps HTTPException mapping and route wrappers as thin adapters for compatibility/tests
+
+**4. `llm.py` imports `providers/*` and selects provider by env var**
 
 - Evidence:
   - `llm.py:57-79` — optional imports of `providers.grok`, `providers.ollama`, `providers.pico`
   - `llm.py:91-153` — `get_provider()` selects provider based on `LLM_PROVIDER`
 
-**Conclusion:** `providers/` is wired into runtime through the insight endpoints in `legacy_app.py`, with `llm.get_provider()` acting as the factory/adapter layer.
+**Conclusion:** `providers/` is wired into runtime through the canonical `core/ai/*` seam, with `llm.get_provider()` acting as the low-level factory/adapter layer and legacy routes remaining thin HTTP compatibility wrappers.
 
 ---
 
@@ -230,7 +236,9 @@ def get_provider():
 - ✅ Tests (unit tests for each provider)
 
 **Runtime wiring (current):**
-- ✅ Insight endpoints in `legacy_app.py` call `llm.get_provider()` and then `provider.generate()`
+- ✅ Insight endpoints stay in `legacy_app.py` as thin wrappers
+- ✅ Shared app service and tracing adapters live in `app/services/*`
+- ✅ Canonical provider/runtime preparation now enters through `core/ai/*`
 
 **Historical note (superseded):**
 - Earlier versions of this doc claimed providers were “not wired into runtime” because `app/routers/` did not import them.
@@ -310,7 +318,7 @@ def get_provider():
 
 Evidence pointers (runtime truth):
 
-- `legacy_app.py:2168-2187` — insight HTTP endpoints exist (`/api/v1/insight`, `/insight`)
+- `legacy_app.py` — insight HTTP endpoints exist (`/api/v1/insight`, `/insight`) as compatibility adapters
 - `legacy_app.py:2066-2076` — lazy loader imports `llm.get_provider`
 - `legacy_app.py:2098-2117` — calls `provider.generate(...)`
 - `llm.py:57-79` + `91-153` — imports/selects `providers/*` via `LLM_PROVIDER`
@@ -347,7 +355,7 @@ Evidence pointers (runtime truth):
 
 **Current status:**
 - ✅ Implemented (code exists)
-- ✅ Wired into runtime via `legacy_app.py` insight endpoints and `llm.get_provider()`
+- ✅ Wired into runtime via `core/ai/*`, shared app insight services, and `llm.get_provider()`
 - ✅ Tested (unit tests exist)
 
 **Why they exist:**

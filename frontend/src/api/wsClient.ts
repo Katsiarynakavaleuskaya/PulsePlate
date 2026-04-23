@@ -22,7 +22,15 @@ const DEFAULT_WS_PATH = "/api/v1/pro/ws";
 // Legacy path "/ws" is deprecated; migrate to canonical PRO namespace
 
 function toWsBaseUrl(apiBase: string): string {
-  const parsed = new URL(apiBase);
+  const trimmedBase = apiBase.trim();
+  if (!trimmedBase) {
+    throw new Error("VITE_API_BASE must not be empty");
+  }
+  const origin =
+    typeof window !== "undefined" && window.location?.origin
+      ? window.location.origin
+      : "http://localhost";
+  const parsed = new URL(trimmedBase, `${origin}/`);
   const protocol = parsed.protocol === "https:" ? "wss:" : "ws:";
   return `${protocol}//${parsed.host}`;
 }

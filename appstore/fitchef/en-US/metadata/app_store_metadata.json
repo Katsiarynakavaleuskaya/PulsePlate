@@ -1,0 +1,26 @@
+{
+  "locale": "en-US",
+  "product_name": "PulsePlate",
+  "brand_mascot": "FitChef",
+  "subtitle": "AI nutrition with FitChef",
+  "keywords": [
+    "nutrition",
+    "meal planner",
+    "diet tracker",
+    "food log",
+    "macros",
+    "grocery list",
+    "health goals"
+  ],
+  "promo_text": "Track nutrients, plan meals, and stay consistent with FitChef guidance grounded in your real PulsePlate data.",
+  "description_paragraphs": [
+    "PulsePlate helps you understand your nutrition, keep meals aligned with your goals, and build healthier routines with calm, data-grounded guidance.",
+    "Review macro and micronutrient balance, explore progress trends, and stay organized with weekly planning and grocery support.",
+    "FitChef adds friendly coaching cues that stay anchored to real product data instead of hype, fake UI, or medical promises."
+  ],
+  "compliance_notes": [
+    "App Store EN-first pack only",
+    "No medical diagnosis or guaranteed-outcome claims",
+    "All copy must stay grounded in shipped or canon-governed product capability"
+  ]
+}

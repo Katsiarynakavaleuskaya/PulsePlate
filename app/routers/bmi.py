@@ -22,6 +22,7 @@ from app.schemas.bmi import (
     WaistRiskResultSchema,
 )
 from app.services.bmi_visualization import build_bmi_scale_v1
+from app.services.intervention_trigger_engine import build_post_bmi_next_action
 from core.i18n import normalize_lang, t
 
 logger = logging.getLogger(__name__)
@@ -165,6 +166,9 @@ async def bmi_calculate_handler(
 
         # Add soft paywall hook (router layer only, no BMI logic)
         resp.soft_paywall = _build_soft_paywall_hook(str(req.lang), default_enabled=True)
+
+        # Add deterministic backend-owned planning hint.
+        resp.next_best_action = build_post_bmi_next_action(bmi=result.bmi)
 
         # Return as dict for legacy compatibility
         # IMPORTANT: use by_alias=True to ensure "from" (not "from_") in JSON

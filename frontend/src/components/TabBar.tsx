@@ -8,7 +8,7 @@ import { getGridColsClass } from "./TabBar.helpers";
 
 export default function TabBar() {
   const { pathname } = useLocation();
-  const { apiKey } = useAuth();
+  const { isAuthenticated } = useAuth();
   const { t } = useTranslation();
   const isVipEnabled = useVipModule();
   const [clickedDisabled, setClickedDisabled] = useState<string | null>(null);
@@ -49,7 +49,7 @@ export default function TabBar() {
     >
       {visibleTabs.map(({ path: to, label, requiresAuth }) => {
         const isActive = Boolean(matchPath({ path: to, end: to === "/" }, pathname));
-        const isDisabled = requiresAuth && !apiKey;
+        const isDisabled = requiresAuth && !isAuthenticated;
         const isClicked = clickedDisabled === to;
 
         if (isDisabled) {
@@ -63,7 +63,7 @@ export default function TabBar() {
               role="tab"
               aria-disabled="true"
               tabIndex={-1}
-              title={t("auth.requiresApiKey")}
+              title={t("auth.requiresSecureSession")}
             >
               {/* Lock overlay */}
               <div className="absolute inset-0 flex items-center justify-center bg-navy/80 rounded-lg backdrop-blur-sm">

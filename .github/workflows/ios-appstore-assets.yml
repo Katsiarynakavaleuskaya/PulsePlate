@@ -1,0 +1,283 @@
+name: ios-appstore-assets
+
+on:
+  pull_request:
+    paths:
+      - "ios/**"
+      - ".github/workflows/ios-appstore-assets.yml"
+      - "Makefile"
+      - ".gitignore"
+      - "tests/test_ios_appstore_asset_validators.py"
+  workflow_dispatch:
+    inputs:
+      upload_to_asc:
+        description: "Upload metadata and screenshots to App Store Connect draft"
+        required: false
+        default: false
+        type: boolean
+      upload_app_privacy:
+        description: "Upload App Privacy answers with Apple ID session auth"
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-appstore-assets-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  validate-assets:
+    if: github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && inputs.upload_to_asc)
+    runs-on: macos-15
+    # RU: Для PR проверяем один канонический locale на iPhone + iPad.
+    # EN: PR validation captures one canonical locale across iPhone + iPad.
+    # RU: Полный multi-locale прогон остаётся для workflow_dispatch upload flow.
+    # EN: Full multi-locale capture remains available for workflow_dispatch upload flows.
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+
+      - name: Select Xcode
+        run: |
+          set -euo pipefail
+          CANDIDATES=(
+            "/Applications/Xcode_26.2.app/Contents/Developer"
+            "/Applications/Xcode_26.2.0.app/Contents/Developer"
+            "/Applications/Xcode_26.1.app/Contents/Developer"
+            "/Applications/Xcode_26.1.0.app/Contents/Developer"
+            "/Applications/Xcode_26.0.app/Contents/Developer"
+            "/Applications/Xcode_26.app/Contents/Developer"
+            "/Applications/Xcode_26.0.0.app/Contents/Developer"
+            "/Applications/Xcode.app/Contents/Developer"
+          )
+
+          for candidate in "${CANDIDATES[@]}"; do
+            if [ -d "$candidate" ]; then
+              echo "DEVELOPER_DIR=$candidate" >> "$GITHUB_ENV"
+              sudo xcode-select -s "$candidate"
+              echo "Selected DEVELOPER_DIR: $candidate"
+              XCODEBUILD_VERSION="$(xcodebuild -version)"
+              XCODE_VERSION="${XCODEBUILD_VERSION#Xcode }"
+              XCODE_VERSION="${XCODE_VERSION%%$'\n'*}"
+              XCODE_MAJOR="${XCODE_VERSION%%.*}"
+              if [ "$XCODE_MAJOR" != "26" ]; then
+                echo "::error::Selected Xcode must be 26.x for iOS 26 SDK readiness. Got $XCODE_VERSION"
+                exit 1
+              fi
+              echo "Using Xcode at $candidate"
+              xcodebuild -version
+              exit 0
+            fi
+          done
+
+          echo "::error::No supported Xcode 26.x installation found"
+          echo "Available Xcode installations under /Applications:"
+          for xcode_app in /Applications/Xcode*.app; do
+            if [ -d "$xcode_app" ]; then
+              echo " - $xcode_app"
+            fi
+          done
+          exit 1
+
+      - uses: ruby/setup-ruby@4eb9f110bac952a8b68ecf92e3b5c7a987594ba6 # v1
+        with:
+          ruby-version: "3.1"
+          bundler-cache: true
+          working-directory: ios
+
+      - name: Install gems
+        working-directory: ios
+        run: bundle install
+
+      - name: Capture screenshots
+        working-directory: ios
+        env:
+          LC_ALL: en_US.UTF-8
+          LANG: en_US.UTF-8
+          SNAPSHOT_LANGUAGES: ${{ github.event_name == 'pull_request' && 'en-US' || '' }}
+        run: bundle exec fastlane ios snapshot_all
+
+      - name: Validate assets
+        working-directory: ios
+        run: bundle exec fastlane ios validate_assets
+
+      - name: Upload screenshot artifacts
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ios-appstore-screenshots
+          path: ios/fastlane/screenshots
+          if-no-files-found: warn
+
+  upload-assets:
+    if: github.event_name == 'workflow_dispatch' && inputs.upload_to_asc
+    needs: validate-assets
+    runs-on: macos-15
+    timeout-minutes: 75
+    environment: appstore-assets
+    steps:
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+
+      - name: Select Xcode
+        run: |
+          set -euo pipefail
+          for candidate in \
+            /Applications/Xcode_26.2.app/Contents/Developer \
+            /Applications/Xcode_26.2.0.app/Contents/Developer \
+            /Applications/Xcode_26.1.app/Contents/Developer \
+            /Applications/Xcode_26.1.0.app/Contents/Developer \
+            /Applications/Xcode_26.0.app/Contents/Developer \
+            /Applications/Xcode_26.app/Contents/Developer \
+            /Applications/Xcode_26.0.0.app/Contents/Developer \
+            /Applications/Xcode.app/Contents/Developer; do
+            if [ -d "$candidate" ]; then
+              echo "DEVELOPER_DIR=$candidate" >> "$GITHUB_ENV"
+              sudo xcode-select -s "$candidate"
+              echo "Selected DEVELOPER_DIR: $candidate"
+              XCODEBUILD_VERSION="$(xcodebuild -version)"
+              XCODE_VERSION="${XCODEBUILD_VERSION#Xcode }"
+              XCODE_VERSION="${XCODE_VERSION%%$'\n'*}"
+              XCODE_MAJOR="${XCODE_VERSION%%.*}"
+              if [ "$XCODE_MAJOR" != "26" ]; then
+                echo "::error::Selected Xcode must be 26.x for iOS 26 SDK readiness. Got $XCODE_VERSION"
+                exit 1
+              fi
+              xcodebuild -version
+              exit 0
+            fi
+          done
+          echo "::error::No supported Xcode 26.x installation found"
+          echo "Available Xcode installations under /Applications:"
+          for xcode_app in /Applications/Xcode*.app; do
+            if [ -d "$xcode_app" ]; then
+              echo " - $xcode_app"
+            fi
+          done
+          exit 1
+
+      - uses: ruby/setup-ruby@4eb9f110bac952a8b68ecf92e3b5c7a987594ba6 # v1
+        with:
+          ruby-version: "3.1"
+          bundler-cache: true
+          working-directory: ios
+
+      - name: Install gems
+        working-directory: ios
+        run: bundle install
+
+      - name: Download screenshot artifacts
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
+        with:
+          name: ios-appstore-screenshots
+          path: ios/fastlane/screenshots
+
+      - name: Guard privileged upload ref
+        env:
+          ALLOWED_UPLOAD_REFS_REGEX: '^refs/heads/main$|^refs/heads/release/.+$|^refs/tags/release-.+$'
+        run: |
+          set -euo pipefail
+          if [[ "${GITHUB_REF}" =~ ${ALLOWED_UPLOAD_REFS_REGEX} ]]; then
+            echo "Allowed privileged upload ref: ${GITHUB_REF} @ ${GITHUB_SHA}"
+            exit 0
+          fi
+
+          echo "::error::Privileged App Store uploads may run only from main or release refs. Got ${GITHUB_REF}"
+          exit 1
+
+      - name: Preflight protected App Store upload secrets
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_P8_BASE64: ${{ secrets.ASC_KEY_P8_BASE64 }}
+          APP_STORE_BUNDLE_IDENTIFIER: ${{ secrets.APP_STORE_BUNDLE_IDENTIFIER }}
+        run: |
+          set -euo pipefail
+          missing=()
+          for name in ASC_KEY_ID ASC_ISSUER_ID ASC_KEY_P8_BASE64 APP_STORE_BUNDLE_IDENTIFIER; do
+            if [[ -z "${!name:-}" ]]; then
+              missing+=("$name")
+            fi
+          done
+
+          if (( ${#missing[@]} > 0 )); then
+            echo "::error::Missing protected App Store upload secret(s): ${missing[*]}. See docs/runbooks/IOS_APPSTORE_ASSETS_ROLLOUT.md"
+            exit 1
+          fi
+
+      - name: Upload metadata and screenshots
+        working-directory: ios
+        env:
+          APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          APP_STORE_CONNECT_API_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          APP_STORE_CONNECT_API_KEY: ${{ secrets.ASC_KEY_P8_BASE64 }}
+          APP_STORE_BUNDLE_IDENTIFIER: ${{ secrets.APP_STORE_BUNDLE_IDENTIFIER }}
+        run: bundle exec fastlane ios upload_metadata_and_screenshots
+
+  upload-app-privacy:
+    if: github.event_name == 'workflow_dispatch' && inputs.upload_app_privacy
+    runs-on: macos-15
+    timeout-minutes: 30
+    environment: appstore-privacy
+    steps:
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+
+      - uses: ruby/setup-ruby@4eb9f110bac952a8b68ecf92e3b5c7a987594ba6 # v1
+        with:
+          ruby-version: "3.1"
+          bundler-cache: true
+          working-directory: ios
+
+      - name: Install gems
+        working-directory: ios
+        run: bundle install
+
+      - name: Validate metadata and privacy package
+        working-directory: ios
+        run: bundle exec fastlane ios validate_metadata_package
+
+      - name: Guard privileged upload ref
+        env:
+          ALLOWED_UPLOAD_REFS_REGEX: '^refs/heads/main$|^refs/heads/release/.+$|^refs/tags/release-.+$'
+        run: |
+          set -euo pipefail
+          if [[ "${GITHUB_REF}" =~ ${ALLOWED_UPLOAD_REFS_REGEX} ]]; then
+            echo "Allowed privileged upload ref: ${GITHUB_REF} @ ${GITHUB_SHA}"
+            exit 0
+          fi
+
+          echo "::error::Privileged App Store uploads may run only from main or release refs. Got ${GITHUB_REF}"
+          exit 1
+
+      - name: Preflight protected App Privacy secrets
+        env:
+          FASTLANE_USER: ${{ secrets.FASTLANE_USER }}
+          FASTLANE_SESSION: ${{ secrets.FASTLANE_SESSION }}
+          FASTLANE_TEAM_ID: ${{ secrets.FASTLANE_TEAM_ID }}
+          FASTLANE_TEAM_NAME: ${{ secrets.FASTLANE_TEAM_NAME }}
+          APP_STORE_BUNDLE_IDENTIFIER: ${{ secrets.APP_STORE_BUNDLE_IDENTIFIER }}
+        run: |
+          set -euo pipefail
+          missing=()
+          for name in FASTLANE_USER FASTLANE_SESSION FASTLANE_TEAM_ID FASTLANE_TEAM_NAME APP_STORE_BUNDLE_IDENTIFIER; do
+            if [[ -z "${!name:-}" ]]; then
+              missing+=("$name")
+            fi
+          done
+
+          if (( ${#missing[@]} > 0 )); then
+            echo "::error::Missing protected App Privacy secret(s): ${missing[*]}. See docs/runbooks/IOS_APPSTORE_ASSETS_ROLLOUT.md"
+            exit 1
+          fi
+
+      - name: Upload App Privacy
+        working-directory: ios
+        env:
+          FASTLANE_USER: ${{ secrets.FASTLANE_USER }}
+          FASTLANE_SESSION: ${{ secrets.FASTLANE_SESSION }}
+          FASTLANE_TEAM_ID: ${{ secrets.FASTLANE_TEAM_ID }}
+          FASTLANE_TEAM_NAME: ${{ secrets.FASTLANE_TEAM_NAME }}
+          APP_STORE_BUNDLE_IDENTIFIER: ${{ secrets.APP_STORE_BUNDLE_IDENTIFIER }}
+        run: bundle exec fastlane ios upload_app_privacy

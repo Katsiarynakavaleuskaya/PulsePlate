@@ -8,11 +8,11 @@ echo "[CI-LOCAL] Backend tests (pytest) with coverage..."
 pytest -q -n auto --dist=worksteal --cov=. --cov-report=term-missing
 
 echo "[CI-LOCAL] Frontend lint..."
-npm ci --prefix frontend || npm install --prefix frontend
-npm run lint --prefix frontend || true
+./scripts/frontend_npm.sh --prefix frontend ci || ./scripts/frontend_npm.sh --prefix frontend install
+./scripts/frontend_npm.sh --prefix frontend run lint || true
 
 echo "[CI-LOCAL] Frontend unit tests (Vitest)..."
-npm test --prefix frontend || true
+./scripts/frontend_npm.sh --prefix frontend test || true
 
 echo "[CI-LOCAL] Security scans (Bandit)..."
 bandit -r . || true

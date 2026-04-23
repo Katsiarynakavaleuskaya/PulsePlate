@@ -1,0 +1,17 @@
+# Example only — intended for copying to host-only ~/.codex/config.toml.
+# This file is NOT repository or team source of truth for Codex behavior.
+# Validate every key against the Codex CLI version you run, e.g.:
+# https://developers.openai.com/codex/config-reference
+#
+# Never commit real API keys, tokens, or personal absolute paths as “the one true” config.
+
+model = "gpt-5-codex"
+
+# approval_policy = "untrusted"
+# sandbox_mode = "workspace-write"
+# personality = "pragmatic"
+# model_reasoning_effort = "medium"
+
+# Optional per-clone trust (use your real absolute path after copy)
+# [projects."/absolute/path/to/PulsePlate"]
+# trust_level = "trusted"

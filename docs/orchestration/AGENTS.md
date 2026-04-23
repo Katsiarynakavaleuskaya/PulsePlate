@@ -1,0 +1,101 @@
+# Orchestration Docs Scope
+
+Scope: `docs/orchestration/**`
+
+- Root [`AGENTS.md`](../../AGENTS.md) owns repo-global workflow, merge gates, and cross-repo agent policy. Keep this scope file focused on orchestration-doc specifics only.
+- [`docs/orchestration/AUTOMATION_READINESS_MATRIX.md`](./AUTOMATION_READINESS_MATRIX.md) is the scope-level SoT for what is policy-only vs launcher-enforced vs host-runtime-constrained automation.
+- When a PR changes workflow or agent behavior only for an orchestration/docs lane, update this scoped file instead of broadcasting initiative-specific routing into root `AGENTS.md`.
+- PR-local orchestration packets are the canonical field-level contract for their lane. Higher-level chain docs should keep only the invariant and link back to the packet.
+- For the design-agent runtime realignment bridge:
+  - primary: `agent-coordinator`
+  - secondary: `cursor-specialist-agent`
+  - reviewer: `qa-engineer-agent`
+  - advisory: `architecture-specialist`
+  - optional consult: `creative-designer`, `frontend-engineer`
+  - mandatory post-open lane: `qa-engineer-agent -> bug-hunter`
+- For the design-bridge operationalization lane (`PR21` evidence pipeline):
+  - primary: `agent-coordinator`
+  - execution order:
+    - `creative-designer`
+    - `frontend-engineer`
+    - `qa-engineer-agent`
+  - advisory: `cursor-specialist-agent`
+  - optional consult: `architecture-specialist`
+  - mandatory post-open lane: `qa-engineer-agent -> bug-hunter`
+  - canonical packet:
+    - [`docs/orchestration/DESIGN_BRIDGE_OPERATIONALIZATION_PACKET_2026-04-11.md`](./DESIGN_BRIDGE_OPERATIONALIZATION_PACKET_2026-04-11.md)
+- For the design runtime system web+iOS PR series:
+  - primary: `agent-coordinator`
+  - execution order:
+    - `creative-designer`
+    - `frontend-engineer`
+  - advisory: `cursor-specialist-agent`
+  - reviewer: `architecture-specialist`
+  - mandatory post-open lane: `qa-engineer-agent -> bug-hunter`
+  - invariants:
+    - `PR-0` is docs-only governance and must not widen runtime/API/UI behavior
+    - the lane stays downstream of merged design-runtime, design-bridge, and
+      UI-epic baselines
+    - overlapping `Home`, `Plate`, `Progress`, `Weekly Plan`, `Profile`, and
+      `Paywall` ownership requires an explicit handoff or supersede record
+      before later slices claim those surfaces
+  - canonical packet/runbook:
+    - [`docs/orchestration/DESIGN_RUNTIME_SYSTEM_WEB_IOS_PR0_BOOTSTRAP_PACKET_2026-04-22.md`](./DESIGN_RUNTIME_SYSTEM_WEB_IOS_PR0_BOOTSTRAP_PACKET_2026-04-22.md)
+    - [`docs/orchestration/DESIGN_RUNTIME_SYSTEM_WEB_IOS_PR1_MISSING_GOVERNED_PRIMITIVES_PACKET_2026-04-23.md`](./DESIGN_RUNTIME_SYSTEM_WEB_IOS_PR1_MISSING_GOVERNED_PRIMITIVES_PACKET_2026-04-23.md)
+    - [`docs/orchestration/DESIGN_RUNTIME_SYSTEM_WEB_IOS_PR_SERIES_RUNBOOK.md`](./DESIGN_RUNTIME_SYSTEM_WEB_IOS_PR_SERIES_RUNBOOK.md)
+- For the Tier 1 CI/CD consolidation wave:
+  - primary: `agent-coordinator`
+  - secondary: `backend-engineer`
+  - reviewer: `security-auditor`
+  - execution helper: `dev-operator`
+  - mandatory post-open lane: `qa-engineer-agent -> bug-hunter`
+  - canonical packet/runbook:
+    - [`docs/orchestration/TIER1_CI_CD_TASK_PACKET_2026-03-26.md`](./TIER1_CI_CD_TASK_PACKET_2026-03-26.md)
+    - [`docs/orchestration/TIER1_CI_CD_PR_SERIES_RUNBOOK.md`](./TIER1_CI_CD_PR_SERIES_RUNBOOK.md)
+- For the Docker / CI discipline PR series:
+  - primary: `agent-coordinator`
+  - execution order:
+    - `architecture-specialist`
+    - `security-auditor`
+    - `backend-engineer`
+    - `dev-operator`
+  - mandatory post-open lane: `qa-engineer-agent -> bug-hunter`
+  - invariants:
+    - root `.dockerignore` remains a strict allowlist unless a narrower documented correction is required
+    - production topology stays split: backend image via `IMAGE_REF`, frontend/Caddy via `frontend/Dockerfile.caddy-spa`
+    - signed provenance stays deferred while the documented buildx/GHA cache seam requires `provenance: false`
+    - no Dagger or alternate control-plane pilot before image-budget telemetry baseline is merged
+  - canonical packet:
+    - [`docs/orchestration/DOCKER_CI_DISCIPLINE_PR_SERIES_PACKET_2026-04-16.md`](./DOCKER_CI_DISCIPLINE_PR_SERIES_PACKET_2026-04-16.md)
+- For the METATRON Track A lane (offensive lab **out-of-band**; no product runtime):
+  - primary: `agent-coordinator`
+  - reviewers: `security-auditor`, `bug-hunter`, `architecture-specialist`
+  - acceptance: `qa-engineer-agent` (docs/deploy-only PRs: confirm no `app/` pentest surface)
+  - execution helper: `dev-operator`
+  - optional consult: `data-scientist-agent`, `epistemology-discovery-agent`, `tutor-mentor-agent`, `cursor-specialist-agent` (only if `.cursor/**` edits)
+  - backend: `backend-engineer` only on explicit non-user ingest ticket (not Epic 1 default)
+  - mandatory post-open lane: `qa-engineer-agent -> bug-hunter`
+  - canonical packet:
+    - [`docs/orchestration/METATRON_TRACK_A_EPIC1_TASK_PACKET_2026-04-06.md`](./METATRON_TRACK_A_EPIC1_TASK_PACKET_2026-04-06.md)
+  - related runbook: [`docs/orchestration/METATRON_SECURITY_ASSESSMENT_WAVE_RUNBOOK.md`](./METATRON_SECURITY_ASSESSMENT_WAVE_RUNBOOK.md)
+- For Apple/provider modernization follow-on lanes that preserve the public billing transport contract:
+  - primary: `agent-coordinator`
+  - secondary: `backend-engineer`
+  - reviewer: `security-auditor`
+  - advisory context reviewer: `app-store-release-agent`
+  - PR-open context pack:
+    - `agent-coordinator`
+    - `backend-engineer`
+    - `security-auditor`
+    - `qa-engineer-agent`
+    - `bug-hunter`
+    - `app-store-release-agent`
+  - mandatory post-open lane: `qa-engineer-agent -> bug-hunter`
+  - invariant: preserve the public endpoint, DTO/wire schema, and client transport contract unless a versioned migration packet explicitly changes them
+  - canonical references:
+    - root `AGENTS.md` provider migration wire-compatibility rule is the repo-global invariant
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-apple-server-api-migration` owns the lane-specific precondition and temporary-fallback contract
+- Any PR that updates `docs/review/PR_<N>_FIXED_MAPPING.md` in this scope must refresh the PR body mirror after the canonical artifact changes.
+- Detailed governance procedure lives in:
+  - [`docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md`](./PR_ORCHESTRATION_CONTRACT_MATRIX.md)
+  - [`RUNBOOK_AGENT.md`](../../RUNBOOK_AGENT.md)

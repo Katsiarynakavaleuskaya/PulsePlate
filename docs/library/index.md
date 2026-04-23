@@ -25,3 +25,11 @@ Canonical library for agent-driven knowledge enrichment and promotion.
 3. Write synthesis and decision.
 4. Promote into one durable target (SoT/ADR/tests/ledger).
 5. Open PR with explicit `IN/OUT`, validation, and deferred links.
+
+## Recent promoted topics
+
+- CBT Coaching Wave:
+  - Brainstorm: `docs/library/brainstorm/2026-03-21_cbt_coaching_wave.md`
+  - Evidence: `docs/library/research/2026-03-21_cbt_coaching_wave_evidence.md`
+  - Promotion log: `docs/library/promotion/2026-03-21_cbt_coaching_wave_promotion-log.md`
+  - Promoted SoT: `docs/insights/CBT_COACHING_PRODUCT_WAVE.md`

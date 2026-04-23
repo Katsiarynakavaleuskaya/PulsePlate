@@ -5,12 +5,15 @@
 - Key directories: `frontend/src/`, `frontend/src/api/`, `frontend/public/`.
 
 ## Commands (run from `frontend/`)
+- Runtime requirement: Node `22.x` (repo-canonical range: `>=22.0.0 <23.0.0`; CI pin lives in repo-root `.nvmrc`)
 - Install: `npm install`
 - Dev: `npm run dev`
 - Build: `npm run build`
 - Preview: `npm run preview`
 - Test: `npm run test`, `npm run test:ci`, `npm run test:coverage`
 - Generate API types: `npm run generate-types`
+- OpenAPI sync parity: when `make openapi` or frontend type generation touches
+  `frontend/`, run those steps under Node `22.x` to match CI and lockfile engines.
 
 ## Conventions
 - API base is `/api/v1`; keep client paths aligned with backend routers.
@@ -31,6 +34,8 @@
 - ✅ Use `api()` / `fetchBlob()` from `src/api/client.ts`
 - ✅ OpenAPI-generated types from `src/api/schema.ts`
 - ✅ Guards: `src/api/__tests__/thin-client-guards.test.ts` must stay green
+- ✅ Web premium truth must come only from canonical backend/store state; legacy mock
+  purchase/restore flows must stay out of shared release-path handlers and runtime-facing tests
 
 ### Canonical local checks
 
@@ -48,6 +53,13 @@ npm run build
 **Links:**
 - Root policy: `AGENTS.md` (Thin HTTP Adapter Policy)
 - Audit: `docs/audit/PR_586_WEB_THIN_HTTP_ADAPTER_AUDIT.md`
+
+## FitChef web client policy
+
+- Web FitChef surfaces must stay thin adapters over backend contracts; no client-side nutrition math, entitlement inference, or action synthesis.
+- Current live FitChef mascot routes remain `/api/v1/insight/fitchef*`; any future `/api/v1/pro/fitchef/*` or `/api/v1/vip/fitchef/*` usage must follow additive contract rollout.
+- UI must render structured DTO fields or frozen response envelopes; do not parse free-form prose to derive routing, badges, or gated states.
+- FREE-tier web surfaces may show bounded/static FitChef guidance, but must not expose open-ended coach runtime.
 
 ---
 

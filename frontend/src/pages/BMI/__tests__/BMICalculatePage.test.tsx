@@ -1,0 +1,169 @@
+import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { describe, expect, it, vi, beforeEach } from 'vitest';
+import BMICalculatePage from '../BMICalculatePage';
+
+const softPaywallHookPropsSpy = vi.fn();
+
+vi.mock('../../../api/bmi', () => ({
+  calculateBMI: vi.fn(),
+}));
+
+vi.mock('../../../components/SoftPaywallHook', () => ({
+  default: (props: unknown) => {
+    softPaywallHookPropsSpy(props);
+    return <div data-testid="soft-paywall-hook">soft paywall</div>;
+  },
+}));
+
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: (key: string) =>
+      ({
+        'bmiCalculate.title': 'BMI Calculator',
+        'bmiCalculate.description': 'Calculate your Body Mass Index',
+        'bmiCalculate.hero.eyebrow': 'BMI calculator',
+        'bmiCalculate.hero.metrics.weight': 'Weight',
+        'bmiCalculate.hero.metrics.height': 'Height',
+        'bmiCalculate.hero.metrics.context': 'Age + context',
+        'bmiCalculate.form.sectionTitle': 'Input',
+        'bmiCalculate.form.weightLabel': 'Weight (kg)',
+        'bmiCalculate.form.heightLabel': 'Height (cm)',
+        'bmiCalculate.form.ageLabel': 'Age',
+        'bmiCalculate.form.waistLabel': 'Waist (cm, optional)',
+        'bmiCalculate.form.sexLabel': 'Sex',
+        'bmiCalculate.form.sex.male': 'Male',
+        'bmiCalculate.form.sex.female': 'Female',
+        'bmiCalculate.form.athleteLabel': 'Athlete (optional)',
+        'bmiCalculate.form.pregnantLabel': 'Pregnant (optional)',
+        'bmiCalculate.form.contextTitle': 'Context',
+        'bmiCalculate.form.submit': 'Calculate BMI',
+        'bmiCalculate.form.submitting': 'Please wait',
+        'bmiCalculate.form.reset': 'Calculate Again',
+        'bmiCalculate.summary.emptyDetail': 'Run the calculation to see your body-composition snapshot.',
+        'bmiCalculate.summary.fallbackDetail': 'Your result is ready.',
+        'bmiCalculate.result.title': 'BMI Result',
+        'bmiCalculate.error.invalidWeight': 'Please enter a valid weight (kg).',
+        'bmiCalculate.error.invalidHeight': 'Please enter a valid height (cm).',
+        'bmiCalculate.error.invalidAge': 'Please enter a valid age (1-120 years).',
+        'bmiCalculate.error.generic': 'An error occurred. Please try again.',
+      })[key] ?? key,
+    i18n: { language: 'en' },
+  }),
+}));
+
+import { calculateBMI } from '../../../api/bmi';
+
+describe('BMICalculatePage', () => {
+  beforeEach(() => {
+    vi.mocked(calculateBMI).mockReset();
+    softPaywallHookPropsSpy.mockReset();
+  });
+
+  it('renders the redesigned BMI surface', () => {
+    render(<BMICalculatePage />);
+
+    expect(screen.getByRole('heading', { level: 1, name: 'BMI Calculator' })).toBeInTheDocument();
+    expect(screen.getByText('Weight')).toBeInTheDocument();
+    expect(screen.getByText('Height')).toBeInTheDocument();
+    expect(screen.getByText('Age + context')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Female' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: 'Male' })).toHaveAttribute('aria-pressed', 'false');
+    expect(screen.getByRole('button', { name: 'Athlete (optional)' })).toHaveAttribute('aria-pressed', 'false');
+    expect(screen.getByRole('button', { name: 'Calculate BMI' })).toBeDisabled();
+  });
+
+  it('rejects decimal age input instead of truncating it', async () => {
+    const user = userEvent.setup();
+    render(<BMICalculatePage />);
+
+    await user.type(screen.getByLabelText('Weight (kg)'), '70');
+    await user.type(screen.getByLabelText('Height (cm)'), '177');
+    await user.type(screen.getByLabelText('Age'), '30.7');
+    await user.click(screen.getByRole('button', { name: 'Calculate BMI' }));
+
+    expect(vi.mocked(calculateBMI)).not.toHaveBeenCalled();
+    expect(screen.getByRole('alert')).toHaveAttribute('aria-live', 'assertive');
+    expect(screen.getByRole('alert')).toHaveTextContent('Please enter a valid age (1-120 years).');
+  });
+
+  it('submits valid values and renders the result rail', async () => {
+    vi.mocked(calculateBMI).mockResolvedValue({
+      bmi: 22.4,
+      category: 'Balanced zone',
+      interpretation: 'Your body composition looks healthy.',
+      next_best_action: {
+        type: 'unlock_targets',
+        recommended_surface: 'pro_targets',
+        recommended_tier: 'PRO',
+        trigger_reason: 'post_bmi',
+        why_now: 'post_bmi_baseline_body_metrics',
+      },
+      soft_paywall: null,
+    } as Awaited<ReturnType<typeof calculateBMI>>);
+
+    const user = userEvent.setup();
+    render(<BMICalculatePage />);
+
+    await user.type(screen.getByLabelText('Weight (kg)'), '70');
+    await user.type(screen.getByLabelText('Height (cm)'), '177');
+    await user.type(screen.getByLabelText('Age'), '31');
+    await user.click(screen.getByRole('button', { name: 'Calculate BMI' }));
+
+    expect(vi.mocked(calculateBMI)).toHaveBeenCalled();
+    expect(await screen.findByText('22.4')).toBeInTheDocument();
+    expect(screen.getByText('Your body composition looks healthy.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Calculate Again' })).toBeInTheDocument();
+  });
+
+  it('passes next_best_action through to the existing soft-paywall surface', async () => {
+    vi.mocked(calculateBMI).mockResolvedValue({
+      bmi: 22.4,
+      category: 'Balanced zone',
+      interpretation: 'Your body composition looks healthy.',
+      next_best_action: {
+        type: 'unlock_targets',
+        recommended_surface: 'pro_targets',
+        recommended_tier: 'PRO',
+        trigger_reason: 'post_bmi',
+        why_now: 'post_bmi_baseline_body_metrics',
+      },
+      soft_paywall: {
+        id: 'bmi.pro_interpretation_v1',
+        kind: 'cta',
+        position: 'post_result',
+        priority: 50,
+        target: 'pro_paywall',
+        message: {
+          lang: 'en',
+          title_key: 'soft_paywall.title',
+          body_key: 'soft_paywall.body',
+          cta_key: 'soft_paywall.cta',
+          default_title: 'More accurate interpretation',
+          default_body: 'Get PRO insights.',
+          default_cta: 'See PRO',
+        },
+        availability: { pro_available: true },
+      },
+    } as Awaited<ReturnType<typeof calculateBMI>>);
+
+    const user = userEvent.setup();
+    render(<BMICalculatePage />);
+
+    await user.type(screen.getByLabelText('Weight (kg)'), '70');
+    await user.type(screen.getByLabelText('Height (cm)'), '177');
+    await user.type(screen.getByLabelText('Age'), '31');
+    await user.click(screen.getByRole('button', { name: 'Calculate BMI' }));
+
+    expect(await screen.findByTestId('soft-paywall-hook')).toBeInTheDocument();
+    expect(softPaywallHookPropsSpy).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        nextBestAction: expect.objectContaining({
+          type: 'unlock_targets',
+          recommended_surface: 'pro_targets',
+          trigger_reason: 'post_bmi',
+        }),
+      })
+    );
+  });
+});

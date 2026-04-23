@@ -19,6 +19,7 @@ def test_test_router_production_block(monkeypatch: pytest.MonkeyPatch) -> None:
     Test router should raise 404 when accessed in production environment.
     """
     # Set production environment
+    monkeypatch.delenv("ENVIRONMENT", raising=False)
     monkeypatch.setenv("APP_ENV", "production")
 
     # Reload module to pick up new environment variable
@@ -68,6 +69,7 @@ def test_test_router_health_endpoint(monkeypatch: pytest.MonkeyPatch) -> None:
     from app import routers
 
     # Ensure router loads in non-production mode
+    monkeypatch.delenv("ENVIRONMENT", raising=False)
     monkeypatch.setenv("APP_ENV", "development")
 
     # Reload to ensure non-production state

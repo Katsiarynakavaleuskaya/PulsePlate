@@ -6,6 +6,8 @@ invalid data, and ensure type safety.
 
 from __future__ import annotations
 
+import re
+import unicodedata
 from typing import Any, Dict, List, Literal, Optional, Protocol, Set, cast
 
 from pydantic import BaseModel, Field, ValidationError as PydanticValidationError, field_validator
@@ -50,6 +52,128 @@ NH3_ALLOWED_TAGS = {"b", "i", "em", "strong", "u", "br", "p", "span"}
 NH3_ALLOWED_ATTRS: Dict[str, Set[str]] = (
     {}
 )  # No attributes allowed at all (no href, src, onclick, etc.)
+
+_RAG_ZERO_WIDTH_OR_BIDI_RE = re.compile("[\u200b-\u200f\u202a-\u202e\u2060-\u206f\ufeff]")
+_RAG_PROMPT_PATTERNS: tuple[re.Pattern[str], ...] = (
+    re.compile(
+        r"\bignore\s+(?:all\s+)?(?:previous|prior|above)\s+instructions\b",
+        re.IGNORECASE,
+    ),
+    re.compile(r"\bdisregard\s+(?:the\s+)?(?:system|developer)\s+prompt\b", re.IGNORECASE),
+    re.compile(r"\breveal\s+(?:the\s+)?(?:system|hidden|developer)\s+prompt\b", re.IGNORECASE),
+    re.compile(r"\boverride\s+(?:all\s+)?safety\s+(?:rules|checks)\b", re.IGNORECASE),
+    re.compile(r"\byou\s+are\s+now\s+(?:in\s+)?developer\s+mode\b", re.IGNORECASE),
+    re.compile(r"\btool\s+call\b[\s\S]{0,80}\b(?:shell|terminal|command)\b", re.IGNORECASE),
+)
+_RAG_COMMAND_PATTERNS: tuple[re.Pattern[str], ...] = (
+    re.compile(
+        r"\b(?:curl|wget)\b[\s\S]{0,80}\|\s*(?:ba?sh|sh|zsh|pwsh|powershell)\b",
+        re.IGNORECASE,
+    ),
+    re.compile(r"\b(?:bash|sh|zsh|pwsh|powershell|cmd(?:\.exe)?)\s+-[ce]\b", re.IGNORECASE),
+    re.compile(r"\b(?:os\.system|subprocess\.(?:run|call|popen)|eval|exec)\b", re.IGNORECASE),
+    re.compile(r"\brm\s+-rf\b", re.IGNORECASE),
+)
+_RAG_CYRILLIC_HOMOGLYPHS = str.maketrans(
+    {
+        "А": "A",
+        "В": "B",
+        "Е": "E",
+        "К": "K",
+        "М": "M",
+        "Н": "H",
+        "О": "O",
+        "Р": "P",
+        "С": "C",
+        "Т": "T",
+        "Х": "X",
+        "а": "a",
+        "е": "e",
+        "о": "o",
+        "р": "p",
+        "с": "c",
+        "у": "y",
+        "х": "x",
+        "к": "k",
+        "м": "m",
+        "т": "t",
+        "в": "b",
+        "і": "i",
+        "ј": "j",
+        "ѕ": "s",
+    }
+)
+
+
+def _normalize_rag_detection_text(text: str) -> str:
+    """Normalize text for deterministic RAG injection detection."""
+
+    normalized = unicodedata.normalize("NFKC", text)
+    normalized = _RAG_ZERO_WIDTH_OR_BIDI_RE.sub("", normalized)
+    return normalized.translate(_RAG_CYRILLIC_HOMOGLYPHS)
+
+
+def _contains_rag_injection_pattern(text: str) -> bool:
+    """Return True when text looks like prompt/command injection content."""
+
+    normalized = _normalize_rag_detection_text(text)
+    return any(pattern.search(normalized) for pattern in _RAG_PROMPT_PATTERNS) or any(
+        pattern.search(normalized) for pattern in _RAG_COMMAND_PATTERNS
+    )
+
+
+def sanitize_rag_markdown(text: str) -> str:
+    """Remove instruction-like prompt-injection content from markdown corpora.
+
+    RU: Убирает строки и fenced code blocks, похожие на prompt/command injection,
+    до индексации и retrieval enrichment.
+    EN: Removes prompt/command-injection-like lines and fenced code blocks before
+    indexing and retrieval enrichment.
+    """
+
+    if not text:
+        return ""
+
+    output_lines: list[str] = []
+    code_block_lines: list[str] = []
+    in_code_block = False
+
+    def _flush_code_block() -> None:
+        nonlocal code_block_lines
+        block_text = "\n".join(code_block_lines)
+        if not _contains_rag_injection_pattern(block_text):
+            output_lines.extend(code_block_lines)
+        code_block_lines = []
+
+    for raw_line in text.splitlines():
+        normalized_line = _normalize_rag_detection_text(raw_line)
+        stripped = normalized_line.strip()
+        is_fence = stripped.startswith("```") or stripped.startswith("~~~")
+
+        if is_fence:
+            if in_code_block:
+                code_block_lines.append(raw_line)
+                _flush_code_block()
+                in_code_block = False
+            else:
+                in_code_block = True
+                code_block_lines = [raw_line]
+            continue
+
+        if in_code_block:
+            code_block_lines.append(raw_line)
+            continue
+
+        if _contains_rag_injection_pattern(normalized_line):
+            continue
+        output_lines.append(raw_line)
+
+    if in_code_block:
+        _flush_code_block()
+
+    cleaned = "\n".join(output_lines)
+    cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
+    return cleaned.strip()
 
 
 def _require_nh3() -> _NH3Protocol:
@@ -364,7 +488,7 @@ def sanity_filter_plate_data(data: Dict[str, Any]) -> Dict[str, Any]:
         # Validate using Pydantic schema
         validated = PlateDataSchema.model_validate(data)
         # Return validated dict; SQL safety enforced by parameterized queries in data-access layer
-        result = validated.model_dump(exclude_none=True)
+        result: dict[str, Any] = validated.model_dump(exclude_none=True)
         return result
     except PydanticValidationError as e:
         # Convert Pydantic validation errors to our custom ValidationError

@@ -5,11 +5,13 @@ RU: Сборка профессиональной базы данных прод
 EN: Build professional food database from CSV to Parquet/SQLite.
 """
 
+import argparse
 import sys
 from pathlib import Path
 
 # Add project root to path
-sys.path.append(str(Path(__file__).parent.parent))
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent
+sys.path.append(str(_PROJECT_ROOT))
 
 import hashlib
 import json
@@ -178,6 +180,10 @@ class FoodDatabaseBuilder:
                     version_date=record.get("version_date", datetime.now().isoformat()),
                     # Accept either key to avoid losing OFF/merge price
                     price_per_100g=record.get("price_per_100g", record.get("price", 0.0)),
+                    nutrition_inputs=record.get("nutrition_inputs", []),
+                    nutrition_provenance=record.get("nutrition_provenance", {}),
+                    nutrition_confidence=record.get("nutrition_confidence", 0.0),
+                    nutrition_nutrient_confidence=record.get("nutrition_nutrient_confidence", {}),
                 )
                 validated_foods.append(food_item)
 
@@ -266,7 +272,11 @@ class FoodDatabaseBuilder:
                 source TEXT,
                 source_priority INTEGER,
                 version_date TEXT,
-                price_per_100g REAL
+                price_per_100g REAL,
+                nutrition_inputs_json TEXT,
+                nutrition_provenance_json TEXT,
+                nutrition_confidence REAL,
+                nutrition_nutrient_confidence_json TEXT
             )
         """)
 
@@ -312,12 +322,26 @@ class FoodDatabaseBuilder:
                         food.source_priority,
                         food.version_date,
                         food.price_per_100g,
+                        json.dumps(food.nutrition_inputs, ensure_ascii=False),
+                        json.dumps(food.nutrition_provenance, ensure_ascii=False),
+                        food.nutrition_confidence,
+                        json.dumps(
+                            food.nutrition_nutrient_confidence,
+                            ensure_ascii=False,
+                        ),
                     ),
                 )
-            cursor.executemany(
-                "INSERT INTO foods VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-                rows,
+            insert_sql = (
+                "INSERT INTO foods ("
+                "id, canonical_name, group_name, per_g, kcal, protein_g, fat_g, carbs_g, "
+                "fiber_g, Fe_mg, Ca_mg, K_mg, Mg_mg, VitD_IU, B12_ug, Folate_ug, "
+                "Iodine_ug, flags, brand, gtin, fdc_id, source, source_priority, "
+                "version_date, price_per_100g, nutrition_inputs_json, "
+                "nutrition_provenance_json, nutrition_confidence, "
+                "nutrition_nutrient_confidence_json"
+                ") VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
             )
+            cursor.executemany(insert_sql, rows)
 
             # Populate FTS
             cursor.execute("INSERT INTO foods_fts(foods_fts) VALUES('rebuild')")
@@ -429,8 +453,25 @@ class FoodDatabaseBuilder:
 
 def main() -> None:
     """Main entry point."""
+    parser = argparse.ArgumentParser(description="Build merged food database (USDA + OFF).")
+    parser.add_argument(
+        "--validate-raw-snapshots",
+        action="store_true",
+        help="Fail-closed verify OFF raw snapshot manifest under data/raw/snapshots before build.",
+    )
+    args = parser.parse_args()
+
     setup_logging()
-    builder = FoodDatabaseBuilder()
+    project_root = _PROJECT_ROOT
+    if args.validate_raw_snapshots:
+        from core.food_apis.raw_snapshot_gate import validate_off_raw_manifest_gate
+
+        gate = validate_off_raw_manifest_gate(project_root, enabled=True, strict=True)
+        logging.info("Raw snapshot gate: %s", gate)
+        if gate.get("enabled") and gate.get("status") == "verified":
+            logging.info("OFF raw snapshots verified: %s file(s)", gate.get("snapshots_checked"))
+
+    builder = FoodDatabaseBuilder(project_root=project_root)
     builder.build()
 
 

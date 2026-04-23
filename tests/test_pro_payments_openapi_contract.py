@@ -33,9 +33,19 @@ def test_pro_payments_paths_registered_in_openapi() -> None:
 
 def test_pro_payments_response_codes_contract() -> None:
     expected = {
-        ("/api/v1/pro/payments/activate", "post"): {"200", "201", "409", "422"},
+        ("/api/v1/pro/payments/activate", "post"): {
+            "200",
+            "400",
+            "401",
+            "403",
+            "409",
+            "422",
+            "502",
+            "504",
+        },
         ("/api/v1/pro/payments/activations/{activation_id}", "get"): {
             "200",
+            "401",
             "403",
             "404",
             "422",
@@ -54,7 +64,7 @@ def test_pro_payments_request_schema_refs() -> None:
 
 
 def test_pro_payments_response_schema_refs() -> None:
-    activate_schema = _schema("/api/v1/pro/payments/activate", "post", "201")
+    activate_schema = _schema("/api/v1/pro/payments/activate", "post", "200")
     get_schema = _schema("/api/v1/pro/payments/activations/{activation_id}", "get", "200")
     assert activate_schema == {"$ref": "#/components/schemas/SubscriptionActivationResponse"}
     assert get_schema == {"$ref": "#/components/schemas/SubscriptionActivationResponse"}
@@ -64,8 +74,17 @@ def test_pro_payments_error_schema_refs() -> None:
     payment_error_ref = "#/components/schemas/PaymentErrorResponse"
     validation_error_ref = "#/components/schemas/HTTPValidationError"
 
+    assert _schema("/api/v1/pro/payments/activate", "post", "400")["$ref"] == payment_error_ref
+    assert _schema("/api/v1/pro/payments/activate", "post", "401")["$ref"] == payment_error_ref
+    assert _schema("/api/v1/pro/payments/activate", "post", "403")["$ref"] == payment_error_ref
     assert _schema("/api/v1/pro/payments/activate", "post", "409")["$ref"] == payment_error_ref
+    assert _schema("/api/v1/pro/payments/activate", "post", "502")["$ref"] == payment_error_ref
+    assert _schema("/api/v1/pro/payments/activate", "post", "504")["$ref"] == payment_error_ref
     assert _schema("/api/v1/pro/payments/activate", "post", "422")["$ref"] == validation_error_ref
+    assert (
+        _schema("/api/v1/pro/payments/activations/{activation_id}", "get", "401")["$ref"]
+        == payment_error_ref
+    )
     assert (
         _schema("/api/v1/pro/payments/activations/{activation_id}", "get", "403")["$ref"]
         == payment_error_ref

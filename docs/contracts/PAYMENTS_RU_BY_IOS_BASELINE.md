@@ -1,6 +1,6 @@
 # Payments RU/BY + iOS Baseline Contract
 
-- Status: Contract-first (docs-only), runtime implementation follows in dedicated PRs.
+- Status: Runtime W1 implemented; B1 baseline closed; Apple verify activation-contract implemented; PR3 scope is activation + persistence closeout only.
 - Owner: `@katsiaryna_kavaleuskaya`
 - Canonical dependency: `docs/contracts/PRODUCT_TIER_MAP.md`
 - Program phase: P0 revenue continuity baseline.
@@ -22,14 +22,54 @@ Rules:
 
 ## 2. Canonical API Surface (additive, non-breaking)
 
-Planned endpoints (contract-first; final path lock happens in runtime PR):
+Implemented endpoints (evidence: `app/routers/billing.py`, `app/routers/pro_payments.py`, `docs/contracts/API_CANONICAL_MAP.md`):
 
-1. `POST /api/v1/billing/apple/verify-receipt`
-2. `POST /api/v1/billing/ru-by/manual-intent`
-3. `POST /api/v1/billing/ru-by/reconcile`
-4. `GET /api/v1/billing/ru-by/reconcile/{intent_id}`
+1. `POST /api/v1/billing/apple/verify-receipt` — runtime canonical verify route; returns activation-contract-shaped `activation_payload` (IOSVerifiedActivationResult) when verified; client passes this inside `payload.verification_result` and `receipt_data` inside `payload.receipt_data` to `POST /api/v1/pro/payments/activate` (see canonical activate request body below)
+2. `POST /api/v1/pro/payments/ru-by/manual-intent` — runtime W1 manual intent
+3. `POST /api/v1/pro/payments/ru-by/reconcile` — runtime W1 reconciliation
+4. `GET /api/v1/pro/payments/ru-by/reconcile/{intent_id}` — runtime W1 reconciliation status
+5. `GET /api/v1/pro/payments/activations/{activation_id}` — current persisted entitlement readback for an activation lineage
 
-Legacy behavior remains unchanged until runtime migration is merged.
+Legacy behavior remains unchanged; additive surface is non-breaking.
+
+### Manual RU/BY pre-entitlement carveout
+
+- Manual RU/BY routes remain on `/api/v1/pro/payments/ru-by/*` during the current namespace window.
+- These routes are **transport-auth-only** surfaces before entitlement exists and still require a validated transport key.
+- They are not paid-content unlock paths and they are not entitlement truth.
+- Access to canonical `/api/v1/pro/*` and `/api/v1/vip/*` surfaces still derives only from persisted backend subscription state.
+
+### Apple verify response (B2 activation-contract)
+
+When `POST /api/v1/billing/apple/verify-receipt` returns `verified=true`, the `activation_payload` field carries the full `IOSVerifiedActivationResult` (activation-contract shape):
+
+- `transaction_id`, `original_transaction_id`, `product_id`, `subscription_tier`, `status`, `expires_at`, `platform`
+- When `verified=false`, `activation_payload` is `null`
+
+### Canonical activate request body (iOS handoff)
+
+For `POST /api/v1/pro/payments/activate` with `source=ios_app_store`, the client must send:
+
+```json
+{
+  "source": "ios_app_store",
+  "payload": {
+    "verification_result": { ...activation_payload from verify response... },
+    "receipt_data": "<base64 receipt blob>"
+  }
+}
+```
+
+`verification_result` is the `activation_payload` object returned by `POST /api/v1/billing/apple/verify-receipt` when `verified=true`. `receipt_data` is the same base64 receipt blob used for verify. Both are nested inside `payload`, not top-level.
+
+### iOS activation truth (server-side reverification)
+
+**Invariant:** Backend never persists paid entitlement state from client-supplied iOS verification payload.
+
+- Verify is server-side only: `POST /api/v1/billing/apple/verify-receipt` calls Apple `verifyReceipt` API.
+- Activation for `source=ios_app_store` requires `receipt_data` and performs **server-side reverification** via `verify_apple_receipt(receipt_data)`.
+- Persisted subscription tier/status comes **only** from the server-verified Apple response.
+- Client `verification_result` is compatibility/debug context only — never entitlement truth.
 
 ## 3. Activation Contract (`activate_subscription`)
 
@@ -49,42 +89,62 @@ Input envelope (source-specific payload inside one canonical contract):
 }
 ```
 
-Output envelope (source-agnostic):
+Output envelope (runtime canonical readback / activation response):
 
 ```json
 {
-  "status": "activated | pending_reconciliation | rejected",
-  "subscription_tier": "free | pro | vip",
+  "activation_id": "uuid",
+  "status": "pending_manual_review | pending_verification | active | expired | cancelled | rejected",
+  "tier": "pro | vip",
   "source": "ios_app_store | erip_qr | swift_manual",
+  "subscription_tier": "pro | vip",
+  "reconcile_status": "pending | verified | rejected | not_required",
   "audit_id": "uuid",
-  "effective_at": "ISO-8601",
-  "reason_code": "optional"
+  "activated_at": "ISO-8601 | null",
+  "expires_at": "ISO-8601 | null"
 }
 ```
 
+`subscription_tier` reflects the requested paid tier implied by `plan`, not a fallback effective access tier.
+
+### Persisted truth and readback contract
+
+1. Backend persisted truth lives in `subscriptions` plus append-only `subscription_activation_audit`.
+2. `GET /api/v1/pro/payments/activations/{activation_id}` and `GET /api/v1/pro/payments/ru-by/reconcile/{intent_id}` must derive current state from persisted subscription state plus the latest audit event for that subscription lineage.
+3. In-memory shadow state is forbidden as entitlement truth or reconcile-readback truth.
+4. Manual reconcile remains a billing-state transition only; it does not itself widen scope into entitlement-backed routing.
+
 ## 4. Reconciliation Status Lifecycle
 
-For manual rails (`erip_qr`, `swift_manual`):
+For manual rails (`erip_qr`, `swift_manual`). Runtime enum: `ReconcileStatus` in `app/schemas/payments.py` (pending, verified, rejected, not_required).
 
 ```text
-draft_intent -> pending_reconciliation -> verified -> activated
-                                 \-> rejected
+status: pending_manual_review -> active | rejected
+reconcile_status: pending -> verified | rejected | not_required
 ```
 
 Lifecycle invariants:
-1. `verified` can be reached only with immutable `external_txn_id` and evidence payload.
-2. `activated` is idempotent for identical `(user_id, source, external_txn_id, plan)`.
-3. Reconcile retry is safe and cannot duplicate entitlements.
+1. `reconcile_status=verified` can be reached only with immutable `external_txn_id` and evidence payload.
+2. Business `status=active` is idempotent for identical `(user_id, source, external_txn_id, plan)`.
+3. Reconcile retry is safe and cannot duplicate entitlements even when `reconcile_status` is retried.
 
 ## 5. Webhook/Signature and Idempotency Contract
 
-1. iOS verification path is automated and server-side validated.
-2. Any webhook/event handler must validate signature before state transition.
-3. Idempotency key precedence:
+1. iOS verification path is automated and server-side validated only; the app must not call `verifyReceipt` directly.
+2. Apple verification runs production-first with exactly one sandbox fallback on Apple status `21007`; no generic retry loop is part of the contract.
+3. `APPLE_SHARED_SECRET` is required runtime config for Apple receipt verification requests; production/staging must fail fast on startup when it is missing.
+4. Any webhook/event handler must validate signature before state transition. Runtime: `payments_activation.validate_webhook_signature()` (evidence: `app/services/payments_activation.py`).
+4a. Signature format contract:
+   - The signature is the hexadecimal HMAC-SHA256 digest over the exact raw HTTP request body bytes.
+   - Handlers must validate against raw body bytes and must not re-serialize JSON, rebuild payloads, or change encoding before verification.
+   - Secret bytes are used exactly as configured; whitespace is significant and must not be trimmed implicitly.
+   - Signature comparison is case-insensitive only at the hex representation layer; malformed or non-ASCII signature inputs must fail closed.
+5. Idempotency key precedence:
    - provider event id (if exists), else
    - deterministic hash of `(source, external_txn_id, plan, amount_minor, currency)`.
-4. Duplicate events return previous activation outcome (no double-upgrade).
-5. Corrections/refunds must use a new provider event id and explicit adjustment type; they must not overwrite prior activation event identity.
+6. Duplicate events return previous activation outcome (no double-upgrade).
+7. Corrections/refunds must use a new provider event id and explicit adjustment type; they must not overwrite prior activation event identity.
+8. Apple receipt verification may use the classic `verifyReceipt` path only as a transitional compatibility flow; migration to App Store Server API / signed transaction validation remains a follow-up.
 
 ## 6. Error Envelope (canonical)
 
@@ -98,7 +158,7 @@ Lifecycle invariants:
 ```
 
 Semantic note:
-1. In activation responses, `status` is business-state (`activated | pending_reconciliation | rejected`).
+1. In activation responses, `status` is business-state (`pending_manual_review | pending_verification | active | expired | cancelled | rejected`).
 2. In error responses, `status` is transport-state (`error`), while `code` is machine-readable error type.
 
 ## 7. Security and Compliance Notes
@@ -108,8 +168,11 @@ Semantic note:
 3. Manual rails have increased fraud risk; require reviewer/audit trace.
 4. Keep Apple digital-goods policy compliance in scope for iOS rails.
 5. RU/BY manual rails are operational fallback, not anonymous bypass path.
+6. RU/BY manual entry, reconcile, and status routes may stay reachable before entitlement exists, but they must still require validated transport auth and must never unlock protected PRO/VIP content routes by themselves.
 
 ## 8. Runtime Test Plan (must be green in runtime PR)
+
+All five test files exist and are green in B1:
 
 1. `tests/test_payment_source_contract_api.py`
 2. `tests/test_subscription_activation_api.py`
@@ -127,20 +190,46 @@ Required runtime PR gates:
 1. Keep existing client contracts intact while additive billing routes roll out.
 2. Feature-flag runtime activation paths until reconciliation flow is validated on staging.
 3. Promote manual rails only after deterministic reconciliation tests are stable.
+4. Activation/persistence closeout is separate from entitlement routing, frontend/web entitlement truth, and App Store modernization.
 
 ## 10. Backlog / Action Items (temporary seam control)
 
 1. Primary implementation track: `docs/roadmap/BACKLOG_LEDGER.md#ledger-p0-payments-ruby-ios`.
-2. Apple verify runtime path: `PR-TBD-BILLING-APPLE-VERIFY`.
+2. Apple verify activation-contract: B2 implemented; verify returns IOSVerifiedActivationResult in activation_payload when verified.
 3. iOS subscription manager integration path: `PR-TBD-IOS-SUBSCRIPTION-MANAGER`.
-4. Blockers before completion:
-   - runtime handlers are not merged yet,
-   - reconciliation tests are not merged yet,
-   - OpenAPI billing surfaces are not yet generated from runtime code.
+4. Activation/persistence closeout remains a backend-only lane; entitlement routing, frontend/web entitlement truth, and App Store modernization stay out of scope.
+5. B1 baseline status: runtime handlers merged, reconciliation tests merged, OpenAPI billing surfaces generated. Webhook signature contract test added in B1.
 
 ## 11. Exit Criteria
 
 1. Runtime implementation PR for `#ledger-p0-payments-ruby-ios` is merged.
 2. Runtime tests listed in section 8 are green in CI.
 3. `make openapi` + `make openapi-check` + `make verify` pass on runtime billing PR.
-4. Backlog item state is updated from in-progress to done with merge evidence.
+4. Activation and subscription persistence ledger items are closed with merge evidence.
+5. Entitlement routing remains tracked separately and is not silently closed by the activation/persistence lane.
+
+## 12. Runtime W1 Namespace Lock
+
+1. Runtime Apple receipt verification is exposed under the additive billing namespace `/api/v1/billing/apple/verify-receipt`.
+2. Manual RU/BY payment surfaces remain under `/api/v1/pro/payments/ru-by/*` during the transition window.
+3. Do not advertise `/api/v1/pro/payments/apple/verify-receipt` as a compatibility alias; the canonical runtime/OpenAPI surface is `/api/v1/billing/apple/verify-receipt`.
+
+## 13. B1 Scope Lock (non-goals)
+
+B1 scope: canonical sources, activation contract, reconciliation lifecycle, webhook signature contract, additive billing surface.
+
+**Non-goals (do not mix into B1):** Stripe/PayPal, Android billing, paywall UI redesign, StoreKit product IDs, iOS SubscriptionManager, OpenAPI namespace cleanup, AI/RAG/GTM scope.
+
+## 14. StoreKit offers governance pointer
+
+App Store subscription offers governance is not owned by this payments baseline.
+
+- Canonical source: `docs/contracts/IOS_STOREKIT_PRODUCTS_CONTRACT.md`
+- Governed there: introductory offers, offer codes, promotional offers,
+  win-back pricing, and the copy contract for price / trial duration /
+  eligibility messaging
+- This payments baseline must remain in pointer mode for those App Store-facing
+  copy rules and must not assert pricing, trial, or eligibility canon on its
+  own.
+- This document remains limited to payment-source normalization, receipt
+  verification, activation routing, and reconciliation truth
