@@ -102,7 +102,7 @@ def test_verify_attestations_runs_provenance_and_sbom_checks(
     assert "--predicate-type" not in provenance_call
 
     assert "--predicate-type" in sbom_call
-    assert sbom_call[sbom_call.index("--predicate-type") + 1] == verifier.SBOM_PREDICATE_TYPE
+    assert sbom_call[sbom_call.index("--predicate-type") + 1] == "https://spdx.dev/Document"
 
 
 def test_verify_attestations_fails_closed_on_missing_attestations(

@@ -32,4 +32,5 @@ Keep developer tooling, CI actions, and workspace recommendations pinned and rev
 - default workflow permissions should stay least-privilege (`contents: read` unless stricter access is justified)
 - SBOM generation remains enabled
 - pushed-image Docker lanes must emit `provenance: mode=max` and `sbom: true`
+- CD jobs that create GitHub-signed provenance/SBOM attestations must grant `attestations: write`
 - CD must verify provenance and SPDX SBOM attestations by exact digest before deploy using `scripts/ci/check_docker_provenance_attestation.py`

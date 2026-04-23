@@ -778,10 +778,30 @@ def test_push_to_registry_workflows_restore_signed_attestations_on_publish_lanes
         "build",
         "Verify staged image attestations",
     )
+    staging_provenance_step = _workflow_step_by_name(
+        ".github/workflows/cd.yml",
+        "build",
+        "Attest staged image provenance",
+    )
+    staging_sbom_step = _workflow_step_by_name(
+        ".github/workflows/cd.yml",
+        "build",
+        "Attest staged image SBOM",
+    )
     production_verify_step = _workflow_step_by_name(
         ".github/workflows/cd.yml",
         "build-production",
         "Verify production image attestations",
+    )
+    production_provenance_step = _workflow_step_by_name(
+        ".github/workflows/cd.yml",
+        "build-production",
+        "Attest production image provenance",
+    )
+    production_sbom_step = _workflow_step_by_name(
+        ".github/workflows/cd.yml",
+        "build-production",
+        "Attest production image SBOM",
     )
     staging_upload_step = _workflow_step_by_name(
         ".github/workflows/cd.yml",
@@ -798,11 +818,28 @@ def test_push_to_registry_workflows_restore_signed_attestations_on_publish_lanes
 
     assert local_build_step["with"]["load"] is True
     assert local_build_step["with"]["provenance"] is False
+    assert cd_workflow["jobs"]["build"]["permissions"]["attestations"] == "write"
+    assert cd_workflow["jobs"]["build-production"]["permissions"]["attestations"] == "write"
 
     for step in (publish_step, staging_step, production_step):
         assert step["with"]["push"] is True
         assert step["with"]["provenance"] == "mode=max"
         assert step["with"]["sbom"] is True
+
+    for provenance_step in (staging_provenance_step, production_provenance_step):
+        assert provenance_step["uses"].startswith(
+            "actions/attest-build-provenance@b3e506e8c389afc651c5bacf2b8f2a1ea0557215"
+        )
+        assert provenance_step["with"]["push-to-registry"] is True
+        assert provenance_step["with"]["subject-digest"] == "${{ steps.build.outputs.digest }}"
+
+    for sbom_step in (staging_sbom_step, production_sbom_step):
+        assert sbom_step["uses"].startswith(
+            "actions/attest@281a49d4cbb0a72c9575a50d18f6deb515a11deb"
+        )
+        assert sbom_step["with"]["push-to-registry"] is True
+        assert sbom_step["with"]["sbom-path"] == "docker-image-sbom.spdx.json"
+        assert sbom_step["with"]["subject-digest"] == "${{ steps.build.outputs.digest }}"
 
     for verify_step in (staging_verify_step, production_verify_step):
         verify_script = verify_step["run"]
@@ -823,6 +860,9 @@ def test_push_to_registry_workflows_restore_signed_attestations_on_publish_lanes
     assert staging_upload_step["with"]["if-no-files-found"] == "warn"
     assert production_upload_step["with"]["if-no-files-found"] == "warn"
     assert staging_step_names.index("Build & Push image (staging)") < staging_step_names.index(
+        "Attest staged image provenance"
+    )
+    assert staging_step_names.index("Attest staged image SBOM") < staging_step_names.index(
         "Verify staged image attestations"
     )
     assert staging_step_names.index("Verify staged image attestations") < staging_step_names.index(
@@ -830,6 +870,9 @@ def test_push_to_registry_workflows_restore_signed_attestations_on_publish_lanes
     )
     assert production_step_names.index(
         "Build & Push image (production)"
+    ) < production_step_names.index("Attest production image provenance")
+    assert production_step_names.index(
+        "Attest production image SBOM"
     ) < production_step_names.index("Verify production image attestations")
 
 

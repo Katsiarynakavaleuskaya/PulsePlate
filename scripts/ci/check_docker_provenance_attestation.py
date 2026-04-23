@@ -17,7 +17,7 @@ import sys
 
 GH_TIMEOUT_SECONDS = 60
 PROVENANCE_PREDICATE_TYPE = "https://slsa.dev/provenance/v1"
-SBOM_PREDICATE_TYPE = "https://spdx.dev/Document/v2.3"
+SBOM_PREDICATE_TYPE = "https://spdx.dev/Document"
 BUNDLE_SOURCE = "oci-registry"
 
 

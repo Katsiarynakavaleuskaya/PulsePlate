@@ -46,6 +46,6 @@ No ad hoc role stack may replace this order.
 
 - `build.yml` publish and `cd.yml` push lanes use `provenance: mode=max`
 - pushed-image steps emit SBOM attestations alongside provenance
-- CD verifies provenance and SPDX SBOM attestations by digest before deploy
+- CD creates GitHub-signed provenance/SBOM attestations and verifies both by digest before deploy
 - CI publishes deterministic JSON/Markdown evidence for attestation verification
 - docs and backlog keep Shared Safety as a separate follow-up and Dagger deferred

@@ -764,7 +764,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Restore signed build provenance after cache/buildx workaround is removed
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (supply-chain maturity after tooling-surface guard baseline)
-  - Target PR: PR-TBD-DOCKER-SIGNED-PROVENANCE
+  - Target PR: PR #1503
   - Status: 🟡 Active next slice after `PR #1498`
   - Reason (EN): Docker baseline and hard-budget gates are now stable enough to restore signed provenance on pushed-image lanes without widening scope into `load: true` jobs or alternate control planes. This slice must re-enable provenance/SBOM attestations on registry pushes and fail closed before staging or production deploy if digest verification breaks.
   - Links:

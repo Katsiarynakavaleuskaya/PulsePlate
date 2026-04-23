@@ -116,10 +116,16 @@ Outputs:
 - `docker-provenance-attestation-check.md`
 - `GITHUB_STEP_SUMMARY` entry in `cd.yml`
 
+CD generates GitHub-signed attestations before verification:
+
+- provenance: `actions/attest-build-provenance`
+- SBOM: `actions/attest` with `sbom-path`
+- registry publication: `push-to-registry: true`
+
 The verifier must fail closed unless both checks pass:
 
 - provenance predicate: `https://slsa.dev/provenance/v1`
-- SBOM predicate: `https://spdx.dev/Document/v2.3`
+- SBOM predicate: `https://spdx.dev/Document`
 
 ## Validation commands
 
