@@ -24,6 +24,7 @@ Reason: Sourcery and Codex post-ready reviews found Headless UI `MenuItem` rende
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1504#discussion_r3131365659 -> 4fb326f52
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1504#discussion_r3131365664 -> 4fb326f52
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1504#discussion_r3131393172 -> 4fb326f52
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1504#pullrequestreview-4163091179 -> 4fb326f52
 
 Disposition: FIXED
 Commit: 6d139bd3b
@@ -34,6 +35,7 @@ Reason: CodeRabbit post-open review found premature merge-readiness checkboxes, 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1504#discussion_r3131623430 -> 6d139bd3b
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1504#discussion_r3131623444 -> 6d139bd3b
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1504#discussion_r3131623467 -> 6d139bd3b
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1504#pullrequestreview-4163397266 -> 6d139bd3b
 
 Disposition: NOT-A-BUG
 Evidence: `frontend/src/components/ui/*.tsx` exports are typed React component contracts; `pre-commit run --all-files`, `cd frontend && npm run build`, and targeted primitive Vitest/a11y coverage passed locally.
