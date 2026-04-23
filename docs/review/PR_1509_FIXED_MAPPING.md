@@ -10,10 +10,11 @@ Bot and human review threads must be dispositioned here before they are resolved
 
 ## Fixed in Commit Mapping
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1509#issuecomment-4306056455
-Disposition: NOT-A-BUG
-Evidence: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1509#issuecomment-4306056455
-Reason: CodeRabbit only posted an in-progress status note and finishing-touch checkboxes; it did not request code or documentation changes on the current head.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1509#issuecomment-4306056455 -> c903f9d97
+Disposition: FIXED
+Commit: c903f9d97
+Evidence: `scripts/install_codex_skills.sh`, `tests/test_install_codex_skills.py`
+Reason: The cybersecurity skills source override is normalized before prefix matching, and a regression test covers a trailing-slash override.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1509#issuecomment-4306056586
 Disposition: NOT-A-BUG
