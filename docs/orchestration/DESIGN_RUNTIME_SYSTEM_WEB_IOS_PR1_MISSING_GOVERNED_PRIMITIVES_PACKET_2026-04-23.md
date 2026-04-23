@@ -2,7 +2,7 @@
 
 **Version:** 2026-04-23 (`America/New_York`)
 **Branch:** `codex/design-missing-primitives-v1`
-**PR:** `TBD (draft pending push)`
+**PR:** `#1504`
 **Title:** `feat(frontend): add missing governed UI primitives v1`
 
 ## Summary
@@ -58,7 +58,7 @@ Evidence:
 - `docs/roadmap/BACKLOG_LEDGER.md`
 - `frontend/src/components/ui/**`
 - `frontend/src/components/design-system/**`
-- `docs/review/PR_<N>_FIXED_MAPPING.md`
+- `docs/review/PR_1504_FIXED_MAPPING.md`
 
 ## Role Order
 
