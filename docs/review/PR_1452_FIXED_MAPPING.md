@@ -62,7 +62,7 @@ Merge-readiness contract:
 - [ ] All review threads resolved on GitHub after disposition updates
   Evidence: actionable current-head threads are dispositioned above and require
   explicit GitHub resolution only after the updated branch head is pushed.
-- [x] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
+- [ ] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
   Evidence: actionable Sourcery review and both inline Sourcery comments are
   mapped above; non-actionable bot/system comments are listed in the discussion
   pass.
@@ -70,6 +70,9 @@ Merge-readiness contract:
   Evidence: pending `pre-commit run --all-files` before push.
 - [ ] `make verify` green on latest pushed head
   Evidence: pending `make verify` before merge-ready claim.
+- [ ] Mandatory wait-window completed after latest bot/review activity
+  Evidence: pending final check pass and at least one review cycle after the
+  latest bot/review activity on current head.
 
 ## Deferred / Follow-ups
 
