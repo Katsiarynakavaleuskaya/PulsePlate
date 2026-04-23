@@ -65,7 +65,7 @@ class RAGFeedbackResponse(BaseModel):
 
 
 async def get_feedback_user(
-    api_key: str = Depends(require_valid_api_key),
+    api_key: str = Depends(require_valid_api_key()),
 ) -> CurrentUser:
     """Get user context for feedback submission.
 

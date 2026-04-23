@@ -14,6 +14,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.middleware.api_tiers import TEST_KEY_PRO
+from app.security.web_session import issue_web_session
 
 
 class TestRAGFeedbackSubmission:
@@ -222,7 +223,8 @@ class TestRAGFeedbackAuthentication:
 
         response = self.client.post(self.url, json=payload)
 
-        assert response.status_code in (401, 403)
+        assert response.status_code == 401
+        assert response.json() == {"detail": "API key required"}
 
     def test_accepts_valid_configured_api_key(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Configured API keys are accepted (not tier-specific)."""
@@ -242,6 +244,42 @@ class TestRAGFeedbackAuthentication:
         response = self.client.post(self.url, json=payload, headers=headers)
 
         assert response.status_code == 401
+        assert response.json() == {"detail": "Invalid API key"}
+
+    def test_rejects_blank_api_key(self) -> None:
+        """Blank API key header is rejected."""
+        headers = {"X-API-Key": "   "}
+        payload = {"query": "test with blank key"}
+
+        response = self.client.post(self.url, json=payload, headers=headers)
+
+        assert response.status_code == 401
+        assert response.json() == {"detail": "API key required"}
+
+    def test_rejects_cookie_only_auth(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Feedback auth remains header-only even if a valid web session cookie is present."""
+        monkeypatch.setenv("SERVER_SALT", "test-server-salt")
+        issued = issue_web_session(api_key=TEST_KEY_PRO, tier="PRO")
+        payload = {"query": "cookie-only auth attempt"}
+        self.client.cookies.set("pulseplate_session", issued.token)
+        response = self.client.post(self.url, json=payload)
+        self.client.cookies.clear()
+
+        assert response.status_code == 401
+        assert response.json() == {"detail": "API key required"}
+
+    def test_query_param_cannot_raise_feedback_required_tier(self) -> None:
+        """Feedback route ignores injected required_tier query params."""
+        headers = {"X-API-Key": TEST_KEY_PRO}
+        payload = {"query": "free-tier feedback auth should stay stable"}
+
+        response = self.client.post(
+            f"{self.url}?required_tier=VIP",
+            json=payload,
+            headers=headers,
+        )
+
+        assert response.status_code == 201
 
 
 class TestRAGFeedbackChunksStorage:

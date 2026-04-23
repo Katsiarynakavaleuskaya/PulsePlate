@@ -22,6 +22,7 @@ from app.middleware.api_tiers import (
     get_current_user,
     get_pro_subject_id,
     get_subscription_tier,
+    require_valid_api_key,
     require_pro_tier,
     require_vip_tier,
 )
@@ -371,6 +372,78 @@ class TestRequireProTier:
 
         request = _request_with_cookie("token")
         assert api_tiers_mod.get_request_pro_auth_context(request) is None
+
+
+class TestRequireValidAPIKey:
+    """Test require_valid_api_key helper for header-authenticated surfaces."""
+
+    def test_free_tier_accepts_valid_key(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """FREE-tier helper accepts configured keys that resolve through tier logic."""
+        monkeypatch.setenv("APP_ENV", "local")
+        monkeypatch.setenv("DEBUG", "true")
+        dependency = require_valid_api_key()
+
+        result = dependency(x_api_key=TEST_KEY_PRO)
+
+        assert result == TEST_KEY_PRO
+
+    def test_missing_key_raises_401(self) -> None:
+        """Missing API key fails closed for header-authenticated routes."""
+        dependency = require_valid_api_key()
+        with pytest.raises(HTTPException) as exc_info:
+            dependency(x_api_key=None)
+
+        assert exc_info.value.status_code == 401
+        assert "API key required" in exc_info.value.detail
+
+    def test_blank_key_raises_401(self) -> None:
+        """Blank API key header is rejected before tier resolution."""
+        dependency = require_valid_api_key()
+        with pytest.raises(HTTPException) as exc_info:
+            dependency(x_api_key="   ")
+
+        assert exc_info.value.status_code == 401
+        assert "API key required" in exc_info.value.detail
+
+    def test_required_tier_accepts_vip_key_for_pro(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Helper forwards stricter tier requirements to shared resolution logic."""
+        monkeypatch.setenv("APP_ENV", "local")
+        monkeypatch.setenv("DEBUG", "true")
+        dependency = require_valid_api_key(required_tier=SubscriptionTier.PRO)
+
+        result = dependency(x_api_key=TEST_KEY_VIP)
+
+        assert result == TEST_KEY_VIP
+
+    def test_required_tier_rejects_insufficient_access(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Helper fails closed when the key does not satisfy the requested tier."""
+        monkeypatch.setenv("APP_ENV", "local")
+        monkeypatch.setenv("DEBUG", "true")
+        dependency = require_valid_api_key(required_tier=SubscriptionTier.VIP)
+
+        with pytest.raises(HTTPException) as exc_info:
+            dependency(x_api_key=TEST_KEY_PRO)
+
+        assert exc_info.value.status_code == 401
+        assert "VIP tier access" in exc_info.value.detail
+
+    def test_db_lookup_failure_rejects_free_tier_key(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """DB lookup errors must still fail closed for FREE-tier helper usage."""
+        monkeypatch.setenv("SUBSCRIPTION_DB_ENABLED", "true")
+        monkeypatch.setattr(
+            api_tiers_mod,
+            "_lookup_tier_from_db",
+            lambda _api_key: DBLookupResult(status=DBLookupStatus.ERROR),
+        )
+        dependency = require_valid_api_key()
+
+        with pytest.raises(HTTPException) as exc_info:
+            dependency(x_api_key=TEST_KEY_PRO)
+
+        assert exc_info.value.status_code == 401
+        assert "Invalid API key" in exc_info.value.detail
 
 
 class TestRequireVIPTier:

@@ -28,6 +28,7 @@ import logging
 import os
 from dataclasses import dataclass
 from enum import Enum
+from collections.abc import Callable
 from typing import Optional
 
 from fastapi import Depends, HTTPException, Request, Security, status
@@ -484,11 +485,12 @@ def require_vip_tier(
     return context.api_key
 
 
-def require_valid_api_key(
-    x_api_key: Optional[str] = Security(api_key_header),
+def _require_valid_api_key_for_tier(
+    x_api_key: Optional[str],
+    *,
+    required_tier: SubscriptionTier,
 ) -> str:
-    """Require an API key that resolves to any authorized subscription tier."""
-
+    """Validate a header API key against the requested tier."""
     if x_api_key is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -504,15 +506,41 @@ def require_valid_api_key(
 
     resolved_tier = _resolve_authorized_api_key_tier(
         normalized_api_key,
-        required_tier=SubscriptionTier.FREE,
+        required_tier=required_tier,
     )
     if resolved_tier is None:
+        detail = "Invalid API key"
+        if required_tier != SubscriptionTier.FREE:
+            detail = f"API key does not have {required_tier.value} tier access"
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid API key",
+            detail=detail,
         )
 
     return normalized_api_key
+
+
+def require_valid_api_key(
+    *,
+    required_tier: SubscriptionTier = SubscriptionTier.FREE,
+) -> Callable[[Optional[str]], str]:
+    """Build a header-only API-key dependency for the requested tier.
+
+    PRO/VIP route guards must keep using `require_pro_tier` / `require_vip_tier`,
+    which preserve their dedicated cookie fallback and tier-specific response
+    semantics. This factory prevents `required_tier` from becoming a public
+    request parameter on routes that depend on it.
+    """
+
+    def dependency(
+        x_api_key: Optional[str] = Security(api_key_header),
+    ) -> str:
+        return _require_valid_api_key_for_tier(
+            x_api_key,
+            required_tier=required_tier,
+        )
+
+    return dependency
 
 
 def get_subscription_tier(api_key: str) -> SubscriptionTier:
