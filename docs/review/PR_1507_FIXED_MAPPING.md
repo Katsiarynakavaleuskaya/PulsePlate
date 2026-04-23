@@ -18,6 +18,7 @@ or claiming merge readiness.
 Disposition: FIXED
 Commit: 4a8458cfa
 Evidence: tests/evals/test_selective_graph_eval_contract.py
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1507#pullrequestreview-4163423930 -> 4a8458cfa
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1507#discussion_r3131643787 -> 4a8458cfa
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1507#discussion_r3131643802 -> 4a8458cfa
 
@@ -29,6 +30,7 @@ Evidence: tests/evals/test_selective_graph_eval_contract.py
 Disposition: FIXED
 Commit: 4a8458cfa
 Evidence: docs/review/PR_1507_FIXED_MAPPING.md
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1507#pullrequestreview-4163429311 -> 4a8458cfa
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1507#issuecomment-4305275175 -> 4a8458cfa
 
 ## Merge Readiness
