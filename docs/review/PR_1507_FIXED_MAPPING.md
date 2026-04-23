@@ -41,3 +41,4 @@ Evidence: docs/review/PR_1507_FIXED_MAPPING.md
 - Lint: `make lint`
 - Typecheck: `make typecheck`
 - Fast tests: `make test-fast`
+- Phase2 body/artifact gate: `python3 scripts/ci/check_pr_body_phase2_gates.py --pr-number 1507`
