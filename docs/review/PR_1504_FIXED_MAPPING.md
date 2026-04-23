@@ -17,6 +17,14 @@ Evidence: `docs/orchestration/DESIGN_RUNTIME_SYSTEM_WEB_IOS_PR1_MISSING_GOVERNED
 Reason: Mandatory `qa-engineer-agent` review found PR size governance missing split justification and a radiogroup accessible-name gap. This follow-up commit adds the split justification and wires `aria-labelledby` to the radiogroup role.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1504 -> 6eb383fad
 
+Disposition: FIXED
+Commit: 4fb326f52
+Evidence: `frontend/src/components/ui/DropdownMenu.tsx`, `frontend/src/components/ui/RadioGroup.tsx`, `frontend/src/components/ui/fieldState.ts`, `frontend/src/components/ui/Select.tsx`, `frontend/src/components/ui/Textarea.tsx`, `frontend/src/components/ui/Checkbox.tsx`, `frontend/src/components/ui/__tests__/RadioGroup.test.tsx`
+Reason: Sourcery and Codex post-ready reviews found Headless UI `MenuItem` render-prop drift (`focus` vs `active`), duplicated invalid-state helpers, redundant radiogroup role semantics, and an optional-legend unlabeled group path. Commit `4fb326f52` switches menu styling to `active`, extracts shared invalid-state handling, relies on native `fieldset`/`legend`, and makes `legend` required.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1504#discussion_r3131365659 -> 4fb326f52
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1504#discussion_r3131365664 -> 4fb326f52
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1504#discussion_r3131393172 -> 4fb326f52
+
 ## Merge Readiness
 
 - [ ] All required checks pass
@@ -31,4 +39,4 @@ Reason: Mandatory `qa-engineer-agent` review found PR size governance missing sp
 - [x] Mandatory post-open `qa-engineer-agent -> bug-hunter` pass completed
   Evidence target: `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md:98-103`
 
-Notes: This PR remains draft. Merge-readiness is intentionally not claimed.
+Notes: This PR is ready for review. Merge-readiness is intentionally not claimed until current-head checks, review-thread disposition, `make verify`, and the strict merge-ready wrapper pass.
