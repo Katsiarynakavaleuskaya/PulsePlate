@@ -12,6 +12,7 @@ from fastapi import HTTPException, status
 
 from app.services.insight_application_service import (
     INSIGHT_TEXT_MAX_LENGTH,
+    _legacy_recursive_rollout_policy,
     execute_insight_request,
 )
 from core.ai.insight_runtime import InsightTransparencyNotice, RecursiveRolloutPolicy
@@ -94,6 +95,22 @@ def _recursive_rollout_policy(
         recursive_rag_enabled=recursive_rag_enabled,
         recursive_rag_optimization_enabled=recursive_rag_optimization_enabled,
     )
+
+
+def test_legacy_recursive_rollout_policy_returns_expected_policy() -> None:
+    """Legacy helper must preserve the bounded recursive rollout contract."""
+
+    policy = _legacy_recursive_rollout_policy(
+        use_rag=True,
+        recursive_rag_enabled=True,
+        recursive_rag_optimization_enabled=False,
+    )
+
+    assert policy.use_rag is True
+    assert policy.recursive_rag_enabled is True
+    assert policy.recursive_rag_optimization_enabled is False
+    assert policy.recursive_path_enabled is True
+    assert policy.optimization_path_enabled is False
 
 
 @pytest.mark.asyncio

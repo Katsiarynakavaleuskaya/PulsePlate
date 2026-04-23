@@ -1371,6 +1371,62 @@ class TestInsightApplicationServiceFastLane:
         assert feature_flags["rag_recursive"] is True
         assert feature_flags["rag_recursive_optimization"] is False
 
+    def test_insight_feature_flag_state_falls_back_to_feature_rag_env(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Without prepared recursive policy, the base RAG snapshot must use env truth."""
+
+        from app.services.insight_runtime import insight_feature_flag_state
+
+        monkeypatch.setenv("FEATURE_RAG", "true")
+        monkeypatch.setenv("FEATURE_INSIGHT", "false")
+        monkeypatch.setenv("FEATURE_RAG_VECTOR", "false")
+        monkeypatch.setattr(
+            "app.services.insight_runtime.is_recursive_rag_enabled",
+            lambda: False,
+            raising=True,
+        )
+        monkeypatch.setattr(
+            "app.services.insight_runtime.is_recursive_rag_optimization_enabled",
+            lambda: False,
+            raising=True,
+        )
+        monkeypatch.setattr(
+            "app.services.insight_runtime.is_philosophy_router_enabled",
+            lambda: False,
+            raising=True,
+        )
+        monkeypatch.setattr(
+            "app.services.insight_runtime.is_philosophy_phase12_enabled",
+            lambda: False,
+            raising=True,
+        )
+        monkeypatch.setattr(
+            "app.services.insight_runtime.is_philosophy_linguistic_enabled",
+            lambda: False,
+            raising=True,
+        )
+        monkeypatch.setattr(
+            "app.services.insight_runtime.is_philosophy_pragmatic_enabled",
+            lambda: False,
+            raising=True,
+        )
+        monkeypatch.setattr(
+            "app.services.insight_runtime.is_philosophy_validation_enabled",
+            lambda: False,
+            raising=True,
+        )
+
+        feature_flags = insight_feature_flag_state(
+            use_rag=None,
+            recursive_rollout_policy=None,
+        )
+
+        assert feature_flags["rag"] is True
+        assert feature_flags["rag_recursive"] is False
+        assert feature_flags["rag_recursive_optimization"] is False
+
     @pytest.mark.asyncio
     async def test_maybe_promote_knowledge_candidates_times_out_sync_store(
         self,
