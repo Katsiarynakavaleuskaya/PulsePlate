@@ -38,6 +38,7 @@ from core.rag.orchestration import (
     retrieve_and_validate_rag,
 )
 from core.rag.philosophy_pipeline import PipelineResult, StageResult
+from core.rag.recursive_retrieval import retrieve_recursive_context_structured
 from core.rag.validation import ValidationResult
 
 
@@ -375,6 +376,45 @@ class TestRetrieveAndValidateRag:
         assert to_thread_mock.call_args.kwargs["optimization_enabled"] is True
         assert to_thread_mock.call_args.kwargs["optimization_hints"] == hints
         assert result.rag_actually_used is True
+
+    def test_recursive_optimization_hints_cap_depth_on_ci_surface(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """CI contract surface must cover the hint-gated recursive depth cap."""
+        import core.rag.recursive_retrieval as recursive
+
+        monkeypatch.setattr(recursive, "MAX_RAG_HOPS", 4)
+        monkeypatch.setattr(recursive, "MAX_REFINEMENT_PASSES", 4)
+        monkeypatch.setattr(recursive, "MAX_VERIFICATION_QUERIES", 0)
+        monkeypatch.setattr(recursive, "MIN_CONFIDENCE_GAIN_PER_HOP", -1.0)
+
+        def _fake_retrieve(query: str, **_: object) -> RAGContext:
+            chunk = RAGChunk(
+                chunk_id=f"doc:{len(query)}",
+                file="doc.md",
+                content="nutrition guidance for bounded recursive retrieval",
+                score=0.7,
+            )
+            return RAGContext(
+                query=query,
+                refined_queries=[query],
+                chunks=[chunk],
+                confidence=0.7,
+                hops=1,
+                latency_ms=1,
+            )
+
+        monkeypatch.setattr("core.rag.vector_rag.retrieve_context_structured", _fake_retrieve)
+
+        result = retrieve_recursive_context_structured(
+            "meal plan",
+            optimization_enabled=True,
+            optimization_hints=RecursiveOptimizationHints(target_depth_cap=1),
+        )
+
+        assert result.hops == 1
+        assert result.refined_queries == ["meal plan"]
 
     @pytest.mark.asyncio
     async def test_recursive_empty_retrieval_preserves_recursive_metadata(self) -> None:
