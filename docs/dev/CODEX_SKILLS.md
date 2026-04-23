@@ -24,6 +24,7 @@ scripts/install_codex_skills.sh --copy
 scripts/install_codex_skills.sh --target compat
 scripts/install_codex_skills.sh --unlink
 scripts/install_codex_skills.sh --dest /tmp/codex-skills
+scripts/install_codex_skills.sh --no-cybersec
 scripts/install_codex_skills.sh --copy-cybersec
 scripts/install_codex_skills.sh --only-cybersec --copy-cybersec
 ```

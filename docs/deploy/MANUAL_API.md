@@ -15,7 +15,7 @@ Host-local files such as `~/.cursor/mcp.json`, `~/.cursor/.env`,
 
 ## Step 1: Get OpenAI API Key
 
-1. **Open**: https://platform.openai.com/api-keys
+1. **Open**: <https://platform.openai.com/api-keys>
 2. **Login** with your ChatGPT Pro account
 3. **Click** "Create new secret key"
 4. **Name it**: "Cursor MCP Integration"
@@ -113,7 +113,7 @@ curl -H "Authorization: Bearer sk-proj-YOUR_KEY_HERE" \
 
 ## Troubleshooting
 
-### If MCP tools don't appear:
+### If MCP tools don't appear
 1. Check API key format (should start with `sk-proj-`)
 2. Verify `pulseplate-chatgpt` was added without deleting other MCP servers
 3. Restart Cursor completely

@@ -294,6 +294,27 @@ class TestSetupCustomMcpCoverage:
             settings = json.loads((cursor_dir / "settings.json").read_text())
             assert settings["cursor.ai.openaiApiKey"] == setup_custom_mcp.PLACEHOLDER_API_KEY
 
+    def test_setup_custom_mcp_upserts_env_keys_with_extra_whitespace(self):
+        """Whitespace around .env keys should not create duplicate managed entries."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            cursor_dir = temp_path / ".cursor"
+            cursor_dir.mkdir(parents=True, exist_ok=True)
+            (cursor_dir / ".env").write_text(
+                "OTHER=value\n  OPENAI_API_KEY = keepme\nMCP_ENABLED = false\n"
+            )
+
+            with patch("pathlib.Path.home", return_value=temp_path):
+                with patch("pathlib.Path.cwd", return_value=temp_path):
+                    setup_custom_mcp.setup_custom_mcp(argv=["--force"])
+
+            env_lines = (cursor_dir / ".env").read_text().splitlines()
+            assert env_lines.count("OPENAI_API_KEY=keepme") == 1
+            assert env_lines.count("MCP_ENABLED=true") == 1
+            assert not any(line.startswith("  OPENAI_API_KEY") for line in env_lines)
+            assert not any(line.startswith("MCP_ENABLED =") for line in env_lines)
+            assert "OTHER=value" in env_lines
+
     def test_setup_custom_mcp_uses_repo_server_path_not_cwd(self):
         """The generated MCP command path must stay anchored to the repo script."""
         with tempfile.TemporaryDirectory() as temp_dir:

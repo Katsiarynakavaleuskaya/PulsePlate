@@ -190,6 +190,7 @@ def _extract_env_value(env_content: str, key: str) -> str | None:
         if not line or line.lstrip().startswith("#") or "=" not in line:
             continue
         current_key, value = line.split("=", 1)
+        current_key = current_key.strip()
         if current_key == key:
             return value
     return None
@@ -220,6 +221,7 @@ def _merge_env_content(existing_content: str, updates: dict[str, str]) -> str:
             continue
 
         key, _value = line.split("=", 1)
+        key = key.strip()
         if key in remaining_updates:
             merged_lines.append(f"{key}={remaining_updates.pop(key)}")
         else:
