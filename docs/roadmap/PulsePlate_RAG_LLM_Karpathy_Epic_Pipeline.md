@@ -497,11 +497,14 @@ Reduce recursive latency before broadening rollout.
 #### Backlog target
 `ledger-p1-scientific-reliability-pipeline`
 
+#### Canonical packet
+`docs/orchestration/WAVE6_A9_SCIENTIFIC_RELIABILITY_PACKET_2026-04-23.md`
+
 #### Goal
 Turn the AI moat into evidence-backed positioning without overclaiming.
 
 #### In scope
-- benchmarks
+- governed offline replay evidence
 - claim boundaries
 - reproducible evidence packet
 - internal/public article mapping
