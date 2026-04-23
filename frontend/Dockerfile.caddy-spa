@@ -5,7 +5,7 @@
 # Or with explicit absolute API base (split-origin / Workers):
 #   docker build -f Dockerfile.caddy-spa --build-arg VITE_API_BASE=https://example.com/api/v1 -t pulseplate-caddy:local .
 
-FROM node:22-bookworm-slim AS frontend-build
+FROM node:22.22.1-bookworm-slim AS frontend-build
 
 WORKDIR /app
 
