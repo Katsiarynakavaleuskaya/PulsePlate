@@ -7,7 +7,7 @@ Canonical review-governance artifact and PR-body mirror requirements:
 `docs/orchestration/AGENTS.md:79-82`.
 
 - [x] Discussion-thread pass completed
-- [x] Fixed in commit mapping initialized
+- [x] Fixed in commit mapping completed
 
 This artifact is the source of truth for review dispositions on PR #1507.
 Record every actionable human or bot review item here before resolving threads

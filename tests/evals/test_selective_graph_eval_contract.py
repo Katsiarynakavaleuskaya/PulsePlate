@@ -94,6 +94,18 @@ def _find_keys(payload: Any) -> set[str]:
     return set()
 
 
+def _bullets_after_marker(text: str, marker: str) -> list[str]:
+    lines = text.splitlines()
+    marker_index = lines.index(marker)
+    bullets: list[str] = []
+    for line in lines[marker_index + 1 :]:
+        if line.startswith("## "):
+            break
+        if line.startswith("- "):
+            bullets.append(line)
+    return bullets
+
+
 def test_schema_contract_enums_are_bounded_to_selective_graph_eval() -> None:
     schema = _load_schema()
 
@@ -101,25 +113,30 @@ def test_schema_contract_enums_are_bounded_to_selective_graph_eval() -> None:
     assert schema["additionalProperties"] is False
 
     properties = schema["properties"]
+    assert set(properties) == REQUIRED_TOP_LEVEL_FIELDS
     assert set(properties["surface"]["enum"]) == ALLOWED_SURFACES
 
     graph_context = properties["graph_context"]
     assert graph_context["additionalProperties"] is False
     assert set(graph_context["required"]) == {"nodes", "edges"}
+    assert set(graph_context["properties"]) == {"nodes", "edges"}
 
     node_schema = graph_context["properties"]["nodes"]["items"]
     assert node_schema["additionalProperties"] is False
     assert set(node_schema["required"]) == {"id", "type", "label"}
+    assert set(node_schema["properties"]) == {"id", "type", "label"}
     assert set(node_schema["properties"]["type"]["enum"]) == ALLOWED_NODE_TYPES
 
     edge_schema = graph_context["properties"]["edges"]["items"]
     assert edge_schema["additionalProperties"] is False
     assert set(edge_schema["required"]) == {"source", "relation", "target"}
+    assert set(edge_schema["properties"]) == {"source", "relation", "target"}
     assert set(edge_schema["properties"]["relation"]["enum"]) == ALLOWED_EDGE_RELATIONS
 
     reasoning_schema = properties["reasoning_expectation"]
     assert reasoning_schema["additionalProperties"] is False
     assert set(reasoning_schema["required"]) == {"kind"}
+    assert set(reasoning_schema["properties"]) == {"kind"}
     assert set(reasoning_schema["properties"]["kind"]["enum"]) == ALLOWED_REASONING_KINDS
 
 
@@ -188,15 +205,16 @@ def test_fixture_rows_do_not_contain_runtime_gate_or_cache_fields() -> None:
 def test_contract_doc_keeps_graph_eval_offline_and_subordinate() -> None:
     contract_doc = CONTRACT_DOC_PATH.read_text(encoding="utf-8")
 
-    required_phrases = [
-        "runtime GraphRAG rollout",
-        "semantic cache widening",
-        "provider behavior changes",
-        "a graph runner",
-        "graph-specific CI thresholds",
-        "a second canonical evaluation rail",
-        "owns threshold vocabulary, gate checks, and `PASS` / `NO-GO` semantics",
-        "must not create a second evaluation source of truth",
+    assert _bullets_after_marker(contract_doc, "It does not introduce:") == [
+        "- runtime GraphRAG rollout",
+        "- semantic cache widening",
+        "- provider behavior changes",
+        "- a graph runner",
+        "- graph-specific CI thresholds",
+        "- a second canonical evaluation rail",
     ]
-    for phrase in required_phrases:
-        assert phrase in contract_doc
+    assert (
+        "- [`PULSEPLATE_RAG_RELEASE_GATES.md`](./PULSEPLATE_RAG_RELEASE_GATES.md)\n"
+        "  owns threshold vocabulary, gate checks, and `PASS` / `NO-GO` semantics" in contract_doc
+    )
+    assert "must not create a second evaluation source of truth" in contract_doc
