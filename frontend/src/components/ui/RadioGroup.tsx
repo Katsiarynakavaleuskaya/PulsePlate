@@ -1,0 +1,74 @@
+import type { InputHTMLAttributes, PropsWithChildren, ReactNode } from 'react';
+
+interface RadioGroupProps extends PropsWithChildren {
+  legend?: ReactNode;
+  error?: string;
+  orientation?: 'vertical' | 'horizontal';
+}
+
+interface RadioGroupOptionProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'type'> {
+  label: ReactNode;
+  description?: ReactNode;
+  invalid?: boolean;
+}
+
+export function RadioGroup({
+  children,
+  error,
+  legend,
+  orientation = 'vertical',
+}: RadioGroupProps) {
+  const errorId = error ? `${String(legend ?? 'radio-group')}-error` : undefined;
+
+  return (
+    <fieldset className="space-y-3">
+      {legend ? <legend className="text-sm font-medium text-[var(--color-text)]">{legend}</legend> : null}
+      <div
+        aria-describedby={errorId}
+        className={orientation === 'horizontal' ? 'grid gap-3 md:grid-cols-2' : 'space-y-3'}
+        role="radiogroup"
+      >
+        {children}
+      </div>
+      {error ? (
+        <p className="text-sm text-[var(--color-error)]" id={errorId} role="alert">
+          {error}
+        </p>
+      ) : null}
+    </fieldset>
+  );
+}
+
+export function RadioGroupOption({
+  label,
+  description,
+  invalid = false,
+  className = '',
+  ...props
+}: RadioGroupOptionProps) {
+  return (
+    <label
+      className={[
+        'flex items-start gap-3 rounded-lg border px-3 py-3',
+        props.disabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer',
+        invalid ? 'border-[var(--color-error)]' : 'border-[var(--color-border)]',
+        'bg-[var(--color-bg)]',
+        className,
+      ]
+        .join(' ')
+        .trim()}
+    >
+      <input
+        {...props}
+        className="mt-0.5 h-4 w-4 border-[var(--color-border)] text-[var(--color-primary)] focus:ring-[var(--color-primary)]"
+        type="radio"
+      />
+      <span className="min-w-0 space-y-1">
+        <span className="block text-sm font-medium text-[var(--color-text)]">{label}</span>
+        {description ? <span className="block text-sm text-[var(--color-text-muted)]">{description}</span> : null}
+      </span>
+    </label>
+  );
+}
+
+export default RadioGroup;
