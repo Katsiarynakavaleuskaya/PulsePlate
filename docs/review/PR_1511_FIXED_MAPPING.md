@@ -15,7 +15,7 @@ Date: 2026-04-23
 
 ## Fixed in Commit Mapping
 
-- No actionable review threads yet.
+- No actionable review comments
 
 ## Initial Evidence
 
