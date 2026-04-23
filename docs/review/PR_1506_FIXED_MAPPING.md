@@ -39,10 +39,12 @@ Merge-readiness contract:
 - [ ] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
 - [ ] After latest bot/review activity, perform a final check and wait at least
       one review cycle before merging
-- [x] `pre-commit run --all-files` green on latest local head
-      Local proof: passed before commit `19537b47f`.
+- [ ] `pre-commit run --all-files` green on latest local head
 - [ ] `make verify` green on latest pushed head
       Local proof: `make verify` passed `verify-env`, `lint`, `typecheck`, and
       `test-fast`, then was manually stopped during the long full
       coverage/diff-cover sweep. Do not mark merge-ready until this is
       completed or replaced by accepted current-head required CI evidence.
+
+Local proof note: `pre-commit run --all-files` passed before commit
+`19537b47f`; pre-push hooks passed before `cbabbf60d`.

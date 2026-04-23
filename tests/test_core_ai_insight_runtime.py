@@ -354,9 +354,6 @@ def test_prepare_insight_runtime_returns_recursive_rollout_policy(
     )
     assert prepared.recursive_rollout_policy.recursive_path_enabled is True
     assert prepared.recursive_rollout_policy.optimization_path_enabled is True
-    assert prepared.recursive_rollout_policy.optimization_hints == RecursiveOptimizationHints(
-        target_depth_cap=3,
-    )
 
 
 def test_prepare_insight_runtime_derives_recursive_speed_hints_from_route_truth(

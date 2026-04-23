@@ -201,6 +201,12 @@ async def retrieve_and_validate_rag(
         Whether to run philosophy validation on chunks (feature flag).
     recursive_rag_enabled:
         Whether to run recursive multi-hop retrieval path.
+    optimization_enabled:
+        Enables recursive optimization behavior when recursive retrieval runs.
+    recursive_optimization_hints:
+        Optional prepared recursive optimization constraints forwarded to
+        recursive retrieval. Defaults to `None` and has no effect unless
+        `optimization_enabled` is true.
     subject_id:
         Authenticated tenant/user identifier for personalized retrieval.
         Pass a concrete value for tenant-scoped `user_knowledge` access.
