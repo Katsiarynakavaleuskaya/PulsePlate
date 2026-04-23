@@ -12,8 +12,9 @@ Docker runtime contract.
 - Frontend / Caddy topology remains separate and out of scope for this slice.
 - Runtime slimming merged via `PR #1490` on April 22, 2026.
 - Telemetry baseline landed via `PR #1492` on April 22, 2026.
-- The current Docker/CI slice promotes that telemetry baseline into a
-  deterministic hard budget gate for the production backend image.
+- Hard-budget enforcement landed via `PR #1498` on April 22, 2026.
+- The current Docker/CI slice restores signed provenance and SPDX SBOM
+  attestations on pushed-image lanes and verifies both before deploy.
 
 ## Runtime manifest policy
 
@@ -41,15 +42,17 @@ Runtime slimming removed CI-only tooling from the production backend image, but
 the project still needs one canonical baseline so PR authors can see image-size
 drift, largest layers, and build-context evidence before merge.
 
-Telemetry baseline established deterministic image-size evidence, but PR authors
-still need merge-blocking enforcement once the baseline is stable on `main`.
+Telemetry and the hard-budget gate established deterministic image-size
+evidence, but deployable image trust still depended on the temporary CD
+workaround that kept pushed-image attestations disabled.
 
-This wave promotes the production backend image to a hard gate:
+This wave restores signed provenance on pushed-image lanes only:
 
-- absolute image-size cap: `470000000` bytes
-- max positive delta vs baseline: `20000000` bytes
-- same canonical baseline source rule as the telemetry wave
-- provenance / Dagger and Shared Safety remain deferred
+- keep the current hard-budget contract unchanged
+- restore `provenance: mode=max` on pushed-image lanes in `build.yml` and `cd.yml`
+- emit SPDX SBOM attestations on the same pushed-image lanes
+- verify both provenance and SBOM by exact digest before staging or production deploy
+- Dagger and Shared Safety remain deferred
 
 ## Baseline source rule
 
@@ -89,6 +92,34 @@ Hard budget enforcement must fail when either of these are true:
 
 - `image_size_bytes > 470000000`
 - `baseline.size_delta_bytes > 20000000`
+
+## Attestation verification contract
+
+Staging and production deploy flow must verify the exact pushed digest with
+GitHub-native attestation verification before any deploy step continues.
+
+Helper:
+
+- `scripts/ci/check_docker_provenance_attestation.py`
+
+Inputs:
+
+- registry image name without a tag
+- exact pushed digest from `docker/build-push-action`
+- GitHub repo identity
+- signer workflow path
+- source ref for the current run
+
+Outputs:
+
+- `docker-provenance-attestation-check.json`
+- `docker-provenance-attestation-check.md`
+- `GITHUB_STEP_SUMMARY` entry in `cd.yml`
+
+The verifier must fail closed unless both checks pass:
+
+- provenance predicate: `https://slsa.dev/provenance/v1`
+- SBOM predicate: `https://spdx.dev/Document/v2.3`
 
 ## Validation commands
 
@@ -137,19 +168,27 @@ python3 scripts/ci/check_docker_image_budget.py \
   --budget-json docs/telemetry/docker_image_budget.production.json \
   --json-out artifacts/docker/docker-image-budget-check.json \
   --markdown-out artifacts/docker/docker-image-budget-check.md
+
+python3 scripts/ci/check_docker_provenance_attestation.py \
+  --image-name ghcr.io/katsiarynakavaleuskaya/pulseplate \
+  --digest sha256:example \
+  --repo Katsiarynakavaleuskaya/PulsePlate \
+  --signer-workflow Katsiarynakavaleuskaya/PulsePlate/.github/workflows/cd.yml \
+  --source-ref refs/heads/main \
+  --json-out artifacts/docker/docker-provenance-attestation-check.json \
+  --markdown-out artifacts/docker/docker-provenance-attestation-check.md
 ```
 
 ## Rollback
 
-If the runtime image fails to build or boot after this slice:
+If pushed-image provenance verification fails after this slice:
 
-1. restore the previous Docker build arg usage in production-target workflows
-2. switch `PULSEPLATE_REQUIREMENTS_FILE` back to the prior manifest for the
-   affected workflow
-3. keep the runtime-surface findings as evidence in the PR and record the
-   follow-up in `docs/roadmap/BACKLOG_LEDGER.md`
+1. keep `load: true` jobs unchanged on `provenance: false`
+2. revert pushed-image provenance/SBOM restoration only on the failing lane
+3. keep attestation evidence artifacts in the PR and record the follow-up in
+   `docs/roadmap/BACKLOG_LEDGER.md`
 
-Do not widen this rollback into provenance or frontend/Caddy changes.
+Do not widen this rollback into Shared Safety, Dagger, or frontend/Caddy changes.
 
 ## Deferred follow-ups
 
@@ -160,13 +199,8 @@ Explicitly deferred after this PR:
   Remove-by: 2026-06-15
   Rollback: keep Safety invocation duplicated in the existing workflows until the shared extraction lands.
   Exit criteria: a follow-up PR extracts the shared Safety invocation/reporting path without reopening install-profile split scope.
-- provenance / attestation recovery
-  Backlog: `docs/roadmap/BACKLOG_LEDGER.md#backlog-restore-signed-build-provenance`
-  Remove-by: 2026-06-30
-  Rollback: keep signed provenance disabled on the known cache/buildx seam and preserve the documented workaround.
-  Exit criteria: signed provenance and downstream verification return to the canonical image workflow without destabilizing the release path.
 - Dagger or any alternate control-plane work
   Backlog: `docs/roadmap/BACKLOG_LEDGER.md#ledger-p2-dagger-pilot-after-docker-baseline`
   Remove-by: 2026-07-15
   Rollback: keep the current GitHub Actions-based Docker control plane as the only supported path.
-  Exit criteria: telemetry baseline and provenance follow-ups are closed and a separate evaluation packet re-approves any Dagger pilot.
+  Exit criteria: telemetry baseline, hard-budget, and provenance slices are closed and a separate evaluation packet re-approves any Dagger pilot.

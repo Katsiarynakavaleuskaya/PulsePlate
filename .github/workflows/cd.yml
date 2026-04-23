@@ -85,6 +85,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build & Push image (staging)
+        id: build
         uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7.0.0
         with:
           context: .
@@ -99,14 +100,47 @@ jobs:
           tags: ${{ env.REGISTRY }}/${{ steps.image-name.outputs.image_name }}:staging-latest
           cache-from: type=gha,scope=cd-staging-${{ github.ref_name }}
           cache-to: type=gha,scope=cd-staging-${{ github.ref_name }},mode=min,ignore-error=true
-          # Disable provenance to avoid buildx/GHA cache export failures
-          # ("cache entry no longer exists" / BlobNotFound). Trade-off: SLSA
-          # attestations are disabled, so cosign verify-attestation will fail
-          # for this image until the cache/provenance stack is stable.
-          provenance: false
+          # Keep the scoped cache workaround, but restore registry-backed
+          # provenance/SBOM attestations for push-to-registry lanes.
+          provenance: mode=max
+          sbom: true
           # Use dedicated staging target which extends production but allows
           # staging-specific customizations (e.g., debug logging, extended health checks)
           target: staging
+
+      - name: Verify staged image attestations
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          python3 scripts/ci/check_docker_provenance_attestation.py \
+            --image-name "${{ env.REGISTRY }}/${{ steps.image-name.outputs.image_name }}" \
+            --digest "${{ steps.build.outputs.digest }}" \
+            --repo "${{ github.repository }}" \
+            --signer-workflow "${{ github.repository }}/.github/workflows/cd.yml" \
+            --source-ref "${{ github.ref }}" \
+            --json-out docker-provenance-attestation-check.json \
+            --markdown-out docker-provenance-attestation-check.md
+
+      - name: Publish staging attestation verification to step summary
+        if: ${{ always() }}
+        run: |
+          set -euo pipefail
+          if [ -f docker-provenance-attestation-check.md ]; then
+            cat docker-provenance-attestation-check.md >> "${GITHUB_STEP_SUMMARY}"
+          fi
+
+      - name: Upload staging attestation verification artifact
+        if: ${{ always() }}
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: docker-provenance-attestation-check-cd-staging
+          path: |
+            docker-provenance-attestation-check.json
+            docker-provenance-attestation-check.md
+          if-no-files-found: warn
+          retention-days: 14
 
       # When STAGING_DEPLOY_ENABLED=true but SSH_KEY (or host) is not set, skip deploy to avoid "ssh: no key found" / fingerprint mismatch.
       # Use env so multi-line SSH_KEY is not inlined in run (avoids breaking when key was set and working).
@@ -299,12 +333,45 @@ jobs:
           tags: ${{ env.REGISTRY }}/${{ steps.image-name.outputs.image_name }}:prod-${{ github.ref_name }}
           cache-from: type=gha,scope=cd-production-${{ github.ref_name }}
           cache-to: type=gha,scope=cd-production-${{ github.ref_name }},mode=min,ignore-error=true
-          # Disable provenance to avoid buildx/GHA cache export failures
-          # ("cache entry no longer exists" / BlobNotFound). Trade-off: SLSA
-          # attestations are disabled, so cosign verify-attestation will fail
-          # for this image until the cache/provenance stack is stable.
-          provenance: false
+          # Keep the scoped cache workaround, but restore registry-backed
+          # provenance/SBOM attestations for push-to-registry lanes.
+          provenance: mode=max
+          sbom: true
           target: production
+
+      - name: Verify production image attestations
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          python3 scripts/ci/check_docker_provenance_attestation.py \
+            --image-name "${{ env.REGISTRY }}/${{ steps.image-name.outputs.image_name }}" \
+            --digest "${{ steps.build.outputs.digest }}" \
+            --repo "${{ github.repository }}" \
+            --signer-workflow "${{ github.repository }}/.github/workflows/cd.yml" \
+            --source-ref "${{ github.ref }}" \
+            --json-out docker-provenance-attestation-check.json \
+            --markdown-out docker-provenance-attestation-check.md
+
+      - name: Publish production attestation verification to step summary
+        if: ${{ always() }}
+        run: |
+          set -euo pipefail
+          if [ -f docker-provenance-attestation-check.md ]; then
+            cat docker-provenance-attestation-check.md >> "${GITHUB_STEP_SUMMARY}"
+          fi
+
+      - name: Upload production attestation verification artifact
+        if: ${{ always() }}
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: docker-provenance-attestation-check-cd-production
+          path: |
+            docker-provenance-attestation-check.json
+            docker-provenance-attestation-check.md
+          if-no-files-found: warn
+          retention-days: 14
 
   production-deploy-config:
     if: startsWith(github.ref, 'refs/tags/v')

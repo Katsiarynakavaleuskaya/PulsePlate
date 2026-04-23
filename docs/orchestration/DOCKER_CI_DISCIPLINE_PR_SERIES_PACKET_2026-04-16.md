@@ -21,16 +21,15 @@ This packet applies to Docker/deploy governance slices only:
   image topology
 - runtime slimming after install-profile split
 - image size / largest-layer / build-context telemetry and regression reporting
+- hard-budget enforcement for the production backend image
+- signed provenance restore for pushed-image lanes after the baseline stabilizes
 
 Out of scope for this lane:
 
 - Dagger, Jenkins, GitLab CI, Tekton, Argo Workflows, Flux, or other new
   control-plane introductions
-- signed provenance / attestation re-enablement while the documented buildx/GHA
-  cache seam still requires `provenance: false`
-  (`.github/workflows/build.yml:42-56`;
-  `docs/architecture/ADR_DOCKER_BUILD_PROVENANCE_WORKAROUND_2026-03-01.md:47-60`;
-  `docs/roadmap/BACKLOG_LEDGER.md:629-643`)
+- provenance enablement for `load: true` jobs or any proof path that does not
+  verify the exact pushed image digest from OCI-backed attestations
 - broad runtime feature work unrelated to Docker/build/install discipline
 - monolithic backend+frontend image redesign
 
@@ -70,11 +69,10 @@ Out of scope for this lane:
     `frontend/Dockerfile.caddy-spa`
     (`deploy/docker-compose.production.yaml:41-46`;
     `frontend/Dockerfile.caddy-spa:1-25`)
-- Signed provenance remains intentionally deferred while buildx/GHA cache
-  stability still requires `provenance: false`
-  (`.github/workflows/build.yml:42-56`;
-  `docs/architecture/ADR_DOCKER_BUILD_PROVENANCE_WORKAROUND_2026-03-01.md:47-60`;
-  `docs/roadmap/BACKLOG_LEDGER.md:629-643`).
+- Telemetry baseline and hard-budget slices have already landed on `main`
+  (`PR #1492`, `PR #1498`), so the active next slice is signed provenance
+  restoration on pushed-image lanes only. `load: true` jobs remain intentionally
+  excluded from provenance recovery.
 - Neighboring governance slices already have their own canonical review
   artifacts (`docs/review/PR_1432_FIXED_MAPPING.md:1-35`;
   `docs/review/PR_1433_FIXED_MAPPING.md:1-39`). If another overlapping PR
@@ -211,6 +209,40 @@ Outcome:
 - build-context evidence is visible in PR-time reporting
 - regression-only gating exists before any future Dagger discussion
 
+### PR-6: Image Hard Budget Gate
+
+Files:
+
+- `.github/workflows/build.yml`
+- `.github/workflows/docker-image.yml`
+- `.github/workflows/trivy.yml`
+- helper scripts/tests under `scripts/ci/` and `tests/`
+
+Outcome:
+
+- the production backend image has a deterministic absolute cap and positive
+  delta threshold
+- the gate uses the same telemetry artifact contract introduced by `PR #1492`
+- Docker baseline evidence is strong enough to support the next provenance slice
+
+### PR-7: Restore Signed Build Provenance
+
+Files:
+
+- `.github/workflows/build.yml`
+- `.github/workflows/cd.yml`
+- `scripts/ci/check_docker_provenance_attestation.py`
+- `tests/test_python_supply_chain_controls.py`
+- docs/ADR/backlog artifacts tied to the provenance workaround
+
+Outcome:
+
+- pushed-image lanes restore `provenance: mode=max`
+- pushed-image lanes emit SBOM attestations alongside provenance
+- staging and production deploys fail closed unless provenance + SPDX SBOM
+  attestations verify by exact digest
+- `load: true` jobs remain on `provenance: false`
+
 ## Dagger / Alternate Control Plane Policy
 
 Do not introduce Dagger or any alternate CI/CD control plane in this wave.
@@ -221,10 +253,9 @@ A future Dagger pilot may be considered only after all of the following are true
 - PR-3 deploy contract reconciliation is landed
 - PR-5 image-budget telemetry is landed and producing deterministic evidence
   (`docs/roadmap/BACKLOG_LEDGER.md:532-552`)
-- signed provenance remains explicitly tracked as a separate deferred lane rather
-  than mixed into the pilot
-  (`docs/roadmap/BACKLOG_LEDGER.md:629-643`;
-  `docs/architecture/ADR_DOCKER_BUILD_PROVENANCE_WORKAROUND_2026-03-01.md:47-60`)
+- PR-6 hard-budget gate is landed and stable
+- PR-7 signed provenance restore is either landed and stable or explicitly
+  re-deferred with current-head evidence
 
 ## Mandatory PR Loop
 

@@ -341,6 +341,7 @@ jobs:
           # PR #1448: re-enable SLSA provenance attestations for GHCR publish.
           # Keep scoped cache + mode=min + ignore-error=true to reduce export flakes.
           provenance: mode=max
+          sbom: true
           target: production
 
       - name: Set image ref for SBOM and image scan
