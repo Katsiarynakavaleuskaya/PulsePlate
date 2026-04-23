@@ -9,6 +9,7 @@ import MacroCards from './MacroCards';
 import WaterCard from './WaterCard';
 import MicrosGrid from './MicrosGrid';
 import type { SetupFormValues } from './schema';
+import { StatsCard } from '../../components/ui';
 
 interface ResultViewProps {
   values: SetupFormValues;
@@ -110,22 +111,10 @@ export default function ResultView({ values, onEdit }: ResultViewProps) {
 
         {/* BMR/TDEE Summary */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-navy/5 rounded-xl">
-          <div className="text-center">
-            <div className="text-2xl font-bold text-primary">{Math.round(bmrData.bmr)}</div>
-            <div className="text-sm text-muted">{t('nutrition.summary.bmr')}</div>
-          </div>
-          <div className="text-center">
-            <div className="text-2xl font-bold text-primary">{Math.round(bmrData.tdee)}</div>
-            <div className="text-sm text-muted">{t('nutrition.summary.tdee')}</div>
-          </div>
-          <div className="text-center">
-            <div className="text-2xl font-bold text-primary">{Math.round(plateData.plate.kcal)}</div>
-            <div className="text-sm text-muted">{t('nutrition.summary.goal')}</div>
-          </div>
-          <div className="text-center">
-            <div className="text-2xl font-bold text-primary">{bmrData.method}</div>
-            <div className="text-sm text-muted">{t('nutrition.summary.method')}</div>
-          </div>
+          <StatsCard align="center" label={t('nutrition.summary.bmr')} value={Math.round(bmrData.bmr)} />
+          <StatsCard align="center" label={t('nutrition.summary.tdee')} value={Math.round(bmrData.tdee)} />
+          <StatsCard align="center" label={t('nutrition.summary.goal')} value={Math.round(plateData.plate.kcal)} />
+          <StatsCard align="center" label={t('nutrition.summary.method')} value={bmrData.method} />
         </div>
       </div>
 

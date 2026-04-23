@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { getCbtInsight, type CbtInsightResponse } from '../api/premium';
 import { UnauthorizedError } from '../api/client';
 import AiInsightPanel from '../components/insight/AiInsightPanel';
-import { Card, CardContent, buttonClasses } from '../components/ui';
+import { Card, CardContent, Hero, StatsCard, buttonClasses } from '../components/ui';
 import { canonicalBrand } from '../styles/tokens';
 import { useAuth } from '../lib/auth';
 import { usePremium } from '../lib/usePremium';
@@ -49,26 +49,6 @@ function mapCbtInsightErrorToMessage(error: unknown): string {
   }
 
   return defaultMessage;
-}
-
-function SurfaceCard({
-  label,
-  value,
-  detail,
-}: {
-  label: string;
-  value: string;
-  detail: string;
-}): JSX.Element {
-  return (
-    <Card className="rounded-2xl border-white/12 bg-white/[0.08] text-white shadow-none">
-      <CardContent className="space-y-1 p-4">
-        <p className="text-[0.7rem] font-medium uppercase tracking-[0.18em] text-white/48">{label}</p>
-        <p className="text-2xl font-semibold tracking-[-0.04em] text-white">{value}</p>
-        <p className="text-xs text-white/56">{detail}</p>
-      </CardContent>
-    </Card>
-  );
 }
 
 function ActionTile({
@@ -169,31 +149,35 @@ export default function Home(): JSX.Element {
   return (
     <main className="min-h-screen bg-[var(--pp-navy)] px-4 py-6 text-white sm:px-6 lg:px-8">
       <div className="mx-auto max-w-5xl space-y-8">
-        <section className="rounded-[1.75rem] border border-white/12 bg-white/[0.08] p-6 shadow-[0_30px_60px_rgba(15,23,42,0.28)] sm:p-8">
-          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-white/52">Calm control panel</p>
-          <h1 className="mt-3 text-4xl font-semibold tracking-[-0.06em] text-white sm:text-5xl">PulsePlate Home</h1>
-          <p className="mt-3 max-w-2xl text-sm leading-7 text-white/62 sm:text-base">
-            Quick actions, premium guidance, and one AI surface that stays grounded in your current session.
-          </p>
-          <div className="mt-6 flex flex-wrap gap-3">
-            <span className="rounded-full bg-white/[0.08] px-4 py-2 text-xs font-semibold text-white/88">
-              Session {apiStatusLabel}
-            </span>
-            <span className="rounded-full bg-white/[0.08] px-4 py-2 text-xs font-semibold text-white/88">
-              Premium {premiumLabel}
-            </span>
-          </div>
-        </section>
+        <Hero
+          chips={
+            <>
+              <span className="rounded-full bg-white/[0.08] px-4 py-2 text-xs font-semibold text-white/88">
+                Session {apiStatusLabel}
+              </span>
+              <span className="rounded-full bg-white/[0.08] px-4 py-2 text-xs font-semibold text-white/88">
+                Premium {premiumLabel}
+              </span>
+            </>
+          }
+          description="Quick actions, premium guidance, and one AI surface that stays grounded in your current session."
+          eyebrow="Calm control panel"
+          title="PulsePlate Home"
+        />
 
         <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <SurfaceCard label="Connection" value={apiStatusLabel} detail="Secure session status" />
-          <SurfaceCard label="Premium" value={premiumLabel} detail="Access to guided features" />
-          <SurfaceCard
+          <StatsCard align="left" detail="Secure session status" label="Connection" tone="inverse" value={apiStatusLabel} />
+          <StatsCard align="left" detail="Access to guided features" label="Premium" tone="inverse" value={premiumLabel} />
+          <StatsCard
+            align="left"
+            tone="inverse"
             label="AI quota"
             value={aiResult?.quota_state === 'consumed' ? 'In use' : 'Ready'}
             detail="Server-side reliability lane"
           />
-          <SurfaceCard
+          <StatsCard
+            align="left"
+            tone="inverse"
             label="Focus"
             value={aiResult?.rag_used ? 'Grounded' : 'Simple'}
             detail="RAG-backed when supporting context is available"

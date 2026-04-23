@@ -946,8 +946,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Coordinator-first design runtime system web+iOS epic bootstrap and PR train
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (design-system productization and governance)
-  - Target PR: PR #1497 (`docs(design): add coordinator-first design runtime system web-ios runbook`) -> PR #1504 (`feat(frontend): add missing governed UI primitives v1`)
-  - Status: 🛠️ PR-0 merged; PR-1 missing governed primitives lane awaiting review in PR #1504
+  - Target PR: PR #1497 (`docs(design): add coordinator-first design runtime system web-ios runbook`) -> PR #1504 (`feat(frontend): add missing governed UI primitives v1`) -> PR #1510 (`feat(frontend): normalize specialized design families into shared governed patterns`)
+  - Status: 🛠️ PR-0 merged; PR-1 merged in PR #1504; PR-2 specialized family normalization is active in draft PR #1510 on branch `codex/design-specialized-families-normalization`
   - Area: docs / orchestration / design-system / frontend / ios / storybook
   - Finding Type: coordinator-owned epic bootstrap and sequencing contract
   - Reason: PulsePlate already has governed design-runtime, token-pipeline,
@@ -960,6 +960,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `docs/orchestration/DESIGN_RUNTIME_SYSTEM_WEB_IOS_PR_SERIES_RUNBOOK.md`
     - `docs/orchestration/DESIGN_RUNTIME_SYSTEM_WEB_IOS_PR0_BOOTSTRAP_PACKET_2026-04-22.md`
     - `docs/orchestration/DESIGN_RUNTIME_SYSTEM_WEB_IOS_PR1_MISSING_GOVERNED_PRIMITIVES_PACKET_2026-04-23.md`
+    - `docs/orchestration/DESIGN_RUNTIME_SYSTEM_WEB_IOS_PR2_SPECIALIZED_FAMILIES_NORMALIZATION_PACKET_2026-04-23.md`
     - `docs/design/TOKENS_SOT.md`
     - `docs/design/TOKEN_PIPELINE_GOVERNANCE.md`
     - `docs/design/UI_COMPONENT_VOCABULARY.md`

@@ -7,6 +7,7 @@ import {
   trackHppPaywallOpenFromLive,
 } from '../../lib/hppTelemetry';
 import { type HppLiveVariant, useHppLiveIndicator } from './useHppLiveIndicator';
+import { ProgressIndicator, buttonClasses } from '../../components/ui';
 
 type HppIndicatorSource = 'home' | 'plate' | 'progress';
 
@@ -45,56 +46,45 @@ export default function LiveProgressIndicator({
   }, [ctaTo, resolvedVariant, source, status]);
 
   const statusLabel = status === 'live' ? 'Live updates on' : 'Static fallback';
-  const dotClass = status === 'live' ? 'bg-[var(--color-success)] animate-pulse' : 'bg-[var(--color-warning)]';
-  const containerClass =
-    resolvedVariant === 'emphasized' ? 'rounded-xl border p-5 space-y-3 shadow-sm' : 'rounded-xl border p-4 space-y-3';
-  const ctaClass =
-    resolvedVariant === 'emphasized'
-      ? 'inline-flex rounded-lg bg-primary px-5 py-2.5 text-sm font-semibold text-white'
-      : 'inline-flex rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white';
   const path = ctaTo.split('?')[0];
   const isPaywallCta = /^\/pro(?:\/|$)/.test(path) || /^\/paywall(?:\/|$)/.test(path);
 
   return (
-    <section
-      className={containerClass}
-      style={{ backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-border)' }}
+    <ProgressIndicator
+      action={
+        <Link
+          to={ctaTo}
+          className={buttonClasses({
+            className:
+              resolvedVariant === 'emphasized'
+                ? 'inline-flex rounded-lg px-5 py-2.5'
+                : 'inline-flex rounded-lg px-4 py-2',
+          })}
+          onClick={() => {
+            const basePayload = {
+              source: 'hpp_live_indicator' as const,
+              placement: source,
+              live_status: status,
+              variant: resolvedVariant,
+              cta_to: ctaTo,
+            };
+            trackHppCtaClick(basePayload);
+            if (isPaywallCta) {
+              trackHppPaywallOpenFromLive(basePayload);
+            }
+          }}
+        >
+          {ctaLabel}
+        </Link>
+      }
       aria-label="Live progress indicator"
       data-variant={resolvedVariant}
-    >
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <span className={`h-2.5 w-2.5 rounded-full ${dotClass}`} aria-hidden="true" />
-          <p className="text-sm font-medium text-text">{statusLabel}</p>
-        </div>
-        {lastEventAt ? (
-          <p className="text-xs text-muted" aria-label="Live event timestamp">
-            {new Date(lastEventAt).toLocaleTimeString()}
-          </p>
-        ) : null}
-      </div>
-      <p className="text-xs text-muted">
-        If realtime is unavailable, PulsePlate stays usable and keeps CTA flow active.
-      </p>
-      <Link
-        to={ctaTo}
-        className={ctaClass}
-        onClick={() => {
-          const basePayload = {
-            source: 'hpp_live_indicator' as const,
-            placement: source,
-            live_status: status,
-            variant: resolvedVariant,
-            cta_to: ctaTo,
-          };
-          trackHppCtaClick(basePayload);
-          if (isPaywallCta) {
-            trackHppPaywallOpenFromLive(basePayload);
-          }
-        }}
-      >
-        {ctaLabel}
-      </Link>
-    </section>
+      description="If realtime is unavailable, PulsePlate stays usable and keeps CTA flow active."
+      label={statusLabel}
+      state={status === 'live' ? 'live' : 'static'}
+      timestampAriaLabel="Live event timestamp"
+      timestampLabel={lastEventAt ? new Date(lastEventAt).toLocaleTimeString() : undefined}
+      variant={resolvedVariant}
+    />
   );
 }

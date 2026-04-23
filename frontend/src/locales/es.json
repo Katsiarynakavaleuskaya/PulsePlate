@@ -185,7 +185,19 @@
         "title": "Encuesta Nutricional",
         "description": "Complete sus parámetros para el cálculo del plato personalizado",
         "calculateButton": "Calcular Plato Personalizado",
-        "saveNote": "Los datos se almacenan localmente y se utilizan para calcular su dieta"
+        "saveNote": "Los datos se almacenan localmente y se utilizan para calcular su dieta",
+        "steps": {
+            "ariaLabel": "Progreso de configuración",
+            "progressLabel": "Paso {{current}} de {{total}}",
+            "profile": {
+                "label": "Perfil",
+                "description": "Capture sus datos nutricionales"
+            },
+            "results": {
+                "label": "Resultados",
+                "description": "Revise macros y objetivos"
+            }
+        }
     },
     "nutrition": {
         "sex": {
