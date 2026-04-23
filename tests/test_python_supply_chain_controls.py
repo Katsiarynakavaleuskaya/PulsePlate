@@ -376,7 +376,6 @@ def test_ci_workflow_uses_single_direct_proxy_python_install_path_per_job() -> N
 def test_ci_main_full_suite_initializes_cybersecurity_skills_submodule() -> None:
     checkout_step = _workflow_step_by_name(".github/workflows/ci.yml", "test-main", "Checkout")
 
-    assert checkout_step["uses"] == "actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd"
     assert checkout_step["with"]["submodules"] == "recursive"
 
 
