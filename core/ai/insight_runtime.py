@@ -44,12 +44,34 @@ class InsightTransparencyNotice:
 
 
 @dataclass(frozen=True)
+class RecursiveRolloutPolicy:
+    """Prepared recursive RAG rollout truth for a single request."""
+
+    use_rag: bool
+    recursive_rag_enabled: bool
+    recursive_rag_optimization_enabled: bool
+
+    @property
+    def recursive_path_enabled(self) -> bool:
+        """Recursive execution requires both request RAG and recursive rollout."""
+
+        return self.use_rag and self.recursive_rag_enabled
+
+    @property
+    def optimization_path_enabled(self) -> bool:
+        """Optimization cannot exceed the recursive execution envelope."""
+
+        return self.recursive_path_enabled and self.recursive_rag_optimization_enabled
+
+
+@dataclass(frozen=True)
 class PreparedInsightRuntime:
     """Prepared insight runtime state before app-layer execution."""
 
     runtime: PhilosophicalRuntime
     decision: RouteDecision
     rollout_policy: PhilosophyRolloutPolicy
+    recursive_rollout_policy: RecursiveRolloutPolicy
     provider: LLMProvider
     transparency_notice: InsightTransparencyNotice
     knowledge_policy: KnowledgePolicy
@@ -156,6 +178,8 @@ def prepare_insight_runtime(
     philosophy_linguistic_enabled: bool,
     philosophy_phase12_enabled: bool = False,
     philosophy_pragmatic_enabled: bool = False,
+    recursive_rag_enabled: bool = False,
+    recursive_rag_optimization_enabled: bool = False,
     provider_loader: Callable[[], LLMProvider | None] | None = None,
     transparency_loader: Callable[[], tuple[str, str] | InsightTransparencyNotice] | None = None,
     direct_provider_factory: Callable[[], LLMProvider] | None = None,
@@ -172,6 +196,11 @@ def prepare_insight_runtime(
         phase12_enabled=philosophy_phase12_enabled,
         linguistic_enabled=philosophy_linguistic_enabled,
         pragmatic_enabled=philosophy_pragmatic_enabled,
+    )
+    recursive_rollout_policy = RecursiveRolloutPolicy(
+        use_rag=use_rag,
+        recursive_rag_enabled=recursive_rag_enabled,
+        recursive_rag_optimization_enabled=recursive_rag_optimization_enabled,
     )
     decision = runtime.preview_route(
         text=text,
@@ -199,6 +228,7 @@ def prepare_insight_runtime(
         runtime=runtime,
         decision=decision,
         rollout_policy=rollout_policy,
+        recursive_rollout_policy=recursive_rollout_policy,
         provider=provider,
         transparency_notice=transparency_notice,
         knowledge_policy=knowledge_policy,

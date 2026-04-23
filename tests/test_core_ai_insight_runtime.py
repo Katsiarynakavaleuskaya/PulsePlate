@@ -12,6 +12,7 @@ from core.ai.insight_runtime import (
     DirectInsightProviderStub,
     InsightProviderLoadError,
     KnowledgePolicy,
+    RecursiveRolloutPolicy,
     InsightTransparencyNotice,
     InsightTransparencyUnavailableError,
     load_insight_provider,
@@ -162,6 +163,11 @@ def test_prepare_insight_runtime_uses_direct_stub_for_local_answer(
     assert prepared.knowledge_policy.allow_promotion is False
     assert prepared.knowledge_policy.allow_reads is False
     assert prepared.rollout_policy == PhilosophyRolloutPolicy()
+    assert prepared.recursive_rollout_policy == RecursiveRolloutPolicy(
+        use_rag=False,
+        recursive_rag_enabled=False,
+        recursive_rag_optimization_enabled=False,
+    )
 
 
 def test_prepare_insight_runtime_uses_provider_loader_for_generation(
@@ -207,6 +213,11 @@ def test_prepare_insight_runtime_uses_provider_loader_for_generation(
         phase12_enabled=False,
         linguistic_enabled=False,
         pragmatic_enabled=False,
+    )
+    assert prepared.recursive_rollout_policy == RecursiveRolloutPolicy(
+        use_rag=True,
+        recursive_rag_enabled=False,
+        recursive_rag_optimization_enabled=False,
     )
     assert prepared.knowledge_policy == KnowledgePolicy(
         enabled=False,
@@ -298,6 +309,48 @@ def test_prepare_insight_runtime_returns_rollout_policy_and_preserves_router_lin
         linguistic_enabled=True,
         pragmatic_enabled=True,
     )
+    assert prepared.recursive_rollout_policy == RecursiveRolloutPolicy(
+        use_rag=False,
+        recursive_rag_enabled=False,
+        recursive_rag_optimization_enabled=False,
+    )
+
+
+def test_prepare_insight_runtime_returns_recursive_rollout_policy(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Prepared runtime must freeze recursive rollout truth for the request."""
+
+    class _FakeRuntime:
+        def preview_route(
+            self, *, text: str, lang: str | None, router_enabled: bool, use_rag: bool
+        ) -> SimpleNamespace:
+            del text, lang, router_enabled, use_rag
+            return SimpleNamespace(
+                needs_generation=True,
+                route_type=SimpleNamespace(value="deep_reasoning"),
+            )
+
+    monkeypatch.setattr("core.ai.insight_runtime.PhilosophicalRuntime", _FakeRuntime, raising=True)
+
+    prepared = prepare_insight_runtime(
+        text="hello",
+        use_rag=True,
+        philosophy_router_enabled=False,
+        philosophy_linguistic_enabled=False,
+        recursive_rag_enabled=True,
+        recursive_rag_optimization_enabled=True,
+        provider_loader=lambda: _FakeProvider(),
+        transparency_loader=lambda: ("ai_generated_insight", "Wellness only."),
+    )
+
+    assert prepared.recursive_rollout_policy == RecursiveRolloutPolicy(
+        use_rag=True,
+        recursive_rag_enabled=True,
+        recursive_rag_optimization_enabled=True,
+    )
+    assert prepared.recursive_rollout_policy.recursive_path_enabled is True
+    assert prepared.recursive_rollout_policy.optimization_path_enabled is True
 
 
 def test_prepare_insight_runtime_uses_direct_transparency_notice(

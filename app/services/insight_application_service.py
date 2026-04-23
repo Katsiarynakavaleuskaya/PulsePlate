@@ -23,8 +23,9 @@ from app.utils.feature_flags import (
     is_philosophy_router_enabled,
     is_philosophy_validation_enabled,
     is_recursive_rag_enabled,
+    is_recursive_rag_optimization_enabled,
 )
-from core.ai.insight_runtime import InsightTransparencyNotice
+from core.ai.insight_runtime import InsightTransparencyNotice, RecursiveRolloutPolicy
 from core.knowledge.contracts import KnowledgeFactCandidate
 from core.knowledge.store import KnowledgeStore
 from core.insight.llm_provider_loader import LLMProvider
@@ -34,6 +35,25 @@ from core.verification.contracts import VerificationBundle
 INSIGHT_TEXT_MAX_LENGTH = 2000
 KNOWLEDGE_PROMOTION_TIMEOUT_SECONDS = 0.25
 logger = logging.getLogger(__name__)
+
+
+def _legacy_recursive_rollout_policy(
+    *,
+    use_rag: bool,
+    recursive_rag_enabled: bool,
+    recursive_rag_optimization_enabled: bool,
+) -> RecursiveRolloutPolicy:
+    """Keep old prepared-runtime test doubles working during the rollout cut.
+
+    RU: Временный backfill только для legacy prepared-runtime doubles.
+    EN: Temporary backfill for legacy prepared-runtime doubles only.
+    """
+
+    return RecursiveRolloutPolicy(
+        use_rag=use_rag,
+        recursive_rag_enabled=recursive_rag_enabled,
+        recursive_rag_optimization_enabled=recursive_rag_optimization_enabled,
+    )
 
 
 def _ensure_insight_text_length(prompt_text: str) -> str:
@@ -128,6 +148,8 @@ async def execute_insight_request(
     philosophy_phase12_enabled = is_philosophy_phase12_enabled()
     philosophy_linguistic_enabled = is_philosophy_linguistic_enabled()
     philosophy_pragmatic_enabled = is_philosophy_pragmatic_enabled()
+    recursive_rag_enabled = is_recursive_rag_enabled()
+    recursive_rag_optimization_enabled = is_recursive_rag_optimization_enabled()
     prepared_runtime = prepare_insight_runtime(
         text=prompt_input,
         use_rag=use_rag,
@@ -135,21 +157,32 @@ async def execute_insight_request(
         philosophy_phase12_enabled=philosophy_phase12_enabled,
         philosophy_linguistic_enabled=philosophy_linguistic_enabled,
         philosophy_pragmatic_enabled=philosophy_pragmatic_enabled,
+        recursive_rag_enabled=recursive_rag_enabled,
+        recursive_rag_optimization_enabled=recursive_rag_optimization_enabled,
         provider_loader=provider_loader,
         transparency_loader=transparency_loader,
         direct_provider_factory=direct_provider_factory,
     )
+    recursive_rollout_policy = getattr(prepared_runtime, "recursive_rollout_policy", None)
+    if recursive_rollout_policy is None:
+        recursive_rollout_policy = _legacy_recursive_rollout_policy(
+            use_rag=use_rag,
+            recursive_rag_enabled=recursive_rag_enabled,
+            recursive_rag_optimization_enabled=recursive_rag_optimization_enabled,
+        )
 
     runtime_result = await generate_traced_insight(
         runtime=prepared_runtime.runtime,
         text=prompt_input,
         lang=None,
         provider=prepared_runtime.provider,
-        use_rag=use_rag,
+        use_rag=recursive_rollout_policy.use_rag,
         philo_validation_enabled=is_philosophy_validation_enabled(),
-        recursive_rag_enabled=is_recursive_rag_enabled(),
+        recursive_rag_enabled=recursive_rollout_policy.recursive_path_enabled,
+        recursive_rag_optimization_enabled=recursive_rollout_policy.optimization_path_enabled,
         subject_id=subject_id,
         rollout_policy=prepared_runtime.rollout_policy,
+        recursive_rollout_policy=recursive_rollout_policy,
         knowledge_policy=prepared_runtime.knowledge_policy,
         route_path=route_path,
         route_type=prepared_runtime.decision.route_type.value,

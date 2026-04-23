@@ -1187,6 +1187,350 @@ class TestInsightApplicationServiceFastLane:
         assert warnings[0][1]["exc_info"] is True
 
     @pytest.mark.asyncio
+    async def test_traced_retriever_uses_prepared_recursive_rollout_policy(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Prepared recursive rollout policy must own recursive/optimization truth."""
+
+        from contextlib import nullcontext
+
+        from app.services.insight_runtime import _traced_retrieve_and_validate_rag
+        from core.ai.insight_runtime import RecursiveRolloutPolicy
+
+        observed: dict[str, object] = {}
+
+        async def _fake_retrieve_and_validate_rag(*args: object, **kwargs: object) -> object:
+            observed["args"] = args
+            observed["kwargs"] = kwargs
+            return SimpleNamespace(hops=2)
+
+        monkeypatch.setattr(
+            "app.services.insight_runtime.retrieval_span",
+            lambda **kwargs: nullcontext(SimpleNamespace()),
+            raising=True,
+        )
+        monkeypatch.setattr(
+            "app.services.insight_runtime.set_attributes",
+            lambda *args, **kwargs: None,
+            raising=True,
+        )
+        monkeypatch.setattr(
+            "app.services.insight_runtime.rag_orchestration.retrieve_and_validate_rag",
+            _fake_retrieve_and_validate_rag,
+            raising=True,
+        )
+        monkeypatch.setattr(
+            "app.services.insight_runtime.is_recursive_rag_enabled",
+            lambda: pytest.fail("recursive env reader must not run"),
+            raising=True,
+        )
+        monkeypatch.setattr(
+            "app.services.insight_runtime.is_recursive_rag_optimization_enabled",
+            lambda: pytest.fail("optimization env reader must not run"),
+            raising=True,
+        )
+
+        rag_result = await _traced_retrieve_and_validate_rag(
+            "hello",
+            max_chunks=3,
+            philo_validation_enabled=True,
+            recursive_rollout_policy=RecursiveRolloutPolicy(
+                use_rag=True,
+                recursive_rag_enabled=True,
+                recursive_rag_optimization_enabled=False,
+            ),
+            subject_id=123,
+            knowledge_policy=None,
+            user_tier="VIP",
+            route_path="/api/v1/insight",
+        )
+
+        assert getattr(rag_result, "hops", None) == 2
+        assert observed["args"] == ("hello",)
+        assert observed["kwargs"]["recursive_rag_enabled"] is True
+        assert observed["kwargs"]["optimization_enabled"] is False
+
+    @pytest.mark.asyncio
+    async def test_generate_traced_insight_uses_prepared_recursive_policy_in_feature_flags(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Tracing feature flags must observe the prepared recursive policy."""
+
+        from contextlib import nullcontext
+
+        from app.services.insight_runtime import generate_traced_insight
+        from core.ai.insight_runtime import RecursiveRolloutPolicy
+
+        observed: dict[str, object] = {}
+
+        class _Runtime:
+            async def generate_insight(self, **kwargs: object) -> object:
+                observed["runtime_kwargs"] = kwargs
+                return SimpleNamespace(ok=True)
+
+        def _fake_chain_span(*args: object, **kwargs: object) -> object:
+            del args
+            observed["feature_flags"] = kwargs["feature_flags"]
+            return nullcontext()
+
+        monkeypatch.setattr(
+            "app.services.insight_runtime.chain_span",
+            _fake_chain_span,
+            raising=True,
+        )
+        monkeypatch.setattr(
+            "app.services.insight_runtime.is_philosophy_router_enabled",
+            lambda: False,
+            raising=True,
+        )
+        monkeypatch.setattr(
+            "app.services.insight_runtime.is_philosophy_phase12_enabled",
+            lambda: False,
+            raising=True,
+        )
+        monkeypatch.setattr(
+            "app.services.insight_runtime.is_philosophy_linguistic_enabled",
+            lambda: False,
+            raising=True,
+        )
+        monkeypatch.setattr(
+            "app.services.insight_runtime.is_philosophy_pragmatic_enabled",
+            lambda: False,
+            raising=True,
+        )
+        monkeypatch.setattr(
+            "app.services.insight_runtime.is_philosophy_validation_enabled",
+            lambda: False,
+            raising=True,
+        )
+        monkeypatch.setattr(
+            "app.services.insight_runtime.is_recursive_rag_enabled",
+            lambda: pytest.fail("recursive env reader must not run"),
+            raising=True,
+        )
+        monkeypatch.setattr(
+            "app.services.insight_runtime.is_recursive_rag_optimization_enabled",
+            lambda: pytest.fail("optimization env reader must not run"),
+            raising=True,
+        )
+
+        result = await generate_traced_insight(
+            runtime=_Runtime(),
+            text="hello",
+            lang=None,
+            provider=SimpleNamespace(name="fake-provider"),
+            use_rag=True,
+            philo_validation_enabled=False,
+            recursive_rag_enabled=False,
+            route_path="/api/v1/insight",
+            route_type="deep_reasoning",
+            user_tier="VIP",
+            subject_id=None,
+            knowledge_policy=None,
+            recursive_rollout_policy=RecursiveRolloutPolicy(
+                use_rag=True,
+                recursive_rag_enabled=True,
+                recursive_rag_optimization_enabled=False,
+            ),
+        )
+
+        assert getattr(result, "ok", None) is True
+        assert observed["feature_flags"]["rag"] is True
+        assert observed["feature_flags"]["rag_recursive"] is True
+        assert observed["feature_flags"]["rag_recursive_optimization"] is False
+        assert observed["runtime_kwargs"]["recursive_rag_enabled"] is True
+
+    def test_insight_feature_flag_state_prefers_prepared_rag_truth_when_use_rag_omitted(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Prepared recursive policy must also own the base RAG snapshot when injected."""
+
+        from app.services.insight_runtime import insight_feature_flag_state
+        from core.ai.insight_runtime import RecursiveRolloutPolicy
+
+        monkeypatch.setenv("FEATURE_RAG", "false")
+        monkeypatch.setattr(
+            "app.services.insight_runtime.is_recursive_rag_enabled",
+            lambda: pytest.fail("recursive env reader must not run"),
+            raising=True,
+        )
+        monkeypatch.setattr(
+            "app.services.insight_runtime.is_recursive_rag_optimization_enabled",
+            lambda: pytest.fail("optimization env reader must not run"),
+            raising=True,
+        )
+
+        feature_flags = insight_feature_flag_state(
+            use_rag=None,
+            recursive_rollout_policy=RecursiveRolloutPolicy(
+                use_rag=True,
+                recursive_rag_enabled=True,
+                recursive_rag_optimization_enabled=False,
+            ),
+        )
+
+        assert feature_flags["rag"] is True
+        assert feature_flags["rag_recursive"] is True
+        assert feature_flags["rag_recursive_optimization"] is False
+
+    def test_insight_feature_flag_state_falls_back_to_feature_rag_env(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Without prepared recursive policy, the base RAG snapshot must use env truth."""
+
+        from app.services.insight_runtime import insight_feature_flag_state
+
+        monkeypatch.setenv("FEATURE_RAG", "true")
+        monkeypatch.setenv("FEATURE_INSIGHT", "false")
+        monkeypatch.setenv("FEATURE_RAG_VECTOR", "false")
+        monkeypatch.setattr(
+            "app.services.insight_runtime.is_recursive_rag_enabled",
+            lambda: False,
+            raising=True,
+        )
+        monkeypatch.setattr(
+            "app.services.insight_runtime.is_recursive_rag_optimization_enabled",
+            lambda: False,
+            raising=True,
+        )
+        monkeypatch.setattr(
+            "app.services.insight_runtime.is_philosophy_router_enabled",
+            lambda: False,
+            raising=True,
+        )
+        monkeypatch.setattr(
+            "app.services.insight_runtime.is_philosophy_phase12_enabled",
+            lambda: False,
+            raising=True,
+        )
+        monkeypatch.setattr(
+            "app.services.insight_runtime.is_philosophy_linguistic_enabled",
+            lambda: False,
+            raising=True,
+        )
+        monkeypatch.setattr(
+            "app.services.insight_runtime.is_philosophy_pragmatic_enabled",
+            lambda: False,
+            raising=True,
+        )
+        monkeypatch.setattr(
+            "app.services.insight_runtime.is_philosophy_validation_enabled",
+            lambda: False,
+            raising=True,
+        )
+
+        feature_flags = insight_feature_flag_state(
+            use_rag=None,
+            recursive_rollout_policy=None,
+        )
+
+        assert feature_flags["rag"] is True
+        assert feature_flags["rag_recursive"] is False
+        assert feature_flags["rag_recursive_optimization"] is False
+
+    @pytest.mark.asyncio
+    async def test_execute_insight_request_builds_legacy_recursive_fallback_in_fast_lane(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Fast-lane coverage must exercise the legacy recursive fallback via the public seam."""
+
+        from app.services.insight_application_service import execute_insight_request
+        from core.ai.insight_runtime import InsightTransparencyNotice
+        from core.insight.philosophical_runtime import PhilosophyRolloutPolicy
+
+        observed: dict[str, object] = {}
+        prepared_runtime = SimpleNamespace(
+            runtime=object(),
+            provider=object(),
+            decision=SimpleNamespace(route_type=SimpleNamespace(value="deep_reasoning")),
+            rollout_policy=PhilosophyRolloutPolicy(
+                router_enabled=False,
+                phase12_enabled=False,
+                linguistic_enabled=False,
+                pragmatic_enabled=False,
+            ),
+            transparency_notice=InsightTransparencyNotice(
+                surface_id="ai_generated_insight",
+                wellness_boundary="Wellness only.",
+            ),
+            knowledge_policy=None,
+        )
+
+        async def _fake_generate_traced_insight(**kwargs: object) -> object:
+            observed["generate_kwargs"] = kwargs
+            return SimpleNamespace(
+                insight="generated insight",
+                provider_name="fake-provider",
+                source_dicts=[],
+                confidence=0.9,
+                rag_used=True,
+                hops=1,
+                latency_ms=12,
+                knowledge_candidates=[],
+                metadata=SimpleNamespace(
+                    route_type="deep_reasoning",
+                    depth_used=1,
+                    verification_rate=0.0,
+                    falsifiability_rate=0.0,
+                    contradiction_count=0,
+                    reason_codes=["legacy_recursive_fallback"],
+                    optimization_applied=False,
+                ),
+            )
+
+        monkeypatch.setenv("FEATURE_RAG", "true")
+        monkeypatch.setattr(
+            "app.services.insight_application_service.is_recursive_rag_enabled",
+            lambda: True,
+            raising=True,
+        )
+        monkeypatch.setattr(
+            "app.services.insight_application_service.is_recursive_rag_optimization_enabled",
+            lambda: False,
+            raising=True,
+        )
+        monkeypatch.setattr(
+            "app.services.insight_application_service.prepare_insight_runtime",
+            lambda **kwargs: prepared_runtime,
+            raising=True,
+        )
+        monkeypatch.setattr(
+            "app.services.insight_application_service.generate_traced_insight",
+            _fake_generate_traced_insight,
+            raising=True,
+        )
+
+        response = await execute_insight_request(
+            SimpleNamespace(text="hello"),
+            route_path="/api/v1/insight",
+            user_tier="VIP",
+            input_guard=lambda text: None,
+            provider_loader=lambda: None,
+            transparency_loader=lambda: ("ai_generated_insight", "Wellness only."),
+            response_factory=lambda **payload: dict(payload),
+            source_item_factory=lambda **payload: dict(payload),
+        )
+
+        generate_kwargs = cast(dict[str, object], observed["generate_kwargs"])
+        recursive_rollout_policy = cast(
+            object,
+            generate_kwargs["recursive_rollout_policy"],
+        )
+
+        assert getattr(recursive_rollout_policy, "use_rag") is True
+        assert getattr(recursive_rollout_policy, "recursive_path_enabled") is True
+        assert getattr(recursive_rollout_policy, "optimization_path_enabled") is False
+        assert generate_kwargs["use_rag"] is True
+        assert generate_kwargs["recursive_rag_enabled"] is True
+        assert generate_kwargs["recursive_rag_optimization_enabled"] is False
+        assert response["rag_used"] is True
+
+    @pytest.mark.asyncio
     async def test_maybe_promote_knowledge_candidates_times_out_sync_store(
         self,
         monkeypatch: pytest.MonkeyPatch,
