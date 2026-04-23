@@ -19,6 +19,17 @@ Reason: Sourcery flagged empty-step Stepper output, hardcoded shared primitive c
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1510#pullrequestreview-4165718501 -> eb013a175
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1510#discussion_r3133619207 -> eb013a175
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1510#discussion_r3133619211 -> eb013a175
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1510#discussion_r3133640511 -> eb013a175
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1510#discussion_r3133646976 -> eb013a175
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1510#discussion_r3133646983 -> eb013a175
+
+Disposition: FIXED
+Commit: 462e02077
+Evidence: `frontend/src/components/ui/StatsCard.tsx`, `frontend/src/components/ui/__tests__/GovernedFamilies.test.tsx`, `frontend/src/pages/NutritionSetup/__tests__/NutritionSetupPage.test.tsx`, `docs/orchestration/DESIGN_RUNTIME_SYSTEM_WEB_IOS_PR2_SPECIALIZED_FAMILIES_NORMALIZATION_PACKET_2026-04-23.md`
+Reason: CodeRabbit flagged remaining review edge cases: concrete PR mapping path in the packet, numeric zero `unit`/`detail` rendering in `StatsCard`, and the Nutrition Setup test hook mock contract. Commit `462e02077` fixes each edge case and adds regression coverage for numeric zero rendering.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1510#discussion_r3133646953 -> 462e02077
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1510#discussion_r3133646961 -> 462e02077
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1510#discussion_r3133646987 -> 462e02077
 
 ## Merge Readiness
 
@@ -26,7 +37,7 @@ Reason: Sourcery flagged empty-step Stepper output, hardcoded shared primitive c
 - [x] No unresolved review threads
   Evidence: Mandatory post-open role pass found no GitHub review threads; `bug-hunter` also reported no open review threads via GitHub GraphQL.
 - [x] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
-  Evidence: Current role-agent actionables are mapped above to commit `9373306f5`; Sourcery actionables are mapped above to commit `eb013a175`.
+  Evidence: Current role-agent actionables are mapped above to commit `9373306f5`; Sourcery actionables are mapped above to commit `eb013a175`; CodeRabbit/Codex Connector actionables are mapped above to commits `eb013a175` and `462e02077`.
 - [x] Pre-commit green
   Evidence: `pre-commit run --all-files` passed locally before draft PR open on commit `653c9db66`.
 - [ ] `make verify` green
