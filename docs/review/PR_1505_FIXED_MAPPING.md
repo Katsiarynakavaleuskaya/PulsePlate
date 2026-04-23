@@ -9,13 +9,32 @@ Date: 2026-04-23
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
 
-- Status: no actionable review comments or review threads existed when this
-  artifact was created.
+- Status: CodeRabbit review comments are dispositioned below before thread
+  resolution.
 - Current implementation commit: `d9fa18f42`.
+- Bot-comment fix commit: `6c7611074`.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1505#discussion_r3131238664
+Disposition: NOT-A-BUG
+Evidence: `.github/workflows/ci.yml:1021`; `.github/workflows/ci.yml:1023`; `.github/workflows/ci.yml:1103`; `tests/test_ci_workflow_pr_size_governance_contract.py:216`; `docs/orchestration/MAIN_CI_PY312_CONTAINMENT_PACKET_2026-04-23.md:37`
+Reason: the requested alternatives would change the accepted lane contract: splitting adds matrix/topology surface, and increasing the timeout would change the required-check display identity away from `test-main (3.12, 60)`. This PR intentionally preserves the existing matrix identity and contains only xdist exposure for Python 3.12.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1505#discussion_r3131238679 -> 6c7611074
+Disposition: FIXED
+Commit: 6c7611074
+Evidence: `docs/orchestration/MAIN_CI_PY312_CONTAINMENT_PACKET_2026-04-23.md:5` now avoids committing a machine-specific absolute path.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1505#discussion_r3131238691 -> 6c7611074
+Disposition: FIXED
+Commit: 6c7611074
+Evidence: `docs/review/PR_1505_FIXED_MAPPING.md:9` and `docs/review/PR_1505_FIXED_MAPPING.md:10` now include the required checked Discussion Thread Pass entries.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1505#discussion_r3131238703 -> 6c7611074
+Disposition: FIXED
+Commit: 6c7611074
+Evidence: `docs/review/PR_1505_FIXED_MAPPING.md:55` now records the Merge Readiness wait-window gate.
 
 ## Initial Evidence
 
