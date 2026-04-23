@@ -3,10 +3,11 @@
 **Version:** 2026-04-23 (`America/New_York`)
 **Epic Slug:** `epic/design-runtime-system-web-ios-v1`
 **Slice:** `PR-2`
+**PR:** `#1510`
 **Worktree:** `worktrees/design-runtime-system-pr2`
 **Branch:** `codex/design-specialized-families-normalization`
-**PR Phase:** `pre_open`
-**Design Lane Mode:** `read_only`
+**PR Phase:** `post_open_review`
+**Design Lane Mode:** `execution`
 **Title:** `feat(frontend): normalize specialized design families into shared governed patterns`
 
 ## Summary
@@ -16,7 +17,8 @@ runtime system web+iOS epic line.
 
 `PR-0` and `PR-1` are already merged. This slice normalizes the current
 specialized web families into shared governed components while keeping current
-product consumers stable through thin adapters.
+product consumers stable through thin adapters. Draft PR `#1510` is now open
+for the post-open review cycle.
 
 Evidence:
 - `docs/orchestration/DESIGN_RUNTIME_SYSTEM_WEB_IOS_PR_SERIES_RUNBOOK.md`
@@ -123,7 +125,7 @@ This order is fixed for the lane unless a later packet explicitly updates it.
 
 ## Review Path
 
-- open the PR as **draft**
+- draft PR `#1510` is open
 - create canonical artifact `docs/review/PR_<N>_FIXED_MAPPING.md`
 - sync the PR body mirror after review dispositions
 - use GitHub current-head truth plus CodeRabbit review input; do not rely on
