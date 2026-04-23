@@ -145,6 +145,8 @@ def test_run_all_shards_max_parallel_one_uses_child_process_isolation(
         weight=1,
     )
     original_cwd = Path.cwd()
+    original_probe = os.environ.get("PY312_PARENT_LEAK_PROBE")
+    original_worker = os.environ.get("PYTEST_XDIST_WORKER")
     base_env = {
         key: value
         for key, value in os.environ.items()
@@ -161,8 +163,8 @@ def test_run_all_shards_max_parallel_one_uses_child_process_isolation(
 
     assert runner.run_all_shards(tmp_path, [shard], 1, base_env) == 0
     assert Path.cwd() == original_cwd
-    assert os.environ.get("PY312_PARENT_LEAK_PROBE") is None
-    assert os.environ.get("PYTEST_XDIST_WORKER") is None
+    assert os.environ.get("PY312_PARENT_LEAK_PROBE") == original_probe
+    assert os.environ.get("PYTEST_XDIST_WORKER") == original_worker
     assert coverage_calls == [
         ["combine", ".coverage.py312-main-shard-1"],
         ["xml"],
