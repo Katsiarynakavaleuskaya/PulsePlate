@@ -110,10 +110,11 @@ def _make_fake_recursive_structured(
     subject_id: int | None = None,
     philo_validation_enabled: bool = False,
     optimization_enabled: bool = False,
+    optimization_hints: object | None = None,
 ) -> _FakeRAGContext:
     """Fake recursive retriever with deeper hops and refined query chain."""
     # Intentionally unused: keep signature parity with real recursive retriever.
-    _ = (philo_validation_enabled, optimization_enabled, subject_id)
+    _ = (philo_validation_enabled, optimization_enabled, optimization_hints, subject_id)
     chunks = [
         _FakeRAGChunk(
             chunk_id="recursive.md:1",
