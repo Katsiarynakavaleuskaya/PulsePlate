@@ -239,6 +239,18 @@ under the gitignored `artifacts/rag_eval/<experiment_id>/...` family. The
 canonical runner may ingest it for reporting, but it does not execute `ragas`
 itself and it does not become a second eval source of truth.
 
+Future selective graph-eval work is also subordinate to this lane. The offline
+contract in
+[`PULSEPLATE_SELECTIVE_GRAPH_EVAL_CONTRACT.md`](./PULSEPLATE_SELECTIVE_GRAPH_EVAL_CONTRACT.md)
+may define graph-question fixture/schema inputs, but it must not redefine:
+
+- threshold vocabulary
+- `threshold_results`
+- gate checks
+- `PASS` / `NO-GO`
+- release decisions
+- `--require-pass`
+
 ## Storage Model
 
 ### v1 source of truth

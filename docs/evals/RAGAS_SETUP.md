@@ -131,8 +131,18 @@ pytest -q tests/evals/test_ragas_metrics_config.py
 pytest -q tests/evals/test_ragas_runner_contract.py
 ```
 
-## Deferred GraphRAG Note
+## Selective GraphRAG Note
 
-Selective GraphRAG evaluation remains deferred to a separate docs/ADR lane.
-This companion bootstrap does not introduce GraphRAG runtime behavior,
-graph-specific thresholds, or graph artifact schema.
+The offline selective graph-eval contract now lives in:
+
+- [`PULSEPLATE_SELECTIVE_GRAPH_EVAL_CONTRACT.md`](./PULSEPLATE_SELECTIVE_GRAPH_EVAL_CONTRACT.md)
+
+That contract remains docs/schema-only and informational only.
+This companion bootstrap still does not introduce GraphRAG runtime behavior,
+graph-specific thresholds, or graph gate ownership.
+
+That graph-eval lane is also subordinate to the canonical release-gates lane:
+
+- it is offline-only
+- it does not redefine `PASS` / `NO-GO`
+- it does not turn `evals/ragas/*` into a graph-eval owner
