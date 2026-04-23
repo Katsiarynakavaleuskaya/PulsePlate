@@ -230,7 +230,7 @@ class TestSetupCustomMcpCoverage:
                                 ]
                                 assert any(call[1]["indent"] == 2 for call in indent_calls)
 
-    def test_setup_custom_mcp_preserves_existing_mcp_servers_and_settings(self):
+    def test_setup_custom_mcp_preserves_existing_mcp_servers_and_settings(self) -> None:
         """Existing MCP servers and unrelated settings must survive setup."""
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
@@ -268,7 +268,7 @@ class TestSetupCustomMcpCoverage:
             assert "figma" in settings["mcp.servers"]
             assert "pulseplate-chatgpt" in settings["mcp.servers"]
 
-    def test_setup_custom_mcp_preserves_existing_env_entries(self):
+    def test_setup_custom_mcp_preserves_existing_env_entries(self) -> None:
         """Existing .env values should survive setup without runtime key promotion."""
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
@@ -294,7 +294,7 @@ class TestSetupCustomMcpCoverage:
             settings = json.loads((cursor_dir / "settings.json").read_text())
             assert settings["cursor.ai.openaiApiKey"] == setup_custom_mcp.PLACEHOLDER_API_KEY
 
-    def test_setup_custom_mcp_upserts_env_keys_with_extra_whitespace(self):
+    def test_setup_custom_mcp_upserts_env_keys_with_extra_whitespace(self) -> None:
         """Whitespace around .env keys should not create duplicate managed entries."""
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
@@ -315,7 +315,7 @@ class TestSetupCustomMcpCoverage:
             assert not any(line.startswith("MCP_ENABLED =") for line in env_lines)
             assert "OTHER=value" in env_lines
 
-    def test_setup_custom_mcp_uses_repo_server_path_not_cwd(self):
+    def test_setup_custom_mcp_uses_repo_server_path_not_cwd(self) -> None:
         """The generated MCP command path must stay anchored to the repo script."""
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
@@ -332,7 +332,7 @@ class TestSetupCustomMcpCoverage:
             pulseplate_server = mcp_config["mcpServers"]["pulseplate-chatgpt"]
             assert pulseplate_server["args"] == [str(setup_custom_mcp.MCP_SERVER_PATH)]
 
-    def test_setup_custom_mcp_preserves_existing_api_key_across_managed_surfaces(self):
+    def test_setup_custom_mcp_preserves_existing_api_key_across_managed_surfaces(self) -> None:
         """A configured key must survive reruns across mcp.json, .env, and settings."""
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
@@ -382,7 +382,7 @@ class TestSetupCustomMcpCoverage:
             settings = json.loads((cursor_dir / "settings.json").read_text())
             assert settings["cursor.ai.openaiApiKey"] == existing_key
 
-    def test_setup_custom_mcp_does_not_promote_encrypted_env_key_to_runtime_configs(self):
+    def test_setup_custom_mcp_does_not_promote_encrypted_env_key_to_runtime_configs(self) -> None:
         """Encrypted .env storage must not be copied into runtime MCP/settings surfaces."""
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
