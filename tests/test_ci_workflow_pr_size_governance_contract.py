@@ -242,6 +242,10 @@ def test_main_branch_xdist_fallback_stays_scoped_to_unstable_interpreters() -> N
     assert "PYTEST_XDIST_ARGS=(-n 2 --dist=loadscope)" in py312_block
     assert "PYTEST_XDIST_ARGS=(-p no:xdist)" not in py312_block
     assert "PYTEST_XDIST_ARGS=(-n 4 --dist=loadscope)" not in py312_block
+    assert '-m "not serial and not slow"' in test_main_section
+    assert '-m "serial and not slow"' in test_main_section
+    assert "--cov-append" in test_main_section
+    assert "--junitxml=tests/results-serial.xml" in test_main_section
 
     assert "PYTEST_XDIST_ARGS=(-n 4 --dist=loadscope)" in default_block
     assert "PYTEST_XDIST_ARGS=(-p no:xdist)" not in default_block

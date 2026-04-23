@@ -9595,32 +9595,69 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Main CI xdist worker stability on Python 3.12 full suite
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (CI stability / merge-signal integrity)
-  - Target PR: PR #1494 (`codex/fix-ci-xdist-worker-stability`)
-  - Status: In progress as of April 22, 2026
+  - Target PR: PR #1494 (`codex/fix-ci-xdist-worker-stability`) -> follow-up PR (`codex/main-ci-py312-root-cause-plus-uuid117`)
+  - Status: PR #1494 merged as a partial mitigation on April 22, 2026; root-cause follow-up lane in progress on `codex/main-ci-py312-root-cause-plus-uuid117`
   - Reason: the `main`-branch `CI` full-suite lane continues to surface
     user-reported `"[gw1] node down: Not properly terminated"` instability in
     the xdist-backed `test-main` path. Current lane evidence shows
     `test-main (3.11, 60)` finishing normally while `test-main (3.12, 60)`
-    lingers in `Run tests with coverage` far beyond the healthy 3.11 runtime,
-    making the interpreter-specific xdist policy the narrowest remediation
-    surface. This item is distinct from the older nightly/node22 parity work.
+    still admits `serial` tests into xdist via `-m "not slow"`, even though
+    `Nightly Full Tests` already splits `serial` out of xdist. PR #1494 reduced
+    worker pressure, but the remaining cohort mismatch keeps the interpreter-
+    specific xdist policy open as the narrowest remediation surface. This item
+    is distinct from the older nightly/node22 parity work.
   - Links:
     - `docs/orchestration/MAINLINE_CI_XDIST_WORKER_STABILITY_PACKET_2026-04-22.md`
+    - `docs/orchestration/MAINLINE_CI_XDIST_ROOT_CAUSE_AND_UUID117_PACKET_2026-04-23.md`
     - `.github/workflows/ci.yml`
+    - `.github/workflows/nightly.yml`
+    - `pyproject.toml`
     - `tests/test_ci_workflow_pr_size_governance_contract.py`
+    - `tests/test_database_apis_coverage.py`
     - User-reported signature: `[gw1] node down: Not properly terminated`
     - Current main run: <https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/24771474555>
     - `test-main (3.12, 60)` job: <https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/24771474555/job/72483372336>
+    - Later late-zone reproduction with timeout tail: <https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/24799632664/job/72578492861>
     - Healthy comparator `test-main (3.11, 60)` job: <https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/24771474555/job/72483386535>
     - Green nightly reference: <https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/24760590280>
   - DoD:
     - `test-main` keeps the same job identity and required-check topology
     - `3.12` fallback is scoped to the narrowest effective execution policy in
-      `.github/workflows/ci.yml`
+      `.github/workflows/ci.yml`, with `serial` tests excluded from xdist and
+      run sequentially in the same job if that remains the narrowest fix
     - A regression test freezes the workflow contract
     - `pre-commit run --all-files`, `make validate-changed`, and branch/current-head
       `CI` pass on the remediation branch
     - Post-open `qa-engineer-agent -> bug-hunter` review pass is complete
+
+
+<a id="ledger-p1-dependabot-uuid-storybook-carrier"></a>
+- [ ] P1: Remove Storybook carrier for Dependabot alert `#117` (`uuid`)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (dependency security / narrow frontend tooling remediation)
+  - Target PR: follow-up lane `codex/main-ci-py312-root-cause-plus-uuid117`
+  - Status: In progress as of April 23, 2026
+  - Reason: Dependabot alert `#117` remains open against
+    `frontend/package-lock.json` because Storybook 8's
+    `@storybook/addon-actions` still pulls `uuid@9`, while the patched floor is
+    `uuid@14.0.0`. A forced `uuid@14` override is not safe here because the
+    current Storybook carrier still expects the older CommonJS package shape.
+    The narrow remediation is to stop pulling the `addon-actions` carrier while
+    preserving the rest of the review-only Storybook surface.
+  - Links:
+    - `frontend/.storybook/main.ts`
+    - `frontend/.storybook/preview.ts`
+    - `frontend/package.json`
+    - `frontend/package-lock.json`
+    - GitHub alert: `security/dependabot/117`
+    - Advisory: `GHSA-w5hq-g745-h8pq`
+  - DoD:
+    - `frontend/package-lock.json` no longer resolves `uuid@9` through the
+      Storybook addon carrier
+    - Storybook build passes after the narrow addon split
+    - frontend build passes after the lockfile refresh
+    - no Storybook major migration or unrelated frontend runtime churn is
+      introduced in the same PR
 
 
 <a id="ledger-p1-remove-pygments-pip-audit-ignore"></a>
