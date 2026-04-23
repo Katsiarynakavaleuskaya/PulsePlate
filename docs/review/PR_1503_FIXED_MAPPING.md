@@ -16,7 +16,7 @@ Record every actionable human/bot disposition here before resolving threads on G
 
 Disposition: FIXED
 Commit: 39d77cf8c
-Evidence: `pytest -q tests/test_check_docker_provenance_attestation.py tests/test_python_supply_chain_controls.py` -> 54 passed. The fix commit hardens the helper timeout, parser, failure evidence path, workflow verification condition, workflow-contract tests, ADR markdown links, ADR evidence anchors, and ledger traceability.
+Evidence: `pytest -q tests/test_check_docker_provenance_attestation.py tests/test_python_supply_chain_controls.py` -> 54 passed. The fix commit hardens the helper timeout, parser, failure evidence path, workflow verification condition, workflow-contract tests, ADR Markdown links, ADR evidence anchors, and ledger traceability.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1503#pullrequestreview-4163080758 -> 39d77cf8c
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1503#discussion_r3131356723 -> 39d77cf8c
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1503#discussion_r3131356747 -> 39d77cf8c
@@ -41,6 +41,11 @@ Reason: the CodeRabbit follow-up misread the current artifact state; the merge-c
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1503#pullrequestreview-4165661733
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1503#pullrequestreview-4165727884
 
+Disposition: NOT-A-BUG
+Evidence: `docs/review/PR_1503_FIXED_MAPPING.md:49-64` keeps the merge-readiness checklist intentionally conservative and uses review-level URLs as rollup references for artifact-only follow-ups.
+Reason: the review-level CodeRabbit summary is a rollup comment over optional style guidance and checklist-state guidance on this same artifact; recording the review URL here is sufficient and does not require a distinct commit mapping entry.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1503#pullrequestreview-4165903700
+
 ## Merge Readiness
 
 Merge-readiness contract:
@@ -53,11 +58,11 @@ Merge-readiness contract:
   Evidence: the next PR head after this governance-evidence update still needs a green CI cycle before merge claim.
 - [ ] Required checks complete (no pending jobs)
   Evidence: the next PR head after this governance-evidence update still needs a completed green CI cycle before merge claim.
-- [x] All review threads resolved on GitHub after disposition updates
+- [ ] All review threads resolved on GitHub after disposition updates
   Evidence: GraphQL review-thread check returned `0` unresolved threads after coordinator resolution pass.
-- [x] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
+- [ ] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
   Evidence: Sourcery, CodeRabbit, and Codex actionables are mapped above, including review-level URLs `#pullrequestreview-4163080758`, `#pullrequestreview-4165661733`, and `#pullrequestreview-4165727884`.
-- [x] Pre-commit green on latest pushed head
+- [ ] Pre-commit green on latest pushed head
   Evidence: `pre-commit run --all-files` passed on the governance-evidence tree before push.
 - [ ] `make verify` green on latest pushed head
   Evidence: the governance-refresh head after this artifact update still needs a fresh exact-head `make verify` pass before merge claim.
@@ -72,7 +77,7 @@ Post-open QA notes:
 - `qa-engineer-agent` found scoped Docker lane docs still described provenance
   as deferred and the active ledger item still targeted a TBD PR; fixed in the
   follow-up commit after PR open.
-- `bug-hunter` found CD verification was checking for GitHub signed
+- `bug-hunter` found CD verification was checking for GitHub-signed
   attestations without first generating them and that the SBOM predicate used
   the BuildKit-incompatible `/v2.3` suffix; fixed by adding explicit
   GitHub-signed provenance/SBOM attestation steps before verification and by
