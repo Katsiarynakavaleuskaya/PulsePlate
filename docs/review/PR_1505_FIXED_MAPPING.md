@@ -16,6 +16,11 @@ Date: 2026-04-23
 
 ## Fixed in Commit Mapping
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1505#pullrequestreview-4162932768
+Disposition: NOT-A-BUG
+Evidence: `docs/review/PR_1505_FIXED_MAPPING.md:24`; `docs/review/PR_1505_FIXED_MAPPING.md:29`; `docs/review/PR_1505_FIXED_MAPPING.md:34`; `docs/review/PR_1505_FIXED_MAPPING.md:39`
+Reason: this CodeRabbit review summary reports the four actionable child threads; each child thread is explicitly dispositioned below with proof and is resolved on GitHub.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1505#discussion_r3131238664
 Disposition: NOT-A-BUG
 Evidence: `.github/workflows/ci.yml:1021`; `.github/workflows/ci.yml:1023`; `.github/workflows/ci.yml:1103`; `tests/test_ci_workflow_pr_size_governance_contract.py:216`; `docs/orchestration/MAIN_CI_PY312_CONTAINMENT_PACKET_2026-04-23.md:37`
@@ -34,7 +39,7 @@ Evidence: `docs/review/PR_1505_FIXED_MAPPING.md:9` and `docs/review/PR_1505_FIXE
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1505#discussion_r3131238703 -> 6c7611074
 Disposition: FIXED
 Commit: 6c7611074
-Evidence: `docs/review/PR_1505_FIXED_MAPPING.md:55` now records the Merge Readiness wait-window gate.
+Evidence: `docs/review/PR_1505_FIXED_MAPPING.md:60` now records the Merge Readiness wait-window gate.
 
 ## Initial Evidence
 
