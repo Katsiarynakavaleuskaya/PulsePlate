@@ -132,6 +132,7 @@ jobs:
           push-to-registry: true
 
       - name: Verify staged image attestations
+        if: ${{ always() && steps.build.outcome == 'success' }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -386,6 +387,7 @@ jobs:
           push-to-registry: true
 
       - name: Verify production image attestations
+        if: ${{ always() && steps.build.outcome == 'success' }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

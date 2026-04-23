@@ -843,6 +843,7 @@ def test_push_to_registry_workflows_restore_signed_attestations_on_publish_lanes
 
     for verify_step in (staging_verify_step, production_verify_step):
         verify_script = verify_step["run"]
+        assert verify_step["if"] == "${{ always() && steps.build.outcome == 'success' }}"
         assert "scripts/ci/check_docker_provenance_attestation.py" in verify_script
         assert '--repo "${{ github.repository }}"' in verify_script
         assert '--signer-workflow "${{ github.repository }}/.github/workflows/cd.yml"' in (
@@ -874,6 +875,13 @@ def test_push_to_registry_workflows_restore_signed_attestations_on_publish_lanes
     assert production_step_names.index(
         "Attest production image SBOM"
     ) < production_step_names.index("Verify production image attestations")
+    assert production_step_names.index("Verify production image attestations") < (
+        production_step_names.index("Upload production attestation verification artifact")
+    )
+    assert cd_workflow["jobs"]["production-deploy-config"]["needs"] == [
+        "production-gates",
+        "build-production",
+    ]
 
 
 def test_checked_in_docker_image_baseline_seed_has_expected_schema() -> None:

@@ -10,15 +10,18 @@ from __future__ import annotations
 import argparse
 from dataclasses import asdict, dataclass
 import json
+import os
 from pathlib import Path
 import shutil
 import subprocess  # nosec B404: bounded gh CLI verification is required for OCI attestation checks (remove-by: 2026-09-30, ref: PR-docker-signed-provenance)
 import sys
 
-GH_TIMEOUT_SECONDS = 60
+GH_TIMEOUT_SECONDS_DEFAULT = 180
+GH_TIMEOUT_SECONDS_ENV = "PULSEPLATE_DOCKER_ATTESTATION_GH_TIMEOUT_SECONDS"
 PROVENANCE_PREDICATE_TYPE = "https://slsa.dev/provenance/v1"
 SBOM_PREDICATE_TYPE = "https://spdx.dev/Document"
 BUNDLE_SOURCE = "oci-registry"
+MAX_ERROR_STDOUT_CHARS = 500
 
 
 @dataclass(frozen=True)
@@ -68,20 +71,34 @@ def _gh_path() -> str:
     return gh_path
 
 
+def _gh_timeout_seconds() -> int:
+    """Return a bounded gh timeout, configurable for slower registries."""
+
+    raw_value = os.getenv(GH_TIMEOUT_SECONDS_ENV, str(GH_TIMEOUT_SECONDS_DEFAULT)).strip()
+    try:
+        timeout_seconds = int(raw_value)
+    except ValueError:
+        return GH_TIMEOUT_SECONDS_DEFAULT
+    if timeout_seconds <= 0:
+        return GH_TIMEOUT_SECONDS_DEFAULT
+    return timeout_seconds
+
+
 def _run_gh(args: list[str]) -> subprocess.CompletedProcess[str]:
     """Run gh with a resolved binary path and strict timeout/error handling."""
 
+    timeout_seconds = _gh_timeout_seconds()
     try:
         return subprocess.run(  # nosec B603: argv uses a resolved gh path with fixed attestation-verification subcommands only (remove-by: 2026-09-30, ref: PR-docker-signed-provenance)
             [_gh_path(), *args],
             check=True,
             capture_output=True,
             text=True,
-            timeout=GH_TIMEOUT_SECONDS,
+            timeout=timeout_seconds,
         )
     except subprocess.TimeoutExpired as exc:
         raise RuntimeError(
-            f"gh attestation verify timed out after {GH_TIMEOUT_SECONDS}s: {' '.join(args)}"
+            f"gh attestation verify timed out after {timeout_seconds}s: {' '.join(args)}"
         ) from exc
     except subprocess.CalledProcessError as exc:
         stderr = exc.stderr.strip()
@@ -102,11 +119,21 @@ def _parse_verification_output(
         payload = json.loads(stdout)
     except json.JSONDecodeError as exc:
         raise RuntimeError(f"{label} verification output is not valid JSON.") from exc
-    if not isinstance(payload, list) or not payload:
+
+    if isinstance(payload, list):
+        verification_items = payload
+    elif isinstance(payload, dict) and isinstance(payload.get("verifications"), list):
+        verification_items = payload["verifications"]
+    else:
+        raise RuntimeError(
+            f"{label} verification returned an unexpected JSON shape: " f"{_trim_for_error(stdout)}"
+        )
+
+    if not verification_items:
         raise RuntimeError(f"{label} verification must return at least one attestation.")
 
     normalized: list[dict[str, object]] = []
-    for index, item in enumerate(payload):
+    for index, item in enumerate(verification_items):
         if not isinstance(item, dict):
             raise RuntimeError(f"{label} verification item #{index} is not a JSON object.")
         verification_result = item.get("verificationResult")
@@ -123,6 +150,15 @@ def _parse_verification_output(
             )
         normalized.append(item)
     return tuple(normalized)
+
+
+def _trim_for_error(value: str) -> str:
+    """Return a one-line bounded string for fail-closed diagnostics."""
+
+    normalized = value.strip().replace("\n", "\\n")
+    if len(normalized) <= MAX_ERROR_STDOUT_CHARS:
+        return normalized
+    return f"{normalized[:MAX_ERROR_STDOUT_CHARS]}..."
 
 
 def _verify_predicate(
@@ -226,6 +262,15 @@ def render_markdown(bundle: VerificationBundle) -> str:
     return "\n".join(lines) + "\n"
 
 
+def _safe_artifact_uri(image_name: str, digest: str) -> str | None:
+    """Build an artifact URI for evidence without masking the root failure."""
+
+    try:
+        return build_artifact_uri(image_name, digest)
+    except RuntimeError:
+        return None
+
+
 def _write_json(path: Path, payload: dict[str, object]) -> None:
     """Write a deterministic JSON evidence file."""
 
@@ -282,11 +327,7 @@ def main(argv: list[str] | None = None) -> int:
         failure_payload = {
             "passed": False,
             "error": str(exc),
-            "artifact_uri": (
-                build_artifact_uri(args.image_name, args.digest)
-                if args.image_name and args.digest.startswith("sha256:")
-                else None
-            ),
+            "artifact_uri": _safe_artifact_uri(args.image_name, args.digest),
             "repo": args.repo,
             "signer_workflow": args.signer_workflow,
             "source_ref": args.source_ref,

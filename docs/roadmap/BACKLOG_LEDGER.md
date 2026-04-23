@@ -617,7 +617,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Priority: P1
   - Target PR: PR #1490 (`fix(docker): slim runtime after profile split`)
   - Area: docker / runtime / supply-chain
-  - Status note: Merged on April 22, 2026 via `PR #1490`. Production-target Docker builds now use `requirements-docker-runtime.txt`; telemetry baseline and hard-budget follow-ups have since landed, while Shared Safety audit extraction remains deferred and the next active Docker/CI slice is signed provenance restoration on pushed-image lanes.
+  - Status note: Merged on April 22, 2026 via `PR #1490`. Production-target Docker builds now use `requirements-docker-runtime.txt`; telemetry baseline ([Docker image budget and telemetry baseline](#ledger-p1-docker-image-budget-telemetry); DoD: measured baseline artifact and docs) and hard-budget follow-up ([Docker image hard budget gate after telemetry baseline](#ledger-p1-docker-image-hard-budget-gate); DoD: fail-closed budget gate) have since landed, while [Shared Safety audit extraction](#ledger-p1-safety-audit-shared-script-after-pr1479) remains deferred and the next active Docker/CI slice is signed provenance restoration on pushed-image lanes.
   - Depends on:
     - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-ci-install-profile-split-after-disk-unblock`
     - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-docker-deploy-contract-reconciliation`
