@@ -15,8 +15,16 @@ or claiming merge readiness.
 
 ### Fixed in Commit Mapping
 
-- Sourcery review on `f29c0858d` -> pending fix commit
-- CodeRabbit wait-window checklist nitpick on `f29c0858d` -> pending fix commit
+Disposition: FIXED
+Commit: 4a8458cfa
+Evidence: tests/evals/test_selective_graph_eval_contract.py
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1507#discussion_r3131643787 -> 4a8458cfa
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1507#discussion_r3131643802 -> 4a8458cfa
+
+Disposition: FIXED
+Commit: 48781cf76
+Evidence: tests/evals/test_selective_graph_eval_contract.py
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1507#discussion_r3131647785 -> 48781cf76
 
 ## Merge Readiness
 
