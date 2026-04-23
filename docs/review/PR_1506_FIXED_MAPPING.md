@@ -17,12 +17,7 @@ threads on GitHub.
 
 Disposition: FIXED
 Commit: `19537b47f207e3b9dab7c47dd68169bc0034d3b1`
-Evidence: `core/ai/insight_runtime.py` now uses `decision.needs_rag`
-directly when available with a narrow route fallback;
-`core/rag/recursive_retrieval.py` documents why explicit hint caps stop before
-preparing an unused refined query; `tests/test_rag_orchestration.py` documents
-why the CI-surface depth-cap anchor intentionally complements the
-recursive-unit test.
+Evidence: `core/ai/insight_runtime.py` uses `decision.needs_rag` with a narrow route fallback; `core/rag/recursive_retrieval.py` documents the explicit hint-cap stop; `tests/test_rag_orchestration.py` documents the CI-surface depth-cap anchor.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1506#pullrequestreview-4163433365 -> 19537b47f207e3b9dab7c47dd68169bc0034d3b1
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1506#discussion_r3131650729 -> 19537b47f207e3b9dab7c47dd68169bc0034d3b1
