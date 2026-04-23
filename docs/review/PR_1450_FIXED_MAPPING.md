@@ -24,6 +24,9 @@ Disposition: NOT-A-BUG
 Evidence: CodeRabbit comment was a rate-limit / review scheduling notice, not a code finding. The branch now includes a real follow-up commit and should be re-reviewed after push.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1450#pullrequestreview-4162761845 -> f1f103381
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1450#discussion_r3131114416 -> f1f103381
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1450#discussion_r3131114421 -> f1f103381
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1450#discussion_r3131114431 -> f1f103381
 
 Disposition: FIXED
 Commit: f1f103381
