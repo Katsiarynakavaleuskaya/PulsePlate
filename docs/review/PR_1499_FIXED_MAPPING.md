@@ -15,19 +15,45 @@ Record every actionable human/bot disposition here before resolving threads on G
 ## Fixed in Commit Mapping
 
 Disposition: FIXED
-Commit: 1067c5acd
-Evidence: `app/services/insight_application_service.py:166-171` now resolves `recursive_rollout_policy` via a lazy `getattr(..., None)` fallback instead of eagerly constructing `_legacy_recursive_rollout_policy(...)`, and `tests/test_insight_application_service.py:519-590` adds a regression anchor that fails if the legacy helper runs while `prepared_runtime.recursive_rollout_policy` is already present.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1499#pullrequestreview-4158197463
+Commit: see mapping entries below
+Evidence: `app/services/insight_application_service.py:166-171` now resolves `recursive_rollout_policy` via `getattr(..., None)` and calls `_legacy_recursive_rollout_policy(...)` only when the prepared runtime is missing that attribute.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1499#pullrequestreview-4158197463 -> 1067c5acd
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1499#discussion_r3127164224 -> 1067c5acd
 
 Disposition: FIXED
-Commit: 8152a92b6
-Evidence: `app/services/insight_runtime.py:81-96` now derives the base `rag` snapshot from `recursive_rollout_policy.use_rag` when a prepared policy is injected and `use_rag` is omitted, `tests/test_remaining_modules.py:1340` adds the direct helper regression anchor, `docs/roadmap/BACKLOG_LEDGER.md:2101-2102` now names concrete `PR #1499`, `docs/orchestration/WAVE6_A7_RECURSIVE_METHODS_W1_PACKET_2026-04-22.md:24-42` and `:73-77` now carry explicit anchors, `docs/orchestration/WAVE6_A7_TASK_ANALYSIS_2026-04-22.md:57-66` adds current-head evidence pointers, and `docs/review/PR_1499_FIXED_MAPPING.md:29-35` restores unchecked merge-readiness boxes plus the required wait-window item.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1499#pullrequestreview-4158211717
+Commit: see mapping entries below
+Evidence: `app/services/insight_runtime.py:81-96` now derives the base `rag` snapshot from `recursive_rollout_policy.use_rag` when a prepared policy is injected and `use_rag` is omitted, `tests/test_remaining_modules.py:1345-1365` guards both recursive env readers while proving the prepared policy owns the exported RAG snapshot, `docs/orchestration/WAVE6_A7_RECURSIVE_METHODS_W1_PACKET_2026-04-22.md:24-49` now attaches file:line anchors to every current-head truth bullet, `docs/orchestration/WAVE6_A7_TASK_ANALYSIS_2026-04-22.md:57-70` now cites concrete runtime-scope evidence, `docs/roadmap/BACKLOG_LEDGER.md:2101-2102` names concrete `PR #1499`, and this artifact keeps merge-readiness boxes unchecked until the actual final merge cycle.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1499#pullrequestreview-4158211717 -> d60326ac5
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1499#discussion_r3127177474 -> 8152a92b6
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1499#discussion_r3127177476 -> d60326ac5
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1499#discussion_r3127177479 -> d60326ac5
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1499#discussion_r3127177481 -> d60326ac5
 
 Disposition: FIXED
-Commit: bb22b11c0
-Evidence: `app/services/insight_application_service.py:174-185` now passes `use_rag=recursive_rollout_policy.use_rag` into `generate_traced_insight(...)`, and `tests/test_insight_application_service.py:428`, `:521`, and `:608` assert that downstream `use_rag` follows the resolved recursive rollout policy on the prepared-policy, lazy-fallback, and fail-closed legacy paths.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1499#pullrequestreview-4158236666
+Commit: see mapping entries below
+Evidence: `app/services/insight_application_service.py:174-185` now passes `use_rag=recursive_rollout_policy.use_rag` into `generate_traced_insight(...)`, and `tests/test_insight_application_service.py:530-536` plus `:648-654` assert that downstream `use_rag` follows the resolved recursive rollout policy on the prepared-policy and prepared-policy-no-legacy paths.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1499#pullrequestreview-4158236666 -> bb22b11c0
+
+Disposition: FIXED
+Commit: see mapping entries below
+Evidence: `app/services/insight_runtime.py:81-96` now uses the resolved recursive rollout policy as the single source of truth for the base `rag` snapshot, so the duplicate CodeRabbit review was closed by the same bounded runtime fix.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1499#pullrequestreview-4158268827 -> 8152a92b6
+
+Disposition: FIXED
+Commit: see mapping entries below
+Evidence: `tests/test_remaining_modules.py:1345-1365` now covers prepared-policy fallback behavior through the public `insight_feature_flag_state(...)` seam, so the temporary `_legacy_recursive_rollout_policy(...)` helper no longer needs a direct unit anchor in `tests/test_insight_application_service.py`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1499#pullrequestreview-4158639077 -> b1bdeeb92
+
+Disposition: FIXED
+Commit: see mapping entries below
+Evidence: `tests/test_remaining_modules.py:1223-1232` now guards both recursive env readers in `_traced_retrieve_and_validate_rag(...)`, and `tests/test_insight_application_service.py:478-517` plus `:587-626` now stub all philosophy and recursive env helpers so the two prepared-policy request-path tests stay deterministic and isolated from global feature-flag state.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1499#pullrequestreview-4158717729 -> b7d6b8f5e
 
 ## Merge Readiness
 
