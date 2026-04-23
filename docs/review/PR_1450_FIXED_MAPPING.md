@@ -54,6 +54,11 @@ Disposition: FIXED
 Commit: 7664db39c
 Evidence: `docs/review/PR_1450_FIXED_MAPPING.md` now keeps the standard unchecked merge-readiness checklist directly under `## Merge Readiness`.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1450#pullrequestreview-4163927382 -> 0f8fe6499
+Disposition: FIXED
+Commit: 0f8fe6499
+Evidence: `docs/review/PR_1450_FIXED_MAPPING.md` now varies the local-validation evidence wording while preserving the exact command strings.
+
 ## Merge Readiness
 
 - [ ] Final current-head CI checks PASS
