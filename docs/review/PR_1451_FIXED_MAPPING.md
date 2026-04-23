@@ -24,6 +24,7 @@ Current GitHub review surface for PR `#1451` was re-checked on `23 April 2026`:
   `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1451#issuecomment-4270680915`,
   `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1451#issuecomment-4270724458`
 - CodeRabbit follow-up on the merge-ready push:
+  `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1451#pullrequestreview-4164951419`,
   `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1451#discussion_r3133000980`
 
 - [x] Discussion-thread pass completed
@@ -60,6 +61,11 @@ Reason: the aggregate Cubic review shell repeats the same normalization defect a
 Disposition: FIXED
 Commit: cb665b37ab5c49b6a613c6540076a0765c9ac5fb
 Evidence: `tests/test_dependency_security_guard.py:200-203` and `tests/test_dependency_security_guard.py:372-375` now read canonicalized package-name keys with `_normalized_package_name(pkg)`, matching the way `_effective_min_versions_per_package(...)` stores keys. Regression coverage in `tests/test_dependency_security_guard.py:335-343` and `tests/test_dependency_security_guard.py:386-395` proves alias-equivalent schema lookups for both minimum-version and blocked-version guard paths. Local proof before mapping: `python3 -m pytest -q tests/test_dependency_security_guard.py`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1451#pullrequestreview-4164951419
+Disposition: NOT-A-BUG
+Evidence: `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1451#discussion_r3133000980`
+Reason: the aggregate CodeRabbit review shell wraps the same inline canonicalization follow-up already dispositioned as `FIXED`; it adds no separate defect after the inline comment is mapped with proof.
 
 ## Merge Readiness
 
