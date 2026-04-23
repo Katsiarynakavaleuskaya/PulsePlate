@@ -14,7 +14,19 @@ Record every actionable human/bot disposition here before resolving threads on G
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+Disposition: FIXED
+Commit: 39d77cf8c
+Evidence: `pytest -q tests/test_check_docker_provenance_attestation.py tests/test_python_supply_chain_controls.py` -> 54 passed. The fix commit hardens the helper timeout, parser, failure evidence path, workflow verification condition, workflow-contract tests, ADR markdown links, ADR evidence anchors, and ledger traceability.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1503#discussion_r3131356723 -> 39d77cf8c
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1503#discussion_r3131356747 -> 39d77cf8c
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1503#discussion_r3131356752 -> 39d77cf8c
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1503#discussion_r3131356759 -> 39d77cf8c
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1503#discussion_r3131357170 -> 39d77cf8c
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1503#discussion_r3131386002 -> 39d77cf8c
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1503#discussion_r3131386015 -> 39d77cf8c
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1503#discussion_r3131386020 -> 39d77cf8c
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1503#discussion_r3131386032 -> 39d77cf8c
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1503#pullrequestreview-4163115645 -> 39d77cf8c
 
 ## Merge Readiness
 
@@ -29,15 +41,15 @@ Merge-readiness contract:
 - [ ] Required checks complete (no pending jobs)
   Evidence: pending current-head GitHub checks after PR open.
 - [ ] All review threads resolved on GitHub after disposition updates
-  Evidence: pending initial review cycle.
+  Evidence: pending GitHub thread resolution after latest mapping update.
 - [ ] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
-  Evidence: pending post-open review cycle on current head.
+  Evidence: CodeRabbit/Sourcery/Codex comments mapped above; pending mapping-comment self-proof commit and final bot recheck.
 - [x] Pre-commit green on latest pushed head
   Evidence: `pre-commit run --all-files` passed before commit `0b6ea053e`.
 - [ ] `make verify` green on latest pushed head
-  Evidence: not run for this lane yet.
-- [ ] Mandatory post-open `qa-engineer-agent -> bug-hunter` pass completed
-  Evidence: pending post-open review lane.
+  Evidence: pending final local gate on latest pushed head.
+- [x] Mandatory post-open `qa-engineer-agent -> bug-hunter` pass completed
+  Evidence: local coordinator lane findings captured below and fixed before ready-for-review cycle.
 
 Post-open QA notes:
 
@@ -52,6 +64,11 @@ Post-open QA notes:
   the BuildKit-incompatible `/v2.3` suffix; fixed by adding explicit
   GitHub-signed provenance/SBOM attestation steps before verification and by
   verifying the SPDX predicate `https://spdx.dev/Document`.
+- Sourcery, Codex, and CodeRabbit found post-ready hardening gaps in helper
+  timeout/configurability, parser shape tolerance, failure evidence emission,
+  verification-step execution after attestation failures, production workflow
+  contract coverage, ADR markdownlint/evidence anchors, and ledger
+  traceability; fixed in commit `39d77cf8c`.
 
 ## Deferred / Follow-ups
 
