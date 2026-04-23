@@ -34,17 +34,30 @@ to future public-safe narrative themes.
 ## Evidence Sources
 
 - contract:
-  `docs/orchestration/contracts/LOGIC_PHILOSOPHY_REPLAY_EVAL_CONTRACT.md`
+  `docs/orchestration/contracts/LOGIC_PHILOSOPHY_REPLAY_EVAL_CONTRACT.md:5`
+  defines the lane as offline replay + ablation before runtime rollout, and
+  `docs/orchestration/contracts/LOGIC_PHILOSOPHY_REPLAY_EVAL_CONTRACT.md:15`
+  locks `offline_replay_ablation`.
 - deterministic test:
-  `tests/test_logic_philosophy_replay_eval.py`
+  `tests/test_logic_philosophy_replay_eval.py:153` asserts that the provided
+  offline corpus ranks `A3_combined` highest, and
+  `tests/test_logic_philosophy_replay_eval.py:225` guards artifact output
+  placement.
 - evaluator:
-  `scripts/orchestration/logic_philosophy_replay_eval.py`
+  `scripts/orchestration/logic_philosophy_replay_eval.py:147` evaluates all
+  replay arms, and
+  `scripts/orchestration/logic_philosophy_replay_eval.py:202` computes the
+  known-good false-positive guardrail.
 - corpus validation:
-  `scripts/orchestration/logic_philosophy_replay_contract.py`
+  `scripts/orchestration/logic_philosophy_replay_contract.py:91` validates
+  replay cases and
+  `scripts/orchestration/logic_philosophy_replay_contract.py:171` validates
+  negative controls.
 - immutable fixtures:
-  `tests/fixtures/orchestration/logic_philosophy_replay/replay_cases.json`
+  `tests/fixtures/orchestration/logic_philosophy_replay/replay_cases.json:3`
   and
-  `tests/fixtures/orchestration/logic_philosophy_replay/replay_negative_controls.json`
+  `tests/fixtures/orchestration/logic_philosophy_replay/replay_negative_controls.json:3`
+  both declare `offline_replay_ablation`.
 - local reproducibility output:
   `artifacts/orchestration/experiments/results/logic-philosophy/a9-2026-04-23.json`
 
