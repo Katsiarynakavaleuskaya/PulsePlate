@@ -22,11 +22,18 @@ Evidence: `core/ai/insight_runtime.py` uses `decision.needs_rag` with a narrow r
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1506#pullrequestreview-4163433365 -> 19537b47f207e3b9dab7c47dd68169bc0034d3b1
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1506#discussion_r3131650729 -> 19537b47f207e3b9dab7c47dd68169bc0034d3b1
 
+Disposition: FIXED
+Commit: `f9d8d1031956d70f670100cdc09942d4f040a903`
+Evidence: `core/rag/orchestration.py` documents `recursive_optimization_hints`; `tests/test_core_ai_insight_runtime.py` removes the duplicate hint assertion; this artifact keeps local proof outside unchecked merge-readiness checklist items.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1506#pullrequestreview-4163675713 -> f9d8d1031956d70f670100cdc09942d4f040a903
+
 ## Initial Implementation Commits
 
 - `cce682990` - `feat(ai-runtime): add recursive speed hints`
 - `ded2c006f` - `docs(pr): add PR 1506 mapping`
 - `19537b47f` - `fix(ai-runtime): address recursive speed review`
+- `f9d8d1031` - `fix(ai-runtime): address CodeRabbit review`
 
 ## Merge Readiness
 
@@ -47,4 +54,5 @@ Merge-readiness contract:
       completed or replaced by accepted current-head required CI evidence.
 
 Local proof note: `pre-commit run --all-files` passed before commit
-`19537b47f`; pre-push hooks passed before `cbabbf60d`.
+`19537b47f`; pre-push hooks passed before `cbabbf60d`; targeted tests passed
+before commit `f9d8d1031`.
