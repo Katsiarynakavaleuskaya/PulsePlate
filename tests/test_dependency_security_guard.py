@@ -199,7 +199,7 @@ def test_dependency_security_guard_enforces_min_versions(surface: Path) -> None:
 
     for pkg, min_v_str in min_versions.items():
         required_min = Version(str(min_v_str))
-        effective = all_reqs.get(pkg.lower())
+        effective = all_reqs.get(_normalized_package_name(pkg))
         if effective is None:
             pytest.fail(
                 f"{surface.name}: expected {pkg} to be pinned (==) or constrained (>=) "
@@ -332,6 +332,17 @@ def test_blocked_packages_canonicalize_equivalent_package_names(tmp_path: Path) 
     assert _normalized_package_name("unsafe.pkg") in all_reqs
 
 
+def test_min_versions_lookup_uses_canonical_package_names(tmp_path: Path) -> None:
+    """Schema names using - must match requirement names using _ or . spellings."""
+    req = tmp_path / "requirements.txt"
+    req.write_text("unsafe_pkg==1.2.3\n", encoding="utf-8")
+
+    all_reqs = _effective_min_versions_per_package(req)
+    effective = all_reqs.get(_normalized_package_name("unsafe-pkg"))
+
+    assert effective == Version("1.2.3")
+
+
 def test_parse_requirement_skips_short_form_pip_flags(tmp_path: Path) -> None:
     """Short-form pip directives must not be parsed as package requirements."""
     req = tmp_path / "requirements.txt"
@@ -360,7 +371,7 @@ def test_dependency_security_guard_enforces_blocked_versions(surface: Path) -> N
         )
     all_reqs = _effective_min_versions_per_package(surface)
     for pkg, specifiers in blocked_versions.items():
-        effective = all_reqs.get(pkg.lower())
+        effective = all_reqs.get(_normalized_package_name(pkg))
         if effective is None:
             continue  # Package not in this surface
         for spec_str in specifiers:
@@ -370,6 +381,18 @@ def test_dependency_security_guard_enforces_blocked_versions(surface: Path) -> N
                     f"{surface.name}: {pkg}=={effective} matches blocked specifier "
                     f"{spec_str!r}. Update to a safe version."
                 )
+
+
+def test_blocked_versions_lookup_uses_canonical_package_names(tmp_path: Path) -> None:
+    """Blocked version schema names must match equivalent requirement spellings."""
+    req = tmp_path / "requirements.txt"
+    req.write_text("unsafe_pkg==2.0.3\n", encoding="utf-8")
+
+    all_reqs = _effective_min_versions_per_package(req)
+    effective = all_reqs.get(_normalized_package_name("unsafe-pkg"))
+
+    assert effective is not None
+    assert str(effective) in SpecifierSet(">=2.0.0,<2.1.0")
 
 
 def test_validate_blocked_packages_fails_on_invalid_type(tmp_path: Path) -> None:
