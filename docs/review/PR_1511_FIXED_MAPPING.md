@@ -6,8 +6,8 @@ Date: 2026-04-23
 
 ## Discussion Thread Pass
 
-- [ ] Discussion-thread pass completed
-- [ ] Fixed in commit mapping completed
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 
 - Status: Draft PR opened for current-head GitHub CI proof. No human or bot
   review actionables were present when this artifact was created.
