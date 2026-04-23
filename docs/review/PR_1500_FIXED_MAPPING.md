@@ -45,6 +45,12 @@ Evidence: `setup_custom_mcp.py`
 Reason: Runtime setup output no longer prints key-oriented replacement instructions that CodeQL classified as clear-text sensitive logging; it now gives generic placeholder and git-exclusion guidance without echoing sensitive field details.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1500#discussion_r3131225599 -> e86f17d6799593982f413e3a74651fb6645f4fde
 
+Disposition: FIXED
+Commit: 9f27df0134704db9af3a946df32f0531f33688ea
+Evidence: `tests/test_setup_custom_mcp_coverage.py`
+Reason: The newly added setup coverage tests now include explicit `-> None` return annotations, matching the repo test typing convention requested by CodeRabbit.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1500#discussion_r3131298939 -> 9f27df0134704db9af3a946df32f0531f33688ea
+
 ## Merge Readiness
 
 - [ ] All required checks pass
