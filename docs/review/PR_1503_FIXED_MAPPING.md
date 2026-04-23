@@ -28,6 +28,11 @@ Evidence: `pytest -q tests/test_check_docker_provenance_attestation.py tests/tes
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1503#discussion_r3131386032 -> 39d77cf8c
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1503#pullrequestreview-4163115645 -> 39d77cf8c
 
+Disposition: FIXED
+Commit: 0fdeaa100
+Evidence: `python3 scripts/ci/check_pr_body_phase2_gates.py --pr-number 1503 --body "$(gh pr view 1503 --json body --jq .body)"` -> passed; canonical artifact now enumerates bot/agent dispositions instead of `No actionable review comments`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1503#discussion_r3131386028 -> 0fdeaa100
+
 ## Merge Readiness
 
 Merge-readiness contract:
@@ -43,7 +48,7 @@ Merge-readiness contract:
 - [ ] All review threads resolved on GitHub after disposition updates
   Evidence: pending GitHub thread resolution after latest mapping update.
 - [ ] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
-  Evidence: CodeRabbit/Sourcery/Codex comments mapped above; pending mapping-comment self-proof commit and final bot recheck.
+  Evidence: CodeRabbit/Sourcery/Codex comments mapped above; pending final bot recheck after push.
 - [x] Pre-commit green on latest pushed head
   Evidence: `pre-commit run --all-files` passed before commit `0b6ea053e`.
 - [ ] `make verify` green on latest pushed head
