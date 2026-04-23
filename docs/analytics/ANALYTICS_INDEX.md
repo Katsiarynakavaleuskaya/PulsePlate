@@ -17,7 +17,20 @@ Canonical funnel: **onboarding → paywall → conversion → retention**.
 | Conversion | Growth + Finance | Daily | `METRICS_CATALOG.md` (Trial → Paid conversion) |
 | Retention | Product + Data | Daily / Weekly | `METRICS_CATALOG.md` (Retention D7, Retention D30) |
 
-Event taxonomy (names, required fields): `METRICS_CATALOG.md` → "Event taxonomy (growth funnel)".
+Event taxonomy (names, required fields): `METRICS_CATALOG.md` → "Event taxonomy (growth funnel + coaching contract targets)".
+
+---
+
+## Coaching loop semantics
+
+Canonical coaching loop: **start → structured reflection → next action → revisit**.
+
+| Stage | Owner | Update cadence | SoT |
+|-------|-------|-----------------|-----|
+| Coaching entry | Product + Data | Daily | `METRICS_CATALOG.md` (`coaching_session_started`) |
+| Structured completion | Product + Data | Daily | `METRICS_CATALOG.md` (`Distortion reframe completion rate`, `Identity loop completion rate`) |
+| Action commitment | Product + Growth | Daily | `METRICS_CATALOG.md` (`Next action commit rate`) |
+| Followthrough / revisit | Product + Data | Daily | `METRICS_CATALOG.md` (`Identity to action followthrough D7`, `coaching_revisit`) |
 
 ---
 
@@ -33,6 +46,10 @@ Event taxonomy (names, required fields): `METRICS_CATALOG.md` → "Event taxonom
 | Retention D7 | % users active on day 7 after activation | Product + Data | `METRICS_CATALOG.md` | Daily |
 | Retention D30 | % users active on day 30 after activation | Product + Data | `METRICS_CATALOG.md` | Weekly |
 | LLM cost per active user | AI spend normalized by active users | Platform + Finance | `METRICS_CATALOG.md` | Daily |
+| Distortion reframe completion rate | % Distortion Simulator sessions completing a balanced reframe | Product + Data | `METRICS_CATALOG.md` | Daily |
+| Identity loop completion rate | % Identity Loop Mapper sessions completing a structured loop | Product + Data | `METRICS_CATALOG.md` | Daily |
+| Next action commit rate | % completed coaching sessions with one explicit next-step commitment | Product + Growth | `METRICS_CATALOG.md` | Daily |
+| Identity to action followthrough D7 | % completed identity maps that lead to action within 7 days | Product + Data | `METRICS_CATALOG.md` | Daily |
 
 Notes:
 - “Source of truth” for metric semantics is `METRICS_CATALOG.md` (not dashboards).
@@ -57,6 +74,7 @@ Notes:
 | Funnel dashboard | Vendor-agnostic BI | Product + Growth | Daily | onboarding -> paywall -> trial -> paid |
 | Retention dashboard | Vendor-agnostic BI | Product + Data | Daily | D1/D7/D30 by cohort |
 | Cost dashboard | Vendor-agnostic BI | Platform + Finance | Daily | LLM/API spend anomalies |
+| Coaching dashboard | Vendor-agnostic BI | Product + Data | Daily | scenario -> completion -> next action -> revisit |
 
 Dashboard baseline requirements (goals, segments, data sources, KPI): `DASHBOARD_BASELINE_REQUIREMENTS.md`.
 
@@ -68,6 +86,7 @@ Canonical funnel event families:
 - `paywall_*` (view/dismiss/cta_click)
 - `trial_*` (start/cancel/convert)
 - `retention_*` (weekly activity heartbeat)
+- `coaching_*` (bounded coaching loop signals)
 
 Runtime event implementation should remain aligned with:
 

@@ -5,12 +5,16 @@ Covers:
 - /api/v1/health endpoint
 - /metrics endpoint (Prometheus)
 - /privacy endpoint
+- /terms endpoint
 """
 
+import asyncio
 from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
+
+from app.routers.legal import build_terms_endpoint_payload
 
 
 class TestAppEndpoints1383_1401:
@@ -74,6 +78,7 @@ class TestAppEndpoints1383_1401:
         """/privacy returns complete privacy policy structure."""
         response = client.get("/privacy")
         assert response.status_code == 200
+        assert response.headers["content-type"].lower().startswith("application/json")
         data: dict[str, Any] = response.json()
 
         # Verify top-level keys
@@ -83,6 +88,13 @@ class TestAppEndpoints1383_1401:
         assert "data_classification" in data
         assert "contact" in data
         assert "gdpr_compliance" in data
+        assert "policy_version" in data
+        assert "last_updated" in data
+        assert "processing_categories" in data
+        assert "providers" in data
+        assert "rights" in data
+        assert "automated_analysis" in data
+        assert "retention_summary" in data
 
         # Verify data_collection structure
         assert "pseudonymous_identifiers" in data["data_collection"]
@@ -97,11 +109,16 @@ class TestAppEndpoints1383_1401:
         assert "pseudonymous_logs" in data["data_classification"]
         assert "access_control" in data["data_classification"]
         assert "salt_rotation" in data["data_classification"]
+        assert isinstance(data["providers"], list)
+        assert isinstance(data["processing_categories"], list)
+        assert isinstance(data["rights"], list)
+        assert isinstance(data["automated_analysis"], list)
 
     def test_privacy_endpoint_retention_days(self, client: TestClient) -> None:
         """/privacy includes retention period from log retention manager."""
         response = client.get("/privacy")
         assert response.status_code == 200
+        assert response.headers["content-type"].lower().startswith("application/json")
         data = response.json()
 
         # Check that retention_period_days is a number
@@ -113,3 +130,52 @@ class TestAppEndpoints1383_1401:
 
         # Verify it's mentioned in data_retention string
         assert str(retention_days) in data["data_retention"]
+
+    def test_terms_endpoint_structure(self, client: TestClient) -> None:
+        """/terms returns canonical legal publication structure."""
+        response = client.get("/terms")
+        assert response.status_code == 200
+        assert response.headers["content-type"].lower().startswith("application/json")
+        data: dict[str, Any] = response.json()
+
+        assert "terms_of_use" in data
+        assert "service_scope" in data
+        assert "billing_and_subscriptions" in data
+        assert "acceptable_use" in data
+        assert "liability_boundary" in data
+        assert "contact" in data
+        assert data["effective_date"] == "2026-03-08"
+
+        service_scope = data["service_scope"]
+        assert service_scope["category"] == "wellness / nutrition planning / coaching support"
+        assert "medical" in service_scope["medical_boundary"].lower()
+
+        billing = data["billing_and_subscriptions"]
+        assert "Apple" in billing["ios_app_store"]
+        assert "backend" in billing["entitlement_truth"].lower()
+
+    def test_terms_endpoint_keeps_wellness_boundaries(self, client: TestClient) -> None:
+        """/terms must preserve non-medical product framing."""
+        response = client.get("/terms")
+        assert response.status_code == 200
+        assert response.headers["content-type"].lower().startswith("application/json")
+        data = response.json()
+
+        assert "wellness" in data["terms_of_use"].lower()
+        assert "does not provide medical diagnosis" in data["terms_of_use"].lower()
+        forbidden = data["acceptable_use"]["forbidden"]
+        assert "using the service for medical triage or emergency decisions" in forbidden
+
+    def test_terms_endpoint_matches_canonical_helper(self, client: TestClient) -> None:
+        """/terms must serialize the canonical typed helper payload."""
+        response = client.get("/terms")
+        assert response.status_code == 200
+        assert response.headers["content-type"].lower().startswith("application/json")
+
+        assert response.json() == build_terms_endpoint_payload().model_dump()
+
+    def test_legacy_terms_wrapper_matches_canonical_helper(self) -> None:
+        """legacy_app /terms wrapper must delegate to the canonical typed helper."""
+        import legacy_app
+
+        assert asyncio.run(legacy_app.terms()) == build_terms_endpoint_payload().model_dump()

@@ -3,6 +3,7 @@
 Покрывает различные сценарии работы с unified_db
 """
 
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -68,6 +69,7 @@ class TestUnifiedDBCoverage:
             from core.food_apis.unified_db import UnifiedFoodDatabase
 
             db = UnifiedFoodDatabase()
+            db.off_client = None
             results = await db.search_food("test query")
 
             # Проверяем, что данные были обработаны
@@ -91,6 +93,7 @@ class TestUnifiedDBCoverage:
             from core.food_apis.unified_db import UnifiedFoodDatabase
 
             db = UnifiedFoodDatabase()
+            db.off_client = None
 
             # Тестируем метод close
             if hasattr(db, "close"):
@@ -129,6 +132,7 @@ class TestUnifiedDBCoverage:
 
             # Create database with custom cache directory
             db = UnifiedFoodDatabase(cache_dir=str(tmp_path))
+            db.off_client = None
             cache_file = tmp_path / "unified_food_cache.json"
 
             # Verify cache doesn't exist initially
@@ -176,6 +180,7 @@ class TestUnifiedDBCoverage:
             from core.food_apis.unified_db import UnifiedFoodDatabase
 
             db = UnifiedFoodDatabase(cache_dir=str(tmp_path))
+            db.off_client = None
             cache_file = tmp_path / "unified_food_cache.json"
 
             # Call search_food with save_cache=False
@@ -215,6 +220,7 @@ class TestUnifiedDBCoverage:
             from core.food_apis.unified_db import UnifiedFoodDatabase
 
             db = UnifiedFoodDatabase(cache_dir=str(tmp_path))
+            db.off_client = None
             cache_file = tmp_path / "unified_food_cache.json"
 
             # Call search_food WITHOUT save_cache arg (should default to True)
@@ -268,6 +274,7 @@ class TestUnifiedDBCoverage:
             from core.food_apis.unified_db import UnifiedFoodDatabase
 
             db = UnifiedFoodDatabase(cache_dir=str(tmp_path))
+            db.off_client = None
             cache_file = tmp_path / "unified_food_cache.json"
 
             # Sequence 1: save_cache=True, then save_cache=False
@@ -303,9 +310,12 @@ class TestUnifiedDBCoverage:
             assert "search_banana" in cache_final
 
     @pytest.mark.asyncio
-    async def test_search_food_save_cache_preserves_existing(self, tmp_path):
+    async def test_search_food_save_cache_preserves_existing(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """Test that save_cache=False doesn't modify existing cache."""
         import json
+        import os
 
         with patch("core.food_apis.unified_db.USDAClient") as mock_usda:
             mock_client = MagicMock()
@@ -330,6 +340,7 @@ class TestUnifiedDBCoverage:
             from core.food_apis.unified_db import UnifiedFoodDatabase
 
             db = UnifiedFoodDatabase(cache_dir=str(tmp_path))
+            db.off_client = None
             cache_file = tmp_path / "unified_food_cache.json"
 
             # Create initial cache with save_cache=True
@@ -338,12 +349,8 @@ class TestUnifiedDBCoverage:
             # Get initial cache state
             with open(cache_file, "r", encoding="utf-8") as f:
                 initial_cache = json.load(f)
+            os.utime(cache_file, (1000.0, 1000.0))
             initial_mtime = cache_file.stat().st_mtime
-
-            # Small delay to ensure timestamp would change if file modified
-            import time
-
-            time.sleep(0.01)
 
             # Call with save_cache=False - should not modify cache
             await db.search_food("new_search", save_cache=False)

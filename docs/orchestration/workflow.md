@@ -16,9 +16,13 @@
 - **Orchestration protocols:** see `docs/orchestration/AGENT_*.md` (context, capability, handoff, dialogue, parallel)
 - **Design rationale (multi-model + research tracks):** `docs/audit/AGENT_ORCHESTRATION_MULTI_MODEL_AND_RESEARCH_AUDIT_2026-02-10.md`
 - **Message envelopes (multi-model robustness):** `docs/orchestration/AGENT_MESSAGE_PROTOCOL.md`
+- **Native runtime bridge (repo-agent slug -> transport-only native executor):** `docs/orchestration/NATIVE_SUBAGENT_BRIDGE_PROTOCOL.md`
 - **Research track (web/OSS intake):** `docs/orchestration/RESEARCH_TRACK_PROTOCOL.md`
 - **Research brainstorming (brainstorm → research → decision → promotion):** `docs/orchestration/RESEARCH_BRAINSTORMING_PROTOCOL.md`
+- **Experimentation loops (bounded optimization / eval):** `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md`
 - **Reflection / KPP promotion:** `docs/orchestration/AGENT_REFLECTION_PROTOCOL.md`
+- **Skill routing policy:** `docs/orchestration/AGENT_SKILL_ROUTING_POLICY.md`
+- **Automation readiness / enforcement layers:** `docs/orchestration/AUTOMATION_READINESS_MATRIX.md`
 - **Merge readiness / zero-comments (coordinator and any agent):** `docs/orchestration/COORDINATOR_MERGE_READINESS_RULES.md` — canonical verification script and rules; never report "0 comments" or "ready to merge" without running the script.
 
 ---
@@ -43,6 +47,15 @@ Task
 
 **Action:** Use `agent-coordinator` to analyze the task
 
+Automation note:
+
+- coordinator-first is a repo policy requirement;
+- if launcher/runtime auto-capture is unavailable, manual `agent-coordinator`
+  invocation is still mandatory before non-trivial execution;
+- guaranteed raw session auto-start requires a local launcher/runtime
+  enforcement layer and is not implied by docs alone;
+- see `docs/orchestration/AUTOMATION_READINESS_MATRIX.md`.
+
 **Template:** See `docs/orchestration/task_analysis.template.md`
 
 **Output:**
@@ -51,6 +64,8 @@ Task
 - Priority assigned (P0/P1/P2)
 - Agent(s) assigned
 - Expected outcome defined
+- If the lane packet/runbook declares a role-agent order, that order is recorded
+  as mandatory for the lane and must not be replaced by an ad-hoc internal stack.
 
 **Pre-flight Checklist (SoT):** See “Canonical Pre-flight Checklist (SoT)” below (mandatory).
 
@@ -66,8 +81,9 @@ Task
 ### Pre-flight Checklist
 
 #### 0) Auto-verification (mandatory)
-- [ ] Run: `python3 scripts/orchestration/check_preflight.py` — must exit 0 (PASS). Failure = stop execution.
+- [ ] Run: `python3 -m scripts.orchestration.check_preflight` — must exit 0 (PASS). Failure = stop execution.
 - [ ] Run: `python3 scripts/orchestration/check_agent_consistency.py` — must exit 0 (PASS). Ensures routing ⊆ inventory ⊆ capability.
+- [ ] Confirm coordinator-first start gate was satisfied: either `agent-coordinator` was invoked manually, or a launcher/bootstrap path already produced the governing packet for this lane.
 
 #### 1) Context loading
 - [ ] Загружен root `AGENTS.md` (инварианты, quality gates, запреты)
@@ -87,8 +103,86 @@ Task
 - [ ] Назначен primary agent
 - [ ] Назначены secondary agents (если multi-domain)
 - [ ] Проставлены зависимости / handoff / sync points (если multi-agent)
+- [ ] Если lane packet/runbook задаёт явный role-agent order, назначенные role agents будут
+  выполнены в этом порядке без пропуска
+- [ ] Определён `recommended_skills` packet по `docs/orchestration/AGENT_SKILL_ROUTING_POLICY.md`
+- [ ] `skill_routing` содержит `task_classification`, `required`, `recommended`, `conditional`, `blocked`
+- [ ] Task packet содержит additive automation metadata:
+  `automation_flags`, `pr_phase`, `design_lane_mode`,
+  `needs_backlog_update`, `needs_docs_sync`, `needs_agents_sync`
+- [ ] Если runtime использует native subagents, task packet содержит `native_subagent_bridge`,
+  а repo-agent slug остаётся канонической идентичностью роли
+- [ ] Явно запрошенные пользователем agent slugs сохранены в task packet и либо honor/advisory,
+  либо отклонены с явной причиной
+- [ ] Для privilege-sensitive surfaces (`.github/workflows/**`, `ios/fastlane/**`,
+  `scripts/orchestration/**`, merge-governance docs/scripts) включён security review path
 
 **Stop condition:** если есть хоть один незакрытый пункт — execution запрещён.
+
+### Task Packet Expectations (PR2 bootstrap baseline)
+
+Bootstrap packets now carry additive synchronization metadata that remains fully
+derivable from existing inputs:
+
+- `automation_flags.coordinator_first_required = true`
+- `automation_flags.skill_routing_applied = true`
+- `automation_flags.native_subagent_bridge_available = true`
+- `automation_flags.security_review_required` mirrors the privileged-surface rule
+- `recommended_skills` remains backward-compatible and is derived from
+  `skill_routing.required + skill_routing.recommended`
+- `automation_flags.judgment_lane_enabled` mirrors `decision_contract.judgment_enabled`
+- `automation_flags.pr_lifecycle_enabled = false` by default and becomes `true`
+  only when bootstrap is invoked with an explicit PR lifecycle phase
+- `automation_flags.design_lane_enabled = false` only when no explicit design
+  trigger is present; explicit design packets may enable the lane even when
+  the resolved mode is still `read_only`
+- `pr_phase = "none"`
+- `pr_lifecycle_contract` is additive lifecycle metadata derived from the
+  explicit `pr_phase`; `post_open_review` must surface the canonical
+  `qa-engineer-agent -> bug-hunter` lane and current-head preparation contract
+- `design_lane_mode = "disabled"` only when the task has no explicit design
+  trigger; otherwise the packet must resolve to one of:
+  - `read_only`
+  - `verify`
+  - `implement`
+  - `sync`
+- `design_lane_contract` is additive metadata derived from explicit design
+  inputs and contains:
+  - `design_source`
+  - `source_url`
+  - `file_key_or_workspace`
+  - `node_id_or_frame_id`
+  - `target_surface`
+  - `task_mode`
+  - optional `figma_lane_tool`
+  - `blockers`
+  - `code_native_design_brief_required`
+  - `code_native_design_brief_path`
+  - `explicit_creation_mode`
+- `needs_backlog_update`, `needs_docs_sync`, and `needs_agents_sync` are deterministic
+  sync signals derived from task text and candidate paths
+
+PR2 scope note:
+
+- This baseline does not enable PR lifecycle automation, design/Figma routing, or
+  local launcher/runtime rollout. Those belong to later PR slices.
+
+PR4 scope note:
+
+- PR lifecycle automation stays deterministic only after explicit bootstrap
+  invocation with `pr_phase` such as `post_open_review` or `merge_ready`.
+- Post-open review lane synthesis is a packet-level contract, not raw-session or
+  host-runtime event automation.
+
+PR5 scope note:
+
+- `creative_research` activation must stay explicit and governed: weak
+  “wellness/market/design” wording alone is insufficient without a real
+  report/research deliverable or governed research surface.
+- Design/Figma activation must stay packet-driven and blocker-aware.
+- Code-native design brief paths must be expressible before any Figma mutation
+  path is considered activation-ready.
+- PR5 does not add live Figma execution or raw-session launcher automation.
 
 ---
 
@@ -103,6 +197,8 @@ Task
 
 For tasks that introduce or modify agent automation:
 
+- Read `docs/orchestration/AUTOMATION_READINESS_MATRIX.md` first and name the
+  target enforcement layer explicitly.
 - Policy gate requirements must be defined before execution-path changes.
 - Secrets handling must use short-lived/scoped credentials only.
 - Privileged actions require explicit mode classification:
@@ -111,54 +207,20 @@ For tasks that introduce or modify agent automation:
   - `blocked`
 - Audit evidence requirements must be documented before rollout.
 
----
+## Agent Experimentation (when applicable)
 
-## Hint Levels for Agent Tasks (EVMbench-inspired)
+For fixed-budget optimization or evaluation loops, use:
 
-**Purpose:** Define hint levels that improve agent task success rates.
+- `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md`
+- `docs/orchestration/AGENT_EXPERIMENT_PACKET_TEMPLATE.md`
+- `docs/orchestration/CV_EXPERIMENTATION_PROTOCOL.md` for offline `photo -> food`
+  evaluation packets
+- `docs/orchestration/CV_EXPERIMENT_PACKET_TEMPLATE.md` for CV-specific packet fields
 
-**Rationale:** EVMbench research shows hints (low/medium/high) materially improve PATCH/EXPLOIT success. Discovery is often the bottleneck, not repair.
+Rule:
 
-### Hint Level Definitions
-
-| Level | Context Provided | When to Use |
-|-------|------------------|-------------|
-| **Low** | Branch name + link to CI run | Simple tasks, experienced agent |
-| **Medium** | Failed job name + log snippet | Standard CI fix tasks |
-| **High** | Exact failing assertion + suggested fix location | Complex failures, new patterns |
-
-### Fix-CI Task Hints
-
-| Level | Example Hint |
-|-------|--------------|
-| **Low** | "Branch `fix/nightly` CI is red. Run link: <url>" |
-| **Medium** | "Job `test-pr (3.13.6)` failed. Error: `AssertionError` in `test_bmi_calculation`. Log: `Expected 25.0, got 24.99`" |
-| **High** | "Test `tests/test_bmi.py::test_bmi_calculation` line 42 fails. Root cause: rounding precision. Fix in `core/bmi/engine.py:compute_bmi()` — use `round(result, 2)`" |
-
-### Coordinator Task Hints
-
-| Level | Example Hint |
-|-------|--------------|
-| **Low** | "Implement feature X per backlog item Y" |
-| **Medium** | "Feature X should use pattern from `app/routers/bmi.py`. Tests needed in `tests/test_feature_x.py`" |
-| **High** | "Feature X: (1) Add schema in `app/schemas/x.py` like `BmiRequest`, (2) Add router in `app/routers/x.py` with `require_pro_tier`, (3) Add tests covering 200/422/403 cases" |
-
-### Security Remediation Hints
-
-| Level | Example Hint |
-|-------|--------------|
-| **Low** | "CVE-2026-1234 affects package X. Fix it." |
-| **Medium** | "CVE-2026-1234: package X < 2.0.0 is vulnerable. Bump to ≥2.0.0 in requirements.txt" |
-| **High** | "CVE-2026-1234: (1) Update `requirements.in` line 15, (2) Run `pip-compile`, (3) Update `constraints.txt`, (4) Create `docs/security/CVE-2026-1234-x.md`, (5) Run `pytest tests/test_dependency_security_guard.py`" |
-
-### Usage in Prompts
-
-When routing tasks, coordinator should include appropriate hint level based on:
-- Agent experience with this task type
-- Complexity of the failure/feature
-- Time constraints
-
-**Default:** Start with **Medium** hints. Escalate to **High** if agent struggles or task is novel.
+- This workflow remains the canonical task lifecycle.
+- Mutable-surface rules, inner-loop budgets, and experiment promotion rules live only in the experimentation protocol.
 
 ---
 
@@ -346,6 +408,17 @@ python scripts/orchestration/telemetry_rollup.py
 
 See: `docs/orchestration/ORCHESTRATION_TELEMETRY_SPEC.md`
 
+### Experiment promotion (governed lane)
+
+```bash
+mkdir -p artifacts/orchestration/experiments/promotions
+python scripts/orchestration/experiment_promote.py \
+  --packet artifacts/orchestration/experiments/<experiment_id>.json \
+  --result artifacts/orchestration/experiments/results/<experiment_id>.json
+```
+
+Rule: promotion writes exactly one durable destination artifact plus one local promotion decision artifact.
+
 ---
 
 ## Step 6: DoD (Definition of Done)
@@ -359,6 +432,10 @@ See: `docs/orchestration/ORCHESTRATION_TELEMETRY_SPEC.md`
 **Required:**
 - Scope respected
 - Quality gates pass (see `RUNBOOK_AGENT.md` Quality Gates section)
+- Merge readiness verified on the latest PR head via the canonical wrapper in
+  `docs/orchestration/COORDINATOR_MERGE_READINESS_RULES.md`
+- No pending required jobs or unresolved/actionable bot comments remain at the
+  time of the final merge decision
 - Documentation updated (if needed)
 - Postponed items recorded in `BACKLOG_LEDGER.md`
 
@@ -398,6 +475,8 @@ See: `docs/orchestration/ORCHESTRATION_TELEMETRY_SPEC.md`
 5. **Dev-only:** This workflow is for development, not runtime product
 6. **Pre-flight enforcement:** Coordinator must complete Pre-flight Checklist before starting
 7. **Post-flight verification:** Coordinator must verify execution requirements before Synthesis
+8. **Next-PR start gate:** in PR trains, the next PR starts only after the previous PR is merged,
+   local `main` is synced, and current-head `main` is green after merge fallout
 
 ---
 

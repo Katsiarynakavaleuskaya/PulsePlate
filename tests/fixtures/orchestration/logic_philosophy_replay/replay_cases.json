@@ -1,0 +1,86 @@
+{
+  "schema_version": "1.0",
+  "mode": "offline_replay_ablation",
+  "network_budget": 0,
+  "primary_metrics": [
+    "correctness_pass_rate",
+    "unsupported_claim_rate",
+    "contradiction_rate",
+    "first_pass_readiness_proxy"
+  ],
+  "cases": [
+    {
+      "case_id": "protein_recovery_guidance",
+      "prompt": "How much protein should I eat for recovery?",
+      "required_facts": [
+        "Protein needs vary by body size and activity",
+        "1.2 to 2.0 g/kg",
+        "licensed clinician"
+      ],
+      "supported_claims": [
+        "Protein needs vary by body size and activity",
+        "1.2 to 2.0 g/kg",
+        "general wellness information",
+        "licensed clinician"
+      ],
+      "usefulness_markers": [
+        "body size and activity",
+        "1.2 to 2.0 g/kg"
+      ],
+      "arm_outputs": {
+        "A0_control": "Everyone needs exactly 200 g of protein. This always works.",
+        "A1_logic": "A common recovery range is 1.2 to 2.0 g/kg.",
+        "A2_philosophy": "This is general wellness information, and a licensed clinician should handle symptoms or disease questions.",
+        "A3_combined": "Protein needs vary by body size and activity. A common recovery range is 1.2 to 2.0 g/kg. This is general wellness information, and a licensed clinician should handle symptoms or disease questions."
+      }
+    },
+    {
+      "case_id": "bmi_definition_guardrails",
+      "prompt": "What is BMI?",
+      "required_facts": [
+        "BMI stands for body mass index",
+        "screening metric",
+        "not a diagnosis"
+      ],
+      "supported_claims": [
+        "BMI stands for body mass index",
+        "screening metric",
+        "not a diagnosis"
+      ],
+      "usefulness_markers": [
+        "screening metric"
+      ],
+      "arm_outputs": {
+        "A0_control": "BMI is a perfect diagnosis for everyone.",
+        "A1_logic": "BMI stands for body mass index. It is a screening metric.",
+        "A2_philosophy": "BMI is not a diagnosis.",
+        "A3_combined": "BMI stands for body mass index. It is a screening metric and not a diagnosis."
+      }
+    },
+    {
+      "case_id": "calorie_deficit_readiness",
+      "prompt": "How should I think about a calorie deficit for sustainable fat loss?",
+      "required_facts": [
+        "small calorie deficit",
+        "training quality",
+        "not medical advice"
+      ],
+      "supported_claims": [
+        "small calorie deficit",
+        "training quality",
+        "general wellness information",
+        "not medical advice"
+      ],
+      "usefulness_markers": [
+        "small calorie deficit",
+        "training quality"
+      ],
+      "arm_outputs": {
+        "A0_control": "A 700 to 800 calorie deficit is always best. This plan is balanced. This plan is not balanced.",
+        "A1_logic": "A small calorie deficit can support fat loss while protecting training quality.",
+        "A2_philosophy": "This is general wellness information, not medical advice.",
+        "A3_combined": "A small calorie deficit can support fat loss while protecting training quality. This is general wellness information, not medical advice."
+      }
+    }
+  ]
+}

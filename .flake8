@@ -25,4 +25,5 @@ exclude =
     .mypy_cache,
     .ruff_cache,
     releases/*,
-    node_modules
+    node_modules,
+    tools/cybersecurity_skills

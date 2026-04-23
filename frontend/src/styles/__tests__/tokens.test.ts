@@ -4,6 +4,8 @@
  * Tests for design token consistency, type safety, and value validation.
  */
 
+import fs from 'node:fs';
+import { fileURLToPath, URL as NodeURL } from 'node:url';
 import { describe, it, expect } from 'vitest';
 import {
   colors,
@@ -148,7 +150,7 @@ describe('Design Tokens', () => {
 
   describe('Border Radius', () => {
     it('should have consistent radius values', () => {
-      expect(borderRadius.none).toBe('0');
+      expect(borderRadius.none).toBe('0px');
       expect(borderRadius.sm).toBe('0.125rem');
       expect(borderRadius.base).toBe('0.25rem');
       expect(borderRadius.md).toBe('0.375rem');
@@ -172,6 +174,16 @@ describe('Design Tokens', () => {
       Object.values(shadows).forEach(shadow => {
         expect(shadow).toMatch(/^0 \d+px \d+px/);
       });
+    });
+
+    it('should retain destructive compatibility aliases in runtime CSS', () => {
+      const cssPath = fileURLToPath(new NodeURL('../tokens.css', import.meta.url));
+      const css = fs.readFileSync(cssPath, 'utf8');
+
+      expect(css).toContain('--color-destructive-bg:');
+      expect(css).toContain('--color-destructive-bg-hover:');
+      expect(css).toContain('--color-destructive-border:');
+      expect(css).toContain('--shadow-destructive:');
     });
   });
 

@@ -40,7 +40,8 @@ beforeAll(async () => {
 // Mock analytics to verify calls
 vi.mock("../../../lib/analytics", () => {
   return {
-    log: vi.fn(),
+    createAnalyticsEventId: vi.fn(),
+    logLegacyPaywallExposure: vi.fn(),
     Events: {
       PAYWALL_VIEW: "paywall_view",
       PURCHASE_ATTEMPT: "purchase_attempt",
@@ -51,7 +52,11 @@ vi.mock("../../../lib/analytics", () => {
   };
 });
 
-import { log, Events } from "../../../lib/analytics";
+import {
+  Events,
+  createAnalyticsEventId,
+  logLegacyPaywallExposure,
+} from "../../../lib/analytics";
 
 afterEach(() => {
   cleanup();
@@ -59,11 +64,26 @@ afterEach(() => {
 });
 
 describe("Paywall BeforeAfter", () => {
+  beforeEach(() => {
+    let counter = 0;
+    vi.mocked(createAnalyticsEventId).mockImplementation(() => {
+      counter += 1;
+      return counter === 1 ? "exposure-1" : `event-${counter - 1}`;
+    });
+  });
+
   test("renders dialog and logs view", () => {
     render(<BeforeAfter onClose={() => {}} />);
     const dialog = screen.getByRole("dialog");
     expect(dialog).toBeInTheDocument();
-    expect(log).toHaveBeenCalledWith(Events.PAYWALL_VIEW, expect.anything());
+    expect(logLegacyPaywallExposure).toHaveBeenCalledWith(Events.PAYWALL_VIEW, {
+      client_event_id: "event-1",
+      exposure_id: "exposure-1",
+      source_surface: "unknown",
+      trigger_reason: "unknown",
+      via: "paywall",
+      metadata: undefined,
+    });
   });
 
   test("fires purchase_attempt on CTA click", async (): Promise<void> => {
@@ -74,10 +94,15 @@ describe("Paywall BeforeAfter", () => {
     fireEvent.click(ctas[0]);
     await waitFor(() => {
       expect(onPurchase).toHaveBeenCalled();
-      // Should have PAYWALL_VIEW (on mount) + PURCHASE_ATTEMPT (on click)
-      expect(log).toHaveBeenCalledTimes(2);
-      expect(log).toHaveBeenCalledWith(Events.PAYWALL_VIEW, expect.anything());
-      expect(log).toHaveBeenCalledWith(Events.PURCHASE_ATTEMPT, expect.anything());
+      expect(logLegacyPaywallExposure).toHaveBeenCalledTimes(2);
+      expect(logLegacyPaywallExposure).toHaveBeenNthCalledWith(2, Events.PURCHASE_ATTEMPT, {
+        client_event_id: "event-2",
+        exposure_id: "exposure-1",
+        source_surface: "unknown",
+        trigger_reason: "unknown",
+        via: "paywall",
+        metadata: undefined,
+      });
     });
   });
 
@@ -99,10 +124,33 @@ describe("Paywall BeforeAfter", () => {
     const cancelBtns = screen.getAllByTestId("paywall-cancel");
     fireEvent.click(cancelBtns[0]);
     expect(onClose).toHaveBeenCalled();
-    // Should have PAYWALL_VIEW (on mount) + PURCHASE_CANCEL (on click)
-    expect(log).toHaveBeenCalledTimes(2);
-    expect(log).toHaveBeenCalledWith(Events.PAYWALL_VIEW, expect.anything());
-    expect(log).toHaveBeenCalledWith(Events.PURCHASE_CANCEL, expect.anything());
+    expect(logLegacyPaywallExposure).toHaveBeenCalledTimes(2);
+    expect(logLegacyPaywallExposure).toHaveBeenNthCalledWith(2, Events.PURCHASE_CANCEL, {
+      client_event_id: "event-2",
+      exposure_id: "exposure-1",
+      source_surface: "unknown",
+      trigger_reason: "unknown",
+      via: "paywall",
+      metadata: { dismissal_method: "cancel_button" },
+    });
+  });
+
+  test("fires purchase_cancel on Escape with the same exposure_id", () => {
+    const onClose = vi.fn();
+    render(<BeforeAfter onClose={onClose} />);
+
+    fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
+
+    expect(onClose).toHaveBeenCalled();
+    expect(logLegacyPaywallExposure).toHaveBeenCalledTimes(2);
+    expect(logLegacyPaywallExposure).toHaveBeenNthCalledWith(2, Events.PURCHASE_CANCEL, {
+      client_event_id: "event-2",
+      exposure_id: "exposure-1",
+      source_surface: "unknown",
+      trigger_reason: "unknown",
+      via: "paywall",
+      metadata: { dismissal_method: "escape" },
+    });
   });
 
   test("disables body scroll when modal opens and restores on unmount", () => {

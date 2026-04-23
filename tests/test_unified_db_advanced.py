@@ -59,6 +59,7 @@ class TestUnifiedFoodDatabaseCommonFoods:
     async def test_get_common_foods_database_from_cache(self, temp_cache_dir):
         """Test getting common foods from cache."""
         db = UnifiedFoodDatabase(cache_dir=temp_cache_dir)
+        db.off_client = None
 
         # Write cache file using mock_open and mock Path.exists separately
         with patch(
@@ -93,6 +94,7 @@ class TestUnifiedFoodDatabaseCommonFoods:
 
         db = UnifiedFoodDatabase(cache_dir=temp_cache_dir)
         db.usda_client = mock_usda_client
+        db.off_client = None
 
         # Mock asyncio.sleep to speed up test
         with patch("asyncio.sleep", new_callable=AsyncMock):
@@ -125,6 +127,7 @@ class TestUnifiedFoodDatabaseCommonFoods:
     async def test_get_common_foods_database_cache_error(self, temp_cache_dir):
         """Test common foods database with cache loading error."""
         db = UnifiedFoodDatabase(cache_dir=temp_cache_dir)
+        db.off_client = None
 
         # Mock file exists but reading fails
         with patch("pathlib.Path.exists", return_value=True):
@@ -149,6 +152,7 @@ class TestUnifiedFoodDatabaseCommonFoods:
 
         db = UnifiedFoodDatabase(cache_dir=temp_cache_dir)
         db.usda_client = mock_usda_client
+        db.off_client = None
 
         with patch("asyncio.sleep", new_callable=AsyncMock):
             foods_db = await db.get_common_foods_database()
@@ -175,6 +179,7 @@ class TestUnifiedFoodDatabaseCommonFoods:
 
         db = UnifiedFoodDatabase(cache_dir=temp_cache_dir)
         db.usda_client = mock_usda_client
+        db.off_client = None
 
         # Mock file operations to fail on write
         with patch("builtins.open", side_effect=PermissionError("Cannot write")):

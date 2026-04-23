@@ -51,11 +51,23 @@ Use this template for each new request you plan to pass from Git to Figma AI.
 
 - Canonical field schema:
   `docs/figma/FIGMA_IMPLEMENTATION_RUNBOOK.md` (Section 9).
-- Figma Node ID(s):
+- Design review reference(s):
 - Mapping to matrix row(s):
 - Status (`Implemented` / `Partial` / `Missing` / `Blocked by flag`):
 - Implement Needed column update:
 - QA evidence link(s):
+
+## Optional Code Connect fields
+
+Evidence for optional status: `docs/design/PENPOT_STORYBOOK_BRIDGE.md:17`,
+`docs/design/PENPOT_STORYBOOK_BRIDGE.md:134`,
+`docs/roadmap/BACKLOG_LEDGER.md:1267`, `docs/roadmap/BACKLOG_LEDGER.md:3001`.
+
+Fill these only when Code Connect is explicitly part of the task:
+
+- Figma Node ID(s):
+- Code Connect label:
+- Code Connect map status:
 
 ## Orchestration (if task is complex)
 

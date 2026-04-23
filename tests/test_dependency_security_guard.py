@@ -19,16 +19,26 @@ SCHEMA_PATH = REPO_ROOT / "tests" / "fixtures" / "dependency_security_schema.jso
 
 REQUIREMENT_SURFACES = (
     REPO_ROOT / "requirements.in",
+    REPO_ROOT / "requirements-docker-runtime.in",
+    REPO_ROOT / "requirements-ci-lite.in",
+    REPO_ROOT / "requirements-dev.in",
     REPO_ROOT / "requirements.txt",
+    REPO_ROOT / "requirements-docker-runtime.txt",
     REPO_ROOT / "requirements-dev.txt",
     REPO_ROOT / "requirements-lock.txt",
+    REPO_ROOT / "requirements-ci-lite.txt",
     REPO_ROOT / "constraints.txt",
 )
 
 
 def _is_constraint_style(path: Path) -> bool:
-    """Constraint-style (>=) by filename; e.g. requirements.in, constraints*.txt."""
-    return path.name == "requirements.in" or path.name.startswith("constraints")
+    """Constraint-style (>=) by filename for source/constraint requirement surfaces."""
+    return path.name in {
+        "requirements.in",
+        "requirements-ci-lite.in",
+        "requirements-docker-runtime.in",
+        "requirements-dev.in",
+    } or path.name.startswith("constraints")
 
 
 def _load_schema(path: Path) -> dict:
@@ -200,12 +210,12 @@ def test_dependency_security_guard_enforces_min_versions(surface: Path) -> None:
 def test_constraint_surface_effective_min_includes_pins(tmp_path: Path) -> None:
     """
     Regression: constraint-style surface effective min must include both >= and ==.
-    A file with both cryptography>=46.0.5 and cryptography==3.4.8 must yield
+    A file with both cryptography>=46.0.7 and cryptography==3.4.8 must yield
     effective min 3.4.8 so the guard fails (low pin cannot bypass).
     """
     fake_constraints = tmp_path / "constraints.txt"
     fake_constraints.write_text(
-        "cryptography>=46.0.5\ncryptography==3.4.8\n",
+        "cryptography>=46.0.7\ncryptography==3.4.8\n",
         encoding="utf-8",
     )
     effective = _effective_min_version_in_file(fake_constraints, "cryptography")
@@ -213,7 +223,7 @@ def test_constraint_surface_effective_min_includes_pins(tmp_path: Path) -> None:
     assert effective == Version(
         "3.4.8"
     ), "Constraint surface must take min over all lines; lower == must not be ignored."
-    required_min = Version("46.0.5")
+    required_min = Version("46.0.7")
     assert effective < required_min, "Guard should fail when a lower pin exists."
 
 

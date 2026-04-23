@@ -63,10 +63,29 @@ class TestProRouterIsolated:
 
         def _fake_build_week(*args: Any, **kwargs: Any) -> Dict[str, Any]:
             return {
-                "daily_menus": [{"day": 1, "meals": []}],
+                "daily_menus": [
+                    {
+                        "meals": [
+                            {
+                                "title": "salmon_bowl",
+                                "title_translated": "Salmon bowl",
+                                "grams": {"salmon": 150.0},
+                                "kcal": 420.0,
+                                "macros": {"protein_g": 35.0, "fat_g": 18.0, "carbs_g": 12.0},
+                                "micros": {"omega3_mg": 900.0},
+                                "price_est": "5.25",
+                            }
+                        ],
+                        "kcal": 420.0,
+                        "macros": {"protein_g": 35.0, "fat_g": 18.0, "carbs_g": 12.0},
+                        "micros": {"omega3_mg": 900.0},
+                        "coverage": {"omega3_mg": 85.0},
+                        "tips": ["Add greens"],
+                    }
+                ],
                 "weekly_coverage": {"protein_g": 1.0},
                 "shopping_list": {"rice_g": 500.0},
-                "total_cost": 0.0,
+                "total_cost": 5.25,
                 "adherence_score": 1.0,
             }
 
@@ -117,6 +136,8 @@ class TestProRouterIsolated:
         assert "shopping_list" in data
         assert "total_cost" in data
         assert "adherence_score" in data
+        assert data["daily_menus"][0]["meals"][0]["price_est"] == 5.25
+        assert data["daily_menus"][0]["total_cost"] == 5.25
 
     def test_weekly_meal_plan_pipeline_type_mismatch_raises_typeerror(
         self, monkeypatch: pytest.MonkeyPatch
@@ -136,6 +157,33 @@ class TestProRouterIsolated:
 
         with pytest.raises(TypeError, match=r"Expected ProWeekPlanResponse"):
             _ = self.client.post("/api/v1/pro/meal/weekly", json={})
+
+    def test_weekly_meal_plan_invalid_payload_surfaces_postprocess_error(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Malformed build output must fail closed in the postprocess stage."""
+        monkeypatch.setattr(self.pro_mod, "get_food_db", lambda: object())
+        monkeypatch.setattr(self.pro_mod, "get_recipe_db", lambda: object())
+        monkeypatch.setattr(self.pro_mod, "_is_complete_targets", lambda _d: True)
+
+        def _fake_pipeline(**kwargs: Any) -> dict[str, Any]:
+            postprocess_fn = kwargs["postprocess_fn"]
+            try:
+                postprocess_fn({"weekly_coverage": {}, "shopping_list": {}})
+            except ValueError:
+                return {
+                    "status": "error",
+                    "code": "weekly_postprocess_failed",
+                    "message": "Failed to build weekly plan response",
+                }
+            raise AssertionError("postprocess_fn should fail for malformed weekly payloads")
+
+        monkeypatch.setattr(self.pro_mod, "run_weekly_pipeline_guarded", _fake_pipeline)
+
+        response = self.client.post("/api/v1/pro/meal/weekly", json={})
+        assert response.status_code == 500, response.text
+        assert response.headers.get("content-type", "").startswith("application/json")
+        assert response.json()["code"] == "weekly_postprocess_failed"
 
     def test_weekly_meal_plan_missing_profile_field_400(
         self, monkeypatch: pytest.MonkeyPatch

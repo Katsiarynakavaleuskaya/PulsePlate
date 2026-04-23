@@ -55,10 +55,16 @@ def rate_limit_exports_value() -> str:
     return os.getenv("RATE_LIMIT_EXPORTS", "20/minute")
 
 
+def rate_limit_apple_verify_value() -> str:
+    """Return Apple verify rate limit string (env-backed)."""
+    return os.getenv("RATE_LIMIT_APPLE_VERIFY", "10/minute")
+
+
 # Backward-compat names (existing imports expect these).
 # NOTE: These are captured at import-time; tests that override env must reload this module.
 RATE_LIMIT_INSIGHT = rate_limit_insight_value()
 RATE_LIMIT_EXPORTS = rate_limit_exports_value()
+RATE_LIMIT_APPLE_VERIFY = rate_limit_apple_verify_value()
 
 
 class RateLimitErrorResponse(BaseModel):
@@ -153,7 +159,7 @@ def extract_client_ip(
         if cf_ip:
             try:
                 ipaddress.ip_address(cf_ip)
-                return cf_ip
+                return str(cf_ip)
             except ValueError:
                 pass
 
@@ -163,11 +169,11 @@ def extract_client_ip(
             if forwarded_ips:
                 try:
                     ipaddress.ip_address(forwarded_ips[0])
-                    return forwarded_ips[0]
+                    return str(forwarded_ips[0])
                 except ValueError:
                     pass
 
-    return remote_host
+    return str(remote_host)
 
 
 def rate_limit_client_key(request: Request) -> str:
@@ -191,7 +197,7 @@ def rate_limit_client_key(request: Request) -> str:
     client_ip = extract_client_ip(request, trusted_entries)
     if not client_ip:
         return "unknown"
-    return compute_fingerprint(client_ip)
+    return str(compute_fingerprint(client_ip))
 
 
 # Lazy import of SlowAPI (optional dependency in runtime)
@@ -207,8 +213,8 @@ try:
 except ImportError:  # pragma: no cover - optional dependency
     # SlowAPI not available - create no-op stubs
     limiter = None  # type: ignore[assignment]
-    RateLimitExceeded = None  # type: ignore[assignment,misc]
-    SlowAPIMiddleware = None  # type: ignore[assignment,misc]
+    RateLimitExceeded = None  # type: ignore[misc,assignment]
+    SlowAPIMiddleware = None  # type: ignore[misc,assignment]
     _rate_limit_exceeded_handler = None  # type: ignore[assignment]
 
 
@@ -318,8 +324,10 @@ __all__ = [
     "RateLimitErrorResponse",
     "RATE_LIMIT_INSIGHT",
     "RATE_LIMIT_EXPORTS",
+    "RATE_LIMIT_APPLE_VERIFY",
     "rate_limit_insight_value",
     "rate_limit_exports_value",
+    "rate_limit_apple_verify_value",
     "parse_trusted_proxies",
     "is_trusted_proxy",
     "extract_client_ip",

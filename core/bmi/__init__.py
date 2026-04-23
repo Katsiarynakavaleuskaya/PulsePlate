@@ -14,6 +14,7 @@ from core.bmi.engine import (
     FITNESS_LEVEL_DISPLAY_NAMES,
     PremiumPlanResult,
 )
+from core.bmi.query import extract_bmi_inputs, render_bmi_query_answer
 
 __all__ = [
     "WaistRiskResult",
@@ -25,4 +26,6 @@ __all__ = [
     "interpret_group",
     "build_premium_plan",
     "PremiumPlanResult",
+    "extract_bmi_inputs",
+    "render_bmi_query_answer",
 ]

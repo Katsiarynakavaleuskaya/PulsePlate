@@ -19,7 +19,7 @@
 | 5 | iOS Keychain storage verification | Now | `PR-TBD-IOS-KEYCHAIN-CONFORMANCE` | Mandatory mobile secret storage control |
 | 6 | Android Keystore storage verification | Deferred | `PR-TBD-ANDROID-KEYSTORE-CONFORMANCE` | Trigger: start Android billing implementation wave |
 | 7 | PRO/VIP route Depends audit | Now | `PR-TBD-PRO-VIP-DEPENDS-GUARD` | API access-control integrity |
-| 8 | Apple StoreKit 2 products setup | Next | `PR-TBD-IOS-STOREKIT-PRODUCTS` | Operational setup after baseline contract |
+| 8 | Apple StoreKit 2 products setup | Next | `PR #1189 (docs/b3-storekit-operational-sync; merge pending)` | B3 docs/ops close-out is in PR #1189; future release ops continue after that merge |
 | 9 | Google Play Billing setup | Deferred | `PR-TBD-GOOGLE-BILLING` | Trigger: Android monetization is unblocked by product strategy |
 | 10 | Paddle web checkout | Later | `PR-TBD-PADDLE-WEB-CHECKOUT` | Trigger: global web monetization wave starts |
 | 11 | YooKassa RU/BY | Deferred | `Replaced by ERIP/SWIFT baseline` | Trigger: legal/commercial decision to restore provider-based RU/BY rail |

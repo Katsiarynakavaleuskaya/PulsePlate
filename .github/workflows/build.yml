@@ -22,37 +22,137 @@ jobs:
   build:
     runs-on: ubuntu-latest
     permissions:
+      actions: read
       contents: read
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Prepare Trivy ignore policy
+        run: |
+          set -euo pipefail
+          test -f trivy/ignore-policy.rego
+          cp trivy/ignore-policy.rego .trivy-ignore-policy.rego
+          ls -la .trivy-ignore-policy.rego
+
+      - name: Free disk space (Ubuntu hosted runner)
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc
+          df -h
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435
 
       - name: Build Docker image (local, for tests)
-        uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25 # v5
+        uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7.0.0
         with:
           context: .
+          build-args: |
+            PULSEPLATE_PYTHON_INDEX_URL=${{ secrets.PULSEPLATE_PYTHON_INDEX_URL || vars.PULSEPLATE_PYTHON_INDEX_URL }}
+            PULSEPLATE_PYTHON_TRUSTED_HOST=${{ secrets.PULSEPLATE_PYTHON_TRUSTED_HOST || vars.PULSEPLATE_PYTHON_TRUSTED_HOST }}
+            PULSEPLATE_REQUIREMENTS_FILE=requirements-docker-runtime.txt
           platforms: linux/amd64
           push: false
           load: true
           tags: pulseplate:test
-          # Omit cache-from to avoid 404 BlobNotFound when GHA cache entry is missing; still write cache for publish job.
-          # mode=min to avoid 30+ min export (mode=max exports every layer -> huge upload to GHA).
-          # ignore-error=true keeps build green when GHA cache backend is transiently unavailable.
-          cache-to: type=gha,mode=min,ignore-error=true
+          cache-from: type=gha,scope=build-production-${{ github.ref_name }}
+          cache-to: type=gha,scope=build-production-${{ github.ref_name }},mode=min,ignore-error=true
+          provenance: false
           target: production
+
+      - name: Check Docker runtime dependency surface
+        run: |
+          set -euo pipefail
+          python3 scripts/ci/check_docker_runtime_dependency_surface.py \
+            --image pulseplate:test \
+            --output-json docker-runtime-dependency-surface.json
+
+      - name: Resolve Docker image telemetry baseline
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          python3 scripts/ci/fetch_docker_image_baseline.py \
+            --repo "${{ github.repository }}" \
+            --workflow build.yml \
+            --artifact-name docker-image-telemetry-build \
+            --fallback-json docs/telemetry/docker_image_baseline.production.json \
+            --output docker-image-baseline.json
+
+      - name: Collect Docker image telemetry
+        run: |
+          set -euo pipefail
+          python3 scripts/ci/docker_image_telemetry.py \
+            --image-ref pulseplate:test \
+            --baseline-json docker-image-baseline.json \
+            --json-out docker-image-telemetry.json \
+            --markdown-out docker-image-telemetry.md
+
+      - name: Publish Docker telemetry to step summary
+        if: ${{ always() }}
+        run: |
+          set -euo pipefail
+          if [ -f docker-image-telemetry.md ]; then
+            cat docker-image-telemetry.md >> "${GITHUB_STEP_SUMMARY}"
+          fi
+
+      - name: Upload Docker telemetry artifact
+        if: ${{ always() }}
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: docker-image-telemetry-build
+          path: |
+            docker-runtime-dependency-surface.json
+            docker-image-telemetry.json
+            docker-image-telemetry.md
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Enforce Docker image budget
+        id: docker_image_budget
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          python3 scripts/ci/check_docker_image_budget.py \
+            --telemetry-json docker-image-telemetry.json \
+            --budget-json docs/telemetry/docker_image_budget.production.json \
+            --json-out docker-image-budget-check.json \
+            --markdown-out docker-image-budget-check.md
+
+      - name: Publish Docker budget check to step summary
+        if: ${{ always() }}
+        run: |
+          set -euo pipefail
+          if [ -f docker-image-budget-check.md ]; then
+            cat docker-image-budget-check.md >> "${GITHUB_STEP_SUMMARY}"
+          fi
+
+      - name: Upload Docker budget check artifact
+        if: ${{ always() }}
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: docker-image-budget-check-build
+          path: |
+            docker-image-budget-check.json
+            docker-image-budget-check.md
+          if-no-files-found: warn
+          retention-days: 14
 
       - name: Test Docker image
         run: |
           # Set up cleanup trap to ensure container is always removed
           trap "docker stop pulseplate-test 2>/dev/null || true; docker rm pulseplate-test 2>/dev/null || true" EXIT
 
+          apple_shared_secret_name="APPLE_SHARED""_SECRET"
+
           # Start container with tightened security
           docker run -d --name pulseplate-test -p 8000:8000 \
-            -e SERVER_SALT=ci-test-salt \
+            -e SERVER_SALT=StrongServerSaltForCI1234567890! \
+            -e "${apple_shared_secret_name}=StrongAppleSharedSecretForCI1234567890!" \
             --cap-drop=ALL \
             --security-opt no-new-privileges \
             pulseplate:test
@@ -91,40 +191,75 @@ jobs:
 
           echo "✅ Docker image test completed successfully"
 
+      - name: Fail build job when Docker budget check failed
+        if: ${{ steps.docker_image_budget.outcome == 'failure' }}
+        run: |
+          echo "::error::Docker image hard budget gate failed."
+          exit 1
+
   # Security scan
   security-scan:
     runs-on: ubuntu-latest
     needs: build
+    env:
+      # secrets.* is not available in step-level `if:` (actionlint / context rules); gate at job env instead.
+      GHCR_READ_TOKEN_AVAILABLE: ${{ secrets.GHCR_READ_TOKEN != '' }}
     permissions:
       contents: read
+      packages: read
       security-events: write
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - name: Install Trivy via apt
+      # PAT may be present but expired/revoked; anonymous pull still works for public trivy-db.
+      - name: Log in to GHCR (Trivy DB)
+        if: ${{ env.GHCR_READ_TOKEN_AVAILABLE == 'true' }}
+        env:
+          GHCR_READ_TOKEN: ${{ secrets.GHCR_READ_TOKEN }}
         run: |
-          sudo apt-get update
-          sudo apt-get install -y wget apt-transport-https gnupg lsb-release
-          wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | gpg --dearmor | sudo tee /usr/share/keyrings/trivy.gpg > /dev/null
-          echo "deb [signed-by=/usr/share/keyrings/trivy.gpg] https://aquasecurity.github.io/trivy-repo/deb $(lsb_release -sc) main" | sudo tee /etc/apt/sources.list.d/trivy.list
-          sudo apt-get update
-          sudo apt-get install -y trivy
-          trivy --version
+          set -euo pipefail
+          if ! echo "$GHCR_READ_TOKEN" | docker login ghcr.io -u "${{ github.repository_owner }}" --password-stdin
+          then
+            echo "::warning::GHCR_READ_TOKEN is set but docker login was denied; continuing without registry auth."
+          fi
+
+      # SARIF path must stay relative to GITHUB_WORKSPACE (hashFiles/upload-sarif assume repo root).
+      - name: Prepare Trivy ignore policy
+        run: |
+          set -euo pipefail
+          test -f trivy/ignore-policy.rego
+          cp trivy/ignore-policy.rego .trivy-ignore-policy.rego
+          ls -la .trivy-ignore-policy.rego
 
       - name: Run Trivy vulnerability scanner (filesystem scan)
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # v0.35.0
+        env:
+          TRIVY_DB_REPOSITORY: ghcr.io/aquasecurity/trivy-db
+        with:
+          scan-type: fs
+          scan-ref: .
+          cache-dir: /tmp/trivy-cache
+          ignore-policy: .trivy-ignore-policy.rego
+          scanners: vuln
+          format: sarif
+          output: trivy-results.sarif
+          severity: CRITICAL,HIGH
+          limit-severities-for-sarif: true
+          ignore-unfixed: true
+          exit-code: '0'
+          trivyignores: .trivyignore
+          version: v0.69.3
+
+      - name: Warn when Trivy filesystem SARIF is missing
+        if: ${{ hashFiles('trivy-results.sarif') == '' }}
         run: |
-          trivy fs . \
-            --db-repository ghcr.io/aquasecurity/trivy-db \
-            --ignore-policy "${{ github.workspace }}/trivy/ignore-policy.rego" \
-            --scanners vuln \
-            --format sarif --output trivy-results.sarif --severity CRITICAL,HIGH \
-            --ignore-unfixed --exit-code 0 --ignorefile .trivyignore
+          echo "::warning::Trivy filesystem SARIF not produced; Security tab upload skipped."
 
       - name: Upload Trivy scan results to GitHub Security tab
+        if: ${{ hashFiles('trivy-results.sarif') != '' }}
         uses: github/codeql-action/upload-sarif@c00e4aee0547167576bc6663920491135a3dee27 # v4
-        if: ${{ always() }}
         with:
           sarif_file: 'trivy-results.sarif'
 
@@ -134,13 +269,28 @@ jobs:
     needs: [build, security-scan]
     if: github.event_name != 'pull_request'
     permissions:
-      contents: read
+      actions: write
+      contents: write
       packages: write # write implies read; required for GHCR push/pull
       security-events: write
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Prepare Trivy ignore policy
+        run: |
+          set -euo pipefail
+          test -f trivy/ignore-policy.rego
+          cp trivy/ignore-policy.rego .trivy-ignore-policy.rego
+          ls -la .trivy-ignore-policy.rego
+
+      - name: Free disk space (Ubuntu hosted runner)
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc
+          df -h
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435
@@ -172,21 +322,25 @@ jobs:
 
 
       - name: Build and push Docker image
-        uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25 # v5
+        uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7.0.0
         with:
           context: .
+          build-args: |
+            PULSEPLATE_PYTHON_INDEX_URL=${{ secrets.PULSEPLATE_PYTHON_INDEX_URL || vars.PULSEPLATE_PYTHON_INDEX_URL }}
+            PULSEPLATE_PYTHON_TRUSTED_HOST=${{ secrets.PULSEPLATE_PYTHON_TRUSTED_HOST || vars.PULSEPLATE_PYTHON_TRUSTED_HOST }}
+            PULSEPLATE_REQUIREMENTS_FILE=requirements-docker-runtime.txt
           # Single-arch for cache/push stability (CodeRabbit discussion_r2869743452). Restore linux/arm64 when GHA cache/provenance is stable.
           platforms: linux/amd64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
+          cache-from: type=gha,scope=build-production-${{ github.ref_name }}
           # mode=min to match build job and keep cache export/import fast (mode=max can hang 30+ min on export).
           # ignore-error=true prevents publish failure when cache exporter returns transient BlobNotFound.
-          cache-to: type=gha,mode=min,ignore-error=true
-          # Disable provenance to prevent GHA cache export errors ("cache entry no longer exists").
-          # Trade-off: SLSA attestations disabled; cosign verify-attestation will fail. Re-enable when buildx/GHA fix is available.
-          provenance: false
+          cache-to: type=gha,scope=build-production-${{ github.ref_name }},mode=min,ignore-error=true
+          # PR #1448: re-enable SLSA provenance attestations for GHCR publish.
+          # Keep scoped cache + mode=min + ignore-error=true to reduce export flakes.
+          provenance: mode=max
           target: production
 
       - name: Set image ref for SBOM and image scan
@@ -194,26 +348,37 @@ jobs:
         run: |
           echo "ref=${{ env.REGISTRY }}/${{ steps.image-name.outputs.image_name }}:sha-${{ github.sha }}" >> "$GITHUB_OUTPUT"
 
-      - name: Install Trivy via apt
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y wget apt-transport-https gnupg lsb-release
-          wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | gpg --dearmor | sudo tee /usr/share/keyrings/trivy.gpg > /dev/null
-          echo "deb [signed-by=/usr/share/keyrings/trivy.gpg] https://aquasecurity.github.io/trivy-repo/deb $(lsb_release -sc) main" | sudo tee /etc/apt/sources.list.d/trivy.list
-          sudo apt-get update
-          sudo apt-get install -y trivy
-          trivy --version
-
+      # Image scan: --exit-code 0 makes findings report-only (no fail on vuln count).
+      # continue-on-error: true keeps the publish job moving when Trivy fails before SARIF exists
+      # (DB/network/registry); hashFiles guards upload-sarif. Do not change output path without
+      # updating hashFiles('trivy-image.sarif') and upload/warn steps (paths are workspace-relative).
       - name: Run Trivy vulnerability scanner (image scan, report-only)
         continue-on-error: true
-        run: |
-          trivy image \
-            --ignore-policy "${{ github.workspace }}/trivy/ignore-policy.rego" \
-            --format sarif --output trivy-image.sarif --severity CRITICAL,HIGH \
-            --ignorefile .trivyignore \
-            '${{ steps.image-ref.outputs.ref }}'
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # v0.35.0
+        env:
+          TRIVY_DB_REPOSITORY: ghcr.io/aquasecurity/trivy-db
+        with:
+          scan-type: image
+          image-ref: ${{ steps.image-ref.outputs.ref }}
+          cache-dir: /tmp/trivy-cache
+          ignore-policy: .trivy-ignore-policy.rego
+          scanners: vuln
+          format: sarif
+          output: trivy-image.sarif
+          severity: CRITICAL,HIGH
+          limit-severities-for-sarif: true
+          trivyignores: .trivyignore
+          exit-code: '0'
+          version: v0.69.3
 
+      - name: Warn when Trivy image SARIF is missing
+        if: ${{ hashFiles('trivy-image.sarif') == '' }}
+        run: |
+          echo "::warning::Trivy image SARIF not produced; CodeQL upload will be skipped. Check scan logs (registry/auth/DB)."
+
+      # upload-sarif fails closed if sarif is missing; Trivy may not write a file on hard errors.
       - name: Upload Trivy image scan results
+        if: ${{ hashFiles('trivy-image.sarif') != '' }}
         uses: github/codeql-action/upload-sarif@c00e4aee0547167576bc6663920491135a3dee27 # v4
         with:
           sarif_file: 'trivy-image.sarif'
@@ -226,7 +391,7 @@ jobs:
           output-file: sbom.spdx.json
 
       - name: Upload SBOM
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: sbom
           path: sbom.spdx.json

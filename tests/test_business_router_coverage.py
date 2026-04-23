@@ -8,9 +8,13 @@ Tests verify:
 - HTTPException pass-through
 """
 
+from unittest.mock import MagicMock, patch
+
 import pytest
-from unittest.mock import patch, MagicMock
 from fastapi import HTTPException, status
+from fastapi.testclient import TestClient
+
+from tests._helpers.api_headers import API_KEY_HEADERS
 
 
 class TestBusinessAnalysisEndpoint:
@@ -46,7 +50,7 @@ class TestBusinessAnalysisEndpoint:
                     "test_name": "revenue_analysis",
                     "locale": "en",
                 },
-                headers={"X-API-Key": "test-api-key"},
+                headers=API_KEY_HEADERS,
             )
 
             assert response.status_code == 200
@@ -62,6 +66,28 @@ class TestBusinessAnalysisEndpoint:
             MockAnalyzer.assert_called_once_with(locale="en")
             mock_instance.analyze.assert_called_once()
 
+    def test_business_analysis_rejects_missing_api_key(self, test_client) -> None:
+        """Missing API key must fail closed through the app-level guard."""
+        from app.main import app as main_app
+        from app.routers.api_key import require_app_api_key
+
+        def _reject_missing() -> str:
+            raise HTTPException(status_code=403, detail="Missing API Key")
+
+        main_app.dependency_overrides[require_app_api_key] = _reject_missing
+        try:
+            with TestClient(main_app) as isolated_client:
+                response = isolated_client.post(
+                    "/api/v1/business/analyze",
+                    json={"code": "def test(): pass", "test_name": "missing_key"},
+                )
+        finally:
+            main_app.dependency_overrides.pop(require_app_api_key, None)
+
+        assert response.status_code == 403
+        assert response.headers.get("content-type", "").startswith("application/json")
+        assert response.json() == {"detail": "Missing API Key"}
+
     def test_business_module_disabled_returns_503(self, test_client, monkeypatch) -> None:
         """When module disabled, should return 503 before attempting analysis."""
         monkeypatch.setattr("app.routers.business.BUSINESS_MODULE_ENABLED", False)
@@ -69,7 +95,7 @@ class TestBusinessAnalysisEndpoint:
         response = test_client.post(
             "/api/v1/business/analyze",
             json={"code": "def test(): pass", "test_name": "test"},
-            headers={"X-API-Key": "test-key"},
+            headers=API_KEY_HEADERS,
         )
 
         assert response.status_code == 503
@@ -85,7 +111,7 @@ class TestBusinessAnalysisEndpoint:
         response = test_client.post(
             "/api/v1/business/analyze",
             json={"code": oversized_code, "test_name": "dos_test"},
-            headers={"X-API-Key": "test-key"},
+            headers=API_KEY_HEADERS,
         )
 
         # Manual payload check returns 413 (Content Too Large)
@@ -112,7 +138,10 @@ async def test_analyze_business_code_oversized_payload_internal(
     )
 
     with pytest.raises(HTTPException) as exc_info:
-        await analyze_business_code(request, _api_key="test-key")
+        await analyze_business_code(
+            request,
+            _api_key=API_KEY_HEADERS["X-API-Key"],
+        )
 
     assert exc_info.value.status_code == status.HTTP_413_CONTENT_TOO_LARGE
     assert "too large" in str(exc_info.value.detail).lower()
@@ -142,11 +171,36 @@ def test_exactly_100kb_payload_accepted(test_client, monkeypatch) -> None:
         response = test_client.post(
             "/api/v1/business/analyze",
             json={"code": max_allowed_code, "test_name": "edge_case"},
-            headers={"X-API-Key": "test-key"},
+            headers=API_KEY_HEADERS,
         )
 
         # Should succeed
         assert response.status_code == 200
+
+
+def test_business_analysis_invalid_api_key_rejected(test_client, monkeypatch) -> None:
+    """Business analysis must fail closed on invalid API keys."""
+    from app.main import app as main_app
+    from app.routers.api_key import require_app_api_key
+
+    monkeypatch.setattr("app.routers.business.BUSINESS_MODULE_ENABLED", True)
+
+    def _reject_invalid() -> str:
+        raise HTTPException(status_code=403, detail="Invalid API Key")
+
+    main_app.dependency_overrides[require_app_api_key] = _reject_invalid
+    try:
+        with TestClient(main_app) as isolated_client:
+            response = isolated_client.post(
+                "/api/v1/business/analyze",
+                json={"code": "def test(): pass", "test_name": "auth_fail"},
+            )
+    finally:
+        main_app.dependency_overrides.pop(require_app_api_key, None)
+
+    assert response.status_code == 403
+    assert response.headers.get("content-type", "").startswith("application/json")
+    assert "invalid api key" in response.json()["detail"].lower()
 
 
 def test_analyzer_exception_wrapped_as_500(test_client, monkeypatch, caplog) -> None:
@@ -165,7 +219,7 @@ def test_analyzer_exception_wrapped_as_500(test_client, monkeypatch, caplog) -> 
             response = test_client.post(
                 "/api/v1/business/analyze",
                 json={"code": "def crash(): raise Exception()", "test_name": "crash_test"},
-                headers={"X-API-Key": "test-key"},
+                headers=API_KEY_HEADERS,
             )
 
         assert response.status_code == 500
@@ -189,7 +243,7 @@ def test_http_exception_passed_through_unchanged(test_client, monkeypatch) -> No
         response = test_client.post(
             "/api/v1/business/analyze",
             json={"code": "def test(): pass", "test_name": "auth_test"},
-            headers={"X-API-Key": "test-key"},
+            headers=API_KEY_HEADERS,
         )
 
         # Should preserve original HTTPException
@@ -240,7 +294,7 @@ def test_error_type_handling_when_analyzer_returns_error(test_client, monkeypatc
         response = test_client.post(
             "/api/v1/business/analyze",
             json={"code": "def bad_pricing(): price = -10", "test_name": "failed_test"},
-            headers={"X-API-Key": "test-key"},
+            headers={"X-API-Key": "test_key"},
         )
 
         assert response.status_code == 200
@@ -287,7 +341,7 @@ def test_multiple_results_returned_as_list(test_client, monkeypatch) -> None:
         response = test_client.post(
             "/api/v1/business/analyze",
             json={"code": "def optimize(): pass", "test_name": "multi_aspect"},
-            headers={"X-API-Key": "test-key"},
+            headers={"X-API-Key": "test_key"},
         )
 
         assert response.status_code == 200
@@ -315,7 +369,7 @@ def test_log_injection_prevented_in_error_logging(test_client, monkeypatch, capl
             response = test_client.post(
                 "/api/v1/business/analyze",
                 json={"code": "def test(): pass", "test_name": malicious_test_name},
-                headers={"X-API-Key": "test-key"},
+                headers={"X-API-Key": "test_key"},
             )
 
         assert response.status_code == 500

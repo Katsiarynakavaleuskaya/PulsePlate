@@ -1,0 +1,18 @@
+{
+  "baseline_reference": {
+    "artifact_id": 6575089628,
+    "artifact_name": "docker-image-telemetry-build",
+    "branch": "main",
+    "repo": "Katsiarynakavaleuskaya/PulsePlate",
+    "seed_note": "Checked-in fallback seeded from the latest successful main Docker Build and Push artifact at PR-5 branch start.",
+    "seeded_at": "2026-04-22T09:46:43Z",
+    "seeded_from_run_attempt": 1,
+    "seeded_from_run_id": 24771474567,
+    "seeded_from_run_number": 6987,
+    "seeded_from_run_url": "https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/24771474567",
+    "workflow": "build.yml"
+  },
+  "baseline_source": "repo-seed-fallback",
+  "image_size_bytes": 445565354,
+  "image_size_human": "445.57 MB"
+}

@@ -7,6 +7,7 @@ Keep imports deterministic: do NOT use importlib exec_module, do NOT mutate sys.
 from __future__ import annotations
 
 from fastapi import FastAPI
+from fastapi.responses import HTMLResponse
 
 from legacy_app import (
     _install_openapi_builder,
@@ -15,24 +16,90 @@ from legacy_app import (
 
 # Register observability infrastructure (middleware + /metrics endpoint)
 # This must be done here, not in legacy_app.py, to keep legacy as a thin proxy
+from app.bootstrap.direct_api_root import (
+    LEGACY_BMI_WEB_ROUTE,
+    serve_direct_api_root_probe,
+    serve_legacy_bmi_calculator_web,
+)
+from app.bootstrap.food_search import register_food_search_backend
 from app.bootstrap.metrics import register_metrics
 from app.bootstrap.pro_contracts import register_pro_contract_routes
+from app.bootstrap.public_discovery import SITEMAP_ROUTE_PATH, serve_public_sitemap
+from app.bootstrap.telemetry import register_request_telemetry
+from app.bootstrap.tracing import register_tracing
+from app.routers.creative_research_internal import router as creative_research_internal_router
+from app.routers.paywall_analytics import ingest_paywall_event, router as paywall_analytics_router
 import app.routers.realtime_ws as realtime_ws
-from app.routers.feedback import router as feedback_router
+from app.routers.billing import register_billing_routes
 from app.routers.cbt_insight import router as cbt_insight_router
+from app.routers.feedback import router as feedback_router
+from app.routers.fitchef_structured import router as fitchef_structured_router
+from app.routers.legal import router as legal_router
+from app.schemas.direct_api_root import DirectApiRootProbe
 
 app: FastAPI = _legacy_app
 
-_install_openapi_builder(app)
-register_metrics(app)
-register_pro_contract_routes(app)
+_WS_ROUTE_PATHS: tuple[str, str] = ("/api/v1/pro/ws", "/ws")
+_FEEDBACK_ROUTE_PATH: str = "/api/v1/feedback/rag"
+_TERMS_ROUTE_PATH: str = "/terms"
+_CBT_INSIGHT_ROUTE_PATH: str = "/api/v1/pro/cbt/insight"
+_FITCHEF_STRUCTURED_ROUTE_PATH: str = "/api/v1/pro/fitchef/explain"
+_CREATIVE_RESEARCH_PILOT_ROUTE_PATH: str = "/api/v1/internal/creative-research/pilot"
+_PAYWALL_EVENTS_ROUTE_PATH: str = "/api/v1/internal/paywall/events"
 
 
-def _assert_no_duplicate_ws_route() -> None:
-    """Fail fast if WS routes are already registered elsewhere."""
-    existing_paths = {getattr(route, "path", None) for route in app.routes}
-    ws_paths = ("/api/v1/pro/ws", "/ws")  # tuple for deterministic order
-    for path in ws_paths:
+def _has_route(
+    target_app: FastAPI,
+    path: str,
+    method: str | None = None,
+) -> bool:
+    """Check whether a route is already registered on the target app.
+
+    RU: Помогает делать additive bootstrap идемпотентным для reload paths.
+    EN: Keeps additive bootstrap idempotent for reload-path rehydration.
+    """
+    method_name = method.upper() if method else None
+    for route in target_app.routes:
+        if getattr(route, "path", None) != path:
+            continue
+        methods = getattr(route, "methods", None) or set()
+        if method_name is None or method_name in methods:
+            return True
+    return False
+
+
+def _route_has_endpoint(
+    target_app: FastAPI,
+    path: str,
+    method: str,
+    endpoint: object,
+) -> bool:
+    """True when ``path``+``method`` is already bound to the expected callable.
+
+    RU: Не считаем «маршрут есть», если на пути висит чужой handler (контракт другой).
+    EN: Path/method alone is insufficient — wrong handler means wrong contract.
+    """
+    method_name = method.upper()
+    for route in target_app.routes:
+        if getattr(route, "path", None) != path:
+            continue
+        methods = getattr(route, "methods", None) or set()
+        if method_name not in methods:
+            continue
+        if getattr(route, "endpoint", None) is endpoint:
+            return True
+    return False
+
+
+def _assert_no_duplicate_ws_route(target_app: FastAPI | None = None) -> None:
+    """Fail fast when WS paths are already occupied before canonical registration.
+
+    RU: Отдельный guard сохраняет старый fail-fast контракт для tests/runtime.
+    EN: Separate guard preserves the legacy fail-fast contract for tests/runtime.
+    """
+    current_app = target_app or app
+    existing_paths = {getattr(route, "path", None) for route in current_app.routes}
+    for path in _WS_ROUTE_PATHS:
         if path in existing_paths:
             raise RuntimeError(
                 f"Duplicate {path} route detected. "
@@ -40,13 +107,117 @@ def _assert_no_duplicate_ws_route() -> None:
             )
 
 
-_assert_no_duplicate_ws_route()
-app.include_router(realtime_ws.router)
+def _internalize_users_openapi_surface(target_app: FastAPI) -> None:
+    """Hide legacy users CRUD from the public OpenAPI contract.
 
-# Register feedback router (new endpoint, not legacy — belongs here per policy)
-app.include_router(feedback_router)
+    RU: Скрываем users CRUD из публичной OpenAPI surface в canonical entrypoint,
+    не добавляя новый runtime behavior в legacy compatibility layer.
+    EN: Hide users CRUD from the public OpenAPI surface in the canonical
+    entrypoint instead of introducing new runtime behavior in legacy_app.py.
+    """
 
-# Register CBT insight router (PRO tier, feature-flagged via FEATURE_CBT_AGENT)
-app.include_router(cbt_insight_router)
+    for route in target_app.routes:
+        if str(getattr(route, "path", "")).startswith("/api/v1/users"):
+            setattr(route, "include_in_schema", False)
+
+    if target_app.openapi_tags:
+        target_app.openapi_tags = [
+            tag for tag in target_app.openapi_tags if tag.get("name") != "users"
+        ]
+
+    if target_app.description:
+        target_app.description = target_app.description.replace(", user management", "")
+        target_app.description = target_app.description.replace(
+            "User management endpoints (FREE tier)", ""
+        )
+
+    target_app.openapi_schema = None
+
+
+def ensure_canonical_app_bootstrap(target_app: FastAPI) -> FastAPI:
+    """Apply canonical additive bootstrap to the provided FastAPI instance.
+
+    RU: Используется и при первичном импорте `app.main`, и когда `app.app`
+    должен перевести facade на новый `legacy_app.app` без потери additive routes.
+    EN: Used both on initial `app.main` import and when `app.app` must rehydrate
+    a replaced `legacy_app.app` without losing additive routes.
+    """
+    global app
+
+    app = target_app
+    _internalize_users_openapi_surface(app)
+    _install_openapi_builder(app)
+
+    if not _route_has_endpoint(target_app, "/", "GET", serve_direct_api_root_probe):
+        target_app.add_api_route(
+            "/",
+            serve_direct_api_root_probe,
+            methods=["GET"],
+            include_in_schema=False,
+            response_model=DirectApiRootProbe,
+        )
+    if not _route_has_endpoint(
+        target_app, LEGACY_BMI_WEB_ROUTE, "GET", serve_legacy_bmi_calculator_web
+    ):
+        target_app.add_api_route(
+            LEGACY_BMI_WEB_ROUTE,
+            serve_legacy_bmi_calculator_web,
+            methods=["GET"],
+            include_in_schema=False,
+            response_class=HTMLResponse,
+        )
+    if not _route_has_endpoint(target_app, SITEMAP_ROUTE_PATH, "GET", serve_public_sitemap):
+        target_app.add_api_route(
+            SITEMAP_ROUTE_PATH,
+            serve_public_sitemap,
+            methods=["GET"],
+            include_in_schema=False,
+        )
+    register_food_search_backend(app)
+    register_metrics(app)
+    register_request_telemetry(app)
+    register_tracing(app)
+    register_pro_contract_routes(app)
+
+    ws_paths_present = {path for path in _WS_ROUTE_PATHS if _has_route(app, path)}
+    if not ws_paths_present:
+        app.include_router(realtime_ws.router)
+    elif ws_paths_present != set(_WS_ROUTE_PATHS):
+        _assert_no_duplicate_ws_route(app)
+
+    if not _has_route(app, _FEEDBACK_ROUTE_PATH, "POST"):
+        app.include_router(feedback_router)
+
+    if not _has_route(app, _TERMS_ROUTE_PATH, "GET"):
+        app.include_router(legal_router)
+
+    register_billing_routes(app)
+
+    if not _has_route(app, _CBT_INSIGHT_ROUTE_PATH, "POST"):
+        app.include_router(cbt_insight_router)
+
+    if not _has_route(app, _FITCHEF_STRUCTURED_ROUTE_PATH, "POST"):
+        app.include_router(fitchef_structured_router)
+
+    if not _has_route(app, _CREATIVE_RESEARCH_PILOT_ROUTE_PATH, "POST"):
+        app.include_router(creative_research_internal_router)
+
+    if not _route_has_endpoint(
+        app,
+        _PAYWALL_EVENTS_ROUTE_PATH,
+        "POST",
+        ingest_paywall_event,
+    ):
+        if _has_route(app, _PAYWALL_EVENTS_ROUTE_PATH, "POST"):
+            raise RuntimeError(
+                "Duplicate /api/v1/internal/paywall/events route detected with a different "
+                "handler."
+            )
+        app.include_router(paywall_analytics_router)
+
+    return app
+
+
+ensure_canonical_app_bootstrap(app)
 
 __all__ = ["app"]

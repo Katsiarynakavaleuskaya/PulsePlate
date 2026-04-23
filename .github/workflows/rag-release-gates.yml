@@ -1,0 +1,119 @@
+name: RAG Release Gates
+
+on:
+  pull_request:
+    paths:
+      - "scripts/evals/**"
+      - "tests/test_rag_release_gates_runner.py"
+      - "notebooks/pulseplate_rag_release_gates.ipynb"
+      - "data/evals/pulseplate_rag_eval_sample.jsonl"
+      - ".gitignore"
+      - "docs/evals/PULSEPLATE_RAG_RELEASE_GATES.md"
+      - "docs/orchestration/PULSEPLATE_RAG_RELEASE_GATES_TASK_PACKET_2026-04-20.md"
+      - "docs/roadmap/BACKLOG_LEDGER.md"
+      - "requirements-ci-lite.txt"
+      - "requirements-dev.in"
+      - "requirements-dev.txt"
+      - "requirements-lock.txt"
+      - ".github/workflows/rag-release-gates.yml"
+      - "core/rag/**"
+      - "core/ai/**"
+      - "core/insight/philosophy_validator.py"
+      - "app/services/insight_runtime.py"
+      - "app/security/agent_input_guard.py"
+  workflow_dispatch:
+    inputs:
+      eval_input_path:
+        description: "Strict dataset path inside the repo; defaults to the committed sample fixture when unset."
+        required: false
+        default: "data/evals/pulseplate_rag_eval_sample.jsonl"
+  schedule:
+    - cron: "0 7 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  rag-release-gates-smoke:
+    name: RAG Release Gates Smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: ${{ fromJSON(vars.RAG_RELEASE_GATES_TIMEOUT_MINUTES || '15') }}
+    env:
+      SERVER_SALT: ci-rag-release-gates
+    if: github.event_name == 'pull_request'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: "3.12"
+
+      - name: Install CI-lite dependencies for smoke lane
+        run: |
+          python3 -m pip install --upgrade pip
+          python3 -m pip install -r requirements-ci-lite.txt
+
+      - name: Run cheap smoke lane
+        run: |
+          python3 scripts/evals/run_rag_release_gates.py \
+            --input-path data/evals/pulseplate_rag_eval_sample.jsonl \
+            --experiment-id pr_smoke_${{ github.run_id }} \
+            --retriever-mode local_tfidf \
+            --generator-mode extractive_stub
+
+      - name: Upload gate artifacts
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: rag-release-gates-smoke
+          path: |
+            artifacts/rag_eval/pr_smoke_${{ github.run_id }}/traces.jsonl
+            artifacts/rag_eval/pr_smoke_${{ github.run_id }}/gate_report.md
+            artifacts/rag_eval/pr_smoke_${{ github.run_id }}/metrics_summary.json
+            artifacts/rag_eval/pr_smoke_${{ github.run_id }}/latest_executed.ipynb
+
+  rag-release-gates-weekly:
+    name: RAG Release Gates Weekly
+    runs-on: ubuntu-latest
+    timeout-minutes: ${{ fromJSON(vars.RAG_RELEASE_GATES_TIMEOUT_MINUTES || '15') }}
+    env:
+      SERVER_SALT: ci-rag-release-gates
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: "3.12"
+
+      - name: Install CI-lite dependencies for strict import path
+        run: |
+          python3 -m pip install --upgrade pip
+          python3 -m pip install -r requirements-ci-lite.txt
+
+      - name: Run strict weekly/manual lane
+        env:
+          PULSEPLATE_RAG_EVAL_INPUT: ${{ inputs.eval_input_path || vars.PULSEPLATE_RAG_EVAL_INPUT || 'data/evals/pulseplate_rag_eval_sample.jsonl' }}
+          RETRIEVER_MODE: pulseplate
+          GENERATOR_MODE: pulseplate_runtime
+        run: |
+          python3 scripts/evals/run_rag_release_gates.py \
+            --experiment-id weekly_${{ github.run_id }} \
+            --retriever-mode "${RETRIEVER_MODE}" \
+            --generator-mode "${GENERATOR_MODE}" \
+            --require-pass \
+            --disallow-dataset-fallback \
+            --disallow-runtime-fallbacks
+
+      - name: Upload weekly gate artifacts
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: rag-release-gates-weekly
+          path: |
+            artifacts/rag_eval/weekly_${{ github.run_id }}/traces.jsonl
+            artifacts/rag_eval/weekly_${{ github.run_id }}/gate_report.md
+            artifacts/rag_eval/weekly_${{ github.run_id }}/metrics_summary.json
+            artifacts/rag_eval/weekly_${{ github.run_id }}/latest_executed.ipynb

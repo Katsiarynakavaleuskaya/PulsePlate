@@ -6,20 +6,24 @@ if [[ -z "${CI:-}" && -z "${GITHUB_ACTIONS:-}" ]]; then
   exit 0
 fi
 
-echo "[ci_pip_audit] Running pip-audit..." >&2
 if ! command -v pip-audit >/dev/null 2>&1; then
-  echo "pip-audit not installed; skipping" >&2
+  echo "[ci_pip_audit] pip-audit not installed; skipping" >&2
   exit 0
 fi
 
-pip-audit -r requirements.txt -f json -o pip-audit.json || true
-echo "[ci_pip_audit] Done" >&2
-#!/usr/bin/env bash
-set -euo pipefail
-
-if [[ "${CI:-}" == "true" || "${GITHUB_ACTIONS:-}" == "true" ]]; then
-  echo "[dependency-check] CI detected: running pip-audit"
-  pip-audit --format=json --output=pip-audit.json || echo "Dependency check completed"
-else
-  echo "[dependency-check] Local push detected: skipping pip-audit (CI enforces)"
+manifests=("requirements.txt")
+if [[ -f "requirements-docker-runtime.txt" ]]; then
+  manifests+=("requirements-docker-runtime.txt")
 fi
+if [[ -f "requirements-rag-vector.txt" ]]; then
+  manifests+=("requirements-rag-vector.txt")
+fi
+
+for manifest in "${manifests[@]}"; do
+  stem="${manifest%.txt}"
+  output="pip-audit-${stem}.json"
+  echo "[ci_pip_audit] Running pip-audit for ${manifest} -> ${output}" >&2
+  pip-audit -r "${manifest}" -f json -o "${output}" || true
+done
+
+echo "[ci_pip_audit] Done" >&2

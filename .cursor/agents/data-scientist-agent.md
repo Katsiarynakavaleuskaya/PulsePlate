@@ -45,6 +45,7 @@ When applicable:
 - Envelope mode: `docs/orchestration/AGENT_MESSAGE_PROTOCOL.md`
 - Web/OSS intake: `docs/orchestration/RESEARCH_TRACK_PROTOCOL.md`
 - Recurring failures: `docs/orchestration/AGENT_REFLECTION_PROTOCOL.md`
+- CV offline-eval overlay: `docs/orchestration/CV_EXPERIMENTATION_PROTOCOL.md`
 
 ## Context to load (task-dependent)
 
@@ -56,6 +57,11 @@ When applicable:
   - `docs/analytics/METRICS_CATALOG.md`
   - `docs/analytics/DATA_CATALOG.md`
   - `docs/analytics/EXPERIMENT_REGISTRY.md`
+- CV eval packets / contract work:
+  - `docs/orchestration/contracts/CV_PHOTO_FOOD_EVAL_CONTRACT.md`
+  - `docs/orchestration/CV_EXPERIMENT_PACKET_TEMPLATE.md`
+- Future CV degrade UX definition also requires `frontend/AGENTS.md`,
+  `ios/AGENTS.md`, and `docs/orchestration/IOS_FRONTEND_MULTIAGENT_PLAYBOOK.md`.
 
 ## Deliverable (return to coordinator)
 

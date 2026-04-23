@@ -38,7 +38,11 @@ function AppContent() {
   };
 
   return (
-    <div className="min-h-dvh bg-navy text-text pb-14">
+    <div
+      className={
+        showTabBar ? "min-h-dvh bg-navy text-text pb-14" : "min-h-dvh bg-navy text-text"
+      }
+    >
       <Routes>
         {routes.map(renderRoute)}
       </Routes>

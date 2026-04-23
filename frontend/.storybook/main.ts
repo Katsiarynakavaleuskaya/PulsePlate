@@ -3,7 +3,18 @@ import type { StorybookConfig } from '@storybook/react-vite';
 
 const config: StorybookConfig = {
   stories: ['../src/**/*.mdx', '../src/**/*.stories.@(ts|tsx)'],
-  addons: ['@storybook/addon-essentials', '@storybook/addon-interactions'],
+  addons: [
+    // Keep addon-actions/addon-interactions out of this lane to avoid
+    // reintroducing the Dependabot #117 uuid carrier through Storybook.
+    '@storybook/addon-backgrounds',
+    '@storybook/addon-controls',
+    '@storybook/addon-docs',
+    '@storybook/addon-highlight',
+    '@storybook/addon-measure',
+    '@storybook/addon-outline',
+    '@storybook/addon-toolbars',
+    '@storybook/addon-viewport',
+  ],
   framework: {
     name: '@storybook/react-vite',
     options: {},

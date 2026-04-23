@@ -7,12 +7,62 @@ SSH + `docker compose`.
 
 ## Deploy mode (required)
 
-Auto-deploy is controlled by repository or environment variable `PROD_DEPLOY_MODE`:
+Auto-deploy is controlled by `PROD_DEPLOY_MODE`, which may live as a repository
+variable or as a `production` environment variable. The CD workflow resolves this
+setting inside a dedicated `production-deploy-config` job by reading Actions
+variables through the GitHub API before deciding which deploy lane can run.
+That keeps build-only tags approval-free while still letting production-specific
+variables override repository defaults:
 
-- `ssh`: Deploy from GitHub-hosted runners over SSH (port 22 reachable). SSH key must be full PEM including newlines to avoid "ssh: no key found". Required Environment "production" secrets: `SSH_HOST_PRODUCTION`, `SSH_USER`, `SSH_KEY`, `PRODUCTION_DOMAIN`, `GHCR_READ_TOKEN`.  <!-- pragma: allowlist secret -->
+The bridge job first tries the default workflow integration token for those API
+reads and only falls back to `PRODUCTION_ENV_READ_TOKEN` after a GitHub API
+`403 Resource not accessible by integration` response on `production`
+environment-scoped variables. Store this as a repository or organization secret
+with permission to read Actions environment variables for this repository.
+
+- `ssh`: Deploy from GitHub-hosted runners over SSH (port 22 reachable). SSH key must be full PEM including newlines to avoid "ssh: no key found". Required Environment "production" secrets: `SSH_HOST_PRODUCTION`, `SSH_HOST_PRODUCTION_FINGERPRINT`, `SSH_USER`, `SSH_KEY`, `PRODUCTION_DOMAIN`, `GHCR_READ_TOKEN`. The workflow verifies the scanned host key against the pinned fingerprint before uploading the production shell bundle.  <!-- pragma: allowlist secret -->
 - `self-hosted`: Deploy from a self-hosted runner inside your infrastructure (recommended).
 
-If `PROD_DEPLOY_MODE` is unset or any other value, deploy jobs are skipped (images are still built and pushed to GHCR).
+If `PROD_DEPLOY_MODE` is unset, CD remains build-only even when production images
+are published to GHCR. Any value other than `ssh` or `self-hosted` is treated as
+invalid and fails the production config resolution step.
+
+## Apex / white-screen drift signature
+
+When the site apex unexpectedly shows a white screen, direct API JSON, or an
+empty shell, treat it as **production drift first**, not as a React-only bug.
+
+Typical drift symptoms:
+
+- `GET /` at the public apex no longer serves the baked SPA shell from Caddy
+- `GET /sitemap.xml` returns HTML, SPA fallback, or `404` instead of XML
+- The production host copy of `Caddyfile.production` or
+  `docker-compose.production.yaml` no longer matches the repo source of truth
+- Cloudflare challenge/proxy behavior obscures curl-based diagnosis, while the
+  origin is still misrouting apex traffic underneath
+
+Canonical recovery order:
+
+0. If the site must stay private, enable **full-host Cloudflare Access** first.
+   While Access or an interstitial is in front of the apex, public scanners
+   (MDN Observatory, header scans) are not release-truth.
+1. Merge the recovery PR first; recover from the merged repo/CI release bundle,
+   not from an ad-hoc workstation-only checkout.
+2. Diff the production copies of `deploy/Caddyfile.production` and
+   `deploy/docker-compose.production.yaml` against the repo.
+3. Re-sync the production shell bundle from the same merged commit / release bundle:
+   - `deploy/Caddyfile.production`
+   - `deploy/docker-compose.production.yaml`
+   - sibling `frontend/` build context on the host (typically `/srv/frontend`)
+4. Pull the new production app image, run `alembic upgrade head`, rebuild Caddy,
+   and restart the stack from the synced shell bundle.
+5. Re-run `BASE_URL=https://$PRODUCTION_DOMAIN bash scripts/diagnose_web.sh`.
+   If Access is still ON, pass `CF_ACCESS_CLIENT_ID` and
+   `CF_ACCESS_CLIENT_SECRET` for private probes.
+6. If `/sitemap.xml` still fails after edge recovery, deploy the new backend
+   image as well; the edge fix alone cannot add a missing FastAPI route.
+7. Remove full-host Access only after the private check passes, then reopen the
+   apex with a narrow temporary bypass for public shell/discovery GET paths only.
 
 ## Global release-readiness lock (required)
 
@@ -24,9 +74,32 @@ Canonical policy:
 
 - While web and iOS are not release-ready, keep `WEB_IOS_RELEASE_READY` unset or `false`.
 - In this state, CD remains build/validation only (no production deploy), while image build/push can still run.
+- When `WEB_IOS_RELEASE_READY=true`, `PROD_DEPLOY_MODE` must also be set to `ssh`
+  or `self-hosted`; otherwise the workflow fails fast instead of silently building
+  an image that never reaches production.
 - In this state, `STAGING_FALLBACK_DOMAIN` (default: `pulseplate-staging.duckdns.org`) is served by a fallback vhost in `deploy/Caddyfile.production`
   to keep staging HTTPS alive and avoid TLS handshake failures.
 - Enable real production deploy only after release readiness is explicitly confirmed.
+
+## Production host bootstrap lock (required)
+
+Production auto-deploy is also gated by:
+
+- `PRODUCTION_ENV_READY=true`
+
+Canonical policy:
+
+- Keep `PRODUCTION_ENV_READY` unset or `false` until the production host bootstrap is complete.
+- The owner of this flag is the infra/release operator who bootstraps the target host, not the application PR author.
+- `PRODUCTION_ENV_READY` follows the same bridge lookup as the other deploy toggles: the workflow checks the
+  `production` environment variable first and only falls back to a repository-level Actions variable when the
+  environment-scoped value is absent. Prefer the `production` environment variable so the approval boundary stays explicit.
+- Host bootstrap is complete only after the target deploy directory already contains the server-local runtime env file
+  (`$DEPLOY_DIR/.env`, typically `/srv/pulseplate-production/.env`) plus the required compose/Caddy inputs.
+- GitHub Actions does **not** create `/srv/pulseplate-production/.env`; the workflow only consumes it and keeps the
+  final deploy fail-closed if it disappears later.
+- If `WEB_IOS_RELEASE_READY=true` but `PRODUCTION_ENV_READY!=true`, semver tags stay in build-only mode instead of
+  entering the live production deploy lane.
 
 ## Source of truth: production image
 
@@ -44,10 +117,20 @@ On the production server:
 - Docker + Docker Compose v2 installed (`docker compose version`)
 - A deploy directory containing:
   - a compose file (`docker-compose.yml`, `docker-compose.production.yaml`, etc.)
-  - `.env` (application runtime env; not committed)
+  - `.env` (application runtime env; not committed, created on the server by the infra/release operator)
+    - Tag-based production CD now runs `scripts/deploy_production.sh --preflight-only`
+      before the live deploy and fails fast if the resolved deploy directory is
+      missing `.env` (default path: `$DEPLOY_DIR/.env`, typically
+      `/srv/pulseplate-production/.env`).
   - `Caddyfile.production` (Caddy reverse proxy config; see Caddyfile Configuration below)
-- Compose must reference `IMAGE_REF` (recommended) or `TAG` (backwards-compatible):
-- **Firewall configured**: Ports 80 (HTTP) and 443 (HTTPS) must be open (see Firewall Setup below)
+  - a sibling `frontend/` shell bundle adjacent to the deploy directory (typically
+    `/srv/frontend`) so the `caddy` image can be rebuilt from
+    `frontend/Dockerfile.caddy-spa`
+  - A managed PostgreSQL instance reachable from the production host via `DATABASE_URL`
+  - Managed database backup / PITR handled by the provider; the production deploy script no longer runs local `pg_dump`
+  - The canonical production compose contract pins `app` via `IMAGE_REF`; `TAG`
+    remains deploy-helper compatibility input, not the primary compose contract
+  - **Firewall configured**: Ports 80 (HTTP) and 443 (HTTPS) must be open (see Firewall Setup below)
 
 Example `docker-compose.production.yaml`:
 
@@ -70,13 +153,19 @@ services:
     networks: [web]
     expose: ["8000"]  # Internal only, accessed via Caddy
     env_file: [".env"]
+    environment:
+      - DATABASE_URL=${DATABASE_URL:?DATABASE_URL is required}
     command: >
       uvicorn app.main:app --host 0.0.0.0 --port 8000
       --proxy-headers
       --forwarded-allow-ips="172.30.100.0/24"
 
   caddy:
-    image: caddy:2.10.2
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile.caddy-spa
+      args:
+        VITE_API_BASE: ${VITE_API_BASE:-/api/v1}
     restart: unless-stopped
     networks: [web]
     ports:
@@ -100,18 +189,29 @@ The production Caddy configuration is located at:
 
 It already contains a complete and secure reverse proxy setup using the `{$PRODUCTION_DOMAIN}` environment variable and does not need to be created manually.
 It also contains a staging TLS fallback vhost for `STAGING_FALLBACK_DOMAIN` (default: `pulseplate-staging.duckdns.org`) used during build-only phases.
+It now also terminates `www.<domain>` and permanently redirects it to the apex production host so Cloudflare can issue/validate TLS consistently for both names.
 
-**To use it on the production server:**
+**To stage it manually from merged release truth:**
 
-1. Copy the file to your deploy directory:
+1. On a local merged checkout or from an unpacked CI-produced release bundle,
+   sync the release shell bundle to the production host:
 
    ```bash
-   cp deploy/Caddyfile.production /srv/pulseplate-production/
-   # or
-   cp deploy/Caddyfile.production /opt/pulseplate/
+   git fetch origin main
+   git switch --detach origin/main
+   scp deploy/Caddyfile.production ubuntu@your-host:/srv/pulseplate-production/
+   scp deploy/docker-compose.production.yaml ubuntu@your-host:/srv/pulseplate-production/
+   ssh ubuntu@your-host 'mkdir -p /srv/pulseplate-production/scripts'
+   scp scripts/diagnose_web.sh ubuntu@your-host:/srv/pulseplate-production/scripts/diagnose_web.sh
+   scp scripts/redeploy_caddy.sh ubuntu@your-host:/srv/pulseplate-production/scripts/redeploy_caddy.sh
+   rsync -az --delete frontend/ ubuntu@your-host:/srv/frontend/
    ```
 
-2. Ensure the file is readable by Docker (mode 644 or similar):
+   GitHub Actions production deploy already stages this bundle before
+   `scripts/deploy_production.sh` runs. Manual copy is for bootstrap or
+   emergency recovery from merged release truth.
+
+2. On the production server, ensure the file is readable by Docker (mode 644 or similar):
 
    ```bash
    chmod 644 ./Caddyfile.production
@@ -121,6 +221,76 @@ It also contains a staging TLS fallback vhost for `STAGING_FALLBACK_DOMAIN` (def
 
 **Note:** The Caddyfile uses `{$PRODUCTION_DOMAIN}` which must be set in your `.env` file or exported as an environment variable when starting the compose stack.
 
+## Canonical Production Domain Ownership
+
+`pulseplate.app` and `www.pulseplate.app` are owned by the repo-backed production runtime:
+
+- `deploy/docker-compose.production.yaml`
+- `deploy/Caddyfile.production`
+- `app.main:app`
+
+Do **not** hand the root production host to Figma Sites while the live app/API still runs on this stack.
+
+- Allowed: Figma Make / Design as source material, design review, mapping prep, and optional read-only GitHub context.
+- Forbidden: direct Figma publish/write path that bypasses worktree isolation, PR review, GHCR image build, or the server deploy contract.
+- If a public Figma-hosted preview is still needed, use a dedicated preview subdomain instead of `pulseplate.app` or `www.pulseplate.app`.
+
+### DNS Contract for Repo-Canonical Production
+
+- Apex record: `A @ -> <production-origin-ip>` through Cloudflare proxy.
+- `www` record: prefer `CNAME www -> pulseplate.app` through Cloudflare proxy.
+- Remove conflicting apex `AAAA` records left by other hosters or abandoned custom-domain attempts before validating the active production topology.
+- Do not mix apex/root ownership between the repo runtime and Figma Sites.
+
+### Troubleshooting `www` TLS Drift
+
+If `https://pulseplate.app` works but `https://www.pulseplate.app` returns `525`, verify all of the following together:
+
+1. Run `python3 scripts/check_domain_tls.py --domain pulseplate.app` from the repo root.
+   - Expected healthy result: apex returns an app-owned success status (currently `405` is acceptable) and `www` returns `301/302/307/308` with `Location: https://pulseplate.app...`.
+   - Under Cloudflare proxy mode it is acceptable for the diagnostic to show `www CNAME: (none)` as long as `www` still resolves via `A` and redirects cleanly to the apex host.
+   - If the script reports `www ... 525`, treat it as public-side topology drift, not as a missing redirect in the repo.
+2. Cloudflare DNS for `www` points to the repo-owned production origin and not to a Figma Sites flow.
+3. `deploy/Caddyfile.production` contains a dedicated `www` vhost that can issue a certificate and redirect to apex.
+4. Cloudflare SSL mode remains `Full (strict)` and the origin is serving a valid certificate for both apex and `www`.
+5. Only after the public-side check confirms drift, run `bash scripts/diagnose_production.sh` on the origin server to inspect Caddy/container/certificate state.
+
+If public curl probes hit a Cloudflare challenge instead of the origin, run the
+same diagnosis against the synced production host and the repo copies first.
+Cloudflare may mask the underlying apex-routing drift, but it does not replace
+the repo-owned Caddy/compose/frontend contract.
+
+## Private verification under Access
+
+When Cloudflare Access protects the full host during recovery, use a short-lived
+service token for scripted probes:
+
+```bash
+CF_ACCESS_CLIENT_ID=... \
+CF_ACCESS_CLIENT_SECRET=... \
+BASE_URL=https://$PRODUCTION_DOMAIN \
+bash scripts/diagnose_web.sh
+```
+
+Expected private verification signals:
+
+- `/` returns the SPA shell
+- `/sitemap.xml` returns XML with `<urlset>`
+- `/api/v1/admin/status` remains a backend/admin canary (JSON auth/error, not SPA)
+- `/health` shows the new `git_sha`
+
+Do not treat Observatory / public header scans as authoritative until Access is removed.
+
+#### Remediation Matrix
+
+| Public symptom | Meaning | Required action |
+| --- | --- | --- |
+| `apex OK`, `www 525` | DNS / TLS ownership drift between Cloudflare and origin | Keep `www` repo-owned, keep `Full (strict)`, ensure origin cert covers apex + `www`, and verify Figma is detached from production root |
+| apex has `AAAA` | Conflicting root ownership or stale hoster residue | Remove the conflicting apex `AAAA`; do not repoint apex to Figma Sites |
+| `www` redirects to non-apex host | Ownership drift or stale preview binding | Repoint `www` to the repo-owned production flow; preview must use a dedicated subdomain |
+
+Do not "fix" `525` by downgrading Cloudflare SSL mode. The canonical path is DNS/origin certificate alignment under `Full (strict)`.
+
 ## Required Environment Variables
 
 The following environment variables must be set in your `.env` file or exported in the shell:
@@ -128,17 +298,28 @@ The following environment variables must be set in your `.env` file or exported 
 - **`PRODUCTION_DOMAIN`** (required): Your production domain name (e.g., `api.pulseplate.com`)
 - **`STAGING_FALLBACK_DOMAIN`** (optional): staging hostname served by production fallback vhost in build-only mode (default: `pulseplate-staging.duckdns.org`)
 - **`IMAGE_REF`** (required): Docker image reference (e.g., `ghcr.io/owner/repo@sha256:...`)
+- **`DATABASE_URL`** (required): external managed PostgreSQL DSN using `postgresql+psycopg://...`
 
 Example `.env` file:
 
 ```bash
-PRODUCTION_DOMAIN=api.pulseplate.com
+PRODUCTION_DOMAIN=pulseplate.app
 STAGING_FALLBACK_DOMAIN=pulseplate-staging.duckdns.org
 IMAGE_REF=ghcr.io/owner/repo@sha256:abc123...
+DATABASE_URL=postgresql+psycopg://pulseplate:__replace_me__@db.example.com:25060/pulseplate  # pragma: allowlist secret
 # Add other application-specific variables here
 ```
 
 **Security Note:** Never commit `.env` files to the repository. If deploying via GitHub Actions, store sensitive variables as GitHub Secrets in the `production` environment.
+
+## Managed PostgreSQL Contract
+
+Canonical production is `managed PostgreSQL only`.
+
+- `deploy/docker-compose.production.yaml` must not define a local `postgres` service.
+- `DATABASE_URL` must target the external managed database, not `@postgres:5432`.
+- `scripts/deploy_production.sh` runs `alembic upgrade head` via a one-shot release container before it restarts `app` and `caddy`.
+- Provider-native snapshots / PITR are the production backup baseline. Local `scripts/ops/postgres_backup.sh` remains a self-hosted alternate helper, not part of the canonical production deploy path.
 
 ## Firewall Setup (Critical!)
 
@@ -266,16 +447,25 @@ Configure GitHub Environment `production` with required reviewers (recommended).
 Secrets (store in the `production` environment):
 
 - `SSH_HOST_PRODUCTION`
+- `SSH_HOST_PRODUCTION_FINGERPRINT` (server host key fingerprint, usually `SHA256:...`)
 - `SSH_USER`
 - `SSH_KEY` (private key)
 - `GHCR_READ_TOKEN` (PAT with `read:packages`, if the image is private)
 - `PRODUCTION_DOMAIN` (public domain used for post-deploy healthcheck)
+
+Repository or organization secrets:
+
+- `PRODUCTION_ENV_READ_TOKEN` (optional fallback): token used only when GitHub denies the default workflow token
+  from reading `production` environment variables via the Actions Variables API.
 
 Variables (store in the `production` environment):
 
 - `DEPLOY_DIR` (optional): absolute path to the deploy directory on the production machine.
   If unset, the workflow auto-detects `/opt/pulseplate` then `/srv/pulseplate-production`.
 - `WEB_IOS_RELEASE_READY` (required for deploy): set to `true` only when web+iOS release readiness is approved.
+- `PRODUCTION_ENV_READY` (required for live semver deploy): set to `true` only after the host bootstrap is complete
+  and `$DEPLOY_DIR/.env` already exists on the server. Repository-level fallback is supported but should stay under
+  the same infra/release-owner control.
 
 ## Self-hosted runner (recommended)
 
@@ -296,6 +486,7 @@ High-level steps (run on the production server):
 2. Install and configure the GitHub Actions runner (use repo settings UI to generate the config token).
 3. Add the runner label `pulseplate-prod`.
 4. Set repository variable `PROD_DEPLOY_MODE=self-hosted`.
+5. Keep `PRODUCTION_ENV_READY=false` until the server-local `.env` and compose inputs are already in place.
 
 ## Post-merge checklist (first production auto-deploy)
 
@@ -303,15 +494,34 @@ High-level steps (run on the production server):
 2. Ensure the production server deploy directory contains:
    - compose file (`docker-compose.production.yaml`)
    - `.env` (application runtime env)
+     - Required before pushing the release tag: production CD preflights this
+       path and stops immediately if `$DEPLOY_DIR/.env` is missing.
+     - This file is a server-local bootstrap artifact. GitHub Actions does not
+       provision it for you.
    - `Caddyfile.production` (copied from `deploy/Caddyfile.production`)
-3. Ensure the compose file uses `IMAGE_REF` (preferred) or `TAG` (backwards-compatible).
-4. Wait for a successful Nightly run on `main`, then create and push a new semver tag (e.g. `v0.2.2`).
-5. Ensure `PROD_DEPLOY_MODE` is set (`self-hosted` recommended).
-6. Approve the deploy job in the GitHub `production` environment prompt.
-7. **Verify deployment**:
+   - sibling `frontend/` shell bundle (typically `/srv/frontend`)
+   - managed PostgreSQL credentials in `DATABASE_URL`
+3. Ensure the compose file keeps `app` on `IMAGE_REF` and `caddy` on the
+   separate `frontend/Dockerfile.caddy-spa` shell build.
+   - Production CD stages the current `frontend/`, `deploy/Caddyfile.production`,
+     `deploy/docker-compose.production.yaml`, `scripts/diagnose_web.sh`, and
+     `scripts/redeploy_caddy.sh` bundle before `scripts/deploy_production.sh`
+     runs so the public shell can be rebuilt from the same release tree as the
+     backend image.
+   - Do not rebuild `caddy` from `/srv/frontend` unless that shell bundle came
+     from the same production CD run, a CI-produced release bundle, or a merged
+     detached checkout like the one above. If shell provenance is unclear, stop
+     and re-stage it first.
+4. Wait for a successful Nightly run on `main`, then set `PRODUCTION_ENV_READY=true`
+   only after the host bootstrap is complete.
+5. Create and push a new semver tag (e.g. `v0.2.2`).
+6. Ensure `PROD_DEPLOY_MODE` is set (`self-hosted` recommended).
+7. Approve the deploy job in the GitHub `production` environment prompt.
+8. **Verify deployment**:
    - Check Caddy container: `docker compose ps caddy`
    - Check ports: `sudo ss -tlnp | grep -E ':(80|443)'`
    - Verify health: `curl -I https://$PRODUCTION_DOMAIN/health`
+   - Verify SPA shell + proxy split: `BASE_URL=https://$PRODUCTION_DOMAIN bash scripts/diagnose_web.sh`
    - Confirm container digest: `docker compose exec app cat /app/.git/HEAD` (or check image digest)
 
 ## Redeploy Caddy Container
@@ -326,7 +536,7 @@ bash scripts/redeploy_caddy.sh
 
 # Option 2: Manual commands
 cd /srv/pulseplate-production  # or your deploy directory
-docker compose -f docker-compose.production.yaml pull caddy
+docker compose -f docker-compose.production.yaml build caddy
 docker compose -f docker-compose.production.yaml up -d caddy
 docker compose -f docker-compose.production.yaml ps caddy
 docker compose -f docker-compose.production.yaml logs --tail=100 caddy
@@ -335,9 +545,10 @@ docker compose -f docker-compose.production.yaml logs --tail=100 caddy
 The script will:
 
 1. Auto-detect the deploy directory
-2. Pull the latest Caddy image
+2. Rebuild the Caddy image from the colocated production shell bundle
 3. Restart the Caddy container
 4. Show container status and recent logs
+5. Run `scripts/diagnose_web.sh` automatically when `PRODUCTION_DOMAIN` and a colocated diagnosis helper are available; retry briefly after restart, then fail fast if the diagnosis still reports a routing mismatch
 
 **Note:** If SSH is not available, use DigitalOcean Console or self-hosted runner to execute these commands.
 

@@ -75,7 +75,15 @@ def test_premium_targets_matches_pro_targets(client: TestClient) -> None:
     r_pro = client.post("/api/v1/pro/nutrition/targets", json=payload, headers=_pro_headers())
     assert r_pro.status_code == 200, r_pro.text
 
-    assert r_premium.json() == r_pro.json()
+    assert r_premium.headers["Content-Type"].lower().startswith("application/json")
+    assert r_pro.headers["Content-Type"].lower().startswith("application/json")
+    premium_payload = r_premium.json()
+    pro_payload = r_pro.json()
+    assert premium_payload["next_best_action"]["type"] == "open_daily_plate"
+    assert premium_payload["next_best_action"]["recommended_surface"] == "pro_daily_plate"
+    assert premium_payload["next_best_action"]["trigger_reason"] == "targets_ready"
+    assert premium_payload["next_best_action"]["why_now"] == "targets_ready_apply_meal_by_meal"
+    assert premium_payload == pro_payload
 
 
 def test_premium_plate_matches_pro_plate(
@@ -109,6 +117,48 @@ def test_premium_plate_matches_pro_plate(
     assert r_pro.status_code == 200, r_pro.text
 
     assert r_premium.json() == r_pro.json()
+
+
+def test_premium_weekly_matches_pro_weekly(client: TestClient) -> None:
+    payload = {
+        "targets": {
+            "kcal": 2000,
+            "macros": {
+                "protein_g": 110.0,
+                "fat_g": 70.0,
+                "carbs_g": 220.0,
+                "fiber_g": 30.0,
+            },
+            "micro": {"vitamin_c_mg": 90.0, "iron_mg": 14.0},
+            "water_ml": 0,
+            "activity_week": {
+                "moderate_aerobic_min": 150,
+                "vigorous_aerobic_min": 75,
+                "strength_sessions": 2,
+                "steps_daily": 8000,
+            },
+        },
+        "diet_flags": [],
+        "lang": "en",
+    }
+
+    r_premium = client.post(
+        "/api/v1/premium/plan/week-flexible",
+        json=payload,
+        headers=_pro_headers(),
+    )
+    assert r_premium.status_code == 200, r_premium.text
+
+    r_pro = client.post("/api/v1/pro/meal/weekly", json=payload, headers=_pro_headers())
+    assert r_pro.status_code == 200, r_pro.text
+
+    premium_payload = r_premium.json()
+    pro_payload = r_pro.json()
+    assert premium_payload["next_best_action"]["type"] == "upgrade_for_export"
+    assert premium_payload["next_best_action"]["recommended_surface"] == "vip_export"
+    assert premium_payload["next_best_action"]["trigger_reason"] == "weekly_plan_ready"
+    assert premium_payload["next_best_action"]["why_now"] == "weekly_plan_ready_export_and_share"
+    assert premium_payload["next_best_action"] == pro_payload["next_best_action"]
 
 
 def test_guard_divergence_targets_premium_is_legacy_guarded_pro_is_pro_tier_guarded(
@@ -245,3 +295,24 @@ def test_premium_endpoints_hidden_from_openapi(client: TestClient, endpoint_path
     assert r.headers.get("content-type", "").startswith("application/json")
     spec = r.json()
     assert endpoint_path not in spec["paths"], f"{endpoint_path} must be hidden from OpenAPI"
+
+
+def test_openapi_prunes_premium_week_components_after_path_filtering(client: TestClient) -> None:
+    """Assert hidden premium-week contracts do not leak orphaned schema components."""
+    response = client.get("/openapi.json")
+    assert response.status_code == 200, response.text
+    assert response.headers.get("content-type", "").startswith("application/json")
+
+    spec = response.json()
+    components = spec.get("components") or {}
+    schemas = components.get("schemas") or {}
+
+    assert "/api/v1/pro/meal/weekly" in spec.get("paths", {})
+    assert "/api/v1/premium/plan/week-flexible" not in spec.get("paths", {})
+    assert "PremiumWeekPlanRequest" not in schemas
+    assert "PremiumWeekPlanResponse" not in schemas
+
+    weekly_response = schemas.get("WeeklyMealPlanResponse") or {}
+    daily_menus = (weekly_response.get("properties") or {}).get("daily_menus") or {}
+    daily_menu_items = daily_menus.get("items") or {}
+    assert daily_menu_items.get("$ref") == "#/components/schemas/WeeklyMealPlanDayMenu"

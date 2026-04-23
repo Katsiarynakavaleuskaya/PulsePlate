@@ -1,0 +1,40 @@
+{
+  "artifact": "c3_recursive_runtime_w1_benchmark",
+  "date_utc": "2026-03-20T18:19:51Z",
+  "baseline_flag_off": {
+    "avg_latency_ms": 0.0802,
+    "p95_latency_ms": 0.1373,
+    "retrieval_calls_per_run": 3,
+    "hops": 3,
+    "confidence": 0.9,
+    "optimization_stats_attached": false,
+    "old_behavior_preserved": true
+  },
+  "optimized_flag_on": {
+    "avg_latency_ms": 0.0534,
+    "p95_latency_ms": 0.1064,
+    "avg_retrieval_calls_per_run": 3,
+    "cache_hits_per_run": 2,
+    "refinement_cache_hits_per_run": 2,
+    "early_stop_hit_count": 200,
+    "final_stop_reason": "no_new_usable_chunks",
+    "hops": 3,
+    "confidence": 0.9,
+    "chunk_count": 1
+  },
+  "fallback_safe_path": {
+    "latency_ms": 0.3655,
+    "chunks": 0,
+    "confidence": 0.0,
+    "enabled": true,
+    "stop_reason": "completed",
+    "fallback_safe": true
+  },
+  "parity": {
+    "flag_off_old_behavior_preserved": true,
+    "flag_off_has_no_diagnostics_payload": true,
+    "api_contract_preserved": true,
+    "confidence_non_regression": true,
+    "latency_non_negative": true
+  }
+}

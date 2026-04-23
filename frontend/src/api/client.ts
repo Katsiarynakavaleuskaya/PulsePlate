@@ -2,6 +2,7 @@
 // EN: API client with server-session cookie support. Handles 401 errors by redirecting to key entry page.
 
 import { logError } from "../lib/analytics";
+import type { ClientPaywallExposureEventName } from "../lib/analytics";
 import { clearStoredApiKey } from "../auth/storage";
 import type { components } from "./schema";
 
@@ -100,18 +101,34 @@ const validateApiBase = () => {
  * - base: "http://localhost:8000/api", path: "/api/x" => "http://localhost:8000/api/x"
  * - base: "https://api.test.com", path: "/api/v1/x" => "https://api.test.com/api/v1/x"
  *
- * @param base - API base URL (may include /api or /api/v1)
+ * @param base - API base URL (may include /api or /api/v1), or origin-relative path e.g. `/api/v1`
  * @param apiPath - API path (must start with /api/...)
  * @returns Normalized URL without duplicate segments
  */
+function resolveApiBaseForNormalization(base: string): string {
+  const trimmed = base.trim();
+  if (!trimmed.startsWith("/")) {
+    return trimmed;
+  }
+  // RU: Сборка на том же хосте, что и SPA (Caddy → тот же origin).
+  // EN: Same-host Caddy+SPA: resolve path-only base against current origin.
+  const origin =
+    typeof window !== "undefined" && window.location?.origin
+      ? window.location.origin
+      : "http://localhost";
+  return new URL(trimmed, `${origin}/`).toString();
+}
+
 export function normalizeApiUrl(base: string, apiPath: string): string {
   // Ensure apiPath starts with /
   const path = apiPath.startsWith('/') ? apiPath : `/${apiPath}`;
 
+  const baseForParse = resolveApiBaseForNormalization(base);
+
   // Parse base URL to get pathname
   let baseUrl: URL;
   try {
-    baseUrl = new URL(base);
+    baseUrl = new URL(baseForParse);
   } catch {
     // If base is not a valid URL, fall back to naive concat
     return `${base}${path}`;
@@ -160,6 +177,17 @@ export const PRO_NUTRITION_PLATE_PATH = "/api/v1/pro/nutrition/plate";
 export const PRO_SESSION_PATH = "/api/v1/pro/session";
 export const PRO_SESSION_EXCHANGE_PATH = "/api/v1/pro/session/exchange";
 export const PRO_SESSION_LOGOUT_PATH = "/api/v1/pro/session/logout";
+export const INTERNAL_PAYWALL_EVENTS_PATH = "/api/v1/internal/paywall/events";
+export type ProSessionStatus = components["schemas"]["SessionStatusResponse"];
+export type PaywallExposureEventRequest = {
+  client_event_id: string;
+  exposure_id: string;
+  event_name: ClientPaywallExposureEventName;
+  source_surface: string;
+  trigger_reason: string;
+  via?: string;
+  metadata?: Record<string, unknown>;
+};
 
 function mockUrl(path: string): string | null {
   if (path.includes("/api/v1/premium/bmr") || path.includes("/premium/bmr")) {
@@ -236,11 +264,24 @@ function inferSessionActive(payload: unknown): boolean {
   return false;
 }
 
+function isProSessionStatus(payload: unknown): payload is ProSessionStatus {
+  if (!payload || typeof payload !== "object") {
+    return false;
+  }
+
+  const candidate = payload as Record<string, unknown>;
+  return (
+    candidate.status === "ok" &&
+    candidate.authenticated === true &&
+    (candidate.auth_source === "header" || candidate.auth_source === "cookie") &&
+    (candidate.tier === "PRO" || candidate.tier === "VIP")
+  );
+}
+
 /**
- * Check whether server-side PRO session is currently active.
- * Auth source of truth for web flow.
+ * Fetch canonical server-side PRO/VIP session status and fail closed on malformed payloads.
  */
-export async function checkProSession(): Promise<boolean> {
+export async function getProSessionStatus(): Promise<ProSessionStatus | null> {
   try {
     validateApiBase();
     const response = await fetch(normalizeApiUrl(getApiBase(), PRO_SESSION_PATH), {
@@ -250,17 +291,26 @@ export async function checkProSession(): Promise<boolean> {
     });
 
     if (response.status === 401 || response.status === 403) {
-      return false;
+      return null;
     }
     if (!response.ok) {
-      return false;
+      return null;
     }
 
     const payload = await response.json().catch(() => null);
-    return inferSessionActive(payload);
+    return isProSessionStatus(payload) ? payload : null;
   } catch {
-    return false;
+    return null;
   }
+}
+
+/**
+ * Check whether server-side PRO session is currently active.
+ * Auth source of truth for web flow.
+ */
+export async function checkProSession(): Promise<boolean> {
+  const payload = await getProSessionStatus();
+  return payload !== null && inferSessionActive(payload);
 }
 
 /**
@@ -602,3 +652,17 @@ export type WeekPlanResponse = components["schemas"]["WeeklyPlanResponse"];
  * @returns Promise<WeekPlanResponse> - Weekly meal plan data
  */
 export const getWeekPlan = (options?: ApiOptions) => api<WeekPlanResponse>("/plan/week", undefined, options);
+
+export async function postPaywallExposureEvent(
+  payload: PaywallExposureEventRequest
+): Promise<void> {
+  await api<{ status: "ok" }>(
+    INTERNAL_PAYWALL_EVENTS_PATH,
+    {
+      method: "POST",
+      body: payload,
+    },
+    undefined,
+    true
+  );
+}

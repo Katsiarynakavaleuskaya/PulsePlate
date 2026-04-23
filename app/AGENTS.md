@@ -15,6 +15,14 @@
 - Lint/format: `make lint`, `make fmt`, `make fmt-check`
 - Pre-commit: `make pre-commit`
 
+## FitChef route and runtime policy
+
+- Current live FitChef public routes remain `/api/v1/insight/fitchef*`; new FitChef work must preserve these routes and add future structured-coach surfaces additively.
+- Foundation or visual-lane PRs must not migrate FitChef traffic to `/api/v1/pro/fitchef/*` or `/api/v1/vip/fitchef/*` until a dedicated contract PR freezes those paths.
+- Keep FitChef guard order aligned with the live mascot routers: tier/feature gate -> execution-mode gate -> input guard -> provider/tool execution. Do not change this precedence in docs-only PRs.
+- FREE tier must not receive open-ended FitChef runtime; bounded or static guidance only.
+- Route handlers must return structured response models or frozen response envelopes; UI clients must not depend on parsing raw model prose.
+
 ## Health endpoints contract (PR-504)
 
 | Endpoint | Purpose | DB I/O | Response |
@@ -87,7 +95,7 @@ curl -fsS https://.../metrics | grep http_requests_total
 
 **Implementation:**
 - Middleware: `app/middleware/metrics.py`
-- Endpoint: `legacy_app.py` (hidden from OpenAPI via `include_in_schema=False`)
+- Endpoint: `app/bootstrap/metrics.py` (hidden from OpenAPI via `include_in_schema=False`)
 
 **Limitations:**
 - Multiprocess mode not enabled: `/metrics` returns per-process metrics only.
@@ -100,14 +108,15 @@ curl -fsS https://.../metrics | grep http_requests_total
 - If route template is unavailable → use `"unknown"` (never fallback to `request.url.path`).
 
 **Observability security policy:**
-- `/metrics` MUST NOT enforce application-level authentication (API keys, auth middleware).
-- Protection of `/metrics` is an infrastructure concern:
+- `/metrics` MUST enforce application-level authentication via the shared API key guard.
+- Protection of `/metrics` is defense-in-depth and includes infrastructure controls:
   - ingress ACLs (Cloudflare, Caddy)
   - firewall rules
   - private networks
   - Prometheus scrape configs
-- App-level guards are forbidden for `/metrics` to preserve testability and backward compatibility.
-- If infrastructure-level protection is needed, implement it in a dedicated infra PR (e.g., PR-506).
+- App-level guards are required to reduce reconnaissance surface when infrastructure ACLs drift.
+- Explicit test bypass is allowed only via `METRICS_TEST_BYPASS=true` during pytest-scoped execution.
+- `METRICS_TEST_BYPASS` is test-only and MUST NOT be enabled in staging or production.
 
 **Testing requirements:**
 - Tests MUST assert `/metrics` returns a Prometheus exposition response (`Content-Type` starts with `text/plain`) on happy path.
@@ -175,6 +184,14 @@ curl -fsS https://.../metrics | grep http_requests_total
 - **DB lookup policy** (when enabled): `ERROR` and `INVALID_TIER` are **fail-closed** (no env
   fallback). `MISS` may fallback only during migration; plan DB-authoritative follow-up.
 - Never fail-open on tier checks.
+
+## Billing truth close-out policy
+
+- Protected PRO/VIP access must derive only from persisted backend entitlement state.
+- Manual verified compat may unlock legacy paid rows only when `activated_at` is present and usable.
+- Rows without usable activation evidence must fail closed and must not unlock protected routes.
+- Apple upstream transport failures must return deterministic backend error envelopes.
+- Activation readback endpoints expose the current entitlement view unless a different contract is documented explicitly.
 
 ## WebSocket realtime hardening (PR-783 follow-up)
 
@@ -277,6 +294,10 @@ Avoid `# type: ignore[no-any-return]` and prefer typed locals over `cast()`.
   missing symbols are forwarded via `__getattr__`.
 - Feature flags (e.g. exports) may be evaluated at import time; tests must set
   `TESTING=true` before importing `app`/`legacy_app` (handled in `tests/conftest.py`).
+- AgentGuard runtime/test bypasses must not key off `TESTING=true` alone:
+  live bridge suppression is allowed only for pytest-scoped execution
+  (`PYTEST_CURRENT_TEST` present), while targeted bridge coverage must opt in
+  explicitly via `GOPLUS_AGENTGUARD_IN_TESTS=true`.
 
 ## app package public surface contract
 

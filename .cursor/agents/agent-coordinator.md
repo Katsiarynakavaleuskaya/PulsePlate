@@ -73,8 +73,11 @@ When coordinating multi-agent work, use these canonical protocols:
 - Dialogue Template: `docs/orchestration/AGENT_DIALOGUE_TEMPLATE.md`
 - Parallel Work Protocol: `docs/orchestration/PARALLEL_WORK_PROTOCOL.md`
 - Message envelopes (multi-model robustness): `docs/orchestration/AGENT_MESSAGE_PROTOCOL.md`
+- Native runtime bridge (repo-agent slug -> transport-only native executor): `docs/orchestration/NATIVE_SUBAGENT_BRIDGE_PROTOCOL.md`
 - Research track (web/OSS intake): `docs/orchestration/RESEARCH_TRACK_PROTOCOL.md`
+- Experimentation protocol (bounded optimization/eval loops): `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md`
 - Reflection / KPP promotion: `docs/orchestration/AGENT_REFLECTION_PROTOCOL.md`
+- Skill routing policy: `docs/orchestration/AGENT_SKILL_ROUTING_POLICY.md`
 
 ---
 
@@ -115,11 +118,35 @@ When a task is created:
 
 2. **Map to agent capabilities**:
    - See "Available Agents" section below for capabilities and canonical docs
+   - Resolve the canonical cluster from `docs/orchestration/AGENT_ROUTING_GRAPH.md`
+     first; then choose the routed domain primary/secondary/reviewer
+   - Use `docs/orchestration/AGENT_CAPABILITY_MATRIX.md` only as advisory guidance
+     inside the already routed domain; it does not define permissions
+   - If the user explicitly requested agent slugs, preserve them in the task packet and
+     honor them when they are compatible with the routed domain slots; otherwise keep them
+     advisory/rejected with explicit rationale instead of dropping them silently
 
-3. **Assign task(s)**:
+3. **Map to project-fit skills**:
+   - If the task packet already includes `recommended_skills` / `skill_routing`, use those outputs as authoritative
+   - Otherwise start with `pulseplate-workflow`
+   - Resolve additional skills via `docs/orchestration/AGENT_SKILL_ROUTING_POLICY.md`
+   - If the task is a fixed-budget optimization/eval loop, load
+     `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md` before selecting mutable surfaces
+   - Prefer repo-tracked PulsePlate skills before global installed skills
+   - Do not auto-select broad scraping workflows for PulsePlate
+   - Apply requested-agent default bundles from `docs/orchestration/AGENT_SKILL_ROUTING_POLICY.md`
+     after canonical routing resolves; these bundles are helpers, not authority overrides
+   - For design/system tasks, follow the canonical source precedence in
+     `docs/runbooks/DESIGN_TOOLING_OPERATING_MODEL.md`
+     with default order `Figma -> Notion -> Airweave -> Penpot`
+
+4. **Assign task(s)**:
    - Single-agent: Direct assignment to best-fit agent
    - Multi-agent: Create workflow with dependencies and handoffs
    - Parallel: Assign independent sub-tasks to multiple agents simultaneously
+   - If touched scope includes `.github/workflows/**`, `ios/fastlane/**`,
+     `scripts/orchestration/**`, or merge-governance docs/scripts, keep
+     `security-auditor` in the review path by default
 
 ### 3. Work Synthesis & Quality Assurance
 
@@ -130,6 +157,8 @@ After agents complete work:
 3. **Final quality check**: Verify quality gates pass (see Quality Gates section)
 4. **Promote reusable knowledge (KPP)**:
    - Follow the canonical KPP: `docs/memory/kpp_knowledge_promotion_pipeline.md`.
+   - Experiment winners must promote to exactly one durable destination per
+     `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md`.
 5. **Generate final conclusion**: Summary, effectiveness, corrective actions, follow-ups
 
 ## Available Agents
@@ -192,11 +221,21 @@ Terminal-first autonomous operator for safe command execution and deterministic 
 
 ---
 
+### qa-engineer-agent
+
+Acceptance criteria, regression packs, independent review, and release confidence.
+
+**Canonical doc:** `.cursor/agents/qa-engineer-agent.md`
+
+---
+
 ### creative-designer
 
 UI/UX design, brand assets, App Store visuals, and marketing creatives.
 
 **Canonical doc:** `.cursor/agents/creative-designer.md`
+**Canonical design-source precedence:** `docs/runbooks/DESIGN_TOOLING_OPERATING_MODEL.md`
+**Default design-source order:** `Figma -> Notion -> Airweave -> Penpot`
 
 ---
 
@@ -223,6 +262,46 @@ Sora prompt-engineering owner for PulsePlate visual assets: style-lock templates
 ASO/SEO, growth strategy, positioning, and conversion optimization.
 
 **Canonical doc:** `.cursor/agents/marketing-strategist.md`
+
+---
+
+### app-store-release-agent
+
+App Store metadata, submission packaging, screenshot/video readiness, and release checklist ownership.
+
+**Canonical doc:** `.cursor/agents/app-store-release-agent.md`
+
+---
+
+### wellness-analyst-agent
+
+Wellness market opportunity analysis with ethics/regulatory framing and low-capex entry ideas.
+
+**Canonical doc:** `.cursor/agents/wellness-analyst-agent.md`
+
+---
+
+### business-strategist-agent
+
+Director-level business ownership for market entry, monetization sequencing, B2B packaging, partner/investor narrative governance, and KPI framing.
+
+**Canonical doc:** `.cursor/agents/business-strategist-agent.md`
+
+---
+
+### cursor-specialist-agent
+
+Task bootstrap ergonomics, context-pack hygiene, and Cursor/Codex workflow quality.
+
+**Canonical doc:** `.cursor/agents/cursor-specialist-agent.md`
+
+---
+
+### tutor-mentor-agent
+
+Explainability, onboarding guidance, and training-style artifacts without redefining SoT.
+
+**Canonical doc:** `.cursor/agents/tutor-mentor-agent.md`
 
 ---
 
@@ -277,6 +356,20 @@ RAG architecture, recursive verification, and budgets/stop conditions for ground
 ### cv-agent
 
 Computer vision pipeline contracts (photo → items → confidence → mapping) and privacy boundaries.
+
+PR13 note: route generic CV-first coordinator tasks through the canonical `cv`
+domain in the `ml` cluster, with `cv-agent` as the graph-primary owner. Keep
+governed experimentation packets backward-compatible under the existing `ml`
+domain until the experiment packet contract is migrated explicitly. For CV
+experiment design, pair `cv-agent` with `data-scientist-agent` and
+`bayesian-uq-agent` as advisory tracks. Runtime client ownership for future CV
+UX remains deferred and must be tracked explicitly before implementation.
+
+Rollout / rollback note:
+- Roll forward only when CV work stays docs/eval-only and uses the governed
+  packet path from `docs/orchestration/CV_EXPERIMENTATION_PROTOCOL.md`.
+- Roll back to the generic experimentation lane if CV packet fields, privacy
+  packet requirements, or cross-client degrade-state context drift out of sync.
 
 **Canonical doc:** `.cursor/agents/cv-agent.md`
 
@@ -364,12 +457,12 @@ Coordinator enforces project quality gates; see `AGENTS.md` (policy) and `RUNBOO
 
 - Coordinator-first rule: `AGENTS.md` (Agent Coordination section)
 
-**Automatic invocation:**
+**Command-driven bootstrap:**
 
-- Any task is created (analyze and route)
-- Agent work completes (review and synthesize)
-- PR is opened (coordinate review across agents)
-- Release is planned (coordinate security + quality checks)
+- `python scripts/orchestration/task_bootstrap.py --goal "..." --task-class "..." --path ...`
+- `python scripts/orchestration/check_preflight.py --mode analyze|execute|merge ...`
+
+These commands are the executable implementation of coordinator-first behavior for task start, execution handoff, and merge prep.
 
 ## Runbook Reference
 

@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+import os
 import shutil
 import subprocess
 from pathlib import Path
@@ -22,6 +23,37 @@ def _tail_log(log_text: str) -> str:
     """Return a bounded tail for subprocess logs to keep pytest output readable."""
     lines = log_text.splitlines()
     return "\n".join(lines[-_SUBPROCESS_LOG_TAIL_LINES:])
+
+
+def _node_major_meets_nvmrc(repo_root: Path) -> bool:
+    """
+    Match scripts/frontend_npm.sh: `make openapi` fails when Node major < .nvmrc major.
+
+    RU: Локально без нужного Node major — скип; в CI (CI=true) — fail-closed, без «тихого» skip.
+    EN: Skip locally when Node is too old; in CI, callers must not skip silently.
+    """
+    nvmrc = repo_root / ".nvmrc"
+    if not nvmrc.is_file():
+        return True
+    first_segment = nvmrc.read_text(encoding="utf-8").strip().split(".")[0].lstrip("v")
+    try:
+        expected_major = int(first_segment)
+    except ValueError:
+        return False
+    proc = subprocess.run(
+        ["node", "-p", "parseInt(process.versions.node.split('.')[0], 10)"],
+        cwd=repo_root,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    if proc.returncode != 0:
+        return False
+    try:
+        current_major = int((proc.stdout or "").strip())
+    except ValueError:
+        return False
+    return current_major >= expected_major
 
 
 def _run_openapi_pipeline(repo_root: Path) -> None:
@@ -74,11 +106,23 @@ def test_openapi_and_schema_ts_are_deterministic() -> None:
     - No drift occurs in openapi.json or schema.ts
     - Full pipeline (make openapi) is deterministic for CI and local development
     """
+    repo_root = Path(__file__).resolve().parents[1]
+
     # This test is meant for the dedicated CI job that has Node/npm installed.
     if not (shutil.which("node") and shutil.which("npm") and shutil.which("make")):
         pytest.skip("OpenAPI determinism test requires node/npm/make toolchain")
 
-    repo_root = Path(__file__).resolve().parents[1]
+    if not _node_major_meets_nvmrc(repo_root):
+        if os.environ.get("CI") == "true":
+            pytest.fail(
+                "OpenAPI determinism must run in CI with Node major >= .nvmrc "
+                "(use node-version-file: env.FRONTEND_NODE_VERSION_FILE; "
+                "see scripts/frontend_npm.sh)."
+            )
+        pytest.skip(
+            "OpenAPI determinism test requires Node major >= .nvmrc "
+            "(same gate as scripts/frontend_npm.sh / make openapi)"
+        )
     openapi_path = repo_root / "frontend" / "src" / "api" / "openapi.json"
     schema_path = repo_root / "frontend" / "src" / "api" / "schema.ts"
 
@@ -87,9 +131,11 @@ def test_openapi_and_schema_ts_are_deterministic() -> None:
     # Sanity-check: generator must produce FULL schema (no schema-only markers) and include
     # key endpoints that were previously excluded behind schema-only mode.
     schema = json.loads(openapi_path.read_text(encoding="utf-8"))
+    schema_ts = schema_path.read_text(encoding="utf-8")
     info = schema.get("info") or {}
     assert info.get("x-openapi-mode") != "schema-only"
     paths = schema.get("paths") or {}
+    components = (schema.get("components") or {}).get("schemas") or {}
     assert "/api/v1/pro/meal/weekly" in paths
     assert "/api/v1/pro/nutrition/daily" in paths
     assert "/api/v1/pro/nutrition/meal-log" in paths
@@ -98,6 +144,14 @@ def test_openapi_and_schema_ts_are_deterministic() -> None:
     assert "/api/v1/business/analyze" not in paths
     assert "/api/v1/foods" not in paths
     assert "/api/v1/restaurants/search" not in paths
+    assert "PremiumWeekPlanRequest" not in components
+    assert "PremiumWeekPlanResponse" not in components
+    assert "WeeklyMealPlanResponse" in components
+    assert "WeeklyMealPlanDayMenu" in components
+    assert "PremiumWeekPlanRequest" not in schema_ts
+    assert "PremiumWeekPlanResponse" not in schema_ts
+    assert 'daily_menus: components["schemas"]["WeeklyMealPlanDayMenu"][];' in schema_ts
+    assert "daily_menus: unknown[]" not in schema_ts
 
     h1: tuple[str, str] = (_sha256(openapi_path), _sha256(schema_path))
 
@@ -144,3 +198,107 @@ def test_register_pro_routes_is_idempotent(monkeypatch: pytest.MonkeyPatch) -> N
     assert after == before
     assert pro_router is sentinel_pro
     assert premium_week_router is sentinel_week
+
+
+def test_prune_unreferenced_schema_components_ignores_missing_components() -> None:
+    from legacy_app import _prune_unreferenced_schema_components
+
+    schema_without_components = {"openapi": "3.1.0", "paths": {}}
+    schema_without_schemas = {"components": {"securitySchemes": {"ApiKeyAuth": {}}}}
+
+    _prune_unreferenced_schema_components(schema_without_components)
+    _prune_unreferenced_schema_components(schema_without_schemas)
+
+    assert schema_without_components == {"openapi": "3.1.0", "paths": {}}
+    assert schema_without_schemas["components"]["securitySchemes"]["ApiKeyAuth"] == {}
+
+
+def test_prune_unreferenced_schema_components_skips_duplicates_and_missing_refs() -> None:
+    from legacy_app import _prune_unreferenced_schema_components
+
+    schema = {
+        "paths": {
+            "/api/v1/demo": {
+                "get": {
+                    "responses": {
+                        "200": {
+                            "content": {
+                                "application/json": {
+                                    "schema": {"$ref": "#/components/schemas/PublicResponse"}
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "components": {
+            "schemas": {
+                "PublicResponse": {
+                    "type": "object",
+                    "properties": {
+                        "items": {
+                            "type": "array",
+                            "items": {"$ref": "#/components/schemas/SharedItem"},
+                        },
+                        "duplicate": {"$ref": "#/components/schemas/SharedItem"},
+                        "missing": {"$ref": "#/components/schemas/MissingItem"},
+                    },
+                },
+                "SharedItem": {
+                    "type": "object",
+                    "properties": {
+                        "self": {"$ref": "#/components/schemas/SharedItem"},
+                    },
+                },
+                "UnusedSchema": {"type": "object"},
+            },
+            "securitySchemes": {"ApiKeyAuth": {"type": "apiKey", "in": "header", "name": "X-Key"}},
+        },
+    }
+
+    _prune_unreferenced_schema_components(schema)
+
+    retained = schema["components"]["schemas"]
+    assert set(retained) == {"PublicResponse", "SharedItem"}
+    assert "UnusedSchema" not in retained
+    assert schema["components"]["securitySchemes"]["ApiKeyAuth"]["type"] == "apiKey"
+
+
+def test_prune_unreferenced_schema_components_skips_non_dict_schema_nodes() -> None:
+    from legacy_app import _prune_unreferenced_schema_components
+
+    schema = {
+        "paths": {
+            "/api/v1/demo": {
+                "get": {
+                    "responses": {
+                        "200": {
+                            "content": {
+                                "application/json": {
+                                    "schema": {
+                                        "oneOf": [
+                                            {"$ref": "#/components/schemas/PublicResponse"},
+                                            {"$ref": "#/components/schemas/BrokenNode"},
+                                        ]
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "components": {
+            "schemas": {
+                "PublicResponse": {"type": "object"},
+                "BrokenNode": "not-a-dict",
+            }
+        },
+    }
+
+    _prune_unreferenced_schema_components(schema)
+
+    retained = schema["components"]["schemas"]
+    assert "PublicResponse" in retained
+    assert "BrokenNode" not in retained

@@ -1,0 +1,17 @@
+"""Dependency-free route constants for public shoplist exports."""
+
+from __future__ import annotations
+
+SHOPLIST_ROUTE_PREFIX = "/api/v1/shoplist"
+SHOPLIST_EXPORT_CSV_ROUTE = "/export.csv"
+SHOPLIST_EXPORT_PDF_ROUTE = "/export.pdf"
+SHOPLIST_EXPORT_CSV_PATH = f"{SHOPLIST_ROUTE_PREFIX}{SHOPLIST_EXPORT_CSV_ROUTE}"
+SHOPLIST_EXPORT_PDF_PATH = f"{SHOPLIST_ROUTE_PREFIX}{SHOPLIST_EXPORT_PDF_ROUTE}"
+
+__all__ = [
+    "SHOPLIST_ROUTE_PREFIX",
+    "SHOPLIST_EXPORT_CSV_ROUTE",
+    "SHOPLIST_EXPORT_PDF_ROUTE",
+    "SHOPLIST_EXPORT_CSV_PATH",
+    "SHOPLIST_EXPORT_PDF_PATH",
+]

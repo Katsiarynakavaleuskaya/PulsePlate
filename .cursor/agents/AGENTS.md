@@ -2,6 +2,8 @@
 
 **Canonical rules:** See root `AGENTS.md` for project-wide policies (coordinator-first rule, quality gates, process).
 
+**Short startup path:** `docs/dev/AGENT_COMPATIBILITY_ONBOARDING.md`
+
 This document defines **scoped rules** specific to Cursor agents in `.cursor/agents/`.
 
 ---
@@ -10,15 +12,21 @@ This document defines **scoped rules** specific to Cursor agents in `.cursor/age
 
 **Hard rule:** Any new task MUST start with `agent-coordinator` for task analysis and agent routing.
 
+**Machine-local launcher:** An opt-in host wrapper may front-load `check_preflight.py` and `task_bootstrap.py`; **coordinator-first authority** remains root `AGENTS.md` and the canonical workflow (`docs/orchestration/workflow.md`), not the launcher.
+
 **Reference:** Root `AGENTS.md` (Agent Coordination section) for full policy.
 
 **Local implementation:** `.cursor/agents/agent-coordinator.md` is the canonical coordinator agent.
 
+**Advisory wiki compiler:** Operator-local compiled memory via `scripts/orchestration/wiki_ingest.py` (and related CLIs). It is **not** orchestration SoT and does not replace canonical `docs/**` or KPP; boundaries and commands are documented in `docs/orchestration/LOCAL_WIKI_SUPPORT_PLANE.md`.
+
 ## Required pre-flight (SoT)
 
 Before doing any work:
+
 - Follow `docs/orchestration/workflow.md` → “Canonical Pre-flight Checklist (SoT)”.
 - Load required context for the invoked role from `docs/orchestration/AGENT_CONTEXT_MAP.md`.
+- Load `docs/orchestration/AGENT_SKILL_ROUTING_POLICY.md` when installed skills may materially improve the task or when changing orchestration/agent workflow docs.
 - Always include root `AGENTS.md` + nearest module `AGENTS.md` for any files you touch.
 
 ---
@@ -30,6 +38,7 @@ Before doing any work:
 **Message protocol compliance (SoT):** `docs/orchestration/AGENT_MESSAGE_PROTOCOL.md`
 
 **Templates:**
+
 - Task Analysis: `docs/orchestration/task_analysis.template.md`
 - Work Review: `docs/orchestration/work_review.template.md`
 - Synthesis: `docs/orchestration/synthesis.template.md`
@@ -44,6 +53,7 @@ Before doing any work:
 ### Agent File Structure
 
 Each agent file (`.cursor/agents/*.md`) must:
+
 - Have frontmatter with `name`, `model`, `description`
 - Include "Model Selection Rationale" section (2-5 bullets) - see `docs/agents/model_policy.md`
 - Document capabilities and when to use
@@ -52,6 +62,7 @@ Each agent file (`.cursor/agents/*.md`) must:
 ### Coordinator Role
 
 `agent-coordinator.md` is **router-only**:
+
 - Routes tasks to appropriate agents
 - Synthesizes multi-agent work
 - Enforces quality gates
@@ -63,19 +74,33 @@ Each agent file (`.cursor/agents/*.md`) must:
 - If agent file added/renamed: update coordinator "Available Agents" section in same PR
 - If agent capabilities change: update agent file only (coordinator references, doesn't duplicate)
 - If missing agent doc: record in `docs/roadmap/BACKLOG_LEDGER.md`
+- If business-cluster ownership changes, sync every file listed in **Business-Cluster Sync Targets** in the same PR
+
+#### Business-Cluster Sync Targets
+
+- `.cursor/agents/business-strategist-agent.md`
+- `.cursor/agents/marketing-strategist.md`
+- `.cursor/agents/agent-coordinator.md`
+- `docs/orchestration/AGENT_INVENTORY.md`
+- `docs/orchestration/AGENT_CAPABILITY_MATRIX.md`
+- `docs/orchestration/AGENT_CONTEXT_MAP.md`
+- `docs/agents/index.md`
 
 ---
 
-## Automatic Invocation Triggers
+## Coordinator Bootstrap Triggers
 
-Coordinator is automatically invoked when:
+Coordinator-first behavior is command-driven through
+`scripts/orchestration/task_bootstrap.py` + `scripts/orchestration/check_preflight.py`.
 
-1. **Task creation:** Any new task is created (coordinator analyzes and routes)
-2. **Agent work completion:** Agent(s) complete work (coordinator reviews and synthesizes)
-3. **PR opened:** PR is opened (coordinator coordinates review across agents)
-4. **Release planned:** Release is planned (coordinator coordinates security + quality checks)
+Use bootstrap when:
 
-**Reference:** See `agent-coordinator.md` (Automatic invocation section) for details.
+1. **Task creation:** build task packet and resolve domain/cluster/routing
+2. **Execution start:** validate task scope and explicit routing in `execute` mode
+3. **PR / merge prep:** validate local evidence and reviewer readiness in `merge` mode
+4. **Release planning:** build release packet for QA + App Store + growth coordination
+
+**Reference:** See `agent-coordinator.md` and `docs/orchestration/workflow.md`.
 
 ---
 
@@ -96,6 +121,7 @@ Coordinator is automatically invoked when:
 Coordinator enforces project quality gates; see root `AGENTS.md` (policy) and `RUNBOOK_AGENT.md` (how-to).
 
 **Summary (authoritative source: root `AGENTS.md`):**
+
 - `make verify` (lint → typecheck → test-fast → diff-cov ≥97%)
 - Guard tests pass (architectural invariants)
 - Coverage ≥97% (total + diff-coverage)
@@ -106,6 +132,7 @@ Coordinator enforces project quality gates; see root `AGENTS.md` (policy) and `R
 ## Integration with Project Workflow
 
 **Process rules:**
+
 - Coordinator-first rule: Root `AGENTS.md` (Agent Coordination section)
 - Runbook procedures: `RUNBOOK_AGENT.md` (Agent Coordination section)
 
@@ -122,5 +149,5 @@ Coordinator enforces project quality gates; see root `AGENTS.md` (policy) and `R
 
 ---
 
-**Last updated:** 2026-01-23 (PR-566)
+**Last updated:** 2026-03-07 (PR-1000)
 **Related:** Root `AGENTS.md`, `docs/orchestration/workflow.md`, `docs/agents/model_policy.md`

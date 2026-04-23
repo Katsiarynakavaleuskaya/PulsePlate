@@ -7,13 +7,13 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { getWeeklyPlan } from '../../../api/premium/weekly-plan';
-import type { TargetsRequest } from '../../../api/premium/types';
+import type { ProWeekPlanRequest } from '../../../api/premium/weekly-plan';
 import { normalizeWeekPlan } from '../model/adapter';
-import type { WeekPlanVM, RawWeekPlanResponse } from '../model/types';
+import type { WeekPlanVM } from '../model/types';
 
 export interface UseWeeklyPlanOptions {
   /** User targets for meal plan generation */
-  targets: TargetsRequest | null;
+  targets: ProWeekPlanRequest | null;
   /** Enable/disable query */
   enabled?: boolean;
   /** Callback on successful fetch */
@@ -72,7 +72,7 @@ export function useWeeklyPlan(options: UseWeeklyPlanOptions): UseWeeklyPlanRetur
       }
 
       // Normalize to view model (adapter handles type coercion and validation)
-      const normalized = normalizeWeekPlan(rawResponse as RawWeekPlanResponse);
+      const normalized = normalizeWeekPlan(rawResponse);
 
       setData(normalized);
       onSuccess?.(normalized);

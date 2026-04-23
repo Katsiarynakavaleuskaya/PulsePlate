@@ -42,6 +42,9 @@ Uncertainty Quantification (UQ) requires AI outputs to expose confidence scores 
 - Every predictive/inferential output includes **confidence** (score + bucket).
 - Low confidence triggers: clarifying questions, softer language, explicit disclaimers.
 - Do not mislabel heuristics as “Bayesian” unless posterior-based methods exist.
+- PR5 note: the offline `photo -> food` CV lane uses **qualitative buckets only**
+  (`high | medium | low | unknown`) per
+  `docs/orchestration/contracts/CV_PHOTO_FOOD_EVAL_CONTRACT.md`.
 
 ### Suggested schema (illustrative)
 
@@ -105,35 +108,25 @@ See also:
 
 ## Contract A4) CV pipeline (draft)
 
+Canonical PR5 offline-eval overlay:
+`docs/orchestration/contracts/CV_PHOTO_FOOD_EVAL_CONTRACT.md`
+
 ### Definition
 
 CV pipeline turns photos into candidate food items with confidence, optionally portion estimates, and nutrition mapping via deterministic lookup.
 
 ### Contract (MVP)
 
-- Per-item confidence required; low confidence degrades (no silent defaults).
+- Per-item confidence required; PR5 keeps this qualitative only via the canonical
+  CV contract (no competing numeric schema in this draft document).
 - Nutrition values must come from deterministic lookup (no “LLM guessed calories”).
 - Privacy/logging boundaries must be explicit (consent, retention).
-
-### Suggested schema (illustrative)
-
-```json
-{
-  "items": [
-    {
-      "name": "pasta",
-      "confidence": 0.77,
-      "portion_estimate": null,
-      "nutrition_db_match_id": "fooddb:987"
-    }
-  ],
-  "overall_confidence": 0.77,
-  "warning": null
-}
-```
+- Canonical schema, degrade states, and privacy packet fields live only in:
+  `docs/orchestration/contracts/CV_PHOTO_FOOD_EVAL_CONTRACT.md`
 
 ### Acceptance criteria (future tests)
 
 1. Invalid images return 422 with clear errors.
 2. Empty recognition returns `items: []` with warning.
-3. Confidence propagation exists; low overall confidence triggers user-facing warning.
+3. Confidence propagation exists; low-confidence outcomes trigger the canonical
+   degrade states from `CV_PHOTO_FOOD_EVAL_CONTRACT.md`.
