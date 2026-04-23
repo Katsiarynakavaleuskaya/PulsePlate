@@ -39,6 +39,7 @@ Evidence: `docs/review/PR_1503_FIXED_MAPPING.md:43-48` keeps the actual final me
 Reason: the CodeRabbit follow-up misread the current artifact state; the merge-cycle checkboxes it flagged are already unchecked on the latest head, so no code or docs change is required beyond recording the disposition.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1503#discussion_r3133574264
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1503#pullrequestreview-4165661733
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1503#pullrequestreview-4165727884
 
 ## Merge Readiness
 
@@ -55,13 +56,13 @@ Merge-readiness contract:
 - [x] All review threads resolved on GitHub after disposition updates
   Evidence: GraphQL review-thread check returned `0` unresolved threads after coordinator resolution pass.
 - [x] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
-  Evidence: Sourcery, CodeRabbit, and Codex actionables are mapped above, including review-level Sourcery URL `#pullrequestreview-4163080758`.
+  Evidence: Sourcery, CodeRabbit, and Codex actionables are mapped above, including review-level URLs `#pullrequestreview-4163080758`, `#pullrequestreview-4165661733`, and `#pullrequestreview-4165727884`.
 - [x] Pre-commit green on latest pushed head
   Evidence: `pre-commit run --all-files` passed on the governance-evidence tree before push.
-- [x] `make verify` green on latest pushed head
-  Evidence: launchd-supervised `make verify` completed with exit `0` on the governance-evidence tree before push; earlier attached runs were SIGTERM-killed by the local session during `diff-cov`, not by test failures.
-- [x] Mandatory post-open `qa-engineer-agent -> bug-hunter` pass completed
-  Evidence: local coordinator lane findings captured below and fixed before ready-for-review cycle.
+- [ ] `make verify` green on latest pushed head
+  Evidence: the governance-refresh head after this artifact update still needs a fresh exact-head `make verify` pass before merge claim.
+- [ ] Mandatory post-open `qa-engineer-agent -> bug-hunter` pass completed
+  Evidence: `qa-engineer-agent` completed on the current head; `bug-hunter` still needs to run after the governance-refresh push.
 
 Post-open QA notes:
 
