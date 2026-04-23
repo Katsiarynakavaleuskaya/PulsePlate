@@ -476,6 +476,26 @@ async def test_execute_insight_request_uses_prepared_recursive_rollout_policy_as
         )
 
     monkeypatch.setattr(
+        "app.services.insight_application_service.is_philosophy_router_enabled",
+        lambda: False,
+        raising=True,
+    )
+    monkeypatch.setattr(
+        "app.services.insight_application_service.is_philosophy_phase12_enabled",
+        lambda: False,
+        raising=True,
+    )
+    monkeypatch.setattr(
+        "app.services.insight_application_service.is_philosophy_linguistic_enabled",
+        lambda: False,
+        raising=True,
+    )
+    monkeypatch.setattr(
+        "app.services.insight_application_service.is_philosophy_pragmatic_enabled",
+        lambda: False,
+        raising=True,
+    )
+    monkeypatch.setattr(
         "app.services.insight_application_service.is_recursive_rag_enabled",
         lambda: False,
         raising=True,
@@ -564,6 +584,36 @@ async def test_execute_insight_request_does_not_build_legacy_recursive_policy_wh
             ),
         )
 
+    monkeypatch.setattr(
+        "app.services.insight_application_service.is_philosophy_router_enabled",
+        lambda: False,
+        raising=True,
+    )
+    monkeypatch.setattr(
+        "app.services.insight_application_service.is_philosophy_phase12_enabled",
+        lambda: False,
+        raising=True,
+    )
+    monkeypatch.setattr(
+        "app.services.insight_application_service.is_philosophy_linguistic_enabled",
+        lambda: False,
+        raising=True,
+    )
+    monkeypatch.setattr(
+        "app.services.insight_application_service.is_philosophy_pragmatic_enabled",
+        lambda: False,
+        raising=True,
+    )
+    monkeypatch.setattr(
+        "app.services.insight_application_service.is_recursive_rag_enabled",
+        lambda: True,
+        raising=True,
+    )
+    monkeypatch.setattr(
+        "app.services.insight_application_service.is_recursive_rag_optimization_enabled",
+        lambda: False,
+        raising=True,
+    )
     monkeypatch.setattr(
         "app.services.insight_application_service.prepare_insight_runtime",
         lambda **kwargs: prepared_runtime,

@@ -1221,6 +1221,11 @@ class TestInsightApplicationServiceFastLane:
             raising=True,
         )
         monkeypatch.setattr(
+            "app.services.insight_runtime.is_recursive_rag_enabled",
+            lambda: pytest.fail("recursive env reader must not run"),
+            raising=True,
+        )
+        monkeypatch.setattr(
             "app.services.insight_runtime.is_recursive_rag_optimization_enabled",
             lambda: pytest.fail("optimization env reader must not run"),
             raising=True,
