@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react';
 import { useState } from 'react';
-import type { ReactElement } from 'react';
+import type { ChangeEvent, ReactElement } from 'react';
 import { Checkbox } from './Checkbox';
 
 interface CheckboxDemoProps {
@@ -20,7 +20,7 @@ function CheckboxDemo({ disabled = false, error = false }: CheckboxDemoProps): R
           checked={checked}
           disabled={disabled}
           invalid={error}
-          onChange={(event) => setChecked(event.target.checked)}
+          onChange={(event: ChangeEvent<HTMLInputElement>): void => setChecked(event.target.checked)}
         />
         <span className="space-y-1">
           <span className="block text-sm font-medium text-[var(--color-text)]">Email me the weekly planning summary</span>

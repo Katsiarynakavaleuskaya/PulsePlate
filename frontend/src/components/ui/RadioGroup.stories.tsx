@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react';
 import { useState } from 'react';
-import type { ReactElement } from 'react';
+import type { ChangeEvent, ReactElement } from 'react';
 import { RadioGroup, RadioGroupOption } from './RadioGroup';
 
 interface RadioGroupDemoProps {
@@ -19,7 +19,7 @@ function RadioGroupDemo({ error = false }: RadioGroupDemoProps): ReactElement {
           label="Calm"
           name="coaching-tone"
           value="calm"
-          onChange={(event) => setValue(event.target.value)}
+          onChange={(event: ChangeEvent<HTMLInputElement>): void => setValue(event.target.value)}
         />
         <RadioGroupOption
           checked={value === 'motivated'}
@@ -27,7 +27,7 @@ function RadioGroupDemo({ error = false }: RadioGroupDemoProps): ReactElement {
           label="Motivated"
           name="coaching-tone"
           value="motivated"
-          onChange={(event) => setValue(event.target.value)}
+          onChange={(event: ChangeEvent<HTMLInputElement>): void => setValue(event.target.value)}
         />
         <RadioGroupOption
           description="Fewer prompts, more self-directed planning"

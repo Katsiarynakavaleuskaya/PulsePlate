@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { ReactElement } from 'react';
+import type { ChangeEvent, ReactElement } from 'react';
 import {
   Alert,
   Button,
@@ -32,6 +32,14 @@ interface ComponentShowcasePanelProps {
 
 type FavoriteMeal = 'breakfast' | 'lunch' | 'dinner';
 type CoachingTone = 'calm' | 'motivated';
+
+function isFavoriteMeal(value: string): value is FavoriteMeal {
+  return value === 'breakfast' || value === 'lunch' || value === 'dinner';
+}
+
+function isCoachingTone(value: string): value is CoachingTone {
+  return value === 'calm' || value === 'motivated';
+}
 
 export function ComponentShowcasePanel({
   notificationsEnabled,
@@ -92,7 +100,12 @@ export function ComponentShowcasePanel({
               { value: 'dinner', label: 'Dinner' },
             ]}
             value={favoriteMeal}
-            onChange={(event) => setFavoriteMeal(event.target.value as FavoriteMeal)}
+            onChange={(event: ChangeEvent<HTMLSelectElement>): void => {
+              const nextValue = event.target.value;
+              if (isFavoriteMeal(nextValue)) {
+                setFavoriteMeal(nextValue);
+              }
+            }}
           />
           <Textarea
             aria-label="Planning notes"
@@ -103,7 +116,7 @@ export function ComponentShowcasePanel({
             <Checkbox
               checked={consentChecked}
               className="mt-0.5"
-              onChange={(event) => setConsentChecked(event.target.checked)}
+              onChange={(event: ChangeEvent<HTMLInputElement>): void => setConsentChecked(event.target.checked)}
             />
             <span className="space-y-1">
               <span className="block text-sm font-medium text-white">Email me the weekly planning summary</span>
@@ -119,7 +132,12 @@ export function ComponentShowcasePanel({
               label="Calm"
               name="coaching-tone"
               value="calm"
-              onChange={(event) => setCoachingTone(event.target.value as CoachingTone)}
+              onChange={(event: ChangeEvent<HTMLInputElement>): void => {
+                const nextValue = event.target.value;
+                if (isCoachingTone(nextValue)) {
+                  setCoachingTone(nextValue);
+                }
+              }}
             />
             <RadioGroupOption
               checked={coachingTone === 'motivated'}
@@ -127,7 +145,12 @@ export function ComponentShowcasePanel({
               label="Motivated"
               name="coaching-tone"
               value="motivated"
-              onChange={(event) => setCoachingTone(event.target.value as CoachingTone)}
+              onChange={(event: ChangeEvent<HTMLInputElement>): void => {
+                const nextValue = event.target.value;
+                if (isCoachingTone(nextValue)) {
+                  setCoachingTone(nextValue);
+                }
+              }}
             />
           </RadioGroup>
           <Alert title="Weekly plan synced" tone="success">
