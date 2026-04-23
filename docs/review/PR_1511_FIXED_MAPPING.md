@@ -28,6 +28,9 @@ Date: 2026-04-23
 - Push pre-push hooks PASS: yaml, workflow check, black, ruff, mypy changed
   files, pip-audit, backend pre-push pytest, full-repo bandit, docker build
   test.
+- Additional main evidence from 2026-04-23: run `24854923154`, job
+  `72765173124`, failed `test-main (3.12, 60)` with `Segmentation fault
+  (core dumped)` at roughly 20% under the sequential no-xdist coverage command.
 
 ## Deferred Follow-up
 

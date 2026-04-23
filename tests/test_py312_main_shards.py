@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+from concurrent.futures import Future
 from pathlib import Path
 
 import coverage.cmdline
@@ -158,6 +159,22 @@ def test_run_all_shards_combines_coverage_after_success(
         ["xml"],
         ["report", "-m", "--fail-under=97"],
     ]
+
+
+def test_collect_shard_results_reports_worker_exceptions(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    success: Future[int] = Future()
+    failure: Future[int] = Future()
+    success.set_result(0)
+    failure.set_exception(RuntimeError("native crash"))
+
+    results = runner.collect_shard_results({success: 1, failure: 2})
+
+    assert results == {1: 0, 2: 1}
+    assert "PY312_SHARD_EXCEPTION index=2 type=RuntimeError message=native crash" in (
+        capsys.readouterr().err
+    )
 
 
 def test_run_coverage_command_uses_coverage_api(

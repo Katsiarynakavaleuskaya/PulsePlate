@@ -30,6 +30,10 @@ Mandatory post-open review remains `qa-engineer-agent -> bug-hunter`.
   step was running from `2026-04-23T15:26:19Z`.
 - Main run `24849990678` still had `test-main (3.12, 60)` in progress from
   `2026-04-23T19:02:48Z` when this lane was scoped; `3.11` already passed.
+- Main run `24854923154` later failed `test-main (3.12, 60)` at roughly 20%
+  with `Segmentation fault (core dumped)` in the sequential no-xdist command:
+  `python -X faulthandler -m pytest "${PYTEST_XDIST_ARGS[@]}" -m "not slow"`
+  with coverage enabled.
 
 ## Decision
 
@@ -48,6 +52,11 @@ Each process receives:
 
 After all shards pass, the runner combines coverage and enforces the existing
 97% coverage threshold. Any shard failure fails the job.
+
+If a shard process exits via native crash and breaks the worker pool, the parent
+runner emits `PY312_SHARD_EXCEPTION index=<n> ...` before failing the job. This
+preserves the failing shard boundary for the next root-cause pass instead of
+turning the crash into an unscoped job-level failure.
 
 ## Non-Goals
 

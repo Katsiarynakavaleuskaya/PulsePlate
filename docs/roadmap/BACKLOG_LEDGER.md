@@ -9598,7 +9598,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (CI stability / merge-signal integrity)
   - Target PR: PR #1494 (`codex/fix-ci-xdist-worker-stability`) -> PR #1501 (`codex/main-ci-py312-root-cause-plus-uuid117`) -> containment PR (`codex/main-py312-containment`) -> active timeout root-cause lane (`codex/main-ci-py312-timeout-root-cause`)
-  - Status: PR #1494 and PR #1501 landed partial mitigations by April 23, 2026, but live main run `24811914187` still cancelled `test-main (3.12, 60)` after the coverage step reached the 60-minute containment window. PR #1505 containment disabled xdist for Python 3.12, but main run `24849990678` still had `test-main (3.12, 60)` running inside the coverage step after `2026-04-23T19:04:22Z`. The active root-cause lane is `codex/main-ci-py312-timeout-root-cause`.
+  - Status: PR #1494 and PR #1501 landed partial mitigations by April 23, 2026, but live main run `24811914187` still cancelled `test-main (3.12, 60)` after the coverage step reached the 60-minute containment window. PR #1505 containment disabled xdist for Python 3.12, but main run `24849990678` still had `test-main (3.12, 60)` running inside the coverage step after `2026-04-23T19:04:22Z`. Main run `24854923154` then failed the same job with `Segmentation fault (core dumped)` at roughly 20% under the sequential no-xdist coverage command. The active root-cause lane is `codex/main-ci-py312-timeout-root-cause`.
   - Reason: the `main`-branch `CI` full-suite lane continues to surface
     user-reported `"[gw1] node down: Not properly terminated"` instability in
     the xdist-backed `test-main` path. Current lane evidence shows
@@ -9627,6 +9627,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Later late-zone reproduction with timeout tail: <https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/24799632664/job/72578492861>
     - Live gate run: <https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/24811914187>
     - Cancelled `test-main (3.12, 60)` gate job: <https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/24811914187/job/72651217023>
+    - Sequential no-xdist segfault job: <https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/24854923154/job/72765173124>
     - Healthy comparator `test-main (3.11, 60)` job: <https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/24771474555/job/72483386535>
     - Green nightly reference: <https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/24760590280>
   - DoD:

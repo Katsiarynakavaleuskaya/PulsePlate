@@ -10,7 +10,7 @@ import os
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Sequence
+from typing import Mapping, Sequence
 
 DEFAULT_SHARD_COUNT = 2
 DEFAULT_MAX_PARALLEL = 2
@@ -167,6 +167,26 @@ def remove_previous_outputs(repo_root: Path, shards: Sequence[TestShard]) -> Non
             junit_path.unlink()
 
 
+def collect_shard_results(
+    futures: Mapping[concurrent.futures.Future[int], int],
+) -> dict[int, int]:
+    """Collect shard results and preserve diagnostics for crashed worker processes."""
+
+    results: dict[int, int] = {}
+    for future, shard_index in futures.items():
+        try:
+            results[shard_index] = future.result()
+        except BaseException as exc:
+            print(
+                f"PY312_SHARD_EXCEPTION index={shard_index} "
+                f"type={type(exc).__name__} message={exc}",
+                file=sys.stderr,
+                flush=True,
+            )
+            results[shard_index] = 1
+    return results
+
+
 def run_all_shards(
     repo_root: Path,
     shards: Sequence[TestShard],
@@ -190,7 +210,7 @@ def run_all_shards(
                 executor.submit(run_shard, repo_root, shard, base_env): shard.index
                 for shard in shards
             }
-            results = {shard_index: future.result() for future, shard_index in futures.items()}
+            results = collect_shard_results(futures)
 
     failing_shards = [
         shard_index for shard_index, exit_code in sorted(results.items()) if exit_code != 0
