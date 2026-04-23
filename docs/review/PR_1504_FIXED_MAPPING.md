@@ -42,6 +42,12 @@ Evidence: `frontend/src/components/ui/*.tsx` exports are typed React component c
 Reason: CodeRabbit issue comment warning for generic docstring coverage is not a repo merge gate for these frontend TSX primitives and would add noisy comments rather than improve governed component behavior. Repo-local quality gates and explicit type/test coverage are the binding PR-1 evidence.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1504#issuecomment-4304646486
 
+Disposition: FIXED
+Commit: 6a5cc359e
+Evidence: `frontend/src/components/design-system/ExperiencePanels.tsx`, `frontend/src/components/ui/Checkbox.stories.tsx`, `frontend/src/components/ui/RadioGroup.stories.tsx`
+Reason: CodeRabbit follow-up review requested explicit story event types and checked narrowing instead of direct union casts in showcase handlers. Commit `6a5cc359e` adds `ChangeEvent` annotations and value guards before state updates.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1504#pullrequestreview-4164259363 -> 6a5cc359e
+
 ## Merge Readiness
 
 - [x] All required checks pass
