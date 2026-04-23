@@ -114,7 +114,8 @@ def build_shard_env(base_env: dict[str, str], shard: TestShard, repo_root: Path)
     """Return an isolated environment for one pytest shard."""
 
     env = base_env.copy()
-    env["PYTEST_XDIST_WORKER"] = f"py312main{shard.index}"
+    env.pop("PYTEST_XDIST_WORKER", None)
+    env["PY312_MAIN_SHARD"] = str(shard.index)
     env["COVERAGE_FILE"] = str(repo_root / shard.coverage_file)
     env["COV_CORE_DATAFILE"] = str(repo_root / shard.coverage_file)
     env.setdefault("PYTEST_FAULTHANDLER_TIMEOUT_S", str(DEFAULT_FAULTHANDLER_TIMEOUT_SECONDS))
@@ -128,6 +129,7 @@ def run_shard(repo_root: Path, shard: TestShard, base_env: dict[str, str]) -> in
 
     pytest_args = build_pytest_args(shard)
     env = build_shard_env(base_env, shard, repo_root)
+    os.environ.pop("PYTEST_XDIST_WORKER", None)
     os.environ.update(env)
     os.chdir(repo_root)
     print(
@@ -135,6 +137,7 @@ def run_shard(repo_root: Path, shard: TestShard, base_env: dict[str, str]) -> in
         f"weight={shard.weight} junit={shard.junit_file}",
         flush=True,
     )
+    sys.argv = ["pytest"]
     exit_code = pytest.main(pytest_args)
     print(
         f"PY312_SHARD_FINISHED index={shard.index} exit_code={exit_code}",

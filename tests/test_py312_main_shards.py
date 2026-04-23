@@ -85,10 +85,15 @@ def test_build_pytest_args_disables_xdist_and_emits_junit() -> None:
 
 def test_build_shard_env_isolates_database_and_coverage(tmp_path: Path) -> None:
     shard = runner.TestShard(index=1)
-    env = runner.build_shard_env({"EXISTING": "1"}, shard, tmp_path)
+    env = runner.build_shard_env(
+        {"EXISTING": "1", "PYTEST_XDIST_WORKER": "gw0"},
+        shard,
+        tmp_path,
+    )
 
     assert env["EXISTING"] == "1"
-    assert env["PYTEST_XDIST_WORKER"] == "py312main1"
+    assert "PYTEST_XDIST_WORKER" not in env
+    assert env["PY312_MAIN_SHARD"] == "1"
     assert env["COVERAGE_FILE"] == str(tmp_path / ".coverage.py312-main-shard-1")
     assert env["COV_CORE_DATAFILE"] == str(tmp_path / ".coverage.py312-main-shard-1")
     assert env["PYTEST_FAULTHANDLER_TIMEOUT_S"] == "300"
@@ -128,12 +133,15 @@ def test_run_all_shards_max_parallel_one_uses_child_process_isolation(
         "\n".join(
             [
                 "import os",
+                "import sys",
                 "from pathlib import Path",
                 "",
                 "def test_mutates_process_state():",
                 "    os.environ['PY312_PARENT_LEAK_PROBE'] = 'child-only'",
                 "    os.chdir(Path.cwd() / 'tests')",
-                "    assert os.environ['PYTEST_XDIST_WORKER'] == 'py312main1'",
+                "    assert 'PYTEST_XDIST_WORKER' not in os.environ",
+                "    assert os.environ['PY312_MAIN_SHARD'] == '1'",
+                "    assert sys.argv == ['pytest']",
                 "",
             ]
         ),
