@@ -9595,20 +9595,21 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Main CI xdist worker stability on Python 3.12 full suite
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (CI stability / merge-signal integrity)
-  - Target PR: PR #1494 (`codex/fix-ci-xdist-worker-stability`) -> follow-up PR (`codex/main-ci-py312-root-cause-plus-uuid117`)
-  - Status: PR #1494 merged as a partial mitigation on April 22, 2026; root-cause follow-up lane in progress on `codex/main-ci-py312-root-cause-plus-uuid117`
+  - Target PR: PR #1494 (`codex/fix-ci-xdist-worker-stability`) -> PR #1501 (`codex/main-ci-py312-root-cause-plus-uuid117`) -> containment PR (`codex/main-py312-containment`)
+  - Status: PR #1494 and PR #1501 landed partial mitigations by April 23, 2026, but live main run `24811914187` still cancelled `test-main (3.12, 60)` after the coverage step reached the 60-minute containment window. The active containment lane is `codex/main-py312-containment`.
   - Reason: the `main`-branch `CI` full-suite lane continues to surface
     user-reported `"[gw1] node down: Not properly terminated"` instability in
     the xdist-backed `test-main` path. Current lane evidence shows
-    `test-main (3.11, 60)` finishing normally while `test-main (3.12, 60)`
-    still admits `serial` tests into xdist via `-m "not slow"`, even though
-    `Nightly Full Tests` already splits `serial` out of xdist. PR #1494 reduced
-    worker pressure, but the remaining cohort mismatch keeps the interpreter-
-    specific xdist policy open as the narrowest remediation surface. This item
-    is distinct from the older nightly/node22 parity work.
+    `test-main (3.11, 60)` and `test-main (3.13, 90)` finishing normally while
+    `test-main (3.12, 60)` cancels after the test step reaches its timeout.
+    PR #1494 reduced worker pressure and PR #1501 split serial tests out of
+    the 3.12 xdist cohort, but the remaining 3.12 parallel segment still lacks
+    a live green main signal. The containment lane disables xdist for Python
+    3.12 only and defers deeper root-cause hardening to a follow-up item.
   - Links:
     - `docs/orchestration/MAINLINE_CI_XDIST_WORKER_STABILITY_PACKET_2026-04-22.md`
     - `docs/orchestration/MAINLINE_CI_XDIST_ROOT_CAUSE_AND_UUID117_PACKET_2026-04-23.md`
+    - `docs/orchestration/MAIN_CI_PY312_CONTAINMENT_PACKET_2026-04-23.md`
     - `.github/workflows/ci.yml`
     - `.github/workflows/nightly.yml`
     - `pyproject.toml`
@@ -9618,17 +9619,40 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Current main run: <https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/24771474555>
     - `test-main (3.12, 60)` job: <https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/24771474555/job/72483372336>
     - Later late-zone reproduction with timeout tail: <https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/24799632664/job/72578492861>
+    - Live gate run: <https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/24811914187>
+    - Cancelled `test-main (3.12, 60)` gate job: <https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/24811914187/job/72651217023>
     - Healthy comparator `test-main (3.11, 60)` job: <https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/24771474555/job/72483386535>
     - Green nightly reference: <https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/24760590280>
   - DoD:
     - `test-main` keeps the same job identity and required-check topology
-    - `3.12` fallback is scoped to the narrowest effective execution policy in
-      `.github/workflows/ci.yml`, with `serial` tests excluded from xdist and
-      run sequentially in the same job if that remains the narrowest fix
+    - `3.12` runs the full `-m "not slow"` test cohort sequentially with
+      `-p no:xdist` while `3.11` stays parallel and `3.13` keeps its existing
+      sequential fallback
     - A regression test freezes the workflow contract
     - `pre-commit run --all-files`, `make validate-changed`, and branch/current-head
       `CI` pass on the remediation branch
     - Post-open `qa-engineer-agent -> bug-hunter` review pass is complete
+
+
+<a id="ledger-p2-py312-xdist-root-cause-hardening"></a>
+- [ ] P2: Python 3.12 xdist root-cause hardening after containment
+  - Owner: CI/QA
+  - Priority: P2 (CI hardening after required-check containment)
+  - Target PR: follow-up after `codex/main-py312-containment`
+  - Status: Deferred from the containment lane so main can recover required-check stability without changing required-check topology or hiding failures.
+  - Reason: disabling xdist for Python 3.12 is a containment policy, not a root-cause fix. The worker-node termination pattern still needs a bounded audit of fixture/process cleanup, xdist-hostile tests, and timeout instrumentation before Python 3.12 parallelism can be safely restored.
+  - Links:
+    - `.github/workflows/ci.yml`
+    - `tests/AGENTS.md`
+    - `tests/test_ci_workflow_pr_size_governance_contract.py`
+    - `docs/orchestration/MAIN_CI_PY312_CONTAINMENT_PACKET_2026-04-23.md`
+    - Historical worker-node failure: <https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/24771474555/job/72483372336>
+    - Containment gate run: <https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/24811914187>
+  - DoD:
+    - Identify the minimal xdist-hostile test group or runtime fixture pattern
+    - Add deterministic evidence or instrumentation for the failure mode
+    - Restore Python 3.12 parallelism only if the same current-head CI proves no worker-node termination or timeout
+    - Keep required job identity and matrix topology unchanged unless a separate architecture review approves a contract change
 
 
 <a id="ledger-p1-dependabot-uuid-storybook-carrier"></a>
