@@ -54,8 +54,6 @@ FORBIDDEN_RUNTIME_OR_GATE_FIELDS = {
     "threshold_results",
     "gate_checks",
     "release_decision",
-    "PASS",
-    "NO-GO",
     "provider_output",
     "runtime_trace",
     "graph_execution_trace",
@@ -66,6 +64,7 @@ FORBIDDEN_RUNTIME_OR_GATE_FIELDS = {
     "score",
     "scores",
 }
+FORBIDDEN_RUNTIME_OR_GATE_VALUES = {"PASS", "NO-GO"}
 
 
 def _load_schema() -> dict[str, Any]:
@@ -94,8 +93,25 @@ def _find_keys(payload: Any) -> set[str]:
     return set()
 
 
+def _find_string_values(payload: Any) -> set[str]:
+    if isinstance(payload, dict):
+        values: set[str] = set()
+        for value in payload.values():
+            values.update(_find_string_values(value))
+        return values
+    if isinstance(payload, list):
+        values = set()
+        for item in payload:
+            values.update(_find_string_values(item))
+        return values
+    if isinstance(payload, str):
+        return {payload}
+    return set()
+
+
 def _bullets_after_marker(text: str, marker: str) -> list[str]:
     lines = text.splitlines()
+    assert marker in lines
     marker_index = lines.index(marker)
     bullets: list[str] = []
     for line in lines[marker_index + 1 :]:
@@ -109,6 +125,7 @@ def _bullets_after_marker(text: str, marker: str) -> list[str]:
 def test_schema_contract_enums_are_bounded_to_selective_graph_eval() -> None:
     schema = _load_schema()
 
+    assert set(EXPECTED_KIND_BY_SURFACE) == ALLOWED_SURFACES
     assert set(schema["required"]) == REQUIRED_TOP_LEVEL_FIELDS
     assert schema["additionalProperties"] is False
 
@@ -199,20 +216,22 @@ def test_fixture_rows_match_offline_graph_eval_contract() -> None:
 def test_fixture_rows_do_not_contain_runtime_gate_or_cache_fields() -> None:
     for record in _load_fixture_rows():
         leaked_keys = _find_keys(record) & FORBIDDEN_RUNTIME_OR_GATE_FIELDS
+        leaked_values = _find_string_values(record) & FORBIDDEN_RUNTIME_OR_GATE_VALUES
         assert leaked_keys == set()
+        assert leaked_values == set()
 
 
 def test_contract_doc_keeps_graph_eval_offline_and_subordinate() -> None:
     contract_doc = CONTRACT_DOC_PATH.read_text(encoding="utf-8")
 
-    assert _bullets_after_marker(contract_doc, "It does not introduce:") == [
+    assert set(_bullets_after_marker(contract_doc, "It does not introduce:")) == {
         "- runtime GraphRAG rollout",
         "- semantic cache widening",
         "- provider behavior changes",
         "- a graph runner",
         "- graph-specific CI thresholds",
         "- a second canonical evaluation rail",
-    ]
+    }
     assert (
         "- [`PULSEPLATE_RAG_RELEASE_GATES.md`](./PULSEPLATE_RAG_RELEASE_GATES.md)\n"
         "  owns threshold vocabulary, gate checks, and `PASS` / `NO-GO` semantics" in contract_doc

@@ -15,10 +15,13 @@ or claiming merge readiness.
 
 ### Fixed in Commit Mapping
 
-- No actionable review comments
+- Sourcery review on `f29c0858d` -> pending fix commit
+- CodeRabbit wait-window checklist nitpick on `f29c0858d` -> pending fix commit
 
 ## Merge Readiness
 
+- [ ] Final post-activity check pass completed after latest bot/review activity
+- [ ] Waited at least one full review cycle after the final check pass
 - Targeted contract tests: `pytest -q tests/evals/test_selective_graph_eval_contract.py`
 - Pre-commit: `pre-commit run --all-files`
 - Cheap validation: `make validate-min`
