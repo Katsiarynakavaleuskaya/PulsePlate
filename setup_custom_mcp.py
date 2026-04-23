@@ -138,12 +138,8 @@ def setup_custom_mcp(argv: list[str] | None = None) -> None:
         "   - Add ~/.cursor/.env, ~/.cursor/mcp.json, and ~/.cursor/settings.json to your global .gitignore"
     )
     print("\nNext steps:")
-    print(
-        f"1. 🔑 If ~/.cursor/.env still contains '{PLACEHOLDER_API_KEY}', replace it with your actual API key"
-    )
-    print(
-        "2. 🔑 If ~/.cursor/mcp.json or ~/.cursor/settings.json still contains the placeholder, update the API key there too"
-    )
+    print("1. 🔑 Replace any generated placeholders in Cursor-local secret fields before use")
+    print("2. 🔑 Keep the Cursor-local MCP, environment, and settings files outside Git")
     print("3. 🔄 Restart Cursor")
     print("4. ✅ Test MCP integration with Cmd+Shift+P → 'MCP: List Tools'")
 
