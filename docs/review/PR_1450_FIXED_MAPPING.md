@@ -46,6 +46,14 @@ Evidence: `tests/test_feedback_api.py` keeps tier-guard tests status-only and mo
 
 ## Merge Readiness
 
+- [ ] Final current-head CI checks PASS
+- [ ] Security and secret-scan checks PASS
+- [ ] Canonical mapping artifact is present and PR body mirror is synced
+- [ ] CodeRabbit/Sourcery/Cubic explicitly PASS with no actionable items
+- [ ] No unresolved review threads
+- [ ] Mandatory wait-window completed after latest bot/review activity
+- [ ] Release/rollback notes reviewed; no release-note delta required for this backend auth hardening fix
+
 - Local validation:
   - `python3 scripts/ci/check_pr_body_phase2_gates.py --pr-number 1450` passed for the canonical mapping artifact.
   - `. .venv/bin/activate && pytest -q tests/test_feedback_api.py tests/test_api_tiers.py` passed after the CodeRabbit follow-up fixes.
