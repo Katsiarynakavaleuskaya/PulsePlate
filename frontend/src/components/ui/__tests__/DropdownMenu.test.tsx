@@ -84,4 +84,34 @@ describe('DropdownMenu', () => {
     expect(screen.getByRole('menuitem', { name: 'Open weekly plan' })).toHaveAttribute('href', '/weekly-plan');
     expect(screen.getByRole('menuitem', { name: 'Open weekly plan' }).tagName).toBe('A');
   });
+
+  it('applies active styling to button and link menu items', async () => {
+    const user = userEvent.setup();
+
+    render(
+      <DropdownMenu>
+        <DropdownMenuTrigger>More actions</DropdownMenuTrigger>
+        <DropdownMenuItems>
+          <DropdownMenuItem>Duplicate</DropdownMenuItem>
+          <DropdownMenuLinkItem href="/weekly-plan">Open weekly plan</DropdownMenuLinkItem>
+        </DropdownMenuItems>
+      </DropdownMenu>
+    );
+
+    await user.click(screen.getByRole('button', { name: /more actions/i }));
+
+    await user.keyboard('{ArrowDown}');
+
+    const buttonItem = screen.getByRole('menuitem', { name: 'Duplicate' });
+    await waitFor(() => {
+      expect(buttonItem).toHaveClass('bg-[var(--color-surface-muted)]');
+    });
+
+    await user.keyboard('{ArrowDown}');
+
+    const linkItem = screen.getByRole('menuitem', { name: 'Open weekly plan' });
+    await waitFor(() => {
+      expect(linkItem).toHaveClass('bg-[var(--color-surface-muted)]');
+    });
+  });
 });
