@@ -329,7 +329,7 @@ def test_parse_requirement_fails_on_url_vcs_or_editable_requirement(
         encoding="utf-8",
     )
     with pytest.raises(
-        BaseException,
+        pytest.fail.Exception,
         match=r"requirements\.txt: URL/VCS/editable requirement entries are not allowed",
     ):
         _effective_min_versions_per_package(bad_req)
