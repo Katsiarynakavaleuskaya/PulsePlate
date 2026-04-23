@@ -6,8 +6,8 @@ Canonical review-governance artifact and PR-body mirror requirements:
 `AGENTS.md`; `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md`;
 `docs/orchestration/AGENTS.md`.
 
-- [x] Discussion-thread pass initialized
-- [x] Fixed in commit mapping initialized
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 
 This artifact is created immediately after the draft PR is opened per repo
 governance. Record every actionable human/bot disposition here before resolving
@@ -15,11 +15,12 @@ threads on GitHub.
 
 ## Fixed in Commit Mapping
 
-No review comments yet.
+- No actionable review comments
 
-Initial implementation commit:
+## Initial Implementation Commits
 
-- cce682990 - `feat(ai-runtime): add recursive speed hints`
+- `cce682990` - `feat(ai-runtime): add recursive speed hints`
+- `ded2c006f` - `docs(pr): add PR 1506 mapping`
 
 ## Merge Readiness
 
