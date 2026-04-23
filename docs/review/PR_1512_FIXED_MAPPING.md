@@ -15,8 +15,7 @@ threads on GitHub.
 
 ## Fixed in Commit Mapping
 
-No actionable human or bot review threads existed when this draft artifact was
-created. Add every later actionable disposition here before resolving threads.
+- No actionable review comments
 
 ## Initial Implementation Commits
 
