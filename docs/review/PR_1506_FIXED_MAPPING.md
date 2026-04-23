@@ -27,6 +27,7 @@ Commit: `f9d8d1031956d70f670100cdc09942d4f040a903`
 Evidence: `core/rag/orchestration.py` documents `recursive_optimization_hints`; `tests/test_core_ai_insight_runtime.py` removes the duplicate hint assertion; this artifact keeps local proof outside unchecked merge-readiness checklist items.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1506#pullrequestreview-4163675713 -> f9d8d1031956d70f670100cdc09942d4f040a903
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1506#discussion_r3131846658 -> f9d8d1031956d70f670100cdc09942d4f040a903
 
 ## Initial Implementation Commits
 
