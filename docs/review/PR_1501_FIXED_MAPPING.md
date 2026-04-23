@@ -14,7 +14,24 @@ Record every actionable human/bot disposition here before resolving threads on G
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+Disposition: FIXED
+Commit: 8ec8db3a1efb7f0b2bfbd9bcc8d945b20162740c
+Evidence: `tests/test_ci_workflow_pr_size_governance_contract.py:245-251`; `frontend/.storybook/main.ts:7-8`
+Reason: The follow-up commit tightens the workflow contract so the serial-only JUnit path is unique to the Python `3.12` serial shard and adds an inline Storybook note that explains why the addon-actions carrier stays excluded for Dependabot alert `#117`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1501#pullrequestreview-4158647897 -> 8ec8db3a1efb7f0b2bfbd9bcc8d945b20162740c
+
+Disposition: FIXED
+Commit: 8ec8db3a1efb7f0b2bfbd9bcc8d945b20162740c
+Evidence: `tests/test_ci_workflow_pr_size_governance_contract.py:248-251`
+Reason: The contract test now proves that `tests/results-serial.xml` appears only once and is not reused in the Python `3.13` or default lanes, closing the inline Sourcery suggestion about report-path collisions.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1501#discussion_r3127545479 -> 8ec8db3a1efb7f0b2bfbd9bcc8d945b20162740c
+
+Disposition: FIXED
+Commit: 8ec8db3a1efb7f0b2bfbd9bcc8d945b20162740c
+Evidence: `.github/workflows/ci.yml:1158-1165`
+Reason: The JUnit artifact upload step now publishes both `tests/results.xml` and `tests/results-serial.xml`, so the Python `3.12` serial shard is no longer omitted from uploaded reports.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1501#discussion_r3127548278 -> 8ec8db3a1efb7f0b2bfbd9bcc8d945b20162740c
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1501#pullrequestreview-4158652006 -> 8ec8db3a1efb7f0b2bfbd9bcc8d945b20162740c
 
 ## Merge Readiness
 
@@ -29,9 +46,9 @@ Merge-readiness contract:
 - [ ] Required checks complete (no pending jobs)
   Evidence: pending first branch-head `CI` cycle for PR `#1501`.
 - [ ] All review threads resolved on GitHub after disposition updates
-  Evidence: pending initial review cycle.
+  Evidence: pending resolution of the Sourcery and Codex / CodeRabbit threads after this mapping update lands on current head.
 - [ ] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
-  Evidence: initial bot state only contains the draft-mode CodeRabbit skip notice; re-check after the first advisory review pass.
+  Evidence: CodeRabbit is still processing the latest head; re-check after the current advisory review cycle finishes.
 - [x] Pre-commit green on latest pushed head
   Evidence: commit `453660117cfe21abea760a6fe3b4ccbbe371d2a2` and the subsequent push both passed repo hooks, including frontend tests, backend tests, and security hooks.
 - [x] `make verify` green on validated remediation head
