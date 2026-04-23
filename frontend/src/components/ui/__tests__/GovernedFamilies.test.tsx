@@ -98,6 +98,7 @@ describe('governed specialized families', () => {
     );
 
     expect(screen.getByText('Step 2 of 2')).toBeInTheDocument();
+    expect(screen.getByRole('navigation', { name: 'Setup progress' })).toBeInTheDocument();
     expect(screen.getByRole('listitem', { current: 'step' })).toHaveTextContent('Results');
   });
 
