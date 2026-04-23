@@ -8,15 +8,24 @@ import type { SetupFormValues } from './schema';
 import { isValidSetupFormValues } from './schema';
 import { useSettings } from '../../lib/settings';
 import { Stepper } from '../../components/ui';
-
-const setupSteps = [
-  { id: 'profile', label: 'Profile', description: 'Capture your nutrition inputs' },
-  { id: 'results', label: 'Results', description: 'Review macros and targets' },
-] as const;
+import { useTranslation } from 'react-i18next';
 
 export default function NutritionSetupPage() {
   const { settings } = useSettings();
+  const { t } = useTranslation();
   const [values, setValues] = useState<SetupFormValues | null>(null);
+  const setupSteps = [
+    {
+      id: 'profile',
+      label: t('nutritionSetup.steps.profile.label'),
+      description: t('nutritionSetup.steps.profile.description'),
+    },
+    {
+      id: 'results',
+      label: t('nutritionSetup.steps.results.label'),
+      description: t('nutritionSetup.steps.results.description'),
+    },
+  ];
 
   // Initialize values from saved settings on mount
   useEffect(() => {

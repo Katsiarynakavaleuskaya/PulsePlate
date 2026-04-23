@@ -17,6 +17,14 @@ describe('governed specialized families', () => {
     expect(badge.className).toMatch(/color-primary-foreground/);
   });
 
+  it('keeps warning badge styling on semantic warning tokens', () => {
+    render(<Badge tone="warning">Needs review</Badge>);
+
+    const badge = screen.getByText('Needs review');
+    expect(badge.className).toMatch(/color-warning/);
+    expect(badge.className).not.toMatch(/pp-gold/);
+  });
+
   it('renders progress indicator with timestamp and action slot', () => {
     render(
       <ProgressIndicator
@@ -32,6 +40,20 @@ describe('governed specialized families', () => {
     expect(screen.getByText('Live updates on')).toBeInTheDocument();
     expect(screen.getByLabelText('Live event timestamp')).toHaveTextContent('7:00 PM');
     expect(screen.getByRole('button', { name: 'Open progress' })).toBeInTheDocument();
+  });
+
+  it('keeps warning progress state on semantic warning tokens', () => {
+    const { container } = render(
+      <ProgressIndicator
+        description="Needs setup review"
+        label="Needs attention"
+        state="warning"
+      />
+    );
+
+    const dot = container.querySelector('span[aria-hidden="true"]');
+    expect(dot?.className).toMatch(/color-warning/);
+    expect(dot?.className).not.toMatch(/color-error/);
   });
 
   it('renders hero shell with chips', () => {

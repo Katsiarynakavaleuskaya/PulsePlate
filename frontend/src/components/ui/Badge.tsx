@@ -44,11 +44,11 @@ const toneVariantClasses: Record<BadgeTone, Record<BadgeVariant, string>> = {
   },
   warning: {
     solid:
-      'bg-[rgba(212,175,55,0.18)] text-[var(--pp-gold)] ring-1 ring-[rgba(212,175,55,0.26)]',
+      'bg-[var(--color-warning)] text-[var(--color-primary-foreground)] ring-1 ring-[var(--color-warning)]/25',
     outline:
-      'border border-[rgba(212,175,55,0.34)] bg-transparent text-[var(--pp-gold)] ring-1 ring-[rgba(212,175,55,0.18)]',
+      'border border-[var(--color-warning)] bg-transparent text-[var(--color-warning)] ring-1 ring-[var(--color-warning)]/20',
     subtle:
-      'border border-[rgba(212,175,55,0.22)] bg-[rgba(212,175,55,0.08)] text-[var(--pp-gold)] ring-1 ring-[rgba(212,175,55,0.12)]',
+      'border border-[var(--color-warning)]/30 bg-[var(--color-warning)]/10 text-[var(--color-warning)] ring-1 ring-[var(--color-warning)]/15',
   },
 };
 

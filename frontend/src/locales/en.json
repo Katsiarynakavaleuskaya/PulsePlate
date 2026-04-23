@@ -185,7 +185,17 @@
         "title": "Nutrition Survey",
         "description": "Fill in your parameters for personalized plate calculation",
         "calculateButton": "Calculate Personalized Plate",
-        "saveNote": "Data is stored locally and used for your diet calculation"
+        "saveNote": "Data is stored locally and used for your diet calculation",
+        "steps": {
+            "profile": {
+                "label": "Profile",
+                "description": "Capture your nutrition inputs"
+            },
+            "results": {
+                "label": "Results",
+                "description": "Review macros and targets"
+            }
+        }
     },
     "nutrition": {
         "sex": {

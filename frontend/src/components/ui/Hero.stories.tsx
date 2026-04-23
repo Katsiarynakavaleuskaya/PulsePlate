@@ -25,4 +25,9 @@ export const HomeShell: Story = {
     eyebrow: 'Calm control panel',
     title: 'PulsePlate Home',
   },
+  render: (args) => (
+    <div className="bg-[var(--pp-navy)] p-6">
+      <Hero {...args} />
+    </div>
+  ),
 };

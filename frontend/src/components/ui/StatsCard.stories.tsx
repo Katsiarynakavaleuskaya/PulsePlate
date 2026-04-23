@@ -24,4 +24,9 @@ export const Inverse: Story = {
     tone: 'inverse',
     value: 'Active',
   },
+  render: (args) => (
+    <div className="max-w-xs bg-[var(--pp-navy)] p-6">
+      <StatsCard {...args} />
+    </div>
+  ),
 };

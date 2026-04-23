@@ -18,7 +18,7 @@ const stateDotClasses: Record<ProgressIndicatorState, string> = {
   live: 'bg-[var(--color-success)] animate-pulse',
   static: 'bg-[var(--color-warning)]',
   complete: 'bg-[var(--color-primary)]',
-  warning: 'bg-[var(--color-error)]',
+  warning: 'bg-[var(--color-warning)]',
 };
 
 export function ProgressIndicator({

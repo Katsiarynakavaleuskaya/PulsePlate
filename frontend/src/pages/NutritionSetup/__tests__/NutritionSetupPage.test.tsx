@@ -43,7 +43,7 @@ describe('NutritionSetupPage', () => {
     );
 
     expect(screen.getByText('Step 1 of 2')).toBeInTheDocument();
-    expect(screen.getByRole('listitem', { current: 'step' })).toHaveTextContent('Profile');
+    expect(screen.getByRole('listitem', { current: 'step' })).toHaveTextContent('nutritionSetup.steps.profile.label');
 
     await user.click(screen.getByRole('button', { name: 'nutritionSetup.calculateButton' }));
 
@@ -51,6 +51,6 @@ describe('NutritionSetupPage', () => {
       expect(screen.getByText('Step 2 of 2')).toBeInTheDocument();
     });
 
-    expect(screen.getByRole('listitem', { current: 'step' })).toHaveTextContent('Results');
+    expect(screen.getByRole('listitem', { current: 'step' })).toHaveTextContent('nutritionSetup.steps.results.label');
   });
 });
