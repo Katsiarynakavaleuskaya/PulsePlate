@@ -3,6 +3,7 @@
 ## Discussion Thread Pass
 
 - [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 
 ### Fixed in Commit Mapping
 
@@ -24,7 +25,6 @@ Evidence: CodeRabbit comment was a rate-limit / review scheduling notice, not a 
 
 ## Merge Readiness
 
-- [x] Fixed in commit mapping completed
 - Local validation:
   - `pre-commit run --all-files` passed in the root branch after staging the detect-secrets baseline update.
   - `make verify` passed in sanitized clone `/tmp/pr1450_verify.wD6Uez` with `diff-cover` reporting `100%` coverage for changed lines.

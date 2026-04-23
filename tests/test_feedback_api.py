@@ -289,7 +289,6 @@ class TestRAGFeedbackAuthentication:
         response = self.client.post(self.url, json=payload)
 
         assert response.status_code == 401
-        assert response.json() == {"detail": "API key required"}
 
     def test_accepts_valid_configured_api_key(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Configured API keys are accepted (not tier-specific)."""
@@ -309,7 +308,6 @@ class TestRAGFeedbackAuthentication:
         response = self.client.post(self.url, json=payload, headers=headers)
 
         assert response.status_code == 401
-        assert response.json() == {"detail": "Invalid API key"}
 
     def test_rejects_blank_api_key(self) -> None:
         """Blank API key header is rejected."""
@@ -319,7 +317,6 @@ class TestRAGFeedbackAuthentication:
         response = self.client.post(self.url, json=payload, headers=headers)
 
         assert response.status_code == 401
-        assert response.json() == {"detail": "API key required"}
 
     def test_rejects_cookie_only_auth(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Feedback auth remains header-only even if a valid web session cookie is present."""
@@ -331,7 +328,29 @@ class TestRAGFeedbackAuthentication:
         self.client.cookies.clear()
 
         assert response.status_code == 401
-        assert response.json() == {"detail": "API key required"}
+
+    @pytest.mark.parametrize(
+        ("headers", "expected_detail"),
+        [
+            ({}, "API key required"),
+            ({"X-API-Key": "   "}, "API key required"),
+            ({"X-API-Key": "any-valid-key-for-feedback"}, "Invalid API key"),
+        ],
+    )
+    def test_auth_error_payload_contract(
+        self,
+        headers: dict[str, str],
+        expected_detail: str,
+    ) -> None:
+        """Auth error bodies stay stable in a dedicated response contract test."""
+        response = self.client.post(
+            self.url,
+            json={"query": "auth error payload contract"},
+            headers=headers,
+        )
+
+        assert response.status_code == 401
+        assert response.json() == {"detail": expected_detail}
 
     def test_query_param_cannot_raise_feedback_required_tier(self) -> None:
         """Feedback route ignores injected required_tier query params."""
