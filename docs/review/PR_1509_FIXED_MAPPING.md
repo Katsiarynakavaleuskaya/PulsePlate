@@ -16,6 +16,18 @@ Commit: c903f9d97
 Evidence: `scripts/install_codex_skills.sh`, `tests/test_install_codex_skills.py`
 Reason: The cybersecurity skills source override is normalized before prefix matching, and a regression test covers a trailing-slash override.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1509#discussion_r3132311450 -> c903f9d97
+Disposition: FIXED
+Commit: c903f9d97
+Evidence: `scripts/install_codex_skills.sh`, `tests/test_install_codex_skills.py`
+Reason: The inline CodeRabbit trailing-slash review comment is fixed by normalizing the override and covering the behavior in tests.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1509#pullrequestreview-4164195620 -> c903f9d97
+Disposition: FIXED
+Commit: c903f9d97
+Evidence: `scripts/install_codex_skills.sh`, `tests/test_install_codex_skills.py`
+Reason: The CodeRabbit review summary is fixed by the same trailing-slash override normalization and regression test.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1509#issuecomment-4306056586
 Disposition: NOT-A-BUG
 Evidence: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1509#issuecomment-4306056586
