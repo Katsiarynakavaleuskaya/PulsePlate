@@ -203,7 +203,7 @@ def test_ios_unit_tests_stay_in_blocking_ios_job() -> None:
     assert 'ONLY_TESTING="$(../scripts/ios_test_targets.sh)"' not in ios_ui_smoke_section
 
 
-def test_main_branch_xdist_fallback_stays_scoped_to_unstable_interpreters() -> None:
+def test_main_branch_py312_sharded_runner_preserves_required_check_policy() -> None:
     workflow = _load_ci_workflow()
     jobs = workflow["jobs"]
     assert isinstance(jobs, dict)
@@ -219,14 +219,14 @@ def test_main_branch_xdist_fallback_stays_scoped_to_unstable_interpreters() -> N
     workflow_text = CI_WORKFLOW_PATH.read_text(encoding="utf-8")
     test_main_section = _extract_job_section(workflow_text, "  test-main:")
 
-    py313_block = _extract_shell_conditional_block(
-        test_main_section,
-        'if [[ "$PYVER" == 3.13* ]]; then',
-        '          elif [[ "$PYVER" == 3.12* ]]; then',
-    )
     py312_block = _extract_shell_conditional_block(
         test_main_section,
-        '          elif [[ "$PYVER" == 3.12* ]]; then',
+        'if [[ "$PYVER" == 3.12* ]]; then',
+        '          elif [[ "$PYVER" == 3.13* ]]; then',
+    )
+    py313_block = _extract_shell_conditional_block(
+        test_main_section,
+        '          elif [[ "$PYVER" == 3.13* ]]; then',
         "          else",
     )
     default_block = _extract_shell_conditional_block(
@@ -235,18 +235,27 @@ def test_main_branch_xdist_fallback_stays_scoped_to_unstable_interpreters() -> N
         "          fi",
     )
 
+    assert "python scripts/ci/run_py312_main_shards.py" in py312_block
+    assert "--shard-count 2" in py312_block
+    assert "--max-parallel 2" in py312_block
+    assert "PY312_MAIN_SHARDS=2" in py312_block
+    assert "PY312_MAIN_MAX_PARALLEL=2" in py312_block
+    assert "PYTEST_XDIST_ARGS=(-p no:xdist)" not in py312_block
+    assert "PYTEST_XDIST_ARGS=(-n 2 --dist=loadscope)" not in py312_block
+    assert "PYTEST_XDIST_ARGS=(-n 4 --dist=loadscope)" not in py312_block
+    assert "TEST_STEP_STARTED_AT=" in test_main_section
+    assert "TEST_STEP_FINISHED_AT=" in py312_block
+
     assert "PYTEST_XDIST_ARGS=(-p no:xdist)" in py313_block
     assert "PYTEST_XDIST_ARGS=(-n 2 --dist=loadscope)" not in py313_block
     assert "PYTEST_XDIST_ARGS=(-n 4 --dist=loadscope)" not in py313_block
 
-    assert "PYTEST_XDIST_ARGS=(-p no:xdist)" in py312_block
-    assert "PYTEST_XDIST_ARGS=(-n 2 --dist=loadscope)" not in py312_block
-    assert "PYTEST_XDIST_ARGS=(-n 4 --dist=loadscope)" not in py312_block
     assert '-m "not slow"' in test_main_section
     assert '-m "not serial and not slow"' not in test_main_section
     assert '-m "serial and not slow"' not in test_main_section
     assert "--cov-append" not in test_main_section
     assert "tests/results-serial.xml" not in test_main_section
+    assert "tests/results-py312-shard-*.xml" in test_main_section
 
     assert "PYTEST_XDIST_ARGS=(-n 4 --dist=loadscope)" in default_block
     assert "PYTEST_XDIST_ARGS=(-p no:xdist)" not in default_block
