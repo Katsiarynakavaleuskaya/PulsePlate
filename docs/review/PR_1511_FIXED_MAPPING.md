@@ -15,28 +15,13 @@ Date: 2026-04-23
 
 ## Fixed in Commit Mapping
 
+Disposition: FIXED
+Commit: 853694874
+Evidence: CodeRabbit actionables fixed in workflow, runner, packet, and tests.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1511#discussion_r3133512254 -> 853694874
-  - Disposition: FIXED
-  - Evidence:
-    `docs/orchestration/MAIN_CI_PY312_TIMEOUT_ROOT_CAUSE_PACKET_2026-04-23.md`
-    now uses the reviewer-requested role order and removes the duplicate
-    trailing `agent-coordinator`.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1511#discussion_r3133512268 -> 853694874
-  - Disposition: FIXED
-  - Evidence:
-    `docs/orchestration/MAIN_CI_PY312_TIMEOUT_ROOT_CAUSE_PACKET_2026-04-23.md`
-    now lists `make test-fast`, `make cov-check`, and the `tests/**/*.py`
-    reproduction/fix checklist.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1511#discussion_r3133512274 -> 853694874
-  - Disposition: FIXED
-  - Evidence: `scripts/ci/run_py312_main_shards.py` now always uses a spawned
-    `ProcessPoolExecutor`; `tests/test_py312_main_shards.py` includes a
-    `max_parallel=1` child-process isolation regression.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1511#pullrequestreview-4165580559 -> 853694874
-  - Disposition: FIXED
-  - Evidence: `.github/workflows/ci.yml` now assigns
-    `PY312_MAIN_SHARDS` / `PY312_MAIN_MAX_PARALLEL` once and uses those
-    variables for both logging and runner CLI arguments.
 
 ## Initial Evidence
 
