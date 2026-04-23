@@ -14,8 +14,7 @@ Record every actionable human/bot disposition here before resolving threads on G
 
 ## Fixed in Commit Mapping
 
-No actionable human or bot review threads are recorded on the current head yet.
-Update this section before resolving any GitHub thread.
+- No actionable review comments
 
 ## Merge Readiness
 
