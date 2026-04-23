@@ -153,6 +153,27 @@ def test_install_codex_skills_copy_cybersec_copies_only_cybersecurity_bundle(
     )
 
 
+def test_install_codex_skills_copy_cybersec_accepts_trailing_slash_override(
+    tmp_path: Path,
+) -> None:
+    """Cybersecurity source override should keep copy-mode with a trailing slash."""
+
+    cybersec_root = _create_cybersec_skill_fixture(tmp_path)
+    install_result = _run_installer(
+        tmp_path,
+        "--copy-cybersec",
+        extra_env={"PULSEPLATE_CYBERSEC_SKILLS_ROOT": f"{cybersec_root}/"},
+    )
+    copied_skill = tmp_path / ".agents" / "skills" / CYBERSEC_FIXTURE_SKILL
+
+    assert f"Copied: {CYBERSEC_FIXTURE_SKILL}" in install_result.stdout
+    assert copied_skill.is_dir()
+    assert not copied_skill.is_symlink()
+    assert (copied_skill / ".pulseplate_codex_skill_source").read_text().strip() == str(
+        cybersec_root / CYBERSEC_FIXTURE_SKILL
+    )
+
+
 def test_install_codex_skills_compat_target_falls_back_to_home_codex_when_unset(
     tmp_path: Path,
 ) -> None:
