@@ -81,7 +81,7 @@ class TestSetupCustomMcpCoverage:
         # Check environment file content
         with open(env_file, "r") as f:
             env_content = f.read()
-            assert "OPENAI_API_KEY" in env_content
+            assert "OPENAI_API_KEY=" not in env_content
             assert "MCP_ENABLED=true" in env_content
 
         # Check settings content
@@ -269,7 +269,7 @@ class TestSetupCustomMcpCoverage:
             assert "pulseplate-chatgpt" in settings["mcp.servers"]
 
     def test_setup_custom_mcp_preserves_existing_env_entries(self) -> None:
-        """Existing .env values should survive setup without runtime key promotion."""
+        """Existing .env secrets should survive setup without being rewritten."""
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
             cursor_dir = temp_path / ".cursor"
@@ -300,18 +300,14 @@ class TestSetupCustomMcpCoverage:
             temp_path = Path(temp_dir)
             cursor_dir = temp_path / ".cursor"
             cursor_dir.mkdir(parents=True, exist_ok=True)
-            (cursor_dir / ".env").write_text(
-                "OTHER=value\n  OPENAI_API_KEY = keepme\nMCP_ENABLED = false\n"
-            )
+            (cursor_dir / ".env").write_text("OTHER=value\nMCP_ENABLED = false\n")
 
             with patch("pathlib.Path.home", return_value=temp_path):
                 with patch("pathlib.Path.cwd", return_value=temp_path):
                     setup_custom_mcp.setup_custom_mcp(argv=["--force"])
 
             env_lines = (cursor_dir / ".env").read_text().splitlines()
-            assert env_lines.count("OPENAI_API_KEY=keepme") == 1
             assert env_lines.count("MCP_ENABLED=true") == 1
-            assert not any(line.startswith("  OPENAI_API_KEY") for line in env_lines)
             assert not any(line.startswith("MCP_ENABLED =") for line in env_lines)
             assert "OTHER=value" in env_lines
 
@@ -376,7 +372,7 @@ class TestSetupCustomMcpCoverage:
 
             env_lines = (cursor_dir / ".env").read_text().splitlines()
             assert f"OPENAI_API_KEY={existing_key}" in env_lines
-            assert "MCP_ENABLED=true" in env_lines
+            assert "MCP_ENABLED=false" in env_lines
             assert "OTHER=value" in env_lines
 
             settings = json.loads((cursor_dir / "settings.json").read_text())
@@ -406,7 +402,7 @@ class TestSetupCustomMcpCoverage:
 
             env_lines = (cursor_dir / ".env").read_text().splitlines()
             assert f"OPENAI_API_KEY={encrypted_key}" in env_lines
-            assert "MCP_ENABLED=true" in env_lines
+            assert "MCP_ENABLED=false" in env_lines
             assert "OTHER=value" in env_lines
 
             settings = json.loads((cursor_dir / "settings.json").read_text())

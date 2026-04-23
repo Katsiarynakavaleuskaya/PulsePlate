@@ -79,7 +79,6 @@ def setup_custom_mcp(argv: list[str] | None = None) -> None:
     existing_env_content = env_file.read_text() if env_file.exists() else ""
     cursor_settings = _load_json_config(settings_file)
     mcp_api_key = _resolve_mcp_api_key(mcp_config=mcp_config)
-    env_api_key = _resolve_env_api_key(existing_env_content=existing_env_content)
     settings_api_key = _resolve_settings_api_key(cursor_settings=cursor_settings)
 
     mcp_config.setdefault("$schema", "https://modelcontextprotocol.io/schemas/mcp.json")
@@ -97,16 +96,20 @@ def setup_custom_mcp(argv: list[str] | None = None) -> None:
 
     _write_json_config(cursor_dir, "mcp.json", mcp_config, "✅ MCP configuration created at ")
 
-    env_updates = {
-        "OPENAI_API_KEY": env_api_key,
-        "MCP_ENABLED": "true",
-    }
-    env_content = _merge_env_content(
-        existing_env_content,
-        env_updates,
-    )
-    with open(env_file, "w") as f:
-        f.write(env_content)
+    if _has_existing_env_api_key(existing_env_content):
+        _ensure_env_flag_without_rewriting_secrets(
+            env_file=env_file,
+            existing_content=existing_env_content,
+            key="MCP_ENABLED",
+            value="true",
+        )
+    else:
+        env_content = _merge_env_content(
+            existing_env_content,
+            {"MCP_ENABLED": "true"},
+        )
+        with open(env_file, "w") as f:
+            f.write(env_content)
 
     print(f"✅ Environment file created at {env_file}")
 
@@ -243,15 +246,27 @@ def _normalize_api_key(value: object) -> str | None:
     return normalized
 
 
-def _resolve_env_api_key(*, existing_env_content: str) -> str:
-    """Preserve an existing .env value verbatim; otherwise use the placeholder."""
+def _has_existing_env_api_key(existing_env_content: str) -> bool:
+    """Return True when .env already carries a non-placeholder API key."""
 
     existing_env_key = _extract_env_value(existing_env_content, "OPENAI_API_KEY")
-    if isinstance(existing_env_key, str):
-        normalized = existing_env_key.strip()
-        if normalized and normalized != PLACEHOLDER_API_KEY:
-            return normalized
-    return PLACEHOLDER_API_KEY
+    if not isinstance(existing_env_key, str):
+        return False
+    normalized = existing_env_key.strip()
+    return bool(normalized and normalized != PLACEHOLDER_API_KEY)
+
+
+def _ensure_env_flag_without_rewriting_secrets(
+    *, env_file: Path, existing_content: str, key: str, value: str
+) -> None:
+    """Append a missing non-secret flag without rewriting secret-bearing .env lines."""
+
+    if _extract_env_value(existing_content, key) is not None:
+        return
+
+    line_prefix = "" if not existing_content or existing_content.endswith("\n") else "\n"
+    with open(env_file, "a") as f:
+        f.write(f"{line_prefix}{key}={value}\n")
 
 
 def _resolve_mcp_api_key(*, mcp_config: dict) -> str:
