@@ -24,13 +24,25 @@ Disposition: NOT-A-BUG
 Evidence: CodeRabbit comment was a rate-limit / review scheduling notice, not a code finding. The branch now includes a real follow-up commit and should be re-reviewed after push.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1450#pullrequestreview-4162761845 -> f1f103381
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1450#discussion_r3131114416 -> f1f103381
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1450#discussion_r3131114421 -> f1f103381
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1450#discussion_r3131114431 -> f1f103381
 
 Disposition: FIXED
 Commit: f1f103381
 Evidence: `docs/review/PR_1450_FIXED_MAPPING.md` now keeps both Phase 2 checkboxes under `## Discussion Thread Pass` and removes the misplaced checked item from `## Merge Readiness`; `tests/test_feedback_api.py` keeps tier-guard tests status-only and moves auth error payload assertions into a dedicated contract test.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1450#discussion_r3131114416 -> f1f103381
+Disposition: FIXED
+Commit: f1f103381
+Evidence: `docs/review/PR_1450_FIXED_MAPPING.md` now keeps both required artifact checkboxes under `## Discussion Thread Pass`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1450#discussion_r3131114421 -> f1f103381
+Disposition: FIXED
+Commit: f1f103381
+Evidence: `docs/review/PR_1450_FIXED_MAPPING.md` removes the pre-checked merge-readiness mapping checkbox from `## Merge Readiness`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1450#discussion_r3131114431 -> f1f103381
+Disposition: FIXED
+Commit: f1f103381
+Evidence: `tests/test_feedback_api.py` keeps tier-guard tests status-only and moves auth error payload checks into `test_auth_error_payload_contract`.
 
 ## Merge Readiness
 
