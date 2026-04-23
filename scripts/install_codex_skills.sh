@@ -128,7 +128,10 @@ while [[ $# -gt 0 ]]; do
 done
 
 PULSEPLATE_SKILLS_ROOT="${REPO_ROOT}/tools/codex_skills"
-CYBERSEC_SKILLS_ROOT="${REPO_ROOT}/tools/cybersecurity_skills/skills"
+CYBERSEC_SKILLS_ROOT="${PULSEPLATE_CYBERSEC_SKILLS_ROOT:-${REPO_ROOT}/tools/cybersecurity_skills/skills}"
+while [[ "${CYBERSEC_SKILLS_ROOT}" != "/" && "${CYBERSEC_SKILLS_ROOT}" == */ ]]; do
+  CYBERSEC_SKILLS_ROOT="${CYBERSEC_SKILLS_ROOT%/}"
+done
 
 # Build SKILLS_SRC_ROOTS based on CYBERSEC_MODE
 SKILLS_SRC_ROOTS=()
