@@ -16,11 +16,7 @@ or claiming merge readiness.
 ### Fixed in Commit Mapping
 
 Disposition: NOT-A-BUG
-Evidence: Sourcery generated a reviewer guide for the docs/schema-only graph-eval
-contract lane and did not request a code or documentation change. The current
-contract remains offline-only, subordinate to canonical release-gates, and
-explicitly excludes runtime GraphRAG, semantic cache widening, provider changes,
-and a second canonical eval rail.
+Evidence: Sourcery generated a reviewer guide for the docs/schema-only graph-eval contract lane and did not request a code or documentation change; the contract remains offline-only, subordinate to canonical release-gates, and explicitly excludes runtime GraphRAG, semantic cache widening, provider changes, and a second canonical eval rail.
 Reason: This is review guidance, not an actionable finding.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1502#pullrequestreview-4162761722
