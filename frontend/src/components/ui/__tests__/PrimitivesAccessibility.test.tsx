@@ -92,7 +92,9 @@ describe('new governed primitives accessibility', () => {
         />
         <StatsCard detail="Secure session status" label="Connection" value="Connected" />
         <Stepper
+          ariaLabel="Setup progress"
           currentStep={0}
+          progressLabel="Step 1 of 2"
           steps={[
             { id: 'profile', label: 'Profile', description: 'Capture your nutrition inputs' },
             { id: 'results', label: 'Results', description: 'Review macros and targets' },

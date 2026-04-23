@@ -81,7 +81,9 @@ describe('governed specialized families', () => {
   it('marks the current step explicitly in the governed setup flow', () => {
     render(
       <Stepper
+        ariaLabel="Setup progress"
         currentStep={1}
+        progressLabel="Step 2 of 2"
         steps={[
           { id: 'profile', label: 'Profile', description: 'Capture your nutrition inputs' },
           { id: 'results', label: 'Results', description: 'Review macros and targets' },
@@ -91,5 +93,13 @@ describe('governed specialized families', () => {
 
     expect(screen.getByText('Step 2 of 2')).toBeInTheDocument();
     expect(screen.getByRole('listitem', { current: 'step' })).toHaveTextContent('Results');
+  });
+
+  it('renders no progress chrome when steps are empty', () => {
+    const { container } = render(
+      <Stepper ariaLabel="Setup progress" currentStep={0} progressLabel="Step 1 of 0" steps={[]} />
+    );
+
+    expect(container).toBeEmptyDOMElement();
   });
 });

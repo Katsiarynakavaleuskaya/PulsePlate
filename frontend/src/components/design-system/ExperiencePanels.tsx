@@ -221,7 +221,9 @@ export function ComponentShowcasePanel({
             <StatsCard align="center" label="Water" value="2.5" unit="L/day" />
           </div>
           <Stepper
+            ariaLabel="Setup progress"
             currentStep={1}
+            progressLabel="Step 2 of 2"
             steps={[
               { id: 'profile', label: 'Profile', description: 'Nutrition inputs' },
               { id: 'results', label: 'Results', description: 'Review targets' },

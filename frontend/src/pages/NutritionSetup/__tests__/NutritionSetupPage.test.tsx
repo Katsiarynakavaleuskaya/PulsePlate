@@ -9,7 +9,12 @@ import NutritionSetupPage from '../index';
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     i18n: { language: 'en' },
-    t: (key: string) => key,
+    t: (key: string, values?: Record<string, number>) => {
+      if (key === 'nutritionSetup.steps.progressLabel') {
+        return `Step ${values?.current} of ${values?.total}`;
+      }
+      return key;
+    },
   }),
 }));
 

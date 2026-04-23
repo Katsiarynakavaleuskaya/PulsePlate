@@ -187,6 +187,8 @@
         "calculateButton": "Calculate Personalized Plate",
         "saveNote": "Data is stored locally and used for your diet calculation",
         "steps": {
+            "ariaLabel": "Setup progress",
+            "progressLabel": "Step {{current}} of {{total}}",
             "profile": {
                 "label": "Profile",
                 "description": "Capture your nutrition inputs"

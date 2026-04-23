@@ -187,6 +187,8 @@
         "calculateButton": "Calcular Plato Personalizado",
         "saveNote": "Los datos se almacenan localmente y se utilizan para calcular su dieta",
         "steps": {
+            "ariaLabel": "Progreso de configuración",
+            "progressLabel": "Paso {{current}} de {{total}}",
             "profile": {
                 "label": "Perfil",
                 "description": "Capture sus datos nutricionales"

@@ -27,7 +27,7 @@ export function ProgressIndicator({
   description,
   label,
   state = 'static',
-  timestampAriaLabel = 'Progress timestamp',
+  timestampAriaLabel,
   timestampLabel,
   variant = 'compact',
   ...props

@@ -1,4 +1,4 @@
-import type { HTMLAttributes } from 'react';
+import type { HTMLAttributes, ReactNode } from 'react';
 import clsx from 'clsx';
 
 export interface StepperItem {
@@ -8,7 +8,9 @@ export interface StepperItem {
 }
 
 export interface StepperProps extends HTMLAttributes<HTMLElement> {
+  ariaLabel: string;
   currentStep: number;
+  progressLabel: ReactNode;
   steps: StepperItem[];
 }
 
@@ -23,22 +25,28 @@ function resolveStepState(index: number, currentStep: number): 'completed' | 'cu
 }
 
 export function Stepper({
+  ariaLabel,
   className = '',
   currentStep,
+  progressLabel,
   steps,
   ...props
-}: StepperProps): JSX.Element {
+}: StepperProps): JSX.Element | null {
+  if (steps.length === 0) {
+    return null;
+  }
+
   const safeCurrentStep = Math.min(Math.max(currentStep, 0), Math.max(steps.length - 1, 0));
   const currentLabel = steps[safeCurrentStep]?.label ?? '';
 
   return (
     <nav
-      aria-label="Flow progress"
+      aria-label={ariaLabel}
       className={clsx('rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4', className)}
       {...props}
     >
       <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--color-text-muted)]">
-        Step {safeCurrentStep + 1} of {steps.length}
+        {progressLabel}
       </p>
       <p className="mt-2 text-sm font-medium text-[var(--color-text)]">{currentLabel}</p>
       <ol className="mt-4 grid gap-3 sm:grid-cols-[repeat(auto-fit,minmax(0,1fr))]">

@@ -31,7 +31,7 @@ Evidence:
 ## Scope
 
 ### IN
-- normalize current specialized-existing families into shared governed web
+- normalize existing specialized families into shared governed web
   components for:
   - `badge`
   - `progress`
