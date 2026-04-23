@@ -5,6 +5,7 @@ import { beforeAll, describe, expect, it, vi } from 'vitest';
 import {
   DropdownMenu,
   DropdownMenuItem,
+  DropdownMenuLinkItem,
   DropdownMenuItems,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
@@ -64,5 +65,23 @@ describe('DropdownMenu', () => {
     await waitFor(() => {
       expect(screen.queryByRole('menu')).not.toBeInTheDocument();
     });
+  });
+
+  it('supports link menu items without nesting anchors inside buttons', async () => {
+    const user = userEvent.setup();
+
+    render(
+      <DropdownMenu>
+        <DropdownMenuTrigger>More actions</DropdownMenuTrigger>
+        <DropdownMenuItems>
+          <DropdownMenuLinkItem href="/weekly-plan">Open weekly plan</DropdownMenuLinkItem>
+        </DropdownMenuItems>
+      </DropdownMenu>
+    );
+
+    await user.click(screen.getByRole('button', { name: /more actions/i }));
+
+    expect(screen.getByRole('menuitem', { name: 'Open weekly plan' })).toHaveAttribute('href', '/weekly-plan');
+    expect(screen.getByRole('menuitem', { name: 'Open weekly plan' }).tagName).toBe('A');
   });
 });

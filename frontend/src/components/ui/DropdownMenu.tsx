@@ -1,5 +1,5 @@
 import { Fragment } from 'react';
-import type { ButtonHTMLAttributes, PropsWithChildren, ReactNode } from 'react';
+import type { AnchorHTMLAttributes, ButtonHTMLAttributes, PropsWithChildren, ReactNode } from 'react';
 import { Menu, MenuButton, MenuItem, MenuItems, Transition } from '@headlessui/react';
 import { ChevronDown } from 'lucide-react';
 import { buttonClasses } from './Button';
@@ -17,6 +17,11 @@ interface DropdownMenuItemsProps extends PropsWithChildren {
 }
 
 interface DropdownMenuItemProps extends PropsWithChildren<ButtonHTMLAttributes<HTMLButtonElement>> {
+  destructive?: boolean;
+  icon?: ReactNode;
+}
+
+interface DropdownMenuLinkItemProps extends PropsWithChildren<AnchorHTMLAttributes<HTMLAnchorElement>> {
   destructive?: boolean;
   icon?: ReactNode;
 }
@@ -95,6 +100,37 @@ export function DropdownMenuItem({
           {icon ? <span className="mt-0.5 h-4 w-4 flex-shrink-0">{icon}</span> : null}
           <span className="min-w-0">{children}</span>
         </button>
+      )}
+    </MenuItem>
+  );
+}
+
+export function DropdownMenuLinkItem({
+  children,
+  className = '',
+  destructive = false,
+  icon,
+  ...props
+}: DropdownMenuLinkItemProps) {
+  return (
+    <MenuItem disabled={props['aria-disabled'] === true || props['aria-disabled'] === 'true'}>
+      {({ focus, disabled }) => (
+        <a
+          {...props}
+          aria-disabled={disabled || props['aria-disabled']}
+          className={[
+            'flex w-full items-start gap-3 rounded-lg px-3 py-2 text-left text-sm transition-colors',
+            focus ? 'bg-[var(--color-surface-muted)]' : '',
+            destructive ? 'text-[var(--color-error)]' : 'text-[var(--color-text)]',
+            disabled ? 'pointer-events-none cursor-not-allowed opacity-50' : '',
+            className,
+          ]
+            .join(' ')
+            .trim()}
+        >
+          {icon ? <span className="mt-0.5 h-4 w-4 flex-shrink-0">{icon}</span> : null}
+          <span className="min-w-0">{children}</span>
+        </a>
       )}
     </MenuItem>
   );

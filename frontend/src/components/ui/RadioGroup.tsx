@@ -1,3 +1,4 @@
+import { useId } from 'react';
 import type { InputHTMLAttributes, PropsWithChildren, ReactNode } from 'react';
 
 interface RadioGroupProps extends PropsWithChildren {
@@ -18,7 +19,8 @@ export function RadioGroup({
   legend,
   orientation = 'vertical',
 }: RadioGroupProps) {
-  const errorId = error ? `${String(legend ?? 'radio-group')}-error` : undefined;
+  const generatedId = useId();
+  const errorId = error ? `radio-group-${generatedId}-error` : undefined;
 
   return (
     <fieldset className="space-y-3">

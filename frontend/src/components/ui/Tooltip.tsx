@@ -17,7 +17,7 @@ export function Tooltip({ children, content, side = 'top' }: TooltipProps) {
 
   const child = isValidElement(children)
     ? cloneElement(children, {
-        'aria-describedby': tooltipId,
+        'aria-describedby': [children.props['aria-describedby'], tooltipId].filter(Boolean).join(' '),
       })
     : children;
 

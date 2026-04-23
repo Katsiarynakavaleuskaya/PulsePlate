@@ -39,7 +39,8 @@ describe('RadioGroup', () => {
       </RadioGroup>
     );
 
-    expect(screen.getByRole('radiogroup')).toHaveAttribute('aria-describedby');
+    expect(screen.getByRole('radiogroup')).toHaveAccessibleDescription('Choose one coaching tone.');
+    expect(screen.getByRole('radiogroup').getAttribute('aria-describedby')).not.toMatch(/\s/);
     expect(screen.getByText('Choose one coaching tone.')).toHaveAttribute('role', 'alert');
   });
 });

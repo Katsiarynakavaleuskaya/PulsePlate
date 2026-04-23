@@ -24,4 +24,11 @@ describe('Checkbox', () => {
     render(<Checkbox aria-label="Weekly planning summary" checked={false} invalid readOnly />);
     expect(screen.getByRole('checkbox')).toHaveAttribute('aria-invalid', 'true');
   });
+
+  it('supports mixed indeterminate state', () => {
+    render(<Checkbox aria-label="Weekly planning summary" checked={false} indeterminate readOnly />);
+
+    expect(screen.getByRole('checkbox')).toHaveAttribute('aria-checked', 'mixed');
+    expect(screen.getByRole('checkbox')).toHaveProperty('indeterminate', true);
+  });
 });

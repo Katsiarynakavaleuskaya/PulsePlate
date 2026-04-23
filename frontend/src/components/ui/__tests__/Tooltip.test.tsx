@@ -35,4 +35,22 @@ describe('Tooltip', () => {
     await user.tab();
     expect(screen.queryByRole('tooltip')).not.toBeInTheDocument();
   });
+
+  it('preserves existing aria-describedby references', async () => {
+    const user = userEvent.setup();
+
+    render(
+      <Tooltip content="Supportive helper copy">
+        <button aria-describedby="existing-help" type="button">
+          Why this matters
+        </button>
+      </Tooltip>
+    );
+
+    await user.hover(screen.getByRole('button', { name: 'Why this matters' }));
+
+    const describedBy = screen.getByRole('button', { name: 'Why this matters' }).getAttribute('aria-describedby');
+    expect(describedBy).toContain('existing-help');
+    expect(describedBy).toContain(screen.getByRole('tooltip').id);
+  });
 });
