@@ -19,7 +19,13 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from core.knowledge.policy import KnowledgePolicy
-from core.rag.contracts import OptimizationStats, RAGChunk, RAGContext, RAGDegradedReason
+from core.rag.contracts import (
+    OptimizationStats,
+    RAGChunk,
+    RAGContext,
+    RAGDegradedReason,
+    RecursiveOptimizationHints,
+)
 from core.insight.safety import redact_rag_context_for_insight
 from core.rag.formatting import build_rag_source_dicts, format_rag_chunks_for_prompt
 from core.rag.orchestration import (
@@ -334,6 +340,41 @@ class TestRetrieveAndValidateRag:
         assert to_thread_mock.call_args.kwargs["optimization_enabled"] is False
         assert result.rag_actually_used is True
         assert result.hops == 2
+
+    @pytest.mark.asyncio
+    async def test_recursive_enabled_forwards_optimization_hints(self) -> None:
+        """Orchestration must pass prepared recursive optimization hints unchanged."""
+        chunks = [_make_chunk("c1", score=0.9)]
+        rag_ctx = _make_rag_context(chunks=chunks, confidence=0.9, hops=2)
+        hints = RecursiveOptimizationHints(target_depth_cap=2)
+
+        with (
+            patch(
+                "asyncio.to_thread",
+                new_callable=AsyncMock,
+                return_value=rag_ctx,
+            ) as to_thread_mock,
+            patch("core.rag.recursive_retrieval.retrieve_recursive_context_structured"),
+            patch(
+                "core.rag.formatting.format_rag_chunks_for_prompt",
+                return_value="Chunk1",
+            ),
+            patch(
+                "core.insight.safety.redact_rag_context_for_insight",
+                return_value="Chunk1",
+            ),
+        ):
+            result = await retrieve_and_validate_rag(
+                "test prompt",
+                philo_validation_enabled=False,
+                recursive_rag_enabled=True,
+                optimization_enabled=True,
+                recursive_optimization_hints=hints,
+            )
+
+        assert to_thread_mock.call_args.kwargs["optimization_enabled"] is True
+        assert to_thread_mock.call_args.kwargs["optimization_hints"] == hints
+        assert result.rag_actually_used is True
 
     @pytest.mark.asyncio
     async def test_recursive_empty_retrieval_preserves_recursive_metadata(self) -> None:

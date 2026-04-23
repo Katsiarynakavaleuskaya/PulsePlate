@@ -7,7 +7,12 @@ from typing import Any
 import pytest
 
 from core.knowledge.policy import KnowledgePolicy
-from core.rag.contracts import OptimizationStopReason, RAGChunk, RAGContext
+from core.rag.contracts import (
+    OptimizationStopReason,
+    RAGChunk,
+    RAGContext,
+    RecursiveOptimizationHints,
+)
 from core.rag.orchestration import retrieve_and_validate_rag
 from core.rag.philosophy_pipeline import PipelineResult
 from core.rag.recursive_retrieval import retrieve_recursive_context_structured
@@ -87,6 +92,37 @@ def test_recursive_respects_hops_and_refinement_budgets(
     result = retrieve_recursive_context_structured("meal plan")
     assert result.hops <= 2
     assert len(result.refined_queries) <= 2
+
+
+def test_recursive_optimization_hints_cap_depth(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Prepared target depth cap must bound recursive hops deterministically."""
+    import core.rag.recursive_retrieval as recursive
+
+    monkeypatch.setattr(recursive, "MAX_RAG_HOPS", 4)
+    monkeypatch.setattr(recursive, "MAX_REFINEMENT_PASSES", 4)
+    monkeypatch.setattr(recursive, "MAX_VERIFICATION_QUERIES", 0)
+    monkeypatch.setattr(recursive, "MIN_CONFIDENCE_GAIN_PER_HOP", -1.0)
+
+    def _fake_retrieve(query: str, **_: Any) -> RAGContext:
+        token = f"signal{len(query)}"
+        chunk = RAGChunk(
+            chunk_id=f"doc:{len(query)}",
+            file="doc.md",
+            content=f"{token} nutrition guidance for meal planning",
+            score=0.7,
+        )
+        return _ctx(query, [chunk], confidence=0.7)
+
+    monkeypatch.setattr("core.rag.vector_rag.retrieve_context_structured", _fake_retrieve)
+
+    result = retrieve_recursive_context_structured(
+        "meal plan",
+        optimization_enabled=True,
+        optimization_hints=RecursiveOptimizationHints(target_depth_cap=1),
+    )
+
+    assert result.hops == 1
+    assert result.refined_queries == ["meal plan"]
 
 
 def test_recursive_respects_verification_budget(monkeypatch: pytest.MonkeyPatch) -> None:

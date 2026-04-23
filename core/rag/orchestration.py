@@ -19,7 +19,7 @@ from typing import TYPE_CHECKING, Optional, Sequence, SupportsFloat, cast
 if TYPE_CHECKING:
     from core.knowledge.contracts import KnowledgeFactCandidate
     from core.knowledge.policy import KnowledgePolicy
-    from core.rag.contracts import RAGChunk
+    from core.rag.contracts import RAGChunk, RecursiveOptimizationHints
     from core.verification.contracts import VerificationBundle
 
 from core.rag.contracts import RAGContext, RAGDegradedReason
@@ -182,6 +182,7 @@ async def retrieve_and_validate_rag(
     philo_validation_enabled: bool = False,
     recursive_rag_enabled: bool = False,
     optimization_enabled: bool = False,
+    recursive_optimization_hints: "RecursiveOptimizationHints | None" = None,
     subject_id: int | None = None,
     knowledge_policy: "KnowledgePolicy | None" = None,
 ) -> RAGOrchestrationResult:
@@ -227,6 +228,7 @@ async def retrieve_and_validate_rag(
         philo_validation_enabled,
         recursive_rag_enabled,
         optimization_enabled,
+        recursive_optimization_hints,
         subject_id,
         knowledge_policy,
     )
@@ -238,6 +240,7 @@ async def _run_orchestration(
     philo_enabled: bool,
     recursive_enabled: bool,
     optimization_enabled: bool,
+    recursive_optimization_hints: "RecursiveOptimizationHints | None",
     subject_id: int | None,
     knowledge_policy: "KnowledgePolicy | None",
 ) -> RAGOrchestrationResult:
@@ -261,6 +264,7 @@ async def _run_orchestration(
                 subject_id=subject_id,
                 philo_validation_enabled=False,
                 optimization_enabled=optimization_enabled,
+                optimization_hints=recursive_optimization_hints,
             )
             recursive_executed = True
         else:

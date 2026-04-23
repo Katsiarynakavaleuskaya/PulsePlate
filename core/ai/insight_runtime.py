@@ -24,7 +24,7 @@ from core.insight.philosophical_runtime import (
     RouteDecision,
     RouteType,
 )
-from core.rag.contracts import RAGDegradedReason
+from core.rag.contracts import RAGDegradedReason, RecursiveOptimizationHints
 
 
 class InsightProviderLoadError(RuntimeError):
@@ -50,6 +50,7 @@ class RecursiveRolloutPolicy:
     use_rag: bool
     recursive_rag_enabled: bool
     recursive_rag_optimization_enabled: bool
+    optimization_hints: RecursiveOptimizationHints | None = None
 
     @property
     def recursive_path_enabled(self) -> bool:
@@ -197,16 +198,21 @@ def prepare_insight_runtime(
         linguistic_enabled=philosophy_linguistic_enabled,
         pragmatic_enabled=philosophy_pragmatic_enabled,
     )
-    recursive_rollout_policy = RecursiveRolloutPolicy(
-        use_rag=use_rag,
-        recursive_rag_enabled=recursive_rag_enabled,
-        recursive_rag_optimization_enabled=recursive_rag_optimization_enabled,
-    )
     decision = runtime.preview_route(
         text=text,
         lang=None,
         router_enabled=rollout_policy.preview_router_enabled,
         use_rag=use_rag,
+    )
+    recursive_rollout_policy = RecursiveRolloutPolicy(
+        use_rag=use_rag,
+        recursive_rag_enabled=recursive_rag_enabled,
+        recursive_rag_optimization_enabled=recursive_rag_optimization_enabled,
+        optimization_hints=(
+            _build_recursive_optimization_hints(decision=decision)
+            if use_rag and recursive_rag_optimization_enabled
+            else None
+        ),
     )
 
     if transparency_loader is None:
@@ -249,4 +255,34 @@ def _build_default_knowledge_policy(*, decision: RouteDecision) -> KnowledgePoli
         deny_degraded_reasons=tuple(reason.value for reason in RAGDegradedReason),
         subject_scope_required=True,
         rail="product_ai_runtime",
+    )
+
+
+def _build_recursive_optimization_hints(
+    *, decision: RouteDecision
+) -> RecursiveOptimizationHints | None:
+    """Project existing route truth into bounded recursive optimization hints."""
+
+    route_type_value = getattr(getattr(decision, "route_type", None), "value", None)
+    if route_type_value is None:
+        route_type_value = getattr(decision, "route_type", None)
+    route_type_key = (
+        route_type_value.upper() if isinstance(route_type_value, str) else route_type_value
+    )
+    needs_rag = bool(
+        getattr(
+            decision,
+            "needs_rag",
+            route_type_key in {RouteType.RAG_FACTUAL.value, RouteType.DEEP_REASONING.value},
+        )
+    )
+    if not needs_rag:
+        return None
+
+    target_depth_cap = max(1, min(int(getattr(decision, "target_depth", 3)), 3))
+    optimization_applied = bool(getattr(decision, "optimization_applied", False))
+    return RecursiveOptimizationHints(
+        target_depth_cap=target_depth_cap,
+        aggressive_short_circuit_allowed=optimization_applied and target_depth_cap <= 2,
+        pragmatic_early_stop_allowed=optimization_applied,
     )

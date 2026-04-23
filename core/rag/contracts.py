@@ -68,6 +68,15 @@ class OptimizationStats(TypedDict):
     early_stop_latency_budget: bool
 
 
+@dataclass(frozen=True)
+class RecursiveOptimizationHints:
+    """Prepared internal hints for bounded recursive speed optimization."""
+
+    target_depth_cap: int
+    aggressive_short_circuit_allowed: bool = False
+    pragmatic_early_stop_allowed: bool = False
+
+
 @dataclass
 class RAGChunk:
     """Single retrieved chunk with provenance and score."""

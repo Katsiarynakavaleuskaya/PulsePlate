@@ -12,7 +12,13 @@ import time
 from typing import Dict, Iterable, List, cast
 
 from core.data_sanitizer import sanitize_rag_markdown
-from core.rag.contracts import OptimizationStats, OptimizationStopReason, RAGChunk, RAGContext
+from core.rag.contracts import (
+    OptimizationStats,
+    OptimizationStopReason,
+    RAGChunk,
+    RAGContext,
+    RecursiveOptimizationHints,
+)
 from core.rag.rag_constants import (
     MAX_HOP_VECTOR_CACHE_ENTRIES,
     MAX_RAG_HOPS,
@@ -344,6 +350,7 @@ def retrieve_recursive_context_structured(
     *,
     philo_validation_enabled: bool = False,
     optimization_enabled: bool = False,
+    optimization_hints: RecursiveOptimizationHints | None = None,
 ) -> RAGContext:
     """Retrieve context with bounded recursive refinement.
 
@@ -362,6 +369,9 @@ def retrieve_recursive_context_structured(
     previous_confidence = 0.0
     hops_done = 0
     limit = max(1, min(max_chunks, MAX_SOURCES_IN_RESPONSE))
+    max_hops = MAX_RAG_HOPS
+    if optimization_enabled and optimization_hints is not None:
+        max_hops = max(1, min(MAX_RAG_HOPS, optimization_hints.target_depth_cap))
     optimization_stats = _make_optimization_stats() if optimization_enabled else None
     refinement_token_cache: dict[tuple[str, str], list[str]] | None = (
         {} if optimization_enabled else None
@@ -371,7 +381,7 @@ def retrieve_recursive_context_structured(
     )
 
     try:
-        for hop in range(1, MAX_RAG_HOPS + 1):
+        for hop in range(1, max_hops + 1):
             elapsed_sec = time.perf_counter() - start_ts
             if elapsed_sec >= RAG_PIPELINE_TIMEOUT_SEC:
                 _set_stop_reason(
@@ -454,6 +464,9 @@ def retrieve_recursive_context_structured(
 
             merged_chunks = candidate_chunks
             previous_confidence = confidence
+
+            if optimization_enabled and optimization_hints is not None and hop >= max_hops:
+                break
 
             if (
                 optimization_enabled
