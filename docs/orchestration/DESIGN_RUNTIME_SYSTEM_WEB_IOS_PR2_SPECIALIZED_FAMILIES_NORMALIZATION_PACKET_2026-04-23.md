@@ -64,7 +64,7 @@ Evidence:
 - `frontend/src/features/progress/LiveProgressIndicator.tsx`
 - `frontend/src/pages/Home.tsx`
 - `frontend/src/pages/NutritionSetup/**`
-- `docs/review/PR_<N>_FIXED_MAPPING.md`
+- `docs/review/PR_1510_FIXED_MAPPING.md`
 
 ## Role Order
 
@@ -126,7 +126,7 @@ This order is fixed for the lane unless a later packet explicitly updates it.
 ## Review Path
 
 - draft PR `#1510` is open
-- create canonical artifact `docs/review/PR_<N>_FIXED_MAPPING.md`
+- create canonical artifact `docs/review/PR_1510_FIXED_MAPPING.md`
 - sync the PR body mirror after review dispositions
 - use GitHub current-head truth plus CodeRabbit review input; do not rely on
   stale historical runs

@@ -51,12 +51,12 @@ export function StatsCard({
       >
         {value}
       </div>
-      {unit ? (
+      {unit !== null && unit !== undefined ? (
         <div className={clsx('text-xs mt-1', isInverse ? 'text-white/56' : 'text-[var(--color-text-muted)]')}>
           {unit}
         </div>
       ) : null}
-      {detail ? (
+      {detail !== null && detail !== undefined ? (
         <div className={clsx('text-xs mt-1', isInverse ? 'text-white/56' : 'text-[var(--color-text-muted)]')}>
           {detail}
         </div>

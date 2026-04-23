@@ -29,6 +29,7 @@ vi.mock('../hooks', () => ({
     },
     loading: false,
     error: null,
+    enabled: true,
   })),
   useTargets: vi.fn(() => ({
     data: { micros: [], water_l: 2.4 },

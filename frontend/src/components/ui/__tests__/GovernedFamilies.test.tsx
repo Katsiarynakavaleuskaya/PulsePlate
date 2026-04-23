@@ -78,6 +78,12 @@ describe('governed specialized families', () => {
     expect(screen.getByText('Secure session status')).toBeInTheDocument();
   });
 
+  it('renders numeric zero detail and unit values', () => {
+    render(<StatsCard detail={0} label="Remaining" unit={0} value="Complete" />);
+
+    expect(screen.getAllByText('0')).toHaveLength(2);
+  });
+
   it('marks the current step explicitly in the governed setup flow', () => {
     render(
       <Stepper
