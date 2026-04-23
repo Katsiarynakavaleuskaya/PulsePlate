@@ -25,6 +25,21 @@ Reason: Sourcery and Codex post-ready reviews found Headless UI `MenuItem` rende
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1504#discussion_r3131365664 -> 4fb326f52
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1504#discussion_r3131393172 -> 4fb326f52
 
+Disposition: FIXED
+Commit: 6d139bd3b
+Evidence: `docs/review/PR_1504_FIXED_MAPPING.md`, `docs/roadmap/BACKLOG_LEDGER.md`, `frontend/src/components/design-system/ExperiencePanels.tsx`, `frontend/src/components/ui/DropdownMenu.tsx`, `frontend/src/components/ui/RadioGroup.tsx`, `frontend/src/components/ui/Tooltip.tsx`, `frontend/src/components/ui/fieldState.ts`, `frontend/src/components/ui/__tests__/DropdownMenu.test.tsx`, `frontend/src/components/ui/__tests__/RadioGroup.test.tsx`, `frontend/src/components/ui/__tests__/Tabs.test.tsx`, `frontend/src/components/ui/__tests__/Tooltip.test.tsx`
+Reason: CodeRabbit post-open review found premature merge-readiness checkboxes, missing mock cleanup/return types, separator semantics, incomplete `aria-invalid` token handling, missing radio invalid propagation, persistent tooltip idref risk, and typed-state/test assertion gaps. Commit `6d139bd3b` fixes those surfaces and re-runs `pre-commit run --all-files`, `npm run build`, and the targeted primitive test bundle.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1504#discussion_r3131623394 -> 6d139bd3b
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1504#discussion_r3131623398 -> 6d139bd3b
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1504#discussion_r3131623430 -> 6d139bd3b
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1504#discussion_r3131623444 -> 6d139bd3b
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1504#discussion_r3131623467 -> 6d139bd3b
+
+Disposition: NOT-A-BUG
+Evidence: `frontend/src/components/ui/*.tsx` exports are typed React component contracts; `pre-commit run --all-files`, `cd frontend && npm run build`, and targeted primitive Vitest/a11y coverage passed locally.
+Reason: CodeRabbit issue comment warning for generic docstring coverage is not a repo merge gate for these frontend TSX primitives and would add noisy comments rather than improve governed component behavior. Repo-local quality gates and explicit type/test coverage are the binding PR-1 evidence.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1504#issuecomment-4304646486
+
 ## Merge Readiness
 
 - [ ] All required checks pass
