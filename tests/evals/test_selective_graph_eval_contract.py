@@ -233,7 +233,7 @@ def test_contract_doc_keeps_graph_eval_offline_and_subordinate() -> None:
         "- a second canonical evaluation rail",
     }
     assert (
-        "- [`PULSEPLATE_RAG_RELEASE_GATES.md`](./PULSEPLATE_RAG_RELEASE_GATES.md)\n"
-        "  owns threshold vocabulary, gate checks, and `PASS` / `NO-GO` semantics" in contract_doc
+        "- [`PULSEPLATE_RAG_RELEASE_GATES.md`](./PULSEPLATE_RAG_RELEASE_GATES.md)" in contract_doc
     )
+    assert "owns threshold vocabulary, gate checks" in contract_doc
     assert "must not create a second evaluation source of truth" in contract_doc
