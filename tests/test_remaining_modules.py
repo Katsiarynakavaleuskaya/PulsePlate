@@ -1428,6 +1428,104 @@ class TestInsightApplicationServiceFastLane:
         assert feature_flags["rag_recursive_optimization"] is False
 
     @pytest.mark.asyncio
+    async def test_execute_insight_request_builds_legacy_recursive_fallback_in_fast_lane(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Fast-lane coverage must exercise the legacy recursive fallback via the public seam."""
+
+        from app.services.insight_application_service import execute_insight_request
+        from core.ai.insight_runtime import InsightTransparencyNotice
+        from core.insight.philosophical_runtime import PhilosophyRolloutPolicy
+
+        observed: dict[str, object] = {}
+        prepared_runtime = SimpleNamespace(
+            runtime=object(),
+            provider=object(),
+            decision=SimpleNamespace(route_type=SimpleNamespace(value="deep_reasoning")),
+            rollout_policy=PhilosophyRolloutPolicy(
+                router_enabled=False,
+                phase12_enabled=False,
+                linguistic_enabled=False,
+                pragmatic_enabled=False,
+            ),
+            transparency_notice=InsightTransparencyNotice(
+                surface_id="ai_generated_insight",
+                wellness_boundary="Wellness only.",
+            ),
+            knowledge_policy=None,
+        )
+
+        async def _fake_generate_traced_insight(**kwargs: object) -> object:
+            observed["generate_kwargs"] = kwargs
+            return SimpleNamespace(
+                insight="generated insight",
+                provider_name="fake-provider",
+                source_dicts=[],
+                confidence=0.9,
+                rag_used=True,
+                hops=1,
+                latency_ms=12,
+                knowledge_candidates=[],
+                metadata=SimpleNamespace(
+                    route_type="deep_reasoning",
+                    depth_used=1,
+                    verification_rate=0.0,
+                    falsifiability_rate=0.0,
+                    contradiction_count=0,
+                    reason_codes=["legacy_recursive_fallback"],
+                    optimization_applied=False,
+                ),
+            )
+
+        monkeypatch.setenv("FEATURE_RAG", "true")
+        monkeypatch.setattr(
+            "app.services.insight_application_service.is_recursive_rag_enabled",
+            lambda: True,
+            raising=True,
+        )
+        monkeypatch.setattr(
+            "app.services.insight_application_service.is_recursive_rag_optimization_enabled",
+            lambda: False,
+            raising=True,
+        )
+        monkeypatch.setattr(
+            "app.services.insight_application_service.prepare_insight_runtime",
+            lambda **kwargs: prepared_runtime,
+            raising=True,
+        )
+        monkeypatch.setattr(
+            "app.services.insight_application_service.generate_traced_insight",
+            _fake_generate_traced_insight,
+            raising=True,
+        )
+
+        response = await execute_insight_request(
+            SimpleNamespace(text="hello"),
+            route_path="/api/v1/insight",
+            user_tier="VIP",
+            input_guard=lambda text: None,
+            provider_loader=lambda: None,
+            transparency_loader=lambda: ("ai_generated_insight", "Wellness only."),
+            response_factory=lambda **payload: dict(payload),
+            source_item_factory=lambda **payload: dict(payload),
+        )
+
+        generate_kwargs = cast(dict[str, object], observed["generate_kwargs"])
+        recursive_rollout_policy = cast(
+            object,
+            generate_kwargs["recursive_rollout_policy"],
+        )
+
+        assert getattr(recursive_rollout_policy, "use_rag") is True
+        assert getattr(recursive_rollout_policy, "recursive_path_enabled") is True
+        assert getattr(recursive_rollout_policy, "optimization_path_enabled") is False
+        assert generate_kwargs["use_rag"] is True
+        assert generate_kwargs["recursive_rag_enabled"] is True
+        assert generate_kwargs["recursive_rag_optimization_enabled"] is False
+        assert response["rag_used"] is True
+
+    @pytest.mark.asyncio
     async def test_maybe_promote_knowledge_candidates_times_out_sync_store(
         self,
         monkeypatch: pytest.MonkeyPatch,
