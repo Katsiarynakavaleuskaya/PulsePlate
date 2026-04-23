@@ -26,6 +26,11 @@ Commit: 48781cf76
 Evidence: tests/evals/test_selective_graph_eval_contract.py
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1507#discussion_r3131647785 -> 48781cf76
 
+Disposition: FIXED
+Commit: 4a8458cfa
+Evidence: docs/review/PR_1507_FIXED_MAPPING.md
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1507#issuecomment-4305275175 -> 4a8458cfa
+
 ## Merge Readiness
 
 - [ ] Final post-activity check pass completed after latest bot/review activity
