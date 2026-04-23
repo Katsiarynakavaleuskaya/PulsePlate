@@ -46,6 +46,11 @@ Evidence: `docs/review/PR_1503_FIXED_MAPPING.md:49-64` keeps the merge-readiness
 Reason: the review-level CodeRabbit summary is a rollup comment over optional style guidance and checklist-state guidance on this same artifact; recording the review URL here is sufficient and does not require a distinct commit mapping entry.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1503#pullrequestreview-4165903700
 
+Disposition: NOT-A-BUG
+Evidence: `docs/review/PR_1503_FIXED_MAPPING.md:81-83` now records the exact historical fix commit `a61b7c1d9` for the QA note that previously said `follow-up commit after PR open`.
+Reason: the review-level CodeRabbit summary is an artifact auditability rollup; the underlying note is now concrete and no implementation change is required.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1503#pullrequestreview-4165977146
+
 ## Merge Readiness
 
 Merge-readiness contract:
@@ -75,8 +80,8 @@ Post-open QA notes:
   the Phase2 parser requires `- No actionable review comments`; fixed in
   commit `256ba89d7`.
 - `qa-engineer-agent` found scoped Docker lane docs still described provenance
-  as deferred and the active ledger item still targeted a TBD PR; fixed in the
-  follow-up commit after PR open.
+  as deferred and the active ledger item still targeted a TBD PR; fixed in
+  commit `a61b7c1d9`.
 - `bug-hunter` found CD verification was checking for GitHub-signed
   attestations without first generating them and that the SBOM predicate used
   the BuildKit-incompatible `/v2.3` suffix; fixed by adding explicit
