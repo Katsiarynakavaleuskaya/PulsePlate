@@ -39,6 +39,12 @@ Evidence: https://github.com/Katsiarynakavaleuskaya/anthropic-cybersecurity-skil
 Reason: The submodule pointer already referenced commit `d04d818b41cc300f8110f17ea167fa494db7fb29`; the upstream PR containing that commit was promoted from draft and merged on 2026-04-23, so the pointer now references a stable merged upstream commit.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1500#discussion_r3131179069
 
+Disposition: FIXED
+Commit: e86f17d6799593982f413e3a74651fb6645f4fde
+Evidence: `setup_custom_mcp.py`
+Reason: Runtime setup output no longer prints key-oriented replacement instructions that CodeQL classified as clear-text sensitive logging; it now gives generic placeholder and git-exclusion guidance without echoing sensitive field details.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1500#discussion_r3131225599 -> e86f17d6799593982f413e3a74651fb6645f4fde
+
 ## Merge Readiness
 
 - [ ] All required checks pass
