@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import type { ReactElement, ReactNode } from 'react';
 
 export type AlertTone = 'info' | 'success' | 'warning' | 'error';
 
@@ -16,7 +16,7 @@ const toneConfig: Record<AlertTone, { glyph: string; accent: string; liveRole: '
   error: { glyph: 'x', accent: 'var(--color-error)', liveRole: 'alert' },
 };
 
-export function Alert({ tone = 'info', title, action, children }: AlertProps) {
+export function Alert({ tone = 'info', title, action, children }: AlertProps): ReactElement {
   const config = toneConfig[tone];
 
   return (

@@ -1,12 +1,12 @@
 /** @vitest-environment jsdom */
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
 import { Button } from '../Button';
 import { Tooltip } from '../Tooltip';
 
-describe('Tooltip', () => {
-  it('is hidden by default and shows on hover', async () => {
+describe('Tooltip', (): void => {
+  it('is hidden by default and shows on hover', async (): Promise<void> => {
     const user = userEvent.setup();
 
     render(
@@ -15,12 +15,12 @@ describe('Tooltip', () => {
       </Tooltip>
     );
 
-    expect(screen.queryByRole('tooltip')).not.toBeInTheDocument();
+    expect(screen.getByRole('tooltip')).toHaveClass('sr-only');
     await user.hover(screen.getByRole('button', { name: 'Why this matters' }));
-    expect(screen.getByRole('tooltip')).toBeInTheDocument();
+    expect(screen.getByRole('tooltip')).not.toHaveClass('sr-only');
   });
 
-  it('shows on keyboard focus and hides on blur', async () => {
+  it('shows on keyboard focus and hides on blur', async (): Promise<void> => {
     const user = userEvent.setup();
 
     render(
@@ -30,13 +30,15 @@ describe('Tooltip', () => {
     );
 
     await user.tab();
-    expect(screen.getByRole('tooltip')).toBeInTheDocument();
+    expect(screen.getByRole('tooltip')).not.toHaveClass('sr-only');
 
     await user.tab();
-    expect(screen.queryByRole('tooltip')).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByRole('tooltip')).toHaveClass('sr-only');
+    });
   });
 
-  it('preserves existing aria-describedby references', async () => {
+  it('preserves existing aria-describedby references', async (): Promise<void> => {
     const user = userEvent.setup();
 
     render(

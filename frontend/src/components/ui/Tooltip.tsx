@@ -7,7 +7,7 @@ interface TooltipProps {
   side?: 'top' | 'bottom';
 }
 
-export function Tooltip({ children, content, side = 'top' }: TooltipProps) {
+export function Tooltip({ children, content, side = 'top' }: TooltipProps): ReactElement {
   const [open, setOpen] = useState(false);
   const tooltipId = useId();
   const positionClasses =
@@ -30,21 +30,19 @@ export function Tooltip({ children, content, side = 'top' }: TooltipProps) {
       onMouseLeave={() => setOpen(false)}
     >
       {child}
-      {open ? (
-        <span
-          className={[
-            'pointer-events-none absolute z-50 max-w-[220px] rounded-lg border border-[var(--color-border)]',
-            'bg-[var(--color-surface)] px-3 py-2 text-xs leading-5 text-[var(--color-text)] shadow-lg',
-            positionClasses,
-          ]
-            .join(' ')
-            .trim()}
-          id={tooltipId}
-          role="tooltip"
-        >
-          {content}
-        </span>
-      ) : null}
+      <span
+        className={[
+          open ? 'pointer-events-none absolute z-50 max-w-[220px] rounded-lg border border-[var(--color-border)]' : 'sr-only',
+          open ? 'bg-[var(--color-surface)] px-3 py-2 text-xs leading-5 text-[var(--color-text)] shadow-lg' : '',
+          open ? positionClasses : '',
+        ]
+          .join(' ')
+          .trim()}
+        id={tooltipId}
+        role="tooltip"
+      >
+        {content}
+      </span>
     </span>
   );
 }

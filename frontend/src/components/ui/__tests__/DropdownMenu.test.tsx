@@ -1,7 +1,7 @@
 /** @vitest-environment jsdom */
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { beforeAll, describe, expect, it, vi } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import {
   DropdownMenu,
   DropdownMenuItem,
@@ -11,18 +11,22 @@ import {
   DropdownMenuTrigger,
 } from '../DropdownMenu';
 
-beforeAll(() => {
+beforeAll((): void => {
   class ResizeObserverMock {
-    observe() {}
-    unobserve() {}
-    disconnect() {}
+    observe(): void {}
+    unobserve(): void {}
+    disconnect(): void {}
   }
 
   vi.stubGlobal('ResizeObserver', ResizeObserverMock);
 });
 
-describe('DropdownMenu', () => {
-  it('opens, selects an item, and closes', async () => {
+afterAll((): void => {
+  vi.unstubAllGlobals();
+});
+
+describe('DropdownMenu', (): void => {
+  it('opens, selects an item, and closes', async (): Promise<void> => {
     const user = userEvent.setup();
     const handleSelect = vi.fn();
 
@@ -46,7 +50,7 @@ describe('DropdownMenu', () => {
     });
   });
 
-  it('closes on escape', async () => {
+  it('closes on escape', async (): Promise<void> => {
     const user = userEvent.setup();
 
     render(
@@ -67,7 +71,7 @@ describe('DropdownMenu', () => {
     });
   });
 
-  it('supports link menu items without nesting anchors inside buttons', async () => {
+  it('supports link menu items without nesting anchors inside buttons', async (): Promise<void> => {
     const user = userEvent.setup();
 
     render(
@@ -85,7 +89,7 @@ describe('DropdownMenu', () => {
     expect(screen.getByRole('menuitem', { name: 'Open weekly plan' }).tagName).toBe('A');
   });
 
-  it('applies active styling to button and link menu items', async () => {
+  it('applies active styling to button and link menu items', async (): Promise<void> => {
     const user = userEvent.setup();
 
     render(

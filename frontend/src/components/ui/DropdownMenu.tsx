@@ -1,5 +1,5 @@
 import { Fragment } from 'react';
-import type { AnchorHTMLAttributes, ButtonHTMLAttributes, PropsWithChildren, ReactNode } from 'react';
+import type { AnchorHTMLAttributes, ButtonHTMLAttributes, PropsWithChildren, ReactElement, ReactNode } from 'react';
 import { Menu, MenuButton, MenuItem, MenuItems, Transition } from '@headlessui/react';
 import { ChevronDown } from 'lucide-react';
 import { buttonClasses } from './Button';
@@ -26,11 +26,11 @@ interface DropdownMenuLinkItemProps extends PropsWithChildren<AnchorHTMLAttribut
   icon?: ReactNode;
 }
 
-export function DropdownMenu({ children, className = '' }: DropdownMenuProps) {
+export function DropdownMenu({ children, className = '' }: DropdownMenuProps): ReactElement {
   return <Menu as="div" className={['relative inline-block text-left', className].join(' ').trim()}>{children}</Menu>;
 }
 
-export function DropdownMenuTrigger({ children, className = '' }: DropdownMenuTriggerProps) {
+export function DropdownMenuTrigger({ children, className = '' }: DropdownMenuTriggerProps): ReactElement {
   return (
     <MenuButton
       as="button"
@@ -46,7 +46,7 @@ export function DropdownMenuTrigger({ children, className = '' }: DropdownMenuTr
   );
 }
 
-export function DropdownMenuItems({ children, align = 'end' }: DropdownMenuItemsProps) {
+export function DropdownMenuItems({ children, align = 'end' }: DropdownMenuItemsProps): ReactElement {
   const alignmentClasses = align === 'end' ? 'right-0 origin-top-right' : 'left-0 origin-top-left';
 
   return (
@@ -79,7 +79,7 @@ export function DropdownMenuItem({
   destructive = false,
   icon,
   ...props
-}: DropdownMenuItemProps) {
+}: DropdownMenuItemProps): ReactElement {
   return (
     <MenuItem disabled={props.disabled}>
       {({ active, disabled }) => (
@@ -111,7 +111,7 @@ export function DropdownMenuLinkItem({
   destructive = false,
   icon,
   ...props
-}: DropdownMenuLinkItemProps) {
+}: DropdownMenuLinkItemProps): ReactElement {
   return (
     <MenuItem disabled={props['aria-disabled'] === true || props['aria-disabled'] === 'true'}>
       {({ active, disabled }) => (
@@ -136,8 +136,8 @@ export function DropdownMenuLinkItem({
   );
 }
 
-export function DropdownMenuSeparator() {
-  return <div className="my-1 border-t border-[var(--color-border)]" role="none" />;
+export function DropdownMenuSeparator(): ReactElement {
+  return <div aria-orientation="horizontal" className="my-1 border-t border-[var(--color-border)]" role="separator" />;
 }
 
 export default DropdownMenu;

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import type { ReactElement } from 'react';
 import {
   Alert,
   Button,
@@ -29,13 +30,16 @@ interface ComponentShowcasePanelProps {
   onNotificationsChange: (enabled: boolean) => void;
 }
 
+type FavoriteMeal = 'breakfast' | 'lunch' | 'dinner';
+type CoachingTone = 'calm' | 'motivated';
+
 export function ComponentShowcasePanel({
   notificationsEnabled,
   onNotificationsChange,
-}: ComponentShowcasePanelProps) {
-  const [favoriteMeal, setFavoriteMeal] = useState('lunch');
-  const [coachingTone, setCoachingTone] = useState('calm');
-  const [consentChecked, setConsentChecked] = useState(true);
+}: ComponentShowcasePanelProps): ReactElement {
+  const [favoriteMeal, setFavoriteMeal] = useState<FavoriteMeal>('lunch');
+  const [coachingTone, setCoachingTone] = useState<CoachingTone>('calm');
+  const [consentChecked, setConsentChecked] = useState<boolean>(true);
 
   return (
     <PanelShell title="Shared Components" subtitle="Current primitives shown in Storybook-first review flow">
@@ -88,7 +92,7 @@ export function ComponentShowcasePanel({
               { value: 'dinner', label: 'Dinner' },
             ]}
             value={favoriteMeal}
-            onChange={(event) => setFavoriteMeal(event.target.value)}
+            onChange={(event) => setFavoriteMeal(event.target.value as FavoriteMeal)}
           />
           <Textarea
             aria-label="Planning notes"
@@ -115,7 +119,7 @@ export function ComponentShowcasePanel({
               label="Calm"
               name="coaching-tone"
               value="calm"
-              onChange={(event) => setCoachingTone(event.target.value)}
+              onChange={(event) => setCoachingTone(event.target.value as CoachingTone)}
             />
             <RadioGroupOption
               checked={coachingTone === 'motivated'}
@@ -123,7 +127,7 @@ export function ComponentShowcasePanel({
               label="Motivated"
               name="coaching-tone"
               value="motivated"
-              onChange={(event) => setCoachingTone(event.target.value)}
+              onChange={(event) => setCoachingTone(event.target.value as CoachingTone)}
             />
           </RadioGroup>
           <Alert title="Weekly plan synced" tone="success">
@@ -171,7 +175,7 @@ export function ComponentShowcasePanel({
   );
 }
 
-export function PlatformInventoryPanel() {
+export function PlatformInventoryPanel(): ReactElement {
   return (
     <PanelShell title="Platform Inventory" subtitle="Current design-system coverage across surfaces">
       <div className="grid gap-4 lg:grid-cols-3">
@@ -207,7 +211,7 @@ export function PlatformInventoryPanel() {
   );
 }
 
-export function GovernancePanel() {
+export function GovernancePanel(): ReactElement {
   return (
     <PanelShell title="Governance" subtitle="Anti-drift constraints and immutable locks">
       <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">

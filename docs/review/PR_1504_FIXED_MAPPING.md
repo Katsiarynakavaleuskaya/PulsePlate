@@ -32,11 +32,11 @@ Reason: Sourcery and Codex post-ready reviews found Headless UI `MenuItem` rende
 - [ ] No unresolved review threads
 - [ ] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
   Evidence target: `docs/orchestration/COORDINATOR_MERGE_READINESS_RULES.md:11-17`
-- [x] Pre-commit green
+- [ ] Pre-commit green
   Evidence: `pre-commit run --all-files` passed locally before initial push.
 - [ ] `make verify` green
   Evidence target: `AGENTS.md:5-16`
-- [x] Mandatory post-open `qa-engineer-agent -> bug-hunter` pass completed
+- [ ] Mandatory post-open `qa-engineer-agent -> bug-hunter` pass completed
   Evidence target: `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md:98-103`
 
 Notes: This PR is ready for review. Merge-readiness is intentionally not claimed until current-head checks, review-thread disposition, `make verify`, and the strict merge-ready wrapper pass.

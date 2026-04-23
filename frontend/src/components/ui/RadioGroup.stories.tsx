@@ -1,8 +1,13 @@
 import type { Meta, StoryObj } from '@storybook/react';
 import { useState } from 'react';
+import type { ReactElement } from 'react';
 import { RadioGroup, RadioGroupOption } from './RadioGroup';
 
-function RadioGroupDemo({ error = false }: { error?: boolean }) {
+interface RadioGroupDemoProps {
+  error?: boolean;
+}
+
+function RadioGroupDemo({ error = false }: RadioGroupDemoProps): ReactElement {
   const [value, setValue] = useState('calm');
 
   return (

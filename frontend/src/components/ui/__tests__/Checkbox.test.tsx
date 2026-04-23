@@ -4,8 +4,8 @@ import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { Checkbox } from '../Checkbox';
 
-describe('Checkbox', () => {
-  it('toggles when the label is clicked', async () => {
+describe('Checkbox', (): void => {
+  it('toggles when the label is clicked', async (): Promise<void> => {
     const handleChange = vi.fn();
     const user = userEvent.setup();
 
@@ -20,12 +20,12 @@ describe('Checkbox', () => {
     expect(handleChange).toHaveBeenCalled();
   });
 
-  it('exposes invalid state for wrapper-owned errors', () => {
+  it('exposes invalid state for wrapper-owned errors', (): void => {
     render(<Checkbox aria-label="Weekly planning summary" checked={false} invalid readOnly />);
     expect(screen.getByRole('checkbox')).toHaveAttribute('aria-invalid', 'true');
   });
 
-  it('supports mixed indeterminate state', () => {
+  it('supports mixed indeterminate state', (): void => {
     render(<Checkbox aria-label="Weekly planning summary" checked={false} indeterminate readOnly />);
 
     expect(screen.getByRole('checkbox')).toHaveAttribute('aria-checked', 'mixed');

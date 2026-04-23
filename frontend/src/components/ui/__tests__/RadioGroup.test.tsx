@@ -4,8 +4,8 @@ import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { RadioGroup, RadioGroupOption } from '../RadioGroup';
 
-describe('RadioGroup', () => {
-  it('changes selected option', async () => {
+describe('RadioGroup', (): void => {
+  it('changes selected option', async (): Promise<void> => {
     const handleChange = vi.fn();
     const user = userEvent.setup();
 
@@ -33,15 +33,16 @@ describe('RadioGroup', () => {
     expect(handleChange).toHaveBeenCalled();
   });
 
-  it('renders group errors', () => {
+  it('renders group errors', (): void => {
     render(
       <RadioGroup error="Choose one coaching tone." legend="Coaching tone">
-        <RadioGroupOption checked={true} label="Calm" name="coaching-tone" value="calm" onChange={() => {}} />
+        <RadioGroupOption checked={true} label="Calm" invalid name="coaching-tone" value="calm" onChange={(): void => {}} />
       </RadioGroup>
     );
 
     expect(screen.getByRole('group')).toHaveAccessibleDescription('Choose one coaching tone.');
     expect(screen.getByRole('group').getAttribute('aria-describedby')).not.toMatch(/\s/);
+    expect(screen.getByRole('radio', { name: 'Calm' })).toHaveAttribute('aria-invalid', 'true');
     expect(screen.getByText('Choose one coaching tone.')).toHaveAttribute('role', 'alert');
   });
 });

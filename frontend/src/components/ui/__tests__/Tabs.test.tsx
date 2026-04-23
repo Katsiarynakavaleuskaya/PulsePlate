@@ -1,11 +1,12 @@
 /** @vitest-environment jsdom */
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
+import { act } from 'react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
 import { Tabs, TabsList, TabsPanel, TabsPanels, TabsTrigger } from '../Tabs';
 
-describe('Tabs', () => {
-  it('switches panels on click', async () => {
+describe('Tabs', (): void => {
+  it('switches panels on click', async (): Promise<void> => {
     const user = userEvent.setup();
 
     render(
@@ -25,12 +26,19 @@ describe('Tabs', () => {
       </Tabs>
     );
 
+    const overviewTab = screen.getByRole('tab', { name: 'Overview' });
+    const statesTab = screen.getByRole('tab', { name: 'States' });
+
+    expect(overviewTab).toHaveAttribute('aria-selected', 'true');
+    expect(statesTab).toHaveAttribute('aria-selected', 'false');
     expect(screen.getByText('Overview panel')).toBeInTheDocument();
     await user.click(screen.getByRole('tab', { name: 'States' }));
+    expect(overviewTab).toHaveAttribute('aria-selected', 'false');
+    expect(statesTab).toHaveAttribute('aria-selected', 'true');
     expect(screen.getByText('States panel')).toBeInTheDocument();
   });
 
-  it('supports keyboard navigation', async () => {
+  it('supports keyboard navigation', async (): Promise<void> => {
     const user = userEvent.setup();
 
     render(
@@ -52,8 +60,12 @@ describe('Tabs', () => {
 
     const firstTab = screen.getByRole('tab', { name: 'Overview' });
     firstTab.focus();
-    await user.keyboard('{ArrowRight}');
+    await act(async () => {
+      await user.keyboard('{ArrowRight}');
+    });
 
-    expect(screen.getByRole('tab', { name: 'States' })).toHaveAttribute('aria-selected', 'true');
+    await waitFor(() => {
+      expect(screen.getByRole('tab', { name: 'States' })).toHaveAttribute('aria-selected', 'true');
+    });
   });
 });

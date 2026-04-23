@@ -1,4 +1,4 @@
-import type { PropsWithChildren } from 'react';
+import type { PropsWithChildren, ReactElement } from 'react';
 import {
   Tab as HeadlessTab,
   TabGroup,
@@ -30,7 +30,7 @@ interface TabsPanelProps extends PropsWithChildren {
   className?: string;
 }
 
-export function Tabs({ children, defaultIndex = 0, selectedIndex, onChange }: TabsProps) {
+export function Tabs({ children, defaultIndex = 0, selectedIndex, onChange }: TabsProps): ReactElement {
   return (
     <TabGroup defaultIndex={defaultIndex} selectedIndex={selectedIndex} onChange={onChange}>
       {children}
@@ -38,7 +38,7 @@ export function Tabs({ children, defaultIndex = 0, selectedIndex, onChange }: Ta
   );
 }
 
-export function TabsList({ children, className = '' }: TabsListProps) {
+export function TabsList({ children, className = '' }: TabsListProps): ReactElement {
   return (
     <HeadlessTabList
       className={[
@@ -53,7 +53,7 @@ export function TabsList({ children, className = '' }: TabsListProps) {
   );
 }
 
-export function TabsTrigger({ children, className = '', disabled = false }: TabsTriggerProps) {
+export function TabsTrigger({ children, className = '', disabled = false }: TabsTriggerProps): ReactElement {
   return (
     <HeadlessTab
       className={({ selected }) =>
@@ -75,11 +75,11 @@ export function TabsTrigger({ children, className = '', disabled = false }: Tabs
   );
 }
 
-export function TabsPanels({ children, className = '' }: TabsPanelsProps) {
+export function TabsPanels({ children, className = '' }: TabsPanelsProps): ReactElement {
   return <HeadlessTabPanels className={['mt-4', className].join(' ').trim()}>{children}</HeadlessTabPanels>;
 }
 
-export function TabsPanel({ children, className = '' }: TabsPanelProps) {
+export function TabsPanel({ children, className = '' }: TabsPanelProps): ReactElement {
   return (
     <HeadlessTabPanel
       className={[

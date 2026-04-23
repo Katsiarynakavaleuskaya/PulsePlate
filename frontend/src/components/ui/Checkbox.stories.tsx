@@ -1,20 +1,22 @@
 import type { Meta, StoryObj } from '@storybook/react';
 import { useState } from 'react';
+import type { ReactElement } from 'react';
 import { Checkbox } from './Checkbox';
 
-function CheckboxDemo({
-  disabled = false,
-  error = false,
-}: {
+interface CheckboxDemoProps {
   disabled?: boolean;
   error?: boolean;
-}) {
+}
+
+function CheckboxDemo({ disabled = false, error = false }: CheckboxDemoProps): ReactElement {
   const [checked, setChecked] = useState(true);
+  const errorId = error ? 'checkbox-story-error' : undefined;
 
   return (
     <div className="w-[360px] space-y-2">
       <label className="flex items-start gap-3 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] px-3 py-3">
         <Checkbox
+          aria-describedby={errorId}
           checked={checked}
           disabled={disabled}
           invalid={error}
@@ -27,7 +29,11 @@ function CheckboxDemo({
           </span>
         </span>
       </label>
-      {error ? <p className="text-sm text-[var(--color-error)]">Consent is required before enabling reminders.</p> : null}
+      {error ? (
+        <p className="text-sm text-[var(--color-error)]" id={errorId}>
+          Consent is required before enabling reminders.
+        </p>
+      ) : null}
     </div>
   );
 }

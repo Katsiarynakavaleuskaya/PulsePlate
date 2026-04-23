@@ -1,5 +1,6 @@
 import { useId } from 'react';
-import type { InputHTMLAttributes, PropsWithChildren, ReactNode } from 'react';
+import type { InputHTMLAttributes, PropsWithChildren, ReactElement, ReactNode } from 'react';
+import { hasInvalidState } from './fieldState';
 
 interface RadioGroupProps extends PropsWithChildren {
   legend: ReactNode;
@@ -18,7 +19,7 @@ export function RadioGroup({
   error,
   legend,
   orientation = 'vertical',
-}: RadioGroupProps) {
+}: RadioGroupProps): ReactElement {
   const generatedId = useId();
   const errorId = error ? `radio-group-${generatedId}-error` : undefined;
 
@@ -43,7 +44,9 @@ export function RadioGroupOption({
   invalid = false,
   className = '',
   ...props
-}: RadioGroupOptionProps) {
+}: RadioGroupOptionProps): ReactElement {
+  const isInvalid = hasInvalidState(props['aria-invalid'], invalid);
+
   return (
     <label
       className={[
@@ -58,6 +61,7 @@ export function RadioGroupOption({
     >
       <input
         {...props}
+        aria-invalid={isInvalid || undefined}
         className="mt-0.5 h-4 w-4 border-[var(--color-border)] text-[var(--color-primary)] focus:ring-[var(--color-primary)]"
         type="radio"
       />

@@ -947,7 +947,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (design-system productization and governance)
   - Target PR: PR #1497 (`docs(design): add coordinator-first design runtime system web-ios runbook`) -> PR #1504 (`feat(frontend): add missing governed UI primitives v1`)
-  - Status: 🛠️ PR-0 merged; PR-1 missing governed primitives lane in draft PR #1504
+  - Status: 🛠️ PR-0 merged; PR-1 missing governed primitives lane awaiting review in PR #1504
   - Area: docs / orchestration / design-system / frontend / ios / storybook
   - Finding Type: coordinator-owned epic bootstrap and sequencing contract
   - Reason: PulsePlate already has governed design-runtime, token-pipeline,
