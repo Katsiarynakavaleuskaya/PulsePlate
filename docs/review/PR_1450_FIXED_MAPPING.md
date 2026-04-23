@@ -44,6 +44,16 @@ Disposition: FIXED
 Commit: f1f103381
 Evidence: `tests/test_feedback_api.py` keeps tier-guard tests status-only and moves auth error payload checks into `test_auth_error_payload_contract`.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1450#pullrequestreview-4163822841 -> 7664db39c
+Disposition: FIXED
+Commit: 7664db39c
+Evidence: `docs/review/PR_1450_FIXED_MAPPING.md` now keeps the standard unchecked merge-readiness checklist directly under `## Merge Readiness`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1450#discussion_r3131982809 -> 7664db39c
+Disposition: FIXED
+Commit: 7664db39c
+Evidence: `docs/review/PR_1450_FIXED_MAPPING.md` now keeps the standard unchecked merge-readiness checklist directly under `## Merge Readiness`.
+
 ## Merge Readiness
 
 - [ ] Final current-head CI checks PASS
