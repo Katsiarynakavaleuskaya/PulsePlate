@@ -7,12 +7,6 @@
 ## Fixed in Commit Mapping
 - No actionable review comments
 
-Disposition: NOT-A-BUG
-Evidence: Draft PR opened with no review comments at artifact creation time.
-Reason: No actionable human or bot review comments were present when the
-canonical artifact was created. This section must be updated after CodeRabbit,
-Sourcery, Cubic, or human review activity.
-
 ## Merge Readiness
 
 - [ ] All required checks pass
