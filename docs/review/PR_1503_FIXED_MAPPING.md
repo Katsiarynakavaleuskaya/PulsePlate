@@ -17,6 +17,7 @@ Record every actionable human/bot disposition here before resolving threads on G
 Disposition: FIXED
 Commit: 39d77cf8c
 Evidence: `pytest -q tests/test_check_docker_provenance_attestation.py tests/test_python_supply_chain_controls.py` -> 54 passed. The fix commit hardens the helper timeout, parser, failure evidence path, workflow verification condition, workflow-contract tests, ADR markdown links, ADR evidence anchors, and ledger traceability.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1503#pullrequestreview-4163080758 -> 39d77cf8c
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1503#discussion_r3131356723 -> 39d77cf8c
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1503#discussion_r3131356747 -> 39d77cf8c
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1503#discussion_r3131356752 -> 39d77cf8c
@@ -40,19 +41,19 @@ Merge-readiness contract:
 `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md:153-216`.
 
 - [ ] Mandatory wait-window satisfied (final check pass completed, then waited >=1 review cycle after latest bot/review activity)
-  Evidence: pending initial review and current-head CI cycle.
+  Evidence: latest bot/review activity was the post-ready review cycle on April 23, 2026; coordinator reran checks and delayed merge claim until after the subsequent push + CI cycle.
 - [ ] Current-head CI is green for PR branch head
-  Evidence: pending current-head GitHub checks after PR open.
+  Evidence: the next PR head after this governance-evidence update still needs a green CI cycle before merge claim.
 - [ ] Required checks complete (no pending jobs)
-  Evidence: pending current-head GitHub checks after PR open.
-- [ ] All review threads resolved on GitHub after disposition updates
-  Evidence: pending GitHub thread resolution after latest mapping update.
-- [ ] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
-  Evidence: CodeRabbit/Sourcery/Codex comments mapped above; pending final bot recheck after push.
+  Evidence: the next PR head after this governance-evidence update still needs a completed green CI cycle before merge claim.
+- [x] All review threads resolved on GitHub after disposition updates
+  Evidence: GraphQL review-thread check returned `0` unresolved threads after coordinator resolution pass.
+- [x] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
+  Evidence: Sourcery, CodeRabbit, and Codex actionables are mapped above, including review-level Sourcery URL `#pullrequestreview-4163080758`.
 - [x] Pre-commit green on latest pushed head
-  Evidence: `pre-commit run --all-files` passed before commit `0b6ea053e`.
-- [ ] `make verify` green on latest pushed head
-  Evidence: pending final local gate on latest pushed head.
+  Evidence: `pre-commit run --all-files` passed on the governance-evidence tree before push.
+- [x] `make verify` green on latest pushed head
+  Evidence: launchd-supervised `make verify` completed with exit `0` on the governance-evidence tree before push; earlier attached runs were SIGTERM-killed by the local session during `diff-cov`, not by test failures.
 - [x] Mandatory post-open `qa-engineer-agent -> bug-hunter` pass completed
   Evidence: local coordinator lane findings captured below and fixed before ready-for-review cycle.
 
