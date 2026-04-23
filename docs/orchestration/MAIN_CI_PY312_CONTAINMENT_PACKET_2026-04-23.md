@@ -2,7 +2,7 @@
 
 Date: 2026-04-23
 Branch: `codex/main-py312-containment`
-Worktree: `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean__main_py312_containment`
+Worktree: isolated local worktree, not committed as a repo-specific path.
 Base: `origin/main`
 
 ## Coordinator Start

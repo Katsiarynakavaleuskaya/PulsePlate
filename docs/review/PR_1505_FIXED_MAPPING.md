@@ -6,13 +6,16 @@ Date: 2026-04-23
 
 ## Discussion Thread Pass
 
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
+
 - Status: no actionable review comments or review threads existed when this
   artifact was created.
 - Current implementation commit: `d9fa18f42`.
 
-## Fixed In Commit Mapping
+## Fixed in Commit Mapping
 
-- No actionable review comments yet.
+- No actionable review comments
 
 ## Initial Evidence
 
@@ -29,3 +32,12 @@ Date: 2026-04-23
 
 - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p2-py312-xdist-root-cause-hardening`
   tracks root-cause xdist hardening after this containment lane.
+
+## Merge Readiness
+
+- [ ] Final check pass completed after latest bot/review activity.
+- [ ] Waited at least one review cycle before merge.
+- Latest bot/review activity currently tracked: CodeRabbit review comments at
+  2026-04-23T13:44:14Z.
+- Required wait-window rule: after the latest bot/review activity, perform one
+  final check pass and wait at least one review cycle before merge.
