@@ -17,6 +17,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.middleware.api_tiers import TEST_KEY_PRO, derive_subject_id_from_api_key
+from app.security.web_session import issue_web_session
 
 
 class TestRAGFeedbackSubmission:
@@ -287,17 +288,81 @@ class TestRAGFeedbackAuthentication:
 
         response = self.client.post(self.url, json=payload)
 
-        assert response.status_code in (401, 403)
+        assert response.status_code == 401
 
-    def test_accepts_any_valid_api_key(self) -> None:
-        """Any valid API key is accepted (not tier-specific)."""
-        # Use a different key than TEST_KEY_PRO
+    def test_accepts_valid_configured_api_key(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Configured API keys are accepted (not tier-specific)."""
+        monkeypatch.setenv("PRO_API_KEYS", "feedback-valid-key")
+        headers = {"X-API-Key": "feedback-valid-key"}
+        payload = {"query": "test with different key"}
+
+        response = self.client.post(self.url, json=payload, headers=headers)
+
+        assert response.status_code == 201
+
+    def test_rejects_unconfigured_api_key(self) -> None:
+        """Unknown API key is rejected."""
         headers = {"X-API-Key": "any-valid-key-for-feedback"}
         payload = {"query": "test with different key"}
 
         response = self.client.post(self.url, json=payload, headers=headers)
 
-        # Should succeed with any key (not require PRO/VIP tier)
+        assert response.status_code == 401
+
+    def test_rejects_blank_api_key(self) -> None:
+        """Blank API key header is rejected."""
+        headers = {"X-API-Key": "   "}
+        payload = {"query": "test with blank key"}
+
+        response = self.client.post(self.url, json=payload, headers=headers)
+
+        assert response.status_code == 401
+
+    def test_rejects_cookie_only_auth(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Feedback auth remains header-only even if a valid web session cookie is present."""
+        monkeypatch.setenv("SERVER_SALT", "StrongServerSaltForTests123456789!")
+        issued = issue_web_session(api_key=TEST_KEY_PRO, tier="PRO")
+        payload = {"query": "cookie-only auth attempt"}
+        self.client.cookies.set("pulseplate_session", issued.token)
+        response = self.client.post(self.url, json=payload)
+        self.client.cookies.clear()
+
+        assert response.status_code == 401
+
+    @pytest.mark.parametrize(
+        ("headers", "expected_detail"),
+        [
+            ({}, "API key required"),
+            ({"X-API-Key": "   "}, "API key required"),
+            ({"X-API-Key": "any-valid-key-for-feedback"}, "Invalid API key"),
+        ],
+    )
+    def test_auth_error_payload_contract(
+        self,
+        headers: dict[str, str],
+        expected_detail: str,
+    ) -> None:
+        """Auth error bodies stay stable in a dedicated response contract test."""
+        response = self.client.post(
+            self.url,
+            json={"query": "auth error payload contract"},
+            headers=headers,
+        )
+
+        assert response.status_code == 401
+        assert response.json() == {"detail": expected_detail}
+
+    def test_query_param_cannot_raise_feedback_required_tier(self) -> None:
+        """Feedback route ignores injected required_tier query params."""
+        headers = {"X-API-Key": TEST_KEY_PRO}
+        payload = {"query": "free-tier feedback auth should stay stable"}
+
+        response = self.client.post(
+            f"{self.url}?required_tier=VIP",
+            json=payload,
+            headers=headers,
+        )
+
         assert response.status_code == 201
 
 

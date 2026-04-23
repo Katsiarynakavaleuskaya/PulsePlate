@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
-"""VIP auth and adapter edge tests to raise coverage for app/routers/vip.py."""
+"""VIP/auth adapter edge tests for CI smoke diff coverage."""
+
+import asyncio
 
 import pytest
 from fastapi import HTTPException
@@ -73,6 +75,57 @@ def test_require_vip_tier_with_vip_key_returns_2xx(
     """
     response = client.get("/api/v1/vip/health", headers=vip_headers)
     assert response.status_code == 200
+
+
+def test_require_valid_api_key_header_dependency_edges(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.middleware.api_tiers import (
+        TEST_KEY_PRO,
+        TEST_KEY_VIP,
+        SubscriptionTier,
+        require_valid_api_key,
+    )
+
+    monkeypatch.setenv("APP_ENV", "local")
+    monkeypatch.setenv("DEBUG", "true")
+
+    free_dependency = require_valid_api_key()
+    assert free_dependency(x_api_key=f" {TEST_KEY_PRO} ") == TEST_KEY_PRO
+
+    with pytest.raises(HTTPException) as missing:
+        free_dependency(x_api_key=None)
+    assert missing.value.status_code == 401
+    assert missing.value.detail == "API key required"
+
+    with pytest.raises(HTTPException) as blank:
+        free_dependency(x_api_key="   ")
+    assert blank.value.status_code == 401
+    assert blank.value.detail == "API key required"
+
+    unknown_token = "not-configured-token"
+    with pytest.raises(HTTPException) as invalid:
+        free_dependency(x_api_key=unknown_token)
+    assert invalid.value.status_code == 401
+    assert invalid.value.detail == "Invalid API key"
+
+    vip_dependency = require_valid_api_key(required_tier=SubscriptionTier.VIP)
+    with pytest.raises(HTTPException) as insufficient:
+        vip_dependency(x_api_key=TEST_KEY_PRO)
+    assert insufficient.value.status_code == 401
+    assert "VIP tier access" in insufficient.value.detail
+
+    assert vip_dependency(x_api_key=TEST_KEY_VIP) == TEST_KEY_VIP
+
+
+def test_get_feedback_user_derives_subject_from_validated_key() -> None:
+    from app.middleware.api_tiers import TEST_KEY_PRO, derive_subject_id_from_api_key
+    from app.routers.feedback import get_feedback_user
+
+    user = asyncio.run(get_feedback_user(api_key=TEST_KEY_PRO))
+
+    assert user.api_key == TEST_KEY_PRO
+    assert user.user_id == derive_subject_id_from_api_key(TEST_KEY_PRO)
 
 
 def test_require_api_key_dev_legacy_nonprod_and_prod_allow(
