@@ -3,9 +3,9 @@
 exports[`LiveProgressIndicator > renders live status and tracks click with enriched payload 1`] = `
 <section
   aria-label="Live progress indicator"
-  class="rounded-xl border p-5 space-y-3 shadow-sm"
+  class="space-y-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5 shadow-sm"
+  data-state="live"
   data-variant="emphasized"
-  style="background-color: var(--color-surface); border-color: var(--color-border);"
 >
   <div
     class="flex items-center justify-between gap-3"
@@ -18,39 +18,41 @@ exports[`LiveProgressIndicator > renders live status and tracks click with enric
         class="h-2.5 w-2.5 rounded-full bg-[var(--color-success)] animate-pulse"
       />
       <p
-        class="text-sm font-medium text-text"
+        class="text-sm font-medium text-[var(--color-text)]"
       >
         Live updates on
       </p>
     </div>
     <p
       aria-label="Live event timestamp"
-      class="text-xs text-muted"
+      class="text-xs text-[var(--color-text-muted)]"
     >
       7:00:00 PM
     </p>
   </div>
   <p
-    class="text-xs text-muted"
+    class="text-xs text-[var(--color-text-muted)]"
   >
     If realtime is unavailable, PulsePlate stays usable and keeps CTA flow active.
   </p>
-  <a
-    class="inline-flex rounded-lg bg-primary px-5 py-2.5 text-sm font-semibold text-white"
-    data-discover="true"
-    href="/setup"
-  >
-    Refresh setup inputs
-  </a>
+  <div>
+    <a
+      class="rounded-xl font-semibold transition-all active:scale-95 disabled:cursor-not-allowed disabled:opacity-60 bg-[var(--color-primary)] text-[var(--color-primary-foreground)] hover:opacity-95 hover:shadow-md min-h-[44px] px-6 py-3 text-sm  inline-flex rounded-lg px-5 py-2.5"
+      data-discover="true"
+      href="/setup"
+    >
+      Refresh setup inputs
+    </a>
+  </div>
 </section>
 `;
 
 exports[`LiveProgressIndicator > renders static fallback and tracks impressions 1`] = `
 <section
   aria-label="Live progress indicator"
-  class="rounded-xl border p-4 space-y-3"
+  class="space-y-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4"
+  data-state="static"
   data-variant="compact"
-  style="background-color: var(--color-surface); border-color: var(--color-border);"
 >
   <div
     class="flex items-center justify-between gap-3"
@@ -63,23 +65,25 @@ exports[`LiveProgressIndicator > renders static fallback and tracks impressions 
         class="h-2.5 w-2.5 rounded-full bg-[var(--color-warning)]"
       />
       <p
-        class="text-sm font-medium text-text"
+        class="text-sm font-medium text-[var(--color-text)]"
       >
         Static fallback
       </p>
     </div>
   </div>
   <p
-    class="text-xs text-muted"
+    class="text-xs text-[var(--color-text-muted)]"
   >
     If realtime is unavailable, PulsePlate stays usable and keeps CTA flow active.
   </p>
-  <a
-    class="inline-flex rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white"
-    data-discover="true"
-    href="/progress"
-  >
-    Open progress live
-  </a>
+  <div>
+    <a
+      class="rounded-xl font-semibold transition-all active:scale-95 disabled:cursor-not-allowed disabled:opacity-60 bg-[var(--color-primary)] text-[var(--color-primary-foreground)] hover:opacity-95 hover:shadow-md min-h-[44px] px-6 py-3 text-sm  inline-flex rounded-lg px-4 py-2"
+      data-discover="true"
+      href="/progress"
+    >
+      Open progress live
+    </a>
+  </div>
 </section>
 `;

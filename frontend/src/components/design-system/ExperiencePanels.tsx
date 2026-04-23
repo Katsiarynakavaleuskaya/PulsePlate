@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { ChangeEvent, ReactElement } from 'react';
 import {
   Alert,
+  Badge,
   Button,
   Checkbox,
   DropdownMenu,
@@ -9,10 +10,14 @@ import {
   DropdownMenuItems,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  Hero,
   Input,
+  ProgressIndicator,
   RadioGroup,
   RadioGroupOption,
   Select,
+  StatsCard,
+  Stepper,
   Tabs,
   TabsList,
   TabsPanel,
@@ -193,6 +198,54 @@ export function ComponentShowcasePanel({
             </TabsPanel>
           </TabsPanels>
         </Tabs>
+      </div>
+      <div className="mt-4 grid gap-4 xl:grid-cols-2">
+        <div className="space-y-4 rounded-2xl border border-white/8 bg-white/[0.02] p-4">
+          <p className="text-sm font-semibold text-white">Normalized families</p>
+          <div className="flex flex-wrap gap-3">
+            <Badge tone="premium">VIP</Badge>
+            <Badge tone="success" variant="subtle">Synced</Badge>
+            <Badge tone="warning" variant="outline">Needs review</Badge>
+          </div>
+          <ProgressIndicator
+            action={<Button size="sm">Open progress</Button>}
+            description="Shared progress anatomy now sits under the existing live adapter."
+            label="Live updates on"
+            state="live"
+            timestampLabel="7:00 PM"
+            variant="emphasized"
+          />
+          <div className="grid gap-3 sm:grid-cols-3">
+            <StatsCard align="center" label="Goal" value="1850" unit="kcal/day" />
+            <StatsCard align="center" label="Protein" value="120" unit="g/day" />
+            <StatsCard align="center" label="Water" value="2.5" unit="L/day" />
+          </div>
+          <Stepper
+            currentStep={1}
+            steps={[
+              { id: 'profile', label: 'Profile', description: 'Nutrition inputs' },
+              { id: 'results', label: 'Results', description: 'Review targets' },
+            ]}
+          />
+        </div>
+        <div className="space-y-4 rounded-2xl border border-white/8 bg-white/[0.02] p-4">
+          <p className="text-sm font-semibold text-white">Shared hero shell</p>
+          <Hero
+            chips={
+              <>
+                <span className="rounded-full bg-white/[0.08] px-4 py-2 text-xs font-semibold text-white/88">
+                  Session Connected
+                </span>
+                <span className="rounded-full bg-white/[0.08] px-4 py-2 text-xs font-semibold text-white/88">
+                  Premium Active
+                </span>
+              </>
+            }
+            description="The route keeps its product logic while the governed hero shell stays reusable."
+            eyebrow="Calm control panel"
+            title="PulsePlate Home"
+          />
+        </div>
       </div>
     </PanelShell>
   );
