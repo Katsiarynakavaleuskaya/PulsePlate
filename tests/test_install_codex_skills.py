@@ -114,6 +114,30 @@ def test_install_codex_skills_supports_explicit_compat_target(tmp_path: Path) ->
     assert not installed_skill.exists()
 
 
+def test_install_codex_skills_copy_cybersec_copies_only_cybersecurity_bundle(
+    tmp_path: Path,
+) -> None:
+    """--copy-cybersec should copy cybersecurity skills while keeping PulsePlate skills linked."""
+
+    install_result = _run_installer(tmp_path, "--copy-cybersec")
+    agents_skills_root = tmp_path / ".agents" / "skills"
+    pulseplate_skill = agents_skills_root / "pulseplate-workflow"
+    cyber_skill = agents_skills_root / "implementing-diamond-model-analysis"
+
+    assert "Linked: pulseplate-workflow" in install_result.stdout
+    assert "Copied: implementing-diamond-model-analysis" in install_result.stdout
+    assert pulseplate_skill.is_symlink()
+    assert cyber_skill.is_dir()
+    assert not cyber_skill.is_symlink()
+    assert (cyber_skill / ".pulseplate_codex_skill_source").read_text().strip() == str(
+        REPO_ROOT
+        / "tools"
+        / "cybersecurity_skills"
+        / "skills"
+        / "implementing-diamond-model-analysis"
+    )
+
+
 def test_install_codex_skills_compat_target_falls_back_to_home_codex_when_unset(
     tmp_path: Path,
 ) -> None:
@@ -144,6 +168,20 @@ def test_install_codex_skills_help_clarifies_compat_fallback_when_codex_home_is_
         "compat -> $CODEX_HOME/skills (or $HOME/.codex/skills when CODEX_HOME is unset)."
         in result.stdout
     )
+    assert "--copy-cybersec" in result.stdout
+
+
+def test_install_codex_skills_only_cybersec_copy_mode_copies_skill_without_symlink_target(
+    tmp_path: Path,
+) -> None:
+    """The dedicated cybersecurity copy path should produce copied skill folders."""
+
+    install_result = _run_installer(tmp_path, "--only-cybersec", "--copy-cybersec")
+    copied_skill = tmp_path / ".agents" / "skills" / "implementing-diamond-model-analysis"
+
+    assert "Copied: implementing-diamond-model-analysis" in install_result.stdout
+    assert copied_skill.is_dir()
+    assert not copied_skill.is_symlink()
 
 
 def test_install_codex_skills_explicit_dest_wins_over_target_regardless_of_order(

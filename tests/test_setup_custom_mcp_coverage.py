@@ -2,13 +2,14 @@
 Test coverage for setup_custom_mcp.py
 """
 
-import pytest
-import tempfile
 import json
-import os
-from unittest.mock import patch, mock_open, MagicMock
 from pathlib import Path
-from contextlib import suppress
+import sys
+import tempfile
+from unittest.mock import mock_open, patch
+
+import pytest
+
 import setup_custom_mcp
 
 
@@ -72,12 +73,15 @@ class TestSetupCustomMcpCoverage:
             mcp_config = json.load(f)
             assert "mcpServers" in mcp_config
             assert "pulseplate-chatgpt" in mcp_config["mcpServers"]
-            assert mcp_config["mcpServers"]["pulseplate-chatgpt"]["command"] == "python"
+            assert mcp_config["mcpServers"]["pulseplate-chatgpt"]["command"] == sys.executable
+            assert mcp_config["mcpServers"]["pulseplate-chatgpt"]["args"] == [
+                str(setup_custom_mcp.MCP_SERVER_PATH)
+            ]
 
         # Check environment file content
         with open(env_file, "r") as f:
             env_content = f.read()
-            assert "OPENAI_API_KEY" in env_content
+            assert "OPENAI_API_KEY=" not in env_content
             assert "MCP_ENABLED=true" in env_content
 
         # Check settings content
@@ -105,7 +109,7 @@ class TestSetupCustomMcpCoverage:
         assert "pulseplate-chatgpt" in mcp_call["mcpServers"]
 
         server_config = mcp_call["mcpServers"]["pulseplate-chatgpt"]
-        assert server_config["command"] == "python"
+        assert server_config["command"] == sys.executable
         assert "args" in server_config
         assert "env" in server_config
         assert "OPENAI_API_KEY" in server_config["env"]
@@ -196,17 +200,12 @@ class TestSetupCustomMcpCoverage:
                 with patch("builtins.open", mock_open()):
                     with patch("json.dump"):
                         with patch("builtins.print"):
-                            with patch("pathlib.Path.cwd") as mock_cwd:
-                                mock_home.return_value = Path("/fake/home")
-                                mock_cwd.return_value = Path("/fake/cwd")
+                            mock_home.return_value = Path("/fake/home")
 
-                                setup_custom_mcp.setup_custom_mcp(argv=[])
+                            setup_custom_mcp.setup_custom_mcp(argv=[])
 
-                                # Verify home directory was accessed
-                                mock_home.assert_called_once()
-
-                                # Verify current working directory was accessed
-                                mock_cwd.assert_called_once()
+                            # Verify home directory was accessed
+                            mock_home.assert_called_once()
 
     def test_json_serialization(self):
         """Test JSON serialization of configurations"""
@@ -230,3 +229,181 @@ class TestSetupCustomMcpCoverage:
                                     if len(call[1]) > 0 and "indent" in call[1]
                                 ]
                                 assert any(call[1]["indent"] == 2 for call in indent_calls)
+
+    def test_setup_custom_mcp_preserves_existing_mcp_servers_and_settings(self) -> None:
+        """Existing MCP servers and unrelated settings must survive setup."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            cursor_dir = temp_path / ".cursor"
+            cursor_dir.mkdir(parents=True, exist_ok=True)
+
+            (cursor_dir / "mcp.json").write_text(
+                json.dumps(
+                    {
+                        "mcpServers": {
+                            "figma": {"url": "https://mcp.figma.com/mcp"},
+                        }
+                    }
+                )
+            )
+            (cursor_dir / "settings.json").write_text(
+                json.dumps(
+                    {
+                        "mcp.servers": ["figma"],
+                        "editor.formatOnSave": True,
+                    }
+                )
+            )
+
+            with patch("pathlib.Path.home", return_value=temp_path):
+                with patch("pathlib.Path.cwd", return_value=temp_path):
+                    setup_custom_mcp.setup_custom_mcp(argv=["--force"])
+
+            mcp_config = json.loads((cursor_dir / "mcp.json").read_text())
+            assert "figma" in mcp_config["mcpServers"]
+            assert "pulseplate-chatgpt" in mcp_config["mcpServers"]
+
+            settings = json.loads((cursor_dir / "settings.json").read_text())
+            assert settings["editor.formatOnSave"] is True
+            assert "figma" in settings["mcp.servers"]
+            assert "pulseplate-chatgpt" in settings["mcp.servers"]
+
+    def test_setup_custom_mcp_preserves_existing_env_entries(self) -> None:
+        """Existing .env secrets should survive setup without being rewritten."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            cursor_dir = temp_path / ".cursor"
+            cursor_dir.mkdir(parents=True, exist_ok=True)
+            (cursor_dir / ".env").write_text("OTHER=value\nOPENAI_API_KEY=keepme\n")
+
+            with patch("pathlib.Path.home", return_value=temp_path):
+                with patch("pathlib.Path.cwd", return_value=temp_path):
+                    setup_custom_mcp.setup_custom_mcp(argv=["--force"])
+
+            env_lines = (cursor_dir / ".env").read_text().splitlines()
+            assert "OTHER=value" in env_lines
+            assert "OPENAI_API_KEY=keepme" in env_lines
+            assert "MCP_ENABLED=true" in env_lines
+
+            mcp_config = json.loads((cursor_dir / "mcp.json").read_text())
+            pulseplate_server = mcp_config["mcpServers"]["pulseplate-chatgpt"]
+            assert (
+                pulseplate_server["env"]["OPENAI_API_KEY"] == setup_custom_mcp.PLACEHOLDER_API_KEY
+            )
+
+            settings = json.loads((cursor_dir / "settings.json").read_text())
+            assert settings["cursor.ai.openaiApiKey"] == setup_custom_mcp.PLACEHOLDER_API_KEY
+
+    def test_setup_custom_mcp_upserts_env_keys_with_extra_whitespace(self) -> None:
+        """Whitespace around .env keys should not create duplicate managed entries."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            cursor_dir = temp_path / ".cursor"
+            cursor_dir.mkdir(parents=True, exist_ok=True)
+            (cursor_dir / ".env").write_text("OTHER=value\nMCP_ENABLED = false\n")
+
+            with patch("pathlib.Path.home", return_value=temp_path):
+                with patch("pathlib.Path.cwd", return_value=temp_path):
+                    setup_custom_mcp.setup_custom_mcp(argv=["--force"])
+
+            env_lines = (cursor_dir / ".env").read_text().splitlines()
+            assert env_lines.count("MCP_ENABLED=true") == 1
+            assert not any(line.startswith("MCP_ENABLED =") for line in env_lines)
+            assert "OTHER=value" in env_lines
+
+    def test_setup_custom_mcp_uses_repo_server_path_not_cwd(self) -> None:
+        """The generated MCP command path must stay anchored to the repo script."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            cursor_dir = temp_path / ".cursor"
+            cursor_dir.mkdir(parents=True, exist_ok=True)
+            off_repo_cwd = temp_path / "outside-repo"
+            off_repo_cwd.mkdir()
+
+            with patch("pathlib.Path.home", return_value=temp_path):
+                with patch("pathlib.Path.cwd", return_value=off_repo_cwd):
+                    setup_custom_mcp.setup_custom_mcp(argv=["--force"])
+
+            mcp_config = json.loads((cursor_dir / "mcp.json").read_text())
+            pulseplate_server = mcp_config["mcpServers"]["pulseplate-chatgpt"]
+            assert pulseplate_server["args"] == [str(setup_custom_mcp.MCP_SERVER_PATH)]
+
+    def test_setup_custom_mcp_preserves_existing_api_key_across_managed_surfaces(self) -> None:
+        """A configured key must survive reruns across mcp.json, .env, and settings."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            cursor_dir = temp_path / ".cursor"
+            cursor_dir.mkdir(parents=True, exist_ok=True)
+            existing_key = "keepme"
+
+            (cursor_dir / "mcp.json").write_text(
+                json.dumps(
+                    {
+                        "mcpServers": {
+                            "pulseplate-chatgpt": {
+                                "command": "/old/python",
+                                "args": ["/old/path/mcp_pulseplate_server.py"],
+                                "env": {"OPENAI_API_KEY": existing_key},
+                            }
+                        }
+                    }
+                )
+            )
+            (cursor_dir / ".env").write_text(
+                f"OPENAI_API_KEY={existing_key}\nMCP_ENABLED=false\nOTHER=value\n"
+            )
+            (cursor_dir / "settings.json").write_text(
+                json.dumps(
+                    {
+                        "cursor.ai.openaiApiKey": existing_key,
+                        "mcp.servers": ["pulseplate-chatgpt"],
+                    }
+                )
+            )
+
+            with patch("pathlib.Path.home", return_value=temp_path):
+                with patch("pathlib.Path.cwd", return_value=temp_path / "outside-repo"):
+                    setup_custom_mcp.setup_custom_mcp(argv=["--force"])
+
+            mcp_config = json.loads((cursor_dir / "mcp.json").read_text())
+            pulseplate_server = mcp_config["mcpServers"]["pulseplate-chatgpt"]
+            assert pulseplate_server["env"]["OPENAI_API_KEY"] == existing_key
+            assert pulseplate_server["args"] == [str(setup_custom_mcp.MCP_SERVER_PATH)]
+
+            env_lines = (cursor_dir / ".env").read_text().splitlines()
+            assert f"OPENAI_API_KEY={existing_key}" in env_lines
+            assert "MCP_ENABLED=false" in env_lines
+            assert "OTHER=value" in env_lines
+
+            settings = json.loads((cursor_dir / "settings.json").read_text())
+            assert settings["cursor.ai.openaiApiKey"] == existing_key
+
+    def test_setup_custom_mcp_does_not_promote_encrypted_env_key_to_runtime_configs(self) -> None:
+        """Encrypted .env storage must not be copied into runtime MCP/settings surfaces."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            cursor_dir = temp_path / ".cursor"
+            cursor_dir.mkdir(parents=True, exist_ok=True)
+            encrypted_key = "encrypted:gAAAABexample"
+
+            (cursor_dir / ".env").write_text(
+                f"OPENAI_API_KEY={encrypted_key}\nMCP_ENABLED=false\nOTHER=value\n"
+            )
+
+            with patch("pathlib.Path.home", return_value=temp_path):
+                with patch("pathlib.Path.cwd", return_value=temp_path / "outside-repo"):
+                    setup_custom_mcp.setup_custom_mcp(argv=["--force"])
+
+            mcp_config = json.loads((cursor_dir / "mcp.json").read_text())
+            pulseplate_server = mcp_config["mcpServers"]["pulseplate-chatgpt"]
+            assert (
+                pulseplate_server["env"]["OPENAI_API_KEY"] == setup_custom_mcp.PLACEHOLDER_API_KEY
+            )
+
+            env_lines = (cursor_dir / ".env").read_text().splitlines()
+            assert f"OPENAI_API_KEY={encrypted_key}" in env_lines
+            assert "MCP_ENABLED=false" in env_lines
+            assert "OTHER=value" in env_lines
+
+            settings = json.loads((cursor_dir / "settings.json").read_text())
+            assert settings["cursor.ai.openaiApiKey"] == setup_custom_mcp.PLACEHOLDER_API_KEY
