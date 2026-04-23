@@ -16,16 +16,14 @@ threads on GitHub.
 ## Fixed in Commit Mapping
 
 Disposition: FIXED
-Commit: `19537b47f207e3b9dab7c47dd68169bc0034d3b1`
+Commit: 19537b47f207e3b9dab7c47dd68169bc0034d3b1
 Evidence: `core/ai/insight_runtime.py` uses `decision.needs_rag` with a narrow route fallback; `core/rag/recursive_retrieval.py` documents the explicit hint-cap stop; `tests/test_rag_orchestration.py` documents the CI-surface depth-cap anchor.
-
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1506#pullrequestreview-4163433365 -> 19537b47f207e3b9dab7c47dd68169bc0034d3b1
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1506#discussion_r3131650729 -> 19537b47f207e3b9dab7c47dd68169bc0034d3b1
 
 Disposition: FIXED
-Commit: `f9d8d1031956d70f670100cdc09942d4f040a903`
+Commit: f9d8d1031956d70f670100cdc09942d4f040a903
 Evidence: `core/rag/orchestration.py` documents `recursive_optimization_hints`; `tests/test_core_ai_insight_runtime.py` removes the duplicate hint assertion; this artifact keeps local proof outside unchecked merge-readiness checklist items.
-
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1506#pullrequestreview-4163675713 -> f9d8d1031956d70f670100cdc09942d4f040a903
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1506#discussion_r3131846658 -> f9d8d1031956d70f670100cdc09942d4f040a903
 
