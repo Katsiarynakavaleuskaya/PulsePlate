@@ -465,9 +465,6 @@ def retrieve_recursive_context_structured(
             merged_chunks = candidate_chunks
             previous_confidence = confidence
 
-            if optimization_enabled and optimization_hints is not None and hop >= max_hops:
-                break
-
             if (
                 optimization_enabled
                 and (time.perf_counter() - start_ts) >= RAG_PIPELINE_TIMEOUT_SEC
@@ -477,6 +474,11 @@ def retrieve_recursive_context_structured(
                     OptimizationStopReason.LATENCY_BUDGET,
                     early_stop_key="early_stop_latency_budget",
                 )
+                break
+
+            if optimization_enabled and optimization_hints is not None and hop >= max_hops:
+                # Explicit hint caps should not prepare a refined query for a hop
+                # that the bounded loop will never execute.
                 break
 
             if len(refined_queries) - 1 >= MAX_REFINEMENT_PASSES:

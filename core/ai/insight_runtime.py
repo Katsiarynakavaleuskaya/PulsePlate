@@ -263,19 +263,15 @@ def _build_recursive_optimization_hints(
 ) -> RecursiveOptimizationHints | None:
     """Project existing route truth into bounded recursive optimization hints."""
 
-    route_type_value = getattr(getattr(decision, "route_type", None), "value", None)
-    if route_type_value is None:
-        route_type_value = getattr(decision, "route_type", None)
+    route_type = getattr(decision, "route_type", None)
+    route_type_value = getattr(route_type, "value", route_type)
     route_type_key = (
         route_type_value.upper() if isinstance(route_type_value, str) else route_type_value
     )
-    needs_rag = bool(
-        getattr(
-            decision,
-            "needs_rag",
-            route_type_key in {RouteType.RAG_FACTUAL.value, RouteType.DEEP_REASONING.value},
-        )
-    )
+    if hasattr(decision, "needs_rag"):
+        needs_rag = bool(decision.needs_rag)
+    else:
+        needs_rag = route_type_key in {RouteType.RAG_FACTUAL.value, RouteType.DEEP_REASONING.value}
     if not needs_rag:
         return None
 

@@ -382,6 +382,9 @@ class TestRetrieveAndValidateRag:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """CI contract surface must cover the hint-gated recursive depth cap."""
+        # This duplicates the recursive-unit anchor intentionally because CI
+        # diff-cover runs this orchestration surface, not the full recursive
+        # suite, before enforcing changed-line coverage.
         import core.rag.recursive_retrieval as recursive
 
         monkeypatch.setattr(recursive, "MAX_RAG_HOPS", 4)
