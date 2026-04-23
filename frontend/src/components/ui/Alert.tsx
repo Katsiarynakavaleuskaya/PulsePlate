@@ -1,5 +1,4 @@
 import type { ReactNode } from 'react';
-import { AlertCircle, AlertTriangle, CheckCircle2, Info } from 'lucide-react';
 
 export type AlertTone = 'info' | 'success' | 'warning' | 'error';
 
@@ -10,16 +9,15 @@ interface AlertProps {
   children: ReactNode;
 }
 
-const toneConfig: Record<AlertTone, { icon: typeof Info; accent: string; liveRole: 'status' | 'alert' }> = {
-  info: { icon: Info, accent: 'var(--color-info)', liveRole: 'status' },
-  success: { icon: CheckCircle2, accent: 'var(--color-success)', liveRole: 'status' },
-  warning: { icon: AlertTriangle, accent: 'var(--color-warning)', liveRole: 'alert' },
-  error: { icon: AlertCircle, accent: 'var(--color-error)', liveRole: 'alert' },
+const toneConfig: Record<AlertTone, { glyph: string; accent: string; liveRole: 'status' | 'alert' }> = {
+  info: { glyph: 'i', accent: 'var(--color-info)', liveRole: 'status' },
+  success: { glyph: 'ok', accent: 'var(--color-success)', liveRole: 'status' },
+  warning: { glyph: '!', accent: 'var(--color-warning)', liveRole: 'alert' },
+  error: { glyph: 'x', accent: 'var(--color-error)', liveRole: 'alert' },
 };
 
 export function Alert({ tone = 'info', title, action, children }: AlertProps) {
   const config = toneConfig[tone];
-  const Icon = config.icon;
 
   return (
     <div
@@ -29,7 +27,13 @@ export function Alert({ tone = 'info', title, action, children }: AlertProps) {
       style={{ borderLeftColor: config.accent, borderLeftWidth: '4px' }}
     >
       <div className="flex items-start gap-3">
-        <Icon aria-hidden="true" className="mt-0.5 h-5 w-5 flex-shrink-0" style={{ color: config.accent }} />
+        <span
+          aria-hidden="true"
+          className="mt-0.5 flex h-5 min-w-5 items-center justify-center rounded-full text-[10px] font-bold uppercase"
+          style={{ backgroundColor: config.accent, color: 'var(--color-surface)' }}
+        >
+          {config.glyph}
+        </span>
         <div className="min-w-0 flex-1 space-y-1">
           {title ? (
             <p className="text-sm font-semibold" style={{ color: config.accent }}>
