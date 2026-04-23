@@ -26,6 +26,8 @@ Current GitHub review surface for PR `#1451` was re-checked on `23 April 2026`:
 - CodeRabbit follow-up on the merge-ready push:
   `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1451#pullrequestreview-4164951419`,
   `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1451#discussion_r3133000980`
+- CodeRabbit follow-up on the later current-head push:
+  `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1451#pullrequestreview-4165116534`
 
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
@@ -66,6 +68,11 @@ Evidence: `tests/test_dependency_security_guard.py:200-203` and `tests/test_depe
 Disposition: NOT-A-BUG
 Evidence: `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1451#discussion_r3133000980`
 Reason: the aggregate CodeRabbit review shell wraps the same inline canonicalization follow-up already dispositioned as `FIXED`; it adds no separate defect after the inline comment is mapped with proof.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1451#pullrequestreview-4165116534 -> 136d7ff935b0394767bf77fec213d90382df9056
+Disposition: FIXED
+Commit: 136d7ff935b0394767bf77fec213d90382df9056
+Evidence: `tests/test_dependency_security_guard.py:179-189` adds `_pinned_versions_per_package(...)`, `tests/test_dependency_security_guard.py:385-397` now evaluates every pinned version against blocked-version specifiers, and `tests/test_dependency_security_guard.py:412-423` proves marker-split pins cannot hide a blocked version. The duplicate `pkg.lower()` regression path is fixed at `tests/test_dependency_security_guard.py:486-498`. Local proof before mapping: `python3 -m pytest -q tests/test_dependency_security_guard.py`.
 
 ## Merge Readiness
 
