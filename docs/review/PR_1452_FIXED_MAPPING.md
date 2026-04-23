@@ -14,6 +14,9 @@ Current GitHub review surface for PR `#1452` was re-checked on `23 April 2026`:
 - actionable Sourcery inline comments:
   `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1452#discussion_r3102744914`,
   `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1452#discussion_r3102744917`
+- actionable CodeRabbit review on current head:
+  `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1452#pullrequestreview-4166108944`,
+  `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1452#discussion_r3133940187`
 - non-actionable bot comments / reviews:
   `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1452#issuecomment-4270680767`
   (CodeRabbit rate-limit/system comment),
@@ -48,6 +51,16 @@ Evidence: `tests/test_dependency_security_guard.py:331-334` now catches `pytest.
 Disposition: FIXED
 Commit: 881240c82
 Evidence: REST merge-readiness gate reports the Sourcery aggregate review under this review URL. The underlying actionable items are the same Sourcery review obligations mapped above: `tests/test_dependency_security_guard.py:313-335` covers VCS/editable and filename diagnostics, and `tests/test_dependency_security_guard.py:331-334` narrows the exception type to `pytest.fail.Exception`. Local proof before mapping: `python3 -m pytest -q tests/test_dependency_security_guard.py`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1452#discussion_r3133940187 -> 76d2c1d3a
+Disposition: FIXED
+Commit: 76d2c1d3a
+Evidence: `docs/review/PR_1452_FIXED_MAPPING.md:61-70` keeps merge-readiness items unchecked until the final merge cycle and adds the mandatory wait-window checklist item requested by CodeRabbit. Local proof before mapping: `python3 scripts/ci/check_pr_body_phase2_gates.py --body "$(cat /tmp/pr1452_body.md)" --pr-number 1452`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1452#pullrequestreview-4166108944 -> 76d2c1d3a
+Disposition: FIXED
+Commit: 76d2c1d3a
+Evidence: aggregate CodeRabbit review wraps the inline readiness-governance finding at `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1452#discussion_r3133940187`, fixed by `docs/review/PR_1452_FIXED_MAPPING.md:61-70`. Local proof before mapping: `python3 scripts/ci/check_pr_body_phase2_gates.py --body "$(cat /tmp/pr1452_body.md)" --pr-number 1452`.
 
 ## Merge Readiness
 
