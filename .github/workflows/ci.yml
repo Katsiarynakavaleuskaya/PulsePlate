@@ -1160,7 +1160,9 @@ jobs:
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: junit-${{ matrix.python-version }}
-          path: tests/results.xml
+          path: |
+            tests/results.xml
+            tests/results-serial.xml
           if-no-files-found: ignore
           retention-days: 7
 
