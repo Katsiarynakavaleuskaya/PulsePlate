@@ -34,6 +34,12 @@ Commit: 0fdeaa100
 Evidence: `python3 scripts/ci/check_pr_body_phase2_gates.py --pr-number 1503 --body "$(gh pr view 1503 --json body --jq .body)"` -> passed; canonical artifact now enumerates bot/agent dispositions instead of `No actionable review comments`.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1503#discussion_r3131386028 -> 0fdeaa100
 
+Disposition: NOT-A-BUG
+Evidence: `docs/review/PR_1503_FIXED_MAPPING.md:43-48` keeps the actual final merge-cycle items (`Mandatory wait-window satisfied`, `Current-head CI is green`, `Required checks complete`) unchecked while only already-confirmed local items remain checked below.
+Reason: the CodeRabbit follow-up misread the current artifact state; the merge-cycle checkboxes it flagged are already unchecked on the latest head, so no code or docs change is required beyond recording the disposition.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1503#discussion_r3133574264
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1503#pullrequestreview-4165661733
+
 ## Merge Readiness
 
 Merge-readiness contract:
