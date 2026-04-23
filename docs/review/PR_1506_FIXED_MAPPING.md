@@ -15,12 +15,23 @@ threads on GitHub.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+Disposition: FIXED
+Commit: `19537b47f207e3b9dab7c47dd68169bc0034d3b1`
+Evidence: `core/ai/insight_runtime.py` now uses `decision.needs_rag`
+directly when available with a narrow route fallback;
+`core/rag/recursive_retrieval.py` documents why explicit hint caps stop before
+preparing an unused refined query; `tests/test_rag_orchestration.py` documents
+why the CI-surface depth-cap anchor intentionally complements the
+recursive-unit test.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1506#pullrequestreview-4163433365 -> 19537b47f207e3b9dab7c47dd68169bc0034d3b1
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1506#discussion_r3131650729 -> 19537b47f207e3b9dab7c47dd68169bc0034d3b1
 
 ## Initial Implementation Commits
 
 - `cce682990` - `feat(ai-runtime): add recursive speed hints`
 - `ded2c006f` - `docs(pr): add PR 1506 mapping`
+- `19537b47f` - `fix(ai-runtime): address recursive speed review`
 
 ## Merge Readiness
 
@@ -34,7 +45,7 @@ Merge-readiness contract:
 - [ ] After latest bot/review activity, perform a final check and wait at least
       one review cycle before merging
 - [x] `pre-commit run --all-files` green on latest local head
-      Local proof: passed before commit `cce682990`.
+      Local proof: passed before commit `19537b47f`.
 - [ ] `make verify` green on latest pushed head
       Local proof: `make verify` passed `verify-env`, `lint`, `typecheck`, and
       `test-fast`, then was manually stopped during the long full
