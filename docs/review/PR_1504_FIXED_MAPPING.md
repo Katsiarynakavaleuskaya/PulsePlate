@@ -42,16 +42,17 @@ Reason: CodeRabbit issue comment warning for generic docstring coverage is not a
 
 ## Merge Readiness
 
-- [ ] All required checks pass
-  Evidence target: `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md:179-213`
-- [ ] No unresolved review threads
-- [ ] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
-  Evidence target: `docs/orchestration/COORDINATOR_MERGE_READINESS_RULES.md:11-17`
-- [ ] Pre-commit green
-  Evidence: `pre-commit run --all-files` passed locally before initial push.
-- [ ] `make verify` green
-  Evidence target: `AGENTS.md:5-16`
-- [ ] Mandatory post-open `qa-engineer-agent -> bug-hunter` pass completed
-  Evidence target: `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md:98-103`
+- [x] All required checks pass
+  Evidence: Current-head CI for `3923ec1bf` passed all substantive required jobs; only the pre-final merge-readiness gate was red before this readiness artifact update.
+- [x] No unresolved review threads
+  Evidence: GitHub GraphQL review-thread query returned no unresolved threads after Sourcery, Codex, and CodeRabbit dispositions were mapped.
+- [x] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
+  Evidence: Sourcery, Codex, and CodeRabbit inline comments are mapped above; CodeRabbit issue-level docstring warning is classified as NOT-A-BUG with repo-gate evidence.
+- [x] Pre-commit green
+  Evidence: `pre-commit run --all-files` passed locally before the latest push; pre-push hooks also passed on `3923ec1bf`.
+- [x] `make verify` green
+  Evidence: `make verify` passed locally on 2026-04-23 with verify-env, flake8, mypy, smoke tests, full coverage run, and diff-cover.
+- [x] Mandatory post-open `qa-engineer-agent -> bug-hunter` pass completed
+  Evidence: Post-open QA and bug-hunter findings are mapped above to `babb035c1`, `6eb383fad`, `4fb326f52`, and `6d139bd3b`.
 
-Notes: This PR is ready for review. Merge-readiness is intentionally not claimed until current-head checks, review-thread disposition, `make verify`, and the strict merge-ready wrapper pass.
+Notes: Coordinator moved this lane to merge-ready evidence collection after local `make verify`, current-head CI, review-thread disposition, and bot-actionable mapping were complete. Final merge still requires the strict merge-ready wrapper to pass on the post-artifact-update head.
