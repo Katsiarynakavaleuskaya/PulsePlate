@@ -83,6 +83,14 @@ WORKFLOW_PRIVILEGED_PREFIXES: tuple[str, ...] = (
     "docs/orchestration/",
     "scripts/ci/",
 )
+MAIN_CI_DIAGNOSTIC_EXACT: tuple[str, ...] = (
+    ".github/workflows/ci.yml",
+    "scripts/ci/ci_risk_profile.py",
+    "scripts/ci/run_py312_main_shards.py",
+    "tests/test_ci_risk_profile.py",
+    "tests/test_ci_workflow_pr_size_governance_contract.py",
+    "tests/test_py312_main_shards.py",
+)
 GIT_DIFF_TIMEOUT_SECONDS = 60
 RISK_GROUP_PATTERNS: dict[str, tuple[str, ...]] = {
     "billing_entitlement": (
@@ -169,6 +177,7 @@ class RiskProfile:
     workflow_privileged: bool
     backend_shared: bool
     run_backend_blocking: bool
+    run_main_ci_diagnostic: bool
     run_security: bool
     run_openapi_sync: bool
     billing_entitlement: bool
@@ -188,6 +197,7 @@ class RiskProfile:
             "workflow_privileged": _bool_text(self.workflow_privileged),
             "backend_shared": _bool_text(self.backend_shared),
             "run_backend_blocking": _bool_text(self.run_backend_blocking),
+            "run_main_ci_diagnostic": _bool_text(self.run_main_ci_diagnostic),
             "run_security": _bool_text(self.run_security),
             "run_openapi_sync": _bool_text(self.run_openapi_sync),
             "billing_entitlement": _bool_text(self.billing_entitlement),
@@ -239,6 +249,11 @@ def _is_backend_shared(path: str) -> bool:
     )
 
 
+def _is_main_ci_diagnostic_surface(path: str) -> bool:
+    normalized = _normalize_path(path)
+    return normalized in MAIN_CI_DIAGNOSTIC_EXACT
+
+
 def _is_docs_path(path: str) -> bool:
     normalized = _normalize_path(path)
     return normalized.startswith(DOCS_PREFIXES) or normalized.endswith(".md")
@@ -285,6 +300,7 @@ def build_risk_profile(changed_files: list[str] | tuple[str, ...]) -> RiskProfil
             workflow_privileged=False,
             backend_shared=False,
             run_backend_blocking=False,
+            run_main_ci_diagnostic=False,
             run_security=False,
             run_openapi_sync=False,
             billing_entitlement=False,
@@ -325,6 +341,7 @@ def build_risk_profile(changed_files: list[str] | tuple[str, ...]) -> RiskProfil
         or group_hits["openapi_contract"]
         or group_hits["food_catalog"]
     )
+    run_main_ci_diagnostic = any(_is_main_ci_diagnostic_surface(path) for path in normalized_files)
     run_security = run_backend_blocking
     run_openapi_sync = run_backend_blocking
 
@@ -336,6 +353,7 @@ def build_risk_profile(changed_files: list[str] | tuple[str, ...]) -> RiskProfil
         workflow_privileged=workflow_privileged,
         backend_shared=backend_shared,
         run_backend_blocking=run_backend_blocking,
+        run_main_ci_diagnostic=run_main_ci_diagnostic,
         run_security=run_security,
         run_openapi_sync=run_openapi_sync,
         billing_entitlement=group_hits["billing_entitlement"],

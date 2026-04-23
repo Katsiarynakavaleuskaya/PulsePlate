@@ -2,22 +2,23 @@
 
 Date: 2026-04-23
 Branch: `codex/main-ci-py312-timeout-root-cause`
-Scope: `.github/workflows/ci.yml`, `scripts/ci/run_py312_main_shards.py`,
+Scope: `.github/workflows/ci.yml`, `scripts/ci/ci_risk_profile.py`,
+`scripts/ci/run_py312_main_shards.py`,
 `tests/test_ci_workflow_pr_size_governance_contract.py`,
-`tests/test_py312_main_shards.py`, and this packet/backlog wiring.
+`tests/test_ci_risk_profile.py`, `tests/test_py312_main_shards.py`, and this
+packet/backlog wiring.
 
 ## Coordinator Scope Lock
 
 Use the Tier 1 CI/CD lane order:
 
 1. `agent-coordinator`
-2. `dev-operator`
-3. `architecture-specialist`
+2. `architecture-specialist`
+3. `security-auditor`
 4. `backend-engineer`
-5. `security-auditor`
+5. `dev-operator`
 6. `qa-engineer-agent`
 7. `bug-hunter`
-8. `agent-coordinator`
 
 Mandatory post-open review remains `qa-engineer-agent -> bug-hunter`.
 
@@ -58,6 +59,11 @@ runner emits `PY312_SHARD_EXCEPTION index=<n> ...` before failing the job. This
 preserves the failing shard boundary for the next root-cause pass instead of
 turning the crash into an unscoped job-level failure.
 
+PR CI normally skips `test-main` because the comprehensive matrix is main-only.
+For this lane class, `ci_risk_profile.py` emits `run_main_ci_diagnostic=true`
+when the diff touches the Python 3.12 main-CI runner/workflow contract; `test-main`
+then runs on the PR head as an explicit diagnostic proof path.
+
 ## Non-Goals
 
 - No runtime API, OpenAPI, product UI, Cloudflare, deployment, or customer-facing
@@ -68,8 +74,18 @@ turning the crash into an unscoped job-level failure.
 ## Acceptance
 
 - Local workflow contract tests pass.
+- `make test-fast` passes before merge-ready.
+- `make cov-check` passes before merge-ready.
 - `make validate-changed` passes before push.
 - `pre-commit run --all-files` passes before push.
 - Draft PR current-head CI proves `test-main (3.12, 60)` completes without
   timeout and without xdist worker-node termination before any non-draft or
   merge-ready claim.
+
+For any `tests/**/*.py` changes made while fixing red CI:
+
+1. Identify the failing test cohort and the exact GitHub/local command.
+2. Reproduce the cohort locally before changing behavior where feasible.
+3. Fix code and tests in the same PR; update the nearest `AGENTS.md` only when
+   the test contract itself changes.
+4. Re-run `make test-fast` and `make cov-check` before merge-ready.

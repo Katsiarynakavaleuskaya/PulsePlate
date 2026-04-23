@@ -44,6 +44,7 @@ jobs:
       workflow_privileged: ${{ steps.risk_profile.outputs.workflow_privileged }}
       backend_shared: ${{ steps.risk_profile.outputs.backend_shared }}
       run_backend_blocking: ${{ steps.risk_profile.outputs.run_backend_blocking }}
+      run_main_ci_diagnostic: ${{ steps.risk_profile.outputs.run_main_ci_diagnostic }}
       run_security: ${{ steps.risk_profile.outputs.run_security }}
       run_openapi_sync: ${{ steps.risk_profile.outputs.run_openapi_sync }}
       billing_entitlement: ${{ steps.risk_profile.outputs.billing_entitlement }}
@@ -1008,7 +1009,8 @@ jobs:
 
   # Comprehensive testing for main branch
   test-main:
-    if: github.ref == 'refs/heads/main'
+    needs: [changes]
+    if: github.ref == 'refs/heads/main' || (github.event_name == 'pull_request' && needs.changes.outputs.run_main_ci_diagnostic == 'true')
     runs-on: ubuntu-latest
     timeout-minutes: ${{ matrix.timeout-minutes }}
     permissions:
@@ -1099,12 +1101,14 @@ jobs:
           echo "TEST_STEP_STARTED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
           python -c "import sys; print('PY', sys.version)"
           if [[ "$PYVER" == 3.12* ]]; then
-            echo "PY312_MAIN_SHARDS=2"
-            echo "PY312_MAIN_MAX_PARALLEL=2"
+            PY312_MAIN_SHARDS=2
+            PY312_MAIN_MAX_PARALLEL=2
+            echo "PY312_MAIN_SHARDS=${PY312_MAIN_SHARDS}"
+            echo "PY312_MAIN_MAX_PARALLEL=${PY312_MAIN_MAX_PARALLEL}"
             set +e
             time python scripts/ci/run_py312_main_shards.py \
-              --shard-count 2 \
-              --max-parallel 2
+              --shard-count "${PY312_MAIN_SHARDS}" \
+              --max-parallel "${PY312_MAIN_MAX_PARALLEL}"
             test_exit_code=$?
             set -e
             echo "TEST_STEP_FINISHED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)"

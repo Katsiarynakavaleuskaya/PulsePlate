@@ -21,6 +21,7 @@ def test_empty_changed_files_uses_default_risk_profile() -> None:
     assert profile.workflow_privileged is False
     assert profile.backend_shared is False
     assert profile.run_backend_blocking is False
+    assert profile.run_main_ci_diagnostic is False
     assert profile.run_security is False
     assert profile.run_openapi_sync is False
     assert profile.billing_entitlement is False
@@ -71,8 +72,26 @@ def test_hidden_workflow_path_preserves_leading_dot_for_routing() -> None:
     assert profile.workflow_privileged is True
     assert profile.merge_governance is True
     assert profile.run_backend_blocking is True
+    assert profile.run_main_ci_diagnostic is True
     assert profile.run_openapi_sync is True
     assert profile.contract_risk_groups == risk_profile.ALL_RISK_GROUPS
+
+
+def test_main_ci_diagnostic_is_scoped_to_main_ci_surfaces() -> None:
+    positive_profile = risk_profile.build_risk_profile(
+        [
+            "scripts/ci/run_py312_main_shards.py",
+            "tests/test_py312_main_shards.py",
+        ],
+    )
+    negative_profile = risk_profile.build_risk_profile(
+        ["scripts/ci/check_docs_phase1_gates.py"],
+    )
+
+    assert positive_profile.workflow_privileged is True
+    assert positive_profile.run_main_ci_diagnostic is True
+    assert negative_profile.workflow_privileged is True
+    assert negative_profile.run_main_ci_diagnostic is False
 
 
 def test_hidden_github_scripts_path_is_workflow_privileged() -> None:
@@ -299,6 +318,7 @@ def test_cli_writes_github_outputs(
     assert payload["billing_entitlement"] is True
     written = github_output.read_text(encoding="utf-8")
     assert "run_backend_blocking=true" in written
+    assert "run_main_ci_diagnostic=false" in written
     assert "billing_entitlement=true" in written
 
 

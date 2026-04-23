@@ -210,6 +210,13 @@ def test_main_branch_py312_sharded_runner_preserves_required_check_policy() -> N
 
     test_main = jobs["test-main"]
     assert isinstance(test_main, dict)
+    test_main_needs = test_main["needs"]
+    assert isinstance(test_main_needs, list)
+    assert "changes" in test_main_needs
+    test_main_if = test_main["if"]
+    assert isinstance(test_main_if, str)
+    assert "github.ref == 'refs/heads/main'" in test_main_if
+    assert "needs.changes.outputs.run_main_ci_diagnostic == 'true'" in test_main_if
     matrix = test_main["strategy"]["matrix"]["include"]
     assert isinstance(matrix, list)
 
@@ -236,10 +243,12 @@ def test_main_branch_py312_sharded_runner_preserves_required_check_policy() -> N
     )
 
     assert "python scripts/ci/run_py312_main_shards.py" in py312_block
-    assert "--shard-count 2" in py312_block
-    assert "--max-parallel 2" in py312_block
+    assert '--shard-count "${PY312_MAIN_SHARDS}"' in py312_block
+    assert '--max-parallel "${PY312_MAIN_MAX_PARALLEL}"' in py312_block
     assert "PY312_MAIN_SHARDS=2" in py312_block
     assert "PY312_MAIN_MAX_PARALLEL=2" in py312_block
+    assert 'echo "PY312_MAIN_SHARDS=${PY312_MAIN_SHARDS}"' in py312_block
+    assert 'echo "PY312_MAIN_MAX_PARALLEL=${PY312_MAIN_MAX_PARALLEL}"' in py312_block
     assert "PYTEST_XDIST_ARGS=(-p no:xdist)" not in py312_block
     assert "PYTEST_XDIST_ARGS=(-n 2 --dist=loadscope)" not in py312_block
     assert "PYTEST_XDIST_ARGS=(-n 4 --dist=loadscope)" not in py312_block

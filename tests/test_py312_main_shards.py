@@ -108,52 +108,61 @@ def test_remove_previous_outputs_deletes_stale_shard_files(tmp_path: Path) -> No
     assert not junit_file.exists()
 
 
-def test_run_all_shards_returns_failure_without_coverage_combine(
+def test_run_all_shards_rejects_invalid_parallelism(tmp_path: Path) -> None:
+    shard = runner.TestShard(index=1)
+
+    with pytest.raises(ValueError, match="max_parallel"):
+        runner.run_all_shards(tmp_path, [shard], 0, {})
+
+    with pytest.raises(ValueError, match="at least one shard"):
+        runner.run_all_shards(tmp_path, [], 1, {})
+
+
+def test_run_all_shards_max_parallel_one_uses_child_process_isolation(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    shard = runner.TestShard(index=1)
-    calls: list[str] = []
-
-    def fake_run_shard(
-        repo_root: Path,
-        test_shard: runner.TestShard,
-        base_env: dict[str, str],
-    ) -> int:
-        calls.append(f"shard:{test_shard.index}:{repo_root == tmp_path}:{bool(base_env)}")
-        return 5
-
-    def fake_coverage(repo_root: Path, args: list[str]) -> int:
-        calls.append(f"coverage:{args}")
-        return 0
-
-    monkeypatch.setattr(runner, "run_shard", fake_run_shard)
-    monkeypatch.setattr(runner, "run_coverage_command", fake_coverage)
-
-    assert runner.run_all_shards(tmp_path, [shard], 1, os.environ.copy()) == 1
-    assert calls == ["shard:1:True:True"]
-
-
-def test_run_all_shards_combines_coverage_after_success(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-) -> None:
-    shard = runner.TestShard(index=1)
+    test_path = _write_test_file(
+        tmp_path,
+        "tests/test_child_process_isolation.py",
+        "\n".join(
+            [
+                "import os",
+                "from pathlib import Path",
+                "",
+                "def test_mutates_process_state():",
+                "    os.environ['PY312_PARENT_LEAK_PROBE'] = 'child-only'",
+                "    os.chdir(Path.cwd() / 'tests')",
+                "    assert os.environ['PYTEST_XDIST_WORKER'] == 'py312main1'",
+                "",
+            ]
+        ),
+    )
+    (tmp_path / "pyproject.toml").write_text("[tool.pytest.ini_options]\n", encoding="utf-8")
+    shard = runner.TestShard(
+        index=1,
+        files=[runner.TestFile(test_path.relative_to(tmp_path), 1)],
+        weight=1,
+    )
+    original_cwd = Path.cwd()
+    base_env = {
+        key: value
+        for key, value in os.environ.items()
+        if key not in {"PY312_PARENT_LEAK_PROBE", "PYTEST_XDIST_WORKER"}
+    }
     coverage_calls: list[list[str]] = []
 
-    monkeypatch.setattr(
-        runner,
-        "run_shard",
-        lambda repo_root, test_shard, base_env: 0,
-    )
-
     def fake_coverage(repo_root: Path, args: list[str]) -> int:
+        assert repo_root == tmp_path
         coverage_calls.append(list(args))
         return 0
 
     monkeypatch.setattr(runner, "run_coverage_command", fake_coverage)
 
-    assert runner.run_all_shards(tmp_path, [shard], 1, os.environ.copy()) == 0
+    assert runner.run_all_shards(tmp_path, [shard], 1, base_env) == 0
+    assert Path.cwd() == original_cwd
+    assert os.environ.get("PY312_PARENT_LEAK_PROBE") is None
+    assert os.environ.get("PYTEST_XDIST_WORKER") is None
     assert coverage_calls == [
         ["combine", ".coverage.py312-main-shard-1"],
         ["xml"],

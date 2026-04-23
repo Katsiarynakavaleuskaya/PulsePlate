@@ -9616,6 +9616,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `docs/orchestration/MAIN_CI_PY312_CONTAINMENT_PACKET_2026-04-23.md`
     - `docs/orchestration/MAIN_CI_PY312_TIMEOUT_ROOT_CAUSE_PACKET_2026-04-23.md`
     - `.github/workflows/ci.yml`
+    - `scripts/ci/ci_risk_profile.py`
     - `scripts/ci/run_py312_main_shards.py`
     - `.github/workflows/nightly.yml`
     - `pyproject.toml`
@@ -9635,6 +9636,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `3.12` runs the full `-m "not slow"` test cohort through isolated
       no-xdist process shards while `3.11` stays parallel and `3.13` keeps its
       existing sequential fallback
+    - PRs that change the main-CI Python 3.12 runner/workflow contract run the
+      same `test-main` matrix as a scoped diagnostic proof path before merge
     - A regression test freezes the workflow contract
     - `pre-commit run --all-files`, `make validate-changed`, and branch/current-head
       `CI` pass on the remediation branch

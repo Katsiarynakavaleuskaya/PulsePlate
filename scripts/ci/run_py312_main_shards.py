@@ -197,20 +197,18 @@ def run_all_shards(
 
     if max_parallel < 1:
         raise ValueError("max_parallel must be >= 1")
+    if not shards:
+        raise ValueError("at least one shard is required")
 
-    if max_parallel == 1:
-        results = {shard.index: run_shard(repo_root, shard, base_env) for shard in shards}
-    else:
-        process_context = multiprocessing.get_context("spawn")
-        with concurrent.futures.ProcessPoolExecutor(
-            max_workers=max_parallel,
-            mp_context=process_context,
-        ) as executor:
-            futures = {
-                executor.submit(run_shard, repo_root, shard, base_env): shard.index
-                for shard in shards
-            }
-            results = collect_shard_results(futures)
+    process_context = multiprocessing.get_context("spawn")
+    with concurrent.futures.ProcessPoolExecutor(
+        max_workers=min(max_parallel, len(shards)),
+        mp_context=process_context,
+    ) as executor:
+        futures = {
+            executor.submit(run_shard, repo_root, shard, base_env): shard.index for shard in shards
+        }
+        results = collect_shard_results(futures)
 
     failing_shards = [
         shard_index for shard_index, exit_code in sorted(results.items()) if exit_code != 0
