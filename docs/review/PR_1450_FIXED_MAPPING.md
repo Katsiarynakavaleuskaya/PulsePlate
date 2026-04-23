@@ -65,7 +65,7 @@ Evidence: `docs/review/PR_1450_FIXED_MAPPING.md` now keeps the standard unchecke
 - [ ] Release/rollback notes reviewed; no release-note delta required for this backend auth hardening fix
 
 - Local validation:
-  - `python3 scripts/ci/check_pr_body_phase2_gates.py --pr-number 1450` passed for the canonical mapping artifact.
-  - `. .venv/bin/activate && pytest -q tests/test_feedback_api.py tests/test_api_tiers.py` passed after the CodeRabbit follow-up fixes.
-  - `pre-commit run --all-files` passed in the root branch after staging the detect-secrets baseline update.
-  - `make verify` passed in sanitized clone `/tmp/pr1450_verify.wD6Uez` with `diff-cover` reporting `100%` coverage for changed lines.
+  - Ran `python3 scripts/ci/check_pr_body_phase2_gates.py --pr-number 1450`; the canonical mapping artifact passed.
+  - Executed `. .venv/bin/activate && pytest -q tests/test_feedback_api.py tests/test_api_tiers.py`; the CodeRabbit follow-up coverage passed.
+  - Verified `pre-commit run --all-files`; hooks completed successfully after staging the detect-secrets baseline update.
+  - Confirmed `make verify` in sanitized clone `/tmp/pr1450_verify.wD6Uez`; `diff-cover` reported `100%` coverage for changed lines.
