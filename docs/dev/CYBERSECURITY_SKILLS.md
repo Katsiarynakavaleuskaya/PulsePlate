@@ -2,7 +2,7 @@
 
 <!-- markdownlint-disable MD013 -->
 
-734+ cybersecurity skills (approximate; see `tools/cybersecurity_skills/index.json`) from [anthropic-cybersecurity-skills](https://github.com/Katsiarynakavaleuskaya/anthropic-cybersecurity-skills) (agentskills.io format). Installed by default with PulsePlate Codex skills.
+734+ cybersecurity skills (approximate; see `tools/cybersecurity_skills/index.json`) from [anthropic-cybersecurity-skills](https://github.com/Katsiarynakavaleuskaya/anthropic-cybersecurity-skills) (agentskills.io format). Keep this bundle explicit for Codex CLI: it is valid by skill slug, but wide symlink installs can produce long repo-target discovery warnings.
 
 ## Install
 
@@ -10,7 +10,7 @@ First-time setup (after clone):
 
 ```bash
 git submodule update --init --recursive
-scripts/install_codex_skills.sh
+scripts/install_codex_skills.sh --only-cybersec --copy-cybersec
 ```
 
 Skills are symlinked to the primary user install target `$AGENTS_HOME/skills/`
@@ -18,13 +18,23 @@ with `$HOME/.agents/skills/` as the fallback.
 Use `scripts/install_codex_skills.sh --target compat` only when a legacy local Codex setup still expects `$CODEX_HOME/skills/`
 with `~/.codex/skills/` as the fallback.
 
+For routine PulsePlate work, skip this bundle entirely unless the task actually
+needs a cybersecurity playbook:
+
+```bash
+scripts/install_codex_skills.sh --no-cybersec
+```
+
+For Codex CLI, prefer `--copy-cybersec` so discovery uses short local skill
+folder names instead of long repo-target symlink paths.
+
 ## Update
 
 To pull latest cybersecurity skills:
 
 ```bash
 git submodule update --remote tools/cybersecurity_skills
-scripts/install_codex_skills.sh
+scripts/install_codex_skills.sh --only-cybersec --copy-cybersec
 ```
 
 ## PulsePlate-relevant subdomains

@@ -46,13 +46,15 @@ See [`docs/orchestration/AUTOMATION_READINESS_MATRIX.md`](../orchestration/AUTOM
 - Install them with:
 
 ```bash
-scripts/install_codex_skills.sh
+scripts/install_codex_skills.sh --no-cybersec
 ```
 
 - Primary install target follows the canonical contract in [`docs/dev/CODEX_SKILLS.md`](./CODEX_SKILLS.md):
   `$AGENTS_HOME/skills` with `$HOME/.agents/skills` as the fallback
 - Legacy compat target follows the same contract:
   `$CODEX_HOME/skills` with `~/.codex/skills` as the fallback (`scripts/install_codex_skills.sh --target compat`)
+- If you need the cybersecurity bundle in Codex CLI, prefer copied installs:
+  `scripts/install_codex_skills.sh --only-cybersec --copy-cybersec`
 - After install or updates, restart Codex so the new skills load
 - Full skill map and policy notes live in [`docs/dev/CODEX_SKILLS.md`](./CODEX_SKILLS.md)
 - Optional repo-root helper (preflight analyze + printed `task_bootstrap.py` recipe):
@@ -60,6 +62,9 @@ scripts/install_codex_skills.sh
 - Host-only `~/.codex/config.toml` is outside repo SoT; optional template:
   [`docs/templates/codex.config.example.toml`](../templates/codex.config.example.toml)
 - Skills stay passive/discovery-only. They do not auto-start coordinator bootstrap and must not change Cursor/custom orchestration behavior.
+- `Computer Use` is a bundled plugin, not a checked-in repo MCP server. If it fails with
+  `Apple event error -10000`, fix macOS `Accessibility` and `Screen Recording`
+  permissions for `Codex` (`com.openai.codex`), then restart Codex.
 
 ## Claude
 

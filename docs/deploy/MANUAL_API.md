@@ -1,8 +1,21 @@
 # 🔑 Manual API Key Setup for Cursor MCP
 
+This document is a **legacy Cursor-local helper path** for the
+`pulseplate-chatgpt` MCP server only.
+
+Do not use it as the canonical setup guide for Codex CLI, bundled plugins, or
+repo-tracked skills. For current guidance, start with:
+
+- `docs/dev/AGENT_COMPATIBILITY_ONBOARDING.md`
+- `docs/dev/CODEX_SKILLS.md`
+- `.cursor/mcp.json.example`
+
+Host-local files such as `~/.cursor/mcp.json`, `~/.cursor/.env`,
+`~/.cursor/settings.json`, and `~/.codex/config.toml` remain outside repo SoT.
+
 ## Step 1: Get OpenAI API Key
 
-1. **Open**: https://platform.openai.com/api-keys
+1. **Open**: <https://platform.openai.com/api-keys>
 2. **Login** with your ChatGPT Pro account
 3. **Click** "Create new secret key"
 4. **Name it**: "Cursor MCP Integration"
@@ -27,6 +40,9 @@ Example request (list tools):
 nano ~/.cursor/mcp.json
 ```
 
+Merge the `pulseplate-chatgpt` block into your existing `~/.cursor/mcp.json`.
+Do not replace unrelated MCP servers such as `figma`.
+
 Replace `"your_openai_api_key_here"` with your actual API key:
 ```json
 {
@@ -50,7 +66,7 @@ Replace `"your_openai_api_key_here"` with your actual API key:
 nano ~/.cursor/.env
 ```
 
-Replace `your_openai_api_key_here` with your actual API key:
+Keep existing variables and only upsert the managed entries:
 ```
 # OpenAI API Configuration
 OPENAI_API_KEY=sk-proj-YOUR_ACTUAL_KEY_HERE
@@ -65,7 +81,8 @@ MCP_ENABLED=true
 nano ~/.cursor/settings.json
 ```
 
-Replace `your_openai_api_key_here` with your actual API key:
+Keep unrelated settings intact and add the MCP-specific keys only if your
+current Cursor version still uses them:
 ```json
 {
   "cursor.ai.enabled": true,
@@ -96,9 +113,9 @@ curl -H "Authorization: Bearer sk-proj-YOUR_KEY_HERE" \
 
 ## Troubleshooting
 
-### If MCP tools don't appear:
+### If MCP tools don't appear
 1. Check API key format (should start with `sk-proj-`)
-2. Verify all configuration files are updated
+2. Verify `pulseplate-chatgpt` was added without deleting other MCP servers
 3. Restart Cursor completely
 4. Check Cursor logs for errors
 

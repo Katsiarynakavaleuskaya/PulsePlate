@@ -24,6 +24,9 @@ scripts/install_codex_skills.sh --copy
 scripts/install_codex_skills.sh --target compat
 scripts/install_codex_skills.sh --unlink
 scripts/install_codex_skills.sh --dest /tmp/codex-skills
+scripts/install_codex_skills.sh --no-cybersec
+scripts/install_codex_skills.sh --copy-cybersec
+scripts/install_codex_skills.sh --only-cybersec --copy-cybersec
 ```
 
 Discovery and install precedence:
@@ -41,6 +44,27 @@ Invariant:
 - `.agents/skills/` is a passive discovery mirror, not a second canonical tree.
 - The installer is operator-invoked only. It must not mutate Cursor config, launchers, shell profiles, or session behavior.
 
+## Codex CLI safe path
+
+For normal PulsePlate repo work, prefer:
+
+```bash
+scripts/install_codex_skills.sh --no-cybersec
+```
+
+If you need the cybersecurity bundle in Codex CLI, prefer copied installs:
+
+```bash
+scripts/install_codex_skills.sh --only-cybersec --copy-cybersec
+```
+
+Why: Codex follows symlink targets when scanning skills. The cybersecurity bundle
+is valid by slug, but repo-target symlink paths like
+`tools/cybersecurity_skills/skills/<slug>` can still surface noisy
+`invalid name: exceeds maximum length of 64 characters` warnings in Codex logs.
+Copying just that bundle avoids the long repo-target path without changing the
+repo source of truth.
+
 ## Restart requirement
 
 After installation or updates, restart Codex so newly installed skills are loaded.
@@ -51,6 +75,14 @@ This restart requirement is tooling-local only; it does not change repo orchestr
 Machine-local Codex settings (`~/.codex/config.toml`, skills under `$CODEX_HOME/skills` with `~/.codex/skills` as the fallback) are **not**
 repository source of truth. Keys drift with Codex CLI versions; verify against current vendor docs.
 Use `$CODEX_HOME/skills` only as an explicit compatibility target when a local Codex setup still expects it.
+
+If an older host setup already populated `$CODEX_HOME/skills` with the
+cybersecurity bundle, remove that legacy install before relying on the official
+user path:
+
+```bash
+scripts/install_codex_skills.sh --unlink --target compat --only-cybersec
+```
 
 For a **minimal copy-paste starter only**, see
 [`docs/templates/codex.config.example.toml`](../templates/codex.config.example.toml).
@@ -165,6 +197,17 @@ Not approved as default:
 1. Step 1: Core workflow + gates + contract sync skills.
 2. Step 2: Domain skills (guards, backend endpoints, AI reports, graph map).
 3. Step 3: Browser E2E extension with Playwright (`pulseplate-playwright-e2e`) for controlled web flow automation.
+
+## Computer Use / MCP troubleshooting
+
+- `Computer Use` is a bundled plugin, not a repo-local MCP server.
+- If Codex returns `Apple event error -10000: Sender process is not authenticated`,
+  the failure is in macOS permissions, not in repo routing or skill setup.
+- Grant `Codex` (`com.openai.codex`) access in macOS `Privacy & Security` for:
+  `Accessibility` and `Screen Recording`.
+- After changing permissions, restart Codex and re-check the tool.
+- Repo-local MCP examples such as `.cursor/mcp.json.example` cover checked-in
+  integrations like Figma only; they do not provision macOS privacy permissions.
 
 ## Canonical source
 
