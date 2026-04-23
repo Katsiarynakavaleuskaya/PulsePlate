@@ -373,12 +373,6 @@ def test_ci_workflow_uses_single_direct_proxy_python_install_path_per_job() -> N
         assert all(step.get("name") != "Install dependencies" for step in jobs[job_name]["steps"])
 
 
-def test_ci_main_full_suite_initializes_cybersecurity_skills_submodule() -> None:
-    checkout_step = _workflow_step_by_name(".github/workflows/ci.yml", "test-main", "Checkout")
-
-    assert checkout_step["with"]["submodules"] == "recursive"
-
-
 def test_frontend_ci_workflow_uses_ci_lite_python_setup() -> None:
     setup_step = _python_setup_step(".github/workflows/frontend-ci.yml", "build-and-test")
     workflow_events = _workflow_events(".github/workflows/frontend-ci.yml")

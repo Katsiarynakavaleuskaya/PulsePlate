@@ -10,6 +10,7 @@ import subprocess
 REPO_ROOT = Path(__file__).resolve().parents[1]
 INSTALLER_PATH = REPO_ROOT / "scripts" / "install_codex_skills.sh"
 BASH_PATH = shutil.which("bash")
+CYBERSEC_FIXTURE_SKILL = "implementing-diamond-model-analysis"
 
 
 def _run_installer(
@@ -37,6 +38,19 @@ def _run_installer(
         text=True,
         capture_output=True,
     )
+
+
+def _create_cybersec_skill_fixture(tmp_path: Path) -> Path:
+    """Create a minimal cybersecurity skills source for installer contract tests."""
+
+    cybersec_root = tmp_path / "cybersec-skills"
+    skill_dir = cybersec_root / CYBERSEC_FIXTURE_SKILL
+    skill_dir.mkdir(parents=True)
+    (skill_dir / "SKILL.md").write_text(
+        "---\n" f"name: {CYBERSEC_FIXTURE_SKILL}\n" "---\n\n" "# Fixture skill\n",
+        encoding="utf-8",
+    )
+    return cybersec_root
 
 
 def test_install_codex_skills_defaults_to_official_agents_target(tmp_path: Path) -> None:
@@ -119,22 +133,23 @@ def test_install_codex_skills_copy_cybersec_copies_only_cybersecurity_bundle(
 ) -> None:
     """--copy-cybersec should copy cybersecurity skills while keeping PulsePlate skills linked."""
 
-    install_result = _run_installer(tmp_path, "--copy-cybersec")
+    cybersec_root = _create_cybersec_skill_fixture(tmp_path)
+    install_result = _run_installer(
+        tmp_path,
+        "--copy-cybersec",
+        extra_env={"PULSEPLATE_CYBERSEC_SKILLS_ROOT": str(cybersec_root)},
+    )
     agents_skills_root = tmp_path / ".agents" / "skills"
     pulseplate_skill = agents_skills_root / "pulseplate-workflow"
-    cyber_skill = agents_skills_root / "implementing-diamond-model-analysis"
+    cyber_skill = agents_skills_root / CYBERSEC_FIXTURE_SKILL
 
     assert "Linked: pulseplate-workflow" in install_result.stdout
-    assert "Copied: implementing-diamond-model-analysis" in install_result.stdout
+    assert f"Copied: {CYBERSEC_FIXTURE_SKILL}" in install_result.stdout
     assert pulseplate_skill.is_symlink()
     assert cyber_skill.is_dir()
     assert not cyber_skill.is_symlink()
     assert (cyber_skill / ".pulseplate_codex_skill_source").read_text().strip() == str(
-        REPO_ROOT
-        / "tools"
-        / "cybersecurity_skills"
-        / "skills"
-        / "implementing-diamond-model-analysis"
+        cybersec_root / CYBERSEC_FIXTURE_SKILL
     )
 
 
@@ -176,10 +191,16 @@ def test_install_codex_skills_only_cybersec_copy_mode_copies_skill_without_symli
 ) -> None:
     """The dedicated cybersecurity copy path should produce copied skill folders."""
 
-    install_result = _run_installer(tmp_path, "--only-cybersec", "--copy-cybersec")
-    copied_skill = tmp_path / ".agents" / "skills" / "implementing-diamond-model-analysis"
+    cybersec_root = _create_cybersec_skill_fixture(tmp_path)
+    install_result = _run_installer(
+        tmp_path,
+        "--only-cybersec",
+        "--copy-cybersec",
+        extra_env={"PULSEPLATE_CYBERSEC_SKILLS_ROOT": str(cybersec_root)},
+    )
+    copied_skill = tmp_path / ".agents" / "skills" / CYBERSEC_FIXTURE_SKILL
 
-    assert "Copied: implementing-diamond-model-analysis" in install_result.stdout
+    assert f"Copied: {CYBERSEC_FIXTURE_SKILL}" in install_result.stdout
     assert copied_skill.is_dir()
     assert not copied_skill.is_symlink()
 
