@@ -11,6 +11,7 @@ from packaging.requirements import InvalidRequirement
 from packaging.requirements import Requirement
 from packaging.specifiers import InvalidSpecifier
 from packaging.specifiers import SpecifierSet
+from packaging.utils import canonicalize_name
 from packaging.version import InvalidVersion
 from packaging.version import Version
 
@@ -39,6 +40,11 @@ def _is_constraint_style(path: Path) -> bool:
         "requirements-docker-runtime.in",
         "requirements-dev.in",
     } or path.name.startswith("constraints")
+
+
+def _normalized_package_name(package_name: str) -> str:
+    """PEP 503-style canonical package names keep guard comparisons stable."""
+    return canonicalize_name(package_name)
 
 
 def _load_schema(path: Path) -> dict:
@@ -111,9 +117,7 @@ def _iter_requirement_lines(path: Path) -> Iterable[str]:
         line = raw.split("#", 1)[0].strip()
         if not line:
             continue
-        if line.startswith(("-r ", "--requirement ", "-c ", "--constraint ")):
-            continue
-        if line.startswith(("--find-links", "--index-url", "--extra-index-url")):
+        if line.startswith("-"):
             continue
         yield line
 
@@ -127,9 +131,9 @@ def _parse_requirement(line: str, path: Optional[Path] = None) -> Optional[Requi
     s = line.strip()
     if not s or s.startswith("#"):
         return None
-    if s.startswith(("-r ", "--requirement", "-c ", "--constraint")):
+    if s.startswith("-"):
         return None
-    if "://" in s or s.startswith(("-e ", "--editable", "git+", "hg+", "svn+", "bzr+")):
+    if s.startswith(("git+", "hg+", "svn+", "bzr+")):
         return None
     try:
         return Requirement(s)
@@ -140,7 +144,7 @@ def _parse_requirement(line: str, path: Optional[Path] = None) -> Optional[Requi
 
 
 def _min_version_for_pkg(req: Requirement, pkg: str, *, pinned: bool) -> Optional[str]:
-    if req.name.lower() != pkg.lower():
+    if _normalized_package_name(req.name) != _normalized_package_name(pkg):
         return None
     if pinned:
         equals = [sp.version for sp in req.specifier if sp.operator == "=="]
@@ -169,7 +173,7 @@ def _effective_min_version_in_file(path: Path, package: str) -> Optional[Version
 
 
 def _effective_min_versions_per_package(path: Path) -> dict[str, Version]:
-    """Parse file once; return package_lower -> effective min version."""
+    """Parse file once; return normalized package name -> effective min version."""
     pinned = not _is_constraint_style(path)
     by_pkg: dict[str, list[Version]] = {}
     for line in _iter_requirement_lines(path):
@@ -178,8 +182,32 @@ def _effective_min_versions_per_package(path: Path) -> dict[str, Version]:
             continue
         v_str = _min_version_for_pkg(req, req.name, pinned=pinned)
         if v_str is not None:
-            by_pkg.setdefault(req.name.lower(), []).append(Version(v_str))
+            by_pkg.setdefault(_normalized_package_name(req.name), []).append(Version(v_str))
     return {pkg: min(vers) for pkg, vers in by_pkg.items()}
+
+
+def _pinned_versions_per_package(path: Path) -> dict[str, set[Version]]:
+    """Parse file once; return every pinned version by normalized package name."""
+    by_pkg: dict[str, set[Version]] = {}
+    for line in _iter_requirement_lines(path):
+        req = _parse_requirement(line, path)
+        if req is None:
+            continue
+        pins = {Version(sp.version) for sp in req.specifier if sp.operator == "=="}
+        if pins:
+            by_pkg.setdefault(_normalized_package_name(req.name), set()).update(pins)
+    return by_pkg
+
+
+def _packages_present_in_file(path: Path) -> set[str]:
+    """Parse file once; return normalized package names present in this surface."""
+    packages: set[str] = set()
+    for line in _iter_requirement_lines(path):
+        req = _parse_requirement(line, path)
+        if req is None:
+            continue
+        packages.add(_normalized_package_name(req.name))
+    return packages
 
 
 @pytest.mark.parametrize("surface", REQUIREMENT_SURFACES)
@@ -194,7 +222,7 @@ def test_dependency_security_guard_enforces_min_versions(surface: Path) -> None:
 
     for pkg, min_v_str in min_versions.items():
         required_min = Version(str(min_v_str))
-        effective = all_reqs.get(pkg.lower())
+        effective = all_reqs.get(_normalized_package_name(pkg))
         if effective is None:
             pytest.fail(
                 f"{surface.name}: expected {pkg} to be pinned (==) or constrained (>=) "
@@ -294,13 +322,57 @@ def test_dependency_security_guard_enforces_blocked_packages(surface: Path) -> N
     blocked_packages = schema.get("blocked_packages", [])
     if not blocked_packages:
         pytest.skip("No blocked packages defined in schema.")
-    all_reqs = _effective_min_versions_per_package(surface)
+    all_reqs = _packages_present_in_file(surface)
     for pkg in blocked_packages:
-        if pkg.lower() in all_reqs:
+        if _normalized_package_name(pkg) in all_reqs:
             pytest.fail(
                 f"{surface.name}: package {pkg!r} is blocked by security policy. "
                 f"Remove it from this surface."
             )
+
+
+def test_blocked_packages_detects_unpinned_requirements(tmp_path: Path) -> None:
+    """Blocked package detection must include bare package names without specifiers."""
+    req = tmp_path / "requirements.txt"
+    req.write_text("unsafe-pkg\n", encoding="utf-8")
+    assert "unsafe-pkg" in _packages_present_in_file(req)
+
+
+def test_blocked_packages_detects_pinned_requirements(tmp_path: Path) -> None:
+    """Blocked package detection must still catch pinned package requirements."""
+    req = tmp_path / "requirements.txt"
+    req.write_text("unsafe-pkg==1.2.3\n", encoding="utf-8")
+    assert "unsafe-pkg" in _packages_present_in_file(req)
+
+
+def test_blocked_packages_canonicalize_equivalent_package_names(tmp_path: Path) -> None:
+    """Equivalent _, ., and - package spellings must match the same blocked package."""
+    req = tmp_path / "requirements.txt"
+    req.write_text("unsafe_pkg==1.2.3\nunsafe.pkg\n", encoding="utf-8")
+    all_reqs = _packages_present_in_file(req)
+    assert "unsafe-pkg" in all_reqs
+    assert _normalized_package_name("unsafe_pkg") in all_reqs
+    assert _normalized_package_name("unsafe.pkg") in all_reqs
+
+
+def test_min_versions_lookup_uses_canonical_package_names(tmp_path: Path) -> None:
+    """Schema names using - must match requirement names using _ or . spellings."""
+    req = tmp_path / "requirements.txt"
+    req.write_text("unsafe_pkg==1.2.3\n", encoding="utf-8")
+
+    all_reqs = _effective_min_versions_per_package(req)
+    effective = all_reqs.get(_normalized_package_name("unsafe-pkg"))
+
+    assert effective == Version("1.2.3")
+
+
+def test_parse_requirement_skips_short_form_pip_flags(tmp_path: Path) -> None:
+    """Short-form pip directives must not be parsed as package requirements."""
+    req = tmp_path / "requirements.txt"
+    req.write_text(
+        "-i https://example.com/simple\n-f https://example.com/wheels\n", encoding="utf-8"
+    )
+    assert _packages_present_in_file(req) == set()
 
 
 @pytest.mark.parametrize("surface", REQUIREMENT_SURFACES)
@@ -320,18 +392,45 @@ def test_dependency_security_guard_enforces_blocked_versions(surface: Path) -> N
             f"{surface.name} is constraint-style; blocked versions check skipped "
             "(only pinned surfaces checked)."
         )
-    all_reqs = _effective_min_versions_per_package(surface)
+    pinned_versions = _pinned_versions_per_package(surface)
     for pkg, specifiers in blocked_versions.items():
-        effective = all_reqs.get(pkg.lower())
-        if effective is None:
+        versions = pinned_versions.get(_normalized_package_name(pkg))
+        if not versions:
             continue  # Package not in this surface
         for spec_str in specifiers:
             spec = SpecifierSet(spec_str)
-            if str(effective) in spec:
-                pytest.fail(
-                    f"{surface.name}: {pkg}=={effective} matches blocked specifier "
-                    f"{spec_str!r}. Update to a safe version."
-                )
+            for effective in sorted(versions):
+                if str(effective) in spec:
+                    pytest.fail(
+                        f"{surface.name}: {pkg}=={effective} matches blocked specifier "
+                        f"{spec_str!r}. Update to a safe version."
+                    )
+
+
+def test_blocked_versions_lookup_uses_canonical_package_names(tmp_path: Path) -> None:
+    """Blocked version schema names must match equivalent requirement spellings."""
+    req = tmp_path / "requirements.txt"
+    req.write_text("unsafe_pkg==2.0.3\n", encoding="utf-8")
+
+    pinned_versions = _pinned_versions_per_package(req)
+    versions = pinned_versions.get(_normalized_package_name("unsafe-pkg"))
+
+    assert versions == {Version("2.0.3")}
+    assert any(str(version) in SpecifierSet(">=2.0.0,<2.1.0") for version in versions)
+
+
+def test_blocked_versions_check_all_pinned_versions(tmp_path: Path) -> None:
+    """Blocked-version guard must not collapse marker-split pins to one version."""
+    req = tmp_path / "requirements.txt"
+    req.write_text(
+        'some-pkg==2.0.3; python_version < "3.13"\n' 'some_pkg==3.0.0; python_version >= "3.13"\n',
+        encoding="utf-8",
+    )
+
+    versions = _pinned_versions_per_package(req).get(_normalized_package_name("some-pkg"))
+
+    assert versions == {Version("2.0.3"), Version("3.0.0")}
+    assert any(str(version) in SpecifierSet(">=2.0.0,<2.1.0") for version in versions)
 
 
 def test_validate_blocked_packages_fails_on_invalid_type(tmp_path: Path) -> None:
@@ -383,10 +482,10 @@ def test_blocked_package_enforcement_with_fake_surface(tmp_path: Path) -> None:
     """Regression: blocked package in surface should be detected."""
     fake_req = tmp_path / "requirements.txt"
     fake_req.write_text("unsafe-pkg==1.0.0\nsome-other==2.0.0\n", encoding="utf-8")
-    all_reqs = _effective_min_versions_per_package(fake_req)
+    all_reqs = _packages_present_in_file(fake_req)
     blocked_packages = ["unsafe-pkg"]
     # Simulate the guard check
-    violations = [pkg for pkg in blocked_packages if pkg.lower() in all_reqs]
+    violations = [pkg for pkg in blocked_packages if _normalized_package_name(pkg) in all_reqs]
     assert violations == ["unsafe-pkg"], "Blocked package should be detected."
 
 
@@ -394,18 +493,19 @@ def test_blocked_version_enforcement_with_fake_surface(tmp_path: Path) -> None:
     """Regression: blocked version match in surface should be detected."""
     fake_req = tmp_path / "requirements.txt"
     fake_req.write_text("some-pkg==2.0.3\n", encoding="utf-8")
-    all_reqs = _effective_min_versions_per_package(fake_req)
+    pinned_versions = _pinned_versions_per_package(fake_req)
     blocked_versions = {"some-pkg": [">=2.0.0,<2.1.0"]}
     # Simulate the guard check
     violations = []
     for pkg, specifiers in blocked_versions.items():
-        effective = all_reqs.get(pkg.lower())
-        if effective is None:
+        versions = pinned_versions.get(_normalized_package_name(pkg))
+        if not versions:
             continue
         for spec_str in specifiers:
             spec = SpecifierSet(spec_str)
-            if str(effective) in spec:
-                violations.append((pkg, str(effective), spec_str))
+            for effective in sorted(versions):
+                if str(effective) in spec:
+                    violations.append((pkg, str(effective), spec_str))
     assert violations == [
         ("some-pkg", "2.0.3", ">=2.0.0,<2.1.0")
     ], "Blocked version match should be detected."
