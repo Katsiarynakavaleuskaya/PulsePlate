@@ -9,6 +9,7 @@ Canonical review-governance artifact and PR-body mirror requirements:
 Current GitHub review surface for PR `#1452` was re-checked on `23 April 2026`:
 
 - actionable Sourcery review:
+  `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1452#pullrequestreview-4131515513`,
   `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1452#pullrequestreview-4131518820`
 - actionable Sourcery inline comments:
   `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1452#discussion_r3102744914`,
@@ -42,6 +43,11 @@ Evidence: `tests/test_dependency_security_guard.py:169-171` includes `path.name`
 Disposition: FIXED
 Commit: 881240c82
 Evidence: `tests/test_dependency_security_guard.py:331-334` now catches `pytest.fail.Exception` instead of broad `BaseException`, while the VCS/editable and filename inline obligations remain covered at `tests/test_dependency_security_guard.py:313-335`. The framework-decoupling suggestion is intentionally not adopted because this file is a pytest-native repository guard and existing helper contract uses `pytest.fail(...)` consistently for guard diagnostics. Local proof before mapping: `python3 -m pytest -q tests/test_dependency_security_guard.py`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1452#pullrequestreview-4131515513 -> 881240c82
+Disposition: FIXED
+Commit: 881240c82
+Evidence: REST merge-readiness gate reports the Sourcery aggregate review under this review URL. The underlying actionable items are the same Sourcery review obligations mapped above: `tests/test_dependency_security_guard.py:313-335` covers VCS/editable and filename diagnostics, and `tests/test_dependency_security_guard.py:331-334` narrows the exception type to `pytest.fail.Exception`. Local proof before mapping: `python3 -m pytest -q tests/test_dependency_security_guard.py`.
 
 ## Merge Readiness
 
