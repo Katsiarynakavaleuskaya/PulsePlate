@@ -41,6 +41,18 @@ Evidence:
   overview/review lane
 - keep implementation token-backed and aligned with the canonical UI vocabulary
 
+## Split Justification
+
+This PR intentionally keeps all eight missing primitives in one governed slice
+because `docs/design/UI_COMPONENT_VOCABULARY.md` classifies them as one
+coherent missing-primitives layer and the merged series runbook defines `PR-1`
+as the single lock point for that layer. Splitting the eight primitives across
+multiple PRs would leave Storybook and the shared UI barrel in a partially
+governed state and would delay the next train slices that depend on a complete
+primitive baseline. The implementation remains bounded by API class: no tokens,
+iOS, specialized-family normalization, product-shell convergence, backend,
+OpenAPI, billing, deploy, or Figma-manifest changes are included.
+
 ### OUT
 - `/tokens` authoring or generated token mirror changes
 - iOS runtime or simulator work

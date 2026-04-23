@@ -20,13 +20,19 @@ export function RadioGroup({
   orientation = 'vertical',
 }: RadioGroupProps) {
   const generatedId = useId();
+  const legendId = legend ? `radio-group-${generatedId}-legend` : undefined;
   const errorId = error ? `radio-group-${generatedId}-error` : undefined;
 
   return (
     <fieldset className="space-y-3">
-      {legend ? <legend className="text-sm font-medium text-[var(--color-text)]">{legend}</legend> : null}
+      {legend ? (
+        <legend className="text-sm font-medium text-[var(--color-text)]" id={legendId}>
+          {legend}
+        </legend>
+      ) : null}
       <div
         aria-describedby={errorId}
+        aria-labelledby={legendId}
         className={orientation === 'horizontal' ? 'grid gap-3 md:grid-cols-2' : 'space-y-3'}
         role="radiogroup"
       >

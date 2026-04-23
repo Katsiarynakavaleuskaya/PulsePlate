@@ -28,6 +28,7 @@ describe('RadioGroup', () => {
       </RadioGroup>
     );
 
+    expect(screen.getByRole('radiogroup', { name: 'Coaching tone' })).toBeInTheDocument();
     await user.click(screen.getByRole('radio', { name: 'Motivated' }));
     expect(handleChange).toHaveBeenCalled();
   });
