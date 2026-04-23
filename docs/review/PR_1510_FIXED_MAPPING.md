@@ -12,13 +12,21 @@ Evidence: `frontend/src/components/ui/Badge.tsx`, `frontend/src/components/ui/Pr
 Reason: Ordered role-agent review (`creative-designer`, `frontend-engineer`, `cursor-specialist-agent`, `architecture-specialist`, `qa-engineer-agent`, `bug-hunter`) found semantic warning-token drift, inverse Storybook story canvas drift, and hardcoded Nutrition Setup stepper labels. Commit `9373306f5` fixes the shared-family semantics, story review contexts, localization path, and regression tests.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1510 -> 9373306f5
 
+Disposition: FIXED
+Commit: eb013a175
+Evidence: `frontend/src/components/ui/Stepper.tsx`, `frontend/src/components/ui/ProgressIndicator.tsx`, `frontend/src/pages/NutritionSetup/index.tsx`, `frontend/src/locales/en.json`, `frontend/src/locales/ru.json`, `frontend/src/locales/es.json`, `frontend/src/components/ui/__tests__/GovernedFamilies.test.tsx`, `docs/orchestration/DESIGN_RUNTIME_SYSTEM_WEB_IOS_PR2_SPECIALIZED_FAMILIES_NORMALIZATION_PACKET_2026-04-23.md`
+Reason: Sourcery flagged empty-step Stepper output, hardcoded shared primitive copy, and unclear packet wording. Commit `eb013a175` makes empty steps render no progress chrome, moves Stepper progress/aria copy to caller-owned localized props, removes the ProgressIndicator hardcoded timestamp aria fallback, adds regression coverage, and clarifies the packet wording.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1510#pullrequestreview-4165718501 -> eb013a175
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1510#discussion_r3133619207 -> eb013a175
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1510#discussion_r3133619211 -> eb013a175
+
 ## Merge Readiness
 
 - [ ] All required checks pass
 - [x] No unresolved review threads
   Evidence: Mandatory post-open role pass found no GitHub review threads; `bug-hunter` also reported no open review threads via GitHub GraphQL.
 - [x] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
-  Evidence: Current role-agent actionables are mapped above to commit `9373306f5`; CodeRabbit had skipped review at draft-open time.
+  Evidence: Current role-agent actionables are mapped above to commit `9373306f5`; Sourcery actionables are mapped above to commit `eb013a175`.
 - [x] Pre-commit green
   Evidence: `pre-commit run --all-files` passed locally before draft PR open on commit `653c9db66`.
 - [ ] `make verify` green
