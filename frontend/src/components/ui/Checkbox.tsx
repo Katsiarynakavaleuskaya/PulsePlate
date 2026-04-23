@@ -1,13 +1,10 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react';
 import type { InputHTMLAttributes } from 'react';
+import { hasInvalidState } from './fieldState';
 
 interface CheckboxProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'type'> {
   indeterminate?: boolean;
   invalid?: boolean;
-}
-
-function hasInvalidState(value: CheckboxProps['aria-invalid'], invalid: boolean | undefined) {
-  return invalid || value === true || value === 'true';
 }
 
 export const Checkbox = forwardRef<HTMLInputElement, CheckboxProps>(function Checkbox(

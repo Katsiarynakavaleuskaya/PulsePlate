@@ -82,12 +82,12 @@ export function DropdownMenuItem({
 }: DropdownMenuItemProps) {
   return (
     <MenuItem disabled={props.disabled}>
-      {({ focus, disabled }) => (
+      {({ active, disabled }) => (
         <button
           {...props}
           className={[
             'flex w-full items-start gap-3 rounded-lg px-3 py-2 text-left text-sm transition-colors',
-            focus ? 'bg-[var(--color-surface-muted)]' : '',
+            active ? 'bg-[var(--color-surface-muted)]' : '',
             destructive ? 'text-[var(--color-error)]' : 'text-[var(--color-text)]',
             disabled ? 'cursor-not-allowed opacity-50' : '',
             className,
@@ -114,13 +114,13 @@ export function DropdownMenuLinkItem({
 }: DropdownMenuLinkItemProps) {
   return (
     <MenuItem disabled={props['aria-disabled'] === true || props['aria-disabled'] === 'true'}>
-      {({ focus, disabled }) => (
+      {({ active, disabled }) => (
         <a
           {...props}
           aria-disabled={disabled || props['aria-disabled']}
           className={[
             'flex w-full items-start gap-3 rounded-lg px-3 py-2 text-left text-sm transition-colors',
-            focus ? 'bg-[var(--color-surface-muted)]' : '',
+            active ? 'bg-[var(--color-surface-muted)]' : '',
             destructive ? 'text-[var(--color-error)]' : 'text-[var(--color-text)]',
             disabled ? 'pointer-events-none cursor-not-allowed opacity-50' : '',
             className,

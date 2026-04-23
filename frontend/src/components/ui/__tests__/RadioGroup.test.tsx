@@ -28,7 +28,7 @@ describe('RadioGroup', () => {
       </RadioGroup>
     );
 
-    expect(screen.getByRole('radiogroup', { name: 'Coaching tone' })).toBeInTheDocument();
+    expect(screen.getByRole('group', { name: 'Coaching tone' })).toBeInTheDocument();
     await user.click(screen.getByRole('radio', { name: 'Motivated' }));
     expect(handleChange).toHaveBeenCalled();
   });
@@ -40,8 +40,8 @@ describe('RadioGroup', () => {
       </RadioGroup>
     );
 
-    expect(screen.getByRole('radiogroup')).toHaveAccessibleDescription('Choose one coaching tone.');
-    expect(screen.getByRole('radiogroup').getAttribute('aria-describedby')).not.toMatch(/\s/);
+    expect(screen.getByRole('group')).toHaveAccessibleDescription('Choose one coaching tone.');
+    expect(screen.getByRole('group').getAttribute('aria-describedby')).not.toMatch(/\s/);
     expect(screen.getByText('Choose one coaching tone.')).toHaveAttribute('role', 'alert');
   });
 });

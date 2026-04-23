@@ -1,12 +1,9 @@
 import { forwardRef } from 'react';
 import type { TextareaHTMLAttributes } from 'react';
+import { hasInvalidState } from './fieldState';
 
 interface TextareaProps extends TextareaHTMLAttributes<HTMLTextAreaElement> {
   invalid?: boolean;
-}
-
-function hasInvalidState(value: TextareaProps['aria-invalid'], invalid: boolean | undefined) {
-  return invalid || value === true || value === 'true';
 }
 
 export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(function Textarea(

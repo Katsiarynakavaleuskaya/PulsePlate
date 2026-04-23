@@ -1,6 +1,7 @@
 import { forwardRef } from 'react';
 import type { SelectHTMLAttributes } from 'react';
 import { ChevronDown } from 'lucide-react';
+import { hasInvalidState } from './fieldState';
 
 export interface SelectOption {
   value: string;
@@ -12,10 +13,6 @@ interface SelectProps extends SelectHTMLAttributes<HTMLSelectElement> {
   options?: SelectOption[];
   invalid?: boolean;
   placeholder?: string;
-}
-
-function hasInvalidState(value: SelectProps['aria-invalid'], invalid: boolean | undefined) {
-  return invalid || value === true || value === 'true';
 }
 
 export const Select = forwardRef<HTMLSelectElement, SelectProps>(function Select(
