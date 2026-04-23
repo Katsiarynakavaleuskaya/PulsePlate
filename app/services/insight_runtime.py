@@ -133,6 +133,11 @@ async def _traced_retrieve_and_validate_rag(
             philo_validation_enabled=philo_validation_enabled,
             recursive_rag_enabled=recursive_rollout_policy.recursive_path_enabled,
             optimization_enabled=recursive_rollout_policy.optimization_path_enabled,
+            recursive_optimization_hints=(
+                recursive_rollout_policy.optimization_hints
+                if recursive_rollout_policy.optimization_path_enabled
+                else None
+            ),
             subject_id=subject_id,
             knowledge_policy=knowledge_policy,
         )

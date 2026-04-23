@@ -13,6 +13,7 @@ from core.ai.insight_runtime import (
     InsightProviderLoadError,
     KnowledgePolicy,
     RecursiveRolloutPolicy,
+    RecursiveOptimizationHints,
     InsightTransparencyNotice,
     InsightTransparencyUnavailableError,
     load_insight_provider,
@@ -218,6 +219,7 @@ def test_prepare_insight_runtime_uses_provider_loader_for_generation(
         use_rag=True,
         recursive_rag_enabled=False,
         recursive_rag_optimization_enabled=False,
+        optimization_hints=None,
     )
     assert prepared.knowledge_policy == KnowledgePolicy(
         enabled=False,
@@ -348,9 +350,79 @@ def test_prepare_insight_runtime_returns_recursive_rollout_policy(
         use_rag=True,
         recursive_rag_enabled=True,
         recursive_rag_optimization_enabled=True,
+        optimization_hints=RecursiveOptimizationHints(target_depth_cap=3),
     )
     assert prepared.recursive_rollout_policy.recursive_path_enabled is True
     assert prepared.recursive_rollout_policy.optimization_path_enabled is True
+
+
+def test_prepare_insight_runtime_derives_recursive_speed_hints_from_route_truth(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Prepared recursive hints must come from the existing route decision only."""
+
+    class _FakeRuntime:
+        def preview_route(
+            self, *, text: str, lang: str | None, router_enabled: bool, use_rag: bool
+        ) -> SimpleNamespace:
+            del text, lang, router_enabled, use_rag
+            return SimpleNamespace(
+                needs_generation=True,
+                needs_rag=True,
+                target_depth=2,
+                optimization_applied=True,
+                route_type=SimpleNamespace(value="RAG_FACTUAL"),
+            )
+
+    monkeypatch.setattr("core.ai.insight_runtime.PhilosophicalRuntime", _FakeRuntime, raising=True)
+
+    prepared = prepare_insight_runtime(
+        text="hello",
+        use_rag=True,
+        philosophy_router_enabled=True,
+        philosophy_linguistic_enabled=True,
+        recursive_rag_enabled=True,
+        recursive_rag_optimization_enabled=True,
+        provider_loader=lambda: _FakeProvider(),
+        transparency_loader=lambda: ("ai_generated_insight", "Wellness only."),
+    )
+
+    assert prepared.recursive_rollout_policy.optimization_hints == RecursiveOptimizationHints(
+        target_depth_cap=2,
+        aggressive_short_circuit_allowed=True,
+        pragmatic_early_stop_allowed=True,
+    )
+
+
+def test_prepare_insight_runtime_skips_recursive_speed_hints_for_non_rag_route(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Plain-string non-RAG route decisions must not create recursive hints."""
+
+    class _FakeRuntime:
+        def preview_route(
+            self, *, text: str, lang: str | None, router_enabled: bool, use_rag: bool
+        ) -> SimpleNamespace:
+            del text, lang, router_enabled, use_rag
+            return SimpleNamespace(
+                needs_generation=False,
+                route_type="local_direct",
+            )
+
+    monkeypatch.setattr("core.ai.insight_runtime.PhilosophicalRuntime", _FakeRuntime, raising=True)
+
+    prepared = prepare_insight_runtime(
+        text="hello",
+        use_rag=True,
+        philosophy_router_enabled=True,
+        philosophy_linguistic_enabled=True,
+        recursive_rag_enabled=True,
+        recursive_rag_optimization_enabled=True,
+        provider_loader=lambda: _FakeProvider(),
+        transparency_loader=lambda: ("ai_generated_insight", "Wellness only."),
+    )
+
+    assert prepared.recursive_rollout_policy.optimization_hints is None
 
 
 def test_prepare_insight_runtime_uses_direct_transparency_notice(

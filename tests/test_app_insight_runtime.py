@@ -8,7 +8,8 @@ from typing import Any
 
 import pytest
 
-from app.services.insight_runtime import TracedInsightProvider
+from app.services.insight_runtime import TracedInsightProvider, generate_traced_insight
+from core.ai.insight_runtime import RecursiveOptimizationHints, RecursiveRolloutPolicy
 
 
 @pytest.mark.asyncio
@@ -51,3 +52,101 @@ async def test_traced_provider_updates_span_provider_name_after_fallback(
     assert result == "fallback response"
     assert traced.name == "stub"
     assert observed_attrs["gen_ai.provider.name"] == "stub"
+
+
+@pytest.mark.asyncio
+async def test_generate_traced_insight_forwards_prepared_recursive_optimization_hints(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Tracing adapter must pass prepared recursive hints without recomputing them."""
+
+    observed: dict[str, Any] = {}
+
+    @contextmanager
+    def _fake_chain_span(*_args: object, **_kwargs: object) -> Any:
+        yield SimpleNamespace()
+
+    @contextmanager
+    def _fake_retrieval_span(*_args: object, **_kwargs: object) -> Any:
+        yield SimpleNamespace()
+
+    async def _fake_retrieve_and_validate_rag(*args: object, **kwargs: object) -> Any:
+        observed["retrieve_args"] = args
+        observed["retrieve_kwargs"] = kwargs
+        return SimpleNamespace(hops=1)
+
+    class _FakeRuntime:
+        async def generate_insight(self, **kwargs: object) -> object:
+            observed["runtime_kwargs"] = kwargs
+            rag_retriever = kwargs["rag_retriever"]
+            await rag_retriever(
+                "hello",
+                max_chunks=3,
+                philo_validation_enabled=False,
+                recursive_rag_enabled=True,
+                subject_id=123,
+                knowledge_policy={"enabled": True},
+            )
+            return SimpleNamespace(
+                insight="ok",
+                provider_name="provider",
+                source_dicts=[],
+                confidence=0.8,
+                rag_used=True,
+                hops=1,
+                latency_ms=5,
+                knowledge_candidates=[],
+                metadata=SimpleNamespace(
+                    route_type="deep_reasoning",
+                    depth_used=2,
+                    verification_rate=None,
+                    falsifiability_rate=None,
+                    contradiction_count=0,
+                    reason_codes=["legacy_path"],
+                    optimization_applied=False,
+                ),
+            )
+
+    monkeypatch.setattr("app.services.insight_runtime.chain_span", _fake_chain_span, raising=True)
+    monkeypatch.setattr(
+        "app.services.insight_runtime.retrieval_span",
+        _fake_retrieval_span,
+        raising=True,
+    )
+    monkeypatch.setattr(
+        "app.services.insight_runtime.rag_orchestration.retrieve_and_validate_rag",
+        _fake_retrieve_and_validate_rag,
+        raising=True,
+    )
+    monkeypatch.setattr(
+        "app.services.insight_runtime.set_attributes",
+        lambda *_args, **_kwargs: None,
+        raising=True,
+    )
+
+    await generate_traced_insight(
+        runtime=_FakeRuntime(),
+        text="hello",
+        lang=None,
+        provider=SimpleNamespace(name="provider", generate=lambda text: text),
+        use_rag=True,
+        philo_validation_enabled=False,
+        recursive_rag_enabled=True,
+        recursive_rag_optimization_enabled=True,
+        route_path="/api/v1/insight",
+        route_type="deep_reasoning",
+        user_tier="VIP",
+        subject_id=123,
+        knowledge_policy={"enabled": True},
+        recursive_rollout_policy=RecursiveRolloutPolicy(
+            use_rag=True,
+            recursive_rag_enabled=True,
+            recursive_rag_optimization_enabled=True,
+            optimization_hints=RecursiveOptimizationHints(target_depth_cap=2),
+        ),
+    )
+
+    assert observed["runtime_kwargs"]["recursive_rag_enabled"] is True
+    assert observed["retrieve_kwargs"][
+        "recursive_optimization_hints"
+    ] == RecursiveOptimizationHints(target_depth_cap=2)

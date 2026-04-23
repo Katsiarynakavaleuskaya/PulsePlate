@@ -14,7 +14,11 @@ from app.services.insight_application_service import (
     INSIGHT_TEXT_MAX_LENGTH,
     execute_insight_request,
 )
-from core.ai.insight_runtime import InsightTransparencyNotice, RecursiveRolloutPolicy
+from core.ai.insight_runtime import (
+    InsightTransparencyNotice,
+    RecursiveOptimizationHints,
+    RecursiveRolloutPolicy,
+)
 from core.insight.philosophical_runtime import PhilosophyRolloutPolicy
 from core.knowledge.policy import KnowledgePolicy
 from core.insight.llm_provider_loader import LLMProvider
@@ -88,11 +92,13 @@ def _recursive_rollout_policy(
     use_rag: bool = False,
     recursive_rag_enabled: bool = False,
     recursive_rag_optimization_enabled: bool = False,
+    optimization_hints: RecursiveOptimizationHints | None = None,
 ) -> RecursiveRolloutPolicy:
     return RecursiveRolloutPolicy(
         use_rag=use_rag,
         recursive_rag_enabled=recursive_rag_enabled,
         recursive_rag_optimization_enabled=recursive_rag_optimization_enabled,
+        optimization_hints=optimization_hints,
     )
 
 
@@ -530,6 +536,7 @@ async def test_execute_insight_request_uses_prepared_recursive_rollout_policy_as
     assert observed["generate_kwargs"]["recursive_rollout_policy"] is (
         prepared_runtime.recursive_rollout_policy
     )
+    assert observed["generate_kwargs"]["recursive_rollout_policy"].optimization_hints is None
     assert observed["generate_kwargs"]["use_rag"] is True
     assert observed["generate_kwargs"]["recursive_rag_enabled"] is True
     assert observed["generate_kwargs"]["recursive_rag_optimization_enabled"] is False
