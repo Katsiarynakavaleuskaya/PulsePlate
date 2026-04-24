@@ -43,7 +43,7 @@ Evidence: Review actionables fixed in shard runner, tests, packet, backlog, and 
 - `PYENV_VERSION=3.12.7 python -m pytest -q tests/test_py312_main_shards.py tests/test_ci_workflow_pr_size_governance_contract.py` PASS.
 - `PYENV_VERSION=3.12.7 python scripts/ci/run_py312_main_shards.py --list-shards --shard-count 2` PASS.
 - `pre-commit run --all-files --show-diff-on-failure` PASS.
-- `VENV_PYTHON=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python make validate-changed` PASS.
+- `VENV_PYTHON=.venv/bin/python make validate-changed` PASS.
 - Push pre-push hooks PASS: yaml, workflow check, black, ruff, mypy changed
   files, pip-audit, backend pre-push pytest, full-repo bandit, docker build
   test.
@@ -69,9 +69,9 @@ Evidence: Review actionables fixed in shard runner, tests, packet, backlog, and 
 
 ## Merge Readiness
 
-- [x] Current-head `test-main (3.12, 60)` completes without timeout.
-- [x] Current-head `test-main (3.12, 60)` has no xdist worker-node termination.
-- [x] `test-main (3.11, 60)` and `test-main (3.13, 90)` do not regress.
+- [ ] Current-head `test-main (3.12, 60)` completes without timeout.
+- [ ] Current-head `test-main (3.12, 60)` has no xdist worker-node termination.
+- [ ] `test-main (3.11, 60)` and `test-main (3.13, 90)` do not regress.
 - [ ] CodeRabbit, Sourcery, and Cubic actionables are mapped or explicitly
   marked non-actionable.
 - [ ] Final check pass completed after latest bot/review activity.
