@@ -21,15 +21,16 @@ Reason: Sourcery generated a reviewer guide and summary only; it contains no req
 
 - [ ] Current-head `main` health rechecked and stable
 - [ ] Current-head PR CI green with no pending required jobs
-- [x] Canonical fixed-mapping artifact exists and validates
+- [ ] Canonical fixed-mapping artifact exists and validates
 - [ ] PR body Phase2 mirror validates on current head
-- [x] No unresolved review threads at artifact initialization time
-- [x] No actionable CodeRabbit, Sourcery, or Cubic items at artifact initialization time
+- [ ] No unresolved review threads at artifact initialization time
+- [ ] No actionable CodeRabbit, Sourcery, or Cubic items at artifact initialization time
 - [ ] Strict merge wrapper passes with auth
 - [ ] Mandatory wait-window elapsed after latest bot/review activity
 
 Notes:
 
-- This PR remains draft and is not merge-ready.
+- This PR is not merge-ready until the current review cycle, current-head checks,
+  main-health gate, strict wrapper, and wait-window are complete.
 - The source Dependabot PR is `#1520`; this replacement branch does not edit the bot branch directly.
 - Re-check review threads, bot comments, current-head checks, and `main` health before moving out of draft.

@@ -22,7 +22,7 @@ OpenAPI, iOS, backend, or deployment behavior.
 - Observed source-PR blocker: current-head runtime checks were green for the
   frontend dependency surface, while `PR Body Phase2 gates` and
   `Merge readiness gate` failed because the canonical review mapping artifact
-  `docs/review/PR_1520_FIXED_MAPPING.md` was absent.
+  `docs/review/PR_1523_FIXED_MAPPING.md` was absent.
 - Start-gate override: live `main` health was not fully settled when this lane
   started, so the replacement PR must open as draft and must not claim
   merge-readiness until current-head `main` health is rechecked.
