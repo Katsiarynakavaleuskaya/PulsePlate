@@ -6,8 +6,8 @@ Canonical review-governance artifact and PR-body mirror requirements:
 `AGENTS.md`; `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md`;
 `docs/orchestration/AGENTS.md`.
 
-- [ ] Discussion-thread pass completed
-- [ ] Fixed in commit mapping completed
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 
 This artifact was created immediately after the draft PR opened per repo
 governance. Record every actionable human/bot disposition here before resolving
@@ -15,7 +15,7 @@ threads on GitHub.
 
 ## Fixed in Commit Mapping
 
-No review threads have been posted yet.
+- No actionable review comments
 
 ## Initial Implementation Commits
 
@@ -36,7 +36,7 @@ Merge-readiness contract:
 - [x] `python3 scripts/orchestration/check_preflight.py`
 - [x] `python3 scripts/orchestration/check_agent_consistency.py`
 - [x] `python3 -m pytest tests/test_food_source_catalog.py tests/test_food_source_preflight.py -q`
-      (`15 passed`)
+      (`23 passed`)
 - [x] `python3 scripts/food_source_preflight.py --current-manifest tests/fixtures/food_source_preflight/current_off_manifest.json --incoming-manifest tests/fixtures/food_source_preflight/incoming_off_manifest.json --dry-run --json`
 - [x] `VENV_PYTHON=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python make validate-changed`
       (`6 passed`)

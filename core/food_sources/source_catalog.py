@@ -231,10 +231,19 @@ def _parse_source_catalog_entry(value: object, context: str) -> SourceCatalogEnt
 
 
 def _validate_catalog_entry_policy(entry: SourceCatalogEntry, context: str) -> None:
+    if not entry.manifest_required or not entry.preflight_required:
+        raise _catalog_error(context, "manifest_required and preflight_required must be true")
     if entry.source_classification == "legacy_static" and entry.active_update_source:
         raise _catalog_error(context, "legacy_static sources cannot be active update sources")
     if entry.source_classification == "unresolved" and entry.status != "blocked_unresolved":
         raise _catalog_error(context, "unresolved sources must use blocked_unresolved status")
+    if entry.source_classification == "unresolved" and (
+        entry.license_review != "unresolved_required"
+    ):
+        raise _catalog_error(
+            context,
+            "unresolved sources require unresolved_required license review",
+        )
     if entry.source_classification == "commercial_contract" and (
         entry.license_review != "commercial_contract_required"
     ):
@@ -301,7 +310,7 @@ def _validate_catalog_policy(entries: tuple[SourceCatalogEntry, ...], context: s
         )
 
     if "menustat" in entry_names and not any(
-        entry.replacement_for == "menustat" for entry in entries
+        entry.source != "menustat" and entry.replacement_for == "menustat" for entry in entries
     ):
         raise _catalog_error(context, "menustat requires at least one replacement candidate")
 
