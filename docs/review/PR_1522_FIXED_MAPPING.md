@@ -29,10 +29,13 @@ Reason: CodeRabbit skipped review because the PR is draft; no code or documentat
 Merge-readiness contract:
 `AGENTS.md`; `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md`.
 
+Final merge-cycle checks intentionally remain unchecked while the PR has an open
+`make verify` blocker or current-head review/check activity is still active.
+
 - [ ] Current-head CI is green for PR branch head
 - [ ] Required checks complete with no pending required jobs
 - [ ] All review threads resolved on GitHub after disposition updates
-- [x] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
+- [ ] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
 - [ ] After latest bot/review activity, perform a final check and wait at least
       one review cycle before merging
 - [x] `python3 scripts/orchestration/check_preflight.py`
