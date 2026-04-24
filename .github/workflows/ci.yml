@@ -1092,8 +1092,10 @@ jobs:
           # See .cursorrules and AGENTS.md
           #
           # CI stability: Python 3.12 exceeded the 60-minute main window after xdist
-          # containment. Run isolated process-level shards for 3.12 instead of pytest-xdist
-          # workers, preserving the test-main (3.12, 60) required-check identity.
+          # containment. Python 3.13 passed inside the 90-minute window with almost
+          # no headroom after xdist was disabled. Run isolated process-level shards
+          # for both versions instead of pytest-xdist workers, preserving each
+          # test-main required-check identity.
           # Python 3.13 has seen intermittent segfaults under xdist+coverage.
           # Intentionally removed `--cov-context=test` due to flaky coverage DB corruption under xdist
           # on Python 3.13 ("no such table: context"). Revisit after pytest/hypothesis upgrades.
@@ -1101,23 +1103,26 @@ jobs:
           echo "TEST_STEP_STARTED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
           python -c "import sys; print('PY', sys.version)"
           if [[ "$PYVER" == 3.12* ]]; then
-            PY312_MAIN_SHARDS=2
-            PY312_MAIN_MAX_PARALLEL=2
-            echo "PY312_MAIN_SHARDS=${PY312_MAIN_SHARDS}"
-            echo "PY312_MAIN_MAX_PARALLEL=${PY312_MAIN_MAX_PARALLEL}"
+            MAIN_TEST_SHARDS=2
+            MAIN_TEST_MAX_PARALLEL=2
+          elif [[ "$PYVER" == 3.13* ]]; then
+            MAIN_TEST_SHARDS=2
+            MAIN_TEST_MAX_PARALLEL=2
+          else
+            PYTEST_XDIST_ARGS=(-n 4 --dist=loadscope)
+          fi
+          if [[ -n "${MAIN_TEST_SHARDS:-}" ]]; then
+            echo "MAIN_TEST_SHARDS=${MAIN_TEST_SHARDS}"
+            echo "MAIN_TEST_MAX_PARALLEL=${MAIN_TEST_MAX_PARALLEL}"
             set +e
-            time python scripts/ci/run_py312_main_shards.py \
-              --shard-count "${PY312_MAIN_SHARDS}" \
-              --max-parallel "${PY312_MAIN_MAX_PARALLEL}"
+            time python scripts/ci/run_main_test_shards.py \
+              --python-version "${PYVER}" \
+              --shard-count "${MAIN_TEST_SHARDS}" \
+              --max-parallel "${MAIN_TEST_MAX_PARALLEL}"
             test_exit_code=$?
             set -e
             echo "TEST_STEP_FINISHED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
             exit "$test_exit_code"
-          elif [[ "$PYVER" == 3.13* ]]; then
-            # Fully disable xdist plugin on 3.13 (more stable than `-n 0`)
-            PYTEST_XDIST_ARGS=(-p no:xdist)
-          else
-            PYTEST_XDIST_ARGS=(-n 4 --dist=loadscope)
           fi
           echo "PYTEST_XDIST_ARGS=${PYTEST_XDIST_ARGS[*]}"
           set +e
@@ -1154,6 +1159,7 @@ jobs:
           path: |
             tests/results.xml
             tests/results-py312-shard-*.xml
+            tests/results-py313-shard-*.xml
           if-no-files-found: ignore
           retention-days: 7
 

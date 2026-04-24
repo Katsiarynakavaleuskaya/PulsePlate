@@ -15,6 +15,21 @@ Or individually:
 - `make test-fast` — deterministic smoke subset (`tests/edges` + `tests/test_remaining_modules.py`)
 - `make diff-cov` — diff-cover ≥97% against origin/main
 
+**Machine-heavy PR exception (operator-approved only):** when a coordinator-owned
+CI/tooling PR would require a full local project run that is known to exceed the
+operator's acceptable machine budget, agents MUST NOT run full local
+`make verify` by default. The PR may use GitHub current-head CI as the heavy
+signal only when the PR body and `docs/review/PR_<N>_FIXED_MAPPING.md` document
+the deferral, all PR-scoped local gates pass (`check_preflight`,
+`check_agent_consistency`, focused tests, `make validate-changed`,
+`pre-commit run --all-files`), and canonical current-head CI parity is green:
+`lint`, `typecheck`, the relevant `test-main` matrix, `diff-coverage` at
+≥97%, applicable security/governance checks, and
+`check_merge_ready.py --require-auth`. This exception does not permit ignored
+failures, weakened coverage, `continue-on-error`, or merge-ready claims while
+local narrow gates, review threads, canonical CI parity, or required CI are
+pending.
+
 `verify-env` (the first step of `make verify`) also rejects **present** broken
 `.venv/bin` console scripts for flake8/pytest/mypy/coverage/diff-cover (stale
 absolute shebang, non-executable file, broken symlink) so local preflight
@@ -35,7 +50,9 @@ dead interpreter. Missing scripts are OK; see
 1. Paste raw output lines showing the failure
 2. Provide `file:line:error` pointers
 3. Do NOT write "готово", "green", "mergeable"
-4. Fix the issue first, then re-run `make verify`
+4. Fix the issue first, then re-run the failed required gate (`make verify` for
+   normal PRs, or the documented narrow gate for an operator-approved
+   machine-heavy PR)
 
 **PR merge readiness (hard rule):**
 
