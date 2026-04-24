@@ -44,6 +44,8 @@ Reason: Informational coverage report, not an actionable change request.
 
 ## Merge Readiness
 
+- [x] Operator deferred full local `make verify`; GitHub current-head CI is the heavy signal for the full suite.
+- [x] Narrow local gates completed: preflight, agent consistency, targeted compile/tests, formatting/lint checks, `make validate-changed`, and `pre-commit run --all-files`.
 - [ ] Current-head CI green for PR branch head
 - [ ] Required checks complete (no pending jobs)
 - [ ] All review threads resolved on GitHub after disposition updates
