@@ -28,11 +28,11 @@ the expected `401`.
 
 ## Validation Evidence
 
-- `python3 scripts/orchestration/check_preflight.py --path tests/test_payment_source_contract_api.py --path tests/conftest.py` — pending rerun after rebase.
+- `python3 scripts/orchestration/check_preflight.py --path tests/test_payment_source_contract_api.py --path tests/conftest.py` — PASS
 - `python3 scripts/orchestration/check_agent_consistency.py` — PASS
-- `.venv/bin/pytest -q tests/test_payment_source_contract_api.py tests/test_paid_route_guards.py::test_manual_ru_by_entry_routes_remain_callable_before_entitlement` — pending rerun after rebase.
-- `pre-commit run --all-files` — pending rerun after rebase.
-- `make validate-changed` — pending rerun after rebase.
+- `.venv/bin/pytest -q tests/test_payment_source_contract_api.py tests/test_paid_route_guards.py::test_manual_ru_by_entry_routes_remain_callable_before_entitlement tests/test_food_source_preflight.py` — PASS (`21 passed`)
+- `make validate-changed` — PASS
+- `pre-commit run --all-files` — PASS
 
 Local `make verify` note: attempted before PR open. It passed `verify-env`,
 `lint`, `typecheck`, and `test-fast`, then was externally terminated during the
@@ -54,12 +54,12 @@ Merge-readiness contract:
   Evidence: pending post-open review cycle.
 - [x] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
   Evidence: no actionable review comments were present when this artifact was created.
-- [ ] Pre-commit green on latest pushed head
-  Evidence: pending rerun after rebase.
+- [x] Pre-commit green on latest pushed head
+  Evidence: `pre-commit run --all-files` passed after rebase.
 - [ ] `make verify` green on latest pushed head
   Evidence: not satisfied locally; see Validation Evidence note.
-- [ ] Mandatory post-open `qa-engineer-agent -> bug-hunter` pass completed
-  Evidence: pending post-open review pass.
+- [x] Mandatory post-open `qa-engineer-agent -> bug-hunter` pass completed
+  Evidence: both post-open role passes reported no blocking findings.
 
 ## Deferred / Follow-ups
 
