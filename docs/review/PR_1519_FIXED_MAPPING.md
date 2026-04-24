@@ -41,6 +41,16 @@ Disposition: FIXED
 Commit: 713183696
 Evidence: `docs/roadmap/BACKLOG_LEDGER.md` includes PR `#1519` in both the target PR train and active PR-3 status line.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1519#pullrequestreview-4173502314 -> 089a82855
+Disposition: FIXED
+Commit: 089a82855
+Evidence: `tests/test_design_token_parity.py` now skips tracked files that disappear between `is_file()` and `read_text()`, keeping the scanner deterministic.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1519#discussion_r3140379902 -> 089a82855
+Disposition: FIXED
+Commit: 089a82855
+Evidence: `tests/test_design_token_parity.py` catches `FileNotFoundError` around the scanner read path and continues without treating transient files as policy violations.
+
 ## Manual Review Substitute
 
 - Scope: local CodeRabbit/Sourcery-style review of `origin/main...HEAD`
@@ -72,6 +82,7 @@ Evidence: `docs/roadmap/BACKLOG_LEDGER.md` includes PR `#1519` in both the targe
 
 - `python3 scripts/orchestration/check_preflight.py` — PASS
 - `python3 scripts/orchestration/check_agent_consistency.py` — PASS
+- `python3 -m pytest tests/test_design_token_parity.py -q` — PASS (`13 passed`) after commit `089a82855`
 - `make tokens-check` — PASS on current head
 - `python3 scripts/design_guard.py --manifest docs/design/figma-manifest.json` — PASS
 - `python3 -m pytest tests/test_design_token_parity.py -q` — PASS (`13 passed`)
@@ -83,7 +94,8 @@ Evidence: `docs/roadmap/BACKLOG_LEDGER.md` includes PR `#1519` in both the targe
   `test-pr (3.13)`, `diff-coverage`, `coverage-pr`, `build-and-test`,
   `iOS unit tests`, `iOS UI smoke`, `security`, `security-scan`, CodeQL, and
   `validate-assets`
-- Local full `make verify` — not rerun after commit `713183696`; this PR remains
+- Local full `make verify` — stale run stopped after new CodeRabbit feedback and
+  before commit `089a82855`; this PR remains
   blocked from any merge-ready claim until local or current-head heavy evidence
   is coherent and the strict wrapper passes.
 
