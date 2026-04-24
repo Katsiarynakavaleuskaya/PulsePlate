@@ -563,13 +563,34 @@ def test_security_scan_workflow_audits_runtime_and_optional_manifests() -> None:
         encoding="utf-8"
     )
     ci_pip_audit_text = (REPO_ROOT / "scripts" / "ci_pip_audit.sh").read_text(encoding="utf-8")
+    safety_audit_text = (REPO_ROOT / "scripts" / "ci" / "run_safety_audit.py").read_text(
+        encoding="utf-8"
+    )
 
-    assert "requirements-docker-runtime.txt" in ci_text
-    assert "requirements-docker-runtime.txt" in security_text
+    assert "python3 scripts/ci/run_safety_audit.py" in ci_text
+    assert "python3 scripts/ci/run_safety_audit.py" in security_text
+    assert "requirements-docker-runtime.txt" in safety_audit_text
     assert "requirements-docker-runtime.txt" in ci_pip_audit_text
-    assert "requirements-rag-vector.txt" in ci_text
-    assert "requirements-rag-vector.txt" in security_text
+    assert "requirements-rag-vector.txt" in safety_audit_text
     assert "requirements-rag-vector.txt" in ci_pip_audit_text
+
+
+def test_safety_dependency_audit_uses_shared_helper_without_shell_loop() -> None:
+    workflow_paths = (
+        ".github/workflows/ci.yml",
+        ".github/workflows/security.yml",
+    )
+
+    for workflow_path in workflow_paths:
+        workflow_text = (REPO_ROOT / workflow_path).read_text(encoding="utf-8")
+
+        assert "python3 scripts/ci/run_safety_audit.py" in workflow_text
+        assert "safety-*.json" in workflow_text
+        assert "safety-*.txt" in workflow_text
+        assert "safety-*.log" in workflow_text
+        assert 'manifests=("requirements.txt")' not in workflow_text
+        assert 'cp "${report_json}" safety-report.json' not in workflow_text
+        assert ".github/scripts/parse-safety-report.py" not in workflow_text
 
 
 def test_requirements_lock_excludes_optional_rag_vector_stack() -> None:
