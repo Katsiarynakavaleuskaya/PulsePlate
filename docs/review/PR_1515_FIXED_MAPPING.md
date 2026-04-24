@@ -14,7 +14,12 @@ Record every actionable human/bot disposition here before resolving threads on G
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+Disposition: FIXED
+Commit: 87651c7b6
+Evidence: `python -m pytest -q tests/test_run_safety_audit.py tests/test_python_supply_chain_controls.py` -> 59 passed; `pre-commit run --all-files` -> passed. The fix validates Safety JSON object shape, writes deterministic summaries on missing reports and schema drift, fails closed on non-zero Safety exits without parsed findings, and removes the absolute local Python path from the task packet.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1515#discussion_r3137934491 -> 87651c7b6
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1515#discussion_r3137934498 -> 87651c7b6
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1515#discussion_r3137934504 -> 87651c7b6
 
 ## Merge Readiness
 
@@ -48,6 +53,9 @@ Post-open QA notes:
   per-manifest JSON if Safety failed before overwriting a prior report; fixed
   in commit `bf8d5297d` and covered by `test_run_audit_removes_stale_report_before_safety_execution`.
 - QA fix evidence: `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/test_run_safety_audit.py tests/test_python_supply_chain_controls.py` -> 55 passed; `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/flake8 .github/scripts/parse-safety-report.py scripts/ci/run_safety_audit.py` -> passed.
+- `bug-hunter` found non-object Safety JSON, missing-report summaries, and
+  non-zero Safety exits without parsed findings were not all fail-closed with
+  deterministic evidence; fixed in commit `87651c7b6`.
 
 ## Deferred / Follow-ups
 
