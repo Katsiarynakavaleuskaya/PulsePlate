@@ -14,7 +14,30 @@ threads on GitHub.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+### FIXED
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1525#discussion_r3140666376 -> 1a3190db8
+  Disposition: FIXED
+  Evidence: `docs/review/PR_1525_FIXED_MAPPING.md:11`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1525#discussion_r3140666395 -> 1a3190db8
+  Disposition: FIXED
+  Evidence: `docs/review/PR_1525_FIXED_MAPPING.md:23`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1525#discussion_r3140673719 -> 1a3190db8
+  Disposition: FIXED
+  Evidence: `docs/review/PR_1525_FIXED_MAPPING.md:40`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1525#discussion_r3140673720 -> 1a3190db8
+  Disposition: FIXED
+  Evidence: `docs/review/PR_1525_FIXED_MAPPING.md:74`; `docs/review/PR_1525_FIXED_MAPPING.md:76`; `docs/review/PR_1525_FIXED_MAPPING.md:80`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1525#pullrequestreview-4173846236 -> 1a3190db8
+  Disposition: FIXED
+  Evidence: `tests/test_payment_source_contract_api.py:72`; `tests/test_payment_source_contract_api.py:111`.
+
+### NOT-A-BUG
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1525#pullrequestreview-4173836420
+  Disposition: NOT-A-BUG
+  Evidence: `tests/test_payment_source_contract_api.py:17`.
+  Reason: The helper intentionally matches `legacy_app.get_api_key` by callable metadata because the CI failure was caused by stale reload-created function objects that cannot be found by current-object identity.
 
 ## Post-Open Role Review
 
@@ -26,7 +49,8 @@ threads on GitHub.
 ## Implementation Evidence
 
 Commit: 50a02aec1
-Evidence: `tests/test_payment_source_contract_api.py:17`; `tests/test_payment_source_contract_api.py:29`; `tests/test_payment_source_contract_api.py:71`; `tests/test_payment_source_contract_api.py:110`.
+Follow-up review fix commit: 1a3190db8
+Evidence: `tests/test_payment_source_contract_api.py:17`; `tests/test_payment_source_contract_api.py:29`; `tests/test_payment_source_contract_api.py:71`; `tests/test_payment_source_contract_api.py:72`; `tests/test_payment_source_contract_api.py:109`; `tests/test_payment_source_contract_api.py:111`.
 Reason: Main CI run `24911580731` failed in jobs `72954280558` and `72954280584`
 because stale `legacy_app.get_api_key` dependency override keys could survive
 inside the shared `app.main.app` test singleton during long shard execution,
@@ -60,7 +84,7 @@ Merge-readiness contract:
 - [ ] All review threads resolved on GitHub after disposition updates
   Evidence: pending post-open review cycle.
 - [ ] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
-  Evidence: pending final review-governance pass after latest bot comments.
+  Evidence: latest bot findings mapped above; pending final bot/review pass.
 - [ ] Pre-commit green on latest pushed head
   Evidence: `pre-commit run --all-files` passed after rebase.
 - [ ] `make verify` green on latest pushed head
