@@ -61,7 +61,7 @@ the expected `401`.
 
 - `python3 scripts/orchestration/check_preflight.py --path tests/test_payment_source_contract_api.py --path tests/conftest.py` — PASS
 - `python3 scripts/orchestration/check_agent_consistency.py` — PASS
-- `.venv/bin/pytest -q tests/test_payment_source_contract_api.py tests/test_paid_route_guards.py::test_manual_ru_by_entry_routes_remain_callable_before_entitlement` — PASS (`12 passed`)
+- `.venv/bin/pytest -q tests/test_payment_source_contract_api.py tests/test_paid_route_guards.py::test_manual_ru_by_entry_routes_remain_callable_before_entitlement tests/test_food_source_preflight.py` — PASS (`21 passed`)
 - `make validate-changed` — PASS
 - `pre-commit run --all-files` — PASS
 
