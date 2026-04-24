@@ -497,7 +497,10 @@ def test_product_tokens_are_not_consumed_outside_token_runtime_surfaces() -> Non
         ):
             continue
 
-        text = path.read_text(encoding="utf-8", errors="ignore")
+        try:
+            text = path.read_text(encoding="utf-8", errors="ignore")
+        except FileNotFoundError:
+            continue
         if PRODUCT_TOKEN_REFERENCE_RE.search(text):
             blocked_references.append(str(relative_path))
 
