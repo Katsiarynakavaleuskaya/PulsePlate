@@ -43,10 +43,18 @@ Reason: Manifest `retrieved_on` parsing now rejects compact/non-YYYY-MM-DD forms
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1517#pullrequestreview-4172033067 -> dc9ddecc7
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1517#discussion_r3139062053 -> dc9ddecc7
 
+Disposition: FIXED
+Commit: 3759d03aa
+Evidence: `tests/test_food_source_preflight.py`
+Reason: CLI file-only test now runs the subprocess from `tmp_path`, so the before/after file-tree assertion checks the actual working directory used by the CLI process.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1517#pullrequestreview-4172181086 -> 3759d03aa
+
 ## Initial Implementation Commits
 
 - `1a2c265b7` - `feat(food-data): add source preflight skeleton`
 - `dc9ddecc7` - `fix(food-data): enforce manifest date format`
+- `3c706a0fc` - `fix(food-data): add source delta preflight report`
+- `3759d03aa` - `test(food-data): verify cli working directory isolation`
 
 ## Merge Readiness
 
