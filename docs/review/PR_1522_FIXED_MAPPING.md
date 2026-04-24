@@ -32,6 +32,7 @@ Reason: Final merge-readiness checklist entries now stay unchecked while PR #152
 - `e5f0e2ff2` - `docs(roadmap): define plugin control-plane umbrella`
 - `2ea3f2ca5` - `docs(review): address pr1522 bot comments`
 - `a5da6c797` - `fix(food-sources): restore source preflight typing`
+- `653d398be` - `fix(food-sources): support narrow mypy mode`
 
 ## Merge Readiness
 
