@@ -9,8 +9,7 @@
 
 Disposition: NOT-A-BUG
 Evidence: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1523#issuecomment-4316487688
-Reason: CodeRabbit's walkthrough/pre-merge summary has no standalone action beyond
-the inline review comments explicitly dispositioned below.
+Reason: CodeRabbit's walkthrough/pre-merge summary has no standalone action beyond the inline review comments explicitly dispositioned below.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1523#issuecomment-4316487688
 
 Disposition: FIXED
