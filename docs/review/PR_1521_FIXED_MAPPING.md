@@ -60,7 +60,7 @@ Evidence: docs/orchestration/CODEX_SKILLS_ALIGNMENT_MATRIX.md lists pulseplate-p
 
 ## Merge Readiness
 
-- [x] Current-head GitHub CI passed before post-review fix push.
-- [x] CodeRabbit, Sourcery, and Cubic actionables are mapped or explicitly marked non-actionable for the reviewed head.
+- [ ] Current-head GitHub CI passed before post-review fix push.
+- [ ] CodeRabbit, Sourcery, and Cubic actionables are mapped or explicitly marked non-actionable for the reviewed head.
 - [ ] Final check pass completed after latest bot/review activity.
 - [ ] Waited at least one review cycle before merge.
