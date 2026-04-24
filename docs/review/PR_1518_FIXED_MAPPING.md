@@ -23,6 +23,10 @@ threads on GitHub.
   Disposition: NOT-A-BUG
   Evidence: Current-head GitHub CI for `5b393083a3ea5c824c1629b5ce1def5a3c101198` passed PR tests, coverage, lint, security, and diff coverage; manual `/review` found no P0/P1/P2 code issues.
   Reason: Sourcery reported a weekly account rate limit, not a code or documentation defect in this PR. The earlier Sourcery code suggestion is mapped above with a disposition.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1518#discussion_r3139405772 -> 3fc16e517066a80ba179ed67c86a6dea7dfc89fc
+  Disposition: FIXED
+  Evidence: `docs/review/PR_1518_FIXED_MAPPING.md:56`.
+  Reason: Removed the wording that justified skipping local `make verify` and replaced it with an explicit unchecked local hard-gate statement.
 
 ## Implementation Evidence
 
@@ -45,7 +49,7 @@ Merge-readiness contract:
 - [ ] All review threads resolved on GitHub after disposition updates
   Evidence: no review-thread resolution has been performed yet.
 - [x] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
-  Evidence: Sourcery high-level configurability comment and Sourcery weekly rate-limit review are mapped above as NOT-A-BUG; CodeRabbit status is PASS and its latest comment reports only account rate limiting, with no code findings.
+  Evidence: Sourcery high-level configurability comment and Sourcery weekly rate-limit review are mapped above as NOT-A-BUG; CodeRabbit local-verify gate feedback is mapped above as FIXED.
 - [x] Pre-commit green on latest pushed head
   Evidence: `pre-commit run --all-files` passed before the initial push.
 - [ ] `make verify` green on latest pushed head
