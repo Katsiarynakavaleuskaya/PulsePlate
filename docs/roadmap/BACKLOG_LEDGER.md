@@ -786,7 +786,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Docker workflow build-path consolidation and image digest reuse
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-TBD-DOCKER-BUILD-PATH-CONSOLIDATION
+  - Target PR: PR #1526 (`codex/docker-build-path-consolidation`)
   - Area: CI / docker / security scan / operator workflow
   - Status: Active next Docker/CI/Security slice after `PR #1515`
   - Depends on:

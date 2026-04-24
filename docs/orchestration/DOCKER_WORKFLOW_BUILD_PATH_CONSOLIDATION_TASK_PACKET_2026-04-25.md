@@ -19,7 +19,7 @@ security, budget, and attestation contracts while removing redundant work.
 
 - Branch: `codex/docker-build-path-consolidation`
 - Worktree: `worktrees/docker-build-path-consolidation-pr9`
-- Draft PR: TBD
+- Draft PR: `#1526`
 
 ## Mandatory role order
 
