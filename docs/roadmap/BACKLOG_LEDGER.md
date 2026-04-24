@@ -3808,6 +3808,24 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 
 ### P2
 
+<a id="ledger-p2-pulseplate-pr-review-context-collector"></a>
+- [ ] P2: Add read-only context collector for PulsePlate PR review skill
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2 (review automation follow-up)
+  - Target PR: PR-TBD-PULSEPLATE-PR-REVIEW-CONTEXT-COLLECTOR
+  - Status: Opened on 24 April 2026
+  - Area: orchestration / PR review / Codex skills
+  - Reason: PR1 intentionally keeps `pulseplate-pr-review` passive and documentation/router-only. A separate follow-up should add a read-only collector for changed files, diff stats, scoped `AGENTS.md`, PR metadata, fixed-mapping state, and relevant test suggestions after the skill contract is merged and reviewed.
+  - Links:
+    - `tools/codex_skills/pulseplate-pr-review/SKILL.md`
+    - `docs/orchestration/PULSEPLATE_PR_REVIEW_SKILL_PACKET_2026-04-24.md`
+    - `scripts/orchestration/skill_router.py`
+  - DoD:
+    - `scripts/orchestration/pr_review_context.py` collects context without mutating repo files or GitHub state
+    - collector output has a stable JSON schema usable by `pulseplate-pr-review`
+    - tests cover branch diff, scoped `AGENTS.md` discovery, missing PR metadata, and fixed-mapping absence
+    - the collector remains advisory and does not post GitHub comments, resolve threads, or claim merge readiness
+
 <a id="ledger-p2-dependency-fallback-artifact-dedup"></a>
 - [ ] P2: Deduplicate dependency fallback version references across packet / ledger / tests
   - Owner: @katsiaryna_kavaleuskaya
@@ -9923,6 +9941,6 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - empty selections remain an explicit no-op with stable logs
     - workflow contract tests cover the shared helper wiring end to end
 
-**Last updated:** 2026-04-24 (food data source-update preflight PR1)
+**Last updated:** 2026-04-24 (PulsePlate PR review skill PR1)
 **Maintainer:** @katsiaryna_kavaleuskaya
 <!-- markdownlint-enable MD013 -->

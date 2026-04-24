@@ -52,6 +52,7 @@ Interpretation:
 - `create-pr`
 - `docs-sync`
 - `bug-triage`
+- `pulseplate-pr-review`
 - `build-web-apps:frontend-skill`
 - `build-web-apps:web-design-guidelines`
 - `build-ios-apps:swiftui-ui-patterns`
@@ -100,6 +101,7 @@ Interpretation:
 ### Wave 3 — Planned
 
 - `pulseplate-agent-product`
+- `pulseplate-pr-review` — passive coordinator-owned PR self-review helper for repo-native CodeRabbit/Sourcery/Cubic-style scrutiny without replacing merge gates (evidence: `tools/codex_skills/pulseplate-pr-review/SKILL.md:1`, `docs/orchestration/PULSEPLATE_PR_REVIEW_SKILL_PACKET_2026-04-24.md:1`)
 
 ## Scope of This PR Family
 
