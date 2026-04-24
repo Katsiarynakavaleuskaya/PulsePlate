@@ -3231,6 +3231,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p2-advisory-wiki-query-lint-enrichment`
     - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p2-advisory-wiki-reference-corpus-policy`
     - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p2-local-launcher-rollout-for-coordinator-first-automation`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p2-plugin-control-plane-families-umbrella`
   - DoD:
     - One canonical umbrella entry exists for the advisory workforce rail
     - The rail is explicitly marked non-canonical and non-product-facing
