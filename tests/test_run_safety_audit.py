@@ -1,0 +1,147 @@
+"""Tests for the canonical multi-manifest Safety audit helper."""
+
+from __future__ import annotations
+
+import json
+from pathlib import Path
+from types import SimpleNamespace
+from typing import Any
+
+import pytest
+
+from scripts.ci import run_safety_audit as safety_audit
+
+
+def _write_report(path: Path, severities: list[str]) -> None:
+    payload = {
+        "vulnerabilities": [
+            {
+                "package_name": f"pkg-{index}",
+                "analyzed_version": "1.0.0",
+                "vuln_id": f"VULN-{index}",
+                "severity": {"cvssv3": {"base_severity": severity}},
+            }
+            for index, severity in enumerate(severities, start=1)
+        ],
+        "ignored_vulnerabilities": [],
+    }
+    path.write_text(json.dumps(payload), encoding="utf-8")
+
+
+def _write_manifest(root: Path, name: str) -> None:
+    (root / name).write_text("example==1.0.0\n", encoding="utf-8")
+
+
+def test_discovers_required_and_optional_manifests(tmp_path: Path) -> None:
+    _write_manifest(tmp_path, "requirements.txt")
+    _write_manifest(tmp_path, "requirements-docker-runtime.txt")
+    _write_manifest(tmp_path, "requirements-rag-vector.txt")
+
+    manifests = safety_audit.discover_manifests(tmp_path)
+
+    assert [manifest.name for manifest in manifests] == [
+        "requirements.txt",
+        "requirements-docker-runtime.txt",
+        "requirements-rag-vector.txt",
+    ]
+
+
+def test_discovery_fails_when_required_manifest_is_missing(tmp_path: Path) -> None:
+    with pytest.raises(safety_audit.SafetyAuditError, match="requirements.txt not found"):
+        safety_audit.discover_manifests(tmp_path)
+
+
+def test_policy_file_precedence_prefers_yaml_over_toml(tmp_path: Path) -> None:
+    (tmp_path / "safety-policy.toml").write_text("[policy]\n", encoding="utf-8")
+    (tmp_path / "safety-policy.yaml").write_text("policy: {}\n", encoding="utf-8")
+
+    assert safety_audit.policy_args(tmp_path) == (
+        "--policy-file",
+        str(tmp_path / "safety-policy.yaml"),
+    )
+
+
+def test_run_audit_emits_per_manifest_artifacts(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _write_manifest(tmp_path, "requirements.txt")
+    _write_manifest(tmp_path, "requirements-docker-runtime.txt")
+    output_dir = tmp_path / "reports"
+
+    def fake_run(command: list[str], **_: Any) -> SimpleNamespace:
+        report_path = Path(command[command.index("--save-json") + 1])
+        _write_report(report_path, [])
+        return SimpleNamespace(returncode=0, stdout="safety output\n", stderr="")
+
+    monkeypatch.setattr(safety_audit.shutil, "which", lambda _: "/usr/bin/safety")
+    monkeypatch.setattr(safety_audit.subprocess, "run", fake_run)
+
+    config = safety_audit.build_config(root=tmp_path, output_dir=output_dir)
+    results = safety_audit.run_audit(config)
+
+    assert safety_audit.exit_code_for_results(results) == 0
+    assert sorted(path.name for path in output_dir.glob("safety-*")) == [
+        "safety-requirements-docker-runtime.json",
+        "safety-requirements-docker-runtime.log",
+        "safety-requirements-docker-runtime.txt",
+        "safety-requirements.json",
+        "safety-requirements.log",
+        "safety-requirements.txt",
+    ]
+
+
+@pytest.mark.parametrize("severity", ["HIGH", "CRITICAL", "UNKNOWN"])
+def test_high_risk_findings_fail_aggregate(tmp_path: Path, severity: str) -> None:
+    report_path = tmp_path / "safety-requirements.json"
+    summary_path = tmp_path / "safety-requirements.txt"
+    _write_report(report_path, [severity])
+
+    analysis = safety_audit.analyze_report(report_path, summary_path)
+
+    assert analysis.status == safety_audit.PARSE_BLOCKING
+    assert analysis.high_risk_count == 1
+
+
+@pytest.mark.parametrize("severity", ["LOW", "MEDIUM"])
+def test_low_and_medium_findings_warn_without_failing(tmp_path: Path, severity: str) -> None:
+    report_path = tmp_path / "safety-requirements.json"
+    summary_path = tmp_path / "safety-requirements.txt"
+    _write_report(report_path, [severity])
+
+    analysis = safety_audit.analyze_report(report_path, summary_path)
+
+    assert analysis.status == safety_audit.PARSE_WARNING
+    assert analysis.high_risk_count == 0
+    result = safety_audit.ManifestAuditResult(
+        manifest=tmp_path / "requirements.txt",
+        report_json=report_path,
+        report_txt=summary_path,
+        console_log=tmp_path / "safety-requirements.log",
+        safety_exit_code=64,
+        analysis=analysis,
+    )
+    assert safety_audit.exit_code_for_results([result]) == 0
+
+
+def test_missing_or_empty_report_fails_closed(tmp_path: Path) -> None:
+    report_path = tmp_path / "safety-requirements.json"
+    summary_path = tmp_path / "safety-requirements.txt"
+    report_path.write_text("", encoding="utf-8")
+
+    with pytest.raises(safety_audit.SafetyAuditError) as exc_info:
+        safety_audit.analyze_report(report_path, summary_path)
+
+    assert exc_info.value.exit_code == safety_audit.PARSE_ERROR
+    assert "not generated" in summary_path.read_text(encoding="utf-8")
+
+
+def test_invalid_report_json_fails_closed(tmp_path: Path) -> None:
+    report_path = tmp_path / "safety-requirements.json"
+    summary_path = tmp_path / "safety-requirements.txt"
+    report_path.write_text("{not-json", encoding="utf-8")
+
+    with pytest.raises(safety_audit.SafetyAuditError) as exc_info:
+        safety_audit.analyze_report(report_path, summary_path)
+
+    assert exc_info.value.exit_code == safety_audit.PARSE_ERROR
+    assert "Failed to parse Safety report JSON" in summary_path.read_text(encoding="utf-8")
