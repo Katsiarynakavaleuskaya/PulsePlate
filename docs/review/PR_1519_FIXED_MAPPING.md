@@ -11,13 +11,39 @@
 
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
-- Status: No actionable review comments at the time of this draft governance pass.
-- External bot caveat: CodeRabbit and Sourcery quota limits prevented a full
-  external review cycle while the PR was still draft.
+- Status: Actionable bot review comments were dispositioned after the recovered
+  coordinator `qa-engineer-agent -> bug-hunter` pass.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1519#pullrequestreview-4173361113 -> 713183696
+  - Disposition: FIXED
+  - Commit: 713183696
+  - Evidence: `tests/test_design_token_parity.py` now scans tracked repo files
+    via `git ls-files`, preventing local artifacts/worktrees from producing
+    false product-token usage failures.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1519#discussion_r3140255469 -> 713183696
+  - Disposition: FIXED
+  - Commit: 713183696
+  - Evidence: `tests/test_design_token_parity.py` now limits the product-token
+    reference scan to tracked files instead of walking all local directories.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1519#discussion_r3140265690 -> 713183696
+  - Disposition: FIXED
+  - Commit: 713183696
+  - Evidence: `tests/test_design_token_parity.py` now excludes untracked
+    coordinator worktrees and local artifacts by scanning tracked files only.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1519#pullrequestreview-4173376521 -> 713183696
+  - Disposition: FIXED
+  - Commit: 713183696
+  - Evidence: `docs/roadmap/BACKLOG_LEDGER.md` names PR `#1519`,
+    `docs/design/TOKEN_PIPELINE_GOVERNANCE.md` references the Web Token
+    Governance SoT, and `frontend/scripts/build-tokens.mjs` documents the
+    supported CSS alias reference fallback.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1519#discussion_r3140266789 -> 713183696
+  - Disposition: FIXED
+  - Commit: 713183696
+  - Evidence: `docs/roadmap/BACKLOG_LEDGER.md` now includes PR `#1519` in both
+    the target PR train and active PR-3 status line.
 
 ## Manual Review Substitute
 
@@ -31,24 +57,45 @@
   - no backend, billing, iOS screen adoption, Figma manifest, or product shell
     scope was introduced
 
+## Mandatory Bug-Hunter Pass
+
+- Agent: `bug-hunter` workflow, recovered locally after native executor capacity
+  failures
+- Result: PASS after mapping/fix commit `713183696`; no product-token scope
+  regressions found
+- Head reviewed: `713183696`
+- Evidence:
+  - token source-of-truth drift checked
+  - generated CSS/TS/Swift mirrors checked
+  - CSS alias preservation and dark-mode semantic indirection checked
+  - Swift product token naming checked
+  - scope boundaries and governance artifacts checked
+  - actionable Sourcery/Codex/CodeRabbit comments mapped to FIXED dispositions
+
 ## Validation Evidence
 
 - `python3 scripts/orchestration/check_preflight.py` — PASS
 - `python3 scripts/orchestration/check_agent_consistency.py` — PASS
 - `make tokens-check` — PASS on current head
 - `python3 scripts/design_guard.py --manifest docs/design/figma-manifest.json` — PASS
-- `python3 -m pytest tests/test_design_token_parity.py -q` — PASS (`12 passed, 1 skipped`)
+- `python3 -m pytest tests/test_design_token_parity.py -q` — PASS (`13 passed`)
+- `cd frontend && npm run tokens:check` — PASS
 - `cd frontend && npm run build` — PASS on rebased head
 - `pre-commit run --all-files` — PASS on rebased head
+- GitHub current-head checks for `1cd88603c` — PASS / skip-only except the
+  expected pre-disposition merge-readiness failure, including
+  `test-pr (3.13)`, `diff-coverage`, `coverage-pr`, `build-and-test`,
+  `iOS unit tests`, `iOS UI smoke`, `security`, `security-scan`, CodeQL, and
+  `validate-assets`
+- Local full `make verify` — not rerun after commit `713183696`; this PR remains
+  blocked from any merge-ready claim until local or current-head heavy evidence
+  is coherent and the strict wrapper passes.
 
 ## Merge Readiness
 
-Not merge-ready.
+Pending final strict merge-readiness wrapper on the current head.
 
 Blocking follow-up before any merge-ready claim:
-- current-head CI must be green
-- external CodeRabbit/Sourcery input must be restored or explicitly accepted as
-  substituted by the manual review pass above
-- mandatory `qa-engineer-agent -> bug-hunter` pass must be completed
-- `make verify` must complete on the current PR head
+- push the mapping/fix commits and wait for current-head CI on the new SHA
+- resolve the mapped GitHub review thread after the FIXED disposition is present
 - `python3 scripts/orchestration/check_merge_ready.py --pr-number 1519 --repo Katsiarynakavaleuskaya/PulsePlate --require-auth` must pass
