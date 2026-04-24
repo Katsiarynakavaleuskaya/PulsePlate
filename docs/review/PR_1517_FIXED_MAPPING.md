@@ -54,6 +54,7 @@ Commit: 49efc9ec9
 Evidence: `docs/review/PR_1517_FIXED_MAPPING.md`
 Reason: The review artifact now records portable validation commands and keeps the scope-boundary proof readable without host-specific absolute paths.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1517#discussion_r3139309011 -> 49efc9ec9
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1517#pullrequestreview-4172299948 -> 49efc9ec9
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1517#pullrequestreview-4172242156 -> 49efc9ec9
 
 ## Initial Implementation Commits
