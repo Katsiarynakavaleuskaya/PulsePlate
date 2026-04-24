@@ -17,11 +17,8 @@ threads on GitHub.
 
 Disposition: FIXED
 Commit: dc9ddecc7
-Evidence: `core/food_sources/source_preflight.py`;
-`scripts/food_source_preflight.py`
-Reason: CodeRabbit's docstring coverage warning was addressed with concise
-helper/CLI docstrings. The remaining service rate-limit notice did not request
-code or documentation changes.
+Evidence: `core/food_sources/source_preflight.py`; `scripts/food_source_preflight.py`
+Reason: CodeRabbit's docstring coverage warning was addressed with concise helper/CLI docstrings; the remaining service rate-limit notice did not request code or documentation changes.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1517#issuecomment-4313826624 -> dc9ddecc7
 
 Disposition: NOT-A-BUG
@@ -41,10 +38,8 @@ Reason: Sourcery posted a second service rate-limit notice after ready-for-revie
 
 Disposition: FIXED
 Commit: dc9ddecc7
-Evidence: `core/food_sources/source_preflight.py`;
-`tests/test_food_source_preflight.py`
-Reason: Manifest `retrieved_on` parsing now rejects compact/non-YYYY-MM-DD
-forms before ISO parsing, with regression coverage for compact dates.
+Evidence: `core/food_sources/source_preflight.py`; `tests/test_food_source_preflight.py`
+Reason: Manifest `retrieved_on` parsing now rejects compact/non-YYYY-MM-DD forms before ISO parsing, with regression coverage for compact dates.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1517#pullrequestreview-4172033067 -> dc9ddecc7
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1517#discussion_r3139062053 -> dc9ddecc7
 

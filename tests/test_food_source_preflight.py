@@ -106,6 +106,11 @@ def test_build_source_preflight_report_diff_contract() -> None:
     assert report["success"] is True
     assert report["dry_run"] is True
     assert report["runtime_cutover"] is False
+    assert report["source"] == {
+        "current": "open_food_facts",
+        "incoming": "open_food_facts",
+        "changed": False,
+    }
     assert report["source_classification"] == "current"
     assert report["version"] == {
         "current": "2026-04-24",

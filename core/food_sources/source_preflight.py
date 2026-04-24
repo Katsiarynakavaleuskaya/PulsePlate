@@ -255,7 +255,7 @@ def build_source_diff_report(
         "success": not errors,
         "dry_run": True,
         "runtime_cutover": False,
-        "source": incoming.source,
+        "source": _string_delta(current.source, incoming.source),
         "source_classification": incoming.source_classification,
         "source_url": incoming.source_url,
         "retrieved_on": incoming.retrieved_on.isoformat(),
