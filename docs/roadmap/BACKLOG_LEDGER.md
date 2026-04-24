@@ -617,7 +617,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Priority: P1
   - Target PR: PR #1490 (`fix(docker): slim runtime after profile split`)
   - Area: docker / runtime / supply-chain
-  - Status note: Merged on April 22, 2026 via `PR #1490`. Production-target Docker builds now use `requirements-docker-runtime.txt`; the next main Docker/CI slice is the warning-only image-budget and telemetry baseline, while Shared Safety audit extraction remains deferred.
+  - Status note: Merged on April 22, 2026 via `PR #1490`. Production-target Docker builds now use `requirements-docker-runtime.txt`; telemetry baseline ([Docker image budget and telemetry baseline](#ledger-p1-docker-image-budget-telemetry); DoD: measured baseline artifact and docs) and hard-budget follow-up ([Docker image hard budget gate after telemetry baseline](#ledger-p1-docker-image-hard-budget-gate); DoD: fail-closed budget gate) have since landed, while [Shared Safety audit extraction](#ledger-p1-safety-audit-shared-script-after-pr1479) remains deferred and the next active Docker/CI slice is signed provenance restoration on pushed-image lanes.
   - Depends on:
     - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-ci-install-profile-split-after-disk-unblock`
     - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-docker-deploy-contract-reconciliation`
@@ -638,12 +638,12 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Supply-chain guardrails and proxy install contract remain intact
 
 <a id="ledger-p1-docker-image-budget-telemetry"></a>
-- [ ] P1: Docker image budget and telemetry baseline
+- [x] P1: Docker image budget and telemetry baseline
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
   - Target PR: PR #1492
   - Area: CI / docker / telemetry
-  - Status note: Active PR-5 slice after `PR #1490` merged on April 22, 2026. This lane establishes one canonical backend-image baseline, prefers the latest successful `main` artifact, falls back to a checked-in seed baseline, and keeps delta reporting warning-only.
+  - Status note: Merged on April 22, 2026 via `PR #1492`. The lane established one canonical backend-image baseline, prefers the latest successful `main` artifact, falls back to a checked-in seed baseline, and kept delta reporting warning-only.
   - Depends on:
     - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-ci-install-profile-split-after-disk-unblock`
     - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-docker-deploy-contract-reconciliation`
@@ -664,12 +664,12 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Follow-up provenance or Dagger decisions can cite this baseline explicitly
 
 <a id="ledger-p1-docker-image-hard-budget-gate"></a>
-- [ ] P1: Docker image hard budget gate after telemetry baseline
+- [x] P1: Docker image hard budget gate after telemetry baseline
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-TBD-DOCKER-HARD-BUDGET-GATE
+  - Target PR: PR #1498
   - Area: CI / docker / telemetry
-  - Status note: Active PR-6 slice after `PR #1492` merged on April 22, 2026. This lane promotes the production backend image from warning-only telemetry to a deterministic hybrid hard gate with an absolute cap and a maximum positive delta vs baseline.
+  - Status note: Merged on April 22, 2026 via `PR #1498`. The lane promotes the production backend image from warning-only telemetry to a deterministic hybrid hard gate with an absolute cap and a maximum positive delta vs baseline.
   - Depends on:
     - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-docker-image-budget-telemetry`
   - Reason: The repo should not enforce a hard image-size failure threshold until the warning-only baseline has stabilized on `main` and the canonical telemetry evidence is trustworthy enough to gate merges deterministically.
@@ -764,16 +764,21 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Restore signed build provenance after cache/buildx workaround is removed
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (supply-chain maturity after tooling-surface guard baseline)
-  - Target PR: TBD
-  - Status: 📋 Planned
-  - Reason (EN): Workflow pinning and tooling-surface guards can be enforced immediately, but signed provenance and downstream verification remain intentionally deferred until the documented Docker/buildx cache seam is removed and attestation can be re-enabled without destabilizing the release path.
+  - Target PR: PR #1503
+  - Status: 🟡 Active next slice after `PR #1498`
+  - Reason (EN): Docker baseline and hard-budget gates are now stable enough to restore signed provenance on pushed-image lanes without widening scope into `load: true` jobs or alternate control planes. This slice must re-enable provenance/SBOM attestations on registry pushes and fail closed before staging or production deploy if digest verification breaks.
   - Links:
+    - `docs/orchestration/DOCKER_SIGNED_BUILD_PROVENANCE_TASK_PACKET_2026-04-23.md`
     - `.github/workflows/build.yml`
+    - `.github/workflows/cd.yml`
+    - `scripts/ci/check_docker_provenance_attestation.py`
     - `docs/architecture/ADR_DOCKER_BUILD_PROVENANCE_WORKAROUND_2026-03-01.md`
     - `docs/security/TOOLING_SURFACE_POLICY.md`
   - DoD:
-    - Build provenance is enabled again in the canonical image workflow
-    - Signed provenance/SBOM verification is enforced before deploy
+    - `build.yml` and `cd.yml` pushed-image lanes use `provenance: mode=max`
+    - pushed-image lanes emit SBOM attestations alongside provenance
+    - CD verifies provenance and SPDX SBOM attestations by exact pushed digest before any deploy step
+    - `load: true` jobs remain on `provenance: false`
     - Follow-up docs and CI checks explicitly cover the restored path
 
 <a id="ledger-p1-sbom-vex-signed-security-artifacts"></a>

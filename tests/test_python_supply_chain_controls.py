@@ -749,6 +749,141 @@ def test_docker_workflows_emit_image_telemetry_artifacts() -> None:
     )
 
 
+def test_push_to_registry_workflows_restore_signed_attestations_on_publish_lanes() -> None:
+    build_workflow = _load_workflow(".github/workflows/build.yml")
+    cd_workflow = _load_workflow(".github/workflows/cd.yml")
+
+    local_build_step = _workflow_step_by_name(
+        ".github/workflows/build.yml",
+        "build",
+        "Build Docker image (local, for tests)",
+    )
+    publish_step = _workflow_step_by_name(
+        ".github/workflows/build.yml",
+        "publish",
+        "Build and push Docker image",
+    )
+    staging_step = _workflow_step_by_name(
+        ".github/workflows/cd.yml",
+        "build",
+        "Build & Push image (staging)",
+    )
+    production_step = _workflow_step_by_name(
+        ".github/workflows/cd.yml",
+        "build-production",
+        "Build & Push image (production)",
+    )
+    staging_verify_step = _workflow_step_by_name(
+        ".github/workflows/cd.yml",
+        "build",
+        "Verify staged image attestations",
+    )
+    staging_provenance_step = _workflow_step_by_name(
+        ".github/workflows/cd.yml",
+        "build",
+        "Attest staged image provenance",
+    )
+    staging_sbom_step = _workflow_step_by_name(
+        ".github/workflows/cd.yml",
+        "build",
+        "Attest staged image SBOM",
+    )
+    production_verify_step = _workflow_step_by_name(
+        ".github/workflows/cd.yml",
+        "build-production",
+        "Verify production image attestations",
+    )
+    production_provenance_step = _workflow_step_by_name(
+        ".github/workflows/cd.yml",
+        "build-production",
+        "Attest production image provenance",
+    )
+    production_sbom_step = _workflow_step_by_name(
+        ".github/workflows/cd.yml",
+        "build-production",
+        "Attest production image SBOM",
+    )
+    staging_upload_step = _workflow_step_by_name(
+        ".github/workflows/cd.yml",
+        "build",
+        "Upload staging attestation verification artifact",
+    )
+    production_upload_step = _workflow_step_by_name(
+        ".github/workflows/cd.yml",
+        "build-production",
+        "Upload production attestation verification artifact",
+    )
+    staging_step_names = _workflow_step_names(".github/workflows/cd.yml", "build")
+    production_step_names = _workflow_step_names(".github/workflows/cd.yml", "build-production")
+
+    assert local_build_step["with"]["load"] is True
+    assert local_build_step["with"]["provenance"] is False
+    assert cd_workflow["jobs"]["build"]["permissions"]["attestations"] == "write"
+    assert cd_workflow["jobs"]["build-production"]["permissions"]["attestations"] == "write"
+
+    for step in (publish_step, staging_step, production_step):
+        assert step["with"]["push"] is True
+        assert step["with"]["provenance"] == "mode=max"
+        assert step["with"]["sbom"] is True
+
+    for provenance_step in (staging_provenance_step, production_provenance_step):
+        assert provenance_step["uses"].startswith(
+            "actions/attest-build-provenance@b3e506e8c389afc651c5bacf2b8f2a1ea0557215"
+        )
+        assert provenance_step["with"]["push-to-registry"] is True
+        assert provenance_step["with"]["subject-digest"] == "${{ steps.build.outputs.digest }}"
+
+    for sbom_step in (staging_sbom_step, production_sbom_step):
+        assert sbom_step["uses"].startswith(
+            "actions/attest@281a49d4cbb0a72c9575a50d18f6deb515a11deb"
+        )
+        assert sbom_step["with"]["push-to-registry"] is True
+        assert sbom_step["with"]["sbom-path"] == "docker-image-sbom.spdx.json"
+        assert sbom_step["with"]["subject-digest"] == "${{ steps.build.outputs.digest }}"
+
+    for verify_step in (staging_verify_step, production_verify_step):
+        verify_script = verify_step["run"]
+        assert verify_step["if"] == "${{ always() && steps.build.outcome == 'success' }}"
+        assert "scripts/ci/check_docker_provenance_attestation.py" in verify_script
+        assert '--repo "${{ github.repository }}"' in verify_script
+        assert '--signer-workflow "${{ github.repository }}/.github/workflows/cd.yml"' in (
+            verify_script
+        )
+        assert '--source-ref "${{ github.ref }}"' in verify_script
+        assert "docker-provenance-attestation-check.json" in verify_script
+        assert "docker-provenance-attestation-check.md" in verify_script
+
+    assert staging_upload_step["with"]["name"] == "docker-provenance-attestation-check-cd-staging"
+    assert (
+        production_upload_step["with"]["name"]
+        == "docker-provenance-attestation-check-cd-production"
+    )
+    assert staging_upload_step["with"]["if-no-files-found"] == "warn"
+    assert production_upload_step["with"]["if-no-files-found"] == "warn"
+    assert staging_step_names.index("Build & Push image (staging)") < staging_step_names.index(
+        "Attest staged image provenance"
+    )
+    assert staging_step_names.index("Attest staged image SBOM") < staging_step_names.index(
+        "Verify staged image attestations"
+    )
+    assert staging_step_names.index("Verify staged image attestations") < staging_step_names.index(
+        "Check staging deploy readiness"
+    )
+    assert production_step_names.index(
+        "Build & Push image (production)"
+    ) < production_step_names.index("Attest production image provenance")
+    assert production_step_names.index(
+        "Attest production image SBOM"
+    ) < production_step_names.index("Verify production image attestations")
+    assert production_step_names.index("Verify production image attestations") < (
+        production_step_names.index("Upload production attestation verification artifact")
+    )
+    assert cd_workflow["jobs"]["production-deploy-config"]["needs"] == [
+        "production-gates",
+        "build-production",
+    ]
+
+
 def test_checked_in_docker_image_baseline_seed_has_expected_schema() -> None:
     baseline_payload = json.loads(
         (REPO_ROOT / "docs" / "telemetry" / "docker_image_baseline.production.json").read_text(

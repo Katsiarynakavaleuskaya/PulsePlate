@@ -63,8 +63,8 @@ Scope: `docs/orchestration/**`
   - invariants:
     - root `.dockerignore` remains a strict allowlist unless a narrower documented correction is required
     - production topology stays split: backend image via `IMAGE_REF`, frontend/Caddy via `frontend/Dockerfile.caddy-spa`
-    - signed provenance stays deferred while the documented buildx/GHA cache seam requires `provenance: false`
-    - no Dagger or alternate control-plane pilot before image-budget telemetry baseline is merged
+    - signed provenance restoration is active only for pushed-image lanes; `load: true` jobs stay on `provenance: false`
+    - no Dagger or alternate control-plane pilot before image-budget telemetry, hard-budget, and provenance lanes stabilize
   - canonical packet:
     - [`docs/orchestration/DOCKER_CI_DISCIPLINE_PR_SERIES_PACKET_2026-04-16.md`](./DOCKER_CI_DISCIPLINE_PR_SERIES_PACKET_2026-04-16.md)
 - For the METATRON Track A lane (offensive lab **out-of-band**; no product runtime):
