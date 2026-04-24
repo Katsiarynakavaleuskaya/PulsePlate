@@ -90,9 +90,11 @@ def discover_manifests(root: Path, manifest_names: Sequence[str] | None = None) 
         raise SafetyAuditError(
             "ERROR: requirements.txt not found. Safety scan requires requirements.txt.",
         )
-    manifests = [required]
-    manifests.extend(root / name for name in OPTIONAL_MANIFESTS if (root / name).is_file())
-    return tuple(manifests)
+    discovered_manifests = [required]
+    discovered_manifests.extend(
+        root / name for name in OPTIONAL_MANIFESTS if (root / name).is_file()
+    )
+    return tuple(discovered_manifests)
 
 
 def policy_args(root: Path, policy_file: str | None = None) -> tuple[str, ...]:
