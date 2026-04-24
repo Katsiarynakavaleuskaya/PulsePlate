@@ -22,6 +22,17 @@ EXIT_OK: Final[int] = 0
 EXIT_USAGE: Final[int] = 2
 
 
+def _ensure_within_corpus(path: Path, *, corpus_base: Path, error: str) -> None:
+    """Reject symlink/path escapes that resolve outside the corpus base."""
+
+    corpus_base = corpus_base.resolve()
+    resolved = path.resolve(strict=False)
+    try:
+        resolved.relative_to(corpus_base)
+    except ValueError as exc:
+        raise ValueError(error) from exc
+
+
 def _append_log(log_path: Path, line: str) -> None:
     log_path.parent.mkdir(parents=True, exist_ok=True)
     with log_path.open("a", encoding="utf-8") as fh:
@@ -59,8 +70,17 @@ def ingest_paths(
     wiki_resolved = wiki_root.resolve()
     layout = wcs.corpus_layout(wcs.corpus_base(wiki_root, corpus))
     wcs.reject_if_under_canonical_docs(layout["base"], repo_root=repo_root)
+    corpus_base = layout["base"].resolve()
     layout["pages"].mkdir(parents=True, exist_ok=True)
     layout["raw"].mkdir(parents=True, exist_ok=True)
+    _ensure_within_corpus(
+        layout["pages"], corpus_base=corpus_base, error="pages_path_outside_corpus"
+    )
+    _ensure_within_corpus(layout["raw"], corpus_base=corpus_base, error="raw_path_outside_corpus")
+    _ensure_within_corpus(
+        layout["index"], corpus_base=corpus_base, error="index_path_outside_corpus"
+    )
+    _ensure_within_corpus(layout["log"], corpus_base=corpus_base, error="log_path_outside_corpus")
     slug_first_source: dict[str, str] = {}
 
     active_allowlist = allowlist
@@ -89,6 +109,7 @@ def ingest_paths(
         slug_first_source[slug] = rel_posix
         raw_name = f"{digest}.md"
         raw_path = layout["raw"] / raw_name
+        _ensure_within_corpus(raw_path, corpus_base=corpus_base, error="raw_path_outside_corpus")
         raw_path.write_bytes(data)
 
         ingested_at = wcs.utc_now_iso()
@@ -105,6 +126,7 @@ def ingest_paths(
             text = data.decode("utf-8", errors="replace")
             warnings.append(f"utf8_replace:{rel.as_posix()}")
         page_path = layout["pages"] / f"{slug}.md"
+        _ensure_within_corpus(page_path, corpus_base=corpus_base, error="pages_path_outside_corpus")
         if page_path.is_file():
             existing_meta, _ = wcs.parse_frontmatter(page_path.read_text(encoding="utf-8"))
             prior_src = existing_meta.get("source_rel_path")
@@ -116,6 +138,9 @@ def ingest_paths(
         page_path.write_text(page_body, encoding="utf-8")
         written.append(slug)
 
+        _ensure_within_corpus(
+            layout["log"], corpus_base=corpus_base, error="log_path_outside_corpus"
+        )
         _append_log(
             layout["log"],
             f"{ingested_at} ingest corpus={corpus} slug={slug} hash={digest} path={rel.as_posix()}",
@@ -165,6 +190,9 @@ def ingest_paths(
             except (PermissionError, ValueError, OSError) as exc:
                 warnings.append(f"support_plane_skip:{slug}:{exc}")
 
+    _ensure_within_corpus(
+        layout["index"], corpus_base=corpus_base, error="index_path_outside_corpus"
+    )
     _rebuild_index(layout["pages"], layout["index"], corpus)
     return written, warnings
 
