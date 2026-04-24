@@ -77,6 +77,55 @@ def test_manual_intent_rejects_env_configured_pro_key_without_app_validator_over
     assert session_response.status_code == 403
 
 
+def test_manual_intent_rejects_transport_key_when_app_validator_is_missing(
+    app: FastAPI,
+    pro_headers: dict[str, str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import app as app_module
+
+    original_get_api_key = app_module.get_api_key
+    original_override = app.dependency_overrides.pop(original_get_api_key, None)
+    monkeypatch.setattr(app_module, "get_api_key", None)
+
+    try:
+        with TestClient(app) as isolated_client:
+            response = isolated_client.post(
+                "/api/v1/pro/payments/ru-by/manual-intent",
+                headers=pro_headers,
+                json={
+                    "source": "swift_manual",
+                    "plan": "pro_monthly",
+                    "client_event_id": "evt-missing-app-validator",
+                    "external_txn_id": "missing-app-validator",
+                    "amount_minor": 1999,
+                    "currency": "RUB",
+                },
+            )
+    finally:
+        if original_override is not None:
+            app.dependency_overrides[original_get_api_key] = original_override
+
+    assert response.status_code == 401, response.text
+    assert response.json()["detail"] == "API key required for billing verification"
+
+
+def test_manual_billing_validator_fails_closed_when_app_validator_missing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.routers import billing
+
+    monkeypatch.setattr(billing, "_get_effective_app_get_api_key", lambda: None)
+
+    validator = billing._get_effective_manual_billing_key_validator()
+
+    with pytest.raises(HTTPException) as exc_info:
+        validator("env-configured-pro-key")
+
+    assert exc_info.value.status_code == 403
+    assert exc_info.value.detail == "Invalid API Key"
+
+
 def test_manual_intent_happy_path(
     client: TestClient,
     pro_headers: dict[str, str],
