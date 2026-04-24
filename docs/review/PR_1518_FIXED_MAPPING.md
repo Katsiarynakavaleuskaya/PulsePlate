@@ -49,7 +49,7 @@ Merge-readiness contract:
 - [x] Pre-commit green on latest pushed head
   Evidence: `pre-commit run --all-files` passed before the initial push.
 - [ ] `make verify` green on latest pushed head
-  Evidence: full local `make verify`/full diff-cover intentionally not re-run for this lane by operator decision to avoid duplicating the 10k-test workload locally; local evidence is limited to PR-specific tests and PR-specific diff-cover, with GitHub current-head CI as the heavy signal.
+  Evidence: not satisfied locally. Run `make verify` from the repo root to satisfy this local hard gate before any local full-suite merge-readiness claim.
 - [x] Mandatory post-open `qa-engineer-agent -> bug-hunter` pass completed
   Evidence: post-open review packet `artifacts/orchestration/task_packets/10bed8a9d3b7.json`; local body/artifact gate `python3 scripts/ci/check_pr_body_phase2_gates.py --pr-number 1518 --body "$(cat /tmp/pr1518_body_current.md)"` passed; targeted regression suites passed before PR open.
 
