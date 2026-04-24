@@ -7,7 +7,7 @@ Date: 2026-04-23
 ## Discussion Thread Pass
 
 - [x] Discussion-thread pass completed
-- [x] Fixed-in-commit mapping completed
+- [x] Fixed in commit mapping completed
 
 - Status: Current-head GitHub CI proof completed for commit `b3edd4ff`;
   required post-proof review cycle is still pending.
@@ -25,8 +25,7 @@ Evidence: CodeRabbit actionables fixed in workflow, runner, packet, and tests.
 
 Disposition: FIXED
 Commit: e5673b71c
-Evidence: Review actionables fixed in shard runner, tests, packet, backlog, and
-mapping wording.
+Evidence: Review actionables fixed in shard runner, tests, packet, backlog, and mapping wording.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1511#discussion_r3136788725 -> e5673b71c
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1511#discussion_r3136788739 -> e5673b71c
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1511#discussion_r3136788760 -> e5673b71c
