@@ -45,6 +45,12 @@ Reason: The ADR now carries evidence anchors and exit criteria, the packet recor
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1513#discussion_r3137676750 -> 1cfac2aed
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1513#discussion_r3137676758 -> 1cfac2aed
 
+Disposition: FIXED
+Commit: 54e5c9008
+Evidence: `docs/orchestration/FOOD_DATA_SOURCE_UPDATE_PREFLIGHT_CURRENT.md`; `docs/architecture/FOOD_DATABASE_PLATFORM_STRATEGY_v1.md`; `docs/orchestration/FOOD_DATA_SOURCE_UPDATE_PREFLIGHT_PR1_PACKET_2026-04-24.md`
+Reason: The strategy now links through a stable current-packet alias, `source_classification` is explicitly marked as PR1 contract pending follow-up runtime validation, the out-of-scope list is easier to scan, and repo-global merge-gate policy is referenced instead of duplicated in the scoped packet.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1513#pullrequestreview-4170496336 -> 54e5c9008
+
 ## Initial Implementation Commits
 
 - `39c5b3b93` - `docs: add food data source preflight`
@@ -52,6 +58,8 @@ Reason: The ADR now carries evidence anchors and exit criteria, the packet recor
 - `25b173bfd` - `docs: fix pr1513 mapping format`
 - `7e411136d` - `docs: map pr1513 bot comments`
 - `1cfac2aed` - `docs: address food preflight review`
+- `44572d4ad` - `docs: map pr1513 review fixes`
+- `54e5c9008` - `docs: address pr1513 followup review`
 
 ## Merge Readiness
 
