@@ -9,8 +9,19 @@
 
 Disposition: NOT-A-BUG
 Evidence: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1523#issuecomment-4316487688
-Reason: CodeRabbit posted a draft-state `Review skipped` status note and did not request code, documentation, dependency, or governance changes on the current draft head.
+Reason: CodeRabbit's walkthrough/pre-merge summary has no standalone action beyond
+the inline review comments explicitly dispositioned below.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1523#issuecomment-4316487688
+
+Disposition: FIXED
+Commit: 5ffc3f9c6
+Evidence: `docs/orchestration/DEPENDABOT_PR_1520_POSTCSS_REPLACEMENT_PACKET_2026-04-24.md` now points to `docs/review/PR_1523_FIXED_MAPPING.md` for this replacement lane.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1523#discussion_r3140520208 -> 5ffc3f9c6
+
+Disposition: FIXED
+Commit: 5ffc3f9c6
+Evidence: `docs/review/PR_1523_FIXED_MAPPING.md` keeps merge-readiness checklist items unchecked until the final merge cycle.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1523#discussion_r3140520217 -> 5ffc3f9c6
 
 Disposition: NOT-A-BUG
 Evidence: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1523#issuecomment-4316489543
