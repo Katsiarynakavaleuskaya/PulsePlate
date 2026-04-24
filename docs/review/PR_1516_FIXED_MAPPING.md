@@ -15,7 +15,14 @@ threads on GitHub.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1516#discussion_r3139020751 -> cb5524107
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1516#discussion_r3139094080 -> 40f1d4d4f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1516#discussion_r3139094084 -> 40f1d4d4f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1516#discussion_r3139094094 -> 40f1d4d4f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1516#discussion_r3139094096 -> 40f1d4d4f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1516#discussion_r3139094102 -> 40f1d4d4f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1516#discussion_r3139094104 -> 40f1d4d4f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1516#pullrequestreview-4172067766 -> 40f1d4d4f
 
 ## Initial Implementation Commits
 
@@ -29,6 +36,11 @@ Commit: cb5524107
 Evidence: `scripts/ci/run_py312_main_shards.py`; `tests/test_main_test_shards.py`; `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python scripts/ci/run_py312_main_shards.py --shard-count 1 --list-shards`.
 Reason: Bug-hunter found that direct execution of the legacy Python 3.12 wrapper failed because `scripts` was not on `sys.path`; the wrapper now inserts the repo root before importing the shared runner and the test suite covers direct file execution.
 
+Disposition: FIXED
+Commit: 40f1d4d4f
+Evidence: `scripts/ci/run_main_test_shards.py`; `tests/test_main_test_shards.py`; `tests/test_ci_workflow_pr_size_governance_contract.py`; `AGENTS.md`; `RUNBOOK_AGENT.md`; `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md`; `docs/orchestration/MAIN_CI_PY313_TIMEOUT_PREVENTION_PACKET_2026-04-24.md`; `docs/roadmap/BACKLOG_LEDGER.md`; `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/test_main_test_shards.py tests/test_ci_risk_profile.py tests/test_ci_workflow_pr_size_governance_contract.py`.
+Reason: CodeRabbit review actionables were fixed by sanitizing inherited coverage env before combine/report, bounding the legacy wrapper subprocess regression to a temp repo with timeout, replacing the nonexistent standalone `typecheck` CI status with actual current-head check parity wording, preserving the machine-heavy exception in later AGENTS DoD text, improving workflow-contract assertion diagnostics, and converting backlog target PR references to canonical PR #1516 form.
+
 ## Local Validation
 
 - [x] `python3 scripts/orchestration/check_preflight.py --path .github/workflows/ci.yml --path scripts/ci/run_main_test_shards.py --path scripts/ci/run_py312_main_shards.py --path tests/test_main_test_shards.py --path tests/test_ci_workflow_pr_size_governance_contract.py --path tests/test_ci_risk_profile.py --path docs/orchestration --path docs/roadmap/BACKLOG_LEDGER.md --path AGENTS.md --path RUNBOOK_AGENT.md`
@@ -38,8 +50,9 @@ Reason: Bug-hunter found that direct execution of the legacy Python 3.12 wrapper
 - [x] `pre-commit run --all-files`
 - [x] Pre-push hook passed, including mypy, pip-audit, backend tests, bandit, and docker build test.
 - [x] `check_pr_body_phase2_gates.py` passed against the updated PR body after
-      exact Phase2 checklist and `No actionable review comments` wording were
-      mirrored in PR #1516.
+      exact Phase2 checklist wording was mirrored in PR #1516.
+- [x] CodeRabbit review comments mapped in `Fixed in Commit Mapping` after
+      the corresponding fixes landed.
 
 ## Local make verify Deferral
 
