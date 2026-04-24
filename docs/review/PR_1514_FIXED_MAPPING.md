@@ -15,7 +15,12 @@ threads on GitHub.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1514#discussion_r3139090799 -> 6fac60426
+Disposition: FIXED
+Evidence: `docs/review/PR_1514_FIXED_MAPPING.md` keeps final merge-readiness gates unchecked until the final merge cycle and records the latest-head local `make verify` caveat instead of overclaiming readiness.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1514#pullrequestreview-4172064291 -> 89a57cf0e
+Disposition: FIXED
+Evidence: `docs/roadmap/BACKLOG_LEDGER.md` now links the Rail B2 plugin/control-plane umbrella directly from the Rail B1 umbrella links; EOF newline nitpick is covered by passing `fix end of files` / `pre-commit run --all-files`.
 
 ## Initial Implementation Commits
 
