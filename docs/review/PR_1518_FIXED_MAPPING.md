@@ -43,8 +43,8 @@ Merge-readiness contract:
   Evidence: `pre-commit run --all-files` passed before the initial push.
 - [ ] `make verify` green on latest pushed head
   Evidence: attempted locally; verify-env, lint, mypy, and test-fast passed, but the full coverage stage was terminated with `Terminated: 15` before diff-cover completion.
-- [ ] Mandatory post-open `qa-engineer-agent -> bug-hunter` pass completed
-  Evidence: pending after this mapping artifact update.
+- [x] Mandatory post-open `qa-engineer-agent -> bug-hunter` pass completed
+  Evidence: post-open review packet `artifacts/orchestration/task_packets/10bed8a9d3b7.json`; local body/artifact gate `python3 scripts/ci/check_pr_body_phase2_gates.py --pr-number 1518 --body "$(cat /tmp/pr1518_body_current.md)"` passed; targeted regression suites passed before PR open.
 
 ## Deferred / Follow-ups
 
