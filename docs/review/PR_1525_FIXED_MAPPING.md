@@ -14,30 +14,19 @@ threads on GitHub.
 
 ## Fixed in Commit Mapping
 
-### FIXED
-
+Disposition: FIXED
+Commit: 1a3190db8
+Evidence: `docs/review/PR_1525_FIXED_MAPPING.md:11`, `docs/review/PR_1525_FIXED_MAPPING.md:47`, `docs/review/PR_1525_FIXED_MAPPING.md:53`, `docs/review/PR_1525_FIXED_MAPPING.md:86`, `docs/review/PR_1525_FIXED_MAPPING.md:88`, `docs/review/PR_1525_FIXED_MAPPING.md:92`, `tests/test_payment_source_contract_api.py:72`, `tests/test_payment_source_contract_api.py:111`
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1525#discussion_r3140666376 -> 1a3190db8
-  Disposition: FIXED
-  Evidence: `docs/review/PR_1525_FIXED_MAPPING.md:11`.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1525#discussion_r3140666395 -> 1a3190db8
-  Disposition: FIXED
-  Evidence: `docs/review/PR_1525_FIXED_MAPPING.md:47`.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1525#discussion_r3140673719 -> 1a3190db8
-  Disposition: FIXED
-  Evidence: `docs/review/PR_1525_FIXED_MAPPING.md:53`.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1525#discussion_r3140673720 -> 1a3190db8
-  Disposition: FIXED
-  Evidence: `docs/review/PR_1525_FIXED_MAPPING.md:86`; `docs/review/PR_1525_FIXED_MAPPING.md:88`; `docs/review/PR_1525_FIXED_MAPPING.md:92`.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1525#pullrequestreview-4173846236 -> 1a3190db8
-  Disposition: FIXED
-  Evidence: `tests/test_payment_source_contract_api.py:72`; `tests/test_payment_source_contract_api.py:111`.
 
-### NOT-A-BUG
-
+Disposition: NOT-A-BUG
+Evidence: `tests/test_payment_source_contract_api.py:17`.
+Reason: The helper intentionally matches `legacy_app.get_api_key` by callable metadata because the CI failure was caused by stale reload-created function objects that cannot be found by current-object identity.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1525#pullrequestreview-4173836420
-  Disposition: NOT-A-BUG
-  Evidence: `tests/test_payment_source_contract_api.py:17`.
-  Reason: The helper intentionally matches `legacy_app.get_api_key` by callable metadata because the CI failure was caused by stale reload-created function objects that cannot be found by current-object identity.
 
 ## Post-Open Role Review
 
