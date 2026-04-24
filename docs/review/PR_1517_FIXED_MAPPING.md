@@ -15,10 +15,14 @@ threads on GitHub.
 
 ## Fixed in Commit Mapping
 
-Disposition: NOT-A-BUG
-Evidence: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1517#issuecomment-4313826624
-Reason: CodeRabbit posted a draft-state review-skipped status note only; no code or documentation changes were requested.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1517#issuecomment-4313826624
+Disposition: FIXED
+Commit: dc9ddecc7
+Evidence: `core/food_sources/source_preflight.py`;
+`scripts/food_source_preflight.py`
+Reason: CodeRabbit's docstring coverage warning was addressed with concise
+helper/CLI docstrings. The remaining service rate-limit notice did not request
+code or documentation changes.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1517#issuecomment-4313826624 -> dc9ddecc7
 
 Disposition: NOT-A-BUG
 Evidence: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1517#pullrequestreview-4171119355
@@ -35,9 +39,19 @@ Evidence: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1517#pullreq
 Reason: Sourcery posted a second service rate-limit notice after ready-for-review; no code or documentation changes were requested.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1517#pullrequestreview-4172022518
 
+Disposition: FIXED
+Commit: dc9ddecc7
+Evidence: `core/food_sources/source_preflight.py`;
+`tests/test_food_source_preflight.py`
+Reason: Manifest `retrieved_on` parsing now rejects compact/non-YYYY-MM-DD
+forms before ISO parsing, with regression coverage for compact dates.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1517#pullrequestreview-4172033067 -> dc9ddecc7
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1517#discussion_r3139062053 -> dc9ddecc7
+
 ## Initial Implementation Commits
 
 - `1a2c265b7` - `feat(food-data): add source preflight skeleton`
+- `dc9ddecc7` - `fix(food-data): enforce manifest date format`
 
 ## Merge Readiness
 
@@ -53,6 +67,7 @@ Merge-readiness contract:
 - [x] `python3 scripts/orchestration/check_preflight.py`
 - [x] `python3 scripts/orchestration/check_agent_consistency.py`
 - [x] `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest tests/test_food_source_preflight.py -q`
+      after review fix (`9 passed`)
 - [x] `python3 scripts/food_source_preflight.py --current-manifest tests/fixtures/food_source_preflight/current_off_manifest.json --incoming-manifest tests/fixtures/food_source_preflight/incoming_off_manifest.json --dry-run --json`
 - [x] invalid-manifest CLI smoke returned exit `1` with JSON
       `validation_errors`
