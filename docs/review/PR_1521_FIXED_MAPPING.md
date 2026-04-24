@@ -16,20 +16,16 @@ Date: 2026-04-24
 ## Fixed in Commit Mapping
 
 Disposition: FIXED
-Commit: `6baa65fe4dd5085061c2ef393b9ce08a56d0b694`
-Evidence: `scripts/orchestration/skill_router.py` now raises the
-`pulseplate-pr-review` `min_score` to `6`, so generic orchestration path matches
-do not auto-route the PR review skill without stronger review intent.
+Commit: 6baa65fe4dd5085061c2ef393b9ce08a56d0b694
+Evidence: scripts/orchestration/skill_router.py raises pulseplate-pr-review min_score to 6 so generic orchestration path matches do not auto-route the PR review skill without stronger review intent.
 
-- <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1521#discussion_r3140287971> -> `6baa65fe4dd5085061c2ef393b9ce08a56d0b694`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1521#discussion_r3140287971 -> 6baa65fe4dd5085061c2ef393b9ce08a56d0b694
 
 Disposition: FIXED
-Commit: `6baa65fe4dd5085061c2ef393b9ce08a56d0b694`
-Evidence: `docs/orchestration/CODEX_SKILLS_ALIGNMENT_MATRIX.md` now lists
-`pulseplate-pr-review` only once, as a Tier 1 auto-routed skill; the Wave 3
-planned duplicate was removed.
+Commit: 6baa65fe4dd5085061c2ef393b9ce08a56d0b694
+Evidence: docs/orchestration/CODEX_SKILLS_ALIGNMENT_MATRIX.md lists pulseplate-pr-review only once as a Tier 1 auto-routed skill; the Wave 3 planned duplicate was removed.
 
-- <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1521#discussion_r3140290288> -> `6baa65fe4dd5085061c2ef393b9ce08a56d0b694`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1521#discussion_r3140290288 -> 6baa65fe4dd5085061c2ef393b9ce08a56d0b694
 
 ## External Bot Status
 
