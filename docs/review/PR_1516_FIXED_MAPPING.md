@@ -16,10 +16,10 @@ threads on GitHub.
 ## Fixed in Commit Mapping
 
 Disposition: FIXED
-Commit: cb5524107
-Evidence: `scripts/ci/run_py312_main_shards.py`; `tests/test_main_test_shards.py`; `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python scripts/ci/run_py312_main_shards.py --shard-count 1 --list-shards`.
-Reason: Bug-hunter found that direct execution of the legacy Python 3.12 wrapper failed because `scripts` was not on `sys.path`; the wrapper now inserts the repo root before importing the shared runner and the test suite covers direct file execution.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1516#discussion_r3139020751 -> cb5524107
+Commit: 40f1d4d4f
+Evidence: `tests/test_main_test_shards.py`; `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/test_main_test_shards.py tests/test_ci_risk_profile.py tests/test_ci_workflow_pr_size_governance_contract.py`.
+Reason: The direct-execution wrapper code fix landed in `cb5524107`; the post-comment proof commit `40f1d4d4f` keeps the legacy wrapper direct execution covered by a bounded subprocess regression test using a temp repo and timeout.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1516#discussion_r3139020751 -> 40f1d4d4f
 
 Disposition: FIXED
 Commit: 40f1d4d4f
