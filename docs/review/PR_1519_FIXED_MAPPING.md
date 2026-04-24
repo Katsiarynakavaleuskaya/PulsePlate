@@ -17,33 +17,29 @@
 ## Fixed in Commit Mapping
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1519#pullrequestreview-4173361113 -> 713183696
-  - Disposition: FIXED
-  - Commit: 713183696
-  - Evidence: `tests/test_design_token_parity.py` now scans tracked repo files
-    via `git ls-files`, preventing local artifacts/worktrees from producing
-    false product-token usage failures.
+Disposition: FIXED
+Commit: 713183696
+Evidence: `tests/test_design_token_parity.py` scans tracked repo files via `git ls-files`, preventing local artifacts/worktrees from producing false product-token usage failures.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1519#discussion_r3140255469 -> 713183696
-  - Disposition: FIXED
-  - Commit: 713183696
-  - Evidence: `tests/test_design_token_parity.py` now limits the product-token
-    reference scan to tracked files instead of walking all local directories.
+Disposition: FIXED
+Commit: 713183696
+Evidence: `tests/test_design_token_parity.py` limits the product-token reference scan to tracked files instead of walking all local directories.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1519#discussion_r3140265690 -> 713183696
-  - Disposition: FIXED
-  - Commit: 713183696
-  - Evidence: `tests/test_design_token_parity.py` now excludes untracked
-    coordinator worktrees and local artifacts by scanning tracked files only.
+Disposition: FIXED
+Commit: 713183696
+Evidence: `tests/test_design_token_parity.py` excludes untracked coordinator worktrees and local artifacts by scanning tracked files only.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1519#pullrequestreview-4173376521 -> 713183696
-  - Disposition: FIXED
-  - Commit: 713183696
-  - Evidence: `docs/roadmap/BACKLOG_LEDGER.md` names PR `#1519`,
-    `docs/design/TOKEN_PIPELINE_GOVERNANCE.md` references the Web Token
-    Governance SoT, and `frontend/scripts/build-tokens.mjs` documents the
-    supported CSS alias reference fallback.
+Disposition: FIXED
+Commit: 713183696
+Evidence: `docs/roadmap/BACKLOG_LEDGER.md` names PR `#1519`, `docs/design/TOKEN_PIPELINE_GOVERNANCE.md` references the Web Token Governance SoT, and `frontend/scripts/build-tokens.mjs` documents the supported CSS alias reference fallback.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1519#discussion_r3140266789 -> 713183696
-  - Disposition: FIXED
-  - Commit: 713183696
-  - Evidence: `docs/roadmap/BACKLOG_LEDGER.md` now includes PR `#1519` in both
-    the target PR train and active PR-3 status line.
+Disposition: FIXED
+Commit: 713183696
+Evidence: `docs/roadmap/BACKLOG_LEDGER.md` includes PR `#1519` in both the target PR train and active PR-3 status line.
 
 ## Manual Review Substitute
 
