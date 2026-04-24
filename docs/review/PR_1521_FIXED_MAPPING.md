@@ -18,27 +18,23 @@ Date: 2026-04-24
 Disposition: FIXED
 Commit: 6baa65fe4dd5085061c2ef393b9ce08a56d0b694
 Evidence: scripts/orchestration/skill_router.py raises pulseplate-pr-review min_score to 6 so generic orchestration path matches do not auto-route the PR review skill without stronger review intent.
-
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1521#discussion_r3140287971 -> 6baa65fe4dd5085061c2ef393b9ce08a56d0b694
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1521#pullrequestreview-4173401844 -> 6baa65fe4dd5085061c2ef393b9ce08a56d0b694
 
 Disposition: FIXED
 Commit: 6baa65fe4dd5085061c2ef393b9ce08a56d0b694
 Evidence: docs/orchestration/CODEX_SKILLS_ALIGNMENT_MATRIX.md lists pulseplate-pr-review only once as a Tier 1 auto-routed skill; the Wave 3 planned duplicate was removed.
-
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1521#discussion_r3140290288 -> 6baa65fe4dd5085061c2ef393b9ce08a56d0b694
 
 Disposition: FIXED
-Commit: e882792d9357d8500ed3446155e4c5a69db76192
+Commit: e882792d970ac77e914791cc885b4a3398845806
 Evidence: docs/review/PR_1521_FIXED_MAPPING.md leaves merge-readiness checklist items unchecked until the final merge cycle.
-
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1521#discussion_r3140360691 -> e882792d9357d8500ed3446155e4c5a69db76192
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1521#pullrequestreview-4173481760 -> e882792d9357d8500ed3446155e4c5a69db76192
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1521#discussion_r3140360691 -> e882792d970ac77e914791cc885b4a3398845806
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1521#pullrequestreview-4173481760 -> e882792d970ac77e914791cc885b4a3398845806
 
 Disposition: FIXED
 Commit: 8b7cab88db733c9971ef8b40c8dfb8abad14cbf6
 Evidence: docs/review/PR_1521_FIXED_MAPPING.md records Cubic as explicit non-actionable external status and keeps final merge-readiness boxes unchecked.
-
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1521#pullrequestreview-4173491102 -> 8b7cab88db733c9971ef8b40c8dfb8abad14cbf6
 
 ## External Bot Status
