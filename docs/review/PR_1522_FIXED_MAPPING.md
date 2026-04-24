@@ -16,7 +16,7 @@ threads on GitHub.
 ## Fixed in Commit Mapping
 
 Disposition: NOT-A-BUG
-Evidence: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1522#issuecomment-4316327364
+Evidence: CodeRabbit draft-skip status comment listed below.
 Reason: CodeRabbit skipped review because the PR is draft; no code or documentation change was requested. Finishing-touch checkboxes are optional bot UI affordances, not actionable review findings.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1522#issuecomment-4316327364
 
@@ -26,6 +26,12 @@ Evidence: docs/review/PR_1522_FIXED_MAPPING.md:32; docs/orchestration/WAVE6_AI_R
 Reason: Final merge-readiness checklist entries now stay unchecked while PR #1522 has an open verification blocker, and the Wave 6 Rail B2 section now links to the canonical PR-S0-B2 packet instead of duplicating family-placement truth.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1522#pullrequestreview-4173487116 -> 2ea3f2ca5
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1522#discussion_r3140365549 -> 2ea3f2ca5
+
+Disposition: FIXED
+Commit: 08761111f
+Evidence: docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md:673; docs/orchestration/PLUGIN_CONTROL_PLANE_FAMILIES_UMBRELLA_S0_PACKET_2026-04-24.md:94
+Reason: Karpathy epic family placement now links back to the canonical PR-S0-B2 umbrella packet, and the packet clarifies that its role order is lane-local execution order, not a replacement for global AGENTS/RUNBOOK governance.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1522#pullrequestreview-4173728214 -> 08761111f
 
 ## Initial Implementation Commits
 
@@ -70,9 +76,9 @@ current-head review/check pass after the typecheck-restoration exception lands.
 
 - Governance lane plus one explicit typecheck-restoration exception in
   `core/food_sources/source_preflight.py`.
-- No route, OpenAPI, schema, DTO, DB, authz, billing, or public response change.
-- No product runtime truth or product RAG replacement.
-- No semantic cache, Redis/GPTCache, embeddings, vector DB, GraphRAG, or
+- Routes, OpenAPI, schema, DTOs, DB, authz, billing, and public responses are unchanged.
+- Product runtime truth and product RAG replacement remain out of scope.
+- Excludes semantic cache, Redis/GPTCache, embeddings, vector DB, GraphRAG, and
   ContextManifest work.
-- No GitHub, Cloudflare, Figma, Hugging Face, or other plugin implementation.
+- External plugin implementations such as GitHub, Cloudflare, Figma, and Hugging Face are not touched.
 - Rail B1 advisory wiki remains a separate sibling rail, not a child of Rail B2.
