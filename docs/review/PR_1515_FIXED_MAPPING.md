@@ -42,8 +42,8 @@ Merge-readiness contract:
   rerun after artifact commit.
 - [ ] `make verify` green on latest pushed head
   Evidence: pending final hard gate before merge claim.
-- [ ] Mandatory post-open `qa-engineer-agent -> bug-hunter` pass completed
-  Evidence: `qa-engineer-agent` pass completed and findings fixed in commit `bf8d5297d`; `bug-hunter` still pending after the follow-up push.
+- [x] Mandatory post-open `qa-engineer-agent -> bug-hunter` pass completed
+  Evidence: `qa-engineer-agent` pass completed and findings fixed in commit `bf8d5297d`; `bug-hunter` pass completed and findings fixed in commit `87651c7b6`.
 
 Post-open QA notes:
 
