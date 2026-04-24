@@ -16,11 +16,6 @@ Record every actionable human/bot disposition here before resolving threads on G
 
 - No actionable review comments
 
-Disposition: FIXED
-Commit: bf8d5297d
-Evidence: `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/test_run_safety_audit.py tests/test_python_supply_chain_controls.py` -> 55 passed; `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/flake8 .github/scripts/parse-safety-report.py scripts/ci/run_safety_audit.py` -> passed.
-Reason: post-open `qa-engineer-agent` found wrapper E402 risk and stale `safety-*.json` reuse risk; fixed by moving the compatibility import under the wrapper entrypoint and unlinking per-manifest artifacts before each Safety execution, with a regression test.
-
 ## Merge Readiness
 
 Merge-readiness contract:
@@ -52,6 +47,7 @@ Post-open QA notes:
 - `qa-engineer-agent` found `scripts/ci/run_safety_audit.py` could parse stale
   per-manifest JSON if Safety failed before overwriting a prior report; fixed
   in commit `bf8d5297d` and covered by `test_run_audit_removes_stale_report_before_safety_execution`.
+- QA fix evidence: `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/test_run_safety_audit.py tests/test_python_supply_chain_controls.py` -> 55 passed; `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/flake8 .github/scripts/parse-safety-report.py scripts/ci/run_safety_audit.py` -> passed.
 
 ## Deferred / Follow-ups
 
