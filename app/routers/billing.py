@@ -17,9 +17,6 @@ from fastapi.responses import JSONResponse
 if TYPE_CHECKING:
     from fastapi import FastAPI
 
-from app.middleware.api_tiers import (
-    SubscriptionTier,
-)
 from app.routers.api_key import api_key_header
 from app.security.rate_limit import (
     RATE_LIMIT_429_RESPONSES,
