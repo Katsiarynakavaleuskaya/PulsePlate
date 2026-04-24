@@ -90,10 +90,11 @@ trust claims bounded.
   OpenAPI/DTO/public response changes.
 - No semantic cache, Redis/GPTCache, GraphRAG, ContextManifest, or new runtime
   benchmark harness work.
-- No claim that recursive execution is the canonical validated-evidence write
+- Do not claim that recursive execution is the canonical validated-evidence write
   path.
-- No public `VerificationBundle` or verification-artifact claims.
-- No production, latency, cost, clinical-efficacy, or health-outcome claims.
+- Avoid public `VerificationBundle` or verification-artifact claims.
+- Exclude production, latency, cost, clinical-efficacy, and health-outcome
+  claims.
 - Every published rate must carry corpus counts: `n=3` replay cases and `n=3`
   known-good controls.
 

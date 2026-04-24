@@ -1,7 +1,7 @@
 # PR A9 Scientific Reliability Evidence Packet
 
 **Date:** 2026-04-23
-**Status:** docs-only evidence packet
+**Status:** Verified docs-only evidence packet
 **Scope:** Wave 6 AI reliability publication evidence only
 
 ## Snapshot Immutability
@@ -156,8 +156,8 @@ Interpretation:
 ```bash
 python3 scripts/orchestration/check_preflight.py
 python3 scripts/orchestration/check_agent_consistency.py
-. .venv/bin/activate && pytest -q tests/test_logic_philosophy_replay_eval.py
-. .venv/bin/activate && python3 scripts/orchestration/logic_philosophy_replay_eval.py \
+/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/test_logic_philosophy_replay_eval.py
+/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python scripts/orchestration/logic_philosophy_replay_eval.py \
   --cases tests/fixtures/orchestration/logic_philosophy_replay/replay_cases.json \
   --negative-controls tests/fixtures/orchestration/logic_philosophy_replay/replay_negative_controls.json \
   --output logic-philosophy/a9-2026-04-23.json
@@ -166,6 +166,33 @@ python3 scripts/orchestration/check_agent_consistency.py
 Local generated output path:
 
 - `artifacts/orchestration/experiments/results/logic-philosophy/a9-2026-04-23.json`
+
+Verified command evidence:
+
+- Command:
+  `python3 scripts/orchestration/check_preflight.py`
+  Output:
+  `PASS: All required SoT files present`;
+  `PASS: worktrees/ not tracked`;
+  `PASS: working tree clean`.
+  Exit code: `0`.
+- Command:
+  `python3 scripts/orchestration/check_agent_consistency.py`
+  Output:
+  `OK: agent docs and files are consistent.`
+  Exit code: `0`.
+- Command:
+  `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/test_logic_philosophy_replay_eval.py`
+  Output:
+  `...............                                                          [100%]`
+  Exit code: `0`.
+- Command:
+  `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python scripts/orchestration/logic_philosophy_replay_eval.py --cases tests/fixtures/orchestration/logic_philosophy_replay/replay_cases.json --negative-controls tests/fixtures/orchestration/logic_philosophy_replay/replay_negative_controls.json --output logic-philosophy/a9-2026-04-23.json`
+  Output:
+  `"winner_arm": "A3_combined"`;
+  `"promotion_ready": true`;
+  `"known_good_false_positive_rate": 0.0`.
+  Exit code: `0`.
 
 ## Internal / Public Narrative Mapping
 
