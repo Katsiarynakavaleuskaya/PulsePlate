@@ -12,7 +12,7 @@ import re
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
-from typing import Literal, cast
+from typing import Literal
 from urllib.parse import urlparse
 
 SourceClassification = Literal[
@@ -126,7 +126,7 @@ def _parse_classification(value: str, context: str) -> SourceClassification:
     if value not in ALLOWED_SOURCE_CLASSIFICATIONS:
         allowed = ", ".join(ALLOWED_SOURCE_CLASSIFICATIONS)
         raise _schema_error(context, f"source_classification must be one of: {allowed}")
-    return cast(SourceClassification, value)
+    return value
 
 
 def _validate_url(value: str, context: str) -> str:

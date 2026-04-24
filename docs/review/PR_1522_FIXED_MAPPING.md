@@ -37,8 +37,8 @@ Reason: Final merge-readiness checklist entries now stay unchecked while PR #152
 Merge-readiness contract:
 `AGENTS.md`; `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md`.
 
-Final merge-cycle checks intentionally remain unchecked while the PR has an open
-`make verify` blocker or current-head review/check activity is still active.
+Final merge-cycle checks intentionally remain unchecked until the final
+current-head review/check pass after the typecheck-restoration exception lands.
 
 - [ ] Current-head CI is green for PR branch head
 - [ ] Required checks complete with no pending required jobs
@@ -58,15 +58,11 @@ Final merge-cycle checks intentionally remain unchecked while the PR has an open
 - [ ] Pre-push hooks passed during
       `git push -u origin codex/plugin-control-plane-families-umbrella-s0`
 - [ ] `make verify` green on latest pushed head
-      Current blocker: `make verify` fails in `typecheck` on mainline file
-      `core/food_sources/source_preflight.py:129` with `redundant-cast`.
-      That file is not changed by PR #1522, so this docs-only PR remains draft
-      until the mainline typecheck blocker is fixed or the branch rebases onto a
-      fixed `origin/main`.
 
 ## Scope Boundary Proof
 
-- Docs/governance only.
+- Governance lane plus one explicit typecheck-restoration exception in
+  `core/food_sources/source_preflight.py`.
 - No route, OpenAPI, schema, DTO, DB, authz, billing, or public response change.
 - No product runtime truth or product RAG replacement.
 - No semantic cache, Redis/GPTCache, embeddings, vector DB, GraphRAG, or

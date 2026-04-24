@@ -1,12 +1,13 @@
 # Plugin-Control-Plane Families Umbrella S0 Packet
 
 **Date:** 24 April 2026
-**Scope:** docs-only governance lane for Rail B2 advisory/control-plane families
+**Scope:** governance lane for Rail B2 advisory/control-plane families, with a
+minimal typecheck-restoration exception
 **Mode:** pre-open governance packet
 
 ## Purpose
 
-Freeze one narrow docs-only PR that makes the plugin/control-plane rail
+Freeze one narrow governance PR that makes the plugin/control-plane rail
 decision-complete without widening into product runtime truth, semantic cache,
 bounded-context ownership, or public response logic.
 
@@ -18,9 +19,22 @@ This packet exists to:
 - keep semantic cache as a deferred product-runtime gate only;
 - preserve one-PR-at-a-time cadence and worktree isolation.
 
+## Scope-extension exception
+
+The original lane is docs/governance-only. During final merge preparation,
+fresh `main` was confirmed to fail `make typecheck` on
+`core/food_sources/source_preflight.py:129` with a redundant `cast(...)` error.
+PR-S0-B2 may include the minimal source-level typecheck-restoration change for
+that exact mainline blocker.
+
+This exception does not authorize product-runtime behavior changes, API/schema
+changes, semantic-cache work, plugin implementation, or any Rail B2 runtime
+authority.
+
 ## Hard boundaries
 
-- No runtime/product code changes
+- No runtime/product code changes except the explicit typecheck-restoration
+  exception above
 - No route, OpenAPI, schema, DTO, storage, DB, authz, billing, or public
   response-contract mutation
 - No semantic cache implementation or gate opening
