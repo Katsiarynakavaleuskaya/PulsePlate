@@ -28,6 +28,12 @@ Evidence: docs/orchestration/CODEX_SKILLS_ALIGNMENT_MATRIX.md lists pulseplate-p
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1521#discussion_r3140290288 -> 6baa65fe4dd5085061c2ef393b9ce08a56d0b694
 
+Disposition: FIXED
+Commit: e882792d9357d8500ed3446155e4c5a69db76192
+Evidence: docs/review/PR_1521_FIXED_MAPPING.md leaves merge-readiness checklist items unchecked until the final merge cycle.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1521#discussion_r3140360691 -> e882792d9357d8500ed3446155e4c5a69db76192
+
 ## External Bot Status
 
 - CodeRabbit review completed after manual trigger; actionable inline comments
