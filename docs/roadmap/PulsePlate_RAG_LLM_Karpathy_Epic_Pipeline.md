@@ -12,7 +12,7 @@ Implement it as a **separate advisory compiled-memory workforce rail**, while th
 | Rail | Umbrella / anchor | Scope | In scope | Out of scope |
 | --- | --- | --- | --- | --- |
 | Rail A | `P1: Wave 6 AI runtime umbrella` | Canonical product AI runtime | fallback chain, quota/provider safety, RAG hardening, bounded-context extraction, reliability/security gates | advisory wiki memory, operator-only compiled notes, non-canonical workforce tooling |
-| Rail B1 | `P2: Karpathy-style advisory wiki umbrella` | Advisory workforce compiled memory | local operator memory, advisory wiki/compiler/query-lint/reference-corpus controls | product RAG replacement, DB/runtime/API source of truth, public response-contract logic |
+| Rail B1 | `P2: Karpathy-style advisory wiki umbrella` | Advisory workforce compiled memory | local operator memory, advisory wiki/compiler/query-lint/reference-corpus controls | product RAG replacement, DB/runtime/API source of truth, public response-contract logic, semantic cache |
 | Rail B2 | `P2: Plugin/control-plane families umbrella` | Advisory plugin/control-plane families | GitHub governance/CI review truth, Cloudflare preview/deploy control-plane, Figma design execution/review evidence, Hugging Face research/model-eval tooling | product runtime truth, public response-contract logic, semantic cache, bounded-context ownership |
 
 For the continuous bootstrap lane `PR-S0 -> PR-A5`, `docs/orchestration/WAVE6_AI_RUNTIME_AND_ADVISORY_SERIES_PACKET_2026-04-13.md` is the canonical series SoT. This roadmap epic defers to that packet whenever sequencing, rail-boundary, or semantic-cache-gating wording diverges. The first bounded post-A5 runtime follow-up is `PR-K1`, governed by `docs/orchestration/WAVE6_K1_KNOWLEDGE_PROMOTION_PACKET_2026-04-19.md`.
@@ -61,6 +61,11 @@ Purpose:
 Truth model:
 - wiki/support-plane = non-canonical advisory memory only
 - never replace raw repo truth, DB truth, legal truth, or public API truth
+- never authorize semantic cache, public response-contract logic, or
+  product-runtime behavior
+
+Canonical umbrella packet:
+- `docs/orchestration/KARPATHY_ADVISORY_WIKI_UMBRELLA_S0_PACKET_2026-04-24.md`
 
 ### Rail B2 — plugin/control-plane families (advisory only)
 Purpose:
@@ -516,6 +521,36 @@ Turn the AI moat into evidence-backed positioning without overclaiming.
 ### Rule
 This rail is **not product RAG**.
 It is a **workforce/operator memory rail**.
+It is non-canonical advisory memory only and must not authorize semantic cache,
+runtime truth, DB/API truth, public response-contract logic, embeddings, vector
+DB, Redis/GPTCache, GraphRAG, or ContextManifest work.
+
+## PR-S0-B1 — advisory wiki umbrella
+#### Title
+`docs(roadmap): define Karpathy advisory wiki umbrella`
+
+#### Canonical packet
+`docs/orchestration/KARPATHY_ADVISORY_WIKI_UMBRELLA_S0_PACKET_2026-04-24.md`
+
+#### Goal
+Lock the Karpathy-style advisory wiki rail as a separate workforce-memory
+umbrella without reopening product RAG, runtime implementation, semantic cache,
+or plugin/control-plane ownership.
+
+#### In scope
+- Rail B1 umbrella canonicalization
+- advisory wiki/support-plane source-of-truth boundaries
+- links to launcher/bootstrap, compiler, query/lint enrichment, and
+  reference-corpus policy children
+- explicit separation from Rail A product runtime and Rail B2 plugin/control-plane
+
+#### Out of scope
+- product RAG replacement
+- route, OpenAPI, schema, DTO, DB, runtime, or public response changes
+- semantic cache, Redis/GPTCache, embeddings, vector DB, GraphRAG, or
+  ContextManifest work
+- GitHub, Cloudflare, Figma, Hugging Face, or other plugin/control-plane
+  implementation
 
 ## PR-B0 — launcher/bootstrap hardening
 #### Title
@@ -672,6 +707,7 @@ Build the PulsePlate RAG/LLM/Karpathy line as three separate but coordinated rai
    - PR-A9 scientific reliability packet
 
 2. **Karpathy workforce rail (advisory only)**
+   - PR-S0-B1 Karpathy advisory wiki umbrella
    - PR-B0 launcher/bootstrap hardening
    - PR-B1 advisory wiki compiler v1
    - PR-B2 advisory wiki semantics hardening
