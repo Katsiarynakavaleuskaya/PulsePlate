@@ -20,6 +20,7 @@ Commit: 6baa65fe4dd5085061c2ef393b9ce08a56d0b694
 Evidence: scripts/orchestration/skill_router.py raises pulseplate-pr-review min_score to 6 so generic orchestration path matches do not auto-route the PR review skill without stronger review intent.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1521#discussion_r3140287971 -> 6baa65fe4dd5085061c2ef393b9ce08a56d0b694
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1521#pullrequestreview-4173401844 -> 6baa65fe4dd5085061c2ef393b9ce08a56d0b694
 
 Disposition: FIXED
 Commit: 6baa65fe4dd5085061c2ef393b9ce08a56d0b694
