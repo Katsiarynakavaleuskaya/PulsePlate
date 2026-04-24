@@ -37,7 +37,7 @@ Reason: Sourcery generated a reviewer guide and summary only; it contains no req
 - [ ] Current-head `main` health rechecked and stable
 - [ ] Current-head PR CI green with no pending required jobs
 - [ ] Canonical fixed-mapping artifact exists and validates
-- [ ] PR body Phase2 mirror validates on current head
+- [ ] PR body Phase 2 mirror validates on current head
 - [ ] No unresolved review threads at artifact initialization time
 - [ ] No actionable CodeRabbit, Sourcery, or Cubic items at artifact initialization time
 - [ ] Strict merge wrapper passes with auth
