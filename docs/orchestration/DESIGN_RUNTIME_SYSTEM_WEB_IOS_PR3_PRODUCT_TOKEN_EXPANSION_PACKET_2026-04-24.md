@@ -3,10 +3,10 @@
 **Version:** 2026-04-24 (`America/New_York`)
 **Epic Slug:** `epic/design-runtime-system-web-ios-v1`
 **Slice:** `PR-3`
-**PR:** `draft pending`
+**PR:** `#1519`
 **Worktree:** `worktrees/design-runtime-system-pr3`
 **Branch:** `codex/design-product-token-expansion`
-**PR Phase:** `pre_open`
+**PR Phase:** `post_open_review`
 **Design Lane Mode:** `execution`
 **Title:** `feat(tokens): add product-level token layer for planning and premium surfaces`
 
@@ -20,8 +20,8 @@ the narrow product-token color layer in `/tokens`, then regenerates the web and
 iOS runtime mirrors through the canonical token build pipeline.
 
 Execution started under an explicit operator override while current-head
-`main` CI was still in progress. The lane remains draft-only until current-head
-truth is coherent.
+`main` CI was still in progress. PR `#1519` remains in the post-open review
+cycle until current-head truth is coherent.
 
 Evidence:
 - `docs/orchestration/DESIGN_RUNTIME_SYSTEM_WEB_IOS_PR_SERIES_RUNBOOK.md`
@@ -72,7 +72,7 @@ Evidence:
 - `frontend/src/styles/tokens.ts`
 - `ios/PulsePlate/DesignSystem/DesignTokens.generated.swift`
 - `tests/test_design_token_parity.py`
-- `docs/review/PR_<N>_FIXED_MAPPING.md` after draft PR creation
+- `docs/review/PR_1519_FIXED_MAPPING.md`
 
 ## Role Order
 
@@ -127,8 +127,8 @@ This order is fixed for the lane unless a later packet explicitly updates it.
 
 ## Review Path
 
-- open the PR as draft first
-- create canonical artifact `docs/review/PR_<N>_FIXED_MAPPING.md`
+- keep PR `#1519` in review governance until all blockers are dispositioned
+- create canonical artifact `docs/review/PR_1519_FIXED_MAPPING.md`
 - sync the PR body mirror after review dispositions
 - use GitHub current-head truth plus CodeRabbit review input; do not rely on
   stale historical runs
