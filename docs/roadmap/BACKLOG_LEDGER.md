@@ -3218,19 +3218,25 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P2: Karpathy-style advisory wiki umbrella
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2
-  - Target PR: PR-S0
+  - Target PR: PR-S0-B1 (`docs(roadmap): define Karpathy advisory wiki umbrella`)
   - Area: orchestration / workforce memory / roadmap
   - Finding Type: umbrella canonicalization
+  - Status: 🟡 In progress (PR-S0-B1 locks Rail B1 as advisory workforce compiled memory only; no product RAG, runtime truth, semantic cache, or plugin/control-plane implementation)
   - Reason (EN): The workforce compiled-memory line now has launcher/bootstrap, compiler, and hardening slices, but the backlog still lacks one explicit umbrella item that marks it as a separate advisory rail rather than an accidental side-project or product-RAG substitute. (RU: У workforce compiled-memory линии уже есть launcher/bootstrap, compiler и hardening slices, но в backlog нет одного umbrella-item, который бы фиксировал её как отдельный advisory rail, а не побочный side-project или замену product RAG.)
   - Links:
+    - `docs/orchestration/KARPATHY_ADVISORY_WIKI_UMBRELLA_S0_PACKET_2026-04-24.md`
     - `docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md`
     - `docs/dev/LOCAL_COORDINATOR_LAUNCHER_ROLLOUT.md`
     - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p2-local-workforce-pr-d-advisory-wiki-compiler`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p2-advisory-wiki-query-lint-enrichment`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p2-advisory-wiki-reference-corpus-policy`
     - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p2-local-launcher-rollout-for-coordinator-first-automation`
   - DoD:
     - One canonical umbrella entry exists for the advisory workforce rail
     - The rail is explicitly marked non-canonical and non-product-facing
     - Existing launcher/compiler slices are linked as children or prerequisites
+    - Rail B1 cannot be used as product RAG, DB/runtime/API truth, public response-contract truth, or semantic-cache authorization
+    - Rail B2/plugin-control-plane families remain a separate umbrella and are not implemented by this PR
 
 <a id="ledger-p2-plugin-control-plane-families-umbrella"></a>
 - [ ] P2: Plugin/control-plane families umbrella
