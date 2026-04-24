@@ -157,6 +157,30 @@ def test_missing_or_empty_report_fails_closed(tmp_path: Path) -> None:
     assert "not generated" in summary_path.read_text(encoding="utf-8")
 
 
+def test_non_object_report_json_fails_closed(tmp_path: Path) -> None:
+    report_path = tmp_path / "safety-requirements.json"
+    summary_path = tmp_path / "safety-requirements.txt"
+    report_path.write_text("[]", encoding="utf-8")
+
+    with pytest.raises(safety_audit.SafetyAuditError) as exc_info:
+        safety_audit.analyze_report(report_path, summary_path)
+
+    assert exc_info.value.exit_code == safety_audit.PARSE_ERROR
+    assert "must be an object" in summary_path.read_text(encoding="utf-8")
+
+
+def test_non_list_vulnerabilities_field_fails_closed(tmp_path: Path) -> None:
+    report_path = tmp_path / "safety-requirements.json"
+    summary_path = tmp_path / "safety-requirements.txt"
+    report_path.write_text('{"vulnerabilities": {}}', encoding="utf-8")
+
+    with pytest.raises(safety_audit.SafetyAuditError) as exc_info:
+        safety_audit.analyze_report(report_path, summary_path)
+
+    assert exc_info.value.exit_code == safety_audit.PARSE_ERROR
+    assert "vulnerabilities field must be a list" in summary_path.read_text(encoding="utf-8")
+
+
 def test_invalid_report_json_fails_closed(tmp_path: Path) -> None:
     report_path = tmp_path / "safety-requirements.json"
     summary_path = tmp_path / "safety-requirements.txt"
@@ -167,3 +191,49 @@ def test_invalid_report_json_fails_closed(tmp_path: Path) -> None:
 
     assert exc_info.value.exit_code == safety_audit.PARSE_ERROR
     assert "Failed to parse Safety report JSON" in summary_path.read_text(encoding="utf-8")
+
+
+def test_run_audit_writes_summary_when_report_is_missing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _write_manifest(tmp_path, "requirements.txt")
+
+    def fake_run(command: list[str], **_: Any) -> SimpleNamespace:
+        report_path = Path(command[command.index("--save-json") + 1])
+        assert report_path.name == "safety-requirements.json"
+        return SimpleNamespace(returncode=3, stdout="", stderr="no json\n")
+
+    monkeypatch.setattr(safety_audit.shutil, "which", lambda _: "/usr/bin/safety")
+    monkeypatch.setattr(safety_audit.subprocess, "run", fake_run)
+    config = safety_audit.build_config(root=tmp_path, output_dir=tmp_path)
+
+    with pytest.raises(safety_audit.SafetyAuditError) as exc_info:
+        safety_audit.run_audit(config)
+
+    assert exc_info.value.exit_code == 3
+    assert "failed to produce safety-requirements.json" in (
+        tmp_path / "safety-requirements.txt"
+    ).read_text(encoding="utf-8")
+
+
+def test_nonzero_safety_exit_with_empty_report_fails_closed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _write_manifest(tmp_path, "requirements.txt")
+
+    def fake_run(command: list[str], **_: Any) -> SimpleNamespace:
+        report_path = Path(command[command.index("--save-json") + 1])
+        _write_report(report_path, [])
+        return SimpleNamespace(returncode=3, stdout="", stderr="tool error\n")
+
+    monkeypatch.setattr(safety_audit.shutil, "which", lambda _: "/usr/bin/safety")
+    monkeypatch.setattr(safety_audit.subprocess, "run", fake_run)
+    config = safety_audit.build_config(root=tmp_path, output_dir=tmp_path)
+
+    with pytest.raises(safety_audit.SafetyAuditError) as exc_info:
+        safety_audit.run_audit(config)
+
+    assert exc_info.value.exit_code == 3
+    assert "report contained no parsed vulnerabilities" in (
+        tmp_path / "safety-requirements.txt"
+    ).read_text(encoding="utf-8")

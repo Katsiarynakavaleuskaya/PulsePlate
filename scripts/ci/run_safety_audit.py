@@ -180,10 +180,21 @@ def analyze_report(report_path: Path, summary_path: Path) -> SafetyAnalysis:
         summary_path.write_text(f"Failed to parse Safety report JSON: {exc}\n", encoding="utf-8")
         raise SafetyAuditError(f"Failed to parse Safety report JSON: {exc}", PARSE_ERROR) from exc
 
-    vulnerabilities = payload.get("vulnerabilities", []) or []
-    ignored = payload.get("ignored_vulnerabilities", []) or []
+    if not isinstance(payload, Mapping):
+        message = f"Safety report JSON must be an object, got {type(payload).__name__}."
+        summary_path.write_text(f"{message}\n", encoding="utf-8")
+        raise SafetyAuditError(message, PARSE_ERROR)
+
+    vulnerabilities = payload.get("vulnerabilities", [])
+    if vulnerabilities is None:
+        vulnerabilities = []
+    ignored = payload.get("ignored_vulnerabilities", [])
+    if ignored is None:
+        ignored = []
     if not isinstance(vulnerabilities, list):
-        raise SafetyAuditError("Safety report vulnerabilities field must be a list.", PARSE_ERROR)
+        message = "Safety report vulnerabilities field must be a list."
+        summary_path.write_text(f"{message}\n", encoding="utf-8")
+        raise SafetyAuditError(message, PARSE_ERROR)
     if not isinstance(ignored, list):
         ignored = []
 
@@ -249,9 +260,18 @@ def run_safety_for_manifest(
             f"Safety failed to produce {report_json.name} for {manifest.name} "
             f"(exit code: {completed.returncode})"
         )
+        report_txt.write_text(f"{message}\n", encoding="utf-8")
         raise SafetyAuditError(message, completed.returncode or 1)
 
     analysis = analyze_report(report_json, report_txt)
+    if completed.returncode != 0 and analysis.status == PARSE_OK:
+        message = (
+            f"Safety exited with code {completed.returncode} for {manifest.name}, "
+            "but the report contained no parsed vulnerabilities."
+        )
+        report_txt.write_text(f"{message}\n", encoding="utf-8")
+        raise SafetyAuditError(message, completed.returncode)
+
     print("=== Safety Report Summary ===")
     print("\n".join(analysis.lines))
     print(f"\nHigh/Critical/Unknown findings: {analysis.high_risk_count}")

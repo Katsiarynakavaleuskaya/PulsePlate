@@ -60,7 +60,7 @@ No ad hoc role stack may replace this order.
 
 - `python3 scripts/orchestration/check_preflight.py`
 - `python3 scripts/orchestration/check_agent_consistency.py`
-- `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/test_run_safety_audit.py tests/test_python_supply_chain_controls.py`
+- `python -m pytest -q tests/test_run_safety_audit.py tests/test_python_supply_chain_controls.py`
 - `pre-commit run --all-files`
 - current-head GitHub checks for draft PR `#1515`
 - strict merge wrapper before any merge claim
