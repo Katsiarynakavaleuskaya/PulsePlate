@@ -123,10 +123,11 @@ def _require_string_tuple(data: dict[str, object], key: str, context: str) -> tu
 
 def _parse_classification(value: str, context: str) -> SourceClassification:
     """Validate and return a source classification literal."""
-    if value not in ALLOWED_SOURCE_CLASSIFICATIONS:
-        allowed = ", ".join(ALLOWED_SOURCE_CLASSIFICATIONS)
-        raise _schema_error(context, f"source_classification must be one of: {allowed}")
-    return value
+    for classification in ALLOWED_SOURCE_CLASSIFICATIONS:
+        if value == classification:
+            return classification
+    allowed = ", ".join(ALLOWED_SOURCE_CLASSIFICATIONS)
+    raise _schema_error(context, f"source_classification must be one of: {allowed}")
 
 
 def _validate_url(value: str, context: str) -> str:
