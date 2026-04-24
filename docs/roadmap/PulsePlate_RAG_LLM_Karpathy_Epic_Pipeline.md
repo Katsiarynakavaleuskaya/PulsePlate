@@ -672,10 +672,10 @@ implementation.
 
 ### Family placement
 
-- GitHub -> governance / CI / review truth
-- Cloudflare -> edge / preview / Access control-plane
-- Figma -> design execution / review evidence
-- Hugging Face -> research / model-eval / external model tooling
+Canonical family placement, truth model, and conflict-resolution rules are
+defined in:
+
+- `docs/orchestration/PLUGIN_CONTROL_PLANE_FAMILIES_UMBRELLA_S0_PACKET_2026-04-24.md`
 
 ### Rule set
 

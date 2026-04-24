@@ -93,6 +93,10 @@ governance artifacts, repo truth wins.
 
 ## Required role-agent order
 
+This packet records the coordinator-declared lane execution order for PR-S0-B2.
+It does not replace the global role-order governance in `AGENTS.md` and
+`RUNBOOK_AGENT.md`.
+
 1. `agent-coordinator`
 2. `cursor-specialist-agent`
 3. `architecture-specialist`
