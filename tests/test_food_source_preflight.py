@@ -161,7 +161,7 @@ def test_food_source_preflight_cli_is_file_only_and_json(
             "--dry-run",
             "--json",
         ],
-        cwd=Path(__file__).parents[1],
+        cwd=tmp_path,
         check=True,
         text=True,
         capture_output=True,
