@@ -1,0 +1,50 @@
+{
+  "product": {
+    "color": {
+      "paywall": {
+        "surface": { "$type": "color", "$value": "{semantic.color.surface}" },
+        "accent": { "$type": "color", "$value": "{color.brand.gold}" },
+        "cta": { "$type": "color", "$value": "{semantic.color.primary}" },
+        "trustText": { "$type": "color", "$value": "{semantic.color.textMuted}" }
+      },
+      "premium": {
+        "accent": { "$type": "color", "$value": "{color.brand.gold}" },
+        "badge": { "$type": "color", "$value": "{color.brand.gold}" },
+        "divider": { "$type": "color", "$value": "{color.brand.gold}" },
+        "lockedIcon": { "$type": "color", "$value": "{color.brand.gold}" }
+      },
+      "plate": {
+        "primary": { "$type": "color", "$value": "{semantic.color.success}" },
+        "surface": { "$type": "color", "$value": "{semantic.color.surface}" },
+        "balance": { "$type": "color", "$value": "{color.scale.green.500}" },
+        "attention": { "$type": "color", "$value": "{semantic.color.warning}" }
+      },
+      "progress": {
+        "active": { "$type": "color", "$value": "{semantic.color.primary}" },
+        "track": { "$type": "color", "$value": "{semantic.color.surfaceMuted}" },
+        "achieved": { "$type": "color", "$value": "{semantic.color.success}" },
+        "risk": { "$type": "color", "$value": "{semantic.color.warning}" },
+        "regression": { "$type": "color", "$value": "{semantic.color.error}" }
+      },
+      "plan": {
+        "activeDay": { "$type": "color", "$value": "{semantic.color.primary}" },
+        "future": { "$type": "color", "$value": "{semantic.color.surfaceMuted}" },
+        "completed": { "$type": "color", "$value": "{semantic.color.success}" },
+        "premiumHint": { "$type": "color", "$value": "{color.brand.gold}" }
+      },
+      "coaching": {
+        "guidance": { "$type": "color", "$value": "{semantic.color.info}" },
+        "support": { "$type": "color", "$value": "{semantic.color.success}" },
+        "reflection": { "$type": "color", "$value": "{semantic.color.textMuted}" },
+        "slipRecovery": { "$type": "color", "$value": "{semantic.color.warning}" }
+      },
+      "status": {
+        "success": { "$type": "color", "$value": "{semantic.color.success}" },
+        "info": { "$type": "color", "$value": "{semantic.color.info}" },
+        "warning": { "$type": "color", "$value": "{semantic.color.warning}" },
+        "error": { "$type": "color", "$value": "{semantic.color.error}" },
+        "disabled": { "$type": "color", "$value": "{semantic.color.textMuted}" }
+      }
+    }
+  }
+}

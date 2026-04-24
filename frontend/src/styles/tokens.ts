@@ -90,6 +90,53 @@ export const colors = {
   },
 } as const;
 
+export const productColors = {
+  paywall: {
+    surface: "#f0f4f8",
+    accent: "#d4af37",
+    cta: "#339fff",
+    trustText: "#627d98",
+  },
+  premium: {
+    accent: "#d4af37",
+    badge: "#d4af37",
+    divider: "#d4af37",
+    lockedIcon: "#d4af37",
+  },
+  plate: {
+    primary: "#20c997",
+    surface: "#f0f4f8",
+    balance: "#22c55e",
+    attention: "#f59e0b",
+  },
+  progress: {
+    active: "#339fff",
+    track: "#d9e2ec",
+    achieved: "#20c997",
+    risk: "#f59e0b",
+    regression: "#ff5d5d",
+  },
+  plan: {
+    activeDay: "#339fff",
+    future: "#d9e2ec",
+    completed: "#20c997",
+    premiumHint: "#d4af37",
+  },
+  coaching: {
+    guidance: "#339fff",
+    support: "#20c997",
+    reflection: "#627d98",
+    slipRecovery: "#f59e0b",
+  },
+  status: {
+    success: "#20c997",
+    info: "#339fff",
+    warning: "#f59e0b",
+    error: "#ff5d5d",
+    disabled: "#627d98",
+  },
+} as const;
+
 export const spacing = {
   "0": "0",
   "1": "0.25rem",
@@ -212,6 +259,7 @@ export const zIndex = {
 } as const;
 
 export type ColorScale = keyof typeof colors.navy;
+export type ProductColorFamily = keyof typeof productColors;
 export type SpacingKey = keyof typeof spacing;
 export type TypographySize = keyof typeof typography.fontSize;
 export type TypographyWeight = keyof typeof typography.fontWeight;

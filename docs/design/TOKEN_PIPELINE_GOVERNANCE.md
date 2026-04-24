@@ -121,9 +121,15 @@ Examples: screen-, feature-, or tier-specific aliases.
 
 Current status:
 
-- Product-token expansion is not fully activated yet.
-- Any new product-token layer that goes beyond current base semantic/runtime
-  tokens must be tracked in the backlog if not completed in the same task.
+- Product-token expansion is activated for the design runtime system `PR-3`
+  slice through `tokens/20_product/color.json`.
+- The active product-token layer is a narrow color-alias layer for paywall,
+  premium, plate, progress, plan, coaching, and status/feedback surfaces.
+- Product tokens remain aliases over existing foundation and base semantic
+  tokens. They do not authorize product-screen migration, iOS screen adoption,
+  or a second token registry.
+- Web token governance remains delegated to
+  `docs/sora/SORA_STYLE_QA_CHECKLIST.md` (`Web Token Governance`).
 
 ## 7. Tokens Studio policy
 

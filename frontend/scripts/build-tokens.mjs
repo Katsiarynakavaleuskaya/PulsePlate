@@ -49,7 +49,32 @@ function walk(root, segments) {
   return segments.reduce((current, segment) => current[segment], root);
 }
 
+function resolveTokenValue(root, value) {
+  let current = value;
+  const visited = new Set();
+
+  while (typeof current === "string") {
+    const referenceMatch = /^\{(.+)\}$/.exec(current);
+    if (referenceMatch === null) {
+      return current;
+    }
+
+    const referencePath = referenceMatch[1];
+    if (visited.has(referencePath)) {
+      throw new Error(`Cyclic token reference detected: ${referencePath}`);
+    }
+    visited.add(referencePath);
+    current = getTokenValue(walk(root, referencePath.split(".")));
+  }
+
+  return current;
+}
+
 function token(root, ...segments) {
+  return resolveTokenValue(root, getTokenValue(walk(root, segments)));
+}
+
+function rawToken(root, ...segments) {
   return getTokenValue(walk(root, segments));
 }
 
@@ -66,6 +91,91 @@ function parseFontFamilyList(value) {
 
 function jsString(value) {
   return JSON.stringify(value);
+}
+
+function kebabCase(value) {
+  return String(value).replace(/([a-z0-9])([A-Z])/g, "$1-$2").toLowerCase();
+}
+
+function pascalCase(value) {
+  return String(value)
+    .split(/[-_\s]+|(?=[A-Z])/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join("");
+}
+
+function swiftIdentifier(value) {
+  const identifier = String(value).charAt(0).toLowerCase() + String(value).slice(1);
+  if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(identifier)) {
+    throw new Error(`Invalid Swift product color token identifier: ${identifier}`);
+  }
+  return identifier;
+}
+
+function cssVariableForReference(referencePath) {
+  const parts = referencePath.split(".");
+  // Product color aliases preserve CSS var indirection for these supported
+  // authoring references; unsupported paths intentionally fall back to hex.
+  if (parts[0] === "semantic" && parts[1] === "color") {
+    return `var(--color-${kebabCase(parts.slice(2).join("-"))})`;
+  }
+  if (parts[0] === "color" && parts[1] === "brand") {
+    return `var(--pp-${kebabCase(parts.slice(2).join("-"))})`;
+  }
+  if (parts[0] === "color" && parts[1] === "scale") {
+    return `var(--color-${kebabCase(parts.slice(2).join("-"))})`;
+  }
+  return null;
+}
+
+function productCssValue(tokens, family, role) {
+  const rawValue = rawToken(tokens, "product", "color", family, role);
+  if (typeof rawValue === "string") {
+    const referenceMatch = /^\{(.+)\}$/.exec(rawValue);
+    if (referenceMatch !== null) {
+      const cssVariable = cssVariableForReference(referenceMatch[1]);
+      if (cssVariable !== null) {
+        return cssVariable;
+      }
+    }
+  }
+  return lowerHex(token(tokens, "product", "color", family, role));
+}
+
+function productColorEntries(tokens) {
+  const productColors = tokenObject(tokens, "product", "color");
+  const seenSwiftNames = new Set();
+  return Object.entries(productColors).flatMap(([family, roles]) =>
+    Object.keys(roles).map((role) => ({
+      family,
+      role,
+      cssName: `--product-color-${kebabCase(family)}-${kebabCase(role)}`,
+      swiftName: swiftIdentifier(`${family}${pascalCase(role)}`),
+      value: token(tokens, "product", "color", family, role),
+    }))
+  ).map((entry) => {
+    if (seenSwiftNames.has(entry.swiftName)) {
+      throw new Error(`Duplicate Swift product color token identifier: ${entry.swiftName}`);
+    }
+    seenSwiftNames.add(entry.swiftName);
+    return entry;
+  });
+}
+
+function productColorObject(tokens) {
+  const productColors = tokenObject(tokens, "product", "color");
+  return Object.fromEntries(
+    Object.entries(productColors).map(([family, roles]) => [
+      family,
+      Object.fromEntries(
+        Object.keys(roles).map((role) => [
+          role,
+          lowerHex(token(tokens, "product", "color", family, role)),
+        ])
+      ),
+    ])
+  );
 }
 
 function formatTsObject(obj, indent = 0) {
@@ -175,6 +285,11 @@ function formatCss(tokens) {
     `  --color-destructive-shadow-color: ${rgbaFromHex(destructiveHex, 0.12)};`,
     "  --shadow-destructive: 0 12px 32px var(--color-destructive-shadow-color);"
   );
+
+  lines.push("", "  /* Product color tokens */");
+  for (const entry of productColorEntries(tokens)) {
+    lines.push(`  ${entry.cssName}: ${productCssValue(tokens, entry.family, entry.role)};`);
+  }
 
   lines.push("", "  /* Legacy aliases (compatibility only) */");
   const legacyAliasEntries = [
@@ -383,6 +498,7 @@ function formatTs(tokens) {
       info: "canonicalBrand.blue",
     },
   };
+  const productColors = productColorObject(tokens);
 
   const spacing = {
     0: token(tokens, "spacing", "0"),
@@ -523,6 +639,8 @@ export const colors = {
   },
 } as const;
 
+export const productColors = ${formatTsObject(productColors)} as const;
+
 export const spacing = ${formatTsObject(spacing)} as const;
 
 export const typography = ${formatTsObject(typography)} as const;
@@ -536,6 +654,7 @@ export const breakpoints = ${formatTsObject(breakpoints)} as const;
 export const zIndex = ${formatTsObject(zIndex)} as const;
 
 export type ColorScale = keyof typeof colors.navy;
+export type ProductColorFamily = keyof typeof productColors;
 export type SpacingKey = keyof typeof spacing;
 export type TypographySize = keyof typeof typography.fontSize;
 export type TypographyWeight = keyof typeof typography.fontWeight;
@@ -618,6 +737,7 @@ function formatSwift(tokens) {
     surfaceHighlight: token(tokens, "platform", "ios", "semantic", "surfaceHighlight"),
     strokeSubtle: token(tokens, "platform", "ios", "semantic", "strokeSubtle"),
   };
+  const productColorTokens = productColorEntries(tokens);
 
   const iosSpacing = Object.fromEntries(
     Object.keys(tokenObject(tokens, "platform", "ios", "spacing")).map((key) => [
@@ -682,6 +802,15 @@ enum GeneratedDesignTokens {
 
         static let primary = ${swiftSemanticColorExpression(iosSemantic.primary, brandHexes)}
         static let primaryForeground = ${swiftSemanticColorExpression(iosSemantic.primaryForeground, brandHexes)}
+    }
+
+    enum ProductColor {
+${productColorTokens
+  .map(
+    (entry) =>
+      `        static let ${entry.swiftName} = ${swiftSemanticColorExpression(entry.value, brandHexes)}`
+  )
+  .join("\n")}
     }
 
     enum Spacing {
