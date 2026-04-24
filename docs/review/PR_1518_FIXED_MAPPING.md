@@ -15,7 +15,10 @@ threads on GitHub.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1518#pullrequestreview-3952222736
+  Disposition: NOT-A-BUG
+  Evidence: `scripts/ci/check_docker_provenance_attestation.py:22`; `docs/deploy/DOCKER.md:128`; `tests/test_check_docker_provenance_attestation.py:105`.
+  Reason: This lane intentionally preserves fail-closed exact-predicate verification for the GitHub/GHCR SPDX SBOM predicate observed in the failing main CD run. Making the predicate configurable would widen deploy-policy surface beyond this narrow main-stabilization fix and belongs in a separately governed policy-change PR if needed.
 
 ## Implementation Evidence
 
@@ -32,17 +35,17 @@ Merge-readiness contract:
 - [ ] Mandatory wait-window satisfied (final check pass completed, then waited >=1 review cycle after latest bot/review activity)
   Evidence: pending post-open review cycle.
 - [ ] Current-head CI is green for PR branch head
-  Evidence: pending current-head CI after this mapping artifact update.
+  Evidence: pending current-head CI after this mapping artifact update; previous current-head pass had only `test-pr (3.13)` still in progress.
 - [ ] Required checks complete (no pending jobs)
-  Evidence: pending current-head CI after this mapping artifact update.
+  Evidence: pending current-head CI after this mapping artifact update; previous current-head pass had only `test-pr (3.13)` still in progress.
 - [ ] All review threads resolved on GitHub after disposition updates
   Evidence: no review-thread resolution has been performed yet.
-- [ ] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
-  Evidence: pending post-open bot review pass.
+- [x] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
+  Evidence: Sourcery high-level configurability comment is mapped above as NOT-A-BUG; CodeRabbit skipped review because the PR is draft and did not leave actionable review findings.
 - [x] Pre-commit green on latest pushed head
   Evidence: `pre-commit run --all-files` passed before the initial push.
 - [ ] `make verify` green on latest pushed head
-  Evidence: attempted locally; verify-env, lint, mypy, and test-fast passed, but the full coverage stage was terminated with `Terminated: 15` before diff-cover completion.
+  Evidence: full local `make verify`/full diff-cover intentionally not re-run for this lane by operator decision to avoid duplicating the 10k-test workload locally; local evidence is limited to PR-specific tests and PR-specific diff-cover, with GitHub current-head CI as the heavy signal.
 - [x] Mandatory post-open `qa-engineer-agent -> bug-hunter` pass completed
   Evidence: post-open review packet `artifacts/orchestration/task_packets/10bed8a9d3b7.json`; local body/artifact gate `python3 scripts/ci/check_pr_body_phase2_gates.py --pr-number 1518 --body "$(cat /tmp/pr1518_body_current.md)"` passed; targeted regression suites passed before PR open.
 
