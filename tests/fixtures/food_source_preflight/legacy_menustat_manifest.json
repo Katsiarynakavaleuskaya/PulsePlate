@@ -1,0 +1,25 @@
+{
+  "artifact": {
+    "checksum_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "path": "raw/menustat/2022/MenuStat_2022.csv",
+    "record_count": 42,
+    "size_bytes": 1024
+  },
+  "retrieved_on": "2026-04-24",
+  "schema": {
+    "fields": [
+      "restaurant",
+      "item_name",
+      "year"
+    ],
+    "primary_keys": [
+      "restaurant",
+      "item_name",
+      "year"
+    ]
+  },
+  "source": "menustat",
+  "source_classification": "legacy_static",
+  "source_url": "https://www.menustat.org/data.html",
+  "source_version": "2022"
+}
