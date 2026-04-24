@@ -8,7 +8,7 @@ Canonical review-governance artifact and PR-body mirror requirements:
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
 
-This artifact was created immediately after the draft PR opened per repo
+This artifact was created immediately after the draft PR was opened per repo
 governance. Record every actionable human/bot disposition here before resolving
 threads on GitHub.
 
@@ -21,12 +21,12 @@ threads on GitHub.
 - `qa-engineer-agent`: PASS. Reviewed the two-test isolation patch and local
   validation coverage; no missing blocking negative-path test was found.
 - `bug-hunter`: PASS. Reviewed stale override removal/restoration and
-  cross-test state leakage risk; no blocking edge-case finding was found.
+  cross-test state leakage risk; no blocking edge-case findings were found.
 
 ## Implementation Evidence
 
 Commit: 50a02aec1
-Evidence: `tests/test_payment_source_contract_api.py:13`; `tests/test_payment_source_contract_api.py:68`.
+Evidence: `tests/test_payment_source_contract_api.py:17`; `tests/test_payment_source_contract_api.py:29`; `tests/test_payment_source_contract_api.py:71`; `tests/test_payment_source_contract_api.py:110`.
 Reason: Main CI run `24911580731` failed in jobs `72954280558` and `72954280584`
 because stale `legacy_app.get_api_key` dependency override keys could survive
 inside the shared `app.main.app` test singleton during long shard execution,
@@ -59,13 +59,13 @@ Merge-readiness contract:
   Evidence: pending current-head CI.
 - [ ] All review threads resolved on GitHub after disposition updates
   Evidence: pending post-open review cycle.
-- [x] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
-  Evidence: no actionable review comments were present when this artifact was created.
-- [x] Pre-commit green on latest pushed head
+- [ ] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
+  Evidence: pending final review-governance pass after latest bot comments.
+- [ ] Pre-commit green on latest pushed head
   Evidence: `pre-commit run --all-files` passed after rebase.
 - [ ] `make verify` green on latest pushed head
   Evidence: not satisfied locally; see Validation Evidence note.
-- [x] Mandatory post-open `qa-engineer-agent -> bug-hunter` pass completed
+- [ ] Mandatory post-open `qa-engineer-agent -> bug-hunter` pass completed
   Evidence: both post-open role passes reported no blocking findings.
 
 ## Deferred / Follow-ups

@@ -69,14 +69,14 @@ def test_manual_intent_rejects_env_configured_pro_key_without_app_validator_over
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     original_overrides = _pop_app_get_api_key_overrides(app)
-    monkeypatch.setenv("SUBSCRIPTION_DB_ENABLED", "true")
-    monkeypatch.setenv("ENVIRONMENT", "test")
-    monkeypatch.setenv("APP_ENV", "test")
-    monkeypatch.setenv("DEBUG", "false")
-    monkeypatch.setenv("ALLOW_DEV_API_KEY", "false")
-    monkeypatch.setenv("PRO_API_KEYS", pro_headers["X-API-Key"])
-
     try:
+        monkeypatch.setenv("SUBSCRIPTION_DB_ENABLED", "true")
+        monkeypatch.setenv("ENVIRONMENT", "test")
+        monkeypatch.setenv("APP_ENV", "test")
+        monkeypatch.setenv("DEBUG", "false")
+        monkeypatch.setenv("ALLOW_DEV_API_KEY", "false")
+        monkeypatch.setenv("PRO_API_KEYS", pro_headers["X-API-Key"])
+
         with TestClient(app) as isolated_client:
             response = isolated_client.post(
                 "/api/v1/pro/payments/ru-by/manual-intent",
@@ -107,9 +107,10 @@ def test_manual_intent_rejects_transport_key_when_app_validator_is_missing(
     import app as app_module
 
     original_overrides = _pop_app_get_api_key_overrides(app)
-    monkeypatch.setattr(app_module, "get_api_key", None)
 
     try:
+        monkeypatch.setattr(app_module, "get_api_key", None)
+
         with TestClient(app) as isolated_client:
             response = isolated_client.post(
                 "/api/v1/pro/payments/ru-by/manual-intent",
