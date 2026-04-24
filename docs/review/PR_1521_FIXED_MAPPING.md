@@ -33,6 +33,7 @@ Commit: e882792d9357d8500ed3446155e4c5a69db76192
 Evidence: docs/review/PR_1521_FIXED_MAPPING.md leaves merge-readiness checklist items unchecked until the final merge cycle.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1521#discussion_r3140360691 -> e882792d9357d8500ed3446155e4c5a69db76192
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1521#pullrequestreview-4173481760 -> e882792d9357d8500ed3446155e4c5a69db76192
 
 ## External Bot Status
 
@@ -40,6 +41,8 @@ Evidence: docs/review/PR_1521_FIXED_MAPPING.md leaves merge-readiness checklist 
   are mapped above.
 - Sourcery review was rate-limited on 2026-04-24 and did not provide code
   findings.
+- Cubic status was `NEUTRAL` with no actionable GitHub review comments on the
+  current head; treated as explicit non-actionable external status for PR1.
 - Codecov reported all modified and coverable lines covered.
 
 ## Initial Evidence
