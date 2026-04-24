@@ -218,6 +218,9 @@ def run_safety_for_manifest(
     report_json = config.output_dir / f"safety-{stem}.json"
     report_txt = config.output_dir / f"safety-{stem}.txt"
     console_log = config.output_dir / f"safety-{stem}.log"
+    for artifact_path in (report_json, report_txt, console_log):
+        artifact_path.unlink(missing_ok=True)
+
     print(f"Running Safety audit for {manifest.name}")
     command = [
         config.safety_binary,

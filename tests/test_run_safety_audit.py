@@ -90,6 +90,28 @@ def test_run_audit_emits_per_manifest_artifacts(
     ]
 
 
+def test_run_audit_removes_stale_report_before_safety_execution(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _write_manifest(tmp_path, "requirements.txt")
+    stale_report = tmp_path / "safety-requirements.json"
+    _write_report(stale_report, [])
+
+    def fake_run(command: list[str], **_: Any) -> SimpleNamespace:
+        assert Path(command[command.index("--save-json") + 1]) == stale_report
+        assert not stale_report.exists()
+        return SimpleNamespace(returncode=64, stdout="", stderr="failed before report\n")
+
+    monkeypatch.setattr(safety_audit.shutil, "which", lambda _: "/usr/bin/safety")
+    monkeypatch.setattr(safety_audit.subprocess, "run", fake_run)
+
+    config = safety_audit.build_config(root=tmp_path, output_dir=tmp_path)
+
+    with pytest.raises(safety_audit.SafetyAuditError, match="failed to produce"):
+        safety_audit.run_audit(config)
+    assert not stale_report.exists()
+
+
 @pytest.mark.parametrize("severity", ["HIGH", "CRITICAL", "UNKNOWN"])
 def test_high_risk_findings_fail_aggregate(tmp_path: Path, severity: str) -> None:
     report_path = tmp_path / "safety-requirements.json"
