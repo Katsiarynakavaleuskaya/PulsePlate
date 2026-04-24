@@ -69,7 +69,7 @@ Merge-readiness contract:
       one review cycle before merging
 - [x] `python3 scripts/orchestration/check_preflight.py`
 - [x] `python3 scripts/orchestration/check_agent_consistency.py`
-- [x] `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest tests/test_food_source_preflight.py -q`
+- [x] `python3 -m pytest tests/test_food_source_preflight.py -q`
       after review fix (`9 passed`)
 - [x] `python3 scripts/food_source_preflight.py --current-manifest tests/fixtures/food_source_preflight/current_off_manifest.json --incoming-manifest tests/fixtures/food_source_preflight/incoming_off_manifest.json --dry-run --json`
 - [x] invalid-manifest CLI smoke returned exit `1` with JSON
@@ -84,9 +84,9 @@ Merge-readiness contract:
 
 ## Scope Boundary Proof
 
-- No DigitalOcean PostgreSQL connection string, credentials, or writes.
-- No source downloads or production/staging/local bulk ingest.
-- No runtime authority cutover; PR2 dry-run reports include
-  `runtime_cutover: false`.
-- No public API, OpenAPI, frontend, iOS, Meilisearch, pgvector, or restaurant
-  endpoint behavior change.
+- Absent: DigitalOcean PostgreSQL connection strings, credentials, and writes.
+- Source downloads and production/staging/local bulk ingest are not performed.
+- PR2 dry-run reports keep `runtime_cutover: false`; runtime authority remains
+  unchanged.
+- Public API, OpenAPI, frontend, iOS, Meilisearch, pgvector, and restaurant
+  endpoint behavior are unchanged.
