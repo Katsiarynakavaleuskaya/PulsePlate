@@ -964,7 +964,7 @@ SKILL_RULES: tuple[SkillRule, ...] = (
             "PulsePlate PR self-review should use the coordinator-owned "
             "repo-native review swarm before external review-bot signals."
         ),
-        min_score=4,
+        min_score=6,
         domain_weights={"qa": 2, "orchestration": 2, "security": 1},
         path_prefixes=("docs/review/", "docs/orchestration/", "scripts/orchestration/"),
         keywords=(
