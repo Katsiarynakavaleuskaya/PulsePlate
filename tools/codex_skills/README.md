@@ -28,6 +28,7 @@ Skills remain passive/discovery-only helpers and do not replace coordinator boot
 - `pulseplate-playwright-e2e`
 - `pulseplate-monetization-gtm`
 - `pulseplate-design-launch-system`
+- `pulseplate-pr-review`
 
 ## Cybersecurity skills (submodule)
 

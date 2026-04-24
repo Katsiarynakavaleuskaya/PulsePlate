@@ -85,7 +85,8 @@ RESEARCH_CONDITIONAL_SKILLS: frozenset[str] = frozenset(
 )
 CI_CONDITIONAL_SKILLS: frozenset[str] = frozenset({"ci-fix", "gh-fix-ci"})
 TRIAGE_CLASSIFICATION_SKILL_BUNDLES: dict[str, tuple[str, ...]] = {
-    "review": ("code-review-expert",),
+    "pr_governance": ("pulseplate-pr-review", "code-review-expert"),
+    "review": ("pulseplate-pr-review", "code-review-expert"),
     "bugfix": ("bug-triage",),
 }
 
@@ -955,6 +956,27 @@ SKILL_RULES: tuple[SkillRule, ...] = (
         min_score=4,
         domain_weights={"qa": 1, "orchestration": 1},
         keywords=("review", "code review"),
+    ),
+    SkillRule(
+        skill="pulseplate-pr-review",
+        category="repo-tracked",
+        rationale=(
+            "PulsePlate PR self-review should use the coordinator-owned "
+            "repo-native review swarm before external review-bot signals."
+        ),
+        min_score=6,
+        domain_weights={"qa": 2, "orchestration": 2, "security": 1},
+        path_prefixes=("docs/review/", "docs/orchestration/", "scripts/orchestration/"),
+        keywords=(
+            "pr review",
+            "pull request review",
+            "code review",
+            "coderabbit",
+            "sourcery",
+            "cubic",
+            "review comments",
+            "fixed mapping",
+        ),
     ),
     SkillRule(
         skill="ci-fix",

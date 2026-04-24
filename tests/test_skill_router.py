@@ -892,7 +892,7 @@ def test_skill_router_selects_release_notes_for_release_tasks() -> None:
 
 
 def test_skill_router_selects_explicit_review_skill_at_lower_threshold() -> None:
-    """Direct code-review intent should reach the dedicated review skill."""
+    """Direct code-review intent should reach both review helper skills."""
 
     skills = select_recommended_skills(
         goal="Need a code review for this frontend PR",
@@ -902,6 +902,7 @@ def test_skill_router_selects_explicit_review_skill_at_lower_threshold() -> None
     )
 
     assert "code-review-expert" in skills
+    assert "pulseplate-pr-review" in skills
 
 
 def test_skill_router_selects_ci_fix_for_explicit_ci_failure() -> None:
@@ -928,6 +929,23 @@ def test_skill_router_selects_github_comment_skill_for_review_threads() -> None:
     )
 
     assert "gh-address-comments" in skills
+    assert "pulseplate-pr-review" in skills
+
+
+def test_skill_router_selects_pulseplate_pr_review_for_pr_governance() -> None:
+    """PR governance lanes should recommend the repo-native PR review skill."""
+
+    decision = route_skills(
+        goal="Prepare pull request review governance and fixed mapping for merge readiness",
+        task_class="PR governance",
+        candidate_paths=["docs/review/PR_999_FIXED_MAPPING.md"],
+        domain="qa",
+    )
+
+    skills = flatten_recommended_skills(decision)
+    assert decision["task_classification"]["label"] == "pr_governance"
+    assert "pulseplate-pr-review" in skills
+    assert "code-review-expert" in skills
 
 
 def test_skill_router_keeps_gh_fix_ci_out_of_generic_github_cli_tasks() -> None:
@@ -1138,6 +1156,7 @@ def test_skill_router_applies_triage_bundle_without_figma_activation() -> None:
 
     recommended = {item["skill"] for item in decision["recommended"]}
     assert decision["task_classification"]["label"] == "review"
+    assert "pulseplate-pr-review" in recommended
     assert "code-review-expert" in recommended
 
 

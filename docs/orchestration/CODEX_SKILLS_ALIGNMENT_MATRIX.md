@@ -52,6 +52,7 @@ Interpretation:
 - `create-pr`
 - `docs-sync`
 - `bug-triage`
+- `pulseplate-pr-review`
 - `build-web-apps:frontend-skill`
 - `build-web-apps:web-design-guidelines`
 - `build-ios-apps:swiftui-ui-patterns`
