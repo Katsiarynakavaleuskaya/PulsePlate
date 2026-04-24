@@ -36,6 +36,13 @@ Evidence: Review actionables fixed in shard runner, tests, packet, backlog, and 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1511#pullrequestreview-4169459758 -> e5673b71c
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1511#pullrequestreview-4169472607 -> e5673b71c
 
+Disposition: FIXED
+Commit: 7efd97436
+Evidence: CodeRabbit governance notes fixed in this artifact by removing the local absolute path and keeping merge-readiness boxes unchecked until the final cycle.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1511#discussion_r3136987919 -> 7efd97436
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1511#discussion_r3136987945 -> 7efd97436
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1511#pullrequestreview-4169663658 -> 7efd97436
+
 ## Initial Evidence
 
 - `python3 scripts/orchestration/check_preflight.py --path .github/workflows/ci.yml --path tests/test_ci_workflow_pr_size_governance_contract.py --path docs/orchestration --path docs/roadmap/BACKLOG_LEDGER.md` PASS.
