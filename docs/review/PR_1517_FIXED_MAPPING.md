@@ -49,12 +49,20 @@ Evidence: `tests/test_food_source_preflight.py`
 Reason: CLI file-only test now runs the subprocess from `tmp_path`, so the before/after file-tree assertion checks the actual working directory used by the CLI process.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1517#pullrequestreview-4172181086 -> 3759d03aa
 
+Disposition: FIXED
+Commit: 49efc9ec9
+Evidence: `docs/review/PR_1517_FIXED_MAPPING.md`
+Reason: The review artifact now records portable validation commands and keeps the scope-boundary proof readable without host-specific absolute paths.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1517#discussion_r3139309011 -> 49efc9ec9
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1517#pullrequestreview-4172242156 -> 49efc9ec9
+
 ## Initial Implementation Commits
 
 - `1a2c265b7` - `feat(food-data): add source preflight skeleton`
 - `dc9ddecc7` - `fix(food-data): enforce manifest date format`
 - `3c706a0fc` - `fix(food-data): add source delta preflight report`
 - `3759d03aa` - `test(food-data): verify cli working directory isolation`
+- `49efc9ec9` - `docs: remove local path from pr1517 artifact`
 
 ## Merge Readiness
 
