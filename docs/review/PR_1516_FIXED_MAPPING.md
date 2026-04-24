@@ -20,6 +20,14 @@ threads on GitHub.
 ## Initial Implementation Commits
 
 - `5fddee3e5` - `fix(ci): shard python 3.13 main tests`
+- `cb5524107` - `fix(ci): keep py312 shard wrapper executable`
+
+## Post-Open Review Dispositions
+
+Disposition: FIXED
+Commit: cb5524107
+Evidence: `scripts/ci/run_py312_main_shards.py`; `tests/test_main_test_shards.py`; `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python scripts/ci/run_py312_main_shards.py --shard-count 1 --list-shards`.
+Reason: Bug-hunter found that direct execution of the legacy Python 3.12 wrapper failed because `scripts` was not on `sys.path`; the wrapper now inserts the repo root before importing the shared runner and the test suite covers direct file execution.
 
 ## Local Validation
 
