@@ -2944,22 +2944,26 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 
 
 <a id="ledger-p1-scientific-reliability-pipeline"></a>
-- [ ] P1: Scientific reliability publication pipeline (blog + evidence artifacts)
+- [ ] P1: Scientific reliability publication packet (evidence + article mapping)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (trust + GTM)
-  - Target PR: PR-TBD-SCIENTIFIC-RELIABILITY-BLOG
-  - Status: 📋 Planned
-  - Reason (EN): Product differentiation requires public, evidence-based communication of reliability methods (RAG grounding, philosophical validation, recursive verification) with reproducible metrics and no medical overclaiming. (RU: Для дифференциации нужен публичный научно-достоверный контент по quality-подходу без медикал-оверклеймов.)
+  - Target PR: PR-A9 (`docs/ai-scientific-reliability-packet`)
+  - Status: 🟡 In progress (A9 docs-only evidence lane is active; packet and audit evidence are now the canonical delivery surface)
+  - Reason (EN): Product differentiation requires public, evidence-based communication of currently reproducible AI reliability methods with clear claim boundaries and no medical overclaiming. The current governed proof surface is the offline logic+philosophy replay contract plus shipped runtime anchors; this lane must not imply production proof, public verification fields, or recursive execution as the canonical validated-evidence write path. (RU: Для дифференциации нужен публичный научно-достоверный пакет по AI quality-подходу с жёсткими границами claims и без медикал-оверклеймов. Текущая доказательная база в этом lane — governed offline replay contract для logic+philosophy и уже слитые runtime anchors; нельзя выдавать это за production proof, public verification truth или canonical validated-evidence write path для recursive execution.)
   - Links:
     - docs/analysis/SCIENTIFIC_INNOVATION_ANALYSIS.md
     - docs/insights/COMPREHENSIVE_PHILOSOPHY_LOGIC_MATH_CBT_ANALYSIS.md
     - docs/insights/RECURSIVE_METHODS_LLM_RAG.md
     - `docs/orchestration/contracts/LOGIC_PHILOSOPHY_REPLAY_EVAL_CONTRACT.md`
+    - `docs/orchestration/WAVE6_A9_TASK_ANALYSIS_2026-04-23.md`
+    - `docs/orchestration/WAVE6_A9_SCIENTIFIC_RELIABILITY_PACKET_2026-04-23.md`
+    - `docs/audit/PR_A9_SCIENTIFIC_RELIABILITY_EVIDENCE_PACKET_2026-04-23.md`
     - `tests/test_logic_philosophy_replay_eval.py`
   - DoD:
-    - Editorial plan and evidence format are documented (metrics, caveats, claim boundaries)
-    - At least one canonical article draft is mapped to verifiable repo artifacts
-    - Marketing copy checklist includes wellness-safe and evidence-only claims
+    - Editorial plan and evidence format are documented (metrics, corpus bounds, caveats, claim boundaries)
+    - One canonical evidence packet summarizes the governed offline replay result with reproducibility commands
+    - Internal/public article mapping is documented against verifiable repo artifacts
+    - Marketing copy checklist includes wellness-safe, evidence-only, and non-medical claims
 
 
 - [ ] P1: Agent knowledge library template packs (domain-specific)
