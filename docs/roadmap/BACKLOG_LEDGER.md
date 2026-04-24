@@ -587,9 +587,9 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: PR-scoped validation contract and pre-push hook fix
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-TBD-PR-SCOPED-VALIDATION-CONTRACT
+  - Target PR: PR #1516 (`codex/main-ci-py313-timeout-prevention`)
   - Area: CI / tooling / governance
-  - Status note: Keep `make verify` as the hard merge-claim gate until this follow-up lands. Use this item to separate iterative PR-scope validation from final merge evidence and to fix the pre-push hook failure shape before changing agent/runbook guidance.
+  - Status note: Active follow-up in `codex/main-ci-py313-timeout-prevention` narrows this item to the machine-heavy agent-local execution contract. Full local `make verify` stays canonical for normal PRs, while operator-approved CI/tooling lanes may document deferral and use narrow local gates plus canonical current-head CI parity as the heavy signal. The pre-push hook bug remains tracked here for a separate follow-up and is not closed by the Python 3.13 timeout-prevention lane.
   - Reason: The current repo-wide `make verify` loop is too broad for day-to-day PR iteration, while `scripts/run-backend-tests-pre-commit.sh` has surfaced a `FOUND_FOR_FILE[@]: unbound variable` failure on merge-commit paths. The follow-up must tighten the local PR-scoped validation contract around `make validate-changed` or an equivalent touched-scope path without weakening the canonical merge-readiness requirement.
   - Evidence:
     - `AGENTS.md:5-8`
@@ -606,10 +606,10 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `.pre-commit-config.yaml`
     - `scripts/run-backend-tests-pre-commit.sh`
   - DoD:
-    - The pre-push backend test hook no longer fails with `FOUND_FOR_FILE[@]: unbound variable`
-    - Repo docs distinguish iterative PR-scoped validation from the final `make verify` merge-claim gate
-    - Agent/runbook guidance points at the correct local validation path for PR iteration
-    - Deterministic tests cover the hook fix and the promoted validation contract
+    - Repo docs distinguish normal full local `make verify` from the operator-approved machine-heavy deferral path
+    - Agent/runbook guidance points at the correct narrow validation path for machine-heavy PR iteration
+    - Deterministic tests cover the promoted validation contract
+    - Follow-up PR fixes the pre-push backend test hook failure shape (`FOUND_FOR_FILE[@]: unbound variable`)
 
 <a id="ledger-p1-docker-runtime-slimming-after-profile-split"></a>
 - [x] P1: Docker runtime slimming after CI install-profile split
@@ -9647,7 +9647,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `docs/orchestration/MAIN_CI_PY312_TIMEOUT_ROOT_CAUSE_PACKET_2026-04-23.md`
     - `.github/workflows/ci.yml`
     - `scripts/ci/ci_risk_profile.py`
-    - `scripts/ci/run_py312_main_shards.py`
+    - `scripts/ci/run_main_test_shards.py`
     - `.github/workflows/nightly.yml`
     - `pyproject.toml`
     - `tests/test_ci_workflow_pr_size_governance_contract.py`
@@ -9847,23 +9847,22 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Root-cause Python 3.13 CI slowdown and retire timeout stopgap
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (CI stability / main-branch readiness)
-  - Target PR: PR-TBD-PY313-CI-STALL-ROOT-CAUSE
-  - Status: Opened on 11 April 2026
-  - Status note: The feature/fix push feedback split is being handled in
-    `fix/ci-feature-fast-feedback`. Do not close this item when that PR lands;
-    the remaining `test-main (3.13)` root cause and timeout-stopgap retirement
-    stay tracked here until canonical `main` evidence is green without the
-    temporary 90-minute buffer.
+  - Target PR: PR #1516 (`codex/main-ci-py313-timeout-prevention`)
+  - Status: Active prevention lane as of 24 April 2026
+  - Status note: PR #1511 proved `test-main (3.13, 90)` could pass but only in
+    about 88m44s, leaving almost no timeout budget. This lane routes Python 3.13
+    through the shared process-level main-suite shard runner while preserving
+    the `test-main (3.13, 90)` required-check identity.
   - Reason: Current-head feature and `main` CI runs both show a pathological
     Python 3.13 slowdown in canonical `CI`. `test-feature (3.13)` reached the
-    60-minute job timeout in run `24266451930`, and earlier `main` evidence
-    showed `test-main (3.13)` materially outliving `3.11` and `3.12`. The
-    immediate mitigation is a py3.13-scoped timeout increase plus deterministic
-    duration diagnostics in `.github/workflows/ci.yml`, but the underlying
-    cause remains unresolved and must be isolated before the stopgap can be
-    removed.
+    60-minute job timeout in run `24266451930`, and PR #1511 current-head
+    evidence showed `test-main (3.13, 90)` passing with only about 1m16s of
+    headroom. The prevention path is shared no-xdist process sharding for 3.12
+    and 3.13, not a broader timeout increase or weakened coverage gate.
   - Links:
     - `.github/workflows/ci.yml`
+    - `scripts/ci/run_main_test_shards.py`
+    - `tests/test_main_test_shards.py`
     - `RUNBOOK_AGENT.md`
     - `docs/orchestration/TIER1_CI_CD_PR_SERIES_RUNBOOK.md`
     - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/24266451930/job/70862392048`

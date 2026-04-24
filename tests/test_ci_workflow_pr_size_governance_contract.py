@@ -9,6 +9,11 @@ import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 CI_WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "ci.yml"
+AGENTS_PATH = REPO_ROOT / "AGENTS.md"
+RUNBOOK_PATH = REPO_ROOT / "RUNBOOK_AGENT.md"
+ORCHESTRATION_CONTRACT_PATH = (
+    REPO_ROOT / "docs" / "orchestration" / "PR_ORCHESTRATION_CONTRACT_MATRIX.md"
+)
 
 
 def _extract_section(workflow_text: str, start_anchor: str, end_anchor: str) -> str:
@@ -45,7 +50,9 @@ def _assert_contains_all_tokens(expression: str, expected_tokens: tuple[str, ...
     """Assert that a workflow expression keeps all required routing tokens."""
 
     for token in expected_tokens:
-        assert token in expression
+        assert (
+            token in expression
+        ), f"Missing token {token!r} in expression excerpt: {expression[:500]!r}"
 
 
 def _extract_shell_conditional_block(
@@ -203,7 +210,54 @@ def test_ios_unit_tests_stay_in_blocking_ios_job() -> None:
     assert 'ONLY_TESTING="$(../scripts/ios_test_targets.sh)"' not in ios_ui_smoke_section
 
 
-def test_main_branch_py312_sharded_runner_preserves_required_check_policy() -> None:
+def test_machine_heavy_local_verify_deferral_contract_is_documented() -> None:
+    agents_text = AGENTS_PATH.read_text(encoding="utf-8")
+    runbook_text = RUNBOOK_PATH.read_text(encoding="utf-8")
+    contract_text = ORCHESTRATION_CONTRACT_PATH.read_text(encoding="utf-8")
+
+    required_tokens = (
+        "Machine-heavy PR exception",
+        "operator-approved",
+        "`make verify` by default",
+        "canonical current-head CI parity",
+        "`lint`",
+        "required/current-head checks",
+        "relevant `test-main` matrix",
+        "`diff-coverage`",
+        "≥97%",
+        "security/governance checks",
+        "`check_merge_ready.py --require-auth`",
+        "`make validate-changed`",
+        "`pre-commit run --all-files`",
+    )
+    _assert_contains_all_tokens(agents_text, required_tokens)
+
+    runbook_tokens = (
+        "Machine-heavy CI/tooling PRs",
+        "operator explicitly defers full local",
+        "canonical current-head CI parity",
+        "`lint`",
+        "required/current-head checks",
+        "relevant `test-main` matrix",
+        "`diff-coverage` at ≥97%",
+        "security/governance checks",
+        "`check_merge_ready.py --require-auth`",
+        "documented narrow bundle",
+    )
+    _assert_contains_all_tokens(runbook_text, runbook_tokens)
+
+    contract_tokens = (
+        "Operator-approved machine-heavy deferral",
+        "fixed mapping document the deferral",
+        "canonical current-head CI parity is green",
+        "relevant `test-main` matrix",
+        "`diff-coverage` ≥97%",
+        "security/governance checks",
+    )
+    _assert_contains_all_tokens(contract_text, contract_tokens)
+
+
+def test_main_branch_python_sharded_runner_preserves_required_check_policy() -> None:
     workflow = _load_ci_workflow()
     jobs = workflow["jobs"]
     assert isinstance(jobs, dict)
@@ -241,23 +295,35 @@ def test_main_branch_py312_sharded_runner_preserves_required_check_policy() -> N
         "          else",
         "          fi",
     )
+    shared_shard_runner_block = _extract_shell_conditional_block(
+        test_main_section,
+        '          if [[ -n "${MAIN_TEST_SHARDS:-}" ]]; then',
+        '          echo "PYTEST_XDIST_ARGS=${PYTEST_XDIST_ARGS[*]}"',
+    )
 
-    assert "python scripts/ci/run_py312_main_shards.py" in py312_block
-    assert '--shard-count "${PY312_MAIN_SHARDS}"' in py312_block
-    assert '--max-parallel "${PY312_MAIN_MAX_PARALLEL}"' in py312_block
-    assert "PY312_MAIN_SHARDS=2" in py312_block
-    assert "PY312_MAIN_MAX_PARALLEL=2" in py312_block
-    assert 'echo "PY312_MAIN_SHARDS=${PY312_MAIN_SHARDS}"' in py312_block
-    assert 'echo "PY312_MAIN_MAX_PARALLEL=${PY312_MAIN_MAX_PARALLEL}"' in py312_block
+    assert "MAIN_TEST_SHARDS=2" in py312_block
+    assert "MAIN_TEST_MAX_PARALLEL=2" in py312_block
     assert "PYTEST_XDIST_ARGS=(-p no:xdist)" not in py312_block
     assert "PYTEST_XDIST_ARGS=(-n 2 --dist=loadscope)" not in py312_block
     assert "PYTEST_XDIST_ARGS=(-n 4 --dist=loadscope)" not in py312_block
     assert "TEST_STEP_STARTED_AT=" in test_main_section
-    assert "TEST_STEP_FINISHED_AT=" in py312_block
+    assert "TEST_STEP_FINISHED_AT=" in shared_shard_runner_block
 
-    assert "PYTEST_XDIST_ARGS=(-p no:xdist)" in py313_block
+    assert "MAIN_TEST_SHARDS=2" in py313_block
+    assert "MAIN_TEST_MAX_PARALLEL=2" in py313_block
+    assert "PYTEST_XDIST_ARGS=(-p no:xdist)" not in py313_block
     assert "PYTEST_XDIST_ARGS=(-n 2 --dist=loadscope)" not in py313_block
     assert "PYTEST_XDIST_ARGS=(-n 4 --dist=loadscope)" not in py313_block
+
+    assert "python scripts/ci/run_main_test_shards.py" in shared_shard_runner_block
+    assert '--python-version "${PYVER}"' in shared_shard_runner_block
+    assert '--shard-count "${MAIN_TEST_SHARDS}"' in shared_shard_runner_block
+    assert '--max-parallel "${MAIN_TEST_MAX_PARALLEL}"' in shared_shard_runner_block
+    assert 'echo "MAIN_TEST_SHARDS=${MAIN_TEST_SHARDS}"' in shared_shard_runner_block
+    assert 'echo "MAIN_TEST_MAX_PARALLEL=${MAIN_TEST_MAX_PARALLEL}"' in shared_shard_runner_block
+    assert "PYTEST_XDIST_ARGS=(-p no:xdist)" not in shared_shard_runner_block
+    assert "PYTEST_XDIST_ARGS=(-n 2 --dist=loadscope)" not in shared_shard_runner_block
+    assert "PYTEST_XDIST_ARGS=(-n 4 --dist=loadscope)" not in shared_shard_runner_block
 
     assert '-m "not slow"' in test_main_section
     assert '-m "not serial and not slow"' not in test_main_section
@@ -265,6 +331,7 @@ def test_main_branch_py312_sharded_runner_preserves_required_check_policy() -> N
     assert "--cov-append" not in test_main_section
     assert "tests/results-serial.xml" not in test_main_section
     assert "tests/results-py312-shard-*.xml" in test_main_section
+    assert "tests/results-py313-shard-*.xml" in test_main_section
 
     assert "PYTEST_XDIST_ARGS=(-n 4 --dist=loadscope)" in default_block
     assert "PYTEST_XDIST_ARGS=(-p no:xdist)" not in default_block

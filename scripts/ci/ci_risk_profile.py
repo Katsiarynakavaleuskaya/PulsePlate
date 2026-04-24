@@ -86,10 +86,11 @@ WORKFLOW_PRIVILEGED_PREFIXES: tuple[str, ...] = (
 MAIN_CI_DIAGNOSTIC_EXACT: tuple[str, ...] = (
     ".github/workflows/ci.yml",
     "scripts/ci/ci_risk_profile.py",
+    "scripts/ci/run_main_test_shards.py",
     "scripts/ci/run_py312_main_shards.py",
     "tests/test_ci_risk_profile.py",
     "tests/test_ci_workflow_pr_size_governance_contract.py",
-    "tests/test_py312_main_shards.py",
+    "tests/test_main_test_shards.py",
 )
 GIT_DIFF_TIMEOUT_SECONDS = 60
 RISK_GROUP_PATTERNS: dict[str, tuple[str, ...]] = {
