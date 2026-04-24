@@ -29,6 +29,7 @@ Disposition: NOT-A-BUG
 Evidence: `scripts/orchestration/logic_philosophy_replay_contract.py:17`; `docs/orchestration/contracts/LOGIC_PHILOSOPHY_REPLAY_EVAL_CONTRACT.md:23`; `tests/fixtures/orchestration/logic_philosophy_replay/replay_cases.json:32`.
 Reason: CodeRabbit requested `A1_logic_only` and `A2_philosophy_only`, but the current replay contract, fixtures, and evaluator canonicalize `A1_logic` and `A2_philosophy`.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1512#pullrequestreview-4169085129
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1512#discussion_r3136454832
 
 ## Initial Implementation Commits
 
