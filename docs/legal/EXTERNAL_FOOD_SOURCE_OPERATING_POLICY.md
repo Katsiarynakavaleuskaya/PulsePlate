@@ -67,7 +67,10 @@ Current repo examples:
 | USDA / FoodData Central-style public nutrition datasets | Allowed for reviewed normalization and snapshot workflows | Allowed for reviewed local snapshots | Not allowed by default without explicit source-term review in rollout PR | Recommended | Medium: public data source, but downstream product use still needs documented review |
 | Open Food Facts (ODbL) | Allowed | Allowed | Allowed only when ODbL obligations and derivative-db obligations are preserved | Required | Medium: open-data friendly, but share-alike and attribution duties are binding |
 | MenuStat-style public research datasets | Allowed only after file-level license review in onboarding PR | Allowed for reviewed local snapshots | Not allowed by default | Required | Medium: publication is public/research-oriented, but redistribution rights may be narrower than access suggests |
+| Restaurant chain snapshots / partner-provided menus | Allowed only after source-specific review | Allowed only for reviewed snapshots | Not allowed by default | Required | High: chain terms, freshness, and redistribution rights vary by source |
 | Nutritionix-style commercial datasets | Not allowed by default without contract | Not allowed by default without contract | Not allowed by default | Contract-dependent | High: commercial provider terms usually govern cache, display, and redistribution rights |
+| External recipe corpora | Not allowed by default without source review | Not allowed by default | Not allowed by default | Required | Medium/High: recipes can carry copyright, scraping, and attribution constraints |
+| Regional/JPTN-style nutrition catalogs | Not allowed by default without source review | Not allowed by default | Not allowed by default | Required | Medium/High: locale-specific terms, field semantics, and redistribution rights must be verified |
 
 ## 5. Relationship to provider-specific docs
 

@@ -60,8 +60,9 @@ Known gap:
 |------|--------|------|---------------|
 | Tier 1 | USDA | scientific baseline | full snapshot quarterly |
 | Tier 1 | Open Food Facts | barcode + branded coverage | weekly delta sync + periodic full refresh |
-| Tier 2 | MenuStat | restaurant menu baseline | annual snapshot |
-| Tier 2 | Nutritionix | chain/menu enrichment | monthly scoped snapshot + constrained fallback API |
+| Tier 2 | MenuStat | legacy/static restaurant baseline | replacement gate before new ingest |
+| Tier 2 | restaurant-menu replacement source | chain/menu enrichment | license/cache/rollback review first |
+| Tier 2 | recipe templates / recipe corpora | recipe synthesis and meal planning | repo-owned templates first; external corpora require source review |
 | Tier 3 | regional catalogs (EU/RF/EAEU where legal) | local-market coverage | source-dependent periodic import |
 | Tier 4 | live fallback APIs | miss resolution only | called only when local miss occurs |
 
@@ -70,6 +71,8 @@ Policy rule:
 - local search/lookup first
 - external API only on miss and only after local cache check
 - successful external result is normalized and cached into canonical store
+- MenuStat-style import remains a compatibility format, not proof that
+  MenuStat itself is still an updating source.
 
 ---
 
@@ -86,8 +89,22 @@ Required metadata per snapshot:
 - file size
 - manifest entry with immutable path
 
+PR1 source-update preflight adds one more gate before bulk ingest: every
+incoming source must declare whether it is a current source, a legacy/static
+baseline, a commercial/contract-dependent provider, or an unresolved source.
+Enforcement anchor: the PR1 preflight contract requires top-level manifest field
+`source_classification` with allowed values `current`, `legacy_static`,
+`commercial_contract`, or `unresolved`; later tooling must validate that field
+before ingest using the PR1 packet's canonical criteria.
+This is a PR1 contract, not current runtime enforcement: follow-up tooling must
+add validation before ingest, because `core/food_sources/snapshot_manager.py`
+and `core/food_apis/raw_snapshot_gate.py` do not validate
+`source_classification` yet.
+
 Implementation anchors (W1, repo paths on default branch):
 
+- PR1 source-classification contract:
+  `docs/orchestration/FOOD_DATA_SOURCE_UPDATE_PREFLIGHT_CURRENT.md#food-data-source-update-preflight-current-packet`
 - Snapshot manifest hub + fail-closed revalidation (size/checksum): `core/food_sources/snapshot_manager.py:91` (`SnapshotManager`), `:258` (`verify_recorded_snapshots`)
 - OFF deterministic delta/full source: `core/food_sources/off_delta.py:54` (`OpenFoodFactsDeltaSource`)
 - OFF export selection (cache/snapshot inputs): `core/food_apis/update_manager.py:261` (`_find_off_export_file`); scheduler entry for OFF updates: `:352` (`update_database` → `_update_off_database`)
