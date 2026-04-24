@@ -33,11 +33,17 @@ Merge-readiness contract:
 - [ ] After latest bot/review activity, perform a final check and wait at least
       one review cycle before merging
 - [x] `pre-commit run --all-files` green on latest local head
-- [x] `make verify` green on latest local head before this evidence update
-      Local proof: `make verify` passed `verify-env`, `lint`, `typecheck`,
-      `test-fast`, full coverage run, `coverage xml`, and `diff-cover >=97`.
-      Final output reported that diff coverage met requirements and all
-      checks passed.
+- [x] `make verify` green before the evidence-only mapping update
+      Local proof: `make verify` passed on commit `f0c5eb092` with
+      `verify-env`, `lint`, `typecheck`, `test-fast`, full coverage run,
+      `coverage xml`, and `diff-cover >=97`.
+- [ ] `make verify` green on latest local head
+      Latest-head note: after the mapping-only evidence commit `743bf85d2`,
+      the repeat `make verify` passed `verify-env`, `lint`, `typecheck`, and
+      `test-fast`, then was externally terminated during the long
+      coverage/diff-cover sweep with `make: *** [diff-cov] Terminated: 15`.
+      No pytest failure was emitted before termination. Do not use this local
+      rerun as a green latest-head `make verify` proof.
 
 Local proof note: `python3 scripts/orchestration/check_preflight.py`,
 `python3 scripts/orchestration/check_agent_consistency.py`,
