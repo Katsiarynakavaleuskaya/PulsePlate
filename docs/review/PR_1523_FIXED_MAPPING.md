@@ -22,6 +22,11 @@ Commit: 5ffc3f9c6
 Evidence: `docs/review/PR_1523_FIXED_MAPPING.md` keeps merge-readiness checklist items unchecked until the final merge cycle.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1523#discussion_r3140520217 -> 5ffc3f9c6
 
+Disposition: FIXED
+Commit: 5ffc3f9c6
+Evidence: CodeRabbit's actionable review summary aggregated the two inline comments above, both fixed by commit `5ffc3f9c6`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1523#pullrequestreview-4173659698 -> 5ffc3f9c6
+
 Disposition: NOT-A-BUG
 Evidence: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1523#issuecomment-4316489543
 Reason: Sourcery generated a reviewer guide and summary only; it contains no requested fixes or unresolved action items for this PR head.
