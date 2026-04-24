@@ -9649,8 +9649,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Owner: CI/QA
   - Priority: P2 (CI hardening after required-check containment)
   - Target PR: `codex/main-ci-py312-timeout-root-cause`
-  - Status: Active as of April 23, 2026. PR #1505 containment disabled xdist for Python 3.12 but did not prove the main `60` minute budget. This lane adds deterministic no-xdist process sharding and diagnostics before any future pytest-xdist restoration attempt.
-  - Reason: disabling xdist for Python 3.12 is a containment policy, not a root-cause fix. The worker-node termination pattern still needs bounded fixture/process cleanup evidence before pytest-xdist can be safely restored; meanwhile the sequential no-xdist suite must fit the required `test-main (3.12, 60)` check without hiding failures.
+  - Status: Active as of April 23, 2026. Pointer entry for the active root-cause lane; the detailed chronology remains in `#ledger-p1-main-ci-xdist-worker-stability`.
+  - Reason: PR #1505 containment is not the final root-cause fix. This follow-up tracks bounded evidence for any future pytest-xdist restoration after the deterministic no-xdist shard runner proves the required `test-main (3.12, 60)` budget.
   - Links:
     - `.github/workflows/ci.yml`
     - `tests/AGENTS.md`

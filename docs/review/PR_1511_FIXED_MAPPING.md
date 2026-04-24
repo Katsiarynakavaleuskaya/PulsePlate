@@ -7,7 +7,7 @@ Date: 2026-04-23
 ## Discussion Thread Pass
 
 - [x] Discussion-thread pass completed
-- [x] Fixed in commit mapping completed
+- [x] Fixed-in-commit mapping completed
 
 - Status: Current-head GitHub CI proof completed for commit `b3edd4ff`;
   required post-proof review cycle is still pending.
@@ -60,6 +60,6 @@ Evidence: CodeRabbit actionables fixed in workflow, runner, packet, and tests.
 - [x] Current-head `test-main (3.12, 60)` has no xdist worker-node termination.
 - [x] `test-main (3.11, 60)` and `test-main (3.13, 90)` do not regress.
 - [ ] CodeRabbit, Sourcery, and Cubic actionables are mapped or explicitly
-  marked no-actionable.
+  marked non-actionable.
 - [ ] Final check pass completed after latest bot/review activity.
 - [ ] Waited at least one review cycle before merge.

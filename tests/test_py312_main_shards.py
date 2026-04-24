@@ -56,6 +56,15 @@ def test_partition_test_files_balances_by_weight_and_keeps_all_files() -> None:
     }
 
 
+def test_partition_test_files_never_returns_empty_shards() -> None:
+    files = [runner.TestFile(Path("tests/test_only.py"), 100)]
+
+    shards = runner.partition_test_files(files, shard_count=4)
+
+    assert len(shards) == 1
+    assert shards[0].files == files
+
+
 def test_partition_test_files_rejects_invalid_input() -> None:
     with pytest.raises(ValueError, match="shard_count"):
         runner.partition_test_files([runner.TestFile(Path("tests/test_alpha.py"), 1)], 0)
@@ -127,9 +136,9 @@ def test_run_all_shards_max_parallel_one_uses_child_process_isolation(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    test_path = _write_test_file(
+    first_test_path = _write_test_file(
         tmp_path,
-        "tests/test_child_process_isolation.py",
+        "tests/test_child_process_isolation_first.py",
         "\n".join(
             [
                 "import os",
@@ -146,10 +155,30 @@ def test_run_all_shards_max_parallel_one_uses_child_process_isolation(
             ]
         ),
     )
+    second_test_path = _write_test_file(
+        tmp_path,
+        "tests/test_child_process_isolation_second.py",
+        "\n".join(
+            [
+                "import os",
+                "",
+                "def test_does_not_see_previous_shard_state():",
+                "    assert os.environ.get('PY312_PARENT_LEAK_PROBE') is None",
+                "    assert 'PYTEST_XDIST_WORKER' not in os.environ",
+                "    assert os.environ['PY312_MAIN_SHARD'] == '2'",
+                "",
+            ]
+        ),
+    )
     (tmp_path / "pyproject.toml").write_text("[tool.pytest.ini_options]\n", encoding="utf-8")
-    shard = runner.TestShard(
+    first_shard = runner.TestShard(
         index=1,
-        files=[runner.TestFile(test_path.relative_to(tmp_path), 1)],
+        files=[runner.TestFile(first_test_path.relative_to(tmp_path), 1)],
+        weight=1,
+    )
+    second_shard = runner.TestShard(
+        index=2,
+        files=[runner.TestFile(second_test_path.relative_to(tmp_path), 1)],
         weight=1,
     )
     original_cwd = Path.cwd()
@@ -169,12 +198,12 @@ def test_run_all_shards_max_parallel_one_uses_child_process_isolation(
 
     monkeypatch.setattr(runner, "run_coverage_command", fake_coverage)
 
-    assert runner.run_all_shards(tmp_path, [shard], 1, base_env) == 0
+    assert runner.run_all_shards(tmp_path, [first_shard, second_shard], 1, base_env) == 0
     assert Path.cwd() == original_cwd
     assert os.environ.get("PY312_PARENT_LEAK_PROBE") == original_probe
     assert os.environ.get("PYTEST_XDIST_WORKER") == original_worker
     assert coverage_calls == [
-        ["combine", ".coverage.py312-main-shard-1"],
+        ["combine", ".coverage.py312-main-shard-1", ".coverage.py312-main-shard-2"],
         ["xml"],
         ["report", "-m", "--fail-under=97"],
     ]
@@ -192,6 +221,70 @@ def test_collect_shard_results_reports_worker_exceptions(
 
     assert results == {1: 0, 2: 1}
     assert "PY312_SHARD_EXCEPTION index=2 type=RuntimeError message=native crash" in (
+        capsys.readouterr().err
+    )
+
+
+def test_collect_shard_results_propagates_termination_signals() -> None:
+    interrupted: Future[int] = Future()
+    interrupted.set_exception(KeyboardInterrupt())
+
+    with pytest.raises(KeyboardInterrupt):
+        runner.collect_shard_results({interrupted: 1})
+
+
+@pytest.mark.parametrize(
+    ("phase", "coverage_calls", "expected_status"),
+    [
+        ("combine", [(["combine", ".coverage.py312-main-shard-1"], 2)], 2),
+        (
+            "xml",
+            [
+                (["combine", ".coverage.py312-main-shard-1"], 0),
+                (["xml"], 3),
+            ],
+            3,
+        ),
+        (
+            "report",
+            [
+                (["combine", ".coverage.py312-main-shard-1"], 0),
+                (["xml"], 0),
+                (["report", "-m", "--fail-under=97"], 4),
+            ],
+            4,
+        ),
+    ],
+)
+def test_run_all_shards_logs_coverage_phase_failures(
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    phase: str,
+    coverage_calls: list[tuple[list[str], int]],
+    expected_status: int,
+) -> None:
+    test_path = _write_test_file(tmp_path, "tests/test_alpha.py", "def test_alpha(): pass\n")
+    (tmp_path / "pyproject.toml").write_text("[tool.pytest.ini_options]\n", encoding="utf-8")
+    shard = runner.TestShard(
+        index=1,
+        files=[runner.TestFile(test_path.relative_to(tmp_path), 1)],
+        weight=1,
+    )
+
+    pending_calls = list(coverage_calls)
+
+    def fake_coverage(repo_root: Path, args: list[str]) -> int:
+        assert repo_root == tmp_path
+        expected_args, status = pending_calls.pop(0)
+        assert args == expected_args
+        return status
+
+    monkeypatch.setattr(runner, "run_coverage_command", fake_coverage)
+
+    assert runner.run_all_shards(tmp_path, [shard], 1, {}) == expected_status
+    assert pending_calls == []
+    assert f"PY312_COVERAGE_{phase.upper()}_FAILED exit_code={expected_status}" in (
         capsys.readouterr().err
     )
 

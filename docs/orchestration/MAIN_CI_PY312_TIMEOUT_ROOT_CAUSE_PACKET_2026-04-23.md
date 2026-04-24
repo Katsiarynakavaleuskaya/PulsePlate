@@ -46,7 +46,8 @@ Each process receives:
 
 - a deterministic file shard balanced by file size;
 - `-p no:xdist`;
-- a unique `PYTEST_XDIST_WORKER` value for DB isolation;
+- a unique `PY312_MAIN_SHARD` value while intentionally removing
+  `PYTEST_XDIST_WORKER` so xdist-only DB routing is not faked;
 - a unique coverage data file;
 - a shard-specific JUnit XML file;
 - `faulthandler_timeout=300` and expanded duration reporting.
@@ -74,8 +75,8 @@ then runs on the PR head as an explicit diagnostic proof path.
 ## Acceptance
 
 - Local workflow contract tests pass.
-- `make test-fast` passes before merge-ready.
-- `make cov-check` passes before merge-ready.
+- `make test-fast` passes before push.
+- `make cov-check` passes before push.
 - `make validate-changed` passes before push.
 - `pre-commit run --all-files` passes before push.
 - Draft PR current-head CI proves `test-main (3.12, 60)` completes without
@@ -88,4 +89,4 @@ For any `tests/**/*.py` changes made while fixing red CI:
 2. Reproduce the cohort locally before changing behavior where feasible.
 3. Fix code and tests in the same PR; update the nearest `AGENTS.md` only when
    the test contract itself changes.
-4. Re-run `make test-fast` and `make cov-check` before merge-ready.
+4. Re-run `make test-fast` and `make cov-check` before push.

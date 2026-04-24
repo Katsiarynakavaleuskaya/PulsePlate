@@ -76,7 +76,8 @@ def partition_test_files(test_files: Sequence[TestFile], shard_count: int) -> li
     if not test_files:
         raise ValueError("no pytest files discovered")
 
-    shards = [TestShard(index=index) for index in range(1, shard_count + 1)]
+    effective_shard_count = min(shard_count, len(test_files))
+    shards = [TestShard(index=index) for index in range(1, effective_shard_count + 1)]
     for test_file in sorted(test_files, key=lambda item: (-item.weight, str(item.path))):
         shard = min(shards, key=lambda item: (item.weight, item.index))
         shard.add(test_file)
@@ -179,7 +180,7 @@ def collect_shard_results(
     for future, shard_index in futures.items():
         try:
             results[shard_index] = future.result()
-        except BaseException as exc:
+        except Exception as exc:
             print(
                 f"PY312_SHARD_EXCEPTION index={shard_index} "
                 f"type={type(exc).__name__} message={exc}",
@@ -188,6 +189,16 @@ def collect_shard_results(
             )
             results[shard_index] = 1
     return results
+
+
+def _log_coverage_failure(phase: str, returncode: int) -> None:
+    """Log the coverage phase that failed after all shards completed."""
+
+    print(
+        f"PY312_COVERAGE_{phase.upper()}_FAILED exit_code={returncode}",
+        file=sys.stderr,
+        flush=True,
+    )
 
 
 def run_all_shards(
@@ -204,14 +215,18 @@ def run_all_shards(
         raise ValueError("at least one shard is required")
 
     process_context = multiprocessing.get_context("spawn")
-    with concurrent.futures.ProcessPoolExecutor(
-        max_workers=min(max_parallel, len(shards)),
-        mp_context=process_context,
-    ) as executor:
-        futures = {
-            executor.submit(run_shard, repo_root, shard, base_env): shard.index for shard in shards
-        }
-        results = collect_shard_results(futures)
+    results: dict[int, int] = {}
+    for batch_start in range(0, len(shards), max_parallel):
+        batch = shards[batch_start : batch_start + max_parallel]
+        with concurrent.futures.ProcessPoolExecutor(
+            max_workers=len(batch),
+            mp_context=process_context,
+        ) as executor:
+            futures = {
+                executor.submit(run_shard, repo_root, shard, base_env): shard.index
+                for shard in batch
+            }
+            results.update(collect_shard_results(futures))
 
     failing_shards = [
         shard_index for shard_index, exit_code in sorted(results.items()) if exit_code != 0
@@ -223,11 +238,16 @@ def run_all_shards(
     coverage_files = [shard.coverage_file for shard in shards]
     combine_status = run_coverage_command(repo_root, ["combine", *coverage_files])
     if combine_status != 0:
+        _log_coverage_failure("combine", combine_status)
         return combine_status
     xml_status = run_coverage_command(repo_root, ["xml"])
     if xml_status != 0:
+        _log_coverage_failure("xml", xml_status)
         return xml_status
-    return run_coverage_command(repo_root, ["report", "-m", "--fail-under=97"])
+    report_status = run_coverage_command(repo_root, ["report", "-m", "--fail-under=97"])
+    if report_status != 0:
+        _log_coverage_failure("report", report_status)
+    return report_status
 
 
 def parse_args(argv: Sequence[str]) -> argparse.Namespace:
