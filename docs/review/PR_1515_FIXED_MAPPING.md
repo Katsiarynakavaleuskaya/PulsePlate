@@ -22,6 +22,11 @@ Evidence: `python -m pytest -q tests/test_run_safety_audit.py tests/test_python_
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1515#discussion_r3137934504 -> 87651c7b6
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1515#pullrequestreview-4170706538 -> 87651c7b6
 
+Disposition: FIXED
+Commit: 8cdb72dc6
+Evidence: `python -m pytest -q tests/test_run_safety_audit.py tests/test_python_supply_chain_controls.py` -> 61 passed; `python -m flake8 .github/scripts/parse-safety-report.py scripts/ci/run_safety_audit.py` -> passed; `pre-commit run --all-files` -> passed. The fix rejects non-object vulnerability entries, rejects non-list `ignored_vulnerabilities`, and keeps QA evidence commands repo-portable.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1515#pullrequestreview-4172048783 -> 8cdb72dc6
+
 ## Merge Readiness
 
 Merge-readiness contract:
