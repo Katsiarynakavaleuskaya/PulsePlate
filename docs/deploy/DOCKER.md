@@ -125,7 +125,7 @@ CD generates GitHub-signed attestations before verification:
 The verifier must fail closed unless both checks pass:
 
 - provenance predicate: `https://slsa.dev/provenance/v1`
-- SBOM predicate: `https://spdx.dev/Document`
+- SBOM predicate: `https://spdx.dev/Document/v2.3`
 
 ## Validation commands
 
