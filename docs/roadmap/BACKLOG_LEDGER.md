@@ -1678,14 +1678,16 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Food data source-update preflight and diff-based ingest guard
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-TBD-FOOD-DATA-SOURCE-PREFLIGHT-TOOLING -> `codex/food-data-source-preflight-tooling`
-  - Status: 🚧 Active PR2 deterministic tooling lane; PR1 planning baseline merged as PR #1513
+  - Target PR: PR-TBD-FOOD-DATA-SOURCE-CATALOG-PR3 -> `codex/food-data-source-catalog-pr3`
+  - Status: 🚧 Active PR3 deterministic source catalog lane; PR1 planning baseline merged as PR #1513 and PR2 tooling baseline merged as PR #1517
   - Area: data ingestion / food catalog / quality
   - Finding Type: upstream data-change readiness gap
   - Reason (EN): USDA Foundation Foods, USDA Branded, USDA FNDDS, Open Food Facts, JPTN Food Facts, restaurant-menu data, and external recipe corpora can change the shape, volume, licensing, and dedupe behavior of ingestible records. The repo does not yet have a canonical preflight contract for source-version discovery, schema diffing, dedupe/mapping collisions, source replacement decisions, storage choice, and rollback before updating the unified food catalog.
   - Links:
     - `docs/orchestration/FOOD_DATA_SOURCE_UPDATE_PREFLIGHT_PR1_PACKET_2026-04-24.md`
     - `docs/orchestration/FOOD_DATA_SOURCE_PREFLIGHT_TOOLING_PR2_PACKET_2026-04-24.md`
+    - `docs/orchestration/FOOD_DATA_SOURCE_CATALOG_PR3_PACKET_2026-04-24.md`
+    - `docs/architecture/FOOD_DATA_SOURCE_CATALOG_PR3_2026-04-24.json`
     - `docs/architecture/ADR_FOOD_DATA_SOURCE_UPDATE_PREFLIGHT_2026-04-24.md`
     - `docs/architecture/FOOD_DATABASE_PLATFORM_STRATEGY_v1.md`
     - `docs/legal/EXTERNAL_FOOD_SOURCE_OPERATING_POLICY.md`
@@ -1695,8 +1697,9 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `docs/roadmap/GLOBAL_ROADMAP.md`
     - `app/services/food_store.py`
   - DoD:
-    - Source-version manifest covers USDA Foundation/Branded/FNDDS, Open Food Facts, MenuStat legacy/static, restaurant-menu replacement candidates, recipe/corpus sources, regional catalogs, and unresolved JPTN Food Facts
+    - Source-version manifest and source catalog cover USDA Foundation/Branded/FNDDS, Open Food Facts, MenuStat legacy/static, restaurant-menu replacement candidates, recipe/corpus sources, regional catalogs, and unresolved JPTN Food Facts
     - Preflight workflow exists for diffing incoming source changes against the current catalog snapshot; PR2 defines the file-only manifest/diff skeleton before ingest
+    - PR3 catalog validation proves MenuStat is non-updating, replacement candidates are explicit, commercial sources require contract review, and unresolved sources remain blocked
     - `source_classification` is validated with allowed values `current`, `legacy_static`, `commercial_contract`, and `unresolved`
     - Dedupe/mapping collision checks are defined before snapshot promotion or PostgreSQL staging
     - MenuStat is not treated as an actively updating source; replacement-source decision is required before new restaurant-menu ingest

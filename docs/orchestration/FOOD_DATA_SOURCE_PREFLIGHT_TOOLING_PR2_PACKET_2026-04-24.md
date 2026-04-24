@@ -1,7 +1,7 @@
 # Food Data Source Preflight Tooling PR2 Packet
 
 **Effective date:** 2026-04-24 (`America/New_York`)
-**Status:** Active PR2 tooling skeleton
+**Status:** Merged PR2 tooling baseline (`#1517`)
 **Mode:** coordinator-owned deterministic tooling lane
 
 ## Goal
@@ -16,7 +16,9 @@ work begins.
 - Baseline: PR `#1513` merged the PR1 planning packet and ADR.
 - Canonical criteria remain in
   [`FOOD_DATA_SOURCE_UPDATE_PREFLIGHT_PR1_PACKET_2026-04-24.md`](./FOOD_DATA_SOURCE_UPDATE_PREFLIGHT_PR1_PACKET_2026-04-24.md).
-- PR2 implements the first strict manifest/diff tooling contract only.
+- PR2 implemented the first strict manifest/diff tooling contract only.
+- PR3 extends the line with a deterministic source catalog and replacement
+  shortlist without widening into ingest.
 - MenuStat stays `legacy_static`; replacement restaurant/menu sources remain a
   later classification and approval decision.
 
