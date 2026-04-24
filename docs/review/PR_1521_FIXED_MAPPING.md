@@ -35,6 +35,12 @@ Evidence: docs/review/PR_1521_FIXED_MAPPING.md leaves merge-readiness checklist 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1521#discussion_r3140360691 -> e882792d9357d8500ed3446155e4c5a69db76192
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1521#pullrequestreview-4173481760 -> e882792d9357d8500ed3446155e4c5a69db76192
 
+Disposition: FIXED
+Commit: 8b7cab88db733c9971ef8b40c8dfb8abad14cbf6
+Evidence: docs/review/PR_1521_FIXED_MAPPING.md records Cubic as explicit non-actionable external status and keeps final merge-readiness boxes unchecked.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1521#pullrequestreview-4173491102 -> 8b7cab88db733c9971ef8b40c8dfb8abad14cbf6
+
 ## External Bot Status
 
 - CodeRabbit review completed after manual trigger; actionable inline comments
