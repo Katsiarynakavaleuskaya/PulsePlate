@@ -50,7 +50,9 @@ def _assert_contains_all_tokens(expression: str, expected_tokens: tuple[str, ...
     """Assert that a workflow expression keeps all required routing tokens."""
 
     for token in expected_tokens:
-        assert token in expression
+        assert (
+            token in expression
+        ), f"Missing token {token!r} in expression excerpt: {expression[:500]!r}"
 
 
 def _extract_shell_conditional_block(
@@ -219,7 +221,7 @@ def test_machine_heavy_local_verify_deferral_contract_is_documented() -> None:
         "`make verify` by default",
         "canonical current-head CI parity",
         "`lint`",
-        "`typecheck`",
+        "required/current-head checks",
         "relevant `test-main` matrix",
         "`diff-coverage`",
         "≥97%",
@@ -235,7 +237,7 @@ def test_machine_heavy_local_verify_deferral_contract_is_documented() -> None:
         "operator explicitly defers full local",
         "canonical current-head CI parity",
         "`lint`",
-        "`typecheck`",
+        "required/current-head checks",
         "relevant `test-main` matrix",
         "`diff-coverage` at ≥97%",
         "security/governance checks",

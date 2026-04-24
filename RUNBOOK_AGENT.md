@@ -176,10 +176,10 @@ Rule: RUNBOOK does not duplicate checklists; it only links to the canonical sour
 bundle (`check_preflight`, `check_agent_consistency`, focused tests,
 `make validate-changed`, `pre-commit run --all-files`) and document the local
 deferral in the PR body plus fixed-mapping artifact. Merge readiness then relies
-on canonical current-head CI parity as the heavy signal: `lint`, `typecheck`,
-the relevant `test-main` matrix, `diff-coverage` at ≥97%, applicable
-security/governance checks, plus the strict `check_merge_ready.py --require-auth`
-wrapper.
+on canonical current-head CI parity as the heavy signal: `lint`,
+required/current-head checks for the touched PR surface, relevant `test-main` matrix,
+`diff-coverage` at ≥97%, applicable security/governance checks, plus the strict
+`check_merge_ready.py --require-auth` wrapper.
 
 **This is the authoritative procedural checklist.** Thresholds/policy live in `AGENTS.md`.
 

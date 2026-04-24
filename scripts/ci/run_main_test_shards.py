@@ -193,10 +193,16 @@ def run_coverage_command(repo_root: Path, args: Sequence[str]) -> int:
     import coverage.cmdline
 
     old_cwd = Path.cwd()
+    old_coverage_file = os.environ.pop("COVERAGE_FILE", None)
+    old_cov_core_datafile = os.environ.pop("COV_CORE_DATAFILE", None)
     try:
         os.chdir(repo_root)
         return int(coverage.cmdline.main(list(args)) or 0)
     finally:
+        if old_coverage_file is not None:
+            os.environ["COVERAGE_FILE"] = old_coverage_file
+        if old_cov_core_datafile is not None:
+            os.environ["COV_CORE_DATAFILE"] = old_cov_core_datafile
         os.chdir(old_cwd)
 
 

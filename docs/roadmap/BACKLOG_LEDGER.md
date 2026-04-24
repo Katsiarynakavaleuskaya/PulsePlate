@@ -587,7 +587,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: PR-scoped validation contract and pre-push hook fix
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: `codex/main-ci-py313-timeout-prevention`
+  - Target PR: PR #1516 (`codex/main-ci-py313-timeout-prevention`)
   - Area: CI / tooling / governance
   - Status note: Active follow-up in `codex/main-ci-py313-timeout-prevention` narrows this item to the machine-heavy agent-local execution contract. Full local `make verify` stays canonical for normal PRs, while operator-approved CI/tooling lanes may document deferral and use narrow local gates plus canonical current-head CI parity as the heavy signal. The pre-push hook bug remains tracked here for a separate follow-up and is not closed by the Python 3.13 timeout-prevention lane.
   - Reason: The current repo-wide `make verify` loop is too broad for day-to-day PR iteration, while `scripts/run-backend-tests-pre-commit.sh` has surfaced a `FOUND_FOR_FILE[@]: unbound variable` failure on merge-commit paths. The follow-up must tighten the local PR-scoped validation contract around `make validate-changed` or an equivalent touched-scope path without weakening the canonical merge-readiness requirement.
@@ -9827,7 +9827,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Root-cause Python 3.13 CI slowdown and retire timeout stopgap
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (CI stability / main-branch readiness)
-  - Target PR: `codex/main-ci-py313-timeout-prevention`
+  - Target PR: PR #1516 (`codex/main-ci-py313-timeout-prevention`)
   - Status: Active prevention lane as of 24 April 2026
   - Status note: PR #1511 proved `test-main (3.13, 90)` could pass but only in
     about 88m44s, leaving almost no timeout budget. This lane routes Python 3.13

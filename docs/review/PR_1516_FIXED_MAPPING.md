@@ -45,9 +45,10 @@ Reason: Bug-hunter found that direct execution of the legacy Python 3.12 wrapper
 
 Full local `make verify` is intentionally deferred for this machine-heavy
 CI/tooling lane by operator instruction. Merge readiness must use canonical
-current-head GitHub CI parity as the heavy signal: `lint`, `typecheck`, the
-relevant `test-main` matrix, `diff-coverage` at >=97%, applicable
-security/governance checks, and `check_merge_ready.py --require-auth`.
+current-head GitHub CI parity as the heavy signal: `lint`,
+required/current-head checks for the touched PR surface, the relevant
+`test-main` matrix, `diff-coverage` at >=97%, applicable security/governance
+checks, and `check_merge_ready.py --require-auth`.
 
 ## Merge Readiness
 

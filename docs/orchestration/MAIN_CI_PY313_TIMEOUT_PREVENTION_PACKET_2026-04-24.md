@@ -53,8 +53,9 @@ unless the operator requests it. Required local gates are:
 - `pre-commit run --all-files`.
 
 Merge readiness must use canonical current-head GitHub CI parity as the heavy
-signal: `lint`, `typecheck`, the relevant `test-main` matrix, `diff-coverage`
-at >=97%, applicable security/governance checks, and the strict merge wrapper.
+signal: `lint`, required/current-head checks for the touched PR surface, the
+relevant `test-main` matrix, `diff-coverage` at >=97%, applicable
+security/governance checks, and the strict merge wrapper.
 The PR body and fixed-mapping artifact must document this local `make verify`
 deferral.
 

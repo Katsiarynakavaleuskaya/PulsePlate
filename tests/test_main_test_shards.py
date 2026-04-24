@@ -127,11 +127,16 @@ def test_py312_compatibility_wrapper_preserves_explicit_version(
     assert captured["args"] == ["--python-version", "3.13", "--shard-count", "2"]
 
 
-def test_py312_compatibility_wrapper_executes_as_legacy_file() -> None:
+def test_py312_compatibility_wrapper_executes_as_legacy_file(tmp_path: Path) -> None:
+    _write_test_file(tmp_path, "tests/test_alpha.py", "def test_alpha(): pass\n")
+    (tmp_path / "pyproject.toml").write_text("[tool.pytest.ini_options]\n", encoding="utf-8")
+
     result = subprocess.run(
         [
             sys.executable,
             "scripts/ci/run_py312_main_shards.py",
+            "--repo-root",
+            str(tmp_path),
             "--shard-count",
             "1",
             "--list-shards",
@@ -140,9 +145,11 @@ def test_py312_compatibility_wrapper_executes_as_legacy_file() -> None:
         check=True,
         capture_output=True,
         text=True,
+        timeout=10,
     )
 
-    assert "MAIN_TEST_SHARD_PLAN label=py312 index=1" in result.stdout
+    assert "MAIN_TEST_SHARD_PLAN label=py312 index=1 files=1" in result.stdout
+    assert "tests/test_alpha.py" in result.stdout
 
 
 def test_build_pytest_args_disables_xdist_and_emits_junit() -> None:
@@ -373,10 +380,14 @@ def test_run_coverage_command_uses_coverage_api(
     tmp_path: Path,
 ) -> None:
     captured: dict[str, object] = {}
+    monkeypatch.setenv("COVERAGE_FILE", "outside-coverage")
+    monkeypatch.setenv("COV_CORE_DATAFILE", "outside-cov-core")
 
     def fake_main(args: list[str]) -> int:
         captured["args"] = args
         captured["cwd"] = Path.cwd()
+        captured["coverage_file"] = os.environ.get("COVERAGE_FILE")
+        captured["cov_core_datafile"] = os.environ.get("COV_CORE_DATAFILE")
         return 0
 
     monkeypatch.setattr(coverage.cmdline, "main", fake_main)
@@ -385,4 +396,8 @@ def test_run_coverage_command_uses_coverage_api(
     assert captured == {
         "args": ["xml"],
         "cwd": tmp_path,
+        "coverage_file": None,
+        "cov_core_datafile": None,
     }
+    assert os.environ["COVERAGE_FILE"] == "outside-coverage"
+    assert os.environ["COV_CORE_DATAFILE"] == "outside-cov-core"
