@@ -31,6 +31,27 @@ REQUIREMENT_SURFACES = (
     REPO_ROOT / "constraints.txt",
 )
 
+PIP_DIRECTIVE_PREFIXES = (
+    "-i ",
+    "--index-url ",
+    "--extra-index-url ",
+    "-f ",
+    "--find-links ",
+    "-r ",
+    "--requirement ",
+    "-c ",
+    "--constraint ",
+)
+
+URL_VCS_EDITABLE_PREFIXES = (
+    "-e ",
+    "--editable ",
+    "git+",
+    "hg+",
+    "svn+",
+    "bzr+",
+)
+
 
 def _is_constraint_style(path: Path) -> bool:
     """Constraint-style (>=) by filename for source/constraint requirement surfaces."""
@@ -45,6 +66,16 @@ def _is_constraint_style(path: Path) -> bool:
 def _normalized_package_name(package_name: str) -> str:
     """PEP 503-style canonical package names keep guard comparisons stable."""
     return canonicalize_name(package_name)
+
+
+def _is_pip_directive_line(line: str) -> bool:
+    """Return True for pip option lines that are not package requirements."""
+    return line.startswith(PIP_DIRECTIVE_PREFIXES)
+
+
+def _is_url_vcs_editable_requirement(line: str) -> bool:
+    """Return True for direct URL, VCS, or editable requirement entries."""
+    return "://" in line or line.startswith(URL_VCS_EDITABLE_PREFIXES)
 
 
 def _load_schema(path: Path) -> dict:
@@ -117,7 +148,7 @@ def _iter_requirement_lines(path: Path) -> Iterable[str]:
         line = raw.split("#", 1)[0].strip()
         if not line:
             continue
-        if line.startswith("-"):
+        if _is_pip_directive_line(line):
             continue
         yield line
 
@@ -131,9 +162,14 @@ def _parse_requirement(line: str, path: Optional[Path] = None) -> Optional[Requi
     s = line.strip()
     if not s or s.startswith("#"):
         return None
-    if s.startswith("-"):
+    if _is_pip_directive_line(s):
         return None
-    if s.startswith(("git+", "hg+", "svn+", "bzr+")):
+    if _is_url_vcs_editable_requirement(s):
+        if path is not None:
+            pytest.fail(
+                f"{path.name}: URL/VCS/editable requirement entries are not allowed in "
+                "dependency guard surfaces. Use pinned/constraint package specifiers instead."
+            )
         return None
     try:
         return Requirement(s)
@@ -274,6 +310,31 @@ def test_parse_requirement_fails_on_invalid_syntax(tmp_path: Path) -> None:
         _effective_min_versions_per_package(bad_req)
 
 
+@pytest.mark.parametrize(
+    "requirement_line",
+    [
+        "cryptography @ https://example.com/cryptography-3.4.8-py3-none-any.whl",
+        "git+https://example.com/acme/cryptography.git",
+        "-e git+https://example.com/acme/cryptography.git#egg=cryptography",
+        "--editable git+https://example.com/acme/cryptography.git#egg=cryptography",
+    ],
+)
+def test_parse_requirement_fails_on_url_vcs_or_editable_requirement(
+    tmp_path: Path, requirement_line: str
+) -> None:
+    """Guard must fail-fast if a requirements file contains URL/VCS/editable entry."""
+    bad_req = tmp_path / "requirements.txt"
+    bad_req.write_text(
+        f"{requirement_line}\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(
+        pytest.fail.Exception,
+        match=r"requirements\.txt: URL/VCS/editable requirement entries are not allowed",
+    ):
+        _effective_min_versions_per_package(bad_req)
+
+
 def test_dependency_security_schema_is_stable_and_sorted() -> None:
     """Schema must be stable (string keys/values) and keys sorted (diff hygiene)."""
     schema = _load_schema(SCHEMA_PATH)
@@ -370,7 +431,16 @@ def test_parse_requirement_skips_short_form_pip_flags(tmp_path: Path) -> None:
     """Short-form pip directives must not be parsed as package requirements."""
     req = tmp_path / "requirements.txt"
     req.write_text(
-        "-i https://example.com/simple\n-f https://example.com/wheels\n", encoding="utf-8"
+        "-i https://example.com/simple\n"
+        "--index-url https://example.com/simple\n"
+        "--extra-index-url https://example.com/extra\n"
+        "-f https://example.com/wheels\n"
+        "--find-links https://example.com/wheels\n"
+        "-r base-requirements.txt\n"
+        "--requirement base-requirements.txt\n"
+        "-c constraints.txt\n"
+        "--constraint constraints.txt\n",
+        encoding="utf-8",
     )
     assert _packages_present_in_file(req) == set()
 
