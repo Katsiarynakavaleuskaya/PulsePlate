@@ -3259,11 +3259,13 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P2: Plugin/control-plane families umbrella
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2
-  - Target PR: PR-S0
+  - Target PR: PR-S0-B2 (`docs(roadmap): define plugin control-plane families umbrella`)
   - Area: orchestration / advisory control-plane / roadmap
   - Finding Type: umbrella canonicalization
+  - Status: 🟡 In progress (PR-S0-B2 locks Rail B2 as advisory/control-plane only; no product runtime truth, semantic cache, bounded-context ownership, public response logic, or plugin implementation)
   - Reason (EN): GitHub, Cloudflare, Figma, and Hugging Face already appear across governance, edge, design, and research lanes, but they are not yet grouped under one explicit advisory/control-plane umbrella. Without a dedicated umbrella, later agents can accidentally pull plugin families into product runtime truth or semantic-cache planning. (RU: GitHub, Cloudflare, Figma и Hugging Face уже встречаются в governance, edge, design и research линиях, но пока не собраны под одним umbrella-item как advisory/control-plane rail. Без этого later agents могут случайно втянуть plugin families в product runtime truth или в планирование semantic cache.)
   - Links:
+    - `docs/orchestration/PLUGIN_CONTROL_PLANE_FAMILIES_UMBRELLA_S0_PACKET_2026-04-24.md`
     - `docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md`
     - `docs/orchestration/WAVE6_AI_RUNTIME_AND_ADVISORY_SERIES_PACKET_2026-04-13.md`
     - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p2-karpathy-style-advisory-wiki-umbrella`
@@ -3275,6 +3277,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - GitHub, Cloudflare, Figma, and Hugging Face are explicitly mapped as advisory/control-plane families
     - The umbrella states these families do not become product runtime truth implicitly
     - The umbrella states plugin families do not authorize semantic-cache rollout or bounded-context ownership by themselves
+    - The umbrella states plugin families do not authorize public response-contract logic, product RAG replacement, or DB/runtime/API truth
+    - Rail B1 advisory wiki remains a separate sibling rail, not a child of Rail B2
 
 <a id="ledger-p2-local-workforce-pr-d-advisory-wiki-compiler"></a>
 - [ ] P2: Local workforce PR-D — advisory wiki compiler over local support plane

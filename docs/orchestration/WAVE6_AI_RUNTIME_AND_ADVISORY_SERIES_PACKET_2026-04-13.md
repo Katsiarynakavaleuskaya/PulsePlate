@@ -156,6 +156,8 @@ Rules:
 
 - `docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md`
 - `docs/roadmap/BACKLOG_LEDGER.md`
+- `docs/orchestration/KARPATHY_ADVISORY_WIKI_UMBRELLA_S0_PACKET_2026-04-24.md`
+- `docs/orchestration/PLUGIN_CONTROL_PLANE_FAMILIES_UMBRELLA_S0_PACKET_2026-04-24.md`
 - `docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md` (cross-link only if needed)
 - this packet
 
@@ -163,6 +165,7 @@ Rules:
 
 - explicit `Rail A / Rail B1 / Rail B2` structure in roadmap docs;
 - one backlog umbrella for plugin/control-plane families;
+- dedicated S0-B1 and S0-B2 packet links for advisory wiki and plugin/control-plane rails;
 - Wave 6 umbrella links normalized to the active `A1b -> A5` spine;
 - semantic cache retained as deferred gate and not widened into implementation scope.
 

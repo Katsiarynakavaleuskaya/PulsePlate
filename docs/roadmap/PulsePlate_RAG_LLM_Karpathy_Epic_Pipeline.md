@@ -79,6 +79,9 @@ Truth model:
 - never become product AI runtime truth implicitly
 - must not overtake runtime sequencing on Rail A
 
+Canonical umbrella packet:
+- `docs/orchestration/PLUGIN_CONTROL_PLANE_FAMILIES_UMBRELLA_S0_PACKET_2026-04-24.md`
+
 ---
 
 ## What is already present and should NOT be reopened
@@ -638,6 +641,35 @@ This rail is **not product runtime truth**.
 It is an advisory/control-plane family map that keeps operator tooling and external
 platform integrations from leaking into runtime ownership.
 
+### PR-S0-B2 — plugin/control-plane families umbrella
+#### Title
+`docs(roadmap): define plugin control-plane families umbrella`
+
+#### Canonical packet
+`docs/orchestration/PLUGIN_CONTROL_PLANE_FAMILIES_UMBRELLA_S0_PACKET_2026-04-24.md`
+
+#### Goal
+Lock Rail B2 as a separate advisory/control-plane umbrella for GitHub,
+Cloudflare, Figma, and Hugging Face without reopening product runtime truth,
+semantic cache, bounded-context ownership, public response logic, or plugin
+implementation.
+
+#### In scope
+- Rail B2 umbrella canonicalization
+- advisory/control-plane family placement
+- explicit separation from Rail A product runtime and Rail B1 advisory wiki
+- explicit prohibition on semantic-cache, product RAG, public response, and
+  bounded-context authorization
+
+#### Out of scope
+- GitHub, Cloudflare, Figma, Hugging Face, or other plugin implementation
+- route, OpenAPI, schema, DTO, DB, runtime, authz, billing, or public response
+  changes
+- semantic cache, Redis/GPTCache, embeddings, vector DB, GraphRAG, or
+  ContextManifest work
+- Cloudflare deploy/Access mutation, Figma asset promotion, Hugging Face model
+  jobs, or side-effectful tool/action execution
+
 ### Family placement
 
 - GitHub -> governance / CI / review truth
@@ -723,6 +755,7 @@ Build the PulsePlate RAG/LLM/Karpathy line as three separate but coordinated rai
    - PR-B4 optional reference-corpus policy
 
 3. **Plugin/control-plane rail (advisory only)**
+   - PR-S0-B2 plugin/control-plane families umbrella
    - GitHub governance / CI / review truth
    - Cloudflare edge / preview / Access control-plane
    - Figma design execution / review evidence
