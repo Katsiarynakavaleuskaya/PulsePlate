@@ -17,6 +17,7 @@ SWIFT_FACADE = REPO_ROOT / "ios" / "PulsePlate" / "DesignSystem" / "DesignTokens
 SWIFT_ASSET_BRIDGE = REPO_ROOT / "ios" / "PulsePlate" / "Extensions" / "Color+Assets.swift"
 TOKENS_CORE_COLOR = REPO_ROOT / "tokens" / "00_core" / "color.json"
 TOKENS_SEMANTIC_COLOR = REPO_ROOT / "tokens" / "10_semantic" / "color.json"
+TOKENS_PRODUCT_COLOR = REPO_ROOT / "tokens" / "20_product" / "color.json"
 TOKENS_IOS_PLATFORM = REPO_ROOT / "tokens" / "30_platform" / "ios.json"
 
 CSS_VAR_RE = re.compile(r"--(?P<name>[a-z0-9-]+):\s*(?P<value>[^;]+);", re.IGNORECASE)
@@ -55,6 +56,31 @@ SWIFT_PUBLIC_SEMANTIC_KEYS = {
     "primaryForeground",
 }
 
+PRODUCT_TOKEN_REFERENCE_RE = re.compile(
+    r"productColors|ProductColor|--product-color-|product\.color"
+)
+PRODUCT_TOKEN_ALLOWED_REFERENCE_PATHS = {
+    Path("frontend/scripts/build-tokens.mjs"),
+    Path("frontend/src/styles/tokens.css"),
+    Path("frontend/src/styles/tokens.ts"),
+    Path("ios/PulsePlate/DesignSystem/DesignTokens.generated.swift"),
+    Path("tests/test_design_token_parity.py"),
+}
+PRODUCT_TOKEN_ALLOWED_REFERENCE_DIRS = {
+    Path("docs"),
+    Path("tokens"),
+}
+
+
+def _deep_merge(left: dict, right: dict) -> dict:
+    merged = dict(left)
+    for key, value in right.items():
+        if isinstance(value, dict) and isinstance(merged.get(key), dict):
+            merged[key] = _deep_merge(merged[key], value)
+        else:
+            merged[key] = value
+    return merged
+
 
 def _read_text(path: Path) -> str:
     return path.read_text(encoding="utf-8")
@@ -69,6 +95,48 @@ def _normalize_hex(value: str) -> str:
 
 def _load_json(path: Path) -> dict:
     return json.loads(path.read_text(encoding="utf-8"))
+
+
+def _load_token_authoring_tree() -> dict:
+    payload: dict = {}
+    for path in sorted((REPO_ROOT / "tokens").glob("**/*.json")):
+        payload = _deep_merge(payload, _load_json(path))
+    return payload
+
+
+def _token_payload_value(payload: dict) -> object:
+    if "$value" in payload:
+        return payload["$value"]
+    if "value" in payload:
+        return payload["value"]
+    return payload
+
+
+def _token_path(payload: dict, reference: str) -> object:
+    current: object = payload
+    for segment in reference.split("."):
+        assert isinstance(current, dict), f"Token reference cannot descend into {current!r}"
+        current = current[segment]
+    assert isinstance(
+        current, dict
+    ), f"Token reference did not resolve to a token object: {reference}"
+    return _token_payload_value(current)
+
+
+def _resolve_token_reference(payload: dict, value: object) -> object:
+    current = value
+    visited: set[str] = set()
+    while isinstance(current, str):
+        match = re.fullmatch(r"\{(.+)\}", current)
+        if match is None:
+            return current
+
+        reference = match.group(1)
+        if reference in visited:
+            raise AssertionError(f"Cyclic token reference detected: {reference}")
+        visited.add(reference)
+        current = _token_path(payload, reference)
+    return current
 
 
 def _extract_block(text: str, marker: str) -> str:
@@ -156,6 +224,24 @@ def _extract_ts_semantic_palette() -> dict[str, str]:
     return semantic_values
 
 
+def _extract_ts_product_palette() -> dict[str, dict[str, str]]:
+    text = _read_text(TOKENS_TS)
+    source_palette = _source_product_palette()
+    product_block = _extract_block(text, "export const productColors =")
+    product_values: dict[str, dict[str, str]] = {}
+
+    for family, roles in source_palette.items():
+        family_block = _extract_block(product_block, f"{family}:")
+        product_values[family] = {}
+        for match in TS_ENTRY_RE.finditer(family_block):
+            key = match.group("key").strip('"')
+            if key not in roles:
+                continue
+            product_values[family][key] = _normalize_hex(match.group("value").strip())
+
+    return product_values
+
+
 def _extract_swift_brand_assets() -> dict[str, str]:
     asset_block = _extract_block(_read_text(SWIFT_GENERATED), "enum BrandAsset")
     return {
@@ -179,6 +265,15 @@ def _extract_swift_semantic_palette() -> dict[str, str]:
         semantic_values[key] = match.group("value").strip()
 
     return semantic_values
+
+
+def _extract_swift_product_palette() -> dict[str, str]:
+    product_block = _extract_block(_read_text(SWIFT_GENERATED), "enum ProductColor")
+    return {
+        match.group("key"): match.group("value").strip()
+        for line in product_block.splitlines()
+        if (match := SWIFT_COLOR_TOKEN_RE.fullmatch(line.strip())) is not None
+    }
 
 
 def _component_to_byte(raw_value: str) -> int:
@@ -211,6 +306,33 @@ def _source_brand_palette() -> dict[str, str]:
 def _source_semantic_palette() -> dict[str, str]:
     payload = _load_json(TOKENS_SEMANTIC_COLOR)["semantic"]["color"]
     return {key: _normalize_hex(payload[key]["$value"]) for key in WEB_SEMANTIC_KEYS}
+
+
+def _source_product_palette() -> dict[str, dict[str, str]]:
+    authoring_tree = _load_token_authoring_tree()
+    product_payload = _load_json(TOKENS_PRODUCT_COLOR)["product"]["color"]
+    return {
+        family: {
+            role: _normalize_hex(
+                str(_resolve_token_reference(authoring_tree, role_payload["$value"]))
+            )
+            for role, role_payload in roles.items()
+        }
+        for family, roles in product_payload.items()
+    }
+
+
+def _source_product_css_mapping() -> dict[str, str]:
+    product_payload = _load_json(TOKENS_PRODUCT_COLOR)["product"]["color"]
+    return {
+        f"{family}.{role}": f"product-color-{family}-{_css_role_name(role)}"
+        for family, roles in product_payload.items()
+        for role in roles
+    }
+
+
+def _css_role_name(role: str) -> str:
+    return re.sub(r"([a-z0-9])([A-Z])", r"\1-\2", role).lower()
 
 
 def _swift_color_expression_from_source(value: str) -> str:
@@ -253,6 +375,14 @@ def _source_swift_semantic_palette() -> dict[str, str]:
     return swift_values
 
 
+def _source_swift_product_palette() -> dict[str, str]:
+    return {
+        f"{family}{role[:1].upper()}{role[1:]}": _swift_color_expression_from_source(value)
+        for family, roles in _source_product_palette().items()
+        for role, value in roles.items()
+    }
+
+
 def _source_ios_assets() -> dict[str, str]:
     payload = _load_json(TOKENS_IOS_PLATFORM)["platform"]["ios"]["asset"]
     return {key: value["$value"] for key, value in payload.items()}
@@ -283,6 +413,49 @@ def test_tokens_source_semantic_palette_matches_css_and_ts() -> None:
     assert _extract_ts_semantic_palette() == source_palette
 
 
+def test_tokens_source_product_palette_matches_css_and_ts() -> None:
+    source_palette = _source_product_palette()
+    css_palette = _extract_css_palette(_source_product_css_mapping())
+    assert {
+        family: {role: css_palette[f"{family}.{role}"] for role in roles}
+        for family, roles in source_palette.items()
+    } == source_palette
+    assert _extract_ts_product_palette() == source_palette
+
+
+def test_product_tokens_are_not_consumed_outside_token_runtime_surfaces() -> None:
+    blocked_references: list[str] = []
+    ignored_dirs = {
+        ".git",
+        ".mypy_cache",
+        ".pytest_cache",
+        ".ruff_cache",
+        ".venv",
+        "__pycache__",
+        "artifacts",
+        "dist",
+        "node_modules",
+    }
+
+    for path in REPO_ROOT.rglob("*"):
+        relative_path = path.relative_to(REPO_ROOT)
+        if not path.is_file() or any(part in ignored_dirs for part in relative_path.parts):
+            continue
+        if relative_path in PRODUCT_TOKEN_ALLOWED_REFERENCE_PATHS:
+            continue
+        if any(
+            relative_path.is_relative_to(directory)
+            for directory in PRODUCT_TOKEN_ALLOWED_REFERENCE_DIRS
+        ):
+            continue
+
+        text = path.read_text(encoding="utf-8", errors="ignore")
+        if PRODUCT_TOKEN_REFERENCE_RE.search(text):
+            blocked_references.append(str(relative_path))
+
+    assert blocked_references == []
+
+
 def test_ios_asset_palette_matches_source_brand_palette() -> None:
     assert _extract_ios_asset_palette() == _source_brand_palette()
 
@@ -293,6 +466,10 @@ def test_generated_swift_brand_assets_match_ios_platform_contract() -> None:
 
 def test_generated_swift_semantic_palette_matches_source_tokens() -> None:
     assert _extract_swift_semantic_palette() == _source_swift_semantic_palette()
+
+
+def test_generated_swift_product_palette_matches_source_tokens() -> None:
+    assert _extract_swift_product_palette() == _source_swift_product_palette()
 
 
 def test_facade_routes_public_tokens_through_generated_layer() -> None:

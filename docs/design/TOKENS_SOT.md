@@ -28,6 +28,7 @@ Policy references:
 - Runtime mirrors are generated from:
   - `tokens/00_core/`
   - `tokens/10_semantic/`
+  - `tokens/20_product/`
   - `tokens/30_platform/`
 - Web runtime token SoT: `frontend/src/styles/tokens.css` (`frontend/scripts/build-tokens.mjs:744`, `frontend/src/styles/tokens.css:1`, `frontend/src/styles/tokens.css:7`)
 - Web typed mirror: `frontend/src/styles/tokens.ts` (`frontend/scripts/build-tokens.mjs:748`, `frontend/src/styles/tokens.ts:1`, `frontend/src/styles/tokens.ts:7`)
@@ -74,6 +75,23 @@ Base semantic runtime tokens currently live in `tokens.css`, including:
 - `--color-warning`
 - `--color-error`
 - `--color-info`
+
+### Product color tokens
+
+Product color aliases are activated through `tokens/20_product/color.json`.
+They cover paywall, premium, plate, progress, plan, coaching, and
+status/feedback surfaces without moving product screens onto those tokens in
+this slice.
+
+Runtime mirrors include:
+
+- CSS variables prefixed with `--product-color-`
+- TypeScript mirror `productColors`
+- generated Swift mirror `GeneratedDesignTokens.ProductColor`
+
+These tokens are aliases over existing foundation and base semantic colors.
+They do not create a second token registry and must still be promoted through
+`/tokens` plus deterministic regeneration.
 
 ### Derived helpers
 

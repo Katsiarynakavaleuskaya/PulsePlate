@@ -38,6 +38,39 @@ enum GeneratedDesignTokens {
         static let primaryForeground = Color.white
     }
 
+    enum ProductColor {
+        static let paywallSurface = Color(hex: "#F0F4F8")
+        static let paywallAccent = Brand.gold
+        static let paywallCta = Brand.blue
+        static let paywallTrustText = Color(hex: "#627D98")
+        static let premiumAccent = Brand.gold
+        static let premiumBadge = Brand.gold
+        static let premiumDivider = Brand.gold
+        static let premiumLockedIcon = Brand.gold
+        static let platePrimary = Brand.green
+        static let plateSurface = Color(hex: "#F0F4F8")
+        static let plateBalance = Color(hex: "#22C55E")
+        static let plateAttention = Color(hex: "#F59E0B")
+        static let progressActive = Brand.blue
+        static let progressTrack = Color(hex: "#D9E2EC")
+        static let progressAchieved = Brand.green
+        static let progressRisk = Color(hex: "#F59E0B")
+        static let progressRegression = Brand.red
+        static let planActiveDay = Brand.blue
+        static let planFuture = Color(hex: "#D9E2EC")
+        static let planCompleted = Brand.green
+        static let planPremiumHint = Brand.gold
+        static let coachingGuidance = Brand.blue
+        static let coachingSupport = Brand.green
+        static let coachingReflection = Color(hex: "#627D98")
+        static let coachingSlipRecovery = Color(hex: "#F59E0B")
+        static let statusSuccess = Brand.green
+        static let statusInfo = Brand.blue
+        static let statusWarning = Color(hex: "#F59E0B")
+        static let statusError = Brand.red
+        static let statusDisabled = Color(hex: "#627D98")
+    }
+
     enum Spacing {
         static let xxSmall: CGFloat = 2
         static let xSmall: CGFloat = 4
