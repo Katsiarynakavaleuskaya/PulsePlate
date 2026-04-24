@@ -196,7 +196,13 @@ def analyze_report(report_path: Path, summary_path: Path) -> SafetyAnalysis:
         summary_path.write_text(f"{message}\n", encoding="utf-8")
         raise SafetyAuditError(message, PARSE_ERROR)
     if not isinstance(ignored, list):
-        ignored = []
+        message = "Safety report ignored_vulnerabilities field must be a list."
+        summary_path.write_text(f"{message}\n", encoding="utf-8")
+        raise SafetyAuditError(message, PARSE_ERROR)
+    if not all(isinstance(item, Mapping) for item in vulnerabilities):
+        message = "Safety report vulnerability entries must be objects."
+        summary_path.write_text(f"{message}\n", encoding="utf-8")
+        raise SafetyAuditError(message, PARSE_ERROR)
 
     lines = build_summary_lines(vulnerabilities, ignored)
     summary_path.write_text("\n".join(lines) + "\n", encoding="utf-8")

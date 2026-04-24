@@ -181,6 +181,35 @@ def test_non_list_vulnerabilities_field_fails_closed(tmp_path: Path) -> None:
     assert "vulnerabilities field must be a list" in summary_path.read_text(encoding="utf-8")
 
 
+def test_non_object_vulnerability_entry_fails_closed(tmp_path: Path) -> None:
+    report_path = tmp_path / "safety-requirements.json"
+    summary_path = tmp_path / "safety-requirements.txt"
+    report_path.write_text('{"vulnerabilities": [1]}', encoding="utf-8")
+
+    with pytest.raises(safety_audit.SafetyAuditError) as exc_info:
+        safety_audit.analyze_report(report_path, summary_path)
+
+    assert exc_info.value.exit_code == safety_audit.PARSE_ERROR
+    assert "vulnerability entries must be objects" in summary_path.read_text(encoding="utf-8")
+
+
+def test_non_list_ignored_vulnerabilities_field_fails_closed(tmp_path: Path) -> None:
+    report_path = tmp_path / "safety-requirements.json"
+    summary_path = tmp_path / "safety-requirements.txt"
+    report_path.write_text(
+        '{"vulnerabilities": [], "ignored_vulnerabilities": {}}',
+        encoding="utf-8",
+    )
+
+    with pytest.raises(safety_audit.SafetyAuditError) as exc_info:
+        safety_audit.analyze_report(report_path, summary_path)
+
+    assert exc_info.value.exit_code == safety_audit.PARSE_ERROR
+    assert "ignored_vulnerabilities field must be a list" in summary_path.read_text(
+        encoding="utf-8"
+    )
+
+
 def test_invalid_report_json_fails_closed(tmp_path: Path) -> None:
     report_path = tmp_path / "safety-requirements.json"
     summary_path = tmp_path / "safety-requirements.txt"
