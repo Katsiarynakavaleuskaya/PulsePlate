@@ -30,6 +30,11 @@ Evidence: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1517#issueco
 Reason: Codecov reported all modified coverable lines covered by tests and did not request code or documentation changes.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1517#issuecomment-4313917207
 
+Disposition: NOT-A-BUG
+Evidence: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1517#pullrequestreview-4172022518
+Reason: Sourcery posted a second service rate-limit notice after ready-for-review; no code or documentation changes were requested.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1517#pullrequestreview-4172022518
+
 ## Initial Implementation Commits
 
 - `1a2c265b7` - `feat(food-data): add source preflight skeleton`
