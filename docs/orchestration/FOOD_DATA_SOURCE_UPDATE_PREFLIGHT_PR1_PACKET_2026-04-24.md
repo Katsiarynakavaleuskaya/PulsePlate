@@ -1,7 +1,7 @@
 # Food Data Source Update Preflight PR1 Packet
 
 **Effective date:** 2026-04-24 (`America/New_York`)
-**Status:** Active execution packet
+**Status:** Merged PR1 baseline; PR2 tooling packet now carries active implementation scope
 **Mode:** coordinator-owned docs/tooling-contract lane
 
 ## Goal
@@ -14,6 +14,8 @@ snapshots, PostgreSQL staging, or production infrastructure.
 
 - PR `#1462` and PR `#1468` are already merged; downgrade ownership is no
   longer the next active lane.
+- PR `#1513` merged this PR1 packet as the planning baseline for later
+  source-update tooling lanes.
 - This packet owns the source-update preflight contract for
   `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-food-data-source-update-preflight`.
 - This lane keeps SQLite/local snapshots as runtime authority and does not
