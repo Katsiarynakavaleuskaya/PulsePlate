@@ -16,6 +16,11 @@ Record every actionable human/bot disposition here before resolving threads on G
 
 - No actionable review comments
 
+Disposition: FIXED
+Commit: bf8d5297d
+Evidence: `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/test_run_safety_audit.py tests/test_python_supply_chain_controls.py` -> 55 passed; `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/flake8 .github/scripts/parse-safety-report.py scripts/ci/run_safety_audit.py` -> passed.
+Reason: post-open `qa-engineer-agent` found wrapper E402 risk and stale `safety-*.json` reuse risk; fixed by moving the compatibility import under the wrapper entrypoint and unlinking per-manifest artifacts before each Safety execution, with a regression test.
+
 ## Merge Readiness
 
 Merge-readiness contract:
@@ -38,7 +43,15 @@ Merge-readiness contract:
 - [ ] `make verify` green on latest pushed head
   Evidence: pending final hard gate before merge claim.
 - [ ] Mandatory post-open `qa-engineer-agent -> bug-hunter` pass completed
-  Evidence: pending post-open coordinator review lane.
+  Evidence: `qa-engineer-agent` pass completed and findings fixed in commit `bf8d5297d`; `bug-hunter` still pending after the follow-up push.
+
+Post-open QA notes:
+
+- `qa-engineer-agent` found `.github/scripts/parse-safety-report.py` could trip
+  E402 after adding the repo-root import path; fixed in commit `bf8d5297d`.
+- `qa-engineer-agent` found `scripts/ci/run_safety_audit.py` could parse stale
+  per-manifest JSON if Safety failed before overwriting a prior report; fixed
+  in commit `bf8d5297d` and covered by `test_run_audit_removes_stale_report_before_safety_execution`.
 
 ## Deferred / Follow-ups
 
