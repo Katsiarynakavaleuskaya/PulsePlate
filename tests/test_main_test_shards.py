@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import os
+import subprocess
+import sys
 from concurrent.futures import Future
 from pathlib import Path
 
@@ -11,6 +13,8 @@ import pytest
 
 from scripts.ci import run_main_test_shards as runner
 from scripts.ci import run_py312_main_shards as py312_wrapper
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
 def _write_test_file(repo_root: Path, relative_path: str, content: str) -> Path:
@@ -121,6 +125,24 @@ def test_py312_compatibility_wrapper_preserves_explicit_version(
 
     assert py312_wrapper.main(["--python-version", "3.13", "--shard-count", "2"]) == 0
     assert captured["args"] == ["--python-version", "3.13", "--shard-count", "2"]
+
+
+def test_py312_compatibility_wrapper_executes_as_legacy_file() -> None:
+    result = subprocess.run(
+        [
+            sys.executable,
+            "scripts/ci/run_py312_main_shards.py",
+            "--shard-count",
+            "1",
+            "--list-shards",
+        ],
+        cwd=REPO_ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    assert "MAIN_TEST_SHARD_PLAN label=py312 index=1" in result.stdout
 
 
 def test_build_pytest_args_disables_xdist_and_emits_junit() -> None:
