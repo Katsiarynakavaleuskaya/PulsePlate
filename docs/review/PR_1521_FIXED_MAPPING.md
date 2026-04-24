@@ -9,12 +9,35 @@ Date: 2026-04-24
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
 
-- Status: Draft PR opened with no actionable review comments at artifact creation time.
+- Status: Ready-for-review pass completed; actionable inline bot comments fixed.
 - Current implementation commit: `c27cef9d5`.
+- Review feedback fix commit: `6baa65fe4dd5085061c2ef393b9ce08a56d0b694`.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+Disposition: FIXED
+Commit: `6baa65fe4dd5085061c2ef393b9ce08a56d0b694`
+Evidence: `scripts/orchestration/skill_router.py` now raises the
+`pulseplate-pr-review` `min_score` to `6`, so generic orchestration path matches
+do not auto-route the PR review skill without stronger review intent.
+
+- <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1521#discussion_r3140287971> -> `6baa65fe4dd5085061c2ef393b9ce08a56d0b694`
+
+Disposition: FIXED
+Commit: `6baa65fe4dd5085061c2ef393b9ce08a56d0b694`
+Evidence: `docs/orchestration/CODEX_SKILLS_ALIGNMENT_MATRIX.md` now lists
+`pulseplate-pr-review` only once, as a Tier 1 auto-routed skill; the Wave 3
+planned duplicate was removed.
+
+- <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1521#discussion_r3140290288> -> `6baa65fe4dd5085061c2ef393b9ce08a56d0b694`
+
+## External Bot Status
+
+- CodeRabbit review completed after manual trigger; actionable inline comments
+  are mapped above.
+- Sourcery review was rate-limited on 2026-04-24 and did not provide code
+  findings.
+- Codecov reported all modified and coverable lines covered.
 
 ## Initial Evidence
 
@@ -28,6 +51,11 @@ Date: 2026-04-24
 - `make validate-min` PASS after adding an ignored local `.venv` symlink to the root verified virtual environment.
 - `make verify` PARTIAL LOCAL: verify-env, flake8, mypy, and test-fast passed; the full coverage run reached approximately 87% before the local tool session ended. Per operator direction, full local verify is deferred to GitHub current-head CI for this lane.
 - Push pre-push hooks PASS: changed-file mypy, pip-audit, backend pre-push pytest, full-repo bandit, and docker build test.
+- Post-review fix validation: `pytest -q tests/test_skill_router.py tests/test_install_codex_skills.py` PASS.
+- Post-review fix validation: `python3 scripts/orchestration/check_agent_consistency.py` PASS.
+- Post-review fix validation: `python3 scripts/orchestration/check_preflight.py` PASS.
+- Post-review fix validation: `make validate-min` PASS.
+- Post-review fix validation: `pre-commit run --all-files` PASS.
 
 ## Deferred Follow-up
 
@@ -35,7 +63,7 @@ Date: 2026-04-24
 
 ## Merge Readiness
 
-- [ ] Current-head GitHub CI passes.
-- [ ] CodeRabbit, Sourcery, and Cubic actionables are mapped or explicitly marked non-actionable.
+- [x] Current-head GitHub CI passed before post-review fix push.
+- [x] CodeRabbit, Sourcery, and Cubic actionables are mapped or explicitly marked non-actionable for the reviewed head.
 - [ ] Final check pass completed after latest bot/review activity.
 - [ ] Waited at least one review cycle before merge.
