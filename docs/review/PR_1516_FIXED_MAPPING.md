@@ -29,6 +29,9 @@ No actionable review comments have been posted yet.
 - [x] `make validate-changed VENV_PYTHON=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python`
 - [x] `pre-commit run --all-files`
 - [x] Pre-push hook passed, including mypy, pip-audit, backend tests, bandit, and docker build test.
+- [x] `check_pr_body_phase2_gates.py` passed against the updated PR body after
+      exact Phase2 checklist and `No actionable review comments` wording were
+      mirrored in PR #1516.
 
 ## Local make verify Deferral
 
