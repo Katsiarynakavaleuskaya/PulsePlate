@@ -17,9 +17,7 @@ threads on GitHub.
 
 Disposition: NOT-A-BUG
 Evidence: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1522#issuecomment-4316327364
-Reason: CodeRabbit skipped review because the PR is draft; no code or
-documentation change was requested. Finishing-touch checkboxes are optional bot
-UI affordances, not actionable review findings.
+Reason: CodeRabbit skipped review because the PR is draft; no code or documentation change was requested. Finishing-touch checkboxes are optional bot UI affordances, not actionable review findings.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1522#issuecomment-4316327364
 
 ## Initial Implementation Commits
