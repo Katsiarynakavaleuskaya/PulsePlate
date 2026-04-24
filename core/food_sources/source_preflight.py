@@ -30,6 +30,7 @@ ALLOWED_SOURCE_CLASSIFICATIONS: tuple[SourceClassification, ...] = (
 )
 
 _SHA256_RE = re.compile(r"^[0-9a-fA-F]{64}$")
+_RETRIEVED_ON_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 
 class SourceManifestError(ValueError):
@@ -68,10 +69,12 @@ class SourceManifest:
 
 
 def _schema_error(context: str, detail: str) -> SourceManifestError:
+    """Build a stable manifest validation error."""
     return SourceManifestError(f"Invalid source manifest {context}: {detail}")
 
 
 def _require_mapping(value: object, context: str) -> dict[str, object]:
+    """Return an object mapping with string keys."""
     if not isinstance(value, dict):
         raise _schema_error(context, "must be an object")
     result: dict[str, object] = {}
@@ -83,6 +86,7 @@ def _require_mapping(value: object, context: str) -> dict[str, object]:
 
 
 def _require_string(data: dict[str, object], key: str, context: str) -> str:
+    """Return a required non-empty string field."""
     value = data.get(key)
     if not isinstance(value, str) or not value.strip():
         raise _schema_error(context, f"missing non-empty string '{key}'")
@@ -90,6 +94,7 @@ def _require_string(data: dict[str, object], key: str, context: str) -> str:
 
 
 def _require_non_negative_int(data: dict[str, object], key: str, context: str) -> int:
+    """Return a required non-negative integer field."""
     value = data.get(key)
     if not isinstance(value, int) or isinstance(value, bool) or value < 0:
         raise _schema_error(context, f"'{key}' must be a non-negative int")
@@ -97,6 +102,7 @@ def _require_non_negative_int(data: dict[str, object], key: str, context: str) -
 
 
 def _require_string_tuple(data: dict[str, object], key: str, context: str) -> tuple[str, ...]:
+    """Return a required unique non-empty string list as a tuple."""
     value = data.get(key)
     if not isinstance(value, list):
         raise _schema_error(context, f"'{key}' must be a list of strings")
@@ -116,6 +122,7 @@ def _require_string_tuple(data: dict[str, object], key: str, context: str) -> tu
 
 
 def _parse_classification(value: str, context: str) -> SourceClassification:
+    """Validate and return a source classification literal."""
     if value not in ALLOWED_SOURCE_CLASSIFICATIONS:
         allowed = ", ".join(ALLOWED_SOURCE_CLASSIFICATIONS)
         raise _schema_error(context, f"source_classification must be one of: {allowed}")
@@ -123,6 +130,7 @@ def _parse_classification(value: str, context: str) -> SourceClassification:
 
 
 def _validate_url(value: str, context: str) -> str:
+    """Validate an absolute HTTP(S) source URL."""
     parsed = urlparse(value)
     if parsed.scheme not in {"http", "https"} or not parsed.netloc:
         raise _schema_error(context, "source_url must be an absolute http(s) URL")
@@ -130,6 +138,9 @@ def _validate_url(value: str, context: str) -> str:
 
 
 def _parse_iso_date(value: str, context: str) -> date:
+    """Parse a strict YYYY-MM-DD date field."""
+    if not _RETRIEVED_ON_RE.fullmatch(value):
+        raise _schema_error(context, "retrieved_on must use YYYY-MM-DD")
     try:
         return date.fromisoformat(value)
     except ValueError as exc:
@@ -137,6 +148,7 @@ def _parse_iso_date(value: str, context: str) -> date:
 
 
 def _parse_artifact(value: object, context: str) -> SourceArtifact:
+    """Parse immutable artifact metadata."""
     artifact = _require_mapping(value, f"{context}.artifact")
     checksum = _require_string(artifact, "checksum_sha256", f"{context}.artifact")
     if not _SHA256_RE.fullmatch(checksum):
@@ -150,6 +162,7 @@ def _parse_artifact(value: object, context: str) -> SourceArtifact:
 
 
 def _parse_schema(value: object, context: str) -> SourceSchema:
+    """Parse source schema and primary-key metadata."""
     schema = _require_mapping(value, f"{context}.schema")
     fields = _require_string_tuple(schema, "fields", f"{context}.schema")
     primary_keys = _require_string_tuple(schema, "primary_keys", f"{context}.schema")
@@ -191,6 +204,7 @@ def load_source_manifest(path: Path | str) -> SourceManifest:
 
 
 def _string_delta(current: str, incoming: str) -> dict[str, object]:
+    """Return deterministic string delta metadata."""
     return {
         "current": current,
         "incoming": incoming,
@@ -199,6 +213,7 @@ def _string_delta(current: str, incoming: str) -> dict[str, object]:
 
 
 def _integer_delta(current: int, incoming: int) -> dict[str, object]:
+    """Return deterministic integer delta metadata."""
     return {
         "current": current,
         "incoming": incoming,
@@ -208,6 +223,7 @@ def _integer_delta(current: int, incoming: int) -> dict[str, object]:
 
 
 def _set_delta(current: tuple[str, ...], incoming: tuple[str, ...]) -> dict[str, list[str]]:
+    """Return sorted set additions and removals."""
     current_set = set(current)
     incoming_set = set(incoming)
     return {

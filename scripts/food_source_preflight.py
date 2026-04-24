@@ -21,6 +21,7 @@ from core.food_sources.source_preflight import build_source_preflight_report
 
 
 def _parse_args(argv: list[str]) -> argparse.Namespace:
+    """Parse required dry-run CLI arguments."""
     parser = argparse.ArgumentParser(
         description="Validate and diff food source manifests without ingesting data.",
     )
@@ -52,6 +53,7 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
 
 
 def main(argv: list[str] | None = None) -> int:
+    """Run the dry-run preflight CLI."""
     args = _parse_args(argv if argv is not None else sys.argv[1:])
     report = build_source_preflight_report(
         current_manifest=args.current_manifest,

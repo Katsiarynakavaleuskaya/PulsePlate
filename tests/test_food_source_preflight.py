@@ -71,6 +71,32 @@ def test_load_source_manifest_rejects_primary_key_outside_schema(tmp_path: Path)
         load_source_manifest(manifest_path)
 
 
+def test_load_source_manifest_rejects_compact_retrieved_on_date(tmp_path: Path) -> None:
+    manifest_path = tmp_path / "bad_date.json"
+    manifest_path.write_text(
+        json.dumps(
+            {
+                "artifact": {
+                    "checksum_sha256": "f" * 64,
+                    "path": "raw/off/products.csv.gz",
+                    "record_count": 1,
+                    "size_bytes": 1,
+                },
+                "retrieved_on": "20260424",
+                "schema": {"fields": ["code"], "primary_keys": ["code"]},
+                "source": "open_food_facts",
+                "source_classification": "current",
+                "source_url": "https://world.openfoodfacts.org/data",
+                "source_version": "2026-04-24",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(SourceManifestError, match="retrieved_on must use YYYY-MM-DD"):
+        load_source_manifest(manifest_path)
+
+
 def test_build_source_preflight_report_diff_contract() -> None:
     report = build_source_preflight_report(
         _fixture("current_off_manifest.json"),
