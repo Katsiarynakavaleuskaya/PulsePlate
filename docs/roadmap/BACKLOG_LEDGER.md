@@ -1669,7 +1669,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Synthetic probe workflow and per-class latency/error objectives are documented before rollout
     - Search performance debugging path is linked from ops/runbook docs
 
-<a id="ledger-p1-usda-foundation-foods-preflight"></a>
+<a id="ledger-p1-food-data-source-update-preflight"></a>
 - [ ] P1: Food data source-update preflight and diff-based ingest guard
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
@@ -5439,7 +5439,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Status: ✅ Merged through downgrade ownership follow-through; runtime authority cutover remains deferred until a separate governed post-B3 packet exists (evidence: `docs/review/PR_1468_FIXED_MAPPING.md`; ADR: `docs/architecture/ADR_FOODS_POSTGRES_RUNTIME_CUTOVER_SEAM_2026-04-17.md:11-24`)
   - Area: backend / data platform / restaurant ingestion
   - Finding Type: post-foundation execution gap
-  - Reason: The additive Alembic foundation lane intentionally created `foods`, `restaurant_chains`, and `restaurant_menu_items` without changing the current SQLite/local-first runtime, ETL path, or MenuStat importer. The follow-through train has landed as merged PR `#1409`, PR `#1413`, PR `#1419`, PR `#1435`, PR `#1462`, and PR `#1468`. The governed next food-data line is now the source-update preflight in `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-usda-foundation-foods-preflight`, while SQLite remains canonical runtime authority until a separate cutover packet is approved (ADR: `docs/architecture/ADR_FOODS_POSTGRES_RUNTIME_CUTOVER_SEAM_2026-04-17.md:11-24`).
+  - Reason: The additive Alembic foundation lane intentionally created `foods`, `restaurant_chains`, and `restaurant_menu_items` without changing the current SQLite/local-first runtime, ETL path, or MenuStat importer. The follow-through train has landed as merged PR `#1409`, PR `#1413`, PR `#1419`, PR `#1435`, PR `#1462`, and PR `#1468`. The governed next food-data line is now the source-update preflight in `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-food-data-source-update-preflight`, while SQLite remains canonical runtime authority until a separate cutover packet is approved (ADR: `docs/architecture/ADR_FOODS_POSTGRES_RUNTIME_CUTOVER_SEAM_2026-04-17.md:11-24`).
   - Sequence:
     - PR-A / foundation: additive `foods` / `restaurant_*` schema landed in merged PR `#1409` (evidence: `docs/review/FOODS_POSTGRES_TRAIN_MERGED_STATE_CANON_2026-04-17.md:7-7`)
     - B1 / foods snapshot promotion: PostgreSQL `foods` promotion landed in merged PR `#1413` (evidence: `docs/review/FOODS_POSTGRES_TRAIN_MERGED_STATE_CANON_2026-04-17.md:8-8`)
@@ -5447,7 +5447,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - B3 / shadow reads: PostgreSQL shadow reads + parity checks landed in merged PR `#1435` (evidence: `docs/review/FOODS_POSTGRES_TRAIN_MERGED_STATE_CANON_2026-04-17.md:10-10`)
     - Post-B3 closeout: reconcile backlog/task-packet/review-governance repo truth after merged B3 in PR `#1462` (evidence: `docs/review/FOODS_POSTGRES_TRAIN_MERGED_STATE_CANON_2026-04-17.md:12-13`)
     - Downgrade ownership fix: ownership-aware downgrade for Alembic revision `202604120001` landed in merged PR `#1468` (evidence: `docs/review/PR_1468_FIXED_MAPPING.md`)
-    - Next food-data lane: source-update preflight before USDA/Open Food Facts/JPTN/restaurant replacement ingest (ledger: `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-usda-foundation-foods-preflight`)
+    - Next food-data lane: source-update preflight before USDA/Open Food Facts/JPTN/restaurant replacement ingest (ledger: `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-food-data-source-update-preflight`)
     - Cutover (deferred): decide and govern any runtime read-switch / PostgreSQL authority change only after a separate post-B3 cutover packet exists (ADR: `docs/architecture/ADR_FOODS_POSTGRES_RUNTIME_CUTOVER_SEAM_2026-04-17.md:11-24`)
   - Links:
     - `docs/orchestration/FOODS_CATALOG_FOUNDATION_PR_A_TASK_PACKET_2026-04-12.md`
@@ -5468,7 +5468,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Historical food packets no longer claim B3 is the next active lane
     - Post-B3 docs/governance closeout is explicitly tracked as the current source-of-truth reconciliation lane (evidence: `docs/review/FOODS_POSTGRES_TRAIN_MERGED_STATE_CANON_2026-04-17.md:12-13`)
     - Downgrade ownership follow-through is closed by PR `#1468` (evidence: `docs/review/PR_1468_FIXED_MAPPING.md`)
-    - The next food-data lane is explicitly set to `ledger-p1-usda-foundation-foods-preflight`
+    - The next food-data lane is explicitly set to `ledger-p1-food-data-source-update-preflight`
     - Runtime authority cutover / read-switch remains explicitly deferred beyond B3 until a separate cutover packet exists (ADR: `docs/architecture/ADR_FOODS_POSTGRES_RUNTIME_CUTOVER_SEAM_2026-04-17.md:11-24`)
     - Search / catalog follow-up lanes continue to reference the same canonical PostgreSQL table source without parallel schema drift
 

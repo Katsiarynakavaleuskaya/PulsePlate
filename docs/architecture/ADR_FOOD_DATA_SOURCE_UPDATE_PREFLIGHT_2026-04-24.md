@@ -14,14 +14,45 @@
 - MenuStat can no longer be treated as an actively updating restaurant source;
   its public annual dataset line is legacy/static for this program.
 
+Evidence anchors:
+
+- PR `#1468` downgrade-ownership closeout:
+  `docs/review/PR_1468_FIXED_MAPPING.md:26`
+- SQLite/local-first runtime cutover seam:
+  `docs/architecture/ADR_FOODS_POSTGRES_RUNTIME_CUTOVER_SEAM_2026-04-17.md:7`
+- MenuStat legacy/static classification:
+  `docs/architecture/FOOD_DATABASE_PLATFORM_STRATEGY_v1.md:63`
+- USDA, Open Food Facts, MenuStat, and JPTN source-status contract:
+  `docs/orchestration/FOOD_DATA_SOURCE_UPDATE_PREFLIGHT_PR1_PACKET_2026-04-24.md:30`
+  and
+  `docs/orchestration/FOOD_DATA_SOURCE_UPDATE_PREFLIGHT_PR1_PACKET_2026-04-24.md:56`
+
 ## Decision
 
 The next food-data lane is a source-update preflight, not an ingest or runtime
 cutover lane.
 
-This preflight must define source versions, schema diffs, dedupe/collision
-rules, license/attribution status, storage target, and rollback policy before
-any new data is loaded into PostgreSQL or promoted into runtime reads.
+The canonical PR1 packet section `Canonical Preflight Criteria` defines the
+source-version manifest, schema diff, dedupe/collision, license/attribution,
+storage target, and rollback requirements that must pass before any new data is
+loaded into PostgreSQL or promoted into runtime reads.
+
+## Exit Criteria
+
+This ADR can be retired only when a later governed implementation lane proves:
+
+1. source versions are recorded and signed off by the data owner;
+2. schema diffs are reviewed and approved;
+3. dedupe/collision rules are documented and validated;
+4. license, attribution, cache, display, and redistribution status is confirmed;
+5. storage target, retention, and rollback policy are configured;
+6. staging smoke tests prove rollback and data verification;
+7. monitoring/alerting expectations are documented when staging or runtime data
+   paths are touched;
+8. the owning Backlog Ledger item is marked done with explicit DoD evidence and
+   no open blockers;
+9. retirement date and release-manager sign-off are recorded in the follow-up
+   ADR or closeout artifact.
 
 ## Source Policy
 
@@ -51,6 +82,7 @@ any new data is loaded into PostgreSQL or promoted into runtime reads.
 ## References
 
 - `docs/orchestration/FOOD_DATA_SOURCE_UPDATE_PREFLIGHT_PR1_PACKET_2026-04-24.md`
-- `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-usda-foundation-foods-preflight`
+- `docs/orchestration/FOOD_DATA_SOURCE_UPDATE_PREFLIGHT_PR1_PACKET_2026-04-24.md#canonical-preflight-criteria`
+- `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-food-data-source-update-preflight`
 - `docs/architecture/ADR_FOODS_POSTGRES_RUNTIME_CUTOVER_SEAM_2026-04-17.md`
 - `docs/legal/EXTERNAL_FOOD_SOURCE_OPERATING_POLICY.md`

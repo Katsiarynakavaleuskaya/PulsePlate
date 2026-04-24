@@ -15,7 +15,7 @@ snapshots, PostgreSQL staging, or production infrastructure.
 - PR `#1462` and PR `#1468` are already merged; downgrade ownership is no
   longer the next active lane.
 - This packet owns the source-update preflight contract for
-  `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-usda-foundation-foods-preflight`.
+  `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-food-data-source-update-preflight`.
 - This lane keeps SQLite/local snapshots as runtime authority and does not
   connect DigitalOcean PostgreSQL, bulk-load production data, or switch runtime
   reads.
@@ -30,17 +30,27 @@ PR1 must classify each source before ingest:
 - **USDA FoodData Central Foundation Foods:** official download page currently
   lists December 2025 Foundation Foods. Verify release files, checksum, schema,
   record IDs, and nutrient-field diff before ingest.
+  - verified_on: `2026-04-24`
+  - evidence_link: `https://fdc.nal.usda.gov/download-datasets`
 - **USDA FoodData Central Branded:** official update log currently shows
   FoodData Central 14.4 on April 23, 2026 for branded updates. Decide whether
   branded volume is in scope or deferred behind a separate performance gate.
+  - verified_on: `2026-04-24`
+  - evidence_link: `https://fdc.nal.usda.gov/log/`
 - **USDA FNDDS / survey foods:** official downloads currently include FNDDS
   2021-2023. Treat as a separate survey/meal-consumption source, not as a
   substitute for branded, restaurant, or recipe data.
+  - verified_on: `2026-04-24`
+  - evidence_link: `https://fdc.nal.usda.gov/download-datasets`
 - **Open Food Facts:** keep as ODbL-governed source. The official dump page
   must be manually verified because automated fetch can be blocked. Confirm
   dump format, checksum, attribution, derivative-db duties, and delta strategy.
+  - verified_on: `2026-04-24`
+  - evidence_link: `https://world.openfoodfacts.org/data`
 - **MenuStat:** legacy/static only. Public annual datasets currently stop at
   2022, so it cannot be the update source for fresh restaurant menus.
+  - verified_on: `2026-04-24`
+  - evidence_link: `https://www.menustat.org/data.html`
 - **Restaurant-menu replacement:** evaluate candidates separately: commercial
   APIs, direct chain snapshots, partner-provided menus, or another reviewed
   dataset. Candidate examples include Nutritionix-style providers, OpenMenu-style
@@ -56,6 +66,32 @@ PR1 must classify each source before ingest:
 - **JPTN Food Facts:** unresolved source identity in this repo. Identify exact
   provider, license, fields, locale coverage, and redistribution/cache rights
   before any ingest.
+
+## Canonical Preflight Criteria
+
+This section is the canonical PR1 criteria source for later food-data update
+lanes. ADRs, backlog items, and implementation packets should link here instead
+of restating the criteria independently.
+
+Every source-update implementation PR must prove these criteria before ingest,
+PostgreSQL staging, or runtime promotion:
+
+- source version manifest with official release/source URL and retrieval date
+- top-level manifest field `source_classification` with one of:
+  `current`, `legacy_static`, `commercial_contract`, or `unresolved`
+- immutable source archive or raw snapshot path outside git-tracked diffs
+- checksum, file size, and row/record count for each source artifact
+- schema and field diff against the current accepted source snapshot
+- primary-key and stable identifier delta report
+- dedupe, merge, and collision policy across USDA, OFF, restaurant, recipe,
+  regional, and unresolved sources
+- license, attribution, cache, display, and redistribution decision
+- storage target decision: local snapshot, non-production PostgreSQL staging,
+  or deferred production authority
+- rollback plan covering raw artifact removal, normalized snapshot rollback,
+  and PostgreSQL staging rollback when applicable
+- explicit no-cutover proof unless a separate runtime authority packet is
+  approved
 
 ## Role Order
 
@@ -75,13 +111,8 @@ Mandatory post-open review lane remains: `qa-engineer-agent -> bug-hunter`.
 - Update the backlog ledger so the next food-data PR is this preflight lane.
 - Update the food database platform strategy so MenuStat is no longer treated
   as an actively updating source.
-- Define deterministic preflight requirements:
-  - source version manifest
-  - schema/field diff
-  - record-count and primary-key delta
-  - dedupe/collision checks
-  - license/attribution review
-  - storage and rollback decision
+- Define deterministic preflight requirements through the canonical criteria
+  section in this packet.
 
 ## Out of Scope
 
@@ -110,9 +141,11 @@ PR1 must decide storage before implementation:
 - `python3 scripts/orchestration/check_agent_consistency.py`
 - Docs-only local check for packet/ledger links.
 - `pre-commit run --all-files` before push.
-- `make verify` remains the merge-ready hard gate; do not claim readiness until
-  it passes or the repo owner explicitly chooses GitHub current-head checks as
-  the heavy signal for this docs-only lane.
+- PR1 uses the repo-owner-approved docs-only validation override recorded on
+  2026-04-24: local `make verify` is not run for this lane because the
+  full-suite path overloads the local machine. Merge evidence for this PR must
+  instead come from green GitHub current-head checks, strict PR body/mapping
+  gates, clean review dispositions, and the final merge wrapper.
 
 ## Acceptance Criteria
 
@@ -122,6 +155,8 @@ PR1 must decide storage before implementation:
 - USDA, Open Food Facts, MenuStat legacy, restaurant-menu replacement,
   recipe/corpus, regional catalog, and JPTN sources all have source-specific
   pre-ingest decisions.
+- Later ingest/tooling PRs link to `Canonical Preflight Criteria` instead of
+  duplicating source manifest, schema diff, storage, and rollback requirements.
 - Runtime authority and DigitalOcean production load remain explicitly blocked.
 
 ## Official Source Checks

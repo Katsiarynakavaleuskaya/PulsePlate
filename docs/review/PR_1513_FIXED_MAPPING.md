@@ -36,16 +36,16 @@ Reason: Sourcery posted a reviewer guide and summary only; no requested fix or u
 Merge-readiness contract:
 `AGENTS.md`; `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md`.
 
-- [x] Current-head CI is green for PR branch head
-- [x] Required checks complete (no pending jobs)
-- [x] All review threads resolved on GitHub after disposition updates
-- [x] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
+- [ ] Current-head CI is green for PR branch head
+- [ ] Required checks complete (no pending jobs)
+- [ ] All review threads resolved on GitHub after disposition updates
+- [ ] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
 - [ ] After latest bot/review activity, perform a final check and wait at least
       one review cycle before merging
-- [x] `python3 scripts/orchestration/check_preflight.py`
-- [x] `python3 scripts/orchestration/check_agent_consistency.py`
-- [x] `pre-commit run --all-files`
-- [x] Pre-push hooks passed during
+- [ ] `python3 scripts/orchestration/check_preflight.py`
+- [ ] `python3 scripts/orchestration/check_agent_consistency.py`
+- [ ] `pre-commit run --all-files`
+- [ ] Pre-push hooks passed during
       `git push -u origin codex/food-data-source-update-preflight`
 - [ ] `make verify` green on latest pushed head
       Local owner override on 2026-04-24: full local `make verify` is not run
