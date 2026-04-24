@@ -6,9 +6,8 @@ Canonical review-governance artifact and PR-body mirror requirements:
 `AGENTS.md`; `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md`;
 `docs/orchestration/AGENTS.md`.
 
-- [x] Post-open `qa-engineer-agent -> bug-hunter` bootstrap completed
-- [ ] Discussion-thread pass completed after bot/human review activity
-- [x] Fixed in commit mapping artifact created
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 
 This artifact was created immediately after the draft PR opened per repo
 governance. Record every actionable human/bot disposition here before resolving
@@ -16,7 +15,15 @@ threads on GitHub.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments recorded yet at artifact creation time.
+Disposition: NOT-A-BUG
+Evidence: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1517#issuecomment-4313826624
+Reason: CodeRabbit posted a draft-state review-skipped status note only; no code or documentation changes were requested.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1517#issuecomment-4313826624
+
+Disposition: NOT-A-BUG
+Evidence: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1517#pullrequestreview-4171119355
+Reason: Sourcery posted a service rate-limit notice only; no code or documentation changes were requested.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1517#pullrequestreview-4171119355
 
 ## Initial Implementation Commits
 
