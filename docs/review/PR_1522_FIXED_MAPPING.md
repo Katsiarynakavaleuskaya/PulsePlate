@@ -33,12 +33,20 @@ Evidence: docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md:673; docs/or
 Reason: Karpathy epic family placement now links back to the canonical PR-S0-B2 umbrella packet, and the packet clarifies that its role order is lane-local execution order, not a replacement for global AGENTS/RUNBOOK governance.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1522#pullrequestreview-4173728214 -> 08761111f
 
+Disposition: FIXED
+Commit: a5a8032cc
+Evidence: docs/review/PR_1522_FIXED_MAPPING.md:18; docs/review/PR_1522_FIXED_MAPPING.md:74
+Reason: The NOT-A-BUG evidence link is no longer duplicated, and the scope-boundary bullets now preserve the same constraints with varied sentence structure.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1522#pullrequestreview-4173869584 -> a5a8032cc
+
 ## Initial Implementation Commits
 
 - `e5f0e2ff2` - `docs(roadmap): define plugin control-plane umbrella`
 - `2ea3f2ca5` - `docs(review): address pr1522 bot comments`
 - `a5da6c797` - `fix(food-sources): restore source preflight typing`
 - `653d398be` - `fix(food-sources): support narrow mypy mode`
+- `08761111f` - `docs(roadmap): resolve pr1522 review drift`
+- `a5a8032cc` - `docs(review): address pr1522 bot nitpicks`
 
 ## Merge Readiness
 
