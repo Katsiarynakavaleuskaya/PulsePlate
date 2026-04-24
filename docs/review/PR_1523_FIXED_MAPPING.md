@@ -27,6 +27,16 @@ Commit: 5ffc3f9c6
 Evidence: CodeRabbit's actionable review summary aggregated the two inline comments above, both fixed by commit `5ffc3f9c6`.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1523#pullrequestreview-4173659698 -> 5ffc3f9c6
 
+Disposition: FIXED
+Commit: 4f83fbf59
+Evidence: `docs/review/PR_1523_FIXED_MAPPING.md` uses `Phase 2` wording in the merge-readiness checklist.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1523#discussion_r3140593205 -> 4f83fbf59
+
+Disposition: FIXED
+Commit: 4f83fbf59
+Evidence: CodeRabbit's actionable review summary for `Phase2` wording is covered by the inline comment fix above.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1523#pullrequestreview-4173743422 -> 4f83fbf59
+
 Disposition: NOT-A-BUG
 Evidence: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1523#issuecomment-4316489543
 Reason: Sourcery generated a reviewer guide and summary only; it contains no requested fixes or unresolved action items for this PR head.
