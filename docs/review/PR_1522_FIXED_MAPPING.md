@@ -21,16 +21,17 @@ Reason: CodeRabbit skipped review because the PR is draft; no code or documentat
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1522#issuecomment-4316327364
 
 Disposition: FIXED
-Commit: 44103722b
+Commit: 2ea3f2ca5
 Evidence: docs/review/PR_1522_FIXED_MAPPING.md:32; docs/orchestration/WAVE6_AI_RUNTIME_AND_ADVISORY_SERIES_PACKET_2026-04-13.md:97
 Reason: Final merge-readiness checklist entries now stay unchecked while PR #1522 has an open verification blocker, and the Wave 6 Rail B2 section now links to the canonical PR-S0-B2 packet instead of duplicating family-placement truth.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1522#pullrequestreview-4173487116 -> 44103722b
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1522#discussion_r3140365549 -> 44103722b
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1522#pullrequestreview-4173487116 -> 2ea3f2ca5
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1522#discussion_r3140365549 -> 2ea3f2ca5
 
 ## Initial Implementation Commits
 
-- `f1b87676c` - `docs(roadmap): define plugin control-plane umbrella`
-- `44103722b` - `docs(review): address pr1522 bot comments`
+- `e5f0e2ff2` - `docs(roadmap): define plugin control-plane umbrella`
+- `2ea3f2ca5` - `docs(review): address pr1522 bot comments`
+- `a5da6c797` - `fix(food-sources): restore source preflight typing`
 
 ## Merge Readiness
 
@@ -58,6 +59,11 @@ current-head review/check pass after the typecheck-restoration exception lands.
 - [ ] Pre-push hooks passed during
       `git push -u origin codex/plugin-control-plane-families-umbrella-s0`
 - [ ] `make verify` green on latest pushed head
+      Operator note: full local run is intentionally not repeated because it
+      executes the full repo suite. Local proof for PR-owned scope is
+      `make typecheck`, `tests/test_food_source_preflight.py`,
+      `pre-commit run --all-files`, and `make validate-changed`; GitHub
+      current-head CI is the heavy-suite signal.
 
 ## Scope Boundary Proof
 
