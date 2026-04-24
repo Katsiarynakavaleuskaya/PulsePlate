@@ -128,6 +128,8 @@ Current status:
 - Product tokens remain aliases over existing foundation and base semantic
   tokens. They do not authorize product-screen migration, iOS screen adoption,
   or a second token registry.
+- Web token governance remains delegated to
+  `docs/sora/SORA_STYLE_QA_CHECKLIST.md` (`Web Token Governance`).
 
 ## 7. Tokens Studio policy
 

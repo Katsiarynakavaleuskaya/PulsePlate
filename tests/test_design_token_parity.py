@@ -73,6 +73,20 @@ PRODUCT_TOKEN_ALLOWED_REFERENCE_DIRS = {
 }
 
 
+def _tracked_repo_files() -> list[Path]:
+    git_path = shutil.which("git")
+    assert git_path is not None, "git is required for tracked-file parity checks"
+    result = subprocess.run(
+        [git_path, "ls-files"],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr or result.stdout
+    return [REPO_ROOT / line for line in result.stdout.splitlines() if line]
+
+
 def _deep_merge(left: dict, right: dict) -> dict:
     merged = dict(left)
     for key, value in right.items():
@@ -470,21 +484,10 @@ def test_product_tokens_are_aliases_and_css_preserves_aliases() -> None:
 
 def test_product_tokens_are_not_consumed_outside_token_runtime_surfaces() -> None:
     blocked_references: list[str] = []
-    ignored_dirs = {
-        ".git",
-        ".mypy_cache",
-        ".pytest_cache",
-        ".ruff_cache",
-        ".venv",
-        "__pycache__",
-        "artifacts",
-        "dist",
-        "node_modules",
-    }
 
-    for path in REPO_ROOT.rglob("*"):
+    for path in _tracked_repo_files():
         relative_path = path.relative_to(REPO_ROOT)
-        if not path.is_file() or any(part in ignored_dirs for part in relative_path.parts):
+        if not path.is_file():
             continue
         if relative_path in PRODUCT_TOKEN_ALLOWED_REFERENCE_PATHS:
             continue

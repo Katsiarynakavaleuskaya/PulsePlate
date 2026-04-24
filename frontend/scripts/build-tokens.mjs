@@ -115,6 +115,8 @@ function swiftIdentifier(value) {
 
 function cssVariableForReference(referencePath) {
   const parts = referencePath.split(".");
+  // Product color aliases preserve CSS var indirection for these supported
+  // authoring references; unsupported paths intentionally fall back to hex.
   if (parts[0] === "semantic" && parts[1] === "color") {
     return `var(--color-${kebabCase(parts.slice(2).join("-"))})`;
   }

@@ -21,7 +21,8 @@ iOS runtime mirrors through the canonical token build pipeline.
 
 Execution started under an explicit operator override while current-head
 `main` CI was still in progress. PR `#1519` remains in the post-open review
-cycle until current-head truth is coherent.
+cycle until review-thread dispositions, current-head truth, and the strict
+merge-readiness wrapper are coherent.
 
 Evidence:
 - `docs/orchestration/DESIGN_RUNTIME_SYSTEM_WEB_IOS_PR_SERIES_RUNBOOK.md`
@@ -130,8 +131,8 @@ This order is fixed for the lane unless a later packet explicitly updates it.
 - keep PR `#1519` in review governance until all blockers are dispositioned
 - create canonical artifact `docs/review/PR_1519_FIXED_MAPPING.md`
 - sync the PR body mirror after review dispositions
-- use GitHub current-head truth plus CodeRabbit review input; do not rely on
-  stale historical runs
+- use GitHub current-head truth plus CodeRabbit/Sourcery review input; do not
+  rely on stale historical runs
 
 ## Merge Path
 
