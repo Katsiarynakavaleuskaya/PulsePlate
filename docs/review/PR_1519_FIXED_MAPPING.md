@@ -9,12 +9,13 @@
 
 ## Discussion Thread Pass
 
-- Status: No review threads have been resolved yet.
-- Current disposition state: pending post-open review input.
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
+- Status: No actionable review comments at the time of this draft governance pass.
 
 ## Fixed in Commit Mapping
 
-No actionable review threads have been resolved yet.
+- No actionable review comments
 
 ## Validation Evidence
 
@@ -22,7 +23,7 @@ No actionable review threads have been resolved yet.
 - `python3 scripts/orchestration/check_agent_consistency.py` — PASS
 - `make tokens-check` — PASS on rebased head
 - `python3 scripts/design_guard.py --manifest docs/design/figma-manifest.json` — PASS
-- `python3 -m pytest tests/test_design_token_parity.py -q` — PASS (`11 passed, 1 skipped`)
+- `python3 -m pytest tests/test_design_token_parity.py -q` — PASS (`12 passed, 1 skipped`)
 - `cd frontend && npm run build` — PASS on rebased head
 - `pre-commit run --all-files` — PASS on rebased head
 

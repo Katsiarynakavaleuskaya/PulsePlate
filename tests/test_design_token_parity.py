@@ -26,6 +26,7 @@ HEX_RE = re.compile(r"#[0-9a-fA-F]{6}")
 TS_ENTRY_RE = re.compile(r"(?P<key>[A-Za-z0-9]+|\"[^\"]+\"):\s*(?P<value>[^,\n]+)")
 SWIFT_ASSET_RE = re.compile(r'static let (?P<key>\w+) = "(?P<asset>[^"]+)"')
 SWIFT_COLOR_TOKEN_RE = re.compile(r"static let (?P<key>\w+) = (?P<value>.+)")
+TOKEN_REFERENCE_RE = re.compile(r"\{(?P<path>[^}]+)\}")
 
 CSS_BRAND_KEYS = {
     "navy": "pp-navy",
@@ -322,6 +323,21 @@ def _source_product_palette() -> dict[str, dict[str, str]]:
     }
 
 
+def _source_product_reference_map() -> dict[str, dict[str, str]]:
+    product_payload = _load_json(TOKENS_PRODUCT_COLOR)["product"]["color"]
+    reference_map: dict[str, dict[str, str]] = {}
+
+    for family, roles in product_payload.items():
+        reference_map[family] = {}
+        for role, role_payload in roles.items():
+            reference = role_payload["$value"]
+            match = TOKEN_REFERENCE_RE.fullmatch(reference)
+            assert match is not None, f"Product token must alias an existing token: {family}.{role}"
+            reference_map[family][role] = match.group("path")
+
+    return reference_map
+
+
 def _source_product_css_mapping() -> dict[str, str]:
     product_payload = _load_json(TOKENS_PRODUCT_COLOR)["product"]["color"]
     return {
@@ -333,6 +349,25 @@ def _source_product_css_mapping() -> dict[str, str]:
 
 def _css_role_name(role: str) -> str:
     return re.sub(r"([a-z0-9])([A-Z])", r"\1-\2", role).lower()
+
+
+def _css_variable_for_reference(reference: str) -> str:
+    parts = reference.split(".")
+    if parts[:2] == ["semantic", "color"]:
+        return f"var(--color-{'-'.join(_css_role_name(part) for part in parts[2:])})"
+    if parts[:2] == ["color", "brand"]:
+        return f"var(--pp-{'-'.join(_css_role_name(part) for part in parts[2:])})"
+    if parts[:2] == ["color", "scale"]:
+        return f"var(--color-{'-'.join(_css_role_name(part) for part in parts[2:])})"
+    raise AssertionError(f"Unsupported product token reference for CSS alias: {reference}")
+
+
+def _source_product_css_aliases() -> dict[str, str]:
+    return {
+        f"{family}.{role}": _css_variable_for_reference(reference)
+        for family, roles in _source_product_reference_map().items()
+        for role, reference in roles.items()
+    }
 
 
 def _swift_color_expression_from_source(value: str) -> str:
@@ -421,6 +456,16 @@ def test_tokens_source_product_palette_matches_css_and_ts() -> None:
         for family, roles in source_palette.items()
     } == source_palette
     assert _extract_ts_product_palette() == source_palette
+
+
+def test_product_tokens_are_aliases_and_css_preserves_aliases() -> None:
+    variables = _extract_css_variables()
+    css_mapping = _source_product_css_mapping()
+    expected_aliases = _source_product_css_aliases()
+
+    assert {
+        token_name: variables[css_var] for token_name, css_var in css_mapping.items()
+    } == expected_aliases
 
 
 def test_product_tokens_are_not_consumed_outside_token_runtime_surfaces() -> None:
