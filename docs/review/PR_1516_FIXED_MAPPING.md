@@ -15,7 +15,16 @@ threads on GitHub.
 
 ## Fixed in Commit Mapping
 
+Disposition: FIXED
+Commit: cb5524107
+Evidence: `scripts/ci/run_py312_main_shards.py`; `tests/test_main_test_shards.py`; `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python scripts/ci/run_py312_main_shards.py --shard-count 1 --list-shards`.
+Reason: Bug-hunter found that direct execution of the legacy Python 3.12 wrapper failed because `scripts` was not on `sys.path`; the wrapper now inserts the repo root before importing the shared runner and the test suite covers direct file execution.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1516#discussion_r3139020751 -> cb5524107
+
+Disposition: FIXED
+Commit: 40f1d4d4f
+Evidence: `scripts/ci/run_main_test_shards.py`; `tests/test_main_test_shards.py`; `tests/test_ci_workflow_pr_size_governance_contract.py`; `AGENTS.md`; `RUNBOOK_AGENT.md`; `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md`; `docs/orchestration/MAIN_CI_PY313_TIMEOUT_PREVENTION_PACKET_2026-04-24.md`; `docs/roadmap/BACKLOG_LEDGER.md`; `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/test_main_test_shards.py tests/test_ci_risk_profile.py tests/test_ci_workflow_pr_size_governance_contract.py`.
+Reason: CodeRabbit review actionables were fixed by sanitizing inherited coverage env before combine/report, bounding the legacy wrapper subprocess regression to a temp repo with timeout, replacing the nonexistent standalone `typecheck` CI status with actual current-head check parity wording, preserving the machine-heavy exception in later AGENTS DoD text, improving workflow-contract assertion diagnostics, and converting backlog target PR references to canonical PR #1516 form.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1516#discussion_r3139094080 -> 40f1d4d4f
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1516#discussion_r3139094084 -> 40f1d4d4f
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1516#discussion_r3139094094 -> 40f1d4d4f
@@ -31,15 +40,9 @@ threads on GitHub.
 
 ## Post-Open Review Dispositions
 
-Disposition: FIXED
-Commit: cb5524107
-Evidence: `scripts/ci/run_py312_main_shards.py`; `tests/test_main_test_shards.py`; `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python scripts/ci/run_py312_main_shards.py --shard-count 1 --list-shards`.
-Reason: Bug-hunter found that direct execution of the legacy Python 3.12 wrapper failed because `scripts` was not on `sys.path`; the wrapper now inserts the repo root before importing the shared runner and the test suite covers direct file execution.
-
-Disposition: FIXED
-Commit: 40f1d4d4f
-Evidence: `scripts/ci/run_main_test_shards.py`; `tests/test_main_test_shards.py`; `tests/test_ci_workflow_pr_size_governance_contract.py`; `AGENTS.md`; `RUNBOOK_AGENT.md`; `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md`; `docs/orchestration/MAIN_CI_PY313_TIMEOUT_PREVENTION_PACKET_2026-04-24.md`; `docs/roadmap/BACKLOG_LEDGER.md`; `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/test_main_test_shards.py tests/test_ci_risk_profile.py tests/test_ci_workflow_pr_size_governance_contract.py`.
-Reason: CodeRabbit review actionables were fixed by sanitizing inherited coverage env before combine/report, bounding the legacy wrapper subprocess regression to a temp repo with timeout, replacing the nonexistent standalone `typecheck` CI status with actual current-head check parity wording, preserving the machine-heavy exception in later AGENTS DoD text, improving workflow-contract assertion diagnostics, and converting backlog target PR references to canonical PR #1516 form.
+All post-open review dispositions are recorded inside `## Fixed in Commit
+Mapping`, which is the canonical parser-owned section for review-governance
+proof.
 
 ## Local Validation
 
