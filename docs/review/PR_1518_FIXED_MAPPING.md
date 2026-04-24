@@ -27,6 +27,10 @@ threads on GitHub.
   Disposition: FIXED
   Evidence: `docs/review/PR_1518_FIXED_MAPPING.md:56`.
   Reason: Removed the wording that justified skipping local `make verify` and replaced it with an explicit unchecked local hard-gate statement.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1518#pullrequestreview-4172404978 -> 3fc16e517066a80ba179ed67c86a6dea7dfc89fc
+  Disposition: FIXED
+  Evidence: `docs/review/PR_1518_FIXED_MAPPING.md:56`.
+  Reason: Review-level CodeRabbit actionable summary refers to the same local-verify hard-gate wording fixed by the mapped commit.
 
 ## Implementation Evidence
 
