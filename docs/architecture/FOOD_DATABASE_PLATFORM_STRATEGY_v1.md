@@ -60,8 +60,9 @@ Known gap:
 |------|--------|------|---------------|
 | Tier 1 | USDA | scientific baseline | full snapshot quarterly |
 | Tier 1 | Open Food Facts | barcode + branded coverage | weekly delta sync + periodic full refresh |
-| Tier 2 | MenuStat | restaurant menu baseline | annual snapshot |
-| Tier 2 | Nutritionix | chain/menu enrichment | monthly scoped snapshot + constrained fallback API |
+| Tier 2 | MenuStat | legacy/static restaurant baseline | replacement gate before new ingest |
+| Tier 2 | restaurant-menu replacement source | chain/menu enrichment | license/cache/rollback review first |
+| Tier 2 | recipe templates / recipe corpora | recipe synthesis and meal planning | repo-owned templates first; external corpora require source review |
 | Tier 3 | regional catalogs (EU/RF/EAEU where legal) | local-market coverage | source-dependent periodic import |
 | Tier 4 | live fallback APIs | miss resolution only | called only when local miss occurs |
 
@@ -70,6 +71,8 @@ Policy rule:
 - local search/lookup first
 - external API only on miss and only after local cache check
 - successful external result is normalized and cached into canonical store
+- MenuStat-style import remains a compatibility format, not proof that
+  MenuStat itself is still an updating source.
 
 ---
 
@@ -85,6 +88,10 @@ Required metadata per snapshot:
 - record count
 - file size
 - manifest entry with immutable path
+
+PR1 source-update preflight adds one more gate before bulk ingest: every
+incoming source must declare whether it is a current source, a legacy/static
+baseline, a commercial/contract-dependent provider, or an unresolved source.
 
 Implementation anchors (W1, repo paths on default branch):
 

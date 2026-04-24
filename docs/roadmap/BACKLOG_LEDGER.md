@@ -1670,21 +1670,28 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Search performance debugging path is linked from ops/runbook docs
 
 <a id="ledger-p1-usda-foundation-foods-preflight"></a>
-- [ ] P1: USDA Foundation Foods update preflight and diff-based ingest guard
+- [ ] P1: Food data source-update preflight and diff-based ingest guard
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-TBD-USDA-PREFLIGHT
-  - Status: 📋 Planned
+  - Target PR: PR-TBD-FOOD-DATA-SOURCE-PREFLIGHT -> `codex/food-data-source-update-preflight`
+  - Status: 🚧 Active PR1 planning lane
   - Area: data ingestion / food catalog / quality
   - Finding Type: upstream data-change readiness gap
-  - Reason (EN): USDA Foundation Foods and related FoodData updates can change the shape and volume of ingestible records, but the repo does not yet have a canonical preflight contract for diffing new snapshots, catching dedupe/mapping collisions, and validating filter/key assumptions before updating the unified food catalog.
+  - Reason (EN): USDA Foundation Foods, USDA Branded, USDA FNDDS, Open Food Facts, JPTN Food Facts, restaurant-menu data, and external recipe corpora can change the shape, volume, licensing, and dedupe behavior of ingestible records. The repo does not yet have a canonical preflight contract for source-version discovery, schema diffing, dedupe/mapping collisions, source replacement decisions, storage choice, and rollback before updating the unified food catalog.
   - Links:
+    - `docs/orchestration/FOOD_DATA_SOURCE_UPDATE_PREFLIGHT_PR1_PACKET_2026-04-24.md`
+    - `docs/architecture/ADR_FOOD_DATA_SOURCE_UPDATE_PREFLIGHT_2026-04-24.md`
+    - `docs/architecture/FOOD_DATABASE_PLATFORM_STRATEGY_v1.md`
+    - `docs/legal/EXTERNAL_FOOD_SOURCE_OPERATING_POLICY.md`
     - `scripts/build_food_db.py`
     - `docs/roadmap/GLOBAL_ROADMAP.md`
     - `app/services/food_store.py`
   - DoD:
-    - Preflight workflow exists for diffing incoming USDA/Foundation Foods changes against the current catalog snapshot
-    - Dedupe/mapping collision checks are defined before snapshot promotion
+    - Source-version manifest covers USDA Foundation/Branded/FNDDS, Open Food Facts, MenuStat legacy/static, restaurant-menu replacement candidates, recipe/corpus sources, regional catalogs, and unresolved JPTN Food Facts
+    - Preflight workflow exists for diffing incoming source changes against the current catalog snapshot
+    - Dedupe/mapping collision checks are defined before snapshot promotion or PostgreSQL staging
+    - MenuStat is not treated as an actively updating source; replacement-source decision is required before new restaurant-menu ingest
+    - DigitalOcean production PostgreSQL load and runtime cutover stay blocked until source preflight, staging proof, rollback, and cutover packet are complete
     - Data-ingest docs and runbooks point to the same preflight source of truth
 
 <a id="ledger-p1-llm-reliability-security-gates"></a>
@@ -5425,21 +5432,22 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - The change introduces no runtime, schema, or OpenAPI behavior
 
 <a id="ledger-p1-foods-postgres-foundation-followthrough"></a>
-- [ ] P1: Foods PostgreSQL follow-through train (B1/B2/B3 merged; cutover deferred)
+- [x] P1: Foods PostgreSQL follow-through train (B1/B2/B3 merged; cutover deferred)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR `#1409` (`feat/pr-a-foods-catalog-foundation`) -> PR `#1413` (`feat/pr-b1-foods-offline-etl-postgres`) -> PR `#1419` (`feat/pr-b2-restaurant-relational-bridge`) -> PR `#1435` (`feat/pr-b3-restaurant-postgres-shadow-reads`) -> PR `#1462` (`codex/food-postb3-docs-closeout`) -> PR-TBD-FOODS-FOUNDATION-DOWNGRADE-OWNERSHIP
-  - Status: 🚧 Active after merged B1/B2/B3; current lane is docs/governance closeout, and runtime authority cutover remains deferred until a separate governed post-B3 packet exists (evidence: `docs/review/FOODS_POSTGRES_TRAIN_MERGED_STATE_CANON_2026-04-17.md:12-14`; ADR: `docs/architecture/ADR_FOODS_POSTGRES_RUNTIME_CUTOVER_SEAM_2026-04-17.md:11-24`)
+  - Target PR: PR `#1409` (`feat/pr-a-foods-catalog-foundation`) -> PR `#1413` (`feat/pr-b1-foods-offline-etl-postgres`) -> PR `#1419` (`feat/pr-b2-restaurant-relational-bridge`) -> PR `#1435` (`feat/pr-b3-restaurant-postgres-shadow-reads`) -> PR `#1462` (`codex/food-postb3-docs-closeout`) -> PR `#1468` (`codex/foods-foundation-downgrade-ownership`)
+  - Status: ✅ Merged through downgrade ownership follow-through; runtime authority cutover remains deferred until a separate governed post-B3 packet exists (evidence: `docs/review/PR_1468_FIXED_MAPPING.md`; ADR: `docs/architecture/ADR_FOODS_POSTGRES_RUNTIME_CUTOVER_SEAM_2026-04-17.md:11-24`)
   - Area: backend / data platform / restaurant ingestion
   - Finding Type: post-foundation execution gap
-  - Reason: The additive Alembic foundation lane intentionally created `foods`, `restaurant_chains`, and `restaurant_menu_items` without changing the current SQLite/local-first runtime, ETL path, or MenuStat importer. That follow-through train has now landed as merged PR `#1409`, PR `#1413`, PR `#1419`, and PR `#1435` on the dates recorded in `docs/review/FOODS_POSTGRES_TRAIN_MERGED_STATE_CANON_2026-04-17.md:7-10`. The governed next step is to reconcile docs/source-of-truth after merged B3, then open the bounded downgrade-ownership implementation lane while keeping SQLite as canonical runtime authority until a separate cutover packet is approved (evidence: `docs/review/FOODS_POSTGRES_TRAIN_MERGED_STATE_CANON_2026-04-17.md:12-14`; ADR: `docs/architecture/ADR_FOODS_POSTGRES_RUNTIME_CUTOVER_SEAM_2026-04-17.md:11-24`).
+  - Reason: The additive Alembic foundation lane intentionally created `foods`, `restaurant_chains`, and `restaurant_menu_items` without changing the current SQLite/local-first runtime, ETL path, or MenuStat importer. The follow-through train has landed as merged PR `#1409`, PR `#1413`, PR `#1419`, PR `#1435`, PR `#1462`, and PR `#1468`. The governed next food-data line is now the source-update preflight in `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-usda-foundation-foods-preflight`, while SQLite remains canonical runtime authority until a separate cutover packet is approved (ADR: `docs/architecture/ADR_FOODS_POSTGRES_RUNTIME_CUTOVER_SEAM_2026-04-17.md:11-24`).
   - Sequence:
     - PR-A / foundation: additive `foods` / `restaurant_*` schema landed in merged PR `#1409` (evidence: `docs/review/FOODS_POSTGRES_TRAIN_MERGED_STATE_CANON_2026-04-17.md:7-7`)
     - B1 / foods snapshot promotion: PostgreSQL `foods` promotion landed in merged PR `#1413` (evidence: `docs/review/FOODS_POSTGRES_TRAIN_MERGED_STATE_CANON_2026-04-17.md:8-8`)
     - B2 / importer bridge: PostgreSQL importer persistence landed in merged PR `#1419` (evidence: `docs/review/FOODS_POSTGRES_TRAIN_MERGED_STATE_CANON_2026-04-17.md:9-9`)
     - B3 / shadow reads: PostgreSQL shadow reads + parity checks landed in merged PR `#1435` (evidence: `docs/review/FOODS_POSTGRES_TRAIN_MERGED_STATE_CANON_2026-04-17.md:10-10`)
     - Post-B3 closeout: reconcile backlog/task-packet/review-governance repo truth after merged B3 in PR `#1462` (evidence: `docs/review/FOODS_POSTGRES_TRAIN_MERGED_STATE_CANON_2026-04-17.md:12-13`)
-    - Next bounded implementation lane: downgrade ownership fix for Alembic revision `202604120001` (evidence: `docs/review/FOODS_POSTGRES_TRAIN_MERGED_STATE_CANON_2026-04-17.md:13-14`)
+    - Downgrade ownership fix: ownership-aware downgrade for Alembic revision `202604120001` landed in merged PR `#1468` (evidence: `docs/review/PR_1468_FIXED_MAPPING.md`)
+    - Next food-data lane: source-update preflight before USDA/Open Food Facts/JPTN/restaurant replacement ingest (ledger: `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-usda-foundation-foods-preflight`)
     - Cutover (deferred): decide and govern any runtime read-switch / PostgreSQL authority change only after a separate post-B3 cutover packet exists (ADR: `docs/architecture/ADR_FOODS_POSTGRES_RUNTIME_CUTOVER_SEAM_2026-04-17.md:11-24`)
   - Links:
     - `docs/orchestration/FOODS_CATALOG_FOUNDATION_PR_A_TASK_PACKET_2026-04-12.md`
@@ -5459,16 +5467,17 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Backlog sequencing reflects merged-state truth for PR `#1409`, PR `#1413`, PR `#1419`, and PR `#1435` (evidence: `docs/review/FOODS_POSTGRES_TRAIN_MERGED_STATE_CANON_2026-04-17.md:7-10`)
     - Historical food packets no longer claim B3 is the next active lane
     - Post-B3 docs/governance closeout is explicitly tracked as the current source-of-truth reconciliation lane (evidence: `docs/review/FOODS_POSTGRES_TRAIN_MERGED_STATE_CANON_2026-04-17.md:12-13`)
-    - The next bounded implementation lane is explicitly set to `ledger-p1-foods-foundation-downgrade-ownership` (evidence: `docs/review/FOODS_POSTGRES_TRAIN_MERGED_STATE_CANON_2026-04-17.md:13-14`)
+    - Downgrade ownership follow-through is closed by PR `#1468` (evidence: `docs/review/PR_1468_FIXED_MAPPING.md`)
+    - The next food-data lane is explicitly set to `ledger-p1-usda-foundation-foods-preflight`
     - Runtime authority cutover / read-switch remains explicitly deferred beyond B3 until a separate cutover packet exists (ADR: `docs/architecture/ADR_FOODS_POSTGRES_RUNTIME_CUTOVER_SEAM_2026-04-17.md:11-24`)
     - Search / catalog follow-up lanes continue to reference the same canonical PostgreSQL table source without parallel schema drift
 
 <a id="ledger-p1-foods-foundation-downgrade-ownership"></a>
-- [ ] P1: Make foods foundation downgrade ownership-aware for pre-existing catalog objects
+- [x] P1: Make foods foundation downgrade ownership-aware for pre-existing catalog objects
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
   - Target PR: PR #1468 -> `codex/foods-foundation-downgrade-ownership`
-  - Status: 🚧 In progress
+  - Status: ✅ Merged (PR `#1468`, merge commit `4876d24ef8311acdd0be9b54642f210c25c3e4a7`, April 19, 2026)
   - Area: backend / migrations / PostgreSQL
   - Finding Type: downgrade symmetry / object ownership
   - Reason: Revision `202604120001` now guards upgrade-time creation of `foods` and companion indexes when a supported colocated catalog shape already exists, but the downgrade path still assumes ownership of those objects. A follow-up lane must make the downgrade ownership-aware so rolling back the revision does not drop pre-existing `foods`/index artifacts that were not created by this revision.
@@ -9888,6 +9897,6 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - empty selections remain an explicit no-op with stable logs
     - workflow contract tests cover the shared helper wiring end to end
 
-**Last updated:** 2026-04-18 (foods foundation downgrade ownership review follow-up)
+**Last updated:** 2026-04-24 (food data source-update preflight PR1)
 **Maintainer:** @katsiaryna_kavaleuskaya
 <!-- markdownlint-enable MD013 -->
