@@ -80,8 +80,9 @@ def test_hidden_workflow_path_preserves_leading_dot_for_routing() -> None:
 def test_main_ci_diagnostic_is_scoped_to_main_ci_surfaces() -> None:
     positive_profile = risk_profile.build_risk_profile(
         [
+            "scripts/ci/run_main_test_shards.py",
             "scripts/ci/run_py312_main_shards.py",
-            "tests/test_py312_main_shards.py",
+            "tests/test_main_test_shards.py",
         ],
     )
     negative_profile = risk_profile.build_risk_profile(

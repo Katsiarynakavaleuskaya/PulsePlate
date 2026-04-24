@@ -587,9 +587,9 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: PR-scoped validation contract and pre-push hook fix
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-TBD-PR-SCOPED-VALIDATION-CONTRACT
+  - Target PR: PR #1516 (`codex/main-ci-py313-timeout-prevention`)
   - Area: CI / tooling / governance
-  - Status note: Keep `make verify` as the hard merge-claim gate until this follow-up lands. Use this item to separate iterative PR-scope validation from final merge evidence and to fix the pre-push hook failure shape before changing agent/runbook guidance.
+  - Status note: Active follow-up in `codex/main-ci-py313-timeout-prevention` narrows this item to the machine-heavy agent-local execution contract. Full local `make verify` stays canonical for normal PRs, while operator-approved CI/tooling lanes may document deferral and use narrow local gates plus canonical current-head CI parity as the heavy signal. The pre-push hook bug remains tracked here for a separate follow-up and is not closed by the Python 3.13 timeout-prevention lane.
   - Reason: The current repo-wide `make verify` loop is too broad for day-to-day PR iteration, while `scripts/run-backend-tests-pre-commit.sh` has surfaced a `FOUND_FOR_FILE[@]: unbound variable` failure on merge-commit paths. The follow-up must tighten the local PR-scoped validation contract around `make validate-changed` or an equivalent touched-scope path without weakening the canonical merge-readiness requirement.
   - Evidence:
     - `AGENTS.md:5-8`
@@ -606,10 +606,10 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `.pre-commit-config.yaml`
     - `scripts/run-backend-tests-pre-commit.sh`
   - DoD:
-    - The pre-push backend test hook no longer fails with `FOUND_FOR_FILE[@]: unbound variable`
-    - Repo docs distinguish iterative PR-scoped validation from the final `make verify` merge-claim gate
-    - Agent/runbook guidance points at the correct local validation path for PR iteration
-    - Deterministic tests cover the hook fix and the promoted validation contract
+    - Repo docs distinguish normal full local `make verify` from the operator-approved machine-heavy deferral path
+    - Agent/runbook guidance points at the correct narrow validation path for machine-heavy PR iteration
+    - Deterministic tests cover the promoted validation contract
+    - Follow-up PR fixes the pre-push backend test hook failure shape (`FOUND_FOR_FILE[@]: unbound variable`)
 
 <a id="ledger-p1-docker-runtime-slimming-after-profile-split"></a>
 - [x] P1: Docker runtime slimming after CI install-profile split
@@ -1674,22 +1674,33 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Synthetic probe workflow and per-class latency/error objectives are documented before rollout
     - Search performance debugging path is linked from ops/runbook docs
 
-<a id="ledger-p1-usda-foundation-foods-preflight"></a>
-- [ ] P1: USDA Foundation Foods update preflight and diff-based ingest guard
+<a id="ledger-p1-food-data-source-update-preflight"></a>
+- [ ] P1: Food data source-update preflight and diff-based ingest guard
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-TBD-USDA-PREFLIGHT
-  - Status: 📋 Planned
+  - Target PR: PR-TBD-FOOD-DATA-SOURCE-PREFLIGHT-TOOLING -> `codex/food-data-source-preflight-tooling`
+  - Status: 🚧 Active PR2 deterministic tooling lane; PR1 planning baseline merged as PR #1513
   - Area: data ingestion / food catalog / quality
   - Finding Type: upstream data-change readiness gap
-  - Reason (EN): USDA Foundation Foods and related FoodData updates can change the shape and volume of ingestible records, but the repo does not yet have a canonical preflight contract for diffing new snapshots, catching dedupe/mapping collisions, and validating filter/key assumptions before updating the unified food catalog.
+  - Reason (EN): USDA Foundation Foods, USDA Branded, USDA FNDDS, Open Food Facts, JPTN Food Facts, restaurant-menu data, and external recipe corpora can change the shape, volume, licensing, and dedupe behavior of ingestible records. The repo does not yet have a canonical preflight contract for source-version discovery, schema diffing, dedupe/mapping collisions, source replacement decisions, storage choice, and rollback before updating the unified food catalog.
   - Links:
+    - `docs/orchestration/FOOD_DATA_SOURCE_UPDATE_PREFLIGHT_PR1_PACKET_2026-04-24.md`
+    - `docs/orchestration/FOOD_DATA_SOURCE_PREFLIGHT_TOOLING_PR2_PACKET_2026-04-24.md`
+    - `docs/architecture/ADR_FOOD_DATA_SOURCE_UPDATE_PREFLIGHT_2026-04-24.md`
+    - `docs/architecture/FOOD_DATABASE_PLATFORM_STRATEGY_v1.md`
+    - `docs/legal/EXTERNAL_FOOD_SOURCE_OPERATING_POLICY.md`
+    - `core/food_sources/source_preflight.py`
+    - `scripts/food_source_preflight.py`
     - `scripts/build_food_db.py`
     - `docs/roadmap/GLOBAL_ROADMAP.md`
     - `app/services/food_store.py`
   - DoD:
-    - Preflight workflow exists for diffing incoming USDA/Foundation Foods changes against the current catalog snapshot
-    - Dedupe/mapping collision checks are defined before snapshot promotion
+    - Source-version manifest covers USDA Foundation/Branded/FNDDS, Open Food Facts, MenuStat legacy/static, restaurant-menu replacement candidates, recipe/corpus sources, regional catalogs, and unresolved JPTN Food Facts
+    - Preflight workflow exists for diffing incoming source changes against the current catalog snapshot; PR2 defines the file-only manifest/diff skeleton before ingest
+    - `source_classification` is validated with allowed values `current`, `legacy_static`, `commercial_contract`, and `unresolved`
+    - Dedupe/mapping collision checks are defined before snapshot promotion or PostgreSQL staging
+    - MenuStat is not treated as an actively updating source; replacement-source decision is required before new restaurant-menu ingest
+    - DigitalOcean production PostgreSQL load and runtime cutover stay blocked until source preflight, staging proof, rollback, and cutover packet are complete
     - Data-ingest docs and runbooks point to the same preflight source of truth
 
 <a id="ledger-p1-llm-reliability-security-gates"></a>
@@ -3223,19 +3234,26 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P2: Karpathy-style advisory wiki umbrella
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2
-  - Target PR: PR-S0
+  - Target PR: PR-S0-B1 (`docs(roadmap): define Karpathy advisory wiki umbrella`)
   - Area: orchestration / workforce memory / roadmap
   - Finding Type: umbrella canonicalization
+  - Status: 🟡 In progress (PR-S0-B1 locks Rail B1 as advisory workforce compiled memory only; no product RAG, runtime truth, semantic cache, or plugin/control-plane implementation)
   - Reason (EN): The workforce compiled-memory line now has launcher/bootstrap, compiler, and hardening slices, but the backlog still lacks one explicit umbrella item that marks it as a separate advisory rail rather than an accidental side-project or product-RAG substitute. (RU: У workforce compiled-memory линии уже есть launcher/bootstrap, compiler и hardening slices, но в backlog нет одного umbrella-item, который бы фиксировал её как отдельный advisory rail, а не побочный side-project или замену product RAG.)
   - Links:
+    - `docs/orchestration/KARPATHY_ADVISORY_WIKI_UMBRELLA_S0_PACKET_2026-04-24.md`
     - `docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md`
     - `docs/dev/LOCAL_COORDINATOR_LAUNCHER_ROLLOUT.md`
     - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p2-local-workforce-pr-d-advisory-wiki-compiler`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p2-advisory-wiki-query-lint-enrichment`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p2-advisory-wiki-reference-corpus-policy`
     - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p2-local-launcher-rollout-for-coordinator-first-automation`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p2-plugin-control-plane-families-umbrella`
   - DoD:
     - One canonical umbrella entry exists for the advisory workforce rail
     - The rail is explicitly marked non-canonical and non-product-facing
     - Existing launcher/compiler slices are linked as children or prerequisites
+    - Rail B1 cannot be used as product RAG, DB/runtime/API truth, public response-contract truth, or semantic-cache authorization
+    - Rail B2/plugin-control-plane families remain a separate umbrella and are not implemented by this PR
 
 <a id="ledger-p2-plugin-control-plane-families-umbrella"></a>
 - [ ] P2: Plugin/control-plane families umbrella
@@ -5430,21 +5448,22 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - The change introduces no runtime, schema, or OpenAPI behavior
 
 <a id="ledger-p1-foods-postgres-foundation-followthrough"></a>
-- [ ] P1: Foods PostgreSQL follow-through train (B1/B2/B3 merged; cutover deferred)
+- [x] P1: Foods PostgreSQL follow-through train (B1/B2/B3 merged; cutover deferred)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR `#1409` (`feat/pr-a-foods-catalog-foundation`) -> PR `#1413` (`feat/pr-b1-foods-offline-etl-postgres`) -> PR `#1419` (`feat/pr-b2-restaurant-relational-bridge`) -> PR `#1435` (`feat/pr-b3-restaurant-postgres-shadow-reads`) -> PR `#1462` (`codex/food-postb3-docs-closeout`) -> PR-TBD-FOODS-FOUNDATION-DOWNGRADE-OWNERSHIP
-  - Status: 🚧 Active after merged B1/B2/B3; current lane is docs/governance closeout, and runtime authority cutover remains deferred until a separate governed post-B3 packet exists (evidence: `docs/review/FOODS_POSTGRES_TRAIN_MERGED_STATE_CANON_2026-04-17.md:12-14`; ADR: `docs/architecture/ADR_FOODS_POSTGRES_RUNTIME_CUTOVER_SEAM_2026-04-17.md:11-24`)
+  - Target PR: PR `#1409` (`feat/pr-a-foods-catalog-foundation`) -> PR `#1413` (`feat/pr-b1-foods-offline-etl-postgres`) -> PR `#1419` (`feat/pr-b2-restaurant-relational-bridge`) -> PR `#1435` (`feat/pr-b3-restaurant-postgres-shadow-reads`) -> PR `#1462` (`codex/food-postb3-docs-closeout`) -> PR `#1468` (`codex/foods-foundation-downgrade-ownership`)
+  - Status: ✅ Merged through downgrade ownership follow-through; runtime authority cutover remains deferred until a separate governed post-B3 packet exists (evidence: `docs/review/PR_1468_FIXED_MAPPING.md`; ADR: `docs/architecture/ADR_FOODS_POSTGRES_RUNTIME_CUTOVER_SEAM_2026-04-17.md:11-24`)
   - Area: backend / data platform / restaurant ingestion
   - Finding Type: post-foundation execution gap
-  - Reason: The additive Alembic foundation lane intentionally created `foods`, `restaurant_chains`, and `restaurant_menu_items` without changing the current SQLite/local-first runtime, ETL path, or MenuStat importer. That follow-through train has now landed as merged PR `#1409`, PR `#1413`, PR `#1419`, and PR `#1435` on the dates recorded in `docs/review/FOODS_POSTGRES_TRAIN_MERGED_STATE_CANON_2026-04-17.md:7-10`. The governed next step is to reconcile docs/source-of-truth after merged B3, then open the bounded downgrade-ownership implementation lane while keeping SQLite as canonical runtime authority until a separate cutover packet is approved (evidence: `docs/review/FOODS_POSTGRES_TRAIN_MERGED_STATE_CANON_2026-04-17.md:12-14`; ADR: `docs/architecture/ADR_FOODS_POSTGRES_RUNTIME_CUTOVER_SEAM_2026-04-17.md:11-24`).
+  - Reason: The additive Alembic foundation lane intentionally created `foods`, `restaurant_chains`, and `restaurant_menu_items` without changing the current SQLite/local-first runtime, ETL path, or MenuStat importer. The follow-through train has landed as merged PR `#1409`, PR `#1413`, PR `#1419`, PR `#1435`, PR `#1462`, and PR `#1468`. The governed next food-data line is now the source-update preflight in `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-food-data-source-update-preflight`, while SQLite remains canonical runtime authority until a separate cutover packet is approved (ADR: `docs/architecture/ADR_FOODS_POSTGRES_RUNTIME_CUTOVER_SEAM_2026-04-17.md:11-24`).
   - Sequence:
     - PR-A / foundation: additive `foods` / `restaurant_*` schema landed in merged PR `#1409` (evidence: `docs/review/FOODS_POSTGRES_TRAIN_MERGED_STATE_CANON_2026-04-17.md:7-7`)
     - B1 / foods snapshot promotion: PostgreSQL `foods` promotion landed in merged PR `#1413` (evidence: `docs/review/FOODS_POSTGRES_TRAIN_MERGED_STATE_CANON_2026-04-17.md:8-8`)
     - B2 / importer bridge: PostgreSQL importer persistence landed in merged PR `#1419` (evidence: `docs/review/FOODS_POSTGRES_TRAIN_MERGED_STATE_CANON_2026-04-17.md:9-9`)
     - B3 / shadow reads: PostgreSQL shadow reads + parity checks landed in merged PR `#1435` (evidence: `docs/review/FOODS_POSTGRES_TRAIN_MERGED_STATE_CANON_2026-04-17.md:10-10`)
     - Post-B3 closeout: reconcile backlog/task-packet/review-governance repo truth after merged B3 in PR `#1462` (evidence: `docs/review/FOODS_POSTGRES_TRAIN_MERGED_STATE_CANON_2026-04-17.md:12-13`)
-    - Next bounded implementation lane: downgrade ownership fix for Alembic revision `202604120001` (evidence: `docs/review/FOODS_POSTGRES_TRAIN_MERGED_STATE_CANON_2026-04-17.md:13-14`)
+    - Downgrade ownership fix: ownership-aware downgrade for Alembic revision `202604120001` landed in merged PR `#1468` (evidence: `docs/review/PR_1468_FIXED_MAPPING.md`)
+    - Next food-data lane: source-update preflight before USDA/Open Food Facts/JPTN/restaurant replacement ingest (ledger: `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-food-data-source-update-preflight`)
     - Cutover (deferred): decide and govern any runtime read-switch / PostgreSQL authority change only after a separate post-B3 cutover packet exists (ADR: `docs/architecture/ADR_FOODS_POSTGRES_RUNTIME_CUTOVER_SEAM_2026-04-17.md:11-24`)
   - Links:
     - `docs/orchestration/FOODS_CATALOG_FOUNDATION_PR_A_TASK_PACKET_2026-04-12.md`
@@ -5464,16 +5483,17 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Backlog sequencing reflects merged-state truth for PR `#1409`, PR `#1413`, PR `#1419`, and PR `#1435` (evidence: `docs/review/FOODS_POSTGRES_TRAIN_MERGED_STATE_CANON_2026-04-17.md:7-10`)
     - Historical food packets no longer claim B3 is the next active lane
     - Post-B3 docs/governance closeout is explicitly tracked as the current source-of-truth reconciliation lane (evidence: `docs/review/FOODS_POSTGRES_TRAIN_MERGED_STATE_CANON_2026-04-17.md:12-13`)
-    - The next bounded implementation lane is explicitly set to `ledger-p1-foods-foundation-downgrade-ownership` (evidence: `docs/review/FOODS_POSTGRES_TRAIN_MERGED_STATE_CANON_2026-04-17.md:13-14`)
+    - Downgrade ownership follow-through is closed by PR `#1468` (evidence: `docs/review/PR_1468_FIXED_MAPPING.md`)
+    - The next food-data lane is explicitly set to `ledger-p1-food-data-source-update-preflight`
     - Runtime authority cutover / read-switch remains explicitly deferred beyond B3 until a separate cutover packet exists (ADR: `docs/architecture/ADR_FOODS_POSTGRES_RUNTIME_CUTOVER_SEAM_2026-04-17.md:11-24`)
     - Search / catalog follow-up lanes continue to reference the same canonical PostgreSQL table source without parallel schema drift
 
 <a id="ledger-p1-foods-foundation-downgrade-ownership"></a>
-- [ ] P1: Make foods foundation downgrade ownership-aware for pre-existing catalog objects
+- [x] P1: Make foods foundation downgrade ownership-aware for pre-existing catalog objects
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
   - Target PR: PR #1468 -> `codex/foods-foundation-downgrade-ownership`
-  - Status: 🚧 In progress
+  - Status: ✅ Merged (PR `#1468`, merge commit `4876d24ef8311acdd0be9b54642f210c25c3e4a7`, April 19, 2026)
   - Area: backend / migrations / PostgreSQL
   - Finding Type: downgrade symmetry / object ownership
   - Reason: Revision `202604120001` now guards upgrade-time creation of `foods` and companion indexes when a supported colocated catalog shape already exists, but the downgrade path still assumes ownership of those objects. A follow-up lane must make the downgrade ownership-aware so rolling back the revision does not drop pre-existing `foods`/index artifacts that were not created by this revision.
@@ -9627,7 +9647,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `docs/orchestration/MAIN_CI_PY312_TIMEOUT_ROOT_CAUSE_PACKET_2026-04-23.md`
     - `.github/workflows/ci.yml`
     - `scripts/ci/ci_risk_profile.py`
-    - `scripts/ci/run_py312_main_shards.py`
+    - `scripts/ci/run_main_test_shards.py`
     - `.github/workflows/nightly.yml`
     - `pyproject.toml`
     - `tests/test_ci_workflow_pr_size_governance_contract.py`
@@ -9827,23 +9847,22 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Root-cause Python 3.13 CI slowdown and retire timeout stopgap
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (CI stability / main-branch readiness)
-  - Target PR: PR-TBD-PY313-CI-STALL-ROOT-CAUSE
-  - Status: Opened on 11 April 2026
-  - Status note: The feature/fix push feedback split is being handled in
-    `fix/ci-feature-fast-feedback`. Do not close this item when that PR lands;
-    the remaining `test-main (3.13)` root cause and timeout-stopgap retirement
-    stay tracked here until canonical `main` evidence is green without the
-    temporary 90-minute buffer.
+  - Target PR: PR #1516 (`codex/main-ci-py313-timeout-prevention`)
+  - Status: Active prevention lane as of 24 April 2026
+  - Status note: PR #1511 proved `test-main (3.13, 90)` could pass but only in
+    about 88m44s, leaving almost no timeout budget. This lane routes Python 3.13
+    through the shared process-level main-suite shard runner while preserving
+    the `test-main (3.13, 90)` required-check identity.
   - Reason: Current-head feature and `main` CI runs both show a pathological
     Python 3.13 slowdown in canonical `CI`. `test-feature (3.13)` reached the
-    60-minute job timeout in run `24266451930`, and earlier `main` evidence
-    showed `test-main (3.13)` materially outliving `3.11` and `3.12`. The
-    immediate mitigation is a py3.13-scoped timeout increase plus deterministic
-    duration diagnostics in `.github/workflows/ci.yml`, but the underlying
-    cause remains unresolved and must be isolated before the stopgap can be
-    removed.
+    60-minute job timeout in run `24266451930`, and PR #1511 current-head
+    evidence showed `test-main (3.13, 90)` passing with only about 1m16s of
+    headroom. The prevention path is shared no-xdist process sharding for 3.12
+    and 3.13, not a broader timeout increase or weakened coverage gate.
   - Links:
     - `.github/workflows/ci.yml`
+    - `scripts/ci/run_main_test_shards.py`
+    - `tests/test_main_test_shards.py`
     - `RUNBOOK_AGENT.md`
     - `docs/orchestration/TIER1_CI_CD_PR_SERIES_RUNBOOK.md`
     - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/24266451930/job/70862392048`
@@ -9904,6 +9923,6 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - empty selections remain an explicit no-op with stable logs
     - workflow contract tests cover the shared helper wiring end to end
 
-**Last updated:** 2026-04-18 (foods foundation downgrade ownership review follow-up)
+**Last updated:** 2026-04-24 (food data source-update preflight PR1)
 **Maintainer:** @katsiaryna_kavaleuskaya
 <!-- markdownlint-enable MD013 -->

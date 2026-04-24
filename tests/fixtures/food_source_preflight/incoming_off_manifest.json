@@ -1,0 +1,23 @@
+{
+  "artifact": {
+    "checksum_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "path": "raw/off/2026-04-25/products.csv.gz",
+    "record_count": 120,
+    "size_bytes": 4096
+  },
+  "retrieved_on": "2026-04-25",
+  "schema": {
+    "fields": [
+      "code",
+      "product_name",
+      "quantity"
+    ],
+    "primary_keys": [
+      "code"
+    ]
+  },
+  "source": "open_food_facts",
+  "source_classification": "current",
+  "source_url": "https://world.openfoodfacts.org/data",
+  "source_version": "2026-04-25"
+}

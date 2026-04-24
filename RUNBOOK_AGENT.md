@@ -171,6 +171,16 @@ Rule: RUNBOOK does not duplicate checklists; it only links to the canonical sour
 - Coverage / diff-coverage gates pass (see `AGENTS.md` for thresholds)
 - Security scans pass when applicable (see `AGENTS.md` for policy and tools)
 
+**Machine-heavy CI/tooling PRs:** when the operator explicitly defers full local
+`make verify`, do not run it by default. Use the coordinator-approved narrow
+bundle (`check_preflight`, `check_agent_consistency`, focused tests,
+`make validate-changed`, `pre-commit run --all-files`) and document the local
+deferral in the PR body plus fixed-mapping artifact. Merge readiness then relies
+on canonical current-head CI parity as the heavy signal: `lint`,
+required/current-head checks for the touched PR surface, relevant `test-main` matrix,
+`diff-coverage` at ≥97%, applicable security/governance checks, plus the strict
+`check_merge_ready.py --require-auth` wrapper.
+
 **This is the authoritative procedural checklist.** Thresholds/policy live in `AGENTS.md`.
 
 ### Merge-Ready Bundle (Blocking vs Advisory)
@@ -180,6 +190,9 @@ Use this bundle when you need a strict merge claim:
 1. Local blocking bundle:
    - `pre-commit run --all-files`
    - `make verify`
+   - Operator-approved machine-heavy exception: documented narrow gates plus
+     canonical current-head CI parity may replace local `make verify`; this is
+     not allowed for hiding known local failures.
 2. PR governance blocking bundle:
    - `python scripts/orchestration/check_merge_ready.py --pr-number <N> --repo <owner/name> --require-auth`
 3. Advisory / external signals:
@@ -376,7 +389,10 @@ Use this as the canonical operating loop from branch creation to merge window:
    - When the lane declares `qa-engineer-agent -> bug-hunter`, that pass happens after PR open, not as a substitute for pre-PR local gates
 4. **Before each push**
    - Run `pre-commit run --all-files`
-   - Run the required local gates for the touched scope; for merge claims this still means `make verify`
+   - Run the required local gates for the touched scope; for normal merge claims this still means `make verify`
+   - For operator-approved machine-heavy PRs, run the documented narrow bundle
+     instead and keep the PR body/fixed mapping explicit about the local
+     `make verify` deferral
    - Commit hook changes separately when hooks modify files
 5. **After each push**
    - Watch the latest-head CI run, not stale `gh pr checks` history

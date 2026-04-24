@@ -176,6 +176,7 @@ Canonical lane matrix:
 | ----------- | ----------------- | ----- | ------------- |
 | Local       | `pre-commit run --all-files` | Hard gate | Must pass before push; hook modifications must be committed |
 | Local       | `make verify` | Hard gate | Canonical code-quality bundle for merge claims |
+| Local / PR CI | Operator-approved machine-heavy deferral | Hard gate | Local `make verify` may be deferred only when PR body and fixed mapping document the deferral, PR-scoped narrow gates pass, canonical current-head CI parity is green (`lint`, required/current-head checks for the touched PR surface, relevant `test-main` matrix, `diff-coverage` ≥97%, applicable security/governance checks), and the strict merge wrapper passes |
 | Local / CI  | `python scripts/orchestration/check_merge_ready.py ...` | Hard gate | Wrapper must pass Phase 2 + review governance + current-head required checks + disposition proof |
 | PR CI       | GitHub branch-protection required checks on current HEAD | Hard gate | Pending/failed current-head required jobs block merge |
 | PR CI       | Non-required jobs / informational workflows | Soft gate | Visible signal only; fix or ledger if risk is real |

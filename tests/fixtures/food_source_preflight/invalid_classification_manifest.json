@@ -1,0 +1,21 @@
+{
+  "artifact": {
+    "checksum_sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+    "path": "raw/jptn/unresolved.json",
+    "record_count": 0,
+    "size_bytes": 0
+  },
+  "retrieved_on": "2026-04-24",
+  "schema": {
+    "fields": [
+      "id"
+    ],
+    "primary_keys": [
+      "id"
+    ]
+  },
+  "source": "jptn_food_facts",
+  "source_classification": "live_unknown",
+  "source_url": "https://example.invalid/jptn",
+  "source_version": "unresolved"
+}
