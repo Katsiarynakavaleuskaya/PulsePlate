@@ -16,6 +16,13 @@ threads on GitHub.
 
 - No actionable review comments
 
+## Post-Open Role Review
+
+- `qa-engineer-agent`: PASS. Reviewed the two-test isolation patch and local
+  validation coverage; no missing blocking negative-path test was found.
+- `bug-hunter`: PASS. Reviewed stale override removal/restoration and
+  cross-test state leakage risk; no blocking edge-case finding was found.
+
 ## Implementation Evidence
 
 Commit: 50a02aec1
