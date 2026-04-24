@@ -96,11 +96,15 @@ Enforcement anchor: the PR1 preflight contract requires top-level manifest field
 `source_classification` with allowed values `current`, `legacy_static`,
 `commercial_contract`, or `unresolved`; later tooling must validate that field
 before ingest using the PR1 packet's canonical criteria.
+This is a PR1 contract, not current runtime enforcement: follow-up tooling must
+add validation before ingest, because `core/food_sources/snapshot_manager.py`
+and `core/food_apis/raw_snapshot_gate.py` do not validate
+`source_classification` yet.
 
 Implementation anchors (W1, repo paths on default branch):
 
 - PR1 source-classification contract:
-  `docs/orchestration/FOOD_DATA_SOURCE_UPDATE_PREFLIGHT_PR1_PACKET_2026-04-24.md#canonical-preflight-criteria`
+  `docs/orchestration/FOOD_DATA_SOURCE_UPDATE_PREFLIGHT_CURRENT.md#food-data-source-update-preflight-current-packet`
 - Snapshot manifest hub + fail-closed revalidation (size/checksum): `core/food_sources/snapshot_manager.py:91` (`SnapshotManager`), `:258` (`verify_recorded_snapshots`)
 - OFF deterministic delta/full source: `core/food_sources/off_delta.py:54` (`OpenFoodFactsDeltaSource`)
 - OFF export selection (cache/snapshot inputs): `core/food_apis/update_manager.py:261` (`_find_off_export_file`); scheduler entry for OFF updates: `:352` (`update_database` → `_update_off_database`)

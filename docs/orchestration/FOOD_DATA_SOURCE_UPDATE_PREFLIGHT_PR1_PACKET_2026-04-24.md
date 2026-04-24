@@ -120,8 +120,8 @@ Mandatory post-open review lane remains: `qa-engineer-agent -> bug-hunter`.
 - No production, staging, or local bulk import of USDA, Open Food Facts,
   MenuStat, JPTN, or replacement restaurant data.
 - No runtime authority cutover from SQLite/local-first reads to PostgreSQL.
-- No public API, OpenAPI, frontend, iOS, Meilisearch, pgvector, or restaurant
-  endpoint behavior change.
+- Public API, OpenAPI, frontend, iOS, Meilisearch, pgvector, and restaurant
+  endpoint behavior changes are excluded from this lane.
 - No provider contract acceptance for Nutritionix-style commercial data.
 
 ## Storage Decision Gate
@@ -141,11 +141,9 @@ PR1 must decide storage before implementation:
 - `python3 scripts/orchestration/check_agent_consistency.py`
 - Docs-only local check for packet/ledger links.
 - `pre-commit run --all-files` before push.
-- PR1 uses the repo-owner-approved docs-only validation override recorded on
-  2026-04-24: local `make verify` is not run for this lane because the
-  full-suite path overloads the local machine. Merge evidence for this PR must
-  instead come from green GitHub current-head checks, strict PR body/mapping
-  gates, clean review dispositions, and the final merge wrapper.
+- PR1 follows the active repository merge-gate policy defined in root
+  `AGENTS.md` and canonical merge-readiness artifacts. This packet only defines
+  lane-specific preflight validation commands and source-update contract checks.
 
 ## Acceptance Criteria
 
